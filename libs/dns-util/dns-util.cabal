@@ -130,7 +130,7 @@ test-suite spec
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages
+    -Wunused-packages -Wno-x-partial
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:

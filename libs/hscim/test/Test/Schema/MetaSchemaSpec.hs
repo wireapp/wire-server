@@ -95,6 +95,5 @@ genAuthenticationSchemeEncoding = do
 
 genSupported :: forall a. Gen a -> Gen (Supported a)
 genSupported gen = do
-  Supported
-    <$> (ScimBool <$> Gen.bool)
+  (Supported . ScimBool <$> Gen.bool)
     <*> gen

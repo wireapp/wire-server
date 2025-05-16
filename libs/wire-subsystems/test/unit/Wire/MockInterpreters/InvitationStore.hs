@@ -3,7 +3,7 @@ module Wire.MockInterpreters.InvitationStore where
 import Data.Id (InvitationId, TeamId)
 import Data.Map (alter, elems, (!?))
 import Data.Map qualified as M
-import Imports
+import Imports hiding ((!?))
 import Polysemy
 import Polysemy.State (State, get, gets, modify)
 import Wire.API.User (InvitationCode (..))

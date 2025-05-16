@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.MiniBackend

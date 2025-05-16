@@ -344,7 +344,7 @@ createUser rateLimitKey new = do
         pure (Nothing, Just inv, Just inv.teamId)
       Just (NewTeamCreator t) -> do
         for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
-        (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
+        (Just t,Nothing,) . Just . Id <$> liftIO nextRandom
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing -> do

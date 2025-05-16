@@ -336,6 +336,7 @@ executable spar-integration
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
+    -Wno-x-partial
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
@@ -607,6 +608,7 @@ test-suite spec
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
+    -Wno-x-partial
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:

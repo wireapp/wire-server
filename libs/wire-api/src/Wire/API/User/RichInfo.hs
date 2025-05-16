@@ -314,7 +314,7 @@ validateRichInfoAssocList version fields = do
     checkDuplicates xs =
       case filter ((> 1) . length) . group . sort $ xs of
         [] -> pure ()
-        ds -> fail ("duplicate fields: " <> show (map head ds))
+        ds -> fail ("duplicate fields: " <> show (mapMaybe listToMaybe ds))
 
 instance Arbitrary RichInfoAssocList where
   arbitrary = mkRichInfoAssocList <$> arbitrary
@@ -349,8 +349,7 @@ instance ToSchema RichField where
 
 instance Arbitrary RichField where
   arbitrary =
-    RichField
-      <$> (CI.mk . Text.pack . QC.getPrintableString <$> arbitrary)
+    (RichField . CI.mk . Text.pack . QC.getPrintableString <$> arbitrary)
       <*> (Text.pack . QC.getPrintableString <$> arbitrary)
   shrink (RichField k v) = RichField <$> QC.shrink k <*> QC.shrink v
 

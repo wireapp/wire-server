@@ -634,7 +634,9 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Run
     Test.Wire.API.Golden.Runner
 
-  ghc-options:      -threaded -with-rtsopts=-N -Wunused-packages
+  ghc-options:
+    -threaded -with-rtsopts=-N -Wunused-packages -Wno-x-partial
+
   hs-source-dirs:   test/golden
   build-depends:
     , aeson                    >=2.0.1.0
@@ -739,5 +741,7 @@ test-suite wire-api-tests
     , wai
     , wire-api
 
-  ghc-options:      -threaded -with-rtsopts=-N -Wunused-packages
+  ghc-options:
+    -threaded -with-rtsopts=-N -Wunused-packages -Wno-x-partial
+
   default-language: GHC2021

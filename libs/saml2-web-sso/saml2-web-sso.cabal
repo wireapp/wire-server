@@ -74,9 +74,11 @@ library
     TypeSynonymInstances
     ViewPatterns
 
+  -- FUTUREWORK: Remove -Wno-x-partial -Wno-deprecations
+  -- These *should* be fine for production code!
   ghc-options:
     -j -O2 -Wall -Wcompat -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wtabs -Werror
+    -Wincomplete-uni-patterns -Wtabs -Wno-x-partial -Wno-deprecations
 
   build-depends:
     , aeson                 >=1.4.5.0

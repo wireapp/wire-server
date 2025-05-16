@@ -1208,8 +1208,7 @@ instance Default MlsE2EIdConfig where
 
 instance Arbitrary MlsE2EIdConfig where
   arbitrary =
-    MlsE2EIdConfig
-      <$> (fromIntegral <$> (arbitrary @Word32))
+    (MlsE2EIdConfig . fromIntegral <$> (arbitrary @Word32))
       <*> arbitrary
       <*> fmap (Alt . pure) arbitrary
       <*> arbitrary

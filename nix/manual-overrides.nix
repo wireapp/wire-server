@@ -21,7 +21,10 @@ hself: hsuper: {
   singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
 
   # Tests require a running redis
-  hedis = hlib.dontCheck hsuper.hedis;
+  hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
+
+  HaskellNet = hlib.markUnbroken (hlib.dontCheck hsuper.HaskellNet);
+  amazonka-s3-streaming = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-s3-streaming);
 
   # ---------------------
   # need to be jailbroken
@@ -31,6 +34,7 @@ hself: hsuper: {
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  postie = hlib.doJailbreak hsuper.postie;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -62,10 +66,7 @@ hself: hsuper: {
   # version overrides
   # (these are fine but will probably need to be adjusted in a future nixpkgs update)
   # -----------------
-  tls = hsuper.tls_2_1_1;
-  tls-session-manager = hsuper.tls-session-manager_0_0_6;
-  crypton-connection = hsuper.crypton-connection_0_4_1; # older version doesn't allow tls 2.1
-  amqp = hlib.dontCheck hsuper.amqp_0_24_0; # older version doesn't allow cryton-connection 0.4.1, this one has broken tests
+  crypton-connection = hsuper.crypton-connection_0_4_4; # older version doesn't allow tls 2.1
 
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
