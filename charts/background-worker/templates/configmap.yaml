@@ -36,6 +36,7 @@ data:
       port: {{ .port }}
       vHost: {{ .vHost }}
       {{- if $.Values.config.enableFederation }}
+      adminHost: {{ default .host .adminHost }}
       adminPort: {{ .adminPort }}
       {{- end }}
       enableTls: {{ .enableTls }}

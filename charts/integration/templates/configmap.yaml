@@ -77,6 +77,7 @@ data:
     rabbitmq:
       host: rabbitmq
       port: 5671
+      adminHost: rabbitmq
       adminPort: 15671
       enableTls: true
       insecureSkipVerifyTls: true
