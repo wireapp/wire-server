@@ -29,7 +29,6 @@ module Galley.API.Teams.Features
     guardSecondFactorDisabled,
     featureEnabledForTeam,
     guardMlsE2EIdConfig,
-    initialiseTeamFeatures,
   )
 where
 
@@ -242,21 +241,6 @@ setFeatureForTeam tid feat = do
   newFeat <- persistFeature tid preparedFeat
   pushFeatureEvent tid (mkUpdateEvent newFeat)
   pure newFeat
-
-initialiseTeamFeatures ::
-  ( Member (Input Opts) r,
-    Member TeamFeatureStore r
-  ) =>
-  TeamId ->
-  Sem r ()
-initialiseTeamFeatures tid = do
-  flags :: FeatureFlags <- inputs $ view (settings . featureFlags)
-
-  -- set MLS initial config
-  let MLSDefaults fdef = npProject flags
-  let feat = initialFeature fdef
-  setDbFeature tid feat
-  pure ()
 
 -------------------------------------------------------------------------------
 -- SetFeatureConfig instances
