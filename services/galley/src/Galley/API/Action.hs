@@ -418,6 +418,7 @@ ensureAllowed ::
   Sem r ()
 ensureAllowed tag _ action conv (TeamMember tm) = do
   case tag of
+    SConversationRenameTag -> ensureChannelAndTeamAdmin conv tm
     SConversationJoinTag -> do
       case action of
         ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
@@ -881,7 +882,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
       ensureAllowed tag loc action conv self
 
     skipConversationRoleCheck :: Sing tag -> Conversation -> Maybe TeamMember -> Bool
-    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+    skipConversationRoleCheck SConversationJoinTag conv (Just _) =
+      conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
     skipConversationRoleCheck _ _ _ = False
 
 -- --------------------------------------------------------------------------------
