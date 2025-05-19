@@ -13,6 +13,7 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
+import qualified Data.Text as ST
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
 import qualified SAML2.WebSSO as SAML
@@ -376,6 +377,30 @@ testSparIdPInitiatedLogin = do
   let idp :: SAML.IdPConfig Value
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
   authnresp <- getAuthnResponse tid idp privcreds
+
+  -- send to finalize and check redirect response
+  finalizeSamlLogin OwnDomain tid authnresp `bindResponse` \resp -> do
+    -- the 303 is followed immediately, so the response is already coming from
+    -- /sso/initiate-login here.
+    resp.status `shouldMatchInt` 200
+    (cs resp.body) `shouldContain` "SAMLRequest"
+
+testSparIdPInitiatedLoginSpecialChar :: (HasCallStack) => App ()
+testSparIdPInitiatedLoginSpecialChar = do
+  -- set up saml-not-scim team
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (createIdpResp, (_idpmeta, privcreds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+  assertSuccess createIdpResp
+
+  -- craft authnresp without req
+  idpValue :: A.Value <- createIdpResp.json
+  let idp :: SAML.IdPConfig Value
+      idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
+      -- klăus
+      -- TODO: Add some randomness to be able to run this test multiple times
+      Right (subject :: SAML.NameID) = SAML.mkNameID ((SAML.mkUNameIDUnspecified . ST.pack) "klăus") Nothing Nothing Nothing
+  authnresp <- getAuthnResponseCustomNameID subject tid idp privcreds
 
   -- send to finalize and check redirect response
   finalizeSamlLogin OwnDomain tid authnresp `bindResponse` \resp -> do

@@ -562,6 +562,10 @@ parseAuthnReqResp bs = reqBody
 getAuthnResponse :: String -> SAML.IdPConfig extra -> SAML.SignPrivCreds -> App SAML.SignedAuthnResponse
 getAuthnResponse tid idp privCreds = do
   subject <- nextSubject
+  getAuthnResponseCustomNameID subject tid idp privCreds
+
+getAuthnResponseCustomNameID :: SAML.NameID -> String -> SAML.IdPConfig extra -> SAML.SignPrivCreds -> App SAML.SignedAuthnResponse
+getAuthnResponseCustomNameID subject tid idp privCreds = do
   spmeta :: SAML.SPMetadata <-
     getSPMetadata OwnDomain tid `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
