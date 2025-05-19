@@ -7,14 +7,21 @@ module Test.SAML2.WebSSO.XMLSpec
   )
 where
 
+import Data.ByteString as BS
+import Data.ByteString.Base64 qualified
+import Data.ByteString.Lazy as LBS
 import Data.Either
+import Data.Maybe
 import Data.String.Conversions
 import Data.Text.Lazy qualified as LT
+import Data.Tree.NTree.TypeDefs
 import SAML2.Core qualified as HS
 import SAML2.Util
 import SAML2.WebSSO
 import SAML2.XML qualified as HS
+import SAML2.XML.Canonical
 import Test.Hspec
+import Text.XML.HXT.DOM.TypeDefs
 import URI.ByteString.QQ (uri)
 
 -- | embed an email into a valid NameID context
@@ -110,3 +117,32 @@ spec = describe "XML Sanitization" $ do
       -- this is good!
       HS.xmlToSAML @HS.NameID "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">&lt;something&gt;</NameID>"
         `shouldBe` Right (HS.simpleNameID HS.NameIDFormatUnspecified "<something>")
+
+    it "counter-example base case" $ do
+      let xin = "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
+          xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
+      (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
+
+    it "counter-example unicode" $ do
+      let xin = "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
+          xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
+      (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
+
+    focus . it "bla" $ do
+      (i, o) <- canonicalizeCounterExample "PGE+w6Q8L2E+"
+      i `shouldBe` o
+
+canonicalizeCounterExample :: (HasCallStack) => BS.ByteString -> IO (LBS.ByteString, LBS.ByteString)
+canonicalizeCounterExample base64input = do
+  let inbs :: LBS.ByteString
+      inbs = either (error "badcase") BS.fromStrict $ Data.ByteString.Base64.decode base64input
+
+      tree :: XmlTree
+      tree = fromMaybe (error "badcase") $ HS.xmlToDoc inbs
+
+      algo :: CanonicalizationAlgorithm
+      algo = CanonicalXMLExcl10 {canonicalWithComments = True}
+
+  outbs :: LBS.ByteString <- BS.fromStrict <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
+
+  pure (inbs, outbs)

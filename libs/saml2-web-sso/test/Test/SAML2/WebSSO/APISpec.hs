@@ -205,6 +205,8 @@ spec = describe "API" $ do
             (Proxy @APIAuthResp')
             (authresp' Nothing defSPIssuer defResponseURI (HandleVerdictRedirect (simpleOnSuccess SubjectFoldCase)))
 
+    -- TODO: test email, display name with / without unicode.  something else?
+
     let testAuthnRespWithCtx ::
           String ->
           (ID AuthnRequest -> Issuer -> Time -> RequestStore) ->
@@ -347,3 +349,6 @@ spec = describe "API" $ do
 
     it "utf8 characters in authentication response are parsed correctly (not as Char8)" $ do
       check "microsoft-azure-utf8-issue-metadata.xml" "microsoft-azure-utf8-issue-authentication-request.xml"
+
+    focus . it "what is this about?  donno, let's see!" $ do
+      check "keycloak-response.xml" "keycloak-idp-metadata.xml"
