@@ -438,7 +438,7 @@ testNonTeamAdminCannotAddMembersWithoutJoining = do
 
 testTeamAdminCanChangeChannelNameWithoutJoining :: (HasCallStack) => App ()
 testTeamAdminCanChangeChannelNameWithoutJoining = do
-  (owner, tid, _) <- createTeam OwnDomain 2
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
   conv <-
@@ -451,6 +451,12 @@ testTeamAdminCanChangeChannelNameWithoutJoining = do
     resp.json %. "name" `shouldMatch` "foo"
   newName <- randomName
   changeConversationName owner conv newName >>= assertSuccess
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` newName
+  changeConversationName mem conv newName `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "no-conversation"
   I.getConversation conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "name" `shouldMatch` newName

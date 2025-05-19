@@ -882,8 +882,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
       ensureAllowed tag loc action conv self
 
     skipConversationRoleCheck :: Sing tag -> Conversation -> Maybe TeamMember -> Bool
-    skipConversationRoleCheck SConversationJoinTag conv (Just _) =
-      conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
     skipConversationRoleCheck _ _ _ = False
 
 -- --------------------------------------------------------------------------------
