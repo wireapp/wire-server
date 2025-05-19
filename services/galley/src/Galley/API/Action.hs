@@ -408,7 +408,8 @@ ensureAllowed ::
   forall tag mem r x.
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
-    Member (ErrorS InvalidOperation) r
+    Member (ErrorS InvalidOperation) r,
+    Member (ErrorS ConvNotFound) r
   ) =>
   Sing tag ->
   Local x ->
@@ -423,7 +424,7 @@ ensureAllowed tag _ action conv (TeamMember tm) = do
         ConversationJoin _ _ InternalAdd -> throwS @'InvalidOperation
         ConversationJoin _ _ ExternalCreate -> ensureChannelAndTeamAdmin conv tm
         ConversationJoin _ _ ExternalAdd -> ensureChannelAndTeamAdmin conv tm
-    _ -> throwS @'InvalidOperation
+    _ -> throwS @'ConvNotFound
 ensureAllowed tag loc action conv (ConvMember origUser) = do
   case tag of
     SConversationJoinTag ->
@@ -871,7 +872,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
         (skipConversationRoleCheck tag conv mTeamMember)
         case self of
           ConvMember mem -> ensureActionAllowed (sConversationActionPermission tag) mem
-          TeamMember _ -> throwS @'ConvNotFound
+          -- TeamMember is a special case, which will be handled in ensureAllowed
+          TeamMember _ -> pure ()
 
       -- check if it is a group conversation (except for rename actions)
       when (fromSing tag /= ConversationRenameTag) $
