@@ -289,8 +289,8 @@ let
     hxt = {
       src = fetchgit {
         url = "https://github.com/fisx/hxt.git";
-        rev = "1cd08a422a4edf3e548069d93ef0e303f854af99";
-        hash = "sha256-cpDAtkEj21xVfMrv9807L4NIsTzvgf6Fa3WPFnRjDSk=";
+        rev = "431301456f37289a8217dda273dbfbce85bf2bfb";
+        hash = "sha256-5QXYrPeRUgYK1lIHvRW2xkZWrftiNawADPPwbS43IeY=";
       };
       packages = {
         hxt = "hxt";
