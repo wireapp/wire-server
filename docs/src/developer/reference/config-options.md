@@ -308,19 +308,6 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
-This flag also supports setting an `initialConfig` value, which is applied when a team is created:
-
-```yaml
-# galley.yaml
-mls:
-  initialConfig:
-    protocolToggleUsers: []
-    defaultProtocol: mls
-    supportedProtocols: [proteus, mls] # must contain defaultProtocol
-    allowedCipherSuites: [2]
-    defaultCipherSuite: 2
-```
-
 ### MLS End-to-End Identity
 
 The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
