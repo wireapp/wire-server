@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-incomplete-patterns -Wno-incomplete-uni-patterns #-}
 
@@ -11,7 +12,8 @@ import Data.ByteString as SBS
 import Data.ByteString.Base64 qualified
 import Data.ByteString.Lazy as LBS
 import Data.Either
-import Data.Maybe
+import Data.Default
+import Imports
 
 import qualified Data.ByteString.Lazy.Char8 as CS
 import qualified Data.ByteString.Lazy            as BS
@@ -27,6 +29,7 @@ import SAML2.WebSSO
 import SAML2.XML qualified as HS
 import SAML2.XML.Canonical
 import Test.Hspec
+import Text.XML as XMLC
 import Text.XML.HXT.DOM.TypeDefs
 import URI.ByteString.QQ (uri)
 
@@ -129,9 +132,25 @@ spec = describe "XML Sanitization" $ do
           xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
       (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
 
-    it "counter-example unicode" $ do
+    focus . it "counter-example unicode" $ do
       let xin = "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
           xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
+          xmlcOutExpected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
+
+          xmlcIn :: Either SomeException Document = XMLC.parseText def xin
+          xmlcOut :: LByteString = XMLC.renderLBS def (either (error . show) id xmlcIn)
+
+      -- is how we use xml-conduit in "SAML2.WebSSO.XML" correct?
+      xmlcOut `shouldBe` xmlcOutExpected
+
+      {- TODO: no:
+  test/Test/SAML2/WebSSO/XMLSpec.hs:144:15:
+  1) Test.SAML2.WebSSO.XML, XML Sanitization, decodeElem, counter-example unicode
+       expected: "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">C\ETXro</NameID>"
+        but got: "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">CÄ\131ro</NameID>"
+      -}
+
+      -- does decodeElem work?
       (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
 
     focus . it "bla" $ do
