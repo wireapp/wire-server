@@ -214,16 +214,18 @@ newtype instance FeatureDefaults SndFactorPasswordChallengeConfig
   deriving (FromJSON) via Defaults (LockableFeature SndFactorPasswordChallengeConfig)
   deriving (ParseFeatureDefaults) via OptionalField SndFactorPasswordChallengeConfig
 
-newtype instance FeatureDefaults MLSConfig = MLSDefaults (LockableFeature MLSConfig)
+newtype instance FeatureDefaults MLSConfig
+  = MLSDefaults (LockableFeature MLSConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via LockableFeature MLSConfig
+  deriving (FromJSON) via Defaults (LockableFeature MLSConfig)
   deriving (ParseFeatureDefaults) via OptionalField MLSConfig
 
-newtype instance FeatureDefaults ChannelsConfig = ChannelsDefaults (LockableFeature ChannelsConfig)
+newtype instance FeatureDefaults ChannelsConfig
+  = ChannelsDefaults (LockableFeature ChannelsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via LockableFeature ChannelsConfig
+  deriving (FromJSON) via Defaults (LockableFeature ChannelsConfig)
   deriving (ParseFeatureDefaults) via OptionalField ChannelsConfig
 
 data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
