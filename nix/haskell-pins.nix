@@ -286,6 +286,16 @@ let
       };
     };
 
+    hxt = {
+      src = fetchgit {
+        url = "https://github.com/fisx/hxt.git";
+        rev = "1cd08a422a4edf3e548069d93ef0e303f854af99";
+        hash = "sha256-cpDAtkEj21xVfMrv9807L4NIsTzvgf6Fa3WPFnRjDSk=";
+      };
+      packages = {
+        hxt = "hxt";
+      };
+    };
   };
 
   hackagePins = {
