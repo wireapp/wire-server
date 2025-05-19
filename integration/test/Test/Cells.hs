@@ -40,7 +40,7 @@ testCellsEvent = do
   do
     event <- getMessage q %. "payload.0"
     event %. "type" `shouldMatch` "conversation.member-join"
-    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
     event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
     users <- event %. "data.users" & asList
     assertOne users %. "qualified_id" `shouldMatch` chazId
@@ -51,7 +51,7 @@ testCellsEvent = do
   do
     event <- getMessage q %. "payload.0"
     event %. "type" `shouldMatch` "conversation.member-join"
-    event %. "conversation" `shouldMatch` (conv %. "id")
+    event %. "conversation" `shouldMatch` (conv %. "qualified_id" & objId)
     event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
     users <- event %. "data.users" & asList
     assertOne users %. "qualified_id" `shouldMatch` deanId
@@ -72,8 +72,26 @@ testCellsCreationEvent = do
 
   event <- getMessage q %. "payload.0"
   event %. "type" `shouldMatch` "conversation.create"
-  event %. "conversation" `shouldMatch` (conv %. "id")
+  event %. "qualified_conversation.id" `shouldMatch` (conv %. "qualified_id.id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+
+  assertNoMessage q
+
+testCellsCreationEventIsSentOnlyOnce :: (HasCallStack) => App ()
+testCellsCreationEventIsSentOnlyOnce = do
+  -- start watcher before creating conversation
+  q0 <- watchCellsEvents def
+  (alice, tid, members) <- createTeam OwnDomain 2
+  conv <- postConversation alice defProteus {team = Just tid, cells = True, qualifiedUsers = members} >>= getJSON 201
+
+  let q = q0 {filter = isNotifConv conv} :: QueueConsumer
+
+  event <- getMessage q %. "payload.0"
+  event %. "type" `shouldMatch` "conversation.create"
+  event %. "qualified_conversation.id" `shouldMatch` (conv %. "qualified_id.id")
+  event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
+
+  assertNoMessage q
 
 testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do

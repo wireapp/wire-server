@@ -36,7 +36,7 @@ data DomainRedirect
   = None
   | Locked
   | SSO SAML.IdPId
-  | Backend HttpsUrl
+  | Backend HttpsUrl (Maybe HttpsUrl)
   | NoRegistration
   | PreAuthorized
   deriving stock (Eq, Show, Generic)
@@ -61,7 +61,7 @@ domainRedirectTag :: DomainRedirect -> DomainRedirectTag
 domainRedirectTag None = NoneTag
 domainRedirectTag Locked = LockedTag
 domainRedirectTag (SSO _) = SSOTag
-domainRedirectTag (Backend _) = BackendTag
+domainRedirectTag (Backend _ _) = BackendTag
 domainRedirectTag NoRegistration = NoRegistrationTag
 domainRedirectTag PreAuthorized = PreAuthorizedTag
 
@@ -80,6 +80,30 @@ instance ToSchema DomainRedirectTag where
 domainRedirectTagSchema :: ObjectSchema SwaggerDoc DomainRedirectTag
 domainRedirectTagSchema = field "domain_redirect" schema
 
+domainRedirectSchemaV8 :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchemaV8 =
+  snd
+    <$> (domainRedirectTag &&& id)
+      .= bind
+        (fst .= domainRedirectTagSchema)
+        (snd .= dispatch domainRedirectObjectSchema)
+  where
+    domainRedirectObjectSchema :: DomainRedirectTag -> ObjectSchema SwaggerDoc DomainRedirect
+    domainRedirectObjectSchema = \case
+      NoneTag -> tag _None (pure ())
+      LockedTag -> tag _Locked (pure ())
+      SSOTag -> tag _SSO samlIdPIdObjectSchema
+      BackendTag -> tag (_Backend) backendConfigSchemaV8
+      NoRegistrationTag -> tag _NoRegistration (pure ())
+      PreAuthorizedTag -> tag _PreAuthorized (pure ())
+
+backendConfigSchemaV8 :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+backendConfigSchemaV8 =
+  (,)
+    <$> fst .= field "backend_url" schema
+    -- API versions <= V8 ignore the WebApp URL
+    <*> const Nothing .= pure Nothing
+
 domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
 domainRedirectSchema =
   snd
@@ -93,15 +117,22 @@ domainRedirectSchema =
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
       SSOTag -> tag _SSO samlIdPIdObjectSchema
-      BackendTag -> tag _Backend backendUrlSchema
+      BackendTag -> tag (_Backend) backendConfigFieldSchema
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
+    backendConfigFieldSchema :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigFieldSchema = field "backend" backendConfigObjectSchema
+
+    backendConfigObjectSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+    backendConfigObjectSchema =
+      object "BackendConfig" $
+        (,)
+          <$> fst .= field "config_url" schema
+          <*> snd .= maybe_ (optField "webapp_url" schema)
+
 samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema
-
-backendUrlSchema :: ObjectSchema SwaggerDoc HttpsUrl
-backendUrlSchema = field "backend_url" schema
 
 instance ToSchema DomainRedirect where
   schema = object "DomainRedirect " domainRedirectSchema
@@ -199,7 +230,7 @@ instance Arbitrary DomainRegistrationUpdate where
       validate dr =
         case dr.domainRedirect of
           Locked -> dr.teamInvite == Allowed
-          Backend _ -> dr.teamInvite == NotAllowed
+          Backend _ _ -> dr.teamInvite == NotAllowed
           _ -> True
 
 instance ToSchema DomainRegistrationUpdate where

@@ -30,7 +30,6 @@ import Brig.Calling as Calling
 import Brig.Options as Opt
 import Brig.Run qualified as Run
 import Brig.Types.Activation
-import Brig.ZAuth qualified as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens ((^?), (^?!))
@@ -123,6 +122,7 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 
 type Brig = Request -> Request
 
@@ -538,10 +538,10 @@ legalHoldLogin b l t =
 decodeCookie :: (HasCallStack) => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
+decodeToken :: (HasCallStack) => Response (Maybe LByteString) -> ZAuth.Token ZAuth.A
 decodeToken = decodeToken'
 
-decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
+decodeToken' :: (HasCallStack, ZAuth.KnownType a, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
 decodeToken' r = fromMaybe (error "invalid access_token") $ do
   x <- responseBody r
   t <- x ^? key "access_token" . _String
@@ -729,6 +729,7 @@ createConversation galley zusr usersToAdd = do
           GroupConversation
           False
           Nothing
+          False
   post $
     galley
       . path "/conversations"

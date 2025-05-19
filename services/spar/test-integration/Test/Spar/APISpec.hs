@@ -22,7 +22,7 @@ module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Bilge.Assert
-import Cassandra as Cas hiding (Value)
+import Cassandra as Cas hiding (Client, Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Random.Class (getRandomR)
@@ -1307,9 +1307,9 @@ specScimAndSAML = do
       maybe (error "no access token") pure $ val ^? key "access_token" . _String
     -- token should contain the expected userid
     userid'' <- do
-      parsed :: ZAuth.Token ZAuth.Access <-
+      parsed :: ZAuth.Token ZAuth.A <-
         maybe (error "bad access token") pure . fromByteString . cs $ token
-      pure $ Id (parsed ^. ZAuth.body . ZAuth.userId)
+      pure $ Id parsed.body.userId
     liftIO $ userid'' `shouldBe` userid
     -- /self should contain the expected UserSSOId
     self :: ResponseLBS <-
@@ -1635,7 +1635,7 @@ specReAuthSsoUserWithPassword =
 
     addClientInternal :: (HasCallStack, MonadIO m, MonadReader TestEnv m, MonadThrow m) => BrigReq -> UserId -> NewClient -> m ClientId
     addClientInternal brig uid new = do
-      c <-
+      c :: Client <-
         responseJsonError
           =<< call
             ( post $
@@ -1645,7 +1645,7 @@ specReAuthSsoUserWithPassword =
                   . body (RequestBodyLBS $ encode new)
                   . expect2xx
             )
-      pure $ clientId c
+      pure $ c.clientId
 
     defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
     defNewClient ty pks lpk =

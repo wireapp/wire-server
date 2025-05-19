@@ -63,7 +63,7 @@ import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
-import Wire.API.Conversation (Conversation (cnvMembers))
+import Wire.API.Conversation (ConversationV8 (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.MLS.CommitBundle
@@ -94,7 +94,7 @@ generateClientPrekeys brig prekeys = do
   quser <- userQualifiedId <$> randomUser brig
   let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
       nclients = map mkClient prekeys
-      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
+      mkClientPrekey (pk, _) (c :: Client) = ClientPrekey c.clientId pk
   clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
   pure (quser, zipWith mkClientPrekey prekeys clients)
 

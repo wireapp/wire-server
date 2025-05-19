@@ -19,8 +19,12 @@
 
 module Proxy.Options
   ( Opts,
-    host,
-    port,
+    proxy,
+    giphyEndpoint,
+    youtubeEndpoint,
+    googleMapsEndpoint,
+    spotifyEndpoint,
+    soundcloudEndpoint,
     secretsConfig,
     httpPoolSize,
     maxConns,
@@ -28,9 +32,11 @@ module Proxy.Options
     logNetStrings,
     logFormat,
     disabledAPIVersions,
+    disableTlsForTest,
   )
 where
 
+import Cassandra.Options
 import Control.Lens hiding (Level)
 import Data.Aeson
 import Data.Aeson.TH
@@ -39,10 +45,12 @@ import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
 data Opts = Opts
-  { -- | Host to listen on
-    _host :: !String,
-    -- | Port to listen on
-    _port :: !Word16,
+  { _proxy :: !Endpoint,
+    _giphyEndpoint :: !(Maybe Endpoint),
+    _youtubeEndpoint :: !(Maybe Endpoint),
+    _googleMapsEndpoint :: !(Maybe Endpoint),
+    _spotifyEndpoint :: !(Maybe Endpoint),
+    _soundcloudEndpoint :: !(Maybe Endpoint),
     -- | File containing upstream secrets
     _secretsConfig :: !FilePath,
     -- | Number of connections for the HTTP pool
@@ -56,7 +64,8 @@ data Opts = Opts
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | choose Encoding
     _logFormat :: !(Maybe (Last LogFormat)),
-    _disabledAPIVersions :: !(Set VersionExp)
+    _disabledAPIVersions :: !(Set VersionExp),
+    _disableTlsForTest :: Maybe Bool
   }
   deriving (Show, Generic)
 

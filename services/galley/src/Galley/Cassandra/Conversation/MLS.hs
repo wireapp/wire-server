@@ -33,6 +33,7 @@ import Galley.Data.Types
 import Imports
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.LeafNode
 
 acquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> Client LockAcquired
 acquireCommitLock groupId epoch ttl = do
@@ -65,10 +66,10 @@ checkTransSuccess :: [Row] -> Bool
 checkTransSuccess [] = False
 checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
 
-lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap, IndexMap)
+lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndices groupId = do
   entries <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
   pure $ (mkClientMap &&& mkIndexMap) entries
 
-lookupMLSClients :: GroupId -> Client ClientMap
+lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap fst . lookupMLSClientLeafIndices

@@ -8,6 +8,7 @@
 , bilge
 , bytestring
 , case-insensitive
+, cassandra-util
 , configurator
 , errors
 , exceptions
@@ -30,8 +31,6 @@
 , uuid
 , wai
 , wai-middleware-gunzip
-, wai-predicates
-, wai-routing
 , wai-utilities
 , wire-api
 }:
@@ -47,6 +46,7 @@ mkDerivation {
     bilge
     bytestring
     case-insensitive
+    cassandra-util
     configurator
     errors
     exceptions
@@ -67,8 +67,6 @@ mkDerivation {
     uuid
     wai
     wai-middleware-gunzip
-    wai-predicates
-    wai-routing
     wai-utilities
     wire-api
   ];

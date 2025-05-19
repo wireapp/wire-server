@@ -43,9 +43,8 @@ resourceServiceMap resource =
           galley = g Galley,
           gundeck = g Gundeck,
           nginz = g Nginz,
+          proxy = g WireProxy,
           spar = g Spar,
-          -- FUTUREWORK: Set to g Proxy, when we add Proxy to spawned services
-          proxy = HostPort "127.0.0.1" 9087,
           stern = g Stern,
           wireServerEnterprise = g WireServerEnterprise,
           rabbitMqVHost = fromString resource.berVHost

@@ -1,0 +1,29 @@
+federatorInternal:
+  host: 0.0.0.0
+  port: 8080
+federatorExternal:
+  host: 0.0.0.0
+  port: 8081
+brig:
+  host: brig-federation-v2
+  port: 8080
+cargohold:
+  host: cargohold-federation-v2
+  port: 8080
+galley:
+  host: galley-federation-v2
+  port: 8080
+
+logLevel: Warn
+logNetStrings: false
+
+optSettings:
+  # Filepath to one or more PEM-encoded server certificates to use as a trust
+  # store when making requests to remote backends
+  remoteCAStore: "/etc/wire/federator/conf/integration-ca.pem"
+  useSystemCAStore: false
+  clientCertificate: "/etc/wire/federator/conf/integration-leaf.pem"
+  clientPrivateKey: "/etc/wire/federator/conf/integration-leaf-key.pem"
+  tcpConnectionTimeout: 5000000
+  dnsHost: 172.20.1.4
+  dnsPort: 53

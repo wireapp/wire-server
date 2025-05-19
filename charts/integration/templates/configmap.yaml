@@ -77,6 +77,7 @@ data:
     rabbitmq:
       host: rabbitmq
       port: 5671
+      adminHost: rabbitmq
       adminPort: 15671
       enableTls: true
       insecureSkipVerifyTls: true
@@ -85,12 +86,14 @@ data:
     rabbitmq-v0:
       host: rabbitmq.wire-federation-v0.svc.cluster.local
       port: 5671
+      adminHost: rabbitmq.wire-federation-v0.svc.cluster.local
       adminPort: 15672
       vHost: /
 
     rabbitmq-v1:
       host: rabbitmq.wire-federation-v1.svc.cluster.local
       port: 5671
+      adminHost: rabbitmq.wire-federation-v1.svc.cluster.local
       adminPort: 15672
       vHost: /
 
@@ -254,6 +257,49 @@ data:
         port: 8080
       wireServerEnterprise:
         host: wireServerEnterprise.wire-federation-v1.svc.cluster.local
+        port: 8080
+      rabbitMqVHost: /
+
+    federation-v2:
+      originDomain: federation-test-helper.wire-federation-v2.svc.cluster.local
+      brig:
+        host: brig.wire-federation-v2.svc.cluster.local
+        port: 8080
+      cannon:
+        host: cannon.wire-federation-v2.svc.cluster.local
+        port: 8080
+      cargohold:
+        host: cargohold.wire-federation-v2.svc.cluster.local
+        port: 8080
+      federatorInternal:
+        host: federator.wire-federation-v2.svc.cluster.local
+        port: 8080
+      federatorExternal:
+        host: federator.wire-federation-v2.svc.cluster.local
+        port: 8081
+      galley:
+        host: galley.wire-federation-v2.svc.cluster.local
+        port: 8080
+      gundeck:
+        host: gundeck.wire-federation-v2.svc.cluster.local
+        port: 8080
+      nginz:
+        host: nginz-integration-http.wire-federation-v2.svc.cluster.local
+        port: 8080
+      spar:
+        host: spar.wire-federation-v2.svc.cluster.local
+        port: 8080
+      proxy:
+        host: proxy.wire-federation-v2.svc.cluster.local
+        port: 8080
+      backgroundWorker:
+        host: backgroundWorker.wire-federation-v2.svc.cluster.local
+        port: 8080
+      stern:
+        host: stern.wire-federation-v2.svc.cluster.local
+        port: 8080
+      wireServerEnterprise:
+        host: wireServerEnterprise.wire-federation-v2.svc.cluster.local
         port: 8080
       rabbitMqVHost: /
 

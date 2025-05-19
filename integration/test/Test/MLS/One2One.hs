@@ -123,7 +123,7 @@ testMLSOne2OneOtherMember scenario = do
     bobOne2OneConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobOne2OneConv %. "conversation.qualified_id")
 
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   resetOne2OneGroup def alice1 one2OneConv
   withWebSocket bob1 $ \ws -> do
@@ -153,7 +153,7 @@ testMLSOne2OneRemoveClientLocalV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   conv <- getMLSOne2OneConversationLegacy alice bob >>= getJSON 200
 
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   convId <- objConvId conv
   createGroup def alice1 convId
@@ -207,7 +207,7 @@ testMLSOne2OneBlockedAfterConnected scenario = do
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobConv %. "conversation.qualified_id")
 
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   resetOne2OneGroup def alice1 one2OneConv
   commit <- createAddCommit alice1 one2OneConvId [bob]
@@ -247,7 +247,7 @@ testMLSOne2OneUnblocked scenario = do
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobConv %. "conversation.qualified_id")
 
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   resetOne2OneGroup def alice1 one2OneConv
   withWebSocket bob1 $ \ws -> do
@@ -268,7 +268,7 @@ testMLSOne2OneUnblocked scenario = do
 
   -- Bob creates a new client and adds it to the one-to-one conversation just so
   -- that the epoch advances.
-  bob2 <- createMLSClient def def bob
+  bob2 <- createMLSClient def bob
   void $ uploadNewKeyPackage def bob2
   void $ createAddCommit bob1 one2OneConvId [bob] >>= sendAndConsumeCommitBundle
 
@@ -325,7 +325,7 @@ testMLSOne2One suite scenario = do
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  [alice1, bob1] <- traverse (createMLSClient suite def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def {ciphersuites = [suite]}) [alice, bob]
   void $ uploadNewKeyPackage suite bob1
 
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
@@ -365,7 +365,7 @@ testMLSOne2One suite scenario = do
 testMLSGhostOne2OneConv :: App ()
 testMLSGhostOne2OneConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   one2OneConvId <- objConvId $ one2OneConv %. "conversation"
@@ -393,7 +393,8 @@ testMLSGhostOne2OneConv = do
     liftIO $ putMVar doneVar ()
     wait a
 
--- [NOTE: Federated 1:1 MLS Conversations]
+-- Note [Federated 1:1 MLS Conversations]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- 1:1 Conversations shouldn't work when there is no way for the creator to know
 -- the MLS public keys of the backend which will host this conversation. In
 -- federation API V2, this will always work and has been tested above. When one
@@ -416,7 +417,7 @@ testMLSFederationV1ConvOnOldBackend domain = do
             else createBob
 
   bob <- createBob
-  [alice1, bob1] <- traverse (createMLSClient cs def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def {ciphersuites = [cs]}) [alice, bob]
   void $ uploadNewKeyPackage cs alice1
 
   -- Alice cannot start this conversation because it would exist on Bob's
@@ -472,7 +473,7 @@ testMLSFederationV1ConvOnNewBackend domain = do
             else createBob
 
   bob <- createBob
-  [alice1, bob1] <- traverse (createMLSClient cs def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def {ciphersuites = [cs]}) [alice, bob]
   void $ uploadNewKeyPackage cs bob1
 
   -- Bob cannot start this conversation because it would exist on Alice's

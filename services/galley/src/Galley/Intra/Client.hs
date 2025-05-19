@@ -23,6 +23,7 @@ module Galley.Intra.Client
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
     getLocalMLSClients,
+    getLocalMLSClient,
   )
 where
 
@@ -129,7 +130,7 @@ addLegalHoldClientToUser ::
   LastPrekey ->
   App (Either AuthenticationError ClientId)
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
-  fmap clientId <$> brigAddClient uid connId lhClient
+  fmap (.clientId) <$> brigAddClient uid connId lhClient
   where
     lhClient =
       NewClient
@@ -182,6 +183,26 @@ getLocalMLSClients lusr suite =
             "mls",
             "clients",
             toByteString' (tUnqualified lusr)
+          ]
+        . queryItem
+          "ciphersuite"
+          (toHeader (tagCipherSuite suite))
+        . expect2xx
+    )
+    >>= parseResponse (mkError status502 "server-error")
+
+-- | Calls 'Brig.API.Internal.getMLSClient'.
+getLocalMLSClient :: Local UserId -> ClientId -> CipherSuiteTag -> App ClientInfo
+getLocalMLSClient lusr cid suite =
+  call
+    Brig
+    ( method GET
+        . paths
+          [ "i",
+            "mls",
+            "client",
+            toByteString' (tUnqualified lusr),
+            toByteString' cid
           ]
         . queryItem
           "ciphersuite"

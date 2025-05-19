@@ -252,18 +252,18 @@ testConversationAccessRole = do
           { newConvQualifiedUsers = [bob],
             newConvAccessRoles = Just (Set.singleton TeamMemberAccessRole)
           }
-  conv <-
+  conv :: Conversation <-
     responseJsonError
       =<< postConvQualified (qUnqualified alice) Nothing nc
         <!! const 201 === statusCode
   liftIO $
-    cnvAccessRoles conv @?= Set.singleton TeamMemberAccessRole
+    conv.metadata.cnvmAccessRoles @?= Set.singleton TeamMemberAccessRole
 
 testAccessRoleUpdateV2 :: TestM ()
 testAccessRoleUpdateV2 = do
   g <- view tsUnversionedGalley
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  conv <-
+  conv :: Conversation <-
     responseJsonError
       =<< postConvQualified
         (qUnqualified alice)
@@ -272,7 +272,7 @@ testAccessRoleUpdateV2 = do
           { newConvQualifiedUsers = [bob]
           }
         <!! const 201 === statusCode
-  let qcnv = cnvQualifiedId conv
+  let qcnv = conv.qualifiedId
   -- Using v2 qualified endpoint
   put
     ( g

@@ -176,15 +176,6 @@ let
       };
     };
 
-    # we use upstream, but has not been uploaded to hackage since 2016
-    wai-routing = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/wai-routing";
-        rev = "7e996a93fec5901767f845a50316b3c18e51a61d";
-        hash = "sha256-k0IV5jTYmoWA8TrVfbNuQIsblfZCbrYF8dowmfTkLKI=";
-      };
-    };
-
     # PR: https://github.com/UnkindPartition/tasty/pull/351
     tasty = {
       src = fetchgit {
@@ -204,6 +195,19 @@ let
         url = "https://github.com/wireapp/servant-openapi3";
         rev = "0db0095040df2c469a48f5b8724595f82afbad0c";
         hash = "sha256-iKMWd+qm8hHhKepa13VWXDPCpTMXxoOwWyoCk4lLlIY=";
+      };
+    };
+
+    # Replace this with upstream once > 0.20.2 has been released.
+    servant = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/servant";
+        rev = "fa8271564ebd9dff22de84aa77a687c89398a612";
+        hash = "sha256-9g3tEfHCtGyA+w4HAy6H36IyIUnDPmfJHAxCswJEVSQ=";
+      };
+      packages = {
+        servant = "servant";
+        servant-server = "servant-server";
       };
     };
 
@@ -285,13 +289,6 @@ let
   };
 
   hackagePins = {
-    # Major re-write upstream, we should get rid of this dependency rather than
-    # adapt to upstream, this will go away when completing servantification.
-    wai-route = {
-      version = "0.4.0";
-      sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
-    };
-
     # start pinned dependencies for http2
     http-semantics = {
       version = "0.1.2";

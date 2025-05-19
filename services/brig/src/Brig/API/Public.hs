@@ -85,6 +85,7 @@ import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock
+import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Imports hiding (head)
@@ -151,7 +152,8 @@ import Wire.API.User.Search qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem, createPasswordResetCode, resetPassword)
+import Wire.AuthenticationSubsystem as AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
@@ -175,8 +177,11 @@ import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
+import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
+import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
 import Wire.UserKeyStore
@@ -383,7 +388,12 @@ servantSitemap ::
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
     Member RateLimit r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member SessionStore r,
+    Member Metrics r,
+    Member CryptoSign r,
+    Member Random r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -561,7 +571,9 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"update-domain-redirect" updateDomainRedirect
+      Named @"update-domain-redirect@v8" updateDomainRedirectV8
+        :<|> Named @"update-domain-redirect" updateDomainRedirect
+        :<|> Named @"get-domain-registration@v8" getDomainRegistration
         :<|> Named @"get-domain-registration" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
@@ -614,7 +626,7 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  (Member DeleteQueue r) =>
+  (Member DeleteQueue r, Member SessionStore r) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -624,7 +636,7 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  (Member DeleteQueue r) =>
+  (Member DeleteQueue r, Member SessionStore r) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
@@ -644,7 +656,8 @@ getPrekeyBundleH zusr (Qualified uid domain) =
 
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -670,7 +683,8 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -681,7 +695,8 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
 
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -698,7 +713,8 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -713,7 +729,8 @@ addClient lusr con new = do
 
 deleteClient ::
   ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member SessionStore r
   ) =>
   UserId ->
   ConnId ->
@@ -856,7 +873,8 @@ createUser ::
     Member HashPassword r,
     Member EmailSending r,
     Member ActivationCodeStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member AuthenticationSubsystem r
   ) =>
   IpAddr ->
   Public.NewUserPublic ->
@@ -898,11 +916,11 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   cok <-
     Auth.toWebCookie =<< case userStatus acc of
       Public.Ephemeral ->
-        lift . wrapHttpClient $
-          Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
+        lift . liftSem $
+          AuthenticationSubsystem.newCookie @_ @ZAuth.U userId Nothing Public.SessionCookie newUserLabel
       _ ->
-        lift . wrapHttpClient $
-          Auth.newCookie @ZAuth.User userId Nothing Public.PersistentCookie newUserLabel
+        lift . liftSem $
+          AuthenticationSubsystem.newCookie @_ @ZAuth.U userId Nothing Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
@@ -1090,7 +1108,8 @@ changePassword ::
   ( Member PasswordStore r,
     Member UserStore r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r
   ) =>
   UserId ->
   Public.PasswordChange ->
@@ -1366,7 +1385,8 @@ deleteSelfUser ::
     Member PropertySubsystem r,
     Member Events r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member SessionStore r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1383,7 +1403,8 @@ verifyDeleteUser ::
     Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1542,14 +1563,30 @@ authorizeTeam ::
 authorizeTeam lusr domain token =
   lift . liftSem $ EnterpriseLogin.authorizeTeam lusr domain token
 
+updateDomainRedirectV8 ::
+  (_) =>
+  Bearer Token ->
+  Domain ->
+  DomainRedirectConfigV8 ->
+  Handler r ()
+updateDomainRedirectV8 (Bearer authToken) domain config =
+  lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+
 updateDomainRedirect ::
   (_) =>
   Bearer Token ->
   Domain ->
   DomainRedirectConfig ->
   Handler r ()
-updateDomainRedirect (Bearer authToken) domain config =
-  lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
+updateDomainRedirect authToken domain config =
+  updateDomainRedirectV8 authToken domain (domainRedirectConfigToV8 config)
+  where
+    domainRedirectConfigToV8 :: DomainRedirectConfig -> DomainRedirectConfigV8
+    domainRedirectConfigToV8 DomainRedirectConfigRemove = DomainRedirectConfigRemoveV8
+    domainRedirectConfigToV8 (DomainRedirectConfigBackend backendUrl webappUrl) =
+      DomainRedirectConfigBackendV8 backendUrl (Just webappUrl)
+    domainRedirectConfigToV8 DomainRedirectConfigNoRegistration =
+      DomainRedirectConfigNoRegistrationV8
 
 updateTeamInvite ::
   (_) =>
@@ -1569,7 +1606,7 @@ deleteRegisteredDomain lusr tid domain = lift . liftSem $ EnterpriseLogin.delete
 getDomainRegistration ::
   (_) =>
   GetDomainRegistrationRequest ->
-  Handler r DomainRedirectResponse
+  Handler r (DomainRedirectResponse v)
 getDomainRegistration req =
   lift . liftSem $
     EnterpriseLogin.getDomainRegistrationPublic req

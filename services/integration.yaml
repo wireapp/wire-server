@@ -167,6 +167,7 @@ dynamicBackends:
 rabbitmq:
   host: localhost
   port: 5671
+  adminHost: localhost
   adminPort: 15671
   enableTls: true
   insecureSkipVerifyTls: true
@@ -175,12 +176,14 @@ rabbitmq:
 rabbitmq-v0:
   host: localhost
   port: 5671
+  adminHost: localhost
   adminPort: 15672
   vHost: federation-v0
 
 rabbitmq-v1:
   host: localhost
   port: 5671
+  adminHost: localhost
   adminPort: 15672
   vHost: federation-v1
 
@@ -277,6 +280,49 @@ federation-v1:
   wireServerEnterprise:
     host: 127.0.0.1
     port: 22079
+  rabbitMqVHost: /
+
+federation-v2:
+  originDomain: federation-v2.example.com
+  brig:
+    host: 127.0.0.1
+    port: 23082
+  cannon:
+    host: 127.0.0.1
+    port: 23083
+  cargohold:
+    host: 127.0.0.1
+    port: 23084
+  federatorInternal:
+    host: 127.0.0.1
+    port: 23097
+  federatorExternal:
+    host: 127.0.0.1
+    port: 23098
+  galley:
+    host: 127.0.0.1
+    port: 23085
+  gundeck:
+    host: 127.0.0.1
+    port: 23086
+  nginz:
+    host: 127.0.0.1
+    port: 23080
+  spar:
+    host: 127.0.0.1
+    port: 23088
+  proxy:
+    host: 127.0.0.1
+    port: 23087
+  backgroundWorker:
+    host: 127.0.0.1
+    port: 23089
+  stern:
+    host: 127.0.0.1
+    port: 23091
+  wireServerEnterprise:
+    host: 127.0.0.1
+    port: 23079
   rabbitMqVHost: /
 
 integrationTestHostName: "localhost"

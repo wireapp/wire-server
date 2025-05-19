@@ -23,6 +23,7 @@ module Gundeck.Push
     deleteToken,
     -- (for testing)
     pushAll,
+    splitPush,
     MonadPushAll (..),
     MonadNativeTargets (..),
     MonadMapAsync (..),
@@ -30,6 +31,7 @@ module Gundeck.Push
 where
 
 import Bilge qualified
+import Bilge.RPC qualified as Bilge
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
@@ -177,6 +179,7 @@ splitPush clientsFull p = do
             RecipientClientsSome cs ->
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
+            RecipientClientsTemporaryOnly -> mempty
           isClientForRabbitMq c = ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
           (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
@@ -190,7 +193,7 @@ splitPush clientsFull p = do
           -- We return all clients for RabbitMQ even if there are no real
           -- clients so a temporary client can still read the notifications on
           -- RabbitMQ.
-          (These rcpt {_recipientClients = RecipientClientsAll} rcpt)
+          (These rcpt {_recipientClients = RecipientClientsTemporaryOnly} rcpt)
         (_, []) ->
           (This rcpt)
         (r : rs, l : ls) ->
@@ -209,13 +212,13 @@ getClients uids = do
     getBatch uidsChunk = do
       r <- do
         Endpoint h p <- view $ options . brig
-        Bilge.post
-          ( Bilge.host (toByteString' h)
-              . Bilge.port p
-              . Bilge.path "/i/clients/full"
-              . Bilge.json (UserSet $ Set.fromList uidsChunk)
-              . Bilge.expect2xx
-          )
+        Bilge.rpc "brig" $
+          Bilge.method POST
+            . Bilge.host (toByteString' h)
+            . Bilge.port p
+            . Bilge.path "/i/clients/full"
+            . Bilge.json (UserSet $ Set.fromList uidsChunk)
+            . Bilge.expect2xx
       Bilge.responseJsonError r
 
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
@@ -236,8 +239,11 @@ pushAllLegacy pushes = do
       cassandraTargets = map mkCassandraTargets newNotifications
   forM_ cassandraTargets $ \CassandraTargets {..} ->
     unless (ntfTransient ctNotification) $
-      mpaStreamAdd (ntfId ctNotification) ctNotificationTargets (ntfPayload ctNotification)
-        =<< mpaNotificationTTL
+      case ctNotificationTargets of
+        [] -> pure ()
+        t : ts ->
+          mpaStreamAdd (ntfId ctNotification) (list1 t ts) (ntfPayload ctNotification)
+            =<< mpaNotificationTTL
   mpaForkIO $ do
     -- websockets
     wsTargets <- mapM mkWSTargets newNotifications
@@ -273,6 +279,8 @@ pushViaRabbitMq p = do
                 Set.fromList $
                   temporaryRoutingKey r._recipientId
                     : map (clientRoutingKey r._recipientId) cs
+              RecipientClientsTemporaryOnly ->
+                Set.singleton $ temporaryRoutingKey r._recipientId
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
@@ -344,21 +352,23 @@ mkNewNotification psh = runMaybeT $ do
 -- | Information to be stored in cassandra for every 'Notification'.
 data CassandraTargets = CassandraTargets
   { ctNotification :: Notification,
-    ctNotificationTargets :: List1 NotificationTarget
+    ctNotificationTargets :: [NotificationTarget]
   }
 
 mkCassandraTargets :: NewNotification -> CassandraTargets
 mkCassandraTargets NewNotification {..} =
-  CassandraTargets nnNotification (mkTarget <$> nnRecipients)
+  CassandraTargets nnNotification (mapMaybe mkTarget $ toList nnRecipients)
   where
-    mkTarget :: Recipient -> NotificationTarget
-    mkTarget r =
-      target (r ^. recipientId)
-        & targetClients .~ case r ^. recipientClients of
-          RecipientClientsAll -> []
+    mkTarget :: Recipient -> Maybe NotificationTarget
+    mkTarget r = do
+      clients <-
+        case r ^. recipientClients of
+          RecipientClientsAll -> Just []
           -- clients are stored in cassandra as a list with a notification.  empty list
           -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
-          RecipientClientsSome cs -> toList cs
+          RecipientClientsSome cs -> Just $ toList cs
+          RecipientClientsTemporaryOnly -> Nothing
+      pure $ target (r ^. recipientId) & targetClients .~ clients
 
 -- | Information needed to push notifications over websockets and/or native
 -- pushes.
@@ -469,6 +479,7 @@ nativeTargets psh rcps' alreadySent =
     equalClient a x = Just (a ^. addrClient) == Presence.clientId x
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
+    eligibleClient _ RecipientClientsTemporaryOnly = False
     whitelistedOrNoWhitelist a =
       null (psh ^. pushConnections)
         || a ^. addrConn `elem` psh ^. pushConnections

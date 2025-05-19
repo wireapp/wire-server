@@ -79,6 +79,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
     port :: !Int,
     vHost :: !Text,
     tls :: Maybe RabbitMqTlsOpts,
+    adminHost :: !String,
     adminPort :: !Int
   }
   deriving (Eq, Show)
@@ -90,6 +91,7 @@ instance FromJSON RabbitMqAdminOpts where
       <*> v .: "port"
       <*> v .: "vHost"
       <*> parseTlsJson v
+      <*> v .: "adminHost"
       <*> v .: "adminPort"
 
 mkRabbitMqAdminClientEnvWithCreds :: RabbitMqAdminOpts -> Text -> Text -> IO (AdminAPI (AsClientT IO))
@@ -100,7 +102,7 @@ mkRabbitMqAdminClientEnvWithCreds opts username password = do
         Just tlsSettings -> (Servant.Https, HTTP.mkManagerSettings tlsSettings Nothing)
   manager <- HTTP.newManager managerSettings
   let basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
-      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl protocol opts.host opts.adminPort "")
+      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl protocol opts.adminHost opts.adminPort "")
   pure . fromServant $
     hoistClient
       (Proxy @(ToServant AdminAPI AsApi))

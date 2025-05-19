@@ -381,3 +381,19 @@ getDomainRegistration :: (HasCallStack, MakesValue domain) => domain -> String -
 getDomainRegistration domain emailDomain = do
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "domain-registration", emailDomain]
   submit "GET" req
+
+legalholdLogin :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+legalholdLogin domain uid password = do
+  req <- rawBaseRequest domain Brig Unversioned $ joinHttpPath ["i", "legalhold-login"]
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "user" .= uid,
+          "password" .= password
+        ]
+
+getMLSClients :: (HasCallStack, MakesValue user) => user -> Ciphersuite -> App Response
+getMLSClients user ciphersuite = do
+  userId <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "mls", "clients", userId]
+  submit "GET" $ req & addQueryParams [("ciphersuite", ciphersuite.code)]

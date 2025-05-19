@@ -87,6 +87,7 @@ library
       aeson                  >=2.0.1.0
     , amazonka               >=1.3.7
     , amazonka-s3            >=1.3.7
+    , amazonka-s3-streaming  >=1.3.7
     , attoparsec             >=0.12
     , auto-update            >=0.1.4
     , base                   >=4       && <5

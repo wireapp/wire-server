@@ -77,6 +77,7 @@ import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
+import Wire.SessionStore (SessionStore)
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.UserKeyStore
@@ -357,7 +358,8 @@ suspendTeam ::
     Member UserSubsystem r,
     Member Events r,
     Member TinyLog r,
-    Member InvitationStore r
+    Member InvitationStore r,
+    Member SessionStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -376,7 +378,8 @@ unsuspendTeam ::
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -393,7 +396,8 @@ changeTeamAccountStatuses ::
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member SessionStore r
   ) =>
   TeamId ->
   AccountStatus ->

@@ -1,0 +1,26 @@
+logLevel: Debug
+
+backgroundWorker:
+  host: 0.0.0.0
+  port: 8080
+
+federatorInternal:
+  host: federator-federation-v2
+  port: 8080
+
+cassandra:
+  endpoint:
+    host: demo_wire_cassandra
+    port: 9042
+  keyspace: gundeck_test_federation_v2
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: federation-v2
+  adminPort: 15672
+
+backendNotificationPusher:
+  pushBackoffMinWait: 1000
+  pushBackoffMaxWait: 1000000
+  remotesRefreshInterval: 5000000

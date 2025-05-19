@@ -11,7 +11,7 @@ import SetupHelpers
 import Testlib.Prelude
 
 testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend :: (HasCallStack) => App ()
-testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = do
+testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -19,9 +19,10 @@ testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    (mkDomainRedirectBackend version "https://example.com" "https://webapp.example.com")
     >>= assertStatus 200
 
   let email = "user@" <> domain
@@ -30,7 +31,7 @@ testDisallowRegistrationWhenEmailDomainIsClaimedByOtherBackend = do
     resp.json %. "label" `shouldMatch` "condition-failed"
 
 testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration :: (HasCallStack) => App ()
-testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = do
+testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
 
   -- [backoffice] preauth
@@ -40,6 +41,7 @@ testDisallowRegistrationWhenEmailDomainDoesNotAllowRegistration = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "no-registration"])
@@ -164,7 +166,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
         }
 
 testDisallowAcceptingInvitesAfterDomainIsClaimed :: (HasCallStack) => App ()
-testDisallowAcceptingInvitesAfterDomainIsClaimed = do
+testDisallowAcceptingInvitesAfterDomainIsClaimed = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   (owner, _, _) <- createTeam OwnDomain 1
   let email = "user@" <> domain
@@ -178,9 +180,10 @@ testDisallowAcceptingInvitesAfterDomainIsClaimed = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
-    (object ["domain_redirect" .= "backend", "backend_url" .= "https://example.com"])
+    (mkDomainRedirectBackend version "https:/example.com" "https://webapp.example.com")
     >>= assertStatus 200
 
   addUser owner def {email = Just email, teamCode = Just invitationCode} `bindResponse` \resp -> do

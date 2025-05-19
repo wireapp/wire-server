@@ -55,7 +55,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import System.Logger qualified as Log
 import UnliftIO qualified
-import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation hiding (Conversation, Member, members)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite

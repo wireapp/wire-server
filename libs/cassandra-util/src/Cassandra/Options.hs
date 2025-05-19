@@ -14,7 +14,7 @@ data Endpoint = Endpoint
   }
   deriving (Show, Generic)
 
-deriveFromJSON defaultOptions ''Endpoint
+deriveJSON defaultOptions ''Endpoint
 
 data CassandraOpts = CassandraOpts
   { endpoint :: !Endpoint,

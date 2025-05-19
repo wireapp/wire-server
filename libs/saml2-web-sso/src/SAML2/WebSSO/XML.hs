@@ -56,11 +56,12 @@ import SAML2.Util
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.Types.Email qualified as Email
+import SAML2.WebSSO.XML.Hack qualified as Hack
 import SAML2.XML qualified as HS
 import SAML2.XML qualified as HX
 import SAML2.XML.Schema.Datatypes qualified as HX (Boolean, Duration, UnsignedShort)
 import SAML2.XML.Signature.Types qualified as HX (Signature)
-import Text.Hamlet.XML
+import Text.Hamlet.XML (xml)
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
@@ -106,7 +107,7 @@ parseFromDocument doc = parse [NodeElement $ documentRoot doc]
 
 parseFromXmlTree :: (MonadError String m, HasXML a) => XmlTree -> m a
 parseFromXmlTree raw = do
-  doc <- decode . decodeUtf8 $ HX.docToXMLWithRoot raw
+  doc :: Document <- decode . decodeUtf8 $ Hack.docToXMLWithRoot raw
   parseFromDocument doc
 
 -- FUTUREWORK: perhaps we want to split this up: HasXML (for nameSpaces), and HasXMLParse, HasXMLRender,
@@ -246,7 +247,7 @@ wrapParse ::
   [Node] ->
   m us
 wrapParse imprt [NodeElement el] =
-  either (die (Proxy @us) . (,el)) imprt $
+  either (die (Proxy @us)) imprt $
     HS.xmlToSAML (renderLBS def $ Document defPrologue el defMiscellaneous)
 wrapParse _ badxml = error $ "internal error: " <> show badxml
 

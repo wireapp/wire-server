@@ -17,16 +17,49 @@
 
 module Wire.API.Routes.Public.Proxy where
 
-import Servant hiding (RawM)
-import Servant.API.Extended.RawM (RawM)
+import Imports
+import Servant
+import Servant.API.Extended.Endpath
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public ()
 
 type ProxyAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
-    :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> RawM)
+    :<|> ProxyAPIRoute
+           "gmaps-static"
+           ( "googlemaps"
+               :> "api"
+               :> "staticmap"
+               :> Endpath
+               :> RawM
+           )
     :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
+    :<|> ProxyAPIRoute
+           "spotify"
+           ( "spotify"
+               :> "api"
+               :> "token"
+               :> Endpath
+               :> RawM
+           )
+    :<|> ProxyAPIRoute
+           "soundcloud-resolve"
+           ( "soundcloud"
+               :> "resolve"
+               :> QueryParam' '[Required] "url" Text
+               :> Endpath
+               :> RawM
+           )
+    :<|> ProxyAPIRoute
+           "soundcloud-stream"
+           ( "soundcloud"
+               :> "stream"
+               :> QueryParam' '[Required] "url" Text
+               :> Endpath
+               :> RawM
+           )
 
 type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)
 
@@ -47,6 +80,12 @@ type family ProxyAPISummary name where
     "[DEPRECATED] proxy: `get /proxy/googlemaps/api/staticmap`; see google maps API docs"
   ProxyAPISummary "gmaps-path" =
     "[DEPRECATED] proxy: `get /proxy/googlemaps/maps/api/geocode/:path`; see google maps API docs"
+  ProxyAPISummary "spotify" =
+    "proxy: `get /proxy/spotify/api/token`; see spotify API docs"
+  ProxyAPISummary "soundcloud-resolve" =
+    "proxy: `get /proxy/soundcloud/resolve`; see soundcloud API docs"
+  ProxyAPISummary "soundcloud-stream" =
+    "proxy: `get /proxy/soundcloud/stream`; see soundcloud API docs"
 
 data ProxyAPITag
 

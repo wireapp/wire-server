@@ -9,14 +9,13 @@
 , bytestring
 , bytestring-conversion
 , errors
-, exceptions
 , gitignoreSource
 , imports
-, lens
 , lib
-, mtl
-, mwc-random
 , optparse-applicative
+, polysemy
+, polysemy-plugin
+, polysemy-wire-zoo
 , sodium-crypto-sign
 , tasty
 , tasty-hunit
@@ -39,11 +38,10 @@ mkDerivation {
     bytestring
     bytestring-conversion
     errors
-    exceptions
     imports
-    lens
-    mtl
-    mwc-random
+    polysemy
+    polysemy-plugin
+    polysemy-wire-zoo
     sodium-crypto-sign
     time
     uuid
@@ -51,27 +49,23 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     base
-    base64-bytestring
-    bytestring
-    bytestring-conversion
-    errors
     imports
-    lens
     optparse-applicative
     sodium-crypto-sign
-    uuid
   ];
   testHaskellDepends = [
     base
     bytestring-conversion
     imports
-    lens
+    polysemy
+    polysemy-wire-zoo
     sodium-crypto-sign
     tasty
     tasty-hunit
     tasty-quickcheck
     text
     uuid
+    vector
   ];
   description = "Creation and validation of signed tokens";
   license = lib.licenses.agpl3Only;

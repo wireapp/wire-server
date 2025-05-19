@@ -16,7 +16,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Wire.AuthenticationSubsystem.Error where
 
+import Data.ZAuth.Validation qualified as ZAuth
 import Imports
+import Network.HTTP.Types.Status
+import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.Error
@@ -50,6 +53,7 @@ data AuthenticationSubsystemError
   | AuthenticationSubsystemInvalidPhone
   | AuthenticationSubsystemAllowListError
   | AuthenticationSubsystemBadCredentials
+  | AuthenticationSubsystemZAuthFailure ZAuth.Failure
   deriving (Eq, Show)
 
 instance Exception AuthenticationSubsystemError
@@ -63,3 +67,19 @@ authenticationSubsystemErrorToHttpError =
     AuthenticationSubsystemInvalidPhone -> errorToWai @E.InvalidPhone
     AuthenticationSubsystemAllowListError -> errorToWai @E.AllowlistError
     AuthenticationSubsystemBadCredentials -> errorToWai @E.BadCredentials
+    AuthenticationSubsystemZAuthFailure f -> zauthError f
+
+zauthError :: ZAuth.Failure -> Wai.Error
+zauthError ZAuth.Expired = authTokenExpired
+zauthError ZAuth.Falsified = authTokenInvalid
+zauthError ZAuth.Invalid = authTokenInvalid
+zauthError ZAuth.Unsupported = authTokenUnsupported
+
+authTokenExpired :: Wai.Error
+authTokenExpired = Wai.mkError status403 "invalid-credentials" "Token expired"
+
+authTokenInvalid :: Wai.Error
+authTokenInvalid = Wai.mkError status403 "invalid-credentials" "Invalid token"
+
+authTokenUnsupported :: Wai.Error
+authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported token operation for this token type"

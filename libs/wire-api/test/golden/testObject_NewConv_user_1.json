@@ -14,6 +14,7 @@
     "protocol": "proteus",
     "qualified_users": [],
     "receipt_mode": 1,
+    "skip_creator": false,
     "team": {
         "managed": false,
         "teamid": "00000000-0000-0001-0000-000000000000"

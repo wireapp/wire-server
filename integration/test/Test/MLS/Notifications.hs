@@ -9,7 +9,7 @@ import Testlib.Prelude
 testWelcomeNotification :: (HasCallStack) => App ()
 testWelcomeNotification = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
-  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def def) [alice, alice, bob, bob]
+  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [alice2, bob1, bob2]
 
   convId <- createNewGroup def alice1

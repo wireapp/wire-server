@@ -99,6 +99,7 @@ library
     API.Gundeck
     API.GundeckInternal
     API.Nginz
+    API.Proxy
     API.Spar
     API.SparInternal
     MLS.Util
@@ -161,6 +162,7 @@ library
     Test.Login
     Test.MessageTimer
     Test.MLS
+    Test.MLS.Clients
     Test.MLS.KeyPackage
     Test.MLS.Keys
     Test.MLS.Message
@@ -175,6 +177,7 @@ library
     Test.Presence
     Test.Property
     Test.Provider
+    Test.Proxy
     Test.PushToken
     Test.Register
     Test.Roles
@@ -275,6 +278,7 @@ library
     , scientific
     , servant
     , servant-client
+    , servant-server
     , split
     , stm
     , streaming-commons
@@ -291,7 +295,6 @@ library
     , uuid
     , vector
     , wai
-    , wai-route
     , warp
     , warp-tls
     , websockets

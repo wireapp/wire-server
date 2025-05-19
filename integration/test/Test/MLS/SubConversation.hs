@@ -14,7 +14,7 @@ import Testlib.Prelude
 testJoinSubConv :: App ()
 testJoinSubConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   convId <- createNewGroup def alice1
 
@@ -36,7 +36,7 @@ testJoinSubConv = do
 testJoinOne2OneSubConv :: App ()
 testJoinOne2OneSubConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def def) [alice, bob, bob]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2]
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   one2OneConvId <- objConvId (one2OneConv %. "conversation")
@@ -64,7 +64,7 @@ testLeaveOne2OneSubConv scenario leaver = do
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   one2OneConv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   one2OneConvId <- objConvId $ one2OneConv %. "conversation"
@@ -97,7 +97,7 @@ testDeleteParentOfSubConv secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ (uploadNewKeyPackage def) [alice1, bob1]
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
@@ -147,7 +147,7 @@ testDeleteSubConversation :: (HasCallStack) => Domain -> App ()
 testDeleteSubConversation otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
   charlie <- randomUser OwnDomain def
-  [alice1, bob1] <- traverse (createMLSClient def def) [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
   convId <- createNewGroup def alice1
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
@@ -170,7 +170,7 @@ data Leaver = Alice | Bob
 testLeaveSubConv :: (HasCallStack) => Leaver -> App ()
 testLeaveSubConv leaver = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
-  clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def def) [alice, bob, bob, charlie]
+  clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [bob1, bob2, charlie1]
   convId <- createNewGroup def alice1
 
@@ -237,7 +237,7 @@ testCreatorRemovesUserFromParent :: App ()
 testCreatorRemovesUserFromParent = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   addUsersToFailureContext [("alice", alice), ("bob", bob), ("charlie", charlie)] $ do
-    [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def def) [alice, bob, bob, charlie, charlie]
+    [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def) [alice, bob, bob, charlie, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, bob2, charlie1, charlie2]
     convId <- createNewGroup def alice1
 
@@ -319,7 +319,7 @@ testResendingProposals = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   [alice1, alice2, bob1, bob2, bob3, charlie1] <-
     traverse
-      (createMLSClient def def)
+      (createMLSClient def)
       [alice, alice, bob, bob, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [alice2, bob1, bob2, bob3, charlie1]
 

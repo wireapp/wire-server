@@ -49,7 +49,7 @@ receiveCommitMock clients =
       "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
       "get-mls-clients"
         ~> Set.fromList
-          ( map (flip ClientInfo True . ciClient) clients
+          ( map (\c -> ClientInfo c.ciClient mempty True) clients
           )
     ]
 

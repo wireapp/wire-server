@@ -1,8 +1,9 @@
 # Example yaml-formatted configuration for proxy
 # proxy can be started with a config file (e.g. ./dist/proxy -c proxy.yaml.example)
 
-host: 0.0.0.0
-port: 8087
+proxy:
+  host: 0.0.0.0
+  port: 8087
 
 # number of connections for the http pool
 httpPoolSize: 1000

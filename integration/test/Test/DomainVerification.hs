@@ -9,12 +9,10 @@ import API.Common
 import API.GalleyInternal (setTeamFeatureLockStatus, setTeamFeatureStatus)
 import API.Spar
 import Control.Concurrent (threadDelay)
+import Control.Monad.Trans.Maybe
 import SetupHelpers
 import Test.DNSMock
 import Testlib.Prelude
-
-mkDomainRedirectBackend :: String -> Value
-mkDomainRedirectBackend url = object ["domain_redirect" .= "backend", "backend_url" .= url]
 
 testDomainVerificationGetOwnershipToken :: (HasCallStack) => App ()
 testDomainVerificationGetOwnershipToken = do
@@ -54,7 +52,7 @@ testVerifyChallengeFailsIfNotPreauthorized = do
     resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
 
 testDomainVerificationOnPremFlow :: (HasCallStack) => App ()
-testDomainVerificationOnPremFlow = do
+testDomainVerificationOnPremFlow = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
 
@@ -66,62 +64,79 @@ testDomainVerificationOnPremFlow = do
   -- post config without ownership token (this is not allowed)
   updateDomainRedirect
     OwnDomain
+    version
     domain
     Nothing
-    (mkDomainRedirectBackend "https://wire.example.com")
+    (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
     >>= assertStatus 400
 
   -- [customer admin] post config (happy flow)
   checkUpdateRedirectSuccessful
     domain
+    version
     ownershipToken
-    (mkDomainRedirectBackend "https://wire.example.com")
+    (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
 
   -- idempotence
   checkUpdateRedirectSuccessful
     domain
+    version
     ownershipToken
-    (mkDomainRedirectBackend "https://wire.example.com")
+    (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
 
   -- [customer admin] update the previously set backend url
   checkUpdateRedirectSuccessful
     domain
+    version
     ownershipToken
-    (mkDomainRedirectBackend "https://wire2.example.com")
+    (mkDomainRedirectBackend version "https://wire2.example.com" "https://webapp.wire2.example.com")
 
   -- [customer admin] update to no-registration
   checkUpdateRedirectSuccessful
     domain
+    version
     ownershipToken
     (object ["domain_redirect" .= "no-registration"])
 
   -- idempotence
   checkUpdateRedirectSuccessful
     domain
+    version
     ownershipToken
     (object ["domain_redirect" .= "no-registration"])
 
   -- [customer admin] transition from no-registration back to backend
   checkUpdateRedirectSuccessful
     domain
+    version
     ownershipToken
-    (mkDomainRedirectBackend "https://wire.example.com")
+    (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
   where
-    checkUpdateRedirectSuccessful :: (HasCallStack) => String -> String -> Value -> App ()
-    checkUpdateRedirectSuccessful domain token config = do
+    checkUpdateRedirectSuccessful :: (HasCallStack) => String -> Versioned -> String -> Value -> App ()
+    checkUpdateRedirectSuccessful domain version token config = do
       updateDomainRedirect
         OwnDomain
+        version
         domain
         (Just token)
         config
         >>= assertStatus 200
 
-      bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" ++ domain)) \resp -> do
+      bindResponse (getDomainRegistrationFromEmail OwnDomain version ("sven@" ++ domain)) \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "domain_redirect" `shouldMatch` (config %. "domain_redirect")
-        lookupField resp.json "backend_url" `shouldMatch` (lookupField config "backend_url")
+        case version of
+          ExplicitVersion v
+            | v <= 8 ->
+                lookupField resp.json "backend_url" `shouldMatch` (lookupField config "backend_url")
+          _ -> do
+            let backendUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "config_url"
+                webappUrl v = runMaybeT $ lookupFieldM v "backend" >>= flip lookupFieldM "webapp_url"
 
-      bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+            backendUrl resp.json `shouldMatch` backendUrl config
+            webappUrl resp.json `shouldMatch` webappUrl config
+
+      bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
         resp.status `shouldMatchInt` 200
         isBackend <- config %. "domain_redirect" >>= asString <&> (== "backend")
         if isBackend
@@ -133,7 +148,7 @@ testDomainVerificationOnPremFlow = do
             lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
 testDomainVerificationWrongAuth :: (HasCallStack) => App ()
-testDomainVerificationWrongAuth = do
+testDomainVerificationWrongAuth = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   wrongDomain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
@@ -146,16 +161,17 @@ testDomainVerificationWrongAuth = do
   bindResponse
     ( updateDomainRedirect
         OwnDomain
+        version
         domain
         (Just wrongToken)
-        (mkDomainRedirectBackend "https://wire.example.com")
+        (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
     )
     $ \resp -> do
       resp.status `shouldMatchInt` 401
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testDomainVerificationOnPremFlowNoRegistration :: (HasCallStack) => App ()
-testDomainVerificationOnPremFlowNoRegistration = do
+testDomainVerificationOnPremFlowNoRegistration = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -163,40 +179,43 @@ testDomainVerificationOnPremFlowNoRegistration = do
   -- [customer admin] post no-registration config
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "no-registration"])
     >>= assertStatus 200
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
 
 testDomainVerificationRemoveFailure :: (HasCallStack) => App ()
-testDomainVerificationRemoveFailure = do
+testDomainVerificationRemoveFailure = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "pre-authorized"
 
   -- [customer admin] try to remove entry
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "remove"])
     >>= assertSuccess
 
   -- check that it's still set to preauthorized
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
 
   -- [customer admin] set it to no-registration, then remove
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "no-registration"])
@@ -204,13 +223,14 @@ testDomainVerificationRemoveFailure = do
 
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
     (object ["domain_redirect" .= "remove"])
     >>= assertStatus 200
 
 testDomainVerificationLockedState :: (HasCallStack) => App ()
-testDomainVerificationLockedState = do
+testDomainVerificationLockedState = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
   setup <- setupOwnershipTokenForBackend OwnDomain domain
@@ -222,6 +242,7 @@ testDomainVerificationLockedState = do
   bindResponse
     ( updateDomainRedirect
         OwnDomain
+        version
         domain
         (Just setup.ownershipToken)
         (object ["domain_redirect" .= "no-registration"])
@@ -231,7 +252,7 @@ testDomainVerificationLockedState = do
       resp.json %. "label" `shouldMatch` "domain-registration-update-auth-failure"
 
 testUpdateTeamInvite :: (HasCallStack) => App ()
-testUpdateTeamInvite = do
+testUpdateTeamInvite = forM_ [ExplicitVersion 8, Versioned] \version -> do
   (owner, tid, mem : _) <- createTeam OwnDomain 2
   domain <- randomDomain
 
@@ -285,7 +306,7 @@ testUpdateTeamInvite = do
     resp.json %. "team_invite" `shouldMatch` "team"
     resp.json %. "team" `shouldMatch` tid
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
@@ -299,7 +320,7 @@ testUpdateTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
@@ -313,7 +334,7 @@ testUpdateTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
 
@@ -327,12 +348,12 @@ testUpdateTeamInvite = do
     resp.json %. "domain_redirect" `shouldMatch` "none"
     resp.json %. "team_invite" `shouldMatch` "not-allowed"
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "none"
 
 testUpdateTeamInviteSSO :: (HasCallStack) => App ()
-testUpdateTeamInviteSSO = do
+testUpdateTeamInviteSSO = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   (owner, tid, _m : _) <- createTeam OwnDomain 2
   assertSuccess =<< do
@@ -363,7 +384,7 @@ testUpdateTeamInviteSSO = do
     resp.json %. "team_invite" `shouldMatch` "allowed"
     resp.json %. "sso_code" `shouldMatch` idp
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" ++ domain)) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" ++ domain)) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idp
@@ -415,7 +436,7 @@ testDisabledEnterpriseService = do
     resp.json %. "label" `shouldMatch` "enterprise-service-not-enabled"
 
 testOverwriteOwnershipToken :: (HasCallStack) => App ()
-testOverwriteOwnershipToken = do
+testOverwriteOwnershipToken = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
@@ -423,15 +444,17 @@ testOverwriteOwnershipToken = do
   setup1 <- setupOwnershipTokenForBackend OwnDomain domain
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup1.ownershipToken)
-    (mkDomainRedirectBackend "https://wire1.example.com")
+    (mkDomainRedirectBackend version "https://wire1.example.com" "https://webapp.wire1.example.com")
     >>= assertStatus 200
 
   -- get a second ownership token
   setup2 <- setupOwnershipTokenForBackend OwnDomain domain
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup2.ownershipToken)
     (object ["domain_redirect" .= "remove"])
@@ -440,9 +463,10 @@ testOverwriteOwnershipToken = do
   -- the first ownership token is not valid anymore
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup1.ownershipToken)
-    (mkDomainRedirectBackend "https://wire1.example.com")
+    (mkDomainRedirectBackend version "https://wire1.example.com" "https://webapp.wire1.example.com")
     >>= assertStatus 401
 
 testChallengeTtl :: (HasCallStack) => App ()
@@ -509,7 +533,7 @@ testGetAndDeleteRegisteredDomains = do
   checkDelete expectedDomains
 
 testGetDomainRegistrationUserExistsBackend :: (HasCallStack) => App ()
-testGetDomainRegistrationUserExistsBackend = do
+testGetDomainRegistrationUserExistsBackend = forM_ [ExplicitVersion 8, Versioned] \version -> do
   domain <- randomDomain
   domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
 
@@ -519,25 +543,32 @@ testGetDomainRegistrationUserExistsBackend = do
   setup <- setupOwnershipTokenForBackend OwnDomain domain
   updateDomainRedirect
     OwnDomain
+    version
     domain
     (Just setup.ownershipToken)
-    (mkDomainRedirectBackend "https://wire.example.com")
+    (mkDomainRedirectBackend version "https://wire.example.com" "https://webapp.wire.example.com")
     >>= assertStatus 200
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("sven@" <> domain)) $ \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("sven@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "backend"
-    resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
+    if version == ExplicitVersion 8
+      then resp.json %. "backend_url" `shouldMatch` "https://wire.example.com"
+      else do
+        resp.json %. "backend.config_url" `shouldMatch` "https://wire.example.com"
+        resp.json %. "backend.webapp_url" `shouldMatch` "https://webapp.wire.example.com"
     lookupField resp.json "due_to_existing_account" `shouldMatch` (Nothing :: Maybe Bool)
 
-  bindResponse (getDomainRegistrationFromEmail OwnDomain ("paolo@" <> domain)) $ \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
+    -- Neither old (<= V8) nor new backend URL fields should be received
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
+    lookupField resp.json "backend" `shouldMatch` (Nothing :: Maybe String)
     resp.json %. "due_to_existing_account" `shouldMatch` True
 
 testGetDomainRegistrationUserExistsSso :: (HasCallStack) => App ()
-testGetDomainRegistrationUserExistsSso = do
+testGetDomainRegistrationUserExistsSso = forM_ [ExplicitVersion 8, Versioned] \version -> do
   emailDomain <- randomDomain
   (owner, tid, mem : _) <- createTeamWithEmailDomain OwnDomain emailDomain 2
   memMail <- mem %. "email" & asString
@@ -563,7 +594,7 @@ testGetDomainRegistrationUserExistsSso = do
     >>= assertStatus 200
 
   -- newUserMail is not registered yet
-  bindResponse (getDomainRegistrationFromEmail OwnDomain newUserMail) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version newUserMail) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idpId
@@ -571,14 +602,14 @@ testGetDomainRegistrationUserExistsSso = do
   void $ loginWithSaml True tid newUserMail (idpId, idpMeta)
 
   -- now the account exists, and but as this is an SSO user they should be directed to the SSO flow
-  bindResponse (getDomainRegistrationFromEmail OwnDomain newUserMail) \resp -> do
+  bindResponse (getDomainRegistrationFromEmail OwnDomain version newUserMail) \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idpId
 
   -- these have normal password accounts, and some are not members of the team
   for_ [memMail, paoloMail, svenMail] \email -> do
-    bindResponse (getDomainRegistrationFromEmail OwnDomain email) \resp -> do
+    bindResponse (getDomainRegistrationFromEmail OwnDomain version email) \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "domain_redirect" `shouldMatch` "no-registration"
       lookupField resp.json "sso_code" `shouldMatch` (Nothing :: Maybe String)
@@ -752,3 +783,43 @@ testVerificationRequiredIfEmailDomainRedirectNotSso = do
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
+
+testDomainVerificationUpdateRedirectRequiresWebappUrl :: (HasCallStack) => App ()
+testDomainVerificationUpdateRedirectRequiresWebappUrl = do
+  domain <- randomDomain
+  void $ randomUser OwnDomain def {email = Just ("paolo@" <> domain)}
+
+  domainRegistrationPreAuthorize OwnDomain domain >>= assertStatus 204
+
+  setup <- setupOwnershipTokenForBackend OwnDomain domain
+  let ownershipToken = setup.ownershipToken
+
+  -- check that it works in general
+  updateDomainRedirect
+    OwnDomain
+    Versioned
+    domain
+    (Just ownershipToken)
+    ( object
+        [ "domain_redirect" .= "backend",
+          "backend"
+            .= object
+              [ "config_url" .= "https://wire.example.com",
+                "webapp_url" .= "https://webapp.wire.example.com"
+              ]
+        ]
+    )
+    >>= assertStatus 200
+
+  -- see it fail when the webapp URL is missing
+  updateDomainRedirect
+    OwnDomain
+    Versioned
+    domain
+    (Just ownershipToken)
+    ( object
+        [ "domain_redirect" .= "backend",
+          "backend" .= object ["config" .= "https://wire.example.com"]
+        ]
+    )
+    >>= assertStatus 400

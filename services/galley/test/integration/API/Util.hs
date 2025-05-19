@@ -598,6 +598,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
           GroupConversation
           False
           Nothing
+          False
   post
     ( g
         . path "/conversations"
@@ -636,7 +637,8 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvProtocol = BaseProtocolMLSTag,
             newConvGroupConvType = GroupConversation,
             newConvCells = False,
-            newConvChannelAddPermission = Nothing
+            newConvChannelAddPermission = Nothing,
+            newConvSkipCreator = False
           }
   r <-
     post
@@ -681,6 +683,7 @@ createOne2OneTeamConv u1 u2 n tid = do
           GroupConversation
           False
           Nothing
+          False
   post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -709,6 +712,7 @@ defNewProteusConv =
     GroupConversation
     False
     Nothing
+    False
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
@@ -767,6 +771,7 @@ postTeamConv tid u us name a r mtimer = do
           GroupConversation
           False
           Nothing
+          False
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -819,6 +824,7 @@ postConvWithReceipt u us name a r mtimer rcpt = do
           GroupConversation
           False
           Nothing
+          False
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -1042,7 +1048,7 @@ getConvs u cids = do
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
 
-getAllConvs :: (HasCallStack) => UserId -> TestM [Conversation]
+getAllConvs :: (HasCallStack) => UserId -> TestM [ConversationV8]
 getAllConvs u = do
   g <- viewGalley
   cids <- do
@@ -1598,7 +1604,7 @@ assertNotConvMember u c =
     const 200 === statusCode
     const (Right Null) === responseJsonEither
 
-assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
+assertConvEquals :: (HasCallStack, MonadIO m) => ConversationV8 -> ConversationV8 -> m ()
 assertConvEquals c1 c2 = liftIO $ do
   assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
   assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
@@ -1636,6 +1642,49 @@ assertConvWithRole ::
   RoleName ->
   TestM (Qualified ConvId)
 assertConvWithRole r t c s us n mt role = do
+  cId <- fromBS $ getHeader' "Location" r
+  cnv :: Conversation <- responseJsonError r
+  let otherMembers = filter (\m -> m.omQualifiedId /= s) (toList cnv.members)
+  liftIO $ do
+    assertEqual "id" cId cnv.qualifiedId.qUnqualified
+    assertEqual "name" n cnv.metadata.cnvmName
+    assertEqual "type" t cnv.metadata.cnvmType
+    assertEqual "creator" c cnv.metadata.cnvmCreator
+    assertEqual "message_timer" mt cnv.metadata.cnvmMessageTimer
+    assertEqual "members" (Set.fromList $ s : us) (Set.map omQualifiedId cnv.members)
+    assertEqual "creator is always an admin" (Just roleNameWireAdmin) (omConvRoleName <$> find (\m -> m.omQualifiedId == s) (Set.toList cnv.members))
+    assertBool "others role" (all ((== role) . omConvRoleName) otherMembers)
+    case t of
+      SelfConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
+      ConnectConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
+      One2OneConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
+      _ -> pure ()
+  pure cnv.qualifiedId
+
+assertConvV8 ::
+  (HasCallStack) =>
+  Response (Maybe Lazy.ByteString) ->
+  ConvType ->
+  Maybe UserId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Maybe Text ->
+  Maybe Milliseconds ->
+  TestM (Qualified ConvId)
+assertConvV8 r t c s us n mt = assertConvWithRoleV8 r t c s us n mt roleNameWireAdmin
+
+assertConvWithRoleV8 ::
+  (HasCallStack) =>
+  Response (Maybe Lazy.ByteString) ->
+  ConvType ->
+  Maybe UserId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Maybe Text ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM (Qualified ConvId)
+assertConvWithRoleV8 r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   cnv <- responseJsonError r
   let _self = cmSelf (cnvMembers cnv)
@@ -1885,11 +1934,17 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
+decodeConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
+decodeConvIdV8 = qUnqualified . decodeQualifiedConvIdV8
+
 decodeConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = qUnqualified . decodeQualifiedConvId
 
+decodeQualifiedConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvIdV8 = cnvQualifiedId . responseJsonUnsafe
+
 decodeQualifiedConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
+decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @Conversation
 
 decodeConvIdList :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
@@ -2106,8 +2161,8 @@ randomClientWithCaps uid lk caps = do
       )
       <!! const rStatus
         === statusCode
-  client <- responseJsonError resp
-  pure (clientId client)
+  client :: Client <- responseJsonError resp
+  pure client.clientId
   where
     cType = PermanentClientType
     rStatus = 201
@@ -2156,7 +2211,7 @@ getInternalClientsFull userSet = do
 ensureClientCaps :: (HasCallStack) => UserId -> ClientId -> Client.ClientCapabilityList -> TestM ()
 ensureClientCaps uid cid caps = do
   UserClientsFull (Map.lookup uid -> (Just clnts)) <- getInternalClientsFull (UserSet $ Set.singleton uid)
-  clnt <- assertOne . filter ((== cid) . clientId) $ Set.toList clnts
+  clnt <- assertOne . filter ((== cid) . (.clientId)) $ Set.toList clnts
   liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig

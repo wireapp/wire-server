@@ -38,7 +38,7 @@ instance HasCellsState CellsState where
 instance HasCellsState Data.Conversation where
   getCellsState = getCellsState . Data.convMetadata
 
-instance HasCellsState Public.Conversation where
+instance HasCellsState Public.ConversationV8 where
   getCellsState = getCellsState . Public.cnvMetadata
 
 instance HasCellsState ConversationMetadata where
@@ -47,9 +47,9 @@ instance HasCellsState ConversationMetadata where
 instance HasCellsState () where
   getCellsState = def
 
-shouldPushToCells :: (HasCellsState a) => a -> EventType -> Bool
-shouldPushToCells st et =
-  isCellsConversationEvent et && case getCellsState st of
+shouldPushToCells :: (HasCellsState a) => a -> Event -> Bool
+shouldPushToCells st e =
+  isCellsConversationEvent (evtType e) && case getCellsState st of
     CellsDisabled -> False
     CellsPending -> True
     CellsReady -> True

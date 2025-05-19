@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS.Commit.ExternalCommit
-  ( getExternalCommitData,
+  ( ExternalCommitAction (..),
+    getExternalCommitData,
     processExternalCommit,
   )
 where
@@ -28,6 +29,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.MLS.Commit.Core
+import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
@@ -51,9 +53,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProposalTag
-import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.MLS.Validation
 
 data ExternalCommitAction = ExternalCommitAction
   { add :: LeafIndex,
@@ -74,7 +74,6 @@ getExternalCommitData ::
   Sem r ExternalCommitAction
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      groupId = cnvmlsGroupId convOrSub.mlsMeta
   activeData <-
     note (mlsProtocolError "The first commit in a group cannot be external") $
       cnvmlsActiveData convOrSub.mlsMeta
@@ -102,7 +101,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
   evalState convOrSub.indexMap $ do
     -- process optional removal
-    propAction <- applyProposals activeData.ciphersuite groupId proposals
+    propAction <- applyProposals activeData.ciphersuite proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
       [(cid, idx)]
         | cid /= senderIdentity ->
@@ -134,12 +133,13 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 processExternalCommit ::
   forall r.
   ( Member (Error FederationError) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
+    Member (ErrorS MLSStaleMessage) r,
+    Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
     HasProposalActionEffects r
   ) =>
-  ClientIdentity ->
+  SenderIdentity ->
   Local ConvOrSubConv ->
   CipherSuiteTag ->
   Bool ->
@@ -147,34 +147,28 @@ processExternalCommit ::
   ExternalCommitAction ->
   Maybe UpdatePath ->
   Codensity (Sem r) ()
-processExternalCommit senderIdentity lConvOrSub ciphersuite ciphersuiteUpdate epoch action updatePath = do
+processExternalCommit senderIdentity lConvOrSub ciphersuite ciphersuiteUpdate epoch action mUpdatePath = do
   let convOrSub = tUnqualified lConvOrSub
+      groupId = cnvmlsGroupId convOrSub.mlsMeta
 
   -- only members can join a subconversation
   forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
-    unless (isClientMember senderIdentity (mcMembers mlsConv)) $
+    unless (isClientMember senderIdentity.client (mcMembers mlsConv)) $
       lift $
         throwS @'MLSSubConvClientNotInParent
 
-  -- extract leaf node from update path and validate it
-  leafNode <-
-    (.leaf)
-      <$> lift
-        ( note
-            (mlsProtocolError "External commits need an update path")
-            updatePath
-        )
-  let groupId = cnvmlsGroupId convOrSub.mlsMeta
-  let extra = LeafNodeTBSExtraCommit groupId action.add
-  case validateLeafNode ciphersuite (Just senderIdentity) extra leafNode.value of
-    Left errMsg ->
-      lift . throw $
-        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
-    Right _ -> pure ()
+  -- extract update path
+  updatePath <-
+    lift
+      ( note
+          (mlsProtocolError "External commits need an update path")
+          mUpdatePath
+      )
+  lift $ checkUpdatePath lConvOrSub senderIdentity ciphersuite updatePath
 
   withCommitLock (fmap (.id) lConvOrSub) groupId epoch
 
-  lift $ executeExternalCommitAction lConvOrSub senderIdentity action
+  lift $ executeExternalCommitAction lConvOrSub senderIdentity.client action
 
   -- increment epoch number
   lConvOrSub' <- for lConvOrSub $ lift . incrementEpoch
@@ -194,7 +188,7 @@ processExternalCommit senderIdentity lConvOrSub ciphersuite ciphersuiteUpdate ep
   createAndSendRemoveProposals
     lConvOrSub'
     (toList indices)
-    (cidQualifiedUser senderIdentity)
+    (cidQualifiedUser senderIdentity.client)
     (tUnqualified lConvOrSub').members
 
 executeExternalCommitAction ::

@@ -304,8 +304,8 @@ testClaimPrekeySuccess brig fedBrigClient = do
   user <- randomUser brig
   let uid = User.userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
-  c <- responseJsonError =<< addClient brig uid new
-  mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, clientId c)
+  c :: Client <- responseJsonError =<< addClient brig uid new
+  mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, c.clientId)
   liftIO $
     assertEqual
       "should return prekey 1"
@@ -357,7 +357,7 @@ testGetUserClients brig fedBrigClient = do
   liftIO $
     assertEqual
       "client set for user should match"
-      (Just (Set.fromList (fmap clientId clients)))
+      (Just (Set.fromList (fmap (.clientId) clients)))
       (fmap (Set.map pubClientId) . Map.lookup uid1 $ userClients)
 
 testGetUserClientsNotFound :: FedClient 'Brig -> Http ()

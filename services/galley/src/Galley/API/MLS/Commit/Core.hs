@@ -19,6 +19,9 @@ module Galley.API.MLS.Commit.Core
   ( getCommitData,
     incrementEpoch,
     getClientInfo,
+    getSingleClientInfo,
+    checkSignatureKey,
+    checkUpdatePath,
     HasProposalActionEffects,
     ProposalErrors,
     HandleMLSProposalFailures (..),
@@ -60,8 +63,10 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.MLS.Validation
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
 
@@ -98,7 +103,7 @@ getCommitData ::
   ( HasProposalEffects r,
     Member (ErrorS 'MLSProposalNotFound) r
   ) =>
-  ClientIdentity ->
+  SenderIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
   CipherSuiteTag ->
@@ -111,13 +116,13 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   evalState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
-        then addProposedClient senderIdentity
+        then addProposedClient (Left senderIdentity.client)
         else mempty
     proposals <-
       traverse
         (derefOrCheckProposal epoch ciphersuite groupId)
         bundle.commit.value.proposals
-    action <- applyProposals ciphersuite groupId proposals
+    action <- applyProposals ciphersuite proposals
     pure (creatorAction <> action)
 
 incrementEpoch ::
@@ -142,30 +147,126 @@ incrementEpoch (SubConv c s) = do
 
 getClientInfo ::
   ( Member BrigAccess r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (Error FederationError) r
   ) =>
   Local x ->
   Qualified UserId ->
   CipherSuiteTag ->
-  Sem r (Either FederationError (Set ClientInfo))
-getClientInfo loc =
-  foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
+  Sem r (Set ClientInfo)
+getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
-  ( Member FederatorAccess r
+  ( Member FederatorAccess r,
+    Member (Error FederationError) r
   ) =>
   Remote UserId ->
   CipherSuiteTag ->
-  Sem r (Either FederationError (Set ClientInfo))
+  Sem r (Set ClientInfo)
 getRemoteMLSClients rusr suite = do
   let mcr =
         MLSClientsRequest
           { userId = tUnqualified rusr,
             cipherSuite = tagCipherSuite suite
           }
-  runFederatedEither rusr $
+  (either throw pure <=< runFederatedEither rusr) $
     fedClient @'Brig @"get-mls-clients" mcr
       <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
+
+getSingleClientInfo ::
+  ( Member BrigAccess r,
+    Member FederatorAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Local x ->
+  Qualified UserId ->
+  ClientId ->
+  CipherSuiteTag ->
+  Sem r ClientInfo
+getSingleClientInfo loc = foldQualified loc getLocalMLSClient getRemoteMLSClient
+
+getRemoteMLSClient ::
+  ( Member FederatorAccess r,
+    Member (Error FederationError) r
+  ) =>
+  Remote UserId ->
+  ClientId ->
+  CipherSuiteTag ->
+  Sem r ClientInfo
+getRemoteMLSClient rusr cid suite = do
+  let mcr =
+        MLSClientsRequest
+          { userId = tUnqualified rusr,
+            cipherSuite = tagCipherSuite suite
+          }
+      mcr1 =
+        MLSClientRequest
+          { userId = tUnqualified rusr,
+            clientId = cid,
+            cipherSuite = tagCipherSuite suite
+          }
+      extractClient :: Set ClientInfo -> ClientInfo
+      extractClient infos = case filter ((== cid) . (.clientId)) (toList infos) of
+        (x : _) -> x
+        _ ->
+          ClientInfo
+            { clientId = cid,
+              hasKeyPackages = False,
+              mlsSignatureKey = Nothing
+            }
+  -- get single client if the API is available, otherwise get all clients and find the correct one
+  (either throw pure <=< runFederatedEither rusr) $
+    fedClient @'Brig @"get-mls-client" mcr1
+      <|> fmap extractClient (fedClient @'Brig @"get-mls-clients" mcr)
+      <|> fmap extractClient (fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr))
+
+checkSignatureKey ::
+  (Member (ErrorS MLSIdentityMismatch) r) =>
+  Maybe LeafNode ->
+  Maybe ByteString ->
+  Sem r ()
+checkSignatureKey mLeaf mKey = do
+  when
+    ( case mLeaf of
+        Just leaf -> case mKey of
+          -- if the key could not be obtained (e.g.
+          -- because an older version of the brig
+          -- or federation endpoint has been used),
+          -- skip this check
+          Nothing -> False
+          key -> key /= Just leaf.signatureKey
+        Nothing -> False
+    )
+    $ throwS @'MLSIdentityMismatch
+
+-- | Check that the leaf node in an update path, if present, has the correct signature key.
+checkUpdatePath ::
+  ( Member (ErrorS MLSIdentityMismatch) r,
+    Member (Error MLSProtocolError) r,
+    Member (Error FederationError) r,
+    Member BrigAccess r,
+    Member FederatorAccess r
+  ) =>
+  Local ConvOrSubConv ->
+  SenderIdentity ->
+  CipherSuiteTag ->
+  UpdatePath ->
+  Sem r ()
+checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity.index $ \index -> do
+  let groupId = cnvmlsGroupId (tUnqualified lConvOrSub).mlsMeta
+  let extra = LeafNodeTBSExtraCommit groupId index
+  case validateLeafNode ciphersuite (Just senderIdentity.client) extra path.leaf.value of
+    Left errMsg ->
+      throw $
+        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+    Right _ -> pure ()
+  clientInfo <-
+    getSingleClientInfo
+      lConvOrSub
+      (cidQualifiedUser senderIdentity.client)
+      senderIdentity.client.ciClient
+      ciphersuite
+  checkSignatureKey (Just path.leaf.value) clientInfo.mlsSignatureKey
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution
