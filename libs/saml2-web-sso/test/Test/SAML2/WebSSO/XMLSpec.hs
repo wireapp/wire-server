@@ -7,15 +7,21 @@ module Test.SAML2.WebSSO.XMLSpec
   )
 where
 
-import Data.ByteString as BS
+import Data.ByteString as SBS
 import Data.ByteString.Base64 qualified
 import Data.ByteString.Lazy as LBS
 import Data.Either
 import Data.Maybe
+
+import qualified Data.ByteString.Lazy.Char8 as CS
+import qualified Data.ByteString.Lazy            as BS
+import qualified Data.ByteString.Lazy.UTF8       as LBSUTF8
+
 import Data.String.Conversions
 import Data.Text.Lazy qualified as LT
 import Data.Tree.NTree.TypeDefs
 import SAML2.Core qualified as HS
+-- import Debug.Trace
 import SAML2.Util
 import SAML2.WebSSO
 import SAML2.XML qualified as HS
@@ -130,9 +136,17 @@ spec = describe "XML Sanitization" $ do
 
     focus . it "bla" $ do
       (i, o) <- canonicalizeCounterExample "PGE+w6Q8L2E+"
-      i `shouldBe` o
+      o `shouldBe` i
 
-canonicalizeCounterExample :: (HasCallStack) => BS.ByteString -> IO (LBS.ByteString, LBS.ByteString)
+    focus . it "hihi-utf8" $ do
+      LBSUTF8.toString (either (error "badcase") SBS.fromStrict $ Data.ByteString.Base64.decode "PGE+w6Q8L2E+")
+        `shouldBe` "<a>ä</a>"
+
+    focus . it "hihi-char8" $ do
+      CS.unpack (either (error "badcase") SBS.fromStrict $ Data.ByteString.Base64.decode "PGE+w6Q8L2E+")
+        `shouldBe` "<a>ä</a>"
+
+canonicalizeCounterExample :: (HasCallStack) => SBS.ByteString -> IO (LBS.ByteString, LBS.ByteString)
 canonicalizeCounterExample base64input = do
   let inbs :: LBS.ByteString
       inbs = either (error "badcase") BS.fromStrict $ Data.ByteString.Base64.decode base64input
@@ -143,6 +157,6 @@ canonicalizeCounterExample base64input = do
       algo :: CanonicalizationAlgorithm
       algo = CanonicalXMLExcl10 {canonicalWithComments = True}
 
-  outbs :: LBS.ByteString <- BS.fromStrict <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
+  outbs :: LBS.ByteString <- SBS.fromStrict <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
 
   pure (inbs, outbs)
