@@ -36,6 +36,7 @@ module Galley.API.Action
     notifyConversationAction,
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
+    kickMember,
     ConversationUpdate,
     getFederationStatus,
     enforceFederationProtocol,

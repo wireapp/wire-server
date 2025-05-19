@@ -23,8 +23,13 @@ module Galley.API.MLS.Reset
 where
 
 import Control.Monad.Codensity hiding (reset)
+import Data.Aeson qualified as A
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Qualified
+import Data.Time.Clock
+import Galley.API.Action
+import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.SubConversation
 import Galley.API.MLS.Util
@@ -35,11 +40,14 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Env
+import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -47,25 +55,36 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.API.VersionInfo
+import Wire.NotificationSubsystem
 
 resetMLSConversation ::
   ( Member (Input Env) r,
+    Member (Input UTCTime) r,
     Member (ErrorS MLSNotEnabled) r,
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS ConvNotFound) r,
     Member (Error MLSProtocolError) r,
+    Member (Error InternalError) r,
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS MLSFederatedResetNotSupported) r,
-    Member Resource r,
+    Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member FederatorAccess r,
+    Member ExternalAccess r,
     Member (Error FederationError) r,
     Member MemberStore r,
-    Member SubConversationStore r
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Random r,
+    Member Resource r,
+    Member SubConversationStore r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   MLSReset ->
@@ -81,15 +100,24 @@ resetMLSConversation lusr reset = do
 
 resetLocalMLSConversation ::
   ( Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member (Error InternalError) r,
     Member (ErrorS MLSNotEnabled) r,
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,
+    Member BackendNotificationQueueAccess r,
+    Member FederatorAccess r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Random r,
     Member Resource r,
     Member ConversationStore r,
     Member MemberStore r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member P.TinyLog r
   ) =>
   Qualified UserId ->
   ConvType ->
@@ -123,6 +151,33 @@ resetLocalMLSConversation qusr ctype lcnvOrSub reset =
                 Right gid' -> gid'
 
           resetConversation cnvId newGid
+
+          -- kick all remote members from backends that don't support this group ID version
+          let remoteUsers = map rmId (convRemoteMembers cnv)
+          let targets = convBotsAndMembers cnv
+          results <-
+            runFederatedConcurrentlyEither @_ @Brig remoteUsers $
+              \_ -> do
+                guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
+          let kick qvictim = do
+                r <-
+                  runError @FederationError $
+                    kickMember qusr (qualifyAs lcnvOrSub cnv) targets qvictim
+                case r of
+                  Left e ->
+                    P.warn $
+                      Log.field "conversation" (toByteString' cnvId)
+                        Log.~~ Log.field "user" (toByteString' (qUnqualified qvictim))
+                        Log.~~ Log.field "domain" (toByteString' (qDomain qvictim))
+                        Log.~~ Log.field "exception" (A.encode (federationErrorToWai e))
+                        Log.~~ Log.msg ("Failed to kick user from conversation after reset" :: Text)
+                  Right _ -> pure ()
+          traverse_ kick $
+            results >>= \case
+              Left (ruids, _) -> sequenceA (tUntagged ruids)
+              Right _ -> []
+
+          pure ()
 
 type ResetConversationStaticErrors =
   '[ ErrorS MLSNotEnabled,
