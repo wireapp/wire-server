@@ -829,8 +829,17 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
 resetConversation ::
   ( Member (Input (Local ())) r,
     Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member (Error InternalError) r,
+    Member TinyLog r,
+    Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
+    Member ProposalStore r,
+    Member Random r,
     Member Resource r,
     Member SubConversationStore r
   ) =>
