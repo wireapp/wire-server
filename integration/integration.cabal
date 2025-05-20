@@ -142,7 +142,6 @@ library
     Test.FeatureFlags.EnforceFileDownloadLocation
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
-    Test.FeatureFlags.Initialisation
     Test.FeatureFlags.LegalHold
     Test.FeatureFlags.Mls
     Test.FeatureFlags.MlsE2EId
