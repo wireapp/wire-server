@@ -385,8 +385,9 @@ testSparIdPInitiatedLogin = do
     resp.status `shouldMatchInt` 200
     (cs resp.body) `shouldContain` "SAMLRequest"
 
-testSparIdPInitiatedLoginSpecialChar :: (HasCallStack) => App ()
-testSparIdPInitiatedLoginSpecialChar = do
+-- | UTF-8 chars (non-Latin-1) caused issues in XML parsing.
+testSparIdPInitiatedLoginUtf8Char :: (HasCallStack) => App ()
+testSparIdPInitiatedLoginUtf8Char = do
   -- set up saml-not-scim team
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -395,11 +396,15 @@ testSparIdPInitiatedLoginSpecialChar = do
 
   -- craft authnresp without req
   idpValue :: A.Value <- createIdpResp.json
+  randomness <- randomId
   let idp :: SAML.IdPConfig Value
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
-      -- klăus
-      -- TODO: Add some randomness to be able to run this test multiple times
-      Right (subject :: SAML.NameID) = SAML.mkNameID ((SAML.mkUNameIDUnspecified . ST.pack) "klăus") Nothing Nothing Nothing
+      Right (subject :: SAML.NameID) =
+        SAML.mkNameID
+          ((SAML.mkUNameIDUnspecified . ST.pack) ("klăus-" ++ randomness))
+          Nothing
+          Nothing
+          Nothing
   authnresp <- getAuthnResponseCustomNameID subject tid idp privcreds
 
   -- send to finalize and check redirect response
