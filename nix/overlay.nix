@@ -50,8 +50,6 @@ let
     };
 
   sources = import ./sources.nix;
-
-  pkgs_old = import sources.nixpkgs_old { config.allowUnfree = true; };
 in
 
 self: super: {
@@ -110,7 +108,4 @@ self: super: {
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
   sbomqs = super.callPackage ./pkgs/sbomqs { };
-
-  # FUTUREWORK: Remove this override when vacuum-go has been fixed so it doesn't panic when running `make openapi-validate`
-  vacuum-go = pkgs_old.vacuum-go;
 }
