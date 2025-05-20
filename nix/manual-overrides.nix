@@ -18,7 +18,7 @@ hself: hsuper: {
   # Tests require a running redis
   hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
 
-  HaskellNet = hlib.markUnbroken (hlib.dontCheck hsuper.HaskellNet);
+  HaskellNet = hlib.dontCheck hsuper.HaskellNet;
   amazonka-s3-streaming = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-s3-streaming);
 
   # ---------------------
