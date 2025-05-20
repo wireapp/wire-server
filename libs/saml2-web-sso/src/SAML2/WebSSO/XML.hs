@@ -30,6 +30,7 @@ import Control.Exception (SomeException)
 import Control.Lens hiding (element)
 import Control.Monad
 import Control.Monad.Except
+import Data.ByteString.Lazy qualified as BSL
 import Data.CaseInsensitive (CI)
 import Data.CaseInsensitive qualified as CI
 import Data.EitherR
@@ -46,6 +47,7 @@ import Data.Text.Lazy.Encoding
 import Data.Time
 import Data.Typeable (Proxy (Proxy), Typeable)
 import Data.X509 qualified as X509
+import Debug.Trace
 import GHC.Stack
 import Network.URI qualified as HS
 import SAML2.Bindings.Identifiers qualified as HS
@@ -56,7 +58,6 @@ import SAML2.Util
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.Types.Email qualified as Email
-import SAML2.WebSSO.XML.Hack qualified as Hack
 import SAML2.XML qualified as HS
 import SAML2.XML qualified as HX
 import SAML2.XML.Schema.Datatypes qualified as HX (Boolean, Duration, UnsignedShort)
@@ -65,6 +66,7 @@ import Text.Hamlet.XML (xml)
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
+import Text.XML.HXT.Arrow.Pickle qualified as XP
 import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
 import Text.XML.HXT.DOM.TypeDefs (XmlTree)
 import URI.ByteString as U
@@ -107,7 +109,7 @@ parseFromDocument doc = parse [NodeElement $ documentRoot doc]
 
 parseFromXmlTree :: (MonadError String m, HasXML a) => XmlTree -> m a
 parseFromXmlTree raw = do
-  doc :: Document <- decode . decodeUtf8 $ Hack.docToXMLWithRoot raw
+  doc :: Document <- decode . decodeUtf8 $ HS.docToXMLWithRoot raw
   parseFromDocument doc
 
 -- FUTUREWORK: perhaps we want to split this up: HasXML (for nameSpaces), and HasXMLParse, HasXMLRender,
@@ -253,15 +255,25 @@ wrapParse _ badxml = error $ "internal error: " <> show badxml
 
 wrapRender ::
   forall them us.
-  (HasCallStack, HS.XmlPickler them, HasXML us) =>
+  (HasCallStack, HS.XmlPickler them, HasXML us, Show them) =>
   (us -> them) ->
   us ->
   [Node]
-wrapRender exprt = parseElement . HS.samlToXML . exprt
+wrapRender exprt us = traceShow ('!', a, b, c) c
   where
+    a = exprt us
+    b = ourSamlToXML a -- it's samlToXML!!!
+    c = parseElement b
+
     parseElement lbs = case parseLBS def lbs of
       Right (Document _ el _) -> [NodeElement el]
       Left msg -> error $ show (Proxy @us, msg)
+
+ourSamlToXML :: (XP.XmlPickler a) => a -> BSL.ByteString
+ourSamlToXML x = traceShow (a, b) b
+  where
+    a = HS.samlToDoc x
+    b = docToXMLWithoutRoot a -- it's HS.docToXMLWithoutRoot
 
 wrapRenderRoot ::
   forall them us.

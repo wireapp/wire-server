@@ -38,7 +38,6 @@ library
     SAML2.WebSSO.Types.Email
     SAML2.WebSSO.Types.TH
     SAML2.WebSSO.XML
-    SAML2.WebSSO.XML.Hack
     Text.XML.DSig
     Text.XML.Util
 
