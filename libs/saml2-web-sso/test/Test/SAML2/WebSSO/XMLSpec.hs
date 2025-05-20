@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-incomplete-patterns -Wno-incomplete-uni-patterns #-}
 
 module Test.SAML2.WebSSO.XMLSpec
@@ -11,17 +11,15 @@ where
 import Data.ByteString as SBS
 import Data.ByteString.Base64 qualified
 import Data.ByteString.Lazy as LBS
-import Data.Either
+import Data.ByteString.Lazy qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as CS
+import Data.ByteString.Lazy.UTF8 qualified as LBSUTF8
 import Data.Default
-import Imports
-
-import qualified Data.ByteString.Lazy.Char8 as CS
-import qualified Data.ByteString.Lazy            as BS
-import qualified Data.ByteString.Lazy.UTF8       as LBSUTF8
-
+import Data.Either
 import Data.String.Conversions
 import Data.Text.Lazy qualified as LT
 import Data.Tree.NTree.TypeDefs
+import Imports
 import SAML2.Core qualified as HS
 -- import Debug.Trace
 import SAML2.Util
@@ -139,9 +137,12 @@ spec = describe "XML Sanitization" $ do
           xout :: LT.Text = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
 
           xmlcIn :: Either SomeException Document = XMLC.parseText def xin
-          xmlcInExpected = Document {documentPrologue = Prologue {prologueBefore = [], prologueDoctype = Nothing, prologueAfter = []},
-                                     documentRoot = Element {elementName = Name {nameLocalName = "NameID", nameNamespace = Just "urn:oasis:names:tc:SAML:2.0:assertion", namePrefix = Nothing}, elementAttributes = M.fromList [], elementNodes = [NodeContent "Căro"]},
-                                     documentEpilogue = []}
+          xmlcInExpected =
+            Document
+              { documentPrologue = Prologue {prologueBefore = [], prologueDoctype = Nothing, prologueAfter = []},
+                documentRoot = Element {elementName = Name {nameLocalName = "NameID", nameNamespace = Just "urn:oasis:names:tc:SAML:2.0:assertion", namePrefix = Nothing}, elementAttributes = mempty, elementNodes = [NodeContent "Căro"]},
+                documentEpilogue = []
+              }
           Right decodeElemExpected = mkNameID (UNameIDUnspecified (mkXmlText "Căro")) Nothing Nothing Nothing
 
           xmlcOut :: LByteString = XMLC.renderLBS def (either (error . show) id xmlcIn)
