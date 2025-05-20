@@ -351,4 +351,4 @@ spec = describe "API" $ do
       check "microsoft-azure-utf8-issue-metadata.xml" "microsoft-azure-utf8-issue-authentication-request.xml"
 
     focus . it "what is this about?  donno, let's see!" $ do
-      check "keycloak-response.xml" "keycloak-idp-metadata.xml"
+      check "keycloak-idp-metadata.xml" "keycloak-response.xml"
