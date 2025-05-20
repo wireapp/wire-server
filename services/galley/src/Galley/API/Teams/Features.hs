@@ -91,9 +91,13 @@ patchFeatureInternal tid patch = do
   assertTeamExists tid
   dbFeature <- getDbFeature tid
   defFeature <- getFeatureForServer @cfg
-  let currentFeatureStatus = applyDbFeature dbFeature defFeature
-  let newFeatureStatus = applyPatch currentFeatureStatus
-  setFeatureForTeam @cfg tid newFeatureStatus
+  let dbFeatureWithDefaults = dbFeature.applyDbFeature defFeature
+  let patchedFeature = applyPatch dbFeatureWithDefaults
+  prepareFeature tid patchedFeature
+  patchDbFeature tid patch
+  returnedFeature <- getFeatureForTeam @cfg tid
+  pushFeatureEvent tid (mkUpdateEvent returnedFeature)
+  pure returnedFeature
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
     applyPatch current =
@@ -240,8 +244,8 @@ setFeatureForTeam ::
   LockableFeature cfg ->
   Sem r (LockableFeature cfg)
 setFeatureForTeam tid feat = do
-  preparedFeat <- prepareFeature tid feat
-  newFeat <- persistFeature tid preparedFeat
+  prepareFeature tid feat
+  newFeat <- persistFeature tid feat
   pushFeatureEvent tid (mkUpdateEvent newFeat)
   pure newFeat
 
@@ -278,9 +282,9 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     (SetFeatureForTeamConstraints cfg r) =>
     TeamId ->
     LockableFeature cfg ->
-    Sem r (LockableFeature cfg)
-  default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r (LockableFeature cfg)
-  prepareFeature _tid feat = pure feat
+    Sem r ()
+  default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r ()
+  prepareFeature _tid _feat = pure ()
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -293,7 +297,6 @@ instance SetFeatureConfig SSOConfig where
     case feat.status of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> throw DisableSsoNotImplemented
-    pure feat
 
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
   type
@@ -306,7 +309,6 @@ instance SetFeatureConfig SearchVisibilityAvailableConfig where
     case feat.status of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
-    pure feat
 
 instance SetFeatureConfig ValidateSAMLEmailsConfig
 
@@ -368,7 +370,6 @@ instance SetFeatureConfig LegalholdConfig where
     case feat.status of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
       FeatureStatusEnabled -> LegalHold.ensureNotTooLargeToActivateLegalHold tid
-    pure feat
 
 instance SetFeatureConfig FileSharingConfig
 
@@ -378,7 +379,6 @@ instance SetFeatureConfig AppLockConfig where
   prepareFeature _tid feat = do
     when (feat.config.timeout < 30) $
       throw AppLockInactivityTimeoutTooLow
-    pure feat
 
 instance SetFeatureConfig ConferenceCallingConfig
 
@@ -392,7 +392,6 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
   type SetFeatureForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
   prepareFeature tid feat = do
     updateSearchVisibilityInbound $ toTeamStatus tid feat
-    pure feat
 
 instance SetFeatureConfig MLSConfig where
   type
@@ -410,7 +409,6 @@ instance SetFeatureConfig MLSConfig where
           && (mlsMigrationConfig.status == FeatureStatusDisabled || feat.status == FeatureStatusEnabled)
       )
       $ throw MLSProtocolMismatch
-    pure feat
 
 instance SetFeatureConfig ChannelsConfig
 
@@ -446,7 +444,6 @@ instance SetFeatureConfig MlsMigrationConfig where
         feat.status == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled
       )
       $ throw MLSProtocolMismatch
-    pure feat
 
 instance SetFeatureConfig EnforceFileDownloadLocationConfig where
   type
@@ -458,7 +455,6 @@ instance SetFeatureConfig EnforceFileDownloadLocationConfig where
     -- this is consistent with all other features, and least surprising for clients
     when (feat.config.enforcedDownloadLocation == Just "") $ do
       throw EmptyDownloadLocation
-    pure feat
 
 instance SetFeatureConfig LimitedEventFanoutConfig
 
