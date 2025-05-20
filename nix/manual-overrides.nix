@@ -14,9 +14,6 @@ hself: hsuper: {
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
 
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-  # these are okay, the only issue is that the compiler underlines
-  # errors differently than before
-  singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
 
   # Tests require a running redis
   hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
