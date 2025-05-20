@@ -86,12 +86,6 @@ self: super: {
     ];
   };
 
-  haskellPackages = super.haskellPackages.override {
-    overrides = hself: hsuper: {
-      # Add overrides to haskellPackages here
-    };
-  };
-
   stack = staticBinaryInTarball rec {
     pname = "stack";
     version = "2.7.3";
