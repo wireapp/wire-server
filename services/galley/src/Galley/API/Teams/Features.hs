@@ -89,7 +89,9 @@ patchFeatureInternal ::
   Sem r (LockableFeature cfg)
 patchFeatureInternal tid patch = do
   assertTeamExists tid
-  currentFeatureStatus <- getFeatureForTeam @cfg tid
+  dbFeature <- getDbFeature tid
+  defFeature <- getFeatureForServer @cfg
+  let currentFeatureStatus = applyDbFeature dbFeature defFeature
   let newFeatureStatus = applyPatch currentFeatureStatus
   setFeatureForTeam @cfg tid newFeatureStatus
   where
