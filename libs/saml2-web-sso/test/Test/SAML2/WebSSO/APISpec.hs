@@ -125,7 +125,7 @@ spec = describe "API" $ do
                   creds <- issuerToCreds missuer Nothing
                   simpleVerifyAuthnResponse creds resp >>= \case a :| [] -> pure a
             if expectOutcome
-              then fmap _assID (run go) `shouldReturn` ID (mkXmlText "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6")
+              then fmap _assID (run go) `shouldReturn` ID "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6"
               else run go `shouldThrow` anyException
     context "good signature" $ do
       context "known key" $ check True (Just True) True
@@ -139,7 +139,7 @@ spec = describe "API" $ do
       it "1" $ do
         rawResp <- readSampleIO "authnresponse-3.xml"
         xmlResp <- either (error . show) pure $ decode @_ @AuthnResponse (cs rawResp)
-        let respId = unsafeFromXmlText . fromID $ xmlResp ^. rspID
+        let respId = fromID $ xmlResp ^. rspID
         respId `shouldBe` "_5ae4ec37-8e91-4f15-9170-655941b42b8e"
   describe "cookies" $ do
     let rndtrip =

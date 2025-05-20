@@ -100,7 +100,7 @@ mkAuthnResponseWithModif modifUnsignedAssertion modifAll creds idp sp mbauthnreq
       idpissuer :: ST = idp ^. idpMetadata . edIssuer . fromIssuer . to renderURI
       recipient :: ST = sp ^. spResponseURL . to renderURI
       mbspissuer :: Maybe ST = (^. rqIssuer . fromIssuer . to renderURI) <$> mbauthnreq
-      mbinResponseTo :: Maybe ST = escapeXmlText . fromID . (^. rqID) <$> mbauthnreq
+      mbinResponseTo :: Maybe ST = fromID . (^. rqID) <$> mbauthnreq
       status
         | grantAccess = "urn:oasis:names:tc:SAML:2.0:status:Success"
         | otherwise = "urn:oasis:names:tc:SAML:2.0:status:Requester"

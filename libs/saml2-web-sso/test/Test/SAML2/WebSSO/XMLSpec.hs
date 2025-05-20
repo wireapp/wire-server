@@ -69,9 +69,7 @@ spec = describe "XML Sanitization" $ do
       decodeElem
         (xmlWithName (Just unspecifiedFormat) "&amp;lt;somebody@example.org&amp;gt;")
         `shouldBe` ( mkNameID
-                       ( UNameIDUnspecified
-                           (mkXmlText "&lt;somebody@example.org&gt;")
-                       )
+                       (UNameIDUnspecified "&lt;somebody@example.org&gt;")
                        Nothing
                        Nothing
                        Nothing ::
@@ -90,17 +88,18 @@ spec = describe "XML Sanitization" $ do
                        Nothing ::
                        Either String NameID
                    )
-    it "rendering doesn't double escape" $ do
-      encodeElem (unspecifiedNameID "<something>")
-        `shouldBe` (xmlWithName Nothing "&lt;something&gt;") -- !!
+    describe "these tests are weird and caused by the XmlText type removed in may 2025" $ do
+      it "rendering doesn't double escape" $ do
+        encodeElem (unspecifiedNameID "<something>")
+          `shouldBe` (xmlWithName Nothing "&lt;something&gt;")
 
-    it "rendering escapes emails correctly" $ do
-      encodeElem (fromRight (error "bad test case") $ emailNameID "a&@b.c")
-        `shouldBe` (xmlWithName (Just emailFormat) "a&amp;@b.c") -- !!
+      it "rendering escapes emails correctly" $ do
+        encodeElem (fromRight (error "bad test case") $ emailNameID "a&@b.c")
+          `shouldBe` (xmlWithName (Just emailFormat) "a&amp;@b.c")
 
-    it "rendering escapes urls correctly" $ do
-      encodeElem (entityNameID [uri|http://example.com/?<&>|])
-        `shouldBe` (xmlWithName (Just entityFormat) "http://example.com/?%3C=&amp;%3E=") -- !!
+      it "rendering escapes urls correctly" $ do
+        encodeElem (entityNameID [uri|http://example.com/?<&>|])
+          `shouldBe` (xmlWithName (Just entityFormat) "http://example.com/?%3C=&amp;%3E=")
 
     it "sadly, hsaml2 does not escape unsafe strings" $ do
       -- this test case reproduces an issue with hsaml2 that motivates us manually escaping
@@ -134,7 +133,7 @@ spec = describe "XML Sanitization" $ do
                 documentRoot = Element {elementName = Name {nameLocalName = "NameID", nameNamespace = Just "urn:oasis:names:tc:SAML:2.0:assertion", namePrefix = Nothing}, elementAttributes = mempty, elementNodes = [NodeContent "Căro"]},
                 documentEpilogue = []
               }
-          Right decodeElemExpected = mkNameID (UNameIDUnspecified (mkXmlText "Căro")) Nothing Nothing Nothing
+          Right decodeElemExpected = mkNameID (UNameIDUnspecified "Căro") Nothing Nothing Nothing
 
           xmlcOut :: LByteString = XMLC.renderLBS def (either (error . show) id xmlcIn)
           xmlcOutExpected :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"

@@ -172,11 +172,11 @@ genSPContactPerson :: Gen ContactPerson
 genSPContactPerson =
   ContactPerson
     <$> Gen.enumBounded
-    <*> Gen.maybe (mkXmlText <$> genNiceWord)
-    <*> Gen.maybe (mkXmlText <$> genNiceWord)
-    <*> Gen.maybe (mkXmlText <$> genNiceWord)
+    <*> Gen.maybe genNiceWord
+    <*> Gen.maybe genNiceWord
+    <*> Gen.maybe genNiceWord
     <*> Gen.maybe genHttps
-    <*> Gen.maybe (mkXmlText <$> genNiceWord)
+    <*> Gen.maybe genNiceWord
 
 genIdPMetadata :: Gen IdPMetadata
 genIdPMetadata =
@@ -194,8 +194,8 @@ genSPMetadata = do
   _spID <- genID
   _spValidUntil <- fromTime <$> genTime
   _spCacheDuration <- genNominalDifftime
-  _spOrgName <- mkXmlText <$> genNiceWord
-  _spOrgDisplayName <- mkXmlText <$> genNiceWord
+  _spOrgName <- genNiceWord
+  _spOrgDisplayName <- genNiceWord
   _spOrgURL <- genHttps
   _spResponseURL <- genHttps
   _spContacts <- Gen.list (Range.linear 0 3) genContactPerson
@@ -204,11 +204,11 @@ genSPMetadata = do
 genContactPerson :: Gen ContactPerson
 genContactPerson = do
   _cntType <- Gen.enumBounded
-  _cntCompany <- Gen.maybe (mkXmlText <$> genNiceWord)
-  _cntGivenName <- Gen.maybe (mkXmlText <$> genNiceWord)
-  _cntSurname <- Gen.maybe (mkXmlText <$> genNiceWord)
+  _cntCompany <- Gen.maybe genNiceWord
+  _cntGivenName <- Gen.maybe genNiceWord
+  _cntSurname <- Gen.maybe genNiceWord
   _cntEmail <- Gen.maybe genEmailURI
-  _cntPhone <- Gen.maybe (mkXmlText <$> genNiceWord)
+  _cntPhone <- Gen.maybe genNiceWord
   pure ContactPerson {..}
 
 genEmailURI :: Gen URI
@@ -252,7 +252,7 @@ genNameIDPolicy :: Gen NameIdPolicy
 genNameIDPolicy =
   NameIdPolicy
     <$> genNameIDFormat
-    <*> Gen.maybe (mkXmlText <$> genNiceWord)
+    <*> Gen.maybe genNiceWord
     <*> Gen.bool
 
 genNameIDFormat :: Gen NameIDFormat
@@ -282,7 +282,7 @@ genUnqualifiedNameID =
       UNameIDTransient <$> mktxt 2000
     ]
   where
-    mktxt charlen = mkXmlText <$> Gen.text (Range.linear 1 charlen) Gen.alpha
+    mktxt charlen = Gen.text (Range.linear 1 charlen) Gen.alpha
 
 genNonEmpty :: Range Int -> Gen a -> Gen (NonEmpty a)
 genNonEmpty rng gen = (:|) <$> gen <*> Gen.list rng gen
@@ -368,7 +368,8 @@ genDNSName =
 genIP :: Gen IP
 genIP =
   Gen.choice $
-    either (error . show) pure . mkIP
+    either (error . show) pure
+      . mkIP
       <$> [ "127.0.0.1",
             "::1",
             "192.168.1.0",
@@ -386,7 +387,7 @@ genIP =
 genStatement :: Gen Statement
 genStatement = do
   _astAuthnInstant <- genTime
-  _astSessionIndex <- Gen.maybe (mkXmlText <$> genNiceWord)
+  _astSessionIndex <- Gen.maybe genNiceWord
   _astSessionNotOnOrAfter <- Gen.maybe genTime
   _astSubjectLocality <- Gen.maybe genLocality
   pure AuthnStatement {..}

@@ -216,8 +216,8 @@ mkTestSPMetadata = do
   let _spID = mkID "_4b7e1488-c0c6-11e8-aef0-9fe604f9513a"
       _spValidUntil = fromTime $ addTime (60 * 60 * 24 * 365) timeNow
       _spCacheDuration = 2592000
-      _spOrgName = mkXmlText "drnick"
-      _spOrgDisplayName = mkXmlText "drnick"
+      _spOrgName = "drnick"
+      _spOrgDisplayName = "drnick"
       _spContacts = [fallbackContact]
   _spOrgURL <- (^. fromIssuer) <$> defSPIssuer
   _spResponseURL <- defResponseURI

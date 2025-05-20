@@ -69,11 +69,6 @@ samlSchemaOptions =
     fieldMod = A.fieldLabelModifier deriveJSONOptions
     dropPrefix = dropWhile (not . isUpper)
 
--- This type comes from a seperate repo, so we're keeping the prefix dropping
--- for the moment.
-instance O.ToSchema SAML.XmlText where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
