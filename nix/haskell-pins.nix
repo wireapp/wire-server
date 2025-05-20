@@ -83,11 +83,11 @@ let
       };
     };
 
-    # PR https://github.com/dylex/hsaml2/pull/20
+    # Merged PR https://github.com/dylex/hsaml2/pull/20
     hsaml2 = {
       src = fetchgit {
-        url = "https://github.com/mangoiv/hsaml2";
-        rev = "d35f92a3253d146c92caf371b90eb4889841918a";
+        url = "https://github.com/dylex/hsaml2";
+        rev = "874627ad22e69afe4d9a797e39633ffb30697c78";
         hash = "sha256-gufEAC7fFqafG8dXkGIOSfAcVv+ZWkawmBgUV+Ics2s=";
       };
     };
