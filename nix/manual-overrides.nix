@@ -19,7 +19,6 @@ hself: hsuper: {
   hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
 
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
-  amazonka-s3-streaming = hlib.markUnbroken (hlib.dontCheck hsuper.amazonka-s3-streaming);
 
   # ---------------------
   # need to be jailbroken
