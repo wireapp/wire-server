@@ -72,7 +72,7 @@ storeAReqID (SAML.ID rid) issuer (SAML.Time endOfLife) = do
   TTL ttl <- Data.mkTTLAuthnRequests env endOfLife
   retry x5 . write ins $ params LocalQuorum (rid, issuer, ttl)
   where
-    ins :: PrepQuery W (SAML.XmlText, SAML.Issuer, Int32) ()
+    ins :: PrepQuery W (Text, SAML.Issuer, Int32) ()
     ins = "INSERT INTO authreq (req, idp_issuer) VALUES (?,?) USING TTL ?"
 
 getAReqID ::
@@ -82,7 +82,7 @@ getAReqID ::
 getAReqID (SAML.ID rid) =
   listToMaybe <$> (runIdentity <$$> (retry x1 . query sel . params LocalQuorum $ Identity rid))
   where
-    sel :: PrepQuery R (Identity SAML.XmlText) (Identity SAML.Issuer)
+    sel :: PrepQuery R (Identity Text) (Identity SAML.Issuer)
     sel = "SELECT idp_issuer FROM authreq WHERE req = ?"
 
 unStoreAReqID ::
@@ -91,5 +91,5 @@ unStoreAReqID ::
   m ()
 unStoreAReqID (SAML.ID rid) = retry x5 . write del . params LocalQuorum $ Identity rid
   where
-    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del :: PrepQuery W (Identity Text) ()
     del = "DELETE FROM authreq WHERE req = ?"
