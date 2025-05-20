@@ -31,6 +31,7 @@ import Control.Lens hiding (element)
 import Control.Monad
 import Control.Monad.Except
 import Data.ByteString.Lazy qualified as BSL
+import Data.ByteString.Lazy.UTF8 qualified as BSLUTF8
 import Data.CaseInsensitive (CI)
 import Data.CaseInsensitive qualified as CI
 import Data.EitherR
@@ -45,6 +46,7 @@ import Data.String.Conversions
 import Data.Text qualified as ST
 import Data.Text.Lazy.Encoding
 import Data.Time
+import Data.Tree.NTree.TypeDefs qualified as HXT
 import Data.Typeable (Proxy (Proxy), Typeable)
 import Data.X509 qualified as X509
 import Debug.Trace
@@ -68,6 +70,7 @@ import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import Text.XML.HXT.Arrow.Pickle qualified as XP
 import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
+import Text.XML.HXT.Core qualified as HXT
 import Text.XML.HXT.DOM.TypeDefs (XmlTree)
 import URI.ByteString as U
 import Prelude hiding (id, (.))
@@ -274,6 +277,12 @@ ourSamlToXML x = traceShow (a, b) b
   where
     a = HS.samlToDoc x
     b = docToXMLWithoutRoot a -- it's HS.docToXMLWithoutRoot
+
+-- XXX: Copied from SAML2.XML
+docToXMLWithoutRoot :: HXT.XmlTree -> BSL.ByteString
+docToXMLWithoutRoot t =
+  let [xmlContent] = HXT.runLA (HXT.writeDocumentToString []) t
+   in BSLUTF8.fromString xmlContent
 
 wrapRenderRoot ::
   forall them us.
