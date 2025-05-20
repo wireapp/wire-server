@@ -45,14 +45,6 @@ hself: hsuper: {
       }
     )));
 
-  # ------------------------------------
-  # okay but marked broken (nixpkgs bug)
-  # (we can unfortunately not do anything here but update nixpkgs)
-  # ------------------------------------
-  template = hlib.markUnbroken hsuper.template;
-  system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
-  lrucaching = hlib.markUnbroken hsuper.lrucaching;
-
   # -----------------
   # version overrides
   # (these are fine but will probably need to be adjusted in a future nixpkgs update)
