@@ -67,6 +67,13 @@ ourDocToXMLWithoutRoot t = case HXT.runLA (HXT.writeDocumentToString []) t of
   [xmlContent] -> BSLUTF8.fromString xmlContent
   other -> error $ "Expected one element. Got: " ++ show other
 
+ourDocToXMLWithRoot :: HXT.XmlTree -> BSL.ByteString
+ourDocToXMLWithRoot t =
+  let t' :: HXT.XmlTree = HXT.NTree (HXT.XText "throw-me-away") [t]
+   in case HXT.runLA (HXT.writeDocumentToString []) t' of
+        [xmlContent] -> BSLUTF8.fromString xmlContent
+        other -> error $ "Expected one element. Got: " ++ show other
+
 -- | This is subtly different from HS.docToXML' and should probably be moved to hsaml2.
 docToXML' :: HXT.XmlTree -> BSL.ByteString
 docToXML' = Text.XML.HXT.DOM.ShowXml.xshowBlob . (: [])

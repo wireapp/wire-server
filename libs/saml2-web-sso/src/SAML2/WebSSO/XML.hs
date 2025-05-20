@@ -106,8 +106,7 @@ parseFromDocument doc = parse [NodeElement $ documentRoot doc]
 
 parseFromXmlTree :: (MonadError String m, HasXML a) => XmlTree -> m a
 parseFromXmlTree raw = do
-  -- TODO: docToXMLWithRoot is suspicious
-  doc :: Document <- decode . decodeUtf8 $ HS.docToXMLWithRoot raw
+  doc :: Document <- decode . decodeUtf8 $ ourDocToXMLWithRoot raw
   parseFromDocument doc
 
 -- FUTUREWORK: perhaps we want to split this up: HasXML (for nameSpaces), and HasXMLParse, HasXMLRender,
