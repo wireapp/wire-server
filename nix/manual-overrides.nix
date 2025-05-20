@@ -13,7 +13,7 @@ hself: hsuper: {
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
 
-  quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
+  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
   # these are okay, the only issue is that the compiler underlines
   # errors differently than before
   singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
