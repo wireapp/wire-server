@@ -10,6 +10,7 @@ hself: hsuper: {
 
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
+
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
 
@@ -60,6 +61,8 @@ hself: hsuper: {
     [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
   # doJailbreak because upstreams requires a specific crypton-connection version we don't have
   hoogle = hlib.justStaticExecutables (hlib.doJailbreak (hlib.dontCheck (hsuper.hoogle)));
+
+  # Extra dependencies/flags for local packages
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
