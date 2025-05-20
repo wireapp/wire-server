@@ -116,7 +116,7 @@ spec = describe "XML Sanitization" $ do
       -- the 'XmlText's in the serialization functions here in saml2-web-sso.
 
       -- it really shouldn't, though!
-      HS.samlToXML (HS.simpleNameID HS.NameIDFormatUnspecified "<something>")
+      HS.samlToXML (HS.simpleNameID HS.NameIDFormatUnspecified "<something>") -- TODO: fix samlTooXML call.
         `shouldBe` "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\"><something></NameID>"
 
       -- this is good!

@@ -150,7 +150,7 @@ stripWhitespaceLBS :: (m ~ Either String) => LBS -> m LBS
 stripWhitespaceLBS lbs = renderLBS def . stripWhitespace <$> fmapL show (parseLBS def lbs)
 
 renderKeyInfo :: (HasCallStack) => X509.SignedCertificate -> LT
-renderKeyInfo cert = cs . HS.samlToXML . HS.KeyInfo Nothing $ HS.X509Data (HS.X509Certificate cert :| []) :| []
+renderKeyInfo cert = cs . ourSamlToXML . HS.KeyInfo Nothing $ HS.X509Data (HS.X509Certificate cert :| []) :| []
 
 certToCreds :: (HasCallStack, MonadError String m) => X509.SignedCertificate -> m SignCreds
 certToCreds cert = do

@@ -272,25 +272,13 @@ wrapRender exprt us = traceShow ('!', a, b, c) c
       Right (Document _ el _) -> [NodeElement el]
       Left msg -> error $ show (Proxy @us, msg)
 
-ourSamlToXML :: (XP.XmlPickler a) => a -> BSL.ByteString
-ourSamlToXML x = traceShow (a, b) b
-  where
-    a = HS.samlToDoc x
-    b = docToXMLWithoutRoot a -- it's HS.docToXMLWithoutRoot
-
--- XXX: Copied from SAML2.XML
-docToXMLWithoutRoot :: HXT.XmlTree -> BSL.ByteString
-docToXMLWithoutRoot t =
-  let [xmlContent] = HXT.runLA (HXT.writeDocumentToString []) t
-   in BSLUTF8.fromString xmlContent
-
 wrapRenderRoot ::
   forall them us.
   (HasCallStack, HS.XmlPickler them, HasXMLRoot us) =>
   (us -> them) ->
   us ->
   Element
-wrapRenderRoot exprt = parseElement . HS.samlToXML . exprt
+wrapRenderRoot exprt = parseElement . ourSamlToXML . exprt
   where
     parseElement lbs = case parseLBS def lbs of
       Right (Document _ el _) -> el

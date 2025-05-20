@@ -10,6 +10,9 @@ import Data.Kind (Type)
 import Data.Map as Map
 import Data.Proxy
 import Data.String.Conversions
+import Data.ByteString.Lazy.UTF8 qualified as BSLUTF8
+import Text.XML.HXT.Arrow.Pickle.Xml qualified as XP
+import Debug.Trace
 import Data.Text qualified as ST
 import Data.Tree.NTree.TypeDefs qualified as HXT
 import Data.Typeable
@@ -55,7 +58,19 @@ conduitToHxt :: (MonadError String m) => Document -> m HXT.XmlTree
 conduitToHxt = either (throwError . ("conduitToHxt: xmlToDoc' failed: " <>)) pure . xmlToDoc' . renderLBS def {rsXMLDeclaration = False}
 
 samlToConduit :: (MonadError String m, HXT.XmlPickler a) => a -> m Document
-samlToConduit = either (throwError . ("samlToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . HS.samlToXML
+samlToConduit = either (throwError . ("samlToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . ourSamlToXML
+
+ourSamlToXML :: (XP.XmlPickler a) => a -> BSL.ByteString
+ourSamlToXML x = traceShow (a, b) b
+  where
+    a = HS.samlToDoc x
+    b = docToXMLWithoutRoot a -- it's HS.docToXMLWithoutRoot
+
+-- XXX: Copied from SAML2.XML
+docToXMLWithoutRoot :: HXT.XmlTree -> BSL.ByteString
+docToXMLWithoutRoot t =
+  let [xmlContent] = HXT.runLA (HXT.writeDocumentToString []) t
+   in BSLUTF8.fromString xmlContent
 
 -- | This is subtly different from HS.docToXML' and should probably be moved to hsaml2.
 docToXML' :: HXT.XmlTree -> BSL.ByteString
