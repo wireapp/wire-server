@@ -12,9 +12,7 @@ hself: hsuper: {
   bloodhound = hlib.dontCheck hsuper.bloodhound;
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
-  # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
-  # the PR has been merged, but has not arrived in nixpkgs
-  hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
+
   quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
   # these are okay, the only issue is that the compiler underlines
   # errors differently than before
