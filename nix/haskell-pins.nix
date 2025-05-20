@@ -326,6 +326,7 @@ let
 
     # This pin should not be necessary. However, without it, Nix tries to fetch
     # the sources from the `amazonka` package and fails.
+    # Fix: https://github.com/NixOS/nixpkgs/pull/409098
     amazonka-s3-streaming = {
       version = "2.0.0.0";
       sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
