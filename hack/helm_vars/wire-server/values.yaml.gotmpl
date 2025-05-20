@@ -250,15 +250,15 @@ cargohold:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  {{- if .Values.uploadXml }}
   tests:
-    {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
     secrets:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-    {{- end }}
+  {{- end }}
 
 galley:
   replicaCount: 1
@@ -336,7 +336,7 @@ galley:
               crlProxy: https://crlproxy.example.com
             lockStatus: unlocked
         limitedEventFanout:
-            defaults:
+          defaults:
             status: disabled
         domainRegistration:
           defaults:
@@ -390,15 +390,15 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+  {{- if .Values.uploadXml }}
   tests:
-    {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
     secrets:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-    {{- end }}
+  {{- end }}
 
 gundeck:
   replicaCount: 1
@@ -528,15 +528,15 @@ spar:
       company: Example Company
       email: email:backend+spar@wire.com
     disabledAPIVersions: []
+  {{- if .Values.uploadXml }}
   tests:
-    {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
     secrets:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-    {{- end }}
+  {{- end }}
 
 federator:
   replicaCount: 1
@@ -552,15 +552,15 @@ federator:
     optSettings:
       useSystemCAStore: false
     logLevel: Debug
+  {{- if .Values.uploadXml }}
   tests:
-    {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
     secrets:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-    {{- end }}
+  {{- end }}
 
 background-worker:
   replicaCount: 1
@@ -633,16 +633,16 @@ integration:
   tls:
     caNamespace: wire-federation-v0
 
+{{- if .Values.uploadXml }}
 backoffice:
   tests:
-    {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
     secrets:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-    {{- end }}
+{{- end }}
 
 proxy:
   replicaCount: 1
