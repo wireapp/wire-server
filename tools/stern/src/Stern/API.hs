@@ -148,20 +148,20 @@ sitemap' =
     :<|> Named @"get-team-info" getTeamInfo
     :<|> Named @"get-team-admin-info" getTeamAdminInfo
     :<|> Named @"get-route-legalhold-config" (mkFeatureGetRoute @LegalholdConfig)
-    :<|> Named @"put-route-legalhold-config" (mkFeaturePutRouteTrivialConfigNoTTL @LegalholdConfig)
+    :<|> Named @"put-route-legalhold-config" (mkFeatureStatusPutRoute @LegalholdConfig)
     :<|> Named @"get-route-sso-config" (mkFeatureGetRoute @SSOConfig)
-    :<|> Named @"put-route-sso-config" (mkFeaturePutRouteTrivialConfigNoTTL @SSOConfig)
+    :<|> Named @"put-route-sso-config" (mkFeatureStatusPutRoute @SSOConfig)
     :<|> Named @"get-route-search-visibility-available-config" (mkFeatureGetRoute @SearchVisibilityAvailableConfig)
-    :<|> Named @"put-route-search-visibility-available-config" (mkFeaturePutRouteTrivialConfigNoTTL @SearchVisibilityAvailableConfig)
+    :<|> Named @"put-route-search-visibility-available-config" (mkFeatureStatusPutRoute @SearchVisibilityAvailableConfig)
     :<|> Named @"get-route-validate-saml-emails-config" (mkFeatureGetRoute @ValidateSAMLEmailsConfig)
-    :<|> Named @"put-route-validate-saml-emails-config" (mkFeaturePutRouteTrivialConfigNoTTL @ValidateSAMLEmailsConfig)
+    :<|> Named @"put-route-validate-saml-emails-config" (mkFeatureStatusPutRoute @ValidateSAMLEmailsConfig)
     :<|> Named @"get-route-digital-signatures-config" (mkFeatureGetRoute @DigitalSignaturesConfig)
-    :<|> Named @"put-route-digital-signatures-config" (mkFeaturePutRouteTrivialConfigNoTTL @DigitalSignaturesConfig)
+    :<|> Named @"put-route-digital-signatures-config" (mkFeatureStatusPutRoute @DigitalSignaturesConfig)
     :<|> Named @"get-route-file-sharing-config" (mkFeatureGetRoute @FileSharingConfig)
-    :<|> Named @"put-route-file-sharing-config" (mkFeaturePutRouteTrivialConfigNoTTL @FileSharingConfig)
+    :<|> Named @"put-route-file-sharing-config" (mkFeatureStatusPutRoute @FileSharingConfig)
     :<|> Named @"get-route-classified-domains-config" (mkFeatureGetRoute @ClassifiedDomainsConfig)
     :<|> Named @"get-route-conference-calling-config" (mkFeatureGetRoute @ConferenceCallingConfig)
-    :<|> Named @"put-route-conference-calling-config" (mkFeaturePutRouteTrivialConfigWithTTL @ConferenceCallingConfig)
+    :<|> Named @"put-route-conference-calling-config" (mkFeatureStatusPutRoute @ConferenceCallingConfig)
     :<|> Named @"get-route-applock-config" (mkFeatureGetRoute @AppLockConfig)
     :<|> Named @"put-route-applock-config" (mkFeaturePutRoute @AppLockConfig)
     :<|> Named @"get-route-mls-config" (mkFeatureGetRoute @MLSConfig)
@@ -169,11 +169,19 @@ sitemap' =
     :<|> Named @"get-search-visibility" getSearchVisibility
     :<|> Named @"put-search-visibility" setSearchVisibility
     :<|> Named @"get-route-outlook-cal-config" (mkFeatureGetRoute @OutlookCalIntegrationConfig)
-    :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
-    :<|> Named @"put-route-outlook-cal-config" (mkFeaturePutRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
+    :<|> Named @"put-route-outlook-cal-config" (mkFeatureStatusPutRoute @OutlookCalIntegrationConfig)
     :<|> Named @"get-route-enforce-file-download-location" (mkFeatureGetRoute @EnforceFileDownloadLocationConfig)
-    :<|> Named @"lock-unlock-route-enforce-file-download-location" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @EnforceFileDownloadLocationConfig)
     :<|> Named @"put-route-enforce-file-download-location" (mkFeaturePutRoute @EnforceFileDownloadLocationConfig)
+    :<|> Named @"get-route-cells" (mkFeatureGetRoute @CellsConfig)
+    :<|> Named @"put-route-cells" (mkFeatureStatusPutRoute @CellsConfig)
+    :<|> Named @"get-route-guest-links" (mkFeatureGetRoute @GuestLinksConfig)
+    :<|> Named @"put-route-guest-links" (mkFeatureStatusPutRoute @GuestLinksConfig)
+    :<|> Named @"get-route-self-deleting-messages" (mkFeatureGetRoute @SelfDeletingMessagesConfig)
+    :<|> Named @"put-route-self-deleting-messages" (mkFeatureStatusPutRoute @SelfDeletingMessagesConfig)
+    :<|> Named @"get-route-snd-factor-password-challenge" (mkFeatureGetRoute @SndFactorPasswordChallengeConfig)
+    :<|> Named @"put-route-snd-factor-password-challenge" (mkFeatureStatusPutRoute @SndFactorPasswordChallengeConfig)
+    :<|> Named @"get-route-limited-event-fanout" (mkFeatureGetRoute @LimitedEventFanoutConfig)
+    :<|> Named @"put-route-limited-event-fanout" (mkFeatureStatusPutRoute @LimitedEventFanoutConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -189,11 +197,22 @@ sitemap' =
     :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
     :<|> Intra.enterpriseLogin
     :<|> Named @"domain-registration-get" (mkFeatureGetRoute @DomainRegistrationConfig)
-    :<|> Named @"domain-registration-put" (mkFeaturePutRouteTrivialConfigNoTTL @DomainRegistrationConfig)
-    :<|> Named @"domain-registration-lock" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @DomainRegistrationConfig)
+    :<|> Named @"domain-registration-put" (mkFeatureStatusPutRoute @DomainRegistrationConfig)
     :<|> Named @"channels-get" (mkFeatureGetRoute @ChannelsConfig)
     :<|> Named @"channels-put" (mkFeaturePutRoute @ChannelsConfig)
-    :<|> Named @"channels-lock" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @ChannelsConfig)
+    :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRoute @OutlookCalIntegrationConfig)
+    :<|> Named @"lock-unlock-route-enforce-file-download-location" (mkFeatureLockUnlockRoute @EnforceFileDownloadLocationConfig)
+    :<|> Named @"domain-registration-lock" (mkFeatureLockUnlockRoute @DomainRegistrationConfig)
+    :<|> Named @"channels-lock" (mkFeatureLockUnlockRoute @ChannelsConfig)
+    :<|> Named @"lock-unlock-route-digital-signatures-config" (mkFeatureLockUnlockRoute @DigitalSignaturesConfig)
+    :<|> Named @"lock-unlock-route-file-sharing-config" (mkFeatureLockUnlockRoute @FileSharingConfig)
+    :<|> Named @"lock-unlock-route-conference-calling-config" (mkFeatureLockUnlockRoute @ConferenceCallingConfig)
+    :<|> Named @"lock-unlock-route-applock-config" (mkFeatureLockUnlockRoute @AppLockConfig)
+    :<|> Named @"lock-unlock-route-self-deleting-messages-config" (mkFeatureLockUnlockRoute @SelfDeletingMessagesConfig)
+    :<|> Named @"lock-unlock-route-guest-links-config" (mkFeatureLockUnlockRoute @GuestLinksConfig)
+    :<|> Named @"lock-unlock-route-snd-factor-password-challenge-config" (mkFeatureLockUnlockRoute @SndFactorPasswordChallengeConfig)
+    :<|> Named @"lock-unlock-route-limited-event-fanout-config" (mkFeatureLockUnlockRoute @LimitedEventFanoutConfig)
+    :<|> Named @"lock-unlock-route-cells-config" (mkFeatureLockUnlockRoute @CellsConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =
@@ -337,21 +356,13 @@ type MkFeaturePutConstraints cfg =
     Typeable cfg
   )
 
-mkFeaturePutRouteTrivialConfigNoTTL ::
-  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Handler NoContent
-mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
-
-mkFeatureLockUnlockRouteTrivialConfigNoTTL ::
+mkFeatureLockUnlockRoute ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
-mkFeatureLockUnlockRouteTrivialConfigNoTTL tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
+mkFeatureLockUnlockRoute tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
 
-mkFeaturePutRouteTrivialConfigWithTTL ::
-  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> FeatureTTLDays -> Handler NoContent
-mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status . Just
-
-mkFeaturePutRouteTrivialConfig ::
-  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent
-mkFeaturePutRouteTrivialConfig tid status _ = do
+mkFeatureStatusPutRoute ::
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Handler NoContent
+mkFeatureStatusPutRoute tid status = do
   let patch = LockableFeaturePatch (Just status) Nothing Nothing
   NoContent <$ Intra.patchTeamFeatureFlag @cfg tid patch
 
