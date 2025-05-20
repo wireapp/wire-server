@@ -30,8 +30,6 @@ import Control.Exception (SomeException)
 import Control.Lens hiding (element)
 import Control.Monad
 import Control.Monad.Except
-import Data.ByteString.Lazy qualified as BSL
-import Data.ByteString.Lazy.UTF8 qualified as BSLUTF8
 import Data.CaseInsensitive (CI)
 import Data.CaseInsensitive qualified as CI
 import Data.EitherR
@@ -46,10 +44,8 @@ import Data.String.Conversions
 import Data.Text qualified as ST
 import Data.Text.Lazy.Encoding
 import Data.Time
-import Data.Tree.NTree.TypeDefs qualified as HXT
 import Data.Typeable (Proxy (Proxy), Typeable)
 import Data.X509 qualified as X509
-import Debug.Trace
 import GHC.Stack
 import Network.URI qualified as HS
 import SAML2.Bindings.Identifiers qualified as HS
@@ -68,9 +64,7 @@ import Text.Hamlet.XML (xml)
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
-import Text.XML.HXT.Arrow.Pickle qualified as XP
 import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
-import Text.XML.HXT.Core qualified as HXT
 import Text.XML.HXT.DOM.TypeDefs (XmlTree)
 import URI.ByteString as U
 import Prelude hiding (id, (.))
@@ -112,6 +106,7 @@ parseFromDocument doc = parse [NodeElement $ documentRoot doc]
 
 parseFromXmlTree :: (MonadError String m, HasXML a) => XmlTree -> m a
 parseFromXmlTree raw = do
+  -- TODO: docToXMLWithRoot is suspicious
   doc :: Document <- decode . decodeUtf8 $ HS.docToXMLWithRoot raw
   parseFromDocument doc
 
@@ -262,12 +257,8 @@ wrapRender ::
   (us -> them) ->
   us ->
   [Node]
-wrapRender exprt us = traceShow ('!', a, b, c) c
+wrapRender exprt = parseElement . ourSamlToXML . exprt
   where
-    a = exprt us
-    b = ourSamlToXML a -- it's samlToXML!!!
-    c = parseElement b
-
     parseElement lbs = case parseLBS def lbs of
       Right (Document _ el _) -> [NodeElement el]
       Left msg -> error $ show (Proxy @us, msg)
