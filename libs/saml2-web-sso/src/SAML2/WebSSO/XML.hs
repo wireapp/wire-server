@@ -252,7 +252,7 @@ wrapParse _ badxml = error $ "internal error: " <> show badxml
 
 wrapRender ::
   forall them us.
-  (HasCallStack, HS.XmlPickler them, HasXML us, Show them) =>
+  (HasCallStack, HS.XmlPickler them, HasXML us) =>
   (us -> them) ->
   us ->
   [Node]
