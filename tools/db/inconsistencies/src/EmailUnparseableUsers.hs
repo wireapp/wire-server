@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module EmailUnparseableUsers where
 
 import Cassandra
