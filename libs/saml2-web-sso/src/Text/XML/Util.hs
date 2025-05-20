@@ -4,21 +4,20 @@ module Text.XML.Util where
 
 import Control.Monad.Except
 import Data.ByteString.Lazy qualified as BSL
+import Data.ByteString.Lazy.UTF8 qualified as BSLUTF8
 import Data.Char (isSpace)
 import Data.Generics.Uniplate.Data qualified as Uniplate
 import Data.Kind (Type)
 import Data.Map as Map
 import Data.Proxy
 import Data.String.Conversions
-import Data.ByteString.Lazy.UTF8 qualified as BSLUTF8
-import Text.XML.HXT.Arrow.Pickle.Xml qualified as XP
-import Debug.Trace
 import Data.Text qualified as ST
 import Data.Tree.NTree.TypeDefs qualified as HXT
 import Data.Typeable
 import GHC.Stack
 import SAML2.XML qualified as HS
 import Text.XML
+import Text.XML.HXT.Arrow.Pickle.Xml qualified as XP
 import Text.XML.HXT.Core qualified as HXT
 import Text.XML.HXT.DOM.ShowXml qualified
 
@@ -61,16 +60,12 @@ samlToConduit :: (MonadError String m, HXT.XmlPickler a) => a -> m Document
 samlToConduit = either (throwError . ("samlToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . ourSamlToXML
 
 ourSamlToXML :: (XP.XmlPickler a) => a -> BSL.ByteString
-ourSamlToXML x = traceShow (a, b) b
-  where
-    a = HS.samlToDoc x
-    b = docToXMLWithoutRoot a -- it's HS.docToXMLWithoutRoot
+ourSamlToXML = ourDocToXMLWithoutRoot . HS.samlToDoc
 
--- XXX: Copied from SAML2.XML
-docToXMLWithoutRoot :: HXT.XmlTree -> BSL.ByteString
-docToXMLWithoutRoot t =
-  let [xmlContent] = HXT.runLA (HXT.writeDocumentToString []) t
-   in BSLUTF8.fromString xmlContent
+ourDocToXMLWithoutRoot :: (HasCallStack) => HXT.XmlTree -> BSL.ByteString
+ourDocToXMLWithoutRoot t = case HXT.runLA (HXT.writeDocumentToString []) t of
+  [xmlContent] -> BSLUTF8.fromString xmlContent
+  other -> error $ "Expected one element. Got: " ++ show other
 
 -- | This is subtly different from HS.docToXML' and should probably be moved to hsaml2.
 docToXML' :: HXT.XmlTree -> BSL.ByteString
