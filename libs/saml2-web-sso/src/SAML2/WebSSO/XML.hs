@@ -48,16 +48,15 @@ import Data.Time
 import Data.Typeable (Proxy (Proxy), Typeable)
 import Data.X509 qualified as X509
 import GHC.Stack
-import Network.URI qualified as HS
-import SAML2.Bindings.Identifiers qualified as HS
-import SAML2.Core qualified as HS
-import SAML2.Metadata.Metadata qualified as HS
-import SAML2.Profiles qualified as HS
+import Network.URI qualified as URI
+import SAML2.Bindings.Identifiers qualified as HX
+import SAML2.Core qualified as HX
+import SAML2.Metadata.Metadata qualified as HX
+import SAML2.Profiles qualified as HX
 import SAML2.Util
 import SAML2.WebSSO.SP
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.Types.Email qualified as Email
-import SAML2.XML qualified as HS
 import SAML2.XML qualified as HX
 import SAML2.XML.Schema.Datatypes qualified as HX (Boolean, Duration, UnsignedShort)
 import SAML2.XML.Signature.Types qualified as HX (Signature)
@@ -65,7 +64,7 @@ import Text.Hamlet.XML (xml)
 import Text.XML
 import Text.XML.Cursor
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
-import Text.XML.HXT.Arrow.Pickle.Xml qualified as HS
+import Text.XML.HXT.Arrow.Pickle.Xml qualified as HXT
 import Text.XML.HXT.DOM.TypeDefs (XmlTree)
 import URI.ByteString as U
 import Prelude hiding (id, (.))
@@ -162,34 +161,34 @@ renderTime (Time utctime) =
           (_, "") -> t <> u
           (v, _) -> t <> v <> "Z"
 
-defAuthnRequest :: HS.ProtocolType -> HS.AuthnRequest
+defAuthnRequest :: HX.ProtocolType -> HX.AuthnRequest
 defAuthnRequest proto =
-  HS.AuthnRequest
-    { HS.authnRequest = HS.RequestAbstractType proto,
-      HS.authnRequestForceAuthn = False,
-      HS.authnRequestIsPassive = False,
-      HS.authnRequestAssertionConsumerService = HS.AssertionConsumerServiceURL Nothing Nothing,
-      HS.authnRequestAssertionConsumingServiceIndex = Nothing,
-      HS.authnRequestProviderName = Nothing,
-      HS.authnRequestSubject = Nothing,
-      HS.authnRequestNameIDPolicy = Nothing,
-      HS.authnRequestConditions = Nothing,
-      HS.authnRequestRequestedAuthnContext = Nothing,
-      HS.authnRequestScoping = Nothing
+  HX.AuthnRequest
+    { HX.authnRequest = HX.RequestAbstractType proto,
+      HX.authnRequestForceAuthn = False,
+      HX.authnRequestIsPassive = False,
+      HX.authnRequestAssertionConsumerService = HX.AssertionConsumerServiceURL Nothing Nothing,
+      HX.authnRequestAssertionConsumingServiceIndex = Nothing,
+      HX.authnRequestProviderName = Nothing,
+      HX.authnRequestSubject = Nothing,
+      HX.authnRequestNameIDPolicy = Nothing,
+      HX.authnRequestConditions = Nothing,
+      HX.authnRequestRequestedAuthnContext = Nothing,
+      HX.authnRequestScoping = Nothing
     }
 
-defProtocolType :: HS.ID -> HS.DateTime -> HS.ProtocolType
+defProtocolType :: HX.ID -> HX.DateTime -> HX.ProtocolType
 defProtocolType pid iinst =
-  HS.ProtocolType
-    { HS.protocolID = pid,
-      HS.protocolVersion = HS.SAML20,
-      HS.protocolIssueInstant = iinst,
-      HS.protocolDestination = Nothing,
-      HS.protocolConsent = HS.Identified HS.ConsentUnspecified,
-      HS.protocolIssuer = Nothing,
-      HS.protocolSignature = Nothing,
-      HS.protocolExtensions = [],
-      HS.relayState = Nothing
+  HX.ProtocolType
+    { HX.protocolID = pid,
+      HX.protocolVersion = HX.SAML20,
+      HX.protocolIssueInstant = iinst,
+      HX.protocolDestination = Nothing,
+      HX.protocolConsent = HX.Identified HX.ConsentUnspecified,
+      HX.protocolIssuer = Nothing,
+      HX.protocolSignature = Nothing,
+      HX.protocolExtensions = [],
+      HX.relayState = Nothing
     }
 
 explainDeniedReason :: DeniedReason -> ST
@@ -242,18 +241,18 @@ class HasXMLImport us them where
 
 wrapParse ::
   forall (m :: Type -> Type) them us.
-  (HasCallStack, MonadError String m, HS.XmlPickler them, HasXML us, Typeable us) =>
+  (HasCallStack, MonadError String m, HXT.XmlPickler them, HasXML us, Typeable us) =>
   (them -> m us) ->
   [Node] ->
   m us
 wrapParse imprt [NodeElement el] =
   either (die (Proxy @us)) imprt $
-    HS.xmlToSAML (renderLBS def $ Document defPrologue el defMiscellaneous)
+    HX.xmlToSAML (renderLBS def $ Document defPrologue el defMiscellaneous)
 wrapParse _ badxml = error $ "internal error: " <> show badxml
 
 wrapRender ::
   forall them us.
-  (HasCallStack, HS.XmlPickler them, HasXML us) =>
+  (HasCallStack, HXT.XmlPickler them, HasXML us) =>
   (us -> them) ->
   us ->
   [Node]
@@ -265,7 +264,7 @@ wrapRender exprt = parseElement . ourSamlToXML . exprt
 
 wrapRenderRoot ::
   forall them us.
-  (HasCallStack, HS.XmlPickler them, HasXMLRoot us) =>
+  (HasCallStack, HXT.XmlPickler them, HasXMLRoot us) =>
   (us -> them) ->
   us ->
   Element
@@ -278,245 +277,245 @@ wrapRenderRoot exprt = parseElement . ourSamlToXML . exprt
 ----------------------------------------------------------------------
 -- map individual types from hsaml2 to saml2-web-sso
 
-importAuthnRequest :: (MonadError String m) => HS.AuthnRequest -> m AuthnRequest
+importAuthnRequest :: (MonadError String m) => HX.AuthnRequest -> m AuthnRequest
 importAuthnRequest req = do
-  let proto = HS.requestProtocol $ HS.authnRequest req
-  () <- importVersion $ HS.protocolVersion proto
-  _rqID <- importID $ HS.protocolID proto
-  _rqIssueInstant <- importTime $ HS.protocolIssueInstant proto
-  _rqIssuer <- importRequiredIssuer $ HS.protocolIssuer proto
-  _rqNameIDPolicy <- traverse importNameIDPolicy $ HS.authnRequestNameIDPolicy req
-  traverse importURI (HS.protocolDestination proto) >>= \case
+  let proto = HX.requestProtocol $ HX.authnRequest req
+  () <- importVersion $ HX.protocolVersion proto
+  _rqID <- importID $ HX.protocolID proto
+  _rqIssueInstant <- importTime $ HX.protocolIssueInstant proto
+  _rqIssuer <- importRequiredIssuer $ HX.protocolIssuer proto
+  _rqNameIDPolicy <- traverse importNameIDPolicy $ HX.authnRequestNameIDPolicy req
+  traverse importURI (HX.protocolDestination proto) >>= \case
     Nothing -> pure ()
     Just dest -> die (Proxy @AuthnRequest) ("protocol destination not allowed: " <> show dest)
   pure AuthnRequest {..}
 
-exportAuthnRequest :: AuthnRequest -> HS.AuthnRequest
+exportAuthnRequest :: AuthnRequest -> HX.AuthnRequest
 exportAuthnRequest req =
   (defAuthnRequest proto)
-    { HS.authnRequestNameIDPolicy = exportNameIDPolicy <$> req ^. rqNameIDPolicy
+    { HX.authnRequestNameIDPolicy = exportNameIDPolicy <$> req ^. rqNameIDPolicy
     }
   where
     proto =
       (defProtocolType (exportID $ req ^. rqID) (exportTime $ req ^. rqIssueInstant))
-        { HS.protocolVersion = exportVersion,
-          HS.protocolIssuer = exportRequiredIssuer $ req ^. rqIssuer,
-          HS.protocolDestination = Nothing
+        { HX.protocolVersion = exportVersion,
+          HX.protocolIssuer = exportRequiredIssuer $ req ^. rqIssuer,
+          HX.protocolDestination = Nothing
         }
 
-importNameIDPolicy :: (HasCallStack, MonadError String m) => HS.NameIDPolicy -> m NameIdPolicy
+importNameIDPolicy :: (HasCallStack, MonadError String m) => HX.NameIDPolicy -> m NameIdPolicy
 importNameIDPolicy nip = do
-  _nidFormat <- importNameIDFormat $ HS.nameIDPolicyFormat nip
-  let _nidSpNameQualifier = cs <$> HS.nameIDPolicySPNameQualifier nip
-      _nidAllowCreate = HS.nameIDPolicyAllowCreate nip
+  _nidFormat <- importNameIDFormat $ HX.nameIDPolicyFormat nip
+  let _nidSpNameQualifier = cs <$> HX.nameIDPolicySPNameQualifier nip
+      _nidAllowCreate = HX.nameIDPolicyAllowCreate nip
   pure $ NameIdPolicy _nidFormat _nidSpNameQualifier _nidAllowCreate
 
-exportNameIDPolicy :: (HasCallStack) => NameIdPolicy -> HS.NameIDPolicy
+exportNameIDPolicy :: (HasCallStack) => NameIdPolicy -> HX.NameIDPolicy
 exportNameIDPolicy nip =
-  HS.NameIDPolicy
-    { HS.nameIDPolicyFormat = exportNameIDFormat $ nip ^. nidFormat,
-      HS.nameIDPolicySPNameQualifier = cs <$> nip ^. nidSpNameQualifier,
-      HS.nameIDPolicyAllowCreate = nip ^. nidAllowCreate
+  HX.NameIDPolicy
+    { HX.nameIDPolicyFormat = exportNameIDFormat $ nip ^. nidFormat,
+      HX.nameIDPolicySPNameQualifier = cs <$> nip ^. nidSpNameQualifier,
+      HX.nameIDPolicyAllowCreate = nip ^. nidAllowCreate
     }
 
-importNameIDFormat :: (HasCallStack, MonadError String m) => HS.IdentifiedURI HS.NameIDFormat -> m NameIDFormat
+importNameIDFormat :: (HasCallStack, MonadError String m) => HX.IdentifiedURI HX.NameIDFormat -> m NameIDFormat
 importNameIDFormat = \case
-  HS.Identified HS.NameIDFormatUnspecified -> pure NameIDFUnspecified
-  HS.Identified HS.NameIDFormatEmail -> pure NameIDFEmail
-  HS.Identified HS.NameIDFormatX509 -> pure NameIDFX509
-  HS.Identified HS.NameIDFormatWindows -> pure NameIDFWindows
-  HS.Identified HS.NameIDFormatKerberos -> pure NameIDFKerberos
-  HS.Identified HS.NameIDFormatEntity -> pure NameIDFEntity
-  HS.Identified HS.NameIDFormatPersistent -> pure NameIDFPersistent
-  HS.Identified HS.NameIDFormatTransient -> pure NameIDFTransient
-  bad@(HS.Identified HS.NameIDFormatEncrypted) -> throwError $ "unsupported: " <> show bad
-  bad@(HS.Unidentified _) -> throwError $ "unsupported: " <> show bad
+  HX.Identified HX.NameIDFormatUnspecified -> pure NameIDFUnspecified
+  HX.Identified HX.NameIDFormatEmail -> pure NameIDFEmail
+  HX.Identified HX.NameIDFormatX509 -> pure NameIDFX509
+  HX.Identified HX.NameIDFormatWindows -> pure NameIDFWindows
+  HX.Identified HX.NameIDFormatKerberos -> pure NameIDFKerberos
+  HX.Identified HX.NameIDFormatEntity -> pure NameIDFEntity
+  HX.Identified HX.NameIDFormatPersistent -> pure NameIDFPersistent
+  HX.Identified HX.NameIDFormatTransient -> pure NameIDFTransient
+  bad@(HX.Identified HX.NameIDFormatEncrypted) -> throwError $ "unsupported: " <> show bad
+  bad@(HX.Unidentified _) -> throwError $ "unsupported: " <> show bad
 
-exportNameIDFormat :: NameIDFormat -> HS.IdentifiedURI HS.NameIDFormat
+exportNameIDFormat :: NameIDFormat -> HX.IdentifiedURI HX.NameIDFormat
 exportNameIDFormat = \case
-  NameIDFUnspecified -> HS.Identified HS.NameIDFormatUnspecified
-  NameIDFEmail -> HS.Identified HS.NameIDFormatEmail
-  NameIDFX509 -> HS.Identified HS.NameIDFormatX509
-  NameIDFWindows -> HS.Identified HS.NameIDFormatWindows
-  NameIDFKerberos -> HS.Identified HS.NameIDFormatKerberos
-  NameIDFEntity -> HS.Identified HS.NameIDFormatEntity
-  NameIDFPersistent -> HS.Identified HS.NameIDFormatPersistent
-  NameIDFTransient -> HS.Identified HS.NameIDFormatTransient
+  NameIDFUnspecified -> HX.Identified HX.NameIDFormatUnspecified
+  NameIDFEmail -> HX.Identified HX.NameIDFormatEmail
+  NameIDFX509 -> HX.Identified HX.NameIDFormatX509
+  NameIDFWindows -> HX.Identified HX.NameIDFormatWindows
+  NameIDFKerberos -> HX.Identified HX.NameIDFormatKerberos
+  NameIDFEntity -> HX.Identified HX.NameIDFormatEntity
+  NameIDFPersistent -> HX.Identified HX.NameIDFormatPersistent
+  NameIDFTransient -> HX.Identified HX.NameIDFormatTransient
 
-importAuthnResponse :: (HasCallStack, MonadError String m) => HS.Response -> m AuthnResponse
+importAuthnResponse :: (HasCallStack, MonadError String m) => HX.Response -> m AuthnResponse
 importAuthnResponse rsp = do
-  let rsptyp :: HS.StatusResponseType = HS.response rsp
-      proto :: HS.ProtocolType = HS.statusProtocol rsptyp
-  () <- importVersion $ HS.protocolVersion proto
-  _rspID <- importID $ HS.protocolID proto
-  _rspInRespTo <- (importID . cs) `traverse` HS.statusInResponseTo rsptyp
-  _rspIssueInstant <- importTime $ HS.protocolIssueInstant proto
-  _rspDestination <- traverse importURI $ HS.protocolDestination proto
-  _rspIssuer <- traverse importIssuer $ HS.protocolIssuer proto
-  _rspStatus <- importStatus $ HS.status rsptyp
-  _rspPayload <- maybe (throwError "no assertions") pure . NL.nonEmpty =<< (importPossiblyEncryptedAssertion `mapM` HS.responseAssertions rsp)
-  -- ignore: @HS.protocolSignature proto :: Maybe SAML2.XML.Signature.Types.Signature@
-  -- ignore: @HS.relayState proto :: Maybe SAML2.Bindings.General.RelayState@
+  let rsptyp :: HX.StatusResponseType = HX.response rsp
+      proto :: HX.ProtocolType = HX.statusProtocol rsptyp
+  () <- importVersion $ HX.protocolVersion proto
+  _rspID <- importID $ HX.protocolID proto
+  _rspInRespTo <- (importID . cs) `traverse` HX.statusInResponseTo rsptyp
+  _rspIssueInstant <- importTime $ HX.protocolIssueInstant proto
+  _rspDestination <- traverse importURI $ HX.protocolDestination proto
+  _rspIssuer <- traverse importIssuer $ HX.protocolIssuer proto
+  _rspStatus <- importStatus $ HX.status rsptyp
+  _rspPayload <- maybe (throwError "no assertions") pure . NL.nonEmpty =<< (importPossiblyEncryptedAssertion `mapM` HX.responseAssertions rsp)
+  -- ignore: @HX.protocolSignature proto :: Maybe SAML2.XML.Signature.Types.Signature@
+  -- ignore: @HX.relayState proto :: Maybe SAML2.Bindings.General.RelayState@
 
   pure Response {..}
 
-exportAuthnResponse :: (HasCallStack) => AuthnResponse -> HS.Response
+exportAuthnResponse :: (HasCallStack) => AuthnResponse -> HX.Response
 exportAuthnResponse rsp =
-  HS.Response
-    { HS.response =
-        HS.StatusResponseType
-          { HS.statusProtocol =
-              HS.ProtocolType
-                { HS.protocolID = exportID (rsp ^. rspID),
-                  HS.protocolVersion = exportVersion,
-                  HS.protocolIssueInstant = exportTime (rsp ^. rspIssueInstant),
-                  HS.protocolDestination = exportURI <$> (rsp ^. rspDestination),
-                  HS.protocolConsent = HS.Identified HS.ConsentUnspecified, -- [1/8.4.1] there are no rules how to process the consent value.
-                  HS.protocolIssuer = exportIssuer <$> (rsp ^. rspIssuer) :: Maybe HS.Issuer,
-                  HS.protocolSignature = Nothing,
-                  HS.protocolExtensions = [],
-                  HS.relayState = Nothing
+  HX.Response
+    { HX.response =
+        HX.StatusResponseType
+          { HX.statusProtocol =
+              HX.ProtocolType
+                { HX.protocolID = exportID (rsp ^. rspID),
+                  HX.protocolVersion = exportVersion,
+                  HX.protocolIssueInstant = exportTime (rsp ^. rspIssueInstant),
+                  HX.protocolDestination = exportURI <$> (rsp ^. rspDestination),
+                  HX.protocolConsent = HX.Identified HX.ConsentUnspecified, -- [1/8.4.1] there are no rules how to process the consent value.
+                  HX.protocolIssuer = exportIssuer <$> (rsp ^. rspIssuer) :: Maybe HX.Issuer,
+                  HX.protocolSignature = Nothing,
+                  HX.protocolExtensions = [],
+                  HX.relayState = Nothing
                 },
-            HS.statusInResponseTo = exportID <$> (rsp ^. rspInRespTo),
-            HS.status = exportStatus (rsp ^. rspStatus)
+            HX.statusInResponseTo = exportID <$> (rsp ^. rspInRespTo),
+            HX.status = exportStatus (rsp ^. rspStatus)
           },
-      HS.responseAssertions = toList $ exportPossiblyEncryptedAssertion <$> (rsp ^. rspPayload)
+      HX.responseAssertions = toList $ exportPossiblyEncryptedAssertion <$> (rsp ^. rspPayload)
     }
 
-importPossiblyEncryptedAssertion :: (HasCallStack, MonadError String m) => HS.PossiblyEncrypted HS.Assertion -> m Assertion
-importPossiblyEncryptedAssertion bad@(HS.SoEncrypted _) = die (Proxy @Assertion) bad
-importPossiblyEncryptedAssertion (HS.NotEncrypted ass) = importAssertion ass
+importPossiblyEncryptedAssertion :: (HasCallStack, MonadError String m) => HX.PossiblyEncrypted HX.Assertion -> m Assertion
+importPossiblyEncryptedAssertion bad@(HX.SoEncrypted _) = die (Proxy @Assertion) bad
+importPossiblyEncryptedAssertion (HX.NotEncrypted ass) = importAssertion ass
 
-importAssertion :: (HasCallStack, MonadError String m) => HS.Assertion -> m Assertion
+importAssertion :: (HasCallStack, MonadError String m) => HX.Assertion -> m Assertion
 importAssertion ass = do
-  () <- importVersion $ HS.assertionVersion ass
-  _assID <- importID $ HS.assertionID ass
-  _assIssueInstant <- importTime $ HS.assertionIssueInstant ass
-  _assIssuer <- importIssuer $ HS.assertionIssuer ass
-  _assConditions <- traverse importConditions $ HS.assertionConditions ass
+  () <- importVersion $ HX.assertionVersion ass
+  _assID <- importID $ HX.assertionID ass
+  _assIssueInstant <- importTime $ HX.assertionIssueInstant ass
+  _assIssuer <- importIssuer $ HX.assertionIssuer ass
+  _assConditions <- traverse importConditions $ HX.assertionConditions ass
   _assContents <- do
-    subj <- importSubject $ HS.assertionSubject ass
-    when (null $ HS.assertionStatement ass) $
+    subj <- importSubject $ HX.assertionSubject ass
+    when (null $ HX.assertionStatement ass) $
       die (Proxy @Assertion) ("no statements" :: String)
-    mstmts <- importStatement `mapM` HS.assertionStatement ass
+    mstmts <- importStatement `mapM` HX.assertionStatement ass
     case catMaybes mstmts of
       stmt : stmts -> pure $ SubjectAndStatements subj (stmt :| stmts)
       [] -> die (Proxy @Assertion) ("no statements" :: String)
-  unless (null $ HS.assertionAdvice ass) $
-    die (Proxy @Assertion) (HS.assertionAdvice ass)
+  unless (null $ HX.assertionAdvice ass) $
+    die (Proxy @Assertion) (HX.assertionAdvice ass)
   pure Assertion {..}
 
-exportPossiblyEncryptedAssertion :: (HasCallStack) => Assertion -> HS.PossiblyEncrypted HS.Assertion
-exportPossiblyEncryptedAssertion = HS.NotEncrypted . exportAssertion
+exportPossiblyEncryptedAssertion :: (HasCallStack) => Assertion -> HX.PossiblyEncrypted HX.Assertion
+exportPossiblyEncryptedAssertion = HX.NotEncrypted . exportAssertion
 
-exportAssertion :: (HasCallStack) => Assertion -> HS.Assertion
+exportAssertion :: (HasCallStack) => Assertion -> HX.Assertion
 exportAssertion ass =
-  HS.Assertion
-    { HS.assertionVersion = exportVersion,
-      HS.assertionID = exportID (ass ^. assID),
-      HS.assertionIssueInstant = exportTime (ass ^. assIssueInstant),
-      HS.assertionIssuer = exportIssuer (ass ^. assIssuer),
-      HS.assertionSignature = Nothing, -- signatures are handled before parsing.
-      HS.assertionSubject = exportSubject $ ass ^. assContents . sasSubject,
-      HS.assertionConditions = exportConditions <$> (ass ^. assConditions),
-      HS.assertionAdvice = Nothing,
-      HS.assertionStatement = exportStatement <$> (ass ^. assContents . sasStatements . to toList)
+  HX.Assertion
+    { HX.assertionVersion = exportVersion,
+      HX.assertionID = exportID (ass ^. assID),
+      HX.assertionIssueInstant = exportTime (ass ^. assIssueInstant),
+      HX.assertionIssuer = exportIssuer (ass ^. assIssuer),
+      HX.assertionSignature = Nothing, -- signatures are handled before parsing.
+      HX.assertionSubject = exportSubject $ ass ^. assContents . sasSubject,
+      HX.assertionConditions = exportConditions <$> (ass ^. assConditions),
+      HX.assertionAdvice = Nothing,
+      HX.assertionStatement = exportStatement <$> (ass ^. assContents . sasStatements . to toList)
     }
 
-importSubject :: (HasCallStack, MonadError String m) => HS.Subject -> m Subject
-importSubject (HS.Subject Nothing _) = die (Proxy @Subject) ("Subject NameID is missing" :: String)
-importSubject (HS.Subject (Just (HS.SoEncrypted _)) _) = die (Proxy @Subject) ("encrypted subjects not supported" :: String)
-importSubject (HS.Subject (Just (HS.NotEncrypted sid)) scs) = case sid of
-  HS.IdentifierName nameid -> do
+importSubject :: (HasCallStack, MonadError String m) => HX.Subject -> m Subject
+importSubject (HX.Subject Nothing _) = die (Proxy @Subject) ("Subject NameID is missing" :: String)
+importSubject (HX.Subject (Just (HX.SoEncrypted _)) _) = die (Proxy @Subject) ("encrypted subjects not supported" :: String)
+importSubject (HX.Subject (Just (HX.NotEncrypted sid)) scs) = case sid of
+  HX.IdentifierName nameid -> do
     nameid' <- importNameID nameid
     Subject nameid' <$> importSubjectConfirmation nameid' `mapM` scs
-  bad@(HS.IdentifierBase _baseid) -> do
+  bad@(HX.IdentifierBase _baseid) -> do
     die (Proxy @Subject) ("unsupported subject identifier: " <> show bad)
 
-exportSubject :: (HasCallStack) => Subject -> HS.Subject
-exportSubject subj = HS.Subject (Just (HS.NotEncrypted sid)) scs
+exportSubject :: (HasCallStack) => Subject -> HX.Subject
+exportSubject subj = HX.Subject (Just (HX.NotEncrypted sid)) scs
   where
-    sid :: HS.Identifier
-    sid = HS.IdentifierName $ exportNameID (subj ^. subjectID)
-    scs :: [HS.SubjectConfirmation]
+    sid :: HX.Identifier
+    sid = HX.IdentifierName $ exportNameID (subj ^. subjectID)
+    scs :: [HX.SubjectConfirmation]
     scs = exportSubjectConfirmation <$> subj ^. subjectConfirmations
 
-importSubjectConfirmation :: (HasCallStack, MonadError String m) => NameID -> HS.SubjectConfirmation -> m SubjectConfirmation
+importSubjectConfirmation :: (HasCallStack, MonadError String m) => NameID -> HX.SubjectConfirmation -> m SubjectConfirmation
 importSubjectConfirmation = go
   where
-    go _ (HS.SubjectConfirmation meth _ _)
-      | meth /= HS.Identified HS.ConfirmationMethodBearer =
+    go _ (HX.SubjectConfirmation meth _ _)
+      | meth /= HX.Identified HX.ConfirmationMethodBearer =
           die (Proxy @SubjectConfirmation) ("unsupported confirmation method: " <> show meth)
-    go uid (HS.SubjectConfirmation _ (Just (HS.NotEncrypted (HS.IdentifierName uid'))) _)
+    go uid (HX.SubjectConfirmation _ (Just (HX.NotEncrypted (HX.IdentifierName uid'))) _)
       | Right uid /= fmapL (const ()) (importNameID uid') =
           die (Proxy @SubjectConfirmation) ("uid mismatch: " <> show (uid, uid'))
-    go _ (HS.SubjectConfirmation _ (Just bad) _) =
+    go _ (HX.SubjectConfirmation _ (Just bad) _) =
       die (Proxy @SubjectConfirmation) ("unsupported identifier: " <> show bad)
-    go _ (HS.SubjectConfirmation _ _ confdata) =
+    go _ (HX.SubjectConfirmation _ _ confdata) =
       SubjectConfirmation SubjectConfirmationMethodBearer <$> importSubjectConfirmationData `mapM` confdata
 
-exportSubjectConfirmation :: (HasCallStack) => SubjectConfirmation -> HS.SubjectConfirmation
+exportSubjectConfirmation :: (HasCallStack) => SubjectConfirmation -> HX.SubjectConfirmation
 exportSubjectConfirmation (SubjectConfirmation SubjectConfirmationMethodBearer scd) =
-  HS.SubjectConfirmation (HS.Identified HS.ConfirmationMethodBearer) Nothing $ exportSubjectConfirmationData <$> scd
+  HX.SubjectConfirmation (HX.Identified HX.ConfirmationMethodBearer) Nothing $ exportSubjectConfirmationData <$> scd
 
-importSubjectConfirmationData :: (HasCallStack, MonadError String m) => HS.SubjectConfirmationData -> m SubjectConfirmationData
-importSubjectConfirmationData (HS.SubjectConfirmationData notbefore (Just notonorafter) (Just recipient) inresp confaddr _ _) =
+importSubjectConfirmationData :: (HasCallStack, MonadError String m) => HX.SubjectConfirmationData -> m SubjectConfirmationData
+importSubjectConfirmationData (HX.SubjectConfirmationData notbefore (Just notonorafter) (Just recipient) inresp confaddr _ _) =
   SubjectConfirmationData
     <$> importTime `traverse` notbefore
     <*> importTime notonorafter
     <*> importURI recipient
     <*> importID `traverse` inresp
     <*> importIP `traverse` confaddr
--- ignore: 'HS.subjectConfirmationKeyInfo' (this is only required for holder of key subjects
+-- ignore: 'HX.subjectConfirmationKeyInfo' (this is only required for holder of key subjects
 -- [3/3.1], [1/2.4.1.2], [1/2.4.1.4])
--- ignore: 'HS.subjectConfirmationXML' (there is nothing we can assume about it's semantics)
+-- ignore: 'HX.subjectConfirmationXML' (there is nothing we can assume about it's semantics)
 
-importSubjectConfirmationData bad@(HS.SubjectConfirmationData _ Nothing _ _ _ _ _) =
+importSubjectConfirmationData bad@(HX.SubjectConfirmationData _ Nothing _ _ _ _ _) =
   die (Proxy @SubjectConfirmationData) ("missing NotOnOrAfter: " <> show bad)
-importSubjectConfirmationData bad@(HS.SubjectConfirmationData _ _ Nothing _ _ _ _) =
+importSubjectConfirmationData bad@(HX.SubjectConfirmationData _ _ Nothing _ _ _ _) =
   die (Proxy @SubjectConfirmationData) ("missing Recipient: " <> show bad)
 
-exportSubjectConfirmationData :: (HasCallStack) => SubjectConfirmationData -> HS.SubjectConfirmationData
+exportSubjectConfirmationData :: (HasCallStack) => SubjectConfirmationData -> HX.SubjectConfirmationData
 exportSubjectConfirmationData scd =
-  HS.SubjectConfirmationData
-    { HS.subjectConfirmationNotBefore = exportTime <$> scd ^. scdNotBefore,
-      HS.subjectConfirmationNotOnOrAfter = Just . exportTime $ scd ^. scdNotOnOrAfter,
-      HS.subjectConfirmationRecipient = Just . exportURI $ scd ^. scdRecipient,
-      HS.subjectConfirmationInResponseTo = cs . fromID <$> scd ^. scdInResponseTo,
-      HS.subjectConfirmationAddress = exportIP <$> scd ^. scdAddress,
-      HS.subjectConfirmationKeyInfo = mempty,
-      HS.subjectConfirmationXML = mempty
+  HX.SubjectConfirmationData
+    { HX.subjectConfirmationNotBefore = exportTime <$> scd ^. scdNotBefore,
+      HX.subjectConfirmationNotOnOrAfter = Just . exportTime $ scd ^. scdNotOnOrAfter,
+      HX.subjectConfirmationRecipient = Just . exportURI $ scd ^. scdRecipient,
+      HX.subjectConfirmationInResponseTo = cs . fromID <$> scd ^. scdInResponseTo,
+      HX.subjectConfirmationAddress = exportIP <$> scd ^. scdAddress,
+      HX.subjectConfirmationKeyInfo = mempty,
+      HX.subjectConfirmationXML = mempty
     }
 
-importIP :: (HasCallStack, MonadError String m) => HS.IP -> m IP
+importIP :: (HasCallStack, MonadError String m) => HX.IP -> m IP
 importIP = mkIP . cs
 
-exportIP :: (HasCallStack) => IP -> HS.IP
+exportIP :: (HasCallStack) => IP -> HX.IP
 exportIP = cs . ipToST
 
-importConditions :: forall m. (HasCallStack, MonadError String m) => HS.Conditions -> m Conditions
+importConditions :: forall m. (HasCallStack, MonadError String m) => HX.Conditions -> m Conditions
 importConditions conds = do
-  _condNotBefore <- traverse importTime $ HS.conditionsNotBefore conds
-  _condNotOnOrAfter <- traverse importTime $ HS.conditionsNotOnOrAfter conds
+  _condNotBefore <- traverse importTime $ HX.conditionsNotBefore conds
+  _condNotOnOrAfter <- traverse importTime $ HX.conditionsNotOnOrAfter conds
   let _condOneTimeUse = False
       _condAudienceRestriction = []
-      go :: Conditions -> HS.Condition -> m Conditions
-      go conds' HS.OneTimeUse =
+      go :: Conditions -> HX.Condition -> m Conditions
+      go conds' HX.OneTimeUse =
         pure $ conds' & condOneTimeUse .~ True
-      go conds' (HS.AudienceRestriction hsrs) = do
-        rs :: NonEmpty URI <- (importURI . HS.audience) `mapM` hsrs
+      go conds' (HX.AudienceRestriction hsrs) = do
+        rs :: NonEmpty URI <- (importURI . HX.audience) `mapM` hsrs
         pure $ conds' & condAudienceRestriction %~ (rs :)
       go _ badcond = die (Proxy @Conditions) ("unsupported condition" :: String, badcond)
-  foldM go (Conditions {..}) (HS.conditions conds)
+  foldM go (Conditions {..}) (HX.conditions conds)
 
-exportConditions :: (HasCallStack) => Conditions -> HS.Conditions
+exportConditions :: (HasCallStack) => Conditions -> HX.Conditions
 exportConditions conds =
-  HS.Conditions
-    { HS.conditionsNotBefore = exportTime <$> conds ^. condNotBefore,
-      HS.conditionsNotOnOrAfter = exportTime <$> conds ^. condNotOnOrAfter,
-      HS.conditions =
-        [HS.OneTimeUse | conds ^. condOneTimeUse]
-          <> [ HS.AudienceRestriction (HS.Audience . exportURI <$> hsrs)
+  HX.Conditions
+    { HX.conditionsNotBefore = exportTime <$> conds ^. condNotBefore,
+      HX.conditionsNotOnOrAfter = exportTime <$> conds ^. condNotOnOrAfter,
+      HX.conditions =
+        [HX.OneTimeUse | conds ^. condOneTimeUse]
+          <> [ HX.AudienceRestriction (HX.Audience . exportURI <$> hsrs)
                | hsrs <- conds ^. condAudienceRestriction
              ]
     }
@@ -524,131 +523,131 @@ exportConditions conds =
 -- | Attribute statements are silently ignored.
 importStatement ::
   (HasCallStack, MonadError String m) =>
-  HS.Statement ->
+  HX.Statement ->
   m (Maybe Statement)
-importStatement (HS.StatementAttribute _) = pure Nothing
-importStatement (HS.StatementAuthn st) =
+importStatement (HX.StatementAttribute _) = pure Nothing
+importStatement (HX.StatementAuthn st) =
   Just <$> do
-    _astAuthnInstant <- importTime $ HS.authnStatementInstant st
-    let _astSessionIndex = cs <$> HS.authnStatementSessionIndex st
-    _astSessionNotOnOrAfter <- traverse importTime $ HS.authnStatementSessionNotOnOrAfter st
-    _astSubjectLocality <- traverse importLocality $ HS.authnStatementSubjectLocality st
-    -- NB: @HS.authnStatementContext st@ is ignored [1/2.7.2.2].
+    _astAuthnInstant <- importTime $ HX.authnStatementInstant st
+    let _astSessionIndex = cs <$> HX.authnStatementSessionIndex st
+    _astSessionNotOnOrAfter <- traverse importTime $ HX.authnStatementSessionNotOnOrAfter st
+    _astSubjectLocality <- traverse importLocality $ HX.authnStatementSubjectLocality st
+    -- NB: @HX.authnStatementContext st@ is ignored [1/2.7.2.2].
     pure $ AuthnStatement _astAuthnInstant _astSessionIndex _astSessionNotOnOrAfter _astSubjectLocality
 importStatement bad = die (Proxy @Statement) bad
 
-exportStatement :: (HasCallStack) => Statement -> HS.Statement
+exportStatement :: (HasCallStack) => Statement -> HX.Statement
 exportStatement stm =
-  HS.StatementAuthn
-    HS.AuthnStatement
-      { HS.authnStatementInstant = exportTime $ stm ^. astAuthnInstant,
-        HS.authnStatementSessionIndex = cs <$> (stm ^. astSessionIndex),
-        HS.authnStatementSessionNotOnOrAfter = exportTime <$> (stm ^. astSessionNotOnOrAfter),
-        HS.authnStatementSubjectLocality = exportLocality <$> (stm ^. astSubjectLocality),
-        HS.authnStatementContext = HS.AuthnContext Nothing Nothing []
+  HX.StatementAuthn
+    HX.AuthnStatement
+      { HX.authnStatementInstant = exportTime $ stm ^. astAuthnInstant,
+        HX.authnStatementSessionIndex = cs <$> (stm ^. astSessionIndex),
+        HX.authnStatementSessionNotOnOrAfter = exportTime <$> (stm ^. astSessionNotOnOrAfter),
+        HX.authnStatementSubjectLocality = exportLocality <$> (stm ^. astSubjectLocality),
+        HX.authnStatementContext = HX.AuthnContext Nothing Nothing []
       }
 
-importLocality :: (HasCallStack, MonadError String m) => HS.SubjectLocality -> m Locality
+importLocality :: (HasCallStack, MonadError String m) => HX.SubjectLocality -> m Locality
 importLocality loc =
   Locality
-    <$> traverse importIP (HS.subjectLocalityAddress loc)
-    <*> pure ((mkDNSName . cs) <$> HS.subjectLocalityDNSName loc)
+    <$> traverse importIP (HX.subjectLocalityAddress loc)
+    <*> pure ((mkDNSName . cs) <$> HX.subjectLocalityDNSName loc)
 
-exportLocality :: (HasCallStack) => Locality -> HS.SubjectLocality
+exportLocality :: (HasCallStack) => Locality -> HX.SubjectLocality
 exportLocality loc =
-  HS.SubjectLocality
-    { HS.subjectLocalityAddress = exportIP <$> loc ^. localityAddress,
-      HS.subjectLocalityDNSName = cs . fromDNSName <$> loc ^. localityDNSName
+  HX.SubjectLocality
+    { HX.subjectLocalityAddress = exportIP <$> loc ^. localityAddress,
+      HX.subjectLocalityDNSName = cs . fromDNSName <$> loc ^. localityDNSName
     }
 
-importID :: (HasCallStack, MonadError String m) => HS.ID -> m (ID a)
+importID :: (HasCallStack, MonadError String m) => HX.ID -> m (ID a)
 importID = pure . mkID . cs
 
-exportID :: (HasCallStack) => ID a -> HS.ID
+exportID :: (HasCallStack) => ID a -> HX.ID
 exportID = cs . fromID
 
-importNameID :: (HasCallStack, MonadError String m) => HS.NameID -> m NameID
-importNameID bad@(HS.NameID (HS.BaseID {}) (HS.Unidentified _) _) =
+importNameID :: (HasCallStack, MonadError String m) => HX.NameID -> m NameID
+importNameID bad@(HX.NameID (HX.BaseID {}) (HX.Unidentified _) _) =
   die (Proxy @NameID) (show bad)
-importNameID (HS.NameID (HS.BaseID m1 m2 nid) (HS.Identified hsNameIDFormat) m3) =
+importNameID (HX.NameID (HX.BaseID m1 m2 nid) (HX.Identified hsNameIDFormat) m3) =
   either (die (Proxy @NameID)) pure $
     form hsNameIDFormat (cs nid) >>= \nid' -> mkNameID nid' (cs <$> m1) (cs <$> m2) (cs <$> m3)
   where
-    form :: (MonadError String m) => HS.NameIDFormat -> ST -> m UnqualifiedNameID
-    form HS.NameIDFormatUnspecified = pure . UNameIDUnspecified
-    form HS.NameIDFormatEmail = mkUNameIDEmail
-    form HS.NameIDFormatX509 = pure . UNameIDX509
-    form HS.NameIDFormatWindows = pure . UNameIDWindows
-    form HS.NameIDFormatKerberos = pure . UNameIDKerberos
-    form HS.NameIDFormatEntity = fmap UNameIDEntity . parseURI'
-    form HS.NameIDFormatPersistent = pure . UNameIDPersistent
-    form HS.NameIDFormatTransient = pure . UNameIDTransient
-    form b@HS.NameIDFormatEncrypted = \_ -> die (Proxy @NameID) (show b)
+    form :: (MonadError String m) => HX.NameIDFormat -> ST -> m UnqualifiedNameID
+    form HX.NameIDFormatUnspecified = pure . UNameIDUnspecified
+    form HX.NameIDFormatEmail = mkUNameIDEmail
+    form HX.NameIDFormatX509 = pure . UNameIDX509
+    form HX.NameIDFormatWindows = pure . UNameIDWindows
+    form HX.NameIDFormatKerberos = pure . UNameIDKerberos
+    form HX.NameIDFormatEntity = fmap UNameIDEntity . parseURI'
+    form HX.NameIDFormatPersistent = pure . UNameIDPersistent
+    form HX.NameIDFormatTransient = pure . UNameIDTransient
+    form b@HX.NameIDFormatEncrypted = \_ -> die (Proxy @NameID) (show b)
 
-exportNameID :: NameID -> HS.NameID
+exportNameID :: NameID -> HX.NameID
 exportNameID name =
-  HS.NameID
-    { HS.nameBaseID =
-        HS.BaseID
+  HX.NameID
+    { HX.nameBaseID =
+        HX.BaseID
           (ST.unpack <$> name ^. nameIDNameQ)
           (ST.unpack <$> name ^. nameIDSPNameQ)
           (ST.unpack nid),
-      HS.nameIDFormat = fmt,
-      HS.nameSPProvidedID = ST.unpack <$> name ^. nameIDSPProvidedID
+      HX.nameIDFormat = fmt,
+      HX.nameSPProvidedID = ST.unpack <$> name ^. nameIDSPProvidedID
     }
   where
     (fmt, nid) = unform (name ^. nameID)
-    unform :: UnqualifiedNameID -> (HS.IdentifiedURI HS.NameIDFormat, ST)
-    unform (UNameIDUnspecified n) = (HS.Identified HS.NameIDFormatUnspecified, n)
+    unform :: UnqualifiedNameID -> (HX.IdentifiedURI HX.NameIDFormat, ST)
+    unform (UNameIDUnspecified n) = (HX.Identified HX.NameIDFormatUnspecified, n)
     unform (UNameIDEmail n) =
-      ( HS.Identified HS.NameIDFormatEmail,
+      ( HX.Identified HX.NameIDFormatEmail,
         Email.render . CI.original $ n
       )
-    unform (UNameIDX509 n) = (HS.Identified HS.NameIDFormatX509, n)
-    unform (UNameIDWindows n) = (HS.Identified HS.NameIDFormatWindows, n)
-    unform (UNameIDKerberos n) = (HS.Identified HS.NameIDFormatKerberos, n)
+    unform (UNameIDX509 n) = (HX.Identified HX.NameIDFormatX509, n)
+    unform (UNameIDWindows n) = (HX.Identified HX.NameIDFormatWindows, n)
+    unform (UNameIDKerberos n) = (HX.Identified HX.NameIDFormatKerberos, n)
     unform (UNameIDEntity n) =
-      ( HS.Identified HS.NameIDFormatEntity,
+      ( HX.Identified HX.NameIDFormatEntity,
         renderURI n
       )
-    unform (UNameIDPersistent n) = (HS.Identified HS.NameIDFormatPersistent, n)
-    unform (UNameIDTransient n) = (HS.Identified HS.NameIDFormatTransient, n)
+    unform (UNameIDPersistent n) = (HX.Identified HX.NameIDFormatPersistent, n)
+    unform (UNameIDTransient n) = (HX.Identified HX.NameIDFormatTransient, n)
 
-importVersion :: (HasCallStack, MonadError String m) => HS.SAMLVersion -> m ()
-importVersion HS.SAML20 = pure ()
-importVersion bad = die (Proxy @HS.SAMLVersion) bad
+importVersion :: (HasCallStack, MonadError String m) => HX.SAMLVersion -> m ()
+importVersion HX.SAML20 = pure ()
+importVersion bad = die (Proxy @HX.SAMLVersion) bad
 
-exportVersion :: (HasCallStack) => HS.SAMLVersion
-exportVersion = HS.SAML20
+exportVersion :: (HasCallStack) => HX.SAMLVersion
+exportVersion = HX.SAML20
 
-importTime :: (HasCallStack, MonadError String m) => HS.DateTime -> m Time
+importTime :: (HasCallStack, MonadError String m) => HX.DateTime -> m Time
 importTime = pure . Time
 
-exportTime :: (HasCallStack) => Time -> HS.DateTime
+exportTime :: (HasCallStack) => Time -> HX.DateTime
 exportTime = fromTime
 
-importURI :: (HasCallStack, MonadError String m) => HS.URI -> m URI
-importURI uri = parseURI' . cs $ HS.uriToString id uri mempty
+importURI :: (HasCallStack, MonadError String m) => HX.URI -> m URI
+importURI uri = parseURI' . cs $ URI.uriToString id uri mempty
 
-exportURI :: (HasCallStack) => URI -> HS.URI
-exportURI uri = fromMaybe err . HS.parseURIReference . cs . renderURI $ uri
+exportURI :: (HasCallStack) => URI -> HX.URI
+exportURI uri = fromMaybe err . URI.parseURIReference . cs . renderURI $ uri
   where
     err = error $ "internal error: " <> show uri
 
 -- | [1/3.2.2.1;3.2.2.2]
-importStatus :: (HasCallStack, Monad m) => HS.Status -> m Status
+importStatus :: (HasCallStack, Monad m) => HX.Status -> m Status
 importStatus =
   pure . \case
-    HS.Status (HS.StatusCode HS.StatusSuccess _) _ _ -> StatusSuccess
+    HX.Status (HX.StatusCode HX.StatusSuccess _) _ _ -> StatusSuccess
     _ -> StatusFailure
 
-exportStatus :: (HasCallStack) => Status -> HS.Status
+exportStatus :: (HasCallStack) => Status -> HX.Status
 exportStatus = \case
-  StatusSuccess -> HS.Status (HS.StatusCode HS.StatusSuccess []) Nothing Nothing
-  StatusFailure -> HS.Status (HS.StatusCode HS.StatusRequester []) Nothing Nothing
+  StatusSuccess -> HX.Status (HX.StatusCode HX.StatusSuccess []) Nothing Nothing
+  StatusFailure -> HX.Status (HX.StatusCode HX.StatusRequester []) Nothing Nothing
 
-importIssuer :: (HasCallStack, MonadError String m) => HS.Issuer -> m Issuer
-importIssuer = fmap Issuer . (nameIDToURI <=< importNameID) . HS.issuer
+importIssuer :: (HasCallStack, MonadError String m) => HX.Issuer -> m Issuer
+importIssuer = fmap Issuer . (nameIDToURI <=< importNameID) . HX.issuer
   where
     nameIDToURI nameid@(view nameID -> UNameIDEntity uri)
       | ( isNothing (nameid ^. nameIDNameQ)
@@ -658,13 +657,13 @@ importIssuer = fmap Issuer . (nameIDToURI <=< importNameID) . HS.issuer
           pure uri
     nameIDToURI bad = die (Proxy @Issuer) bad
 
-exportIssuer :: (HasCallStack) => Issuer -> HS.Issuer
-exportIssuer = HS.Issuer . exportNameID . entityNameID . _fromIssuer
+exportIssuer :: (HasCallStack) => Issuer -> HX.Issuer
+exportIssuer = HX.Issuer . exportNameID . entityNameID . _fromIssuer
 
-importRequiredIssuer :: (HasCallStack, MonadError String m) => Maybe HS.Issuer -> m Issuer
+importRequiredIssuer :: (HasCallStack, MonadError String m) => Maybe HX.Issuer -> m Issuer
 importRequiredIssuer = maybe (die (Proxy @AuthnRequest) ("no issuer id" :: String)) importIssuer
 
-exportRequiredIssuer :: (HasCallStack) => Issuer -> Maybe HS.Issuer
+exportRequiredIssuer :: (HasCallStack) => Issuer -> Maybe HX.Issuer
 exportRequiredIssuer = Just . exportIssuer
 
 ----------------------------------------------------------------------
@@ -697,154 +696,154 @@ mkSPMetadata' mid now nick org resp contacts =
 
 -- | NB: this works best under the assumption that the input has been constructed by
 -- 'exportSPMetadata'.
-importSPMetadata :: (HasCallStack, MonadError String m) => HS.Metadata -> m SPMetadata
-importSPMetadata (NL.head . HS.descriptors . HS.entityDescriptors -> desc) = do
+importSPMetadata :: (HasCallStack, MonadError String m) => HX.Metadata -> m SPMetadata
+importSPMetadata (NL.head . HX.descriptors . HX.entityDescriptors -> desc) = do
   case desc of
-    HS.SPSSODescriptor {} -> pure ()
-    bad -> throwError $ "malformed HS.Descriptor: " <> show bad
+    HX.SPSSODescriptor {} -> pure ()
+    bad -> throwError $ "malformed HX.Descriptor: " <> show bad
   _spID <-
-    let raw = HS.roleDescriptorID . HS.descriptorRole $ desc
+    let raw = HX.roleDescriptorID . HX.descriptorRole $ desc
      in maybe (throwError ("malformed descriptorID: " <> show raw)) (pure . mkID . cs) raw
   _spValidUntil <-
-    let raw = HS.roleDescriptorValidUntil . HS.descriptorRole $ desc
+    let raw = HX.roleDescriptorValidUntil . HX.descriptorRole $ desc
      in maybe (throwError $ "bad validUntil: " <> show raw) (fmap fromTime . importXml) raw
   _spCacheDuration <-
-    let raw = HS.roleDescriptorCacheDuration . HS.descriptorRole $ desc
+    let raw = HX.roleDescriptorCacheDuration . HX.descriptorRole $ desc
      in maybe (throwError $ "bad cacheDuration: " <> show raw) pure raw
   _spOrgName :: Text <-
-    let raw = case fmap HS.organizationName . HS.roleDescriptorOrganization . HS.descriptorRole $ desc of
-          Just (HS.Localized "EN" x :| []) -> Just x
+    let raw = case fmap HX.organizationName . HX.roleDescriptorOrganization . HX.descriptorRole $ desc of
+          Just (HX.Localized "EN" x :| []) -> Just x
           _ -> Nothing
      in maybe (throwError $ "bad orgName: " <> show raw) (pure . cs) raw
   _spOrgDisplayName <-
-    let raw = case fmap HS.organizationDisplayName . HS.roleDescriptorOrganization . HS.descriptorRole $ desc of
-          Just (HS.Localized "EN" x :| []) -> Just x
+    let raw = case fmap HX.organizationDisplayName . HX.roleDescriptorOrganization . HX.descriptorRole $ desc of
+          Just (HX.Localized "EN" x :| []) -> Just x
           _ -> Nothing
      in maybe (throwError $ "bad orgDisplayName: " <> show raw) (pure . cs) raw
   _spOrgURL <-
-    let raw = fmap HS.organizationURL . HS.roleDescriptorOrganization . HS.descriptorRole $ desc
+    let raw = fmap HX.organizationURL . HX.roleDescriptorOrganization . HX.descriptorRole $ desc
      in case raw of
-          Just (HS.Localized "EN" u :| []) -> importURI u
+          Just (HX.Localized "EN" u :| []) -> importURI u
           bad -> throwError $ "bad or no organizationURL" <> show bad
   _spResponseURL <-
     importURI
-      . HS.endpointLocation
-      . HS.indexedEndpoint
+      . HX.endpointLocation
+      . HX.indexedEndpoint
       . NL.head
-      . HS.descriptorAssertionConsumerService
+      . HX.descriptorAssertionConsumerService
       $ desc
-  _spContacts <- mapM importContactPerson . HS.roleDescriptorContactPerson . HS.descriptorRole $ desc
+  _spContacts <- mapM importContactPerson . HX.roleDescriptorContactPerson . HX.descriptorRole $ desc
   pure SPMetadata {..}
 
-exportSPMetadata :: (HasCallStack) => SPMetadata -> HS.Metadata
+exportSPMetadata :: (HasCallStack) => SPMetadata -> HX.Metadata
 exportSPMetadata spdesc =
-  HS.EntityDescriptor
-    { HS.entityID = exportURI (spdesc ^. spOrgURL) :: HS.EntityID,
-      HS.metadataID = Nothing :: Maybe HX.ID,
-      HS.metadataValidUntil = Nothing :: Maybe HX.DateTime,
-      HS.metadataCacheDuration = Nothing :: Maybe HX.Duration,
-      HS.entityAttrs = mempty :: HX.Nodes,
-      HS.metadataSignature = Nothing :: Maybe HX.Signature,
-      HS.metadataExtensions = mempty :: HS.Extensions,
-      HS.entityDescriptors = HS.Descriptors (exportSPMetadata' spdesc :| []),
-      HS.entityOrganization = Nothing :: Maybe HS.Organization,
-      HS.entityContactPerson = mempty :: [HS.Contact],
-      HS.entityAditionalMetadataLocation = mempty :: [HS.AdditionalMetadataLocation]
+  HX.EntityDescriptor
+    { HX.entityID = exportURI (spdesc ^. spOrgURL) :: HX.EntityID,
+      HX.metadataID = Nothing :: Maybe HX.ID,
+      HX.metadataValidUntil = Nothing :: Maybe HX.DateTime,
+      HX.metadataCacheDuration = Nothing :: Maybe HX.Duration,
+      HX.entityAttrs = mempty :: HX.Nodes,
+      HX.metadataSignature = Nothing :: Maybe HX.Signature,
+      HX.metadataExtensions = mempty :: HX.Extensions,
+      HX.entityDescriptors = HX.Descriptors (exportSPMetadata' spdesc :| []),
+      HX.entityOrganization = Nothing :: Maybe HX.Organization,
+      HX.entityContactPerson = mempty :: [HX.Contact],
+      HX.entityAditionalMetadataLocation = mempty :: [HX.AdditionalMetadataLocation]
     }
 
 -- | [4/2.6], [4/2]
-exportSPMetadata' :: (HasCallStack) => SPMetadata -> HS.Descriptor
+exportSPMetadata' :: (HasCallStack) => SPMetadata -> HX.Descriptor
 exportSPMetadata' spdesc =
-  HS.SPSSODescriptor
-    { HS.descriptorRole =
-        HS.RoleDescriptor
-          { HS.roleDescriptorID = Just (cs . fromID $ spdesc ^. spID) :: Maybe HX.ID,
-            HS.roleDescriptorValidUntil = Just (spdesc ^. spValidUntil) :: Maybe HX.DateTime,
-            HS.roleDescriptorCacheDuration = Just (spdesc ^. spCacheDuration) :: Maybe HX.Duration,
-            HS.roleDescriptorProtocolSupportEnumeration = [HS.samlURN HS.SAML20 ["protocol"]] :: [HX.AnyURI],
-            HS.roleDescriptorErrorURL = Nothing :: Maybe HX.AnyURI,
-            HS.roleDescriptorAttrs = [] :: HX.Nodes,
-            HS.roleDescriptorSignature = Nothing :: Maybe HX.Signature,
-            HS.roleDescriptorExtensions = HS.Extensions [],
-            HS.roleDescriptorKeyDescriptor = [] :: [HS.KeyDescriptor],
-            HS.roleDescriptorOrganization =
+  HX.SPSSODescriptor
+    { HX.descriptorRole =
+        HX.RoleDescriptor
+          { HX.roleDescriptorID = Just (cs . fromID $ spdesc ^. spID) :: Maybe HX.ID,
+            HX.roleDescriptorValidUntil = Just (spdesc ^. spValidUntil) :: Maybe HX.DateTime,
+            HX.roleDescriptorCacheDuration = Just (spdesc ^. spCacheDuration) :: Maybe HX.Duration,
+            HX.roleDescriptorProtocolSupportEnumeration = [HX.samlURN HX.SAML20 ["protocol"]] :: [HX.AnyURI],
+            HX.roleDescriptorErrorURL = Nothing :: Maybe HX.AnyURI,
+            HX.roleDescriptorAttrs = [] :: HX.Nodes,
+            HX.roleDescriptorSignature = Nothing :: Maybe HX.Signature,
+            HX.roleDescriptorExtensions = HX.Extensions [],
+            HX.roleDescriptorKeyDescriptor = [] :: [HX.KeyDescriptor],
+            HX.roleDescriptorOrganization =
               Just
-                HS.Organization
-                  { HS.organizationAttrs = [],
-                    HS.organizationExtensions = HS.Extensions [],
-                    HS.organizationName = HS.Localized "EN" (cs $ spdesc ^. spOrgName) :| [],
-                    HS.organizationDisplayName = HS.Localized "EN" (cs $ spdesc ^. spOrgDisplayName) :| [],
-                    HS.organizationURL = HS.Localized "EN" (exportURI $ spdesc ^. spOrgURL) :| [] :: HX.List1 HS.LocalizedURI
+                HX.Organization
+                  { HX.organizationAttrs = [],
+                    HX.organizationExtensions = HX.Extensions [],
+                    HX.organizationName = HX.Localized "EN" (cs $ spdesc ^. spOrgName) :| [],
+                    HX.organizationDisplayName = HX.Localized "EN" (cs $ spdesc ^. spOrgDisplayName) :| [],
+                    HX.organizationURL = HX.Localized "EN" (exportURI $ spdesc ^. spOrgURL) :| [] :: HX.List1 HX.LocalizedURI
                   },
-            HS.roleDescriptorContactPerson = exportContactPerson <$> (spdesc ^. spContacts)
+            HX.roleDescriptorContactPerson = exportContactPerson <$> (spdesc ^. spContacts)
           },
-      HS.descriptorSSO =
-        HS.SSODescriptor
-          { HS.ssoDescriptorArtifactResolutionService = [] :: [HS.IndexedEndpoint],
-            HS.ssoDescriptorSingleLogoutService = [] :: [HS.Endpoint],
-            HS.ssoDescriptorManageNameIDService = [] :: [HS.Endpoint],
-            HS.ssoDescriptorNameIDFormat = [HX.Identified HS.NameIDFormatUnspecified, HX.Identified HS.NameIDFormatEntity] -- [1/8.3]
+      HX.descriptorSSO =
+        HX.SSODescriptor
+          { HX.ssoDescriptorArtifactResolutionService = [] :: [HX.IndexedEndpoint],
+            HX.ssoDescriptorSingleLogoutService = [] :: [HX.Endpoint],
+            HX.ssoDescriptorManageNameIDService = [] :: [HX.Endpoint],
+            HX.ssoDescriptorNameIDFormat = [HX.Identified HX.NameIDFormatUnspecified, HX.Identified HX.NameIDFormatEntity] -- [1/8.3]
           },
-      HS.descriptorAuthnRequestsSigned = False,
-      HS.descriptorWantAssertionsSigned = True,
-      HS.descriptorAssertionConsumerService =
-        HS.IndexedEndpoint
-          { HS.indexedEndpoint =
-              HS.Endpoint
-                { HS.endpointBinding = HX.Identified HS.BindingHTTPPOST :: HX.IdentifiedURI HS.Binding,
-                  HS.endpointLocation = exportURI $ spdesc ^. spResponseURL :: HX.AnyURI,
-                  HS.endpointResponseLocation = Nothing :: Maybe HX.AnyURI,
-                  HS.endpointAttrs = [] :: HX.Nodes,
-                  HS.endpointXML = [] :: HX.Nodes
+      HX.descriptorAuthnRequestsSigned = False,
+      HX.descriptorWantAssertionsSigned = True,
+      HX.descriptorAssertionConsumerService =
+        HX.IndexedEndpoint
+          { HX.indexedEndpoint =
+              HX.Endpoint
+                { HX.endpointBinding = HX.Identified HX.BindingHTTPPOST :: HX.IdentifiedURI HX.Binding,
+                  HX.endpointLocation = exportURI $ spdesc ^. spResponseURL :: HX.AnyURI,
+                  HX.endpointResponseLocation = Nothing :: Maybe HX.AnyURI,
+                  HX.endpointAttrs = [] :: HX.Nodes,
+                  HX.endpointXML = [] :: HX.Nodes
                 },
-            HS.indexedEndpointIndex = 0 :: HX.UnsignedShort,
-            HS.indexedEndpointIsDefault = True :: HX.Boolean
+            HX.indexedEndpointIndex = 0 :: HX.UnsignedShort,
+            HX.indexedEndpointIsDefault = True :: HX.Boolean
           }
           :| [] ::
-          HX.List1 HS.IndexedEndpoint,
-      HS.descriptorAttributeConsumingService = [] :: [HS.AttributeConsumingService]
+          HX.List1 HX.IndexedEndpoint,
+      HX.descriptorAttributeConsumingService = [] :: [HX.AttributeConsumingService]
       -- (for identification we do not need any attributes, but can use the 'SubjectID' that is
       -- always included in the response.)
     }
 
-exportContactPerson :: ContactPerson -> HS.Contact
+exportContactPerson :: ContactPerson -> HX.Contact
 exportContactPerson contact =
-  HS.ContactPerson
-    { HS.contactType = exportContactType $ contact ^. cntType,
-      HS.contactAttrs = [],
-      HS.contactExtensions = HS.Extensions [],
-      HS.contactCompany = cs <$> contact ^. cntCompany,
-      HS.contactGivenName = cs <$> contact ^. cntGivenName,
-      HS.contactSurName = cs <$> contact ^. cntSurname,
-      HS.contactEmailAddress = maybeToList $ exportURI <$> contact ^. cntEmail :: [HX.AnyURI],
-      HS.contactTelephoneNumber = maybeToList $ cs <$> contact ^. cntPhone
+  HX.ContactPerson
+    { HX.contactType = exportContactType $ contact ^. cntType,
+      HX.contactAttrs = [],
+      HX.contactExtensions = HX.Extensions [],
+      HX.contactCompany = cs <$> contact ^. cntCompany,
+      HX.contactGivenName = cs <$> contact ^. cntGivenName,
+      HX.contactSurName = cs <$> contact ^. cntSurname,
+      HX.contactEmailAddress = maybeToList $ exportURI <$> contact ^. cntEmail :: [HX.AnyURI],
+      HX.contactTelephoneNumber = maybeToList $ cs <$> contact ^. cntPhone
     }
 
-importContactPerson :: (MonadError String m) => HS.Contact -> m ContactPerson
+importContactPerson :: (MonadError String m) => HX.Contact -> m ContactPerson
 importContactPerson contact = do
-  let _cntType = importContactType $ HS.contactType contact
-      _cntCompany = cs <$> HS.contactCompany contact
-      _cntGivenName = cs <$> HS.contactGivenName contact
-      _cntSurname = cs <$> HS.contactSurName contact
-      _cntPhone = listToMaybe $ cs <$> HS.contactTelephoneNumber contact
-  _cntEmail <- traverse importURI $ listToMaybe (HS.contactEmailAddress contact)
+  let _cntType = importContactType $ HX.contactType contact
+      _cntCompany = cs <$> HX.contactCompany contact
+      _cntGivenName = cs <$> HX.contactGivenName contact
+      _cntSurname = cs <$> HX.contactSurName contact
+      _cntPhone = listToMaybe $ cs <$> HX.contactTelephoneNumber contact
+  _cntEmail <- traverse importURI $ listToMaybe (HX.contactEmailAddress contact)
   pure ContactPerson {..}
 
-exportContactType :: ContactType -> HS.ContactType
+exportContactType :: ContactType -> HX.ContactType
 exportContactType = \case
-  ContactTechnical -> HS.ContactTypeTechnical
-  ContactSupport -> HS.ContactTypeSupport
-  ContactAdministrative -> HS.ContactTypeAdministrative
-  ContactBilling -> HS.ContactTypeBilling
-  ContactOther -> HS.ContactTypeOther
+  ContactTechnical -> HX.ContactTypeTechnical
+  ContactSupport -> HX.ContactTypeSupport
+  ContactAdministrative -> HX.ContactTypeAdministrative
+  ContactBilling -> HX.ContactTypeBilling
+  ContactOther -> HX.ContactTypeOther
 
-importContactType :: HS.ContactType -> ContactType
+importContactType :: HX.ContactType -> ContactType
 importContactType = \case
-  HS.ContactTypeTechnical -> ContactTechnical
-  HS.ContactTypeSupport -> ContactSupport
-  HS.ContactTypeAdministrative -> ContactAdministrative
-  HS.ContactTypeBilling -> ContactBilling
-  HS.ContactTypeOther -> ContactOther
+  HX.ContactTypeTechnical -> ContactTechnical
+  HX.ContactTypeSupport -> ContactSupport
+  HX.ContactTypeAdministrative -> ContactAdministrative
+  HX.ContactTypeBilling -> ContactBilling
+  HX.ContactTypeOther -> ContactOther
 
 parseIdPMetadata :: (MonadError String m) => Element -> m IdPMetadata
 parseIdPMetadata el@(Element tag _ _) = case tag of
@@ -971,7 +970,7 @@ renderIdPMetadata (IdPMetadata issuer requri (NL.toList -> certs)) = nodesToElem
 ----------------------------------------------------------------------
 -- instances
 
-instance HasXMLImport AuthnRequest HS.AuthnRequest where
+instance HasXMLImport AuthnRequest HX.AuthnRequest where
   importXml = importAuthnRequest
   exportXml = exportAuthnRequest
 
@@ -981,11 +980,11 @@ instance HasXML AuthnRequest where
 instance HasXMLRoot AuthnRequest where
   renderRoot = wrapRenderRoot exportAuthnRequest
 
-instance HasXMLImport NameIdPolicy HS.NameIDPolicy where
+instance HasXMLImport NameIdPolicy HX.NameIDPolicy where
   importXml = importNameIDPolicy
   exportXml = exportNameIDPolicy
 
-instance HasXMLImport AuthnResponse HS.Response where
+instance HasXMLImport AuthnResponse HX.Response where
   importXml = importAuthnResponse
   exportXml = exportAuthnResponse
 
@@ -995,7 +994,7 @@ instance HasXML AuthnResponse where
 instance HasXMLRoot AuthnResponse where
   renderRoot = wrapRenderRoot exportAuthnResponse
 
-instance HasXMLImport Assertion (HS.PossiblyEncrypted HS.Assertion) where
+instance HasXMLImport Assertion (HX.PossiblyEncrypted HX.Assertion) where
   importXml = importPossiblyEncryptedAssertion
   exportXml = exportPossiblyEncryptedAssertion
 
@@ -1009,19 +1008,19 @@ instance HasXML Subject where
   parse = wrapParse importSubject
   render = wrapRender exportSubject
 
-instance HasXMLImport Subject HS.Subject where
+instance HasXMLImport Subject HX.Subject where
   importXml = importSubject
   exportXml = exportSubject
 
-instance HasXMLImport SubjectConfirmationData HS.SubjectConfirmationData where
+instance HasXMLImport SubjectConfirmationData HX.SubjectConfirmationData where
   importXml = importSubjectConfirmationData
   exportXml = exportSubjectConfirmationData
 
-instance HasXMLImport IP HS.IP where
+instance HasXMLImport IP HX.IP where
   importXml = importIP
   exportXml = exportIP
 
-instance HasXMLImport Conditions HS.Conditions where
+instance HasXMLImport Conditions HX.Conditions where
   importXml = importConditions
   exportXml = exportConditions
 
@@ -1029,19 +1028,19 @@ instance HasXML Conditions where
   parse = wrapParse importConditions
   render = wrapRender exportConditions
 
-instance HasXMLImport (Maybe Statement) HS.Statement where
+instance HasXMLImport (Maybe Statement) HX.Statement where
   importXml = importStatement
   exportXml = exportStatement . (undefined :: Maybe Statement -> Statement)
 
-instance HasXMLImport Locality HS.SubjectLocality where
+instance HasXMLImport Locality HX.SubjectLocality where
   importXml = importLocality
   exportXml = exportLocality
 
-instance HasXMLImport (ID a) HS.ID where
+instance HasXMLImport (ID a) HX.ID where
   importXml = importID
   exportXml = exportID
 
-instance HasXMLImport NameID HS.NameID where
+instance HasXMLImport NameID HX.NameID where
   importXml = importNameID
   exportXml = exportNameID
 
@@ -1049,23 +1048,23 @@ instance HasXML NameID where
   parse = wrapParse importNameID
   render = wrapRender exportNameID
 
-instance HasXMLImport () HS.SAMLVersion where
+instance HasXMLImport () HX.SAMLVersion where
   importXml = importVersion
   exportXml () = exportVersion
 
-instance HasXMLImport Time HS.DateTime where
+instance HasXMLImport Time HX.DateTime where
   importXml = importTime
   exportXml = exportTime
 
-instance HasXMLImport URI HS.URI where
+instance HasXMLImport URI HX.URI where
   importXml = importURI
   exportXml = exportURI
 
-instance HasXMLImport Status HS.Status where
+instance HasXMLImport Status HX.Status where
   importXml = importStatus
   exportXml = exportStatus
 
-instance HasXMLImport Issuer HS.Issuer where
+instance HasXMLImport Issuer HX.Issuer where
   importXml = importIssuer
   exportXml = exportIssuer
 
