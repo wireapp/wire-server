@@ -45,9 +45,6 @@ hself: hsuper: {
       }
     )));
 
-  # depend on an old version of hedgehog
-  polysemy-test = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-test);
-
   # ------------------------------------
   # okay but marked broken (nixpkgs bug)
   # (we can unfortunately not do anything here but update nixpkgs)
