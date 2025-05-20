@@ -590,11 +590,11 @@ exportNameID name =
   HS.NameID
     { HS.nameBaseID =
         HS.BaseID
-          (cs . escapeXmlText <$> name ^. nameIDNameQ)
-          (cs . escapeXmlText <$> name ^. nameIDSPNameQ)
-          (cs nid),
+          (ST.unpack . escapeXmlText <$> name ^. nameIDNameQ)
+          (ST.unpack . escapeXmlText <$> name ^. nameIDSPNameQ)
+          (ST.unpack nid),
       HS.nameIDFormat = fmt,
-      HS.nameSPProvidedID = cs . escapeXmlText <$> name ^. nameIDSPProvidedID
+      HS.nameSPProvidedID = ST.unpack . escapeXmlText <$> name ^. nameIDSPProvidedID
     }
   where
     (fmt, nid) = unform (name ^. nameID)
@@ -609,7 +609,7 @@ exportNameID name =
     unform (UNameIDKerberos n) = (HS.Identified HS.NameIDFormatKerberos, escapeXmlText n)
     unform (UNameIDEntity n) =
       ( HS.Identified HS.NameIDFormatEntity,
-        escapeXmlText . mkXmlText . cs $ renderURI n
+        escapeXmlText . mkXmlText $ renderURI n
       )
     unform (UNameIDPersistent n) = (HS.Identified HS.NameIDFormatPersistent, escapeXmlText n)
     unform (UNameIDTransient n) = (HS.Identified HS.NameIDFormatTransient, escapeXmlText n)
