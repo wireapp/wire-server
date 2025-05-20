@@ -83,18 +83,6 @@ let
       };
     };
 
-    # PR: https://github.com/kazu-yamamoto/crypton-certificate/pull/8
-    crypton-certificates = {
-      src = fetchgit {
-        url = "https://github.com/akshaymankar/hs-certificate";
-        rev = "9e293695d8ca5efc513ee0082ae955ff9b32eb6b";
-        hash = "sha256-mD5Dvuzol3K9CNNSfa2L9ir9AbrQ8HJc0QNmkK3qBWk=";
-      };
-      packages = {
-        "crypton-x509-validation" = "x509-validation";
-      };
-    };
-
     # PR https://github.com/dylex/hsaml2/pull/20
     hsaml2 = {
       src = fetchgit {
