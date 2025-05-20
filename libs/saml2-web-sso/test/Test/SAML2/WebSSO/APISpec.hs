@@ -350,5 +350,5 @@ spec = describe "API" $ do
     it "utf8 characters in authentication response are parsed correctly (not as Char8)" $ do
       check "microsoft-azure-utf8-issue-metadata.xml" "microsoft-azure-utf8-issue-authentication-request.xml"
 
-    focus . it "what is this about?  donno, let's see!" $ do
+    it "what is this about?  donno, let's see!" $ do
       check "keycloak-idp-metadata.xml" "keycloak-response.xml"

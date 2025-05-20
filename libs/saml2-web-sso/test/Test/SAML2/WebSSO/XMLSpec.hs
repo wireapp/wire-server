@@ -132,7 +132,7 @@ spec = describe "XML Sanitization" $ do
 
     ----------------------------------------------------------------------
 
-    focus . it "counter-example unicode" $ do
+    it "counter-example unicode" $ do
       let xin :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
           xout :: LT.Text = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
 
@@ -162,15 +162,15 @@ spec = describe "XML Sanitization" $ do
 
     ----------------------------------------------------------------------
 
-    focus . it "bla" $ do
+    it "bla" $ do
       (i, o) <- canonicalizeCounterExample "PGE+w6Q8L2E+"
       o `shouldBe` i
 
-    focus . it "hihi-utf8" $ do
+    it "hihi-utf8" $ do
       LBSUTF8.toString (either (error "badcase") SBS.fromStrict $ Data.ByteString.Base64.decode "PGE+w6Q8L2E+")
         `shouldBe` "<a>ä</a>"
 
-    focus . it "hihi-char8" $ do
+    it "hihi-char8" $ do
       CS.unpack (either (error "badcase") SBS.fromStrict $ Data.ByteString.Base64.decode "PGE+w6Q8L2E+")
         `shouldBe` "<a>ä</a>"
 
