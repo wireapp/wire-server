@@ -8,27 +8,17 @@ module Test.SAML2.WebSSO.XMLSpec
   )
 where
 
-import Data.ByteString as SBS
-import Data.ByteString.Base64 qualified
-import Data.ByteString.Lazy as LBS
-import Data.ByteString.Lazy qualified as BS
-import Data.ByteString.Lazy.Char8 qualified as CS
-import Data.ByteString.Lazy.UTF8 qualified as LBSUTF8
 import Data.Default
 import Data.Either
 import Data.String.Conversions
 import Data.Text.Lazy qualified as LT
-import Data.Tree.NTree.TypeDefs
 import Imports
 import SAML2.Core qualified as HS
--- import Debug.Trace
 import SAML2.Util
 import SAML2.WebSSO
 import SAML2.XML qualified as HS
-import SAML2.XML.Canonical
 import Test.Hspec
 import Text.XML as XMLC
-import Text.XML.HXT.DOM.TypeDefs
 import URI.ByteString.QQ (uri)
 
 -- | embed an email into a valid NameID context
@@ -102,13 +92,16 @@ spec = describe "XML Sanitization" $ do
                    )
     it "rendering doesn't double escape" $ do
       encodeElem (unspecifiedNameID "<something>")
-        `shouldBe` (xmlWithName Nothing "&lt;something&gt;")
+        `shouldBe` (xmlWithName Nothing "&lt;something&gt;") -- !!
+
     it "rendering escapes emails correctly" $ do
       encodeElem (fromRight (error "bad test case") $ emailNameID "a&@b.c")
-        `shouldBe` (xmlWithName (Just emailFormat) "a&amp;@b.c")
+        `shouldBe` (xmlWithName (Just emailFormat) "a&amp;@b.c") -- !!
+
     it "rendering escapes urls correctly" $ do
       encodeElem (entityNameID [uri|http://example.com/?<&>|])
-        `shouldBe` (xmlWithName (Just entityFormat) "http://example.com/?%3C=&amp;%3E=")
+        `shouldBe` (xmlWithName (Just entityFormat) "http://example.com/?%3C=&amp;%3E=") -- !!
+
     it "sadly, hsaml2 does not escape unsafe strings" $ do
       -- this test case reproduces an issue with hsaml2 that motivates us manually escaping
       -- the 'XmlText's in the serialization functions here in saml2-web-sso.
@@ -129,8 +122,6 @@ spec = describe "XML Sanitization" $ do
       let xin = "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
           xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
       (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
-
-    ----------------------------------------------------------------------
 
     it "counter-example unicode" $ do
       let xin :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
@@ -153,38 +144,4 @@ spec = describe "XML Sanitization" $ do
 
       -- do {en,de}codeElem work?
       (decodeElem @NameID) xin `shouldBe` Right decodeElemExpected
-
-      {-
-          hypothesis: we're running encodeString from utf8-string in some places, but not in others.
-      -}
-
       encodeElem decodeElemExpected `shouldBe` xout
-
-    ----------------------------------------------------------------------
-
-    it "bla" $ do
-      (i, o) <- canonicalizeCounterExample "PGE+w6Q8L2E+"
-      o `shouldBe` i
-
-    it "hihi-utf8" $ do
-      LBSUTF8.toString (either (error "badcase") SBS.fromStrict $ Data.ByteString.Base64.decode "PGE+w6Q8L2E+")
-        `shouldBe` "<a>ä</a>"
-
-    it "hihi-char8" $ do
-      CS.unpack (either (error "badcase") SBS.fromStrict $ Data.ByteString.Base64.decode "PGE+w6Q8L2E+")
-        `shouldBe` "<a>ä</a>"
-
-canonicalizeCounterExample :: (HasCallStack) => SBS.ByteString -> IO (LBS.ByteString, LBS.ByteString)
-canonicalizeCounterExample base64input = do
-  let inbs :: LBS.ByteString
-      inbs = either (error "badcase") BS.fromStrict $ Data.ByteString.Base64.decode base64input
-
-      tree :: XmlTree
-      tree = fromMaybe (error "badcase") $ HS.xmlToDoc inbs
-
-      algo :: CanonicalizationAlgorithm
-      algo = CanonicalXMLExcl10 {canonicalWithComments = True}
-
-  outbs :: LBS.ByteString <- SBS.fromStrict <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
-
-  pure (inbs, outbs)
