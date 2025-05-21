@@ -42,6 +42,7 @@ import Imports hiding (log)
 import Network.HTTP.Types (statusIsServerError)
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
+import Wire.OpenTelemetry.Servant (otelClientMiddleware)
 
 data IntraComponent = Brig | Spar
   deriving (Show)
@@ -69,8 +70,18 @@ componentServantClient comp = do
       addRequestIdHeader app req = do
         let reqWithId = req {Servant.requestHeaders = (requestIdName, rId) :<| req.requestHeaders}
         app reqWithId
+      traceInfo = "intra-call-to-" <> Text.pack (componentName comp)
 
-  pure $ (Servant.mkClientEnv mgr baseurl) {Servant.middleware = addRequestIdHeader}
+  pure $
+    Servant.ClientEnv
+      { Servant.manager = mgr,
+        Servant.baseUrl = baseurl,
+        Servant.cookieJar = Nothing,
+        Servant.makeClientRequest = Servant.defaultMakeClientRequest,
+        Servant.middleware =
+          otelClientMiddleware traceInfo
+            . addRequestIdHeader
+      }
 
 componentRetryPolicy :: IntraComponent -> RetryPolicy
 componentRetryPolicy Brig = x1
