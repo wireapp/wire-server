@@ -414,6 +414,8 @@ testSparIdPInitiatedLoginUtf8Char = do
     resp.status `shouldMatchInt` 200
     (cs resp.body) `shouldContain` "SAMLRequest"
 
+-- TODO: Can we assert that our special character klaus has been received correctly?
+
 -- | in V6, create two idps then one scim should fail
 testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()
 testSparCreateTwoScimTokensForOneIdp = do
