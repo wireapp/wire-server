@@ -364,8 +364,11 @@ testSparCreateScimTokenWithName = do
 ----------------------------------------------------------------------
 -- saml stuff
 
-testSparIdPInitiatedLogin :: (HasCallStack) => App ()
-testSparIdPInitiatedLogin = do
+-- | In this test, the IdP attempts an IdP-initiated login, and the client gets redirected
+-- back to IdP from SP with a valid authentication request.  This is to make some hypothetical
+-- attacks harder while still supporting login dashboards in IdP UIs.
+testSparEmulateSPInitiatedLogin :: (HasCallStack) => App ()
+testSparEmulateSPInitiatedLogin = do
   -- set up saml-not-scim team
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
