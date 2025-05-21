@@ -404,7 +404,7 @@ testSparSPInitiatedLoginWithUtf8 = do
   let idp :: SAML.IdPConfig (Value {- not needed -})
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
 
-      userName = "klăus-" ++ randomness
+      userName = "klăusﭲﭳﭴﭵﭶﭷﭸﭹﭺﭻﭼﭽﭾﭿㄖㄗㄘ✈✉♊ႩႪงจฉชซὨὩἈἉἊἋἌἍἎἏຜຝڈډڊڋ" ++ randomness
       Right (subject :: SAML.NameID) =
         SAML.mkNameID
           ((SAML.mkUNameIDUnspecified . ST.pack) userName)
