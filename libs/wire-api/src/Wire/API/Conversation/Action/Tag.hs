@@ -41,6 +41,7 @@ data ConversationActionTag
   | ConversationAccessDataTag
   | ConversationUpdateProtocolTag
   | ConversationUpdateAddPermissionTag
+  | ConversationResetTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
 instance Arbitrary ConversationActionTag where
