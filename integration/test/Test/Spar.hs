@@ -2,6 +2,7 @@
 
 module Test.Spar where
 
+import API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
@@ -389,35 +390,35 @@ testSparEmulateSPInitiatedLogin = do
     (cs resp.body) `shouldContain` "SAMLRequest"
 
 -- | UTF-8 chars (non-Latin-1) caused issues in XML parsing.
-testSparIdPInitiatedLoginUtf8Char :: (HasCallStack) => App ()
-testSparIdPInitiatedLoginUtf8Char = do
+testSparSPInitiatedLoginWithUtf8 :: (HasCallStack) => App ()
+testSparSPInitiatedLoginWithUtf8 = do
   -- set up saml-not-scim team
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  (createIdpResp, (_idpmeta, privcreds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+  (createIdpResp, (idpMeta, privcreds)) <- registerTestIdPWithMetaWithPrivateCreds owner
   assertSuccess createIdpResp
 
-  -- craft authnresp without req
+  -- gather info about idp and account
   idpValue :: A.Value <- createIdpResp.json
   randomness <- randomId
-  let idp :: SAML.IdPConfig Value
+  let idp :: SAML.IdPConfig (Value {- not needed -})
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
+
+      userName = "klăus-" ++ randomness
       Right (subject :: SAML.NameID) =
         SAML.mkNameID
-          ((SAML.mkUNameIDUnspecified . ST.pack) ("klăus-" ++ randomness))
+          ((SAML.mkUNameIDUnspecified . ST.pack) userName)
           Nothing
           Nothing
           Nothing
-  authnresp <- getAuthnResponseCustomNameID subject tid idp privcreds
 
-  -- send to finalize and check redirect response
-  finalizeSamlLogin OwnDomain tid authnresp `bindResponse` \resp -> do
-    -- the 303 is followed immediately, so the response is already coming from
-    -- /sso/initiate-login here.
-    resp.status `shouldMatchInt` 200
-    (cs resp.body) `shouldContain` "SAMLRequest"
+  idpIdString <- asString $ idp ^. SAML.idpId
 
--- TODO: Can we assert that our special character klaus has been received correctly?
+  -- login
+  (uidString, _) <- loginWithSaml True tid subject (idpIdString, (idpMeta, privcreds))
+  Brig.getSelf uidString `bindResponse` \resp -> do
+    -- TODO: assert userName is intact.
+    printJSON resp.json
 
 -- | in V6, create two idps then one scim should fail
 testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()
