@@ -128,7 +128,6 @@ library
     Brig.IO.Intra
     Brig.IO.Journal
     Brig.IO.Logging
-    Brig.Main
     Brig.Options
     Brig.Provider.API
     Brig.Provider.DB
@@ -249,8 +248,6 @@ library
     , fsnotify                              >=0.4
     , galley-types                          >=0.75.3
     , hashable                              >=1.2
-    , hasql
-    , hasql-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , HsOpenSSL                             >=0.10
@@ -323,7 +320,6 @@ library
     , wire-api-federation
     , wire-otel
     , wire-subsystems
-    , yaml
     , zauth                                 >=0.10.3
 
 executable brig
@@ -333,7 +329,11 @@ executable brig
     -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
     -Wredundant-constraints -Wunused-packages
 
-  build-depends: brig
+  build-depends:
+    , brig
+    , HsOpenSSL
+    , imports
+    , types-common
 
 executable brig-index
   import:        common-all

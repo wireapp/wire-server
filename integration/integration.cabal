@@ -189,7 +189,6 @@ library
     Test.Teams
     Test.TeamSettings
     Test.User
-    Test.UserGroup
     Test.Version
     Testlib.App
     Testlib.Assertions

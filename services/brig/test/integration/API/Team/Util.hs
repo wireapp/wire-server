@@ -26,7 +26,7 @@ import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import Control.Lens ((^?))
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id

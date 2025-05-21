@@ -19,20 +19,20 @@ spec = do
           localBackend =
             def {activationCodes = Map.singleton emailKey (Nothing, c)}
           result =
-            runNoFederationStack localBackend mempty config $
+            runNoFederationStack localBackend Nothing config $
               lookupActivationCode emailKey
        in result === Just (Nothing, c)
     prop "a code not found in the store" $ \emailKey config ->
       let localBackend = def
           result =
-            runNoFederationStack localBackend mempty config $
+            runNoFederationStack localBackend Nothing config $
               lookupActivationCode emailKey
        in result === Nothing
     prop "newly added code can be looked up" $ \emailKey mUid config ->
       let c = emailKeyToCode emailKey
           localBackend = def
           (actCode, lookupRes) =
-            runNoFederationStack localBackend mempty config $ do
+            runNoFederationStack localBackend Nothing config $ do
               ac <-
                 (.activationCode)
                   <$> newActivationCode emailKey undefined mUid

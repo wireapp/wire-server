@@ -61,7 +61,6 @@ module Data.Schema
     fieldOver,
     array,
     set,
-    vector,
     nonEmptyArray,
     map_,
     mapWithKeys,
@@ -454,19 +453,12 @@ array ::
   (HasArray ndoc doc, HasName ndoc) =>
   ValueSchema ndoc a ->
   ValueSchema doc [a]
-array sch =
-  V.fromList .= (V.toList <$> vector sch)
-
-vector ::
-  (HasArray ndoc doc, HasName ndoc) =>
-  ValueSchema ndoc a ->
-  ValueSchema doc (V.Vector a)
-vector sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
     name = maybe "array" ("array of " <>) (getName (schemaDoc sch))
-    r = A.withArray (T.unpack name) $ \arr -> mapM (schemaIn sch) arr
+    r = A.withArray (T.unpack name) $ \arr -> mapM (schemaIn sch) $ V.toList arr
     s = mkArray (schemaDoc sch)
-    w x = A.Array <$> mapM (schemaOut sch) x
+    w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
 
 set ::
   (HasArray ndoc doc, HasName ndoc, Ord a) =>

@@ -224,9 +224,6 @@ isConnectionNotif status n =
   nPayload n %. "type" `isEqual` "user.connection"
     &&~ nPayload n %. "connection.status" `isEqual` status
 
-isUserGroupCreatedNotif :: (MakesValue a) => a -> App Bool
-isUserGroupCreatedNotif = notifTypeIsEqual "user-group.created"
-
 assertLeaveNotification ::
   ( HasCallStack,
     MakesValue fromUser,

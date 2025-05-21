@@ -1,8 +1,8 @@
 module Main where
 
 import Imports
-import qualified Spec
-import qualified Test.Hspec as H
+import Spec
+import Test.Hspec
 
 main :: IO ()
-main = H.hspec Spec.spec
+main = hspec Spec.spec

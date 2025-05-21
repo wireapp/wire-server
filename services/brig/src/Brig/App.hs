@@ -42,7 +42,6 @@ module Brig.App
     federatorLens,
     wireServerEnterpriseEndpointLens,
     casClientLens,
-    hasqlPoolLens,
     smtpEnvLens,
     emailSenderLens,
     awsEnvLens,
@@ -72,8 +71,6 @@ module Brig.App
     enableSFTFederationLens,
     rateLimitEnvLens,
     initZAuth,
-    initLogger,
-    initPostgresPool,
 
     -- * App Monad
     AppT (..),
@@ -127,7 +124,6 @@ import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
-import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Text qualified as Text
@@ -137,11 +133,6 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import Hasql.Connection.Setting qualified as HasqlSetting
-import Hasql.Connection.Setting.Connection qualified as HasqlConn
-import Hasql.Connection.Setting.Connection.Param qualified as HasqlConfig
-import Hasql.Pool qualified as HasqlPool
-import Hasql.Pool.Config qualified as HasqlPool
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
@@ -194,7 +185,6 @@ data Env = Env
     federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     wireServerEnterpriseEndpoint :: Maybe Endpoint,
     casClient :: Cas.ClientState,
-    hasqlPool :: HasqlPool.Pool,
     smtpEnv :: Maybe SMTP.SMTP,
     emailSender :: EmailAddress,
     awsEnv :: AWS.Env,
@@ -240,7 +230,7 @@ newEnv opts = do
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
-  lgr <- initLogger opts
+  lgr <- Log.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
   cas <- initCassandra opts lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
@@ -283,7 +273,6 @@ newEnv opts = do
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
-  hasqlPool <- initPostgresPool opts.postgresql opts.postgresqlPassword
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -295,7 +284,6 @@ newEnv opts = do
         federator = opts.federatorInternal,
         wireServerEnterpriseEndpoint = opts.wireServerEnterprise,
         casClient = cas,
-        hasqlPool = hasqlPool,
         smtpEnv = emailSMTP,
         emailSender = opts.emailSMS.general.emailSender,
         awsEnv = aws, -- used by `journalEvent` directly
@@ -454,10 +442,6 @@ initExtGetManager = do
       let pinset = map toByteString' fprs
        in verifyRsaFingerprint sha pinset
 
-initLogger :: Opts -> IO Logger
-initLogger opts =
-  Log.mkLogger opts.logLevel opts.logNetStrings opts.logFormat
-
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =
   initCassandraForService
@@ -466,25 +450,6 @@ initCassandra o g =
     (Opt.discoUrl o)
     (Just schemaVersion)
     g
-
--- | Creates a pool from postgres config params
---
--- HasqlConn.params translates pgParams into connection (which just holds the connection string and is not a real connection)
--- HasqlSetting.connection unwraps the connection string out of connection
--- HasqlPool.staticConnectionSettings translates the connection string to the pool settings
--- HasqlPool.settings translates the pool settings into pool config
--- HasqlPool.acquire creates the pool.
--- ezpz.
-initPostgresPool :: Map Text Text -> Maybe FilePathSecrets -> IO HasqlPool.Pool
-initPostgresPool pgConfig mFpSecrets = do
-  mPw <- for mFpSecrets initCredentials
-  let pgConfigWithPw = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
-  let pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfigWithPw
-  HasqlPool.acquire $
-    HasqlPool.settings
-      [ HasqlPool.staticConnectionSettings $
-          [HasqlSetting.connection $ HasqlConn.params pgParams]
-      ]
 
 teamTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)

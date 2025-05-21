@@ -6,7 +6,6 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.LegalHold
-import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
 import Imports
@@ -54,7 +53,7 @@ type AllEffects =
   ]
 
 data RunAllEffectsArgs = RunAllEffectsArgs
-  { teams :: Map TeamId [TeamMember],
+  { teamOwner :: TeamMember,
     initialUsers :: [User],
     constGuardResult :: Maybe DomainRegistration
   }
@@ -73,7 +72,7 @@ runAllEffects args =
     . inMemoryInvitationStoreInterpreter
     . evalState (mkStdGen 3)
     . randomToStatefulStdGen
-    . miniGalleyAPIAccess args.teams def
+    . miniGalleyAPIAccess (Just args.teamOwner) def
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
     . runError
@@ -137,7 +136,7 @@ spec = do
 
               args =
                 RunAllEffectsArgs
-                  { teams = Map.singleton tid [inviterMember],
+                  { teamOwner = inviterMember,
                     initialUsers = [inviter] <> maybeToList existingPersonalAccount,
                     constGuardResult =
                       let domreg =

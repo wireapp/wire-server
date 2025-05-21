@@ -33,7 +33,7 @@ import Bilge hiding (head, timeout)
 import Bilge.Assert
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Currency qualified as Currency

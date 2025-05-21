@@ -71,4 +71,4 @@ testRemoteDownloadFederationFailure = do
           const 500 === statusCode
   liftIO $ do
     Wai.label resp @?= "mock-error"
-    Wai.message resp @?= "Internal Server Error"
+    Wai.message resp @?= "mock error"

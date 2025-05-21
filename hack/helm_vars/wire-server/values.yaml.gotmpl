@@ -66,11 +66,6 @@ brig:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
-    postgresql:
-      host: "postgresql"
-      port: "5432"
-      user: wire-server
-      dbname: wire-server
     elasticsearch:
       scheme: https
       host: {{ .Values.elasticsearch.host }}
@@ -199,7 +194,6 @@ brig:
     elasticsearchAdditional:
       username: "elastic"
       password: "changeme"
-    pgPassword: "posty-the-gres"
   tests:
     enableFederationTests: true
     {{- if .Values.uploadXml }}

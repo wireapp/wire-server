@@ -30,7 +30,7 @@ import Control.Lens hiding (from, to, uncons, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Codensity (lowerCodensity)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, recoverAll, retrying)
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson qualified as A
 import Data.Aeson.Lens (key, _String)
 import Data.ByteString qualified as BS

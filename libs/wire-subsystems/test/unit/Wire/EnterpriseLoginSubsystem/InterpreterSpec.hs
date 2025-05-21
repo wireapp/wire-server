@@ -63,7 +63,7 @@ runDependencies =
       )
     . discardTinyLogs
     . emptySparAPIAccess
-    . miniGalleyAPIAccess mempty def
+    . miniGalleyAPIAccess Nothing def
     . runErrorUnsafe
     . runError
     . (evalState mempty . inMemoryDomainVerificationChallengeStoreInterpreter . raiseUnder)

@@ -18,7 +18,7 @@
 module Wire.SparAPIAccess.Rpc where
 
 import Bilge hiding (head, options, requestId)
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Id

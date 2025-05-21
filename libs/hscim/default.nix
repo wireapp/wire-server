@@ -6,7 +6,6 @@
 , aeson
 , aeson-qq
 , attoparsec
-, attoparsec-aeson
 , base
 , bytestring
 , case-insensitive
@@ -56,7 +55,6 @@ mkDerivation {
     aeson
     aeson-qq
     attoparsec
-    attoparsec-aeson
     base
     bytestring
     case-insensitive

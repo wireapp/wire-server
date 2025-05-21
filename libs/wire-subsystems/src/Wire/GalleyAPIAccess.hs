@@ -136,6 +136,5 @@ data GalleyAPIAccess m a where
   GetEJPDConvInfo ::
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
-  GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
 
 makeSem ''GalleyAPIAccess

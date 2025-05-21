@@ -55,7 +55,6 @@ set +e
 helm repo add bedag https://bedag.github.io/helm-charts/
 helm repo add obeone https://charts.obeone.cloud
 helm repo add opensearch https://opensearch-project.github.io/helm-charts/
-helm repo add bitnami https://charts.bitnami.com/bitnami
 
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps --concurrency 0
 EXIT_CODE=$?

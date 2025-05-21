@@ -59,7 +59,6 @@ import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserEvent
-import Test.Wire.API.Golden.Manual.UserGroup
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
 import Wire.API.Routes.Version
@@ -69,22 +68,7 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "NewUserGroup" $
-        testObjects
-          [ (testObject_NewUserGroup_1, "testObject_NewUserGroup_1.json"),
-            (testObject_NewUserGroup_2, "testObject_NewUserGroup_2.json")
-          ],
-      testGroup "NewUserGroup" $
-        testObjects
-          [ (testObject_UserGroup_1, "testObject_UserGroup_1.json"),
-            (testObject_UserGroup_2, "testObject_UserGroup_2.json")
-          ],
-      testGroup "UserGrouppUpdate" $
-        testObjects
-          [ (testObject_UserGroupUpdate_1, "testObject_UserGroupUpdate_1.json"),
-            (testObject_UserGroupUpdate_2, "testObject_UserGroupUpdate_2.json")
-          ],
-      testGroup "UserClientPrekeyMap" $
+    [ testGroup "UserClientPrekeyMap" $
         testObjects
           [ (testObject_UserClientPrekeyMap_1, "testObject_UserClientPrekeyMap_1.json"),
             (testObject_UserClientPrekeyMap_2, "testObject_UserClientPrekeyMap_2.json"),

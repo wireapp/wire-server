@@ -32,7 +32,6 @@ module Data.Id
     InvitationId,
     ConvId,
     UserId,
-    UserGroupId,
     ProviderId,
     ServiceId,
     TeamId,
@@ -103,7 +102,6 @@ data IdTag
   | Conversation
   | Invitation
   | User
-  | UserGroup
   | Provider
   | Service
   | Team
@@ -117,7 +115,6 @@ idTagName Asset = "Asset"
 idTagName Conversation = "Conv"
 idTagName Invitation = "Invitation"
 idTagName User = "User"
-idTagName UserGroup = "UserGroup"
 idTagName Provider = "Provider"
 idTagName Service = "Service"
 idTagName Team = "Team"
@@ -136,8 +133,6 @@ instance KnownIdTag 'Conversation where idTagValue = Conversation
 instance KnownIdTag 'Invitation where idTagValue = Invitation
 
 instance KnownIdTag 'User where idTagValue = User
-
-instance KnownIdTag 'UserGroup where idTagValue = UserGroup
 
 instance KnownIdTag 'Provider where idTagValue = Provider
 
@@ -160,8 +155,6 @@ type ConvId = Id 'Conversation
 
 -- | A local user ID
 type UserId = Id 'User
-
-type UserGroupId = Id 'UserGroup
 
 type ProviderId = Id 'Provider
 
