@@ -268,6 +268,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member (ErrorS 'InvalidTargetAccess) r
     )
+  HasConversationActionEffects 'ConversationResetTag r = ()
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -344,6 +345,11 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound,
        ErrorS 'InvalidTargetAccess
+     ]
+  HasConversationActionGalleyErrors 'ConversationResetTag =
+    '[ ErrorS (ActionDenied LeaveConversation),
+       ErrorS InvalidOperation,
+       ErrorS ConvNotFound
      ]
 
 enforceFederationProtocol ::
@@ -557,6 +563,8 @@ performAction tag origUser lconv action = do
       when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
       E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
       pure (mempty, action)
+    SConversationResetTag -> do
+      error "TODO"
 
 performConversationJoin ::
   forall r.
@@ -1021,6 +1029,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationAccessDataTag -> pure (Just sca, [])
       SConversationUpdateProtocolTag -> pure (Just sca, [])
       SConversationUpdateAddPermissionTag -> pure (Just sca, [])
+      SConversationResetTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
