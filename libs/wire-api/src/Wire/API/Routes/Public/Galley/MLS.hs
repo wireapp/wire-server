@@ -36,13 +36,15 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.Arbitrary
 
 data MLSReset = MLSReset
   { groupId :: GroupId,
     epoch :: Epoch
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSReset
+  deriving (Arbitrary) via (GenericUniform MLSReset)
 
 instance ToSchema MLSReset where
   schema =

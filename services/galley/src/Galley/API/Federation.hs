@@ -560,6 +560,11 @@ updateConversation origDomain updateRequest = do
           @(HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag)
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationUpdateAddPermissionTag lcnv (tUntagged rusr) Nothing action
+      SConversationResetTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationResetTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationResetTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse =
       fmap (either ConversationUpdateResponseError Imports.id)
