@@ -101,46 +101,39 @@ spec = describe "XML Sanitization" $ do
         encodeElem (entityNameID [uri|http://example.com/?<&>|])
           `shouldBe` (xmlWithName (Just entityFormat) "http://example.com/?%3C=&amp;%3E=")
 
-    it "sadly, hsaml2 does not escape unsafe strings" $ do
-      -- this test case reproduces an issue with hsaml2 that motivates us manually escaping
-      -- the 'XmlText's in the serialization functions here in saml2-web-sso.
+    describe "unicode, utf8, and xml string escaping (this was quite a journey...)" $ do
+      it "hsaml2 does the right thing: bad xml." $ do
+        HS.xmlToSAML @HS.NameID "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\"><something></NameID>"
+          `shouldSatisfy` isLeft
 
-      -- it really shouldn't, though!
-      HS.samlToXML (HS.simpleNameID HS.NameIDFormatUnspecified "<something>") -- TODO: fix samlTooXML call.
-        `shouldBe` "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\"><something></NameID>"
+      it "hsaml2 does the right thing: properly escaped xml." $ do
+        HS.xmlToSAML @HS.NameID "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">&lt;something&gt;</NameID>"
+          `shouldBe` Right (HS.simpleNameID HS.NameIDFormatUnspecified "<something>")
 
-      -- this is good!
-      HS.xmlToSAML @HS.NameID "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\"><something></NameID>"
-        `shouldSatisfy` isLeft
+      it "counter-example base case" $ do
+        let xin = "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
+            xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
+        (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
 
-      -- this is good!
-      HS.xmlToSAML @HS.NameID "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">&lt;something&gt;</NameID>"
-        `shouldBe` Right (HS.simpleNameID HS.NameIDFormatUnspecified "<something>")
+      it "counter-example unicode" $ do
+        let xin :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
+            xout :: LT.Text = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
 
-    it "counter-example base case" $ do
-      let xin = "<NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
-          xout = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Caro</NameID>"
-      (fmap encodeElem . decodeElem @NameID) xin `shouldBe` Right xout
+            xmlcIn :: Either SomeException Document = XMLC.parseText def xin
+            xmlcInExpected =
+              Document
+                { documentPrologue = Prologue {prologueBefore = [], prologueDoctype = Nothing, prologueAfter = []},
+                  documentRoot = Element {elementName = Name {nameLocalName = "NameID", nameNamespace = Just "urn:oasis:names:tc:SAML:2.0:assertion", namePrefix = Nothing}, elementAttributes = mempty, elementNodes = [NodeContent "Căro"]},
+                  documentEpilogue = []
+                }
+            Right decodeElemExpected = mkNameID (UNameIDUnspecified "Căro") Nothing Nothing Nothing
 
-    it "counter-example unicode" $ do
-      let xin :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
-          xout :: LT.Text = "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
+            xmlcOut :: LByteString = XMLC.renderLBS def (either (error . show) id xmlcIn)
+            xmlcOutExpected :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
 
-          xmlcIn :: Either SomeException Document = XMLC.parseText def xin
-          xmlcInExpected =
-            Document
-              { documentPrologue = Prologue {prologueBefore = [], prologueDoctype = Nothing, prologueAfter = []},
-                documentRoot = Element {elementName = Name {nameLocalName = "NameID", nameNamespace = Just "urn:oasis:names:tc:SAML:2.0:assertion", namePrefix = Nothing}, elementAttributes = mempty, elementNodes = [NodeContent "Căro"]},
-                documentEpilogue = []
-              }
-          Right decodeElemExpected = mkNameID (UNameIDUnspecified "Căro") Nothing Nothing Nothing
+        either (error . show) id xmlcIn `shouldBe` xmlcInExpected
+        xmlcOut `shouldBe` cs xmlcOutExpected
 
-          xmlcOut :: LByteString = XMLC.renderLBS def (either (error . show) id xmlcIn)
-          xmlcOutExpected :: LT.Text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><NameID xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">Căro</NameID>"
-
-      either (error . show) id xmlcIn `shouldBe` xmlcInExpected
-      xmlcOut `shouldBe` cs xmlcOutExpected
-
-      -- do {en,de}codeElem work?
-      (decodeElem @NameID) xin `shouldBe` Right decodeElemExpected
-      encodeElem decodeElemExpected `shouldBe` xout
+        -- do {en,de}codeElem work?
+        (decodeElem @NameID) xin `shouldBe` Right decodeElemExpected
+        encodeElem decodeElemExpected `shouldBe` xout
