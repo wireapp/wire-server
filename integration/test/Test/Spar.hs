@@ -440,7 +440,7 @@ testSsoLoginAndEmailVerification = do
   idpId <- asString $ idp.json %. "id"
 
   let email = "user@" <> emailDomain
-  void $ loginWithSaml True tid email (idpId, idpMeta)
+  void $ loginWithSamlEmail True tid email (idpId, idpMeta)
   activateEmail OwnDomain email
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -461,7 +461,7 @@ testSsoLoginNoSamlEmailValidation = do
   idpId <- asString $ idp.json %. "id"
 
   let email = "user@" <> emailDomain
-  (Just uid, authnResp) <- loginWithSaml True tid email (idpId, idpMeta)
+  (Just uid, authnResp) <- loginWithSamlEmail True tid email (idpId, idpMeta)
   let parsed :: SAML.AuthnResponse =
         fromRight (error "invalid authnResponse")
           . SAMLXML.parseFromDocument
@@ -498,7 +498,7 @@ testIdpUpdate = do
     scimUser <- randomScimUser
     email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
     uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-    void $ loginWithSaml True tid email idp
+    void $ loginWithSamlEmail True tid email idp
     activateEmail OwnDomain email
     getScimUser OwnDomain tok uid `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
@@ -510,11 +510,11 @@ testIdpUpdate = do
     (,meta) <$> asString (resp.json %. "id")
   -- the SCIM users can login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSaml True tid email idp2
+    void $ loginWithSamlEmail True tid email idp2
   -- update the IdP again and use the original metadata
   idp3 <- do
     resp <- updateIdp owner idpId idpmeta
     (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
   -- the SCIM users can still login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSaml True tid email idp3
+    void $ loginWithSamlEmail True tid email idp3
