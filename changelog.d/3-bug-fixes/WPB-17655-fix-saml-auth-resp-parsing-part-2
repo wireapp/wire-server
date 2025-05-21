@@ -1,0 +1,1 @@
+Unicode support: the last release contained a work-around for an issue with the hxt library.  It turned out the issue was in wire-server all along, and hxt just did things in an unexpected, but sound way.  This release removes the work-around and provides a proper fix.

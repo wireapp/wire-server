@@ -158,11 +158,11 @@ fallbackContact :: ContactPerson
 fallbackContact =
   ContactPerson
     ContactSupport
-    (Just $ mkXmlText "evil corp.")
-    (Just $ mkXmlText "Dr.")
-    (Just $ mkXmlText "Girlfriend")
+    (Just "evil corp.")
+    (Just "Dr.")
+    (Just "Girlfriend")
     (Just [uri|email:president@evil.corp|])
-    (Just $ mkXmlText "+314159265")
+    (Just "+314159265")
 
 ----------------------------------------------------------------------
 -- IO
