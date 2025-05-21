@@ -205,8 +205,6 @@ spec = describe "API" $ do
             (Proxy @APIAuthResp')
             (authresp' Nothing defSPIssuer defResponseURI (HandleVerdictRedirect (simpleOnSuccess SubjectFoldCase)))
 
-    -- TODO: test email, display name with / without unicode.  something else?
-
     let testAuthnRespWithCtx ::
           String ->
           (ID AuthnRequest -> Issuer -> Time -> RequestStore) ->
