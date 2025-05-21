@@ -415,10 +415,10 @@ testSparSPInitiatedLoginWithUtf8 = do
   idpIdString <- asString $ idp ^. SAML.idpId
 
   -- login
-  (uidString, _) <- loginWithSaml True tid subject (idpIdString, (idpMeta, privcreds))
-  Brig.getSelf uidString `bindResponse` \resp -> do
-    -- TODO: assert userName is intact.
-    printJSON resp.json
+  (Just uidString, _) <- loginWithSaml True tid subject (idpIdString, (idpMeta, privcreds))
+  ownDomain <- objDomain OwnDomain
+  Brig.getSelf' ownDomain uidString `bindResponse` \resp -> do
+    resp.json %. "name" `shouldMatch` userName
 
 -- | in V6, create two idps then one scim should fail
 testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()
