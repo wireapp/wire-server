@@ -142,6 +142,7 @@ data EventType
   | ConvCreate
   | ConvConnect
   | ConvDelete
+  | ConvReset
   | ConvReceiptModeUpdate
   | OtrMessageAdd
   | MLSMessageAdd
@@ -168,6 +169,7 @@ instance ToSchema EventType where
           element "conversation.code-delete" ConvCodeDelete,
           element "conversation.create" ConvCreate,
           element "conversation.delete" ConvDelete,
+          element "conversation.mls-reset" ConvReset,
           element "conversation.connect-request" ConvConnect,
           element "conversation.typing" Typing,
           element "conversation.otr-message-add" OtrMessageAdd,
@@ -184,6 +186,7 @@ data EventData
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
   | EdConvDelete
+  | EdConvReset GroupId
   | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
   | EdConvCodeUpdate ConversationCodeInfo
@@ -216,6 +219,7 @@ genEventData = \case
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
+  ConvReset -> EdConvReset <$> arbitrary
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
   AddPermissionUpdate -> EdAddPermissionUpdate <$> arbitrary
 
@@ -236,6 +240,7 @@ eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
+eventDataType (EdConvReset _) = ConvReset
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
 
@@ -248,6 +253,7 @@ isCellsConversationEvent eventType =
     ConvRename -> True
     ConvCreate -> True
     ConvDelete -> True
+    ConvReset -> False
     ConvCodeDelete -> False
     ConvAccessUpdate -> False
     ConvMessageTimerUpdate -> False
@@ -444,6 +450,7 @@ taggedEventDataSchema =
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
+      ConvReset -> tag _EdConvReset (unnamed (object "ConvResetData" (field "group_id" schema)))
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)
 
