@@ -352,6 +352,9 @@ let
               "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
               "LANG=en_GB.UTF-8"
+              # Use stable conventions for tracing http in opentelemetry
+              # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
+              "OTEL_SEMCONV_STABILITY_OPT_IN=http"
             ];
             User = "65534";
           };
