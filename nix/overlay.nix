@@ -95,6 +95,19 @@ self: super: {
     };
   };
 
+  stack = staticBinaryInTarball rec {
+    pname = "stack";
+    version = "2.7.3";
+
+    darwinAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v${version}/stack-${version}-osx-x86_64.tar.gz";
+    darwinAmd64Sha256 = "0c7yx670h1qi2g5l4xx9s4552pz77k31lhjjd2rafi5g00501ra2";
+
+    linuxAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v${version}/stack-${version}-linux-x86_64-static.tar.gz";
+    linuxAmd64Sha256 = "sha256-xbziTe+isrhvG7sUvtTx7oO+wUxu2fzIEXTVRz+/NFA=";
+
+    inherit (super) stdenv fetchurl;
+  };
+
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
   sbomqs = super.callPackage ./pkgs/sbomqs { };

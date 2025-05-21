@@ -62,7 +62,7 @@ import Control.Error hiding (bool, note)
 import Control.Lens ((.~), (?~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.ByteString (fromStrict)
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.Code qualified as Code
@@ -149,7 +149,6 @@ import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
-import Wire.API.UserGroup
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
@@ -185,8 +184,6 @@ import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
-import Wire.UserGroupSubsystem (UserGroupSubsystem)
-import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
@@ -396,8 +393,7 @@ servantSitemap ::
     Member SessionStore r,
     Member Metrics r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserGroupSubsystem r
+    Member Random r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -423,7 +419,6 @@ servantSitemap =
     :<|> domainVerificationAPI
     :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
-    :<|> userGroupAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -438,11 +433,6 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
-
-    userGroupAPI :: ServerT UserGroupAPI (Handler r)
-    userGroupAPI =
-      Named @"create-user-group" createUserGroup
-        :<|> Named @"get-user-group" getUserGroup
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1649,12 +1639,6 @@ verifyChallengeTeam ::
 verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
   lift . liftSem . fmap DomainOwnershipToken $
     EnterpriseLogin.verifyChallenge (Just lusr) domain challengeId token
-
-createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
-createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
-
-getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
-getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
 
 -- Deprecated
 

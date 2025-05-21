@@ -31,7 +31,7 @@ import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((.~))
 import Control.Monad.Except
-import Data.Aeson hiding (Error)
+import Data.Aeson hiding (Error, json)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (fromStrict)

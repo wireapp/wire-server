@@ -43,7 +43,7 @@ spec = do
       let user2 = user2' {email = Just email2}
           localBackend = def {users = [user1, user2]}
           result =
-            runNoFederationStack localBackend mempty config $ do
+            runNoFederationStack localBackend Nothing config $ do
               deleteEmail (user1.id)
               gets users
        in result === [user1 {email = Nothing}, user2]
@@ -51,7 +51,7 @@ spec = do
       let updatedUser1 = user1 {emailUnvalidated = Just email1}
           localBackend = def {users = [user1, user2]}
           result =
-            runNoFederationStack localBackend mempty config $ do
+            runNoFederationStack localBackend Nothing config $ do
               updateEmailUnvalidated (user1.id) email1
               gets users
        in result === [updatedUser1, user2]

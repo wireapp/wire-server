@@ -19,7 +19,7 @@
 
 module Network.Wai.Utilities.Response where
 
-import Data.Aeson hiding (Error)
+import Data.Aeson hiding (Error, json)
 import Data.ByteString.Lazy qualified as Lazy
 import Imports
 import Network.HTTP.Types
