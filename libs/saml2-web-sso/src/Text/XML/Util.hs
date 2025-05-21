@@ -19,7 +19,6 @@ import SAML2.XML qualified as HS
 import Text.XML
 import Text.XML.HXT.Arrow.Pickle.Xml qualified as XP
 import Text.XML.HXT.Core qualified as HXT
-import Text.XML.HXT.DOM.ShowXml qualified
 
 die :: forall (a :: Type) b c m. (HasCallStack, Typeable a, Show b, MonadError String m) => Proxy a -> b -> m c
 die = die' Nothing
@@ -62,11 +61,15 @@ samlToConduit = either (throwError . ("samlToConduit: parseLBS failed: " <>) . s
 ourSamlToXML :: (XP.XmlPickler a) => a -> BSL.ByteString
 ourSamlToXML = ourDocToXMLWithoutRoot . HS.samlToDoc
 
+-- | Direct usage of `xshowBlob` breaks non-Latin-1 encodings (e.g. UTF-8,
+-- Unicode)! This helper function works around these issues.
 ourDocToXMLWithoutRoot :: (HasCallStack) => HXT.XmlTree -> BSL.ByteString
 ourDocToXMLWithoutRoot t = case HXT.runLA (HXT.writeDocumentToString []) t of
   [xmlContent] -> BSLUTF8.fromString xmlContent
   other -> error $ "Expected one element. Got: " ++ show other
 
+-- | Direct usage of `xshowBlob` breaks non-Latin-1 encodings (e.g. UTF-8,
+-- Unicode)! This helper function works around these issues.
 ourDocToXMLWithRoot :: HXT.XmlTree -> BSL.ByteString
 ourDocToXMLWithRoot t = ourDocToXMLWithoutRoot $ HXT.NTree (HXT.XText "throw-me-away") [t]
 

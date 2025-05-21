@@ -84,7 +84,6 @@ import Text.XML as XML
 import Text.XML.HXT.Arrow.Pickle.Xml.Invertible qualified as XP
 import Text.XML.HXT.Core qualified as HXTC
 import Text.XML.HXT.DOM.QualifiedName qualified as DOM
-import Text.XML.HXT.DOM.ShowXml qualified as DOM
 import Text.XML.HXT.DOM.XmlNode qualified as DOM
 import Text.XML.HXT.DOM.XmlNode qualified as HXT
 import Text.XML.Util
@@ -354,8 +353,10 @@ applyTransformsXML (HS.Transform (HS.Identified HS.TransformEnvelopedSignature) 
           HXTC.processChildren $
             HXTC.neg (isDSElem "Signature")
       )
--- TODO: DANGER! Yet another xshowBlob which may break encoding!
-applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . pure
+applyTransformsXML tl = applyTransformsBytes tl . xmlTreesToByteString . pure
+  where
+    xmlTreesToByteString :: HXTC.XmlTrees -> BSL.ByteString
+    xmlTreesToByteString = ourDocToXMLWithoutRoot . (HXT.NTree (HXTC.XText "throw-me-away"))
 
 applyTransforms :: Maybe HS.Transforms -> HXTC.XmlTree -> IO BSL.ByteString
 applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . HS.transforms)
