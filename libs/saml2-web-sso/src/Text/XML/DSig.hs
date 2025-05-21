@@ -354,6 +354,7 @@ applyTransformsXML (HS.Transform (HS.Identified HS.TransformEnvelopedSignature) 
           HXTC.processChildren $
             HXTC.neg (isDSElem "Signature")
       )
+-- TODO: DANGER! Yet another xshowBlob which may break encoding!
 applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . pure
 
 applyTransforms :: Maybe HS.Transforms -> HXTC.XmlTree -> IO BSL.ByteString

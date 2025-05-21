@@ -51,7 +51,7 @@ defMiscellaneous :: [Miscellaneous]
 defMiscellaneous = []
 
 hxtToConduit :: (MonadError String m) => HXT.XmlTree -> m Document
-hxtToConduit = either (throwError . ("hxtToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . docToXML'
+hxtToConduit = either (throwError . ("hxtToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . ourDocToXMLWithRoot
 
 conduitToHxt :: (MonadError String m) => Document -> m HXT.XmlTree
 conduitToHxt = either (throwError . ("conduitToHxt: xmlToDoc' failed: " <>)) pure . xmlToDoc' . renderLBS def {rsXMLDeclaration = False}
@@ -69,10 +69,6 @@ ourDocToXMLWithoutRoot t = case HXT.runLA (HXT.writeDocumentToString []) t of
 
 ourDocToXMLWithRoot :: HXT.XmlTree -> BSL.ByteString
 ourDocToXMLWithRoot t = ourDocToXMLWithoutRoot $ HXT.NTree (HXT.XText "throw-me-away") [t]
-
--- | This is subtly different from HS.docToXML' and should probably be moved to hsaml2.
-docToXML' :: HXT.XmlTree -> BSL.ByteString
-docToXML' = Text.XML.HXT.DOM.ShowXml.xshowBlob . (: [])
 
 -- | This is subtly different from HS.xmlToDoc' and should probably be moved to hsaml2.
 xmlToDoc' :: (MonadError String m) => BSL.ByteString -> m HXT.XmlTree
