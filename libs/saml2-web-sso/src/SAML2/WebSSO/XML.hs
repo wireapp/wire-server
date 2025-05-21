@@ -561,7 +561,7 @@ exportLocality loc =
     }
 
 importID :: (HasCallStack, MonadError String m) => HX.ID -> m (ID a)
-importID = pure . mkID . cs
+importID = pure . ID . cs
 
 exportID :: (HasCallStack) => ID a -> HX.ID
 exportID = cs . fromID
@@ -703,7 +703,7 @@ importSPMetadata (NL.head . HX.descriptors . HX.entityDescriptors -> desc) = do
     bad -> throwError $ "malformed HX.Descriptor: " <> show bad
   _spID <-
     let raw = HX.roleDescriptorID . HX.descriptorRole $ desc
-     in maybe (throwError ("malformed descriptorID: " <> show raw)) (pure . mkID . cs) raw
+     in maybe (throwError ("malformed descriptorID: " <> show raw)) (pure . ID . cs) raw
   _spValidUntil <-
     let raw = HX.roleDescriptorValidUntil . HX.descriptorRole $ desc
      in maybe (throwError $ "bad validUntil: " <> show raw) (fmap fromTime . importXml) raw

@@ -243,7 +243,7 @@ genNominalDifftime :: Gen NominalDiffTime
 genNominalDifftime = THQ.quickcheck arbitrary
 
 genID :: Gen (ID a)
-genID = mkID . ("_" <>) . UUID.toText <$> genUUID
+genID = ID . ("_" <>) . UUID.toText <$> genUUID
 
 genIssuer :: Gen Issuer
 genIssuer = Issuer <$> genHttps

@@ -30,7 +30,7 @@ spec = do
       have `shouldBe` want
   describe "spMeta" $ do
     it "does not smoke" $ do
-      let given = testSPMetadata $ mkID "_e3a565aa-1392-4446-a4d6-3771453808f0"
+      let given = testSPMetadata $ ID "_e3a565aa-1392-4446-a4d6-3771453808f0"
           want = renderToDocument given
       have :: Either String Document <- fmapL show . parseText def . cs <$> readSampleIO "our-spssodescriptor.xml"
       have `shouldBe` Right want

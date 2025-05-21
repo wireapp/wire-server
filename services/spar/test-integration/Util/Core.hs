@@ -550,7 +550,7 @@ nextWireIdP version = WireIdP <$> iid <*> pure (Just version) <*> pure [] <*> pu
     idpHandle = iid <&> IdPHandle . pack . show
 
 nextSAMLID :: (MonadIO m) => m (ID a)
-nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
+nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
 
 nextHandle :: (MonadIO m) => m Handle
 nextHandle = liftIO $ fromJust . parseHandle . cs . show <$> randomRIO (0 :: Int, 13371137)

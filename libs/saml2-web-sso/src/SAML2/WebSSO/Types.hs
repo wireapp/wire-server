@@ -69,7 +69,6 @@ module SAML2.WebSSO.Types
     addTime,
     Duration (..),
     ID (..),
-    mkID,
     BaseID,
     baseID,
     baseIDNameQ,
@@ -402,10 +401,6 @@ addTime n (Time t) = Time $ addUTCTime n t
 -- failure probability.  We should probably just use UUIDv4, but we may not have any choice.  [1/1.3.4]
 newtype ID m = ID {fromID :: Text}
   deriving (Eq, Ord, Show, Generic)
-
--- TODO: inline
-mkID :: ST -> ID m
-mkID = ID
 
 -- | [1/2.2.1]
 data BaseID = BaseID
