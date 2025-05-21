@@ -116,7 +116,7 @@ main = withOpenSSL $ runTests go
       -- Initialize cassandra
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra (fromJust gConf ^. cassandra) lg
-      teamEventWatcher <- sequence $ (SQS.watchSQSQueue . (^. Aws.awsEnv) <$> awsEnv) <*> q
+      teamEventWatcher <- sequence $ SQS.watchSQSQueue <$> ((^. Aws.awsEnv) <$> awsEnv) <*> q
       pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint) teamEventWatcher
     queueName' = fmap (view queueName) . view journal
     endpoint' = fmap (view O.endpoint) . view journal

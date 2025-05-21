@@ -889,7 +889,7 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
-  let epair = ((,) . activationKey <$> eac) <*> (activationCode <$> eac)
+  let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
 

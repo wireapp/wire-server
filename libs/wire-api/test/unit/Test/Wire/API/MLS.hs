@@ -212,13 +212,13 @@ testRemoveProposalMessageSignature :: IO ()
 testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   qcid <- do
     let c = ClientId 0x3ae58155
-    usr <- flip Qualified (Domain "example.com") . Id <$> UUID.nextRandom
+    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void $ spawn (cli qcid tmp ["init", qcid]) Nothing
 
   qcid2 <- do
     let c = ClientId 0x4ae58157
-    usr <- flip Qualified (Domain "example.com") . Id <$> UUID.nextRandom
+    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
   kp :: RawMLS KeyPackage <-

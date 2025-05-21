@@ -79,7 +79,7 @@ spec = describe "xml:dsig" $ do
         mkcrds :: Bool -> IO (SignPrivCreds, SignCreds)
         mkcrds = \case
           True -> mkSignCreds keysize
-          False -> ((,) . fst <$> mkSignCreds keysize) <*> (snd <$> mkSignCreds keysize)
+          False -> (,) <$> (fst <$> mkSignCreds keysize) <*> (snd <$> mkSignCreds keysize)
         keysize = 192 -- not long enough for security, but hopefully long enough for swift testing
         someID withID = Map.fromList [("ID", UUID.toText UUID.nil) | withID]
         doc withID = Document (Prologue [] Nothing []) (Element "root" (someID withID) root) []
