@@ -57,6 +57,7 @@ type MLSMessagingAPI =
         :> CanThrow MLSProposalFailure
         :> CanThrow NonFederatingBackends
         :> CanThrow UnreachableBackends
+        :> CanThrow MLSMissingNewUsers
         :> "messages"
         :> ZLocalUser
         :> ZClient
@@ -92,6 +93,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSIdentityMismatch
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow MLSMissingNewUsers
                :> "commit-bundles"
                :> ZLocalUser
                :> ZClient
