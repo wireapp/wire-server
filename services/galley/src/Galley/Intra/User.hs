@@ -39,18 +39,14 @@ where
 import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge.RPC
 import Control.Error hiding (bool, isRight)
-import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
-import Data.Sequence (Seq (..))
-import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Lazy
 import Galley.API.Error
-import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
@@ -61,8 +57,6 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Error qualified as Wai
 import Servant.Client qualified as Client
-import Servant.Client.Core.Request (RequestF (..))
-import Util.Options
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Brig qualified as IAPI
