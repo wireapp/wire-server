@@ -1449,7 +1449,7 @@ testCreateAccessToken opts n brig = do
   cid <- createClientForUser brig uid
   nonceResponse <- Util.headNonceNginz n t cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
-  now <- liftIO $ ((posixSecondsToUTCTime . fromInteger) . floor <$> getPOSIXTime)
+  now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
   let clientIdentity = cs $ "wireapp://" <> cs (toText uidB64) <> "!" <> toByteString' cid <> "@" <> toByteString' localDomain
   let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
   let expClaim = NumericDate $ addUTCTime 10 now
