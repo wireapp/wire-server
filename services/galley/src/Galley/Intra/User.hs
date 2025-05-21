@@ -46,6 +46,7 @@ import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
+import Data.Sequence (Seq (..))
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Lazy
 import Galley.API.Error
@@ -60,6 +61,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Error qualified as Wai
 import Servant.Client qualified as Client
+import Servant.Client.Core.Request (RequestF (..))
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Error.Galley
@@ -251,22 +253,14 @@ getUserExportData uid = do
 
 getAccountConferenceCallingConfigClient :: (HasCallStack) => UserId -> App (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
-  runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
+  callWithServant Brig (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
 
 updateSearchVisibilityInbound :: Multi.TeamStatus SearchVisibilityInboundConfig -> App ()
 updateSearchVisibilityInbound =
   handleServantResp
-    <=< runHereClientM
+    <=< callWithServant Brig
     . namedClient @IAPI.API @"updateSearchVisibilityInbound"
-
-runHereClientM :: (HasCallStack) => Client.ClientM a -> App (Either Client.ClientError a)
-runHereClientM action = do
-  mgr <- view manager
-  brigep <- view brig
-  let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (Text.unpack brigep.host) (fromIntegral brigep.port) ""
-  liftIO $ Client.runClientM action env
 
 handleServantResp ::
   Either Client.ClientError a ->

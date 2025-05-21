@@ -18,6 +18,7 @@
 module Galley.Intra.Util
   ( IntraComponent (..),
     call,
+    callWithServant,
   )
 where
 
@@ -30,12 +31,17 @@ import Control.Lens (view)
 import Control.Retry
 import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
+import Data.Sequence (Seq (..))
+import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
 import Galley.Env hiding (brig)
 import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
+import Network.HTTP.Types (statusIsServerError)
+import Servant.Client qualified as Servant
+import Servant.Client.Core qualified as Servant
 
 data IntraComponent = Brig | Spar
   deriving (Show)
@@ -51,6 +57,20 @@ componentRequest Brig o =
 componentRequest Spar o =
   B.host (encodeUtf8 o._spar.host)
     . B.port (portNumber $ fromIntegral . port $ o._spar)
+
+componentServantClient :: IntraComponent -> App Servant.ClientEnv
+componentServantClient comp = do
+  mgr <- view manager
+  brigep <- case comp of
+    Brig -> view $ options . brig
+    Spar -> view $ options . spar
+  RequestId rId <- view reqId
+  let baseurl = Servant.BaseUrl Servant.Http (Text.unpack brigep.host) (fromIntegral brigep.port) ""
+      addRequestIdHeader app req = do
+        let reqWithId = req {Servant.requestHeaders = (requestIdName, rId) :<| req.requestHeaders}
+        app reqWithId
+
+  pure $ (Servant.mkClientEnv mgr baseurl) {Servant.middleware = addRequestIdHeader}
 
 componentRetryPolicy :: IntraComponent -> RetryPolicy
 componentRetryPolicy Brig = x1
@@ -68,3 +88,13 @@ call comp r = do
 
 x1 :: RetryPolicy
 x1 = limitRetries 1
+
+callWithServant :: IntraComponent -> Servant.ClientM a -> App (Either Servant.ClientError a)
+callWithServant comp action = do
+  env <- componentServantClient comp
+  let makeRequest = liftIO $ Servant.runClientM action env
+      shouldRetry (Right _) = False
+      shouldRetry (Left (Servant.FailureResponse _ resp)) = statusIsServerError resp.responseStatusCode
+      shouldRetry (Left (Servant.ConnectionError _)) = True
+      shouldRetry (Left _) = False
+  retrying (componentRetryPolicy comp) (const $ pure . shouldRetry) (const $ makeRequest)
