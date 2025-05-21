@@ -70,6 +70,8 @@ data UserStore m a where
   --   an email address or phone number.
   IsActivated :: UserId -> UserStore m Bool
   LookupLocale :: UserId -> UserStore m (Maybe (Maybe Language, Maybe Country))
+  GetUserTeam :: UserId -> UserStore m (Maybe TeamId)
+  -- GetUsersTeams :: [UserId] -> UserStore m (Maybe [TeamId])
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
