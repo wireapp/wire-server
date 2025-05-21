@@ -131,7 +131,7 @@ indexUserToDoc searchVisInbound IndexUser {..} =
       UserDoc
         { udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
-          udScimExternalId = join $ (scimExternalId . value <$> managedBy) <*> (value <$> ssoId),
+          udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
           -- FUTUREWORK: This is a bug: https://wearezeta.atlassian.net/browse/WPB-11124
           udRole = Nothing,
