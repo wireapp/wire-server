@@ -498,7 +498,7 @@ in
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "96" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "98" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat

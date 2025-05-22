@@ -10,18 +10,16 @@ hself: hsuper: {
 
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
+
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
-  # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
-  # the PR has been merged, but has not arrived in nixpkgs
-  hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
-  quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
-  # these are okay, the only issue is that the compiler underlines
-  # errors differently than before
-  singletons-base = hlib.markUnbroken (hlib.dontCheck hsuper.singletons-base);
+
+  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
 
   # Tests require a running redis
-  hedis = hlib.dontCheck hsuper.hedis;
+  hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
+
+  HaskellNet = hlib.dontCheck hsuper.HaskellNet;
 
   # ---------------------
   # need to be jailbroken
@@ -31,6 +29,7 @@ hself: hsuper: {
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  postie = hlib.doJailbreak hsuper.postie;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -47,26 +46,6 @@ hself: hsuper: {
       }
     )));
 
-  # depend on an old version of hedgehog
-  polysemy-test = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-test);
-
-  # ------------------------------------
-  # okay but marked broken (nixpkgs bug)
-  # (we can unfortunately not do anything here but update nixpkgs)
-  # ------------------------------------
-  template = hlib.markUnbroken hsuper.template;
-  system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
-  lrucaching = hlib.markUnbroken hsuper.lrucaching;
-
-  # -----------------
-  # version overrides
-  # (these are fine but will probably need to be adjusted in a future nixpkgs update)
-  # -----------------
-  tls = hsuper.tls_2_1_1;
-  tls-session-manager = hsuper.tls-session-manager_0_0_6;
-  crypton-connection = hsuper.crypton-connection_0_4_1; # older version doesn't allow tls 2.1
-  amqp = hlib.dontCheck hsuper.amqp_0_24_0; # older version doesn't allow cryton-connection 0.4.1, this one has broken tests
-
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
 
@@ -82,6 +61,8 @@ hself: hsuper: {
     [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
   # doJailbreak because upstreams requires a specific crypton-connection version we don't have
   hoogle = hlib.justStaticExecutables (hlib.doJailbreak (hlib.dontCheck (hsuper.hoogle)));
+
+  # Extra dependencies/flags for local packages
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
