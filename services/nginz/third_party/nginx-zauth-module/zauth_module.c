@@ -496,7 +496,11 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
 
 static ZauthResult token_from_header (ngx_str_t const * hdr, ZauthToken ** t) {
         if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
+                // 7 is the length of "Bearer "
                 return zauth_token_parse(&hdr->data[7], hdr->len - 7, t);
+        } else if (strncmp((char const *) hdr->data, "AWS4-HMAC-SHA256 ", 17) == 0) {
+                // 17 is the length of "AWS4-HMAC-SHA256 "
+                return token_from_aws_hmac_header(&hdr->data[17], hdr->len - 17, t);
         } else {
                 return ZAUTH_PARSE_ERROR;
         }
@@ -515,6 +519,22 @@ static ZauthResult token_from_query (ngx_str_t const * query, ZauthToken ** t) {
 
         return token_end == NULL
                 ? zauth_token_parse(token_start, token_len, t)
+                : zauth_token_parse(token_start, token_end - token_start, t);
+}
+
+static ZauthResult token_from_aws_hmac_header(uint8_t const * auth_header, size_t auth_header_len, ZauthToken ** t) {
+        uint8_t const * start = memmem(auth_header, auth_header_len, "Credential=", 11);
+
+        if (start == NULL) {
+                return ZAUTH_PARSE_ERROR;
+        }
+
+        uint8_t const * token_start   = start + 11; // length of "Credential="
+        size_t          remaining_len = auth_header_len - (token_start - auth_header);
+        uint8_t const * token_end     = memchr(token_start, ',', remaining_len);
+
+        return token_end == NULL
+                ? zauth_token_parse(token_start, remaining_len, t)
                 : zauth_token_parse(token_start, token_end - token_start, t);
 }
 
