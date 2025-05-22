@@ -345,6 +345,7 @@ library
     , safe-exceptions                       >=0.1
     , servant
     , servant-client
+    , servant-client-core
     , servant-server
     , singletons
     , sop-core
