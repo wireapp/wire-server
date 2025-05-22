@@ -30,6 +30,7 @@ module Wire.API.Federation.Version
     supportedVersions,
     VersionInfo (..),
     versionInfo,
+    groupIdFedVersion,
 
     -- * VersionRange
     VersionUpperBound (..),
@@ -51,6 +52,7 @@ import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Imports
 import Servant.API (ToHttpApiData (..))
+import Wire.API.MLS.Group.Serialisation
 
 data Version = V0 | V1 | V2 | V3
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
@@ -190,6 +192,11 @@ latestCommonVersion localVersions =
 safeMaximum :: (Ord a) => [a] -> Maybe a
 safeMaximum [] = Nothing
 safeMaximum as = Just (maximum as)
+
+-- | First federation version supporting the given group ID version.
+groupIdFedVersion :: GroupIdVersion -> Version
+groupIdFedVersion GroupIdVersion1 = V0
+groupIdFedVersion GroupIdVersion2 = V3
 
 $(genSingletons [''Version])
 
