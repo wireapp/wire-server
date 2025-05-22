@@ -817,3 +817,9 @@ updateConversationSelf user conv payload = do
   (domain, cnv) <- objQid conv
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "self"])
   submit "PUT" $ req & addJSON payload
+
+getSelfMember :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> App Response
+getSelfMember user conv = do
+  (domain, cnv) <- objQid conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "self"])
+  submit "GET" req

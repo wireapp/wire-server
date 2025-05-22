@@ -31,6 +31,7 @@ module Galley.API.Query
     listConversations,
     iterateConversations,
     getLocalSelf,
+    getSelfMember,
     internalGetMember,
     getConversationMeta,
     getConversationByReusableCode,
@@ -168,16 +169,25 @@ getConversation lusr cnv = do
   foldQualified
     lusr
     (getUnqualifiedConversation lusr . tUnqualified)
-    getRemoteConversation
+    (getRemoteConversation lusr)
     cnv
-  where
-    getRemoteConversation :: Remote ConvId -> Sem r Public.ConversationV8
-    getRemoteConversation remoteConvId = do
-      conversations <- getRemoteConversations lusr [remoteConvId]
-      case conversations of
-        [] -> throwS @'ConvNotFound
-        [conv] -> pure conv
-        _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
+
+getRemoteConversation ::
+  ( Member ConversationStore r,
+    Member (ErrorS ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member TinyLog r,
+    Member FederatorAccess r
+  ) =>
+  Local UserId ->
+  Remote ConvId ->
+  Sem r Public.ConversationV8
+getRemoteConversation lusr remoteConvId = do
+  conversations <- getRemoteConversations lusr [remoteConvId]
+  case conversations of
+    [] -> throwS @'ConvNotFound
+    [conv] -> pure conv
+    _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
   ( Member ConversationStore r,
@@ -617,6 +627,32 @@ internalGetMember qcnv usr = do
   lusr <- qualifyLocal usr
   lcnv <- ensureLocal lusr qcnv
   getLocalSelf lusr (tUnqualified lcnv)
+
+getSelfMember ::
+  forall r.
+  ( Member MemberStore r,
+    Member ConversationStore r,
+    Member (ErrorS ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member TinyLog r,
+    Member FederatorAccess r
+  ) =>
+  Local UserId ->
+  Qualified ConvId ->
+  Sem r (Maybe Public.Member)
+getSelfMember lusr cnv = do
+  foldQualified
+    lusr
+    (getLocalSelf lusr . tUnqualified)
+    getRemoteSelfMember
+    cnv
+  where
+    getRemoteSelfMember ::
+      Remote ConvId ->
+      Sem r (Maybe Public.Member)
+    getRemoteSelfMember remoteConvId = do
+      conv <- getRemoteConversation lusr remoteConvId
+      pure $ Just $ conv.cnvMembers.cmSelf
 
 getLocalSelf ::
   ( Member ConversationStore r,

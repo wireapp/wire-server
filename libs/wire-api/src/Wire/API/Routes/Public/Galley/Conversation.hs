@@ -1319,6 +1319,16 @@ type ConversationAPI =
                     ()
            )
     :<|> Named
+           "get-conversation-self"
+           ( Summary "Get self membership properties"
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "self"
+               :> Get '[JSON] (Maybe Member)
+           )
+    :<|> Named
            "update-conversation-self"
            ( Summary "Update self membership properties"
                :> Description "**Note**: at least one field has to be provided."
