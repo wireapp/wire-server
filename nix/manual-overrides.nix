@@ -24,8 +24,8 @@ hself: hsuper: {
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql;
   hasql-pool = hlib.dontCheck hsuper.hasql-pool;
-  hasql-migration = hlib.dontCheck hsuper.hasql-migration;
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction;
+  hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_0_1;
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
 
   # ---------------------
@@ -78,7 +78,6 @@ hself: hsuper: {
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
 
-  auto-update = auto-update_0_2_1;
 
   # -----------------
   # flags and patches

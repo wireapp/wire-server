@@ -334,16 +334,6 @@ let
       sha256 = "sha256-TtNrs1z8L39WnX8277V97g9Ot1DwutKLrAB1JOjQQoQ=";
     };
 
-    hasql-transaction = {
-      version = "1.2.0.1";
-      sha256 = "sha256-gXLDMlD6E3degEUJOtFCiZf9EAsWEBJqsOfZK54iBSA=";
-    };
-
-    hasql-th = {
-      version = "0.4.0.23";
-      sha256 = "sha256-t9WgRQ60zXYpBz7qZHjz7S5ksEUfg/PHBvD0gOLad0Y=";
-    };
-
     postgresql-syntax = {
       version = "0.4.1.3";
       sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
