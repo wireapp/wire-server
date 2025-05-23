@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -73,7 +74,7 @@ where
 
 import Cassandra (PageWithState (..))
 import Cassandra qualified as C
-import Control.Lens (Lens, Lens', makeLenses, (%~), (?~), (^.))
+import Control.Lens (Lens, Lens', makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id (UserId)
@@ -94,7 +95,7 @@ import Wire.API.Routes.MultiTablePaging.State
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
-import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -126,7 +127,23 @@ deriving instance (Ord (PermissionType tag)) => Ord (TeamMember' tag)
 
 deriving instance (Show (PermissionType tag)) => Show (TeamMember' tag)
 
-deriving via (GenericUniform TeamMember) instance Arbitrary TeamMember
+setPermissions :: TeamMember' tag1 -> (PermissionType tag1 -> PermissionType tag2) -> TeamMember' tag2
+setPermissions mem modPerms = mem {_newTeamMember = mem._newTeamMember {_nPermissions = modPerms mem._newTeamMember._nPermissions}}
+
+getPermissions :: TeamMember' tag -> PermissionType tag
+getPermissions = _nPermissions . _newTeamMember
+
+instance Arbitrary TeamMember where
+  arbitrary = do
+    _newTeamMember <- do
+      _nUserId <- arbitrary
+      _nPermissions <-
+        -- other permission combinations are illegal, see documentation of HiddenPerms
+        rolePermissions <$> arbitrary
+      _nInvitation <- arbitrary
+      pure NewTeamMember {..}
+    _legalHoldStatus <- arbitrary
+    pure TeamMember {..}
 
 deriving via (GenericUniform (TeamMember' 'Optional)) instance Arbitrary (TeamMember' 'Optional)
 
@@ -416,25 +433,11 @@ instance ToSchema TeamMemberDeleteData where
 newTeamMemberDeleteData :: Maybe PlainTextPassword6 -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
-makeLenses ''TeamMember'
-makeLenses ''TeamMemberList'
-makeLenses ''NewTeamMember'
-makeLenses ''TeamMemberDeleteData
-
-userId :: Lens' TeamMember UserId
-userId = newTeamMember . nUserId
-
 optionalPermissions :: TeamMemberOptPerms -> Maybe Permissions
 optionalPermissions = _nPermissions . _newTeamMember
 
-permissions :: Lens (TeamMember' tag1) (TeamMember' tag2) (PermissionType tag1) (PermissionType tag2)
-permissions = newTeamMember . nPermissions
-
-invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
-invitation = newTeamMember . nInvitation
-
 setOptionalPerms :: (TeamMember -> Bool) -> TeamMember -> TeamMember' 'Optional
-setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)
+setOptionalPerms withPerms m = Wire.API.Team.Member.setPermissions m (setPerm (withPerms m))
 
 setOptionalPermsMany :: (TeamMember -> Bool) -> TeamMemberList -> TeamMemberList' 'Optional
 setOptionalPermsMany withPerms l =
@@ -479,8 +482,6 @@ data HiddenPermissions = HiddenPermissions
     _hcopy :: Set HiddenPerm
   }
   deriving (Eq, Ord, Show)
-
-makeLenses ''HiddenPermissions
 
 rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p where p = rolePerms role
@@ -586,20 +587,36 @@ class IsPerm perm where
   roleHasPerm :: Role -> perm -> Bool
   roleGrantsPerm :: Role -> perm -> Bool
   hasPermission :: TeamMember -> perm -> Bool
-  hasPermission tm perm = maybe False (`roleHasPerm` perm) . permissionsRole $ tm ^. permissions
+  hasPermission tm perm = maybe False (`roleHasPerm` perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
   mayGrantPermission :: TeamMember -> perm -> Bool
-  mayGrantPermission tm perm = maybe False (`roleGrantsPerm` perm) . permissionsRole $ tm ^. permissions
+  mayGrantPermission tm perm = maybe False (`roleGrantsPerm` perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
 
 instance IsPerm Perm where
   type PermError p = 'MissingPermission ('Just p)
 
   roleHasPerm r p = p `Set.member` ((rolePermissions r).self)
   roleGrantsPerm r p = p `Set.member` ((rolePermissions r).copy)
-  hasPermission tm p = p `Set.member` ((tm ^. permissions).self)
-  mayGrantPermission tm p = p `Set.member` ((tm ^. permissions).copy)
+  hasPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).self)
+  mayGrantPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).copy)
 
 instance IsPerm HiddenPerm where
   type PermError p = OperationDenied
 
-  roleHasPerm r p = p `Set.member` (roleHiddenPermissions r ^. hself)
-  roleGrantsPerm r p = p `Set.member` (roleHiddenPermissions r ^. hcopy)
+  roleHasPerm r p = p `Set.member` _hself (roleHiddenPermissions r)
+  roleGrantsPerm r p = p `Set.member` _hcopy (roleHiddenPermissions r)
+
+----------------------------------------------------------------------
+
+makeLenses ''TeamMember'
+makeLenses ''TeamMemberList'
+makeLenses ''NewTeamMember'
+makeLenses ''TeamMemberDeleteData
+
+userId :: Lens' TeamMember UserId
+userId = newTeamMember . nUserId
+
+permissions :: Lens (TeamMember' tag1) (TeamMember' tag2) (PermissionType tag1) (PermissionType tag2)
+permissions = newTeamMember . nPermissions
+
+invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
+invitation = newTeamMember . nInvitation

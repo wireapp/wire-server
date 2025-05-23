@@ -114,7 +114,7 @@ data BrigError
   | RateLimitExceeded
   | MlsRemovalNotAllowed
   | UserGroupNotFound
-  | UserGroupCreatorIsNotATeamAdmin
+  | UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
@@ -343,6 +343,6 @@ type instance MapError 'MlsRemovalNotAllowed = 'StaticError 409 "mls-protocol-er
 
 type instance MapError 'UserGroupNotFound = 'StaticError 404 "user-group-not-found" "User group not found"
 
-type instance MapError 'UserGroupCreatorIsNotATeamAdmin = 'StaticError 403 "user-group-creation-forbidden" "Only team admins can create user groups."
+type instance MapError 'UserGroupNotATeamAdmin = 'StaticError 403 "user-group-write-forbidden" "Only team admins can create, update, or delete user groups."
 
 type instance MapError 'UserGroupMemberIsNotInTheSameTeam = 'StaticError 400 "user-group-invalid" "Only team members of the same team can be added to a user group."

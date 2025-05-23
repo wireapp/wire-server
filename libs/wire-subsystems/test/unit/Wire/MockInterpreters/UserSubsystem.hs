@@ -47,6 +47,7 @@ userSubsystemTestInterpreter initialUsers =
     SearchUsers {} -> error "SearchUsers: implement on demand (userSubsystemInterpreter)"
     BrowseTeam {} -> error "BrowseTeam: implement on demand (userSubsystemInterpreter)"
 
+-- | TODO: We have `mkUserProfile` in "Wire.API.User", should we re-use that here?
 toProfile :: User -> UserProfile
 toProfile u =
   UserProfile

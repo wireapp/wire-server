@@ -293,7 +293,7 @@ type UserGroupAPI =
   Named
     "create-user-group"
     ( From 'V9
-        :> CanThrow 'UserGroupCreatorIsNotATeamAdmin
+        :> CanThrow 'UserGroupNotATeamAdmin
         :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
         :> ZLocalUser
         :> "user-groups"
@@ -313,6 +313,49 @@ type UserGroupAPI =
                       Respond 200 "User Group Found" UserGroup
                     ]
                     (Maybe UserGroup)
+           )
+    :<|> Named
+           "update-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> ReqBody '[JSON] UserGroupUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    [ ErrorResponse 'UserGroupNotFound,
+                      RespondEmpty 200 "User Group Updated"
+                    ]
+                    (Maybe ())
+           )
+    :<|> Named
+           "delete-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> Delete '[JSON] NoContent -- TODO: user not found error! (like in get above)
+           )
+    :<|> Named
+           "add-user-to-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "User added to group")
+           )
+    :<|> Named
+           "remove-user-from-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
            )
 
 type SelfAPI =
