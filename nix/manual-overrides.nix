@@ -20,6 +20,7 @@ hself: hsuper: {
   hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
 
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
+  singletons-base-code-generator = hlib.markUnbroken (hlib.doJailbreak (hlib.dontCheck hsuper.singletons-base-code-generator));
 
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql;
@@ -76,9 +77,23 @@ hself: hsuper: {
 
   # cabal multirepl requires Cabal 3.12
   Cabal = hsuper.Cabal_3_12_1_0;
-  Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
+  Cabal-syntax = hsuper.Cabal-syntax_3_14_2_0;
 
+  #  # 1.16 requires a too old template-haskell for GHC 9.10
+  th-desugar = hsuper.th-desugar_1_18;
+  #  # 3.3 requires a too old template-haskell for GHC 9.10
+  singletons-th = (hlib.doJailbreak hsuper.singletons-th_3_5);
+  proto-lens = (hlib.doJailbreak hsuper.proto-lens);
+  # requires a too old base and template-haskell for GHC 9.10
+  openapi3 = (hlib.doJailbreak hsuper.openapi3);
+  # requires a too old base for GHC 9.10
+  servant-openapi3 = (hlib.doJailbreak hsuper.servant-openapi3);
+  singletons-base = hlib.dontCheck (hlib.doJailbreak hsuper.singletons-base_3_5);
 
+  # requires a too old base for GHC 9.10
+  amazonka-core = (hlib.doJailbreak hsuper.amazonka-core);
+  # requires a too old base for GHC 9.10
+  tasty-wai = (hlib.doJailbreak hsuper.tasty-wai);
   # -----------------
   # flags and patches
   # (these are fine)
