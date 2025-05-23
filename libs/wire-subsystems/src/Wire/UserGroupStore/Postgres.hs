@@ -163,22 +163,24 @@ deleteGroupImpl ::
   ) =>
   TeamId ->
   UserGroupId ->
-  Sem r ()
+  Sem r (Maybe ())
 deleteGroupImpl tid gid = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
-    session :: Session ()
+    session :: Session (Maybe ())
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
-      Transaction.statement (tid, gid) deleteGroupStatement
+      found <- isJust <$> Transaction.statement (tid, gid) deleteGroupStatement
+      pure $ if found then Just () else Nothing
 
-    deleteGroupStatement :: Statement (TeamId, UserGroupId) ()
+    deleteGroupStatement :: Statement (TeamId, UserGroupId) (Maybe Bool)
     deleteGroupStatement =
       lmap (\(t, g) -> (t.toUUID, g.toUUID)) $
-        [resultlessStatement|
+        [maybeStatement|
           delete from user_group
             where team_id = ($1 :: uuid) and id = ($2 :: uuid)
+            returning (true :: bool)
           |]
 
 addUserImpl ::

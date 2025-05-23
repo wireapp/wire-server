@@ -44,16 +44,16 @@ testUserGroupSmoke = do
     resp.json %. "label" `shouldMatch` "bad-request"
 
   bindResponse (updateUserGroup owner badGid (object ["name" .= "good name"])) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: should be 404 -} 200
+    resp.status `shouldMatchInt` 404
 
   bindResponse (updateUserGroup owner gid (object ["name" .= "also good"])) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   bindResponse (addUserToGroup owner gid mem3id) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: should be 204 -} 200
+    resp.status `shouldMatchInt` 204
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: should be 204 -} 200
+    resp.status `shouldMatchInt` 204
 
   bindResponse (getUserGroup owner gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -61,16 +61,16 @@ testUserGroupSmoke = do
     resp.json %. "members" `shouldMatch` [mem2id, mem3id]
 
   bindResponse (deleteUserGroup owner badGid) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: 204 -} 200
+    resp.status `shouldMatchInt` 404
 
   bindResponse (deleteUserGroup owner gid) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: 204 -} 200
+    resp.status `shouldMatchInt` 204
 
   bindResponse (updateUserGroup owner gid (object ["name" .= "also good"])) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: 404 -} 200
+    resp.status `shouldMatchInt` 404
 
   bindResponse (addUserToGroup owner gid mem1id) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO: 404 -} 500
+    resp.status `shouldMatchInt` 404
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
-    resp.status `shouldMatchInt` {- TODO:  404 -} 200
+    resp.status `shouldMatchInt` 404
