@@ -1459,6 +1459,45 @@ In case it is not possible to verify the TLS certificate of the RabbitMQ
 server, verification can be turned off by settings `insecureSkipVerifyTls` to
 `true`.
 
+## Configure PostgreSQL
+
+`brig` requires a PostgreSQL database. The configured user needs to be able to
+write data and change the schema (e.g. create and alter tables.)
+
+`brig`'s internal configuration YAML file format and the Helm chart differ a
+bit.
+
+Helm chart `values.yaml`:
+
+```yaml
+config:
+  postgresql:
+    host: postgresql # DNS name without protocol
+    port: "5432"
+    user: wire-server
+    dbname: wire-server
+secrets:
+  pgPassword: user-password # plain text; i.e. not base64 encoded
+```
+
+Internal YAML file:
+
+```yaml
+postgresql:
+  port: "5432"
+  user: wire-server
+  dbname: wire-server
+  password: db-password # plain text passwords should only be used in test setups
+postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
+```
+
+The `host` can be any DNS name pointing to the database server; e.g.
+`database.example.com` would be fine.
+The `port` needs to be a number provided as string.
+
+Besides the password file, the fields correspond to
+[Hasql.Connection.Setting.Connection.Param](https://hackage-content.haskell.org/package/hasql-1.9.1.2/docs/Hasql-Connection-Setting-Connection-Param.html#t:Param).
+
 ## Configure Cells
 
 If Cells integration is enabled, gundeck must be configured with the name of
