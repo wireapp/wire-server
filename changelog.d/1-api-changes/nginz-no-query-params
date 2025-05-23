@@ -1,0 +1,2 @@
+Passing the access_token in the query params is not supported anymore. Please
+use the `Authorization` header to specify the token.
