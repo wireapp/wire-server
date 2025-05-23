@@ -78,6 +78,14 @@ config:
     # tlsCaSecretRef:
     #   name: <secret-name>
     #   key: <ca-attribute>
+
+  # Postgres connection settings.
+  # Don't forget to set the user's password in `secrets.pgPassword`
+  postgresql:
+    host: postgresql # DNS name without protocol
+    port: "5432"
+    user: wire-server
+    dbname: wire-server
   emailSMS:
     general:
       templateBranding:
@@ -280,6 +288,7 @@ tests:
       T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
       -----END CERTIFICATE-----
 
+    # pgPassword: <postgres-password>
 test:
   elasticsearch:
     additionalHost: elasticsearch-ephemeral
