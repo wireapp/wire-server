@@ -1491,8 +1491,12 @@ postgresql:
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
 
-The `brig` Helm chart also offers an option to mount files into the container.
-Refer to its `values.yaml` file for details.
+The `brig` Helm chart also offers an option to mount files (e.g. certificates)
+into the container by defining `additionalVolumeMounts` and
+`additionalVolumes`. This way does not work for password files (parameter
+`passfile`), because `libpq-connect` requires access rights (mask `0600`) for
+them that we cannot provide for random uids (brig is executed as user `brig`
+with a random uid.)
 
 The `host` can be any DNS name pointing to the database server; e.g.
 `database.example.com` would be fine.

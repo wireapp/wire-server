@@ -84,9 +84,11 @@ config:
   # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
   # To set the password via a brig secret see `secrets.pgPassword`.
   #
-  # Another way to provide the password is by using `additionalVolumeMounts`
-  # and `additionalVolumes` mount a password file into the brig container.
-  # The path of the file can be set by `passfile` in `postgresql`.
+  # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+  # additional files (e.g. certificates) into the brig container. This way
+  # does not work for password files (parameter `passfile`), because
+  # libpq-connect requires access rights (mask 0600) for them that we cannot
+  # provide for random uids.
   #
   # Below is an example configuration we're using for our CI tests.
   postgresql:
