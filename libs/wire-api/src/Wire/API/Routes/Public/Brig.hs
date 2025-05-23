@@ -320,8 +320,14 @@ type UserGroupAPI =
                :> ZLocalUser
                :> "user-groups"
                :> Capture "gid" UserGroupId
-               :> ReqBody '[JSON] UserGroupUpdate -- TODO: user not found error! (like in get above)
-               :> Put '[JSON] NoContent
+               :> ReqBody '[JSON] UserGroupUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    [ ErrorResponse 'UserGroupNotFound,
+                      RespondEmpty 200 "User Group Updated"
+                    ]
+                    (Maybe ())
            )
     :<|> Named
            "delete-user-group"
@@ -339,7 +345,7 @@ type UserGroupAPI =
                :> Capture "gid" UserGroupId
                :> "users"
                :> Capture "uid" UserId
-               :> Post '[JSON] NoContent -- TODO: user not found error!
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "User added to group")
            )
     :<|> Named
            "remove-user-from-group"
@@ -349,7 +355,7 @@ type UserGroupAPI =
                :> Capture "gid" UserGroupId
                :> "users"
                :> Capture "uid" UserId
-               :> Delete '[JSON] NoContent -- TODO: user not found error!
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
            )
 
 type SelfAPI =

@@ -46,6 +46,7 @@ interpretUserGroupSubsystem = interpret $ \case
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
+  | UserGroupNotFound
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -53,6 +54,7 @@ userGroupSubsystemErrorToHttpError =
   StdError . \case
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
+    UserGroupNotFound -> errorToWai @E.UserGroupNotFound
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
@@ -89,6 +91,7 @@ getTeamAsAdmin ::
   Sem r (Maybe TeamId)
 getTeamAsAdmin user = runMaybeT do
   (team, member) <- MaybeT $ getTeamAsMember user
+  -- TODO: check that it is the same team as the user group
   guard (isAdminOrOwner (member ^. permissions))
   pure team
 
@@ -186,6 +189,7 @@ addUserImpl ::
   UserId ->
   Sem r ()
 addUserImpl adder groupId addeeId = do
+  void $ getUserGroupImpl adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ getTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   Store.addUser groupId addeeId
@@ -201,6 +205,7 @@ removeUserImpl ::
   UserId ->
   Sem r ()
 removeUserImpl remover groupId removeeId = do
+  void $ getUserGroupImpl remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ getTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   Store.removeUser groupId removeeId
