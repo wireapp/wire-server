@@ -16,6 +16,7 @@ module Testlib.Prelude
     module Data.Bifunctor,
     module Data.Function,
     module Data.Functor.Identity,
+    module Data.Type.Equality,
     module Data.Int,
     module Data.Word,
     module Data.Void,
@@ -102,6 +103,7 @@ import Data.Set (Set)
 import Data.String
 import Data.Traversable
 import Data.Tuple
+import Data.Type.Equality hiding (inner, trans)
 import Data.Void
 import Data.Word
 import GHC.Generics (Generic)

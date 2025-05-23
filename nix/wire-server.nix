@@ -172,7 +172,7 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskellPackages.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc910.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -498,7 +498,7 @@ in
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "98" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
