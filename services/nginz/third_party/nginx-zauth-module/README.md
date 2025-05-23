@@ -2,13 +2,23 @@
 
 This NGINX module enables verification of access-tokens.
 
-Tokens can be send as `Authorization` header, e.g.
+Tokens can be send as `Authorization` header with `Bearer` scheme, e.g.
 
-    Authorization: Bearer eaafe0fad7947d419aea629f91679 ...
+```
+Authorization: Bearer eaafe0fad7947d419aea629f91679...
+```
+
+or as `Authorization` header with `AWS4-HMAC-SHA256` scheme, e.g.
+
+```
+Authorization: AWS4-HMAC-SHA256 Credential=eaafe0fad7947d419aea629f91679..., SignedHeaders=host;range;x-amz-date;,...
+```
 
 or as query parameter, e.g.
 
-    GET /foo?access_token=eaafe0fad7947d419aea629f91679 ...
+```
+GET /foo?access_token=eaafe0fad7947d419aea629f91679...
+```
 
 Additionally user and connection information is set in upstream
 requests if configured.

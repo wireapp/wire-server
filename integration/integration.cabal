@@ -171,6 +171,7 @@ library
     Test.MLS.Services
     Test.MLS.SubConversation
     Test.MLS.Unreachable
+    Test.NginxZAuthModule
     Test.Notifications
     Test.OAuth
     Test.PasswordReset
