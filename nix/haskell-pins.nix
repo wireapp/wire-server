@@ -267,11 +267,13 @@ let
       };
     };
 
+    # We applied minimal fixes to support newer GHC versions. I.e. remove this
+    # once our GHC version is supported by upstream.
     HaskellNet = {
       src = fetchgit {
         url = "https://github.com/wireapp/HaskellNet";
-        rev = "74cde03b4beb09794a6120ea5321a09430bcd2c7";
-        hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
+        rev = "c023c18388c9454f97107b976746227d5eed53e6";
+        hash = "sha256-arHo3mtJhCx59zK435B/TziyLM/qOqw5yONyMnbUZQU=";
       };
     };
 
@@ -361,6 +363,12 @@ let
     amazonka-s3-streaming = {
       version = "2.0.0.0";
       sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
+    };
+
+    # 0.8 is not compatible to GHC 9.10
+    proto-lens-protoc = {
+      version = "0.9.0.0";
+      sha256 = "sha256-wuSyhckbK+Q9bM+2rFTxHGThKJkNWgmXrdEx8suHYKE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
