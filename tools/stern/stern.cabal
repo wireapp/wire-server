@@ -73,21 +73,21 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
-    , base                   >=4.5     && <5
-    , bilge                  >=0.12
-    , brig-types             >=0.9.6
-    , bytestring             >=0.10
-    , bytestring-conversion  >=0.2
+      aeson
+    , base
+    , bilge
+    , brig-types
+    , bytestring
+    , bytestring-conversion
     , containers
-    , errors                 >=1.4
-    , exceptions             >=0.6
+    , errors
+    , exceptions
     , extended
-    , http-client            >=0.7
-    , http-types             >=0.8
+    , http-client
+    , http-types
     , imports
-    , lens                   >=4.4
-    , mtl                    >=2.1
+    , lens
+    , mtl
     , openapi3
     , schema-profunctor
     , servant
@@ -95,16 +95,16 @@ library
     , servant-openapi3
     , servant-server
     , servant-swagger-ui
-    , split                  >=0.2
-    , text                   >=1.1
-    , tinylog                >=0.10
-    , transformers           >=0.3
-    , types-common           >=0.4.13
+    , split
+    , text
+    , tinylog
+    , transformers
+    , types-common
     , unliftio
     , utf8-string
-    , wai                    >=3.0
-    , wai-utilities          >=0.9
-    , wire-api               >=0.1
+    , wai
+    , wai-utilities
+    , wire-api
     , yaml
 
   default-language:   GHC2021

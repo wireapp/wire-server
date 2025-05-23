@@ -85,6 +85,10 @@ inMemoryUserStoreInterpreter = interpret $ \case
     where
       doUpdate :: StoredUser -> StoredUser
       doUpdate u = if u.id == uid then u {email = Nothing} else u
+  GetUserTeam uid -> do
+    gets $ \users -> do
+      user <- find (\user -> user.id == uid) users
+      user.teamId
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

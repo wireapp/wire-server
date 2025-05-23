@@ -74,7 +74,7 @@ import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
 import Wire.UserStore as UserStore
 import Wire.UserStore.IndexUser
-import Wire.UserSubsystem
+import Wire.UserSubsystem as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.UserSubsystemConfig
@@ -157,6 +157,7 @@ runUserSubsystem authInterpreter = interpret $
       internalFindTeamInvitationImpl mEmailKey code
     GetUserExportData uid -> getUserExportDataImpl uid
     RemoveEmailEither luid -> removeEmailEitherImpl luid
+    UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -1068,3 +1069,6 @@ removeEmailEitherImpl lusr = runError $ do
       syncUserIndex uid
     Just _ -> throw UserSubsystemLastIdentity
     Nothing -> throw UserSubsystemNoIdentity
+
+getUserTeamImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamId)
+getUserTeamImpl = UserStore.getUserTeam

@@ -34,6 +34,7 @@ interpretUserStoreCassandra casClient =
       LookupStatus uid -> lookupStatusImpl uid
       IsActivated uid -> isActivatedImpl uid
       LookupLocale uid -> lookupLocaleImpl uid
+      GetUserTeam uid -> getUserTeamImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
@@ -187,6 +188,12 @@ isActivatedImpl uid =
 lookupLocaleImpl :: UserId -> Client (Maybe (Maybe Language, Maybe Country))
 lookupLocaleImpl u = do
   retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
+
+getUserTeamImpl :: UserId -> Client (Maybe TeamId)
+getUserTeamImpl u = runIdentity <$$> retry x1 (query1 q (params LocalQuorum (Identity u)))
+  where
+    q :: PrepQuery R (Identity UserId) (Identity TeamId)
+    q = "SELECT team FROM user WHERE id = ?"
 
 updateUserTeamImpl :: UserId -> TeamId -> Client ()
 updateUserTeamImpl u t = retry x5 $ write userTeamUpdate (params LocalQuorum (t, u))

@@ -273,6 +273,12 @@ type ITeamsAPIBase =
                         :> ReqBody '[JSON] NewTeamMember
                         :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
                     )
+             :<|> Named
+                    "unchecked-get-team-admins"
+                    ( "admins"
+                        :> CanThrow 'TeamNotFound
+                        :> Get '[JSON] TeamMemberList
+                    )
          )
     :<|> Named
            "user-is-team-owner"
