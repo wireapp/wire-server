@@ -1491,12 +1491,18 @@ postgresql:
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
 
+The `brig` Helm chart also offers an option to mount files into the container.
+Refer to its `values.yaml` file for details.
+
 The `host` can be any DNS name pointing to the database server; e.g.
 `database.example.com` would be fine.
 The `port` needs to be a number provided as string.
 
-Besides the password file, the fields correspond to
-[Hasql.Connection.Setting.Connection.Param](https://hackage-content.haskell.org/package/hasql-1.9.1.2/docs/Hasql-Connection-Setting-Connection-Param.html#t:Param).
+Besides the password file (`postgresqlPassword`), the fields correspond to
+[libpq-connect
+parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
+`postgresqlPassword` is read by `brig`. Its content is used as `password`
+field.
 
 ## Configure Cells
 
