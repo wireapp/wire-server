@@ -141,6 +141,19 @@ crm: c db-migrate
 devtest:
 	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 
+# Run unit tests for a package in a loop, re-loading and -running on
+# file change in the unit tests.
+#
+# There some alternatives, but they are all either too slow or do not
+# watch / compile enough modules, or both.  Here is one just running
+# make c on a package in a loop for all package changes:
+#
+# find . -name '*.hs' | entr -s 'make -C ~/src/wire-server c package=wire-subsystems test=1'
+.PHONY: devtest-package
+devtest-package:
+	@ghcid --command 'cabal repl test:$(package)-tests' --test='main' \
+	  || echo -e "\n\n\n*** usage: make devtest-package package=wire-subsystems.\n*** did you make sure the test-suite goal in the cabal file of your\n*** package follows the naming convention (see wire-subsystems)?\n\n"
+
 .PHONY: sanitize-pr
 sanitize-pr: check-weed
 	make lint-all-shallow
