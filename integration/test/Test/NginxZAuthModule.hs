@@ -4,11 +4,14 @@ import API.Brig
 import API.Common
 import Control.Monad.Codensity
 import Control.Monad.Reader
+import qualified Data.ByteString as BS
 import Data.List.Extra
 import Data.Streaming.Network
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types
-import qualified Network.Socket as Socket
+import Network.Socket (Socket)
+import qualified Network.Socket as NS
+import qualified Network.Socket.ByteString as NSB
 import SetupHelpers
 import System.FilePath ((</>))
 import System.IO (writeFile)
@@ -18,6 +21,8 @@ import System.Process (getPid)
 import Testlib.Prelude
 import Text.RawString.QQ
 import UnliftIO (bracket)
+import UnliftIO.Async (async, waitBoth)
+import qualified UnliftIO.Async as Async
 import UnliftIO.Concurrent (forkIO)
 import UnliftIO.Directory
 import UnliftIO.Process
@@ -70,11 +75,8 @@ testAWS4_HMAC_SHA256_token = do
 
 withTestNginz :: Codensity App Int
 withTestNginz = do
-  tmpDir <- Codensity $ withSystemTempDirectory "integration-testBearerToken"
+  tmpDir <- Codensity $ withSystemTempDirectory "integration-NginxZauthModule"
   env <- ask
-  -- Find a port to run our test nginx
-  (port, sock) <- liftIO $ bindRandomPortTCP (fromString "*6")
-
   -- Create config
   let (keystorePath, oauthPubKey) = case env.servicesCwdBase of
         Nothing ->
@@ -85,9 +87,12 @@ withTestNginz = do
           ( basedir </> "nginz/integration-test/resources/zauth/pubkeys.txt",
             basedir </> "nginz/integration-test/resources/oauth/ed25519_public.jwk"
           )
+      unixSocketPath = tmpDir </> "sock"
       config =
         nginxTestConfigTemplate
-          & replace "{port}" (show port)
+          -- Listen on unix socket because its too complicated to make nginx run
+          -- on a random available port.
+          & replace "{socket_path}" unixSocketPath
           & replace "{pid_file}" (tmpDir </> "pid")
 
       configPath = tmpDir </> "nginx.conf"
@@ -97,11 +102,6 @@ withTestNginz = do
   liftIO $ writeFile (tmpDir </> "acl") ""
   liftIO $ writeFile configPath config
 
-  -- Stop listening to our port and start nginx, and hope noone takes that
-  -- port in the meantime.
-  --
-  -- TODO: This doesn't close in time sometimes making flaky tests.
-  liftIO $ Socket.close sock
   let startNginx = do
         (_, Just stdoutHdl, Just stderrHdl, processHandle) <-
           createProcess
@@ -123,7 +123,34 @@ withTestNginz = do
             liftIO $ for_ mPid (signalProcess killProcess)
             void $ waitForProcess processHandle
   _ <- Codensity $ bracket startNginx stopNginx
+
+  -- The http-client package doesn't support connecting to servers running on a
+  -- unix domain socket. So, we bind to a random TCP port and forward the
+  -- requests and responses to and from the unix domain socket of nginx.
+  (port, sock) <- Codensity $ bracket (liftIO $ bindRandomPortTCP (fromString "*6")) (liftIO . NS.close . snd)
+  _ <- Codensity $ bracket (async $ forwardToUnixDomain sock unixSocketPath) Async.cancel
   pure port
+
+forwardToUnixDomain :: (MonadIO m) => Socket -> FilePath -> m ()
+forwardToUnixDomain tcpSock unixSockAddr = liftIO . forever $ do
+  (conn, _) <- NS.accept tcpSock
+  void $ async $ do
+    unixSock <- NS.socket NS.AF_UNIX NS.Stream NS.defaultProtocol
+    NS.connect unixSock (NS.SockAddrUnix unixSockAddr)
+
+    tcpToUnix <- async $ forward conn unixSock
+    unixToTCP <- async $ forward unixSock conn
+
+    void $ waitBoth tcpToUnix unixToTCP
+
+forward :: Socket -> Socket -> IO ()
+forward src dst = do
+  let loop = do
+        bs <- NSB.recv src 4096
+        if BS.null bs
+          then pure ()
+          else NSB.sendAll dst bs >> loop
+  loop
 
 nginxTestConfigTemplate :: String
 nginxTestConfigTemplate =
@@ -137,7 +164,7 @@ nginxTestConfigTemplate =
 
     http {
        server {
-          listen *:{port};
+          listen unix:{socket_path};
           zauth_keystore "./keystore";
           zauth_acl "./acl";
           oauth_pub_key "./oauth-pub-key";
