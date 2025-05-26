@@ -321,13 +321,7 @@ type UserGroupAPI =
                :> "user-groups"
                :> Capture "gid" UserGroupId
                :> ReqBody '[JSON] UserGroupUpdate
-               :> MultiVerb
-                    'PUT
-                    '[JSON]
-                    [ ErrorResponse 'UserGroupNotFound,
-                      RespondEmpty 200 "User Group Updated"
-                    ]
-                    (Maybe ())
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User added updated")
            )
     :<|> Named
            "delete-user-group"
@@ -335,7 +329,7 @@ type UserGroupAPI =
                :> ZLocalUser
                :> "user-groups"
                :> Capture "gid" UserGroupId
-               :> Delete '[JSON] NoContent -- TODO: user not found error! (like in get above)
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User group deleted")
            )
     :<|> Named
            "add-user-to-group"

@@ -1661,11 +1661,11 @@ createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnq
 getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
 getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
 
-updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) (Maybe ())
-updateUserGroup lusr gid gupd = lift . liftSem $ (UserGroup.updateGroup (tUnqualified lusr) gid gupd)
+updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
+updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
 
-deleteUserGroup :: (_) => Local UserId -> UserGroupId -> (Handler r) NoContent
-deleteUserGroup lusr gid = lift . liftSem $ (UserGroup.deleteGroup (tUnqualified lusr) gid $> NoContent)
+deleteUserGroup :: (_) => Local UserId -> UserGroupId -> (Handler r) ()
+deleteUserGroup lusr gid = lift . liftSem $ UserGroup.deleteGroup (tUnqualified lusr) gid
 
 addUserToGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 addUserToGroup lusr gid mid = lift . liftSem $ UserGroup.addUser (tUnqualified lusr) gid mid

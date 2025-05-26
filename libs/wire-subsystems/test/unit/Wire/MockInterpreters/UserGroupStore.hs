@@ -9,7 +9,6 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Time
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
@@ -90,9 +89,11 @@ updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
   modifyUserGroups (Map.alter f (tid, gid))
   pure $ Just () -- TODO: not quite!
 
-deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r ()
+deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
 deleteUserGroupImpl tid gid = do
+  exists <- getUserGroupImpl tid gid
   modifyUserGroups (Map.delete (tid, gid))
+  pure $ exists $> ()
 
 addUserImpl :: (EffectConstraints r) => UserGroupId -> UserId -> Sem r ()
 addUserImpl gid uid = do

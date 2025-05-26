@@ -105,7 +105,7 @@ expectLeft expectedErr = \case
 
 unexpected :: Sem r Property
 unexpected =
-  pure $ counterexample "An error was expected to have occured by now" False
+  pure $ counterexample "An error was expected to have occurred by now" False
 
 timeoutHook :: Spec -> Spec
 timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000
@@ -264,11 +264,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           $ do
             ug0 :: UserGroup <- createGroup (ownerId team) (NewUserGroup originalName mempty)
             ug1 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_
-            updateResult :: Maybe () <- updateGroup (ownerId team) ug0.id_ userGroupUpdate
+            updateGroup (ownerId team) ug0.id_ userGroupUpdate
             ug2 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_
             pure $
               (ug1 === Just ug0)
-                .&&. updateResult === Just ()
                 .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
 
     prop "update sends events to all admins and owners" $ \team name newName (tm :: TeamMember) role ->
@@ -279,7 +278,8 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               $ do
                 let nug = NewUserGroup {name = name, members = mempty}
                 ug <- createGroup (ownerId team) nug
-                (ug,) <$> updateGroup (ownerId team) ug.id_ (UserGroupUpdate (UserGroupName newName))
+                updateGroup (ownerId team) ug.id_ (UserGroupUpdate (UserGroupName newName))
+                pure ug
 
           expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
 
@@ -302,7 +302,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             _ -> counterexample ("Failed to decode push: " <> show push) False
        in case resultOrError of
             Left err -> counterexample ("Unexpected error: " <> show err) False
-            Right (pushes, (ug, Just ())) -> assertPushEvents ug pushes
+            Right (pushes, ug) -> assertPushEvents ug pushes
 
     prop "only team admins should be able to update a group" $
       \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName newUserGroupName2 ->
@@ -321,29 +321,26 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             unexpected
 
   describe "DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()" $ do
-    prop "deleteGroup deletes" $ \team groupName1 groupName2 team2 groupNameTeam2 -> do
+    prop "deleteGroup deletes" $ \team name name2 team2 -> do
       expectRight
         . runDependencies (allUsers team <> allUsers team2) (galleyTeam team <> galleyTeam team2)
         . interpretUserGroupSubsystem
         $ do
-          ug1 <- createGroup (ownerId team) (NewUserGroup groupName1 mempty)
-          ug2 <- createGroup (ownerId team) (NewUserGroup groupName2 mempty)
-          ugt2 <- createGroup (ownerId team2) (NewUserGroup groupNameTeam2 mempty)
+          ug <- createGroup (ownerId team) (NewUserGroup name mempty)
+          ug2 <- createGroup (ownerId team) (NewUserGroup name2 mempty)
 
-          before0 <- getGroup (ownerId team) ug1.id_
-          before1 <- deleteGroup (ownerId team) (Id UUID.nil) >> getGroup (ownerId team) ug1.id_ -- unknown id
-          before2 <- deleteGroup (ownerId team) ugt2.id_ >> getGroup (ownerId team) ug1.id_ -- if of a group of another team
-          after1 <- deleteGroup (ownerId team) ug1.id_ >> getGroup (ownerId team) ug1.id_
-          after2 <- deleteGroup (ownerId team) ug1.id_ >> getGroup (ownerId team) ug1.id_ -- idempotency
-          afterOther <- getGroup (ownerId team) ug2.id_
+          mUg <- getGroup (ownerId team) ug.id_
+          isDeleted <- isNothing <$> (deleteGroup (ownerId team) ug.id_ >> getGroup (ownerId team) ug.id_)
+          mUg2 <- getGroup (ownerId team) ug2.id_
+          e1 <- catchExpectedError $ deleteGroup (ownerId team2) ug.id_
+          e2 <- catchExpectedError $ deleteGroup (ownerId team) (Id UUID.nil)
 
           pure $
-            before0 === Just ug1
-              .&&. before1 === Just ug1
-              .&&. before2 === Just ug1
-              .&&. after1 === Nothing
-              .&&. after2 === Nothing
-              .&&. afterOther === Just ug2
+            mUg === Just ug
+              .&&. isDeleted === True
+              .&&. mUg2 === Just ug2
+              .&&. e1 === Just UserGroupNotFound
+              .&&. e2 === Just UserGroupNotFound
 
     prop "delete sends events to all admins and owners" $ \team name (tm :: TeamMember) role ->
       let extraTeamMember = tm & permissions .~ rolePermissions role
@@ -436,7 +433,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
        newGroupName
        (team2 :: ArbitraryTeam)
        (addOrRemove :: Bool) ->
-          expectLeft UserGroupNotATeamAdmin
+          expectLeft UserGroupNotFound
             . runDependencies (allUsers team) (galleyTeam team)
             . interpretUserGroupSubsystem
             $ do

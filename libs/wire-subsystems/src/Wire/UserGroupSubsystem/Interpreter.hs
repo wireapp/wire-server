@@ -91,7 +91,6 @@ getTeamAsAdmin ::
   Sem r (Maybe TeamId)
 getTeamAsAdmin user = runMaybeT do
   (team, member) <- MaybeT $ getTeamAsMember user
-  -- TODO: check that it is the same team as the user group
   guard (isAdminOrOwner (member ^. permissions))
   pure team
 
@@ -148,13 +147,15 @@ updateGroupImpl ::
   UserId ->
   UserGroupId ->
   UserGroupUpdate ->
-  Sem r (Maybe ())
+  Sem r ()
 updateGroupImpl updater groupId groupUpdate = do
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
-  updatedGroup <- Store.updateUserGroup team groupId groupUpdate
-  admins <- getTeamAdmins team
-  pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
-  pure updatedGroup
+  found <- isJust <$> Store.updateUserGroup team groupId groupUpdate
+  if found
+    then do
+      admins <- getTeamAdmins team
+      pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
+    else throw UserGroupNotFound
 
 deleteGroupImpl ::
   ( Member UserSubsystem r,
@@ -172,9 +173,13 @@ deleteGroupImpl deleter groupId =
     Just (team, member) -> do
       if isAdminOrOwner (member ^. permissions)
         then do
-          Store.deleteUserGroup team groupId
-          admins <- getTeamAdmins team
-          pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
+          found <- isJust <$> Store.deleteUserGroup team groupId
+          if found
+            then do
+              admins <- getTeamAdmins team
+              pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
+            else
+              throw UserGroupNotFound
         else do
           throw UserGroupNotATeamAdmin
 
