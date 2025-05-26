@@ -48,8 +48,9 @@ static ngx_int_t zauth_parse_request            (ngx_http_request_t *);
 static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
-static ZauthResult    token_from_header    (ngx_str_t const *, ZauthToken **);
-static ZauthResult    token_from_query     (ngx_str_t const *, ZauthToken **);
+static ZauthResult    token_from_header          (ngx_str_t const *, ZauthToken **);
+static ZauthResult    token_from_query           (ngx_str_t const *, ZauthToken **);
+static ZauthResult    token_from_aws_hmac_header (uint8_t const *, size_t, ZauthToken ** t);
 static ZauthContext * alloc_zauth_context  (ngx_http_request_t * r, ZauthToken *);
 static ZauthContext * alloc_oauth_context  (ngx_http_request_t * r, char *);
 static ngx_int_t      setup_zauth_context  (ngx_http_request_t * , ZauthContext *);
