@@ -62,6 +62,7 @@ static ngx_int_t zauth_token_var      (ngx_http_request_t *, ngx_http_variable_v
 static ngx_int_t zauth_token_var_user (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conn (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conv (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
+static ngx_int_t zauth_token_var_timestamp (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_typeinfo (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_set_var        (ngx_pool_t *, ngx_http_variable_value_t *, Range);
 static void      zauth_empty_val      (ngx_http_variable_value_t *);
@@ -549,6 +550,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         ngx_str_t z_client_id = ngx_string("zauth_client");
         ngx_str_t z_conn_id = ngx_string("zauth_connection");
         ngx_str_t z_conv_id = ngx_string("zauth_conversation");
+        ngx_str_t z_timestamp_id = ngx_string("zauth_timestamp");
 
         ngx_http_variable_t * z_type_var =
                 ngx_http_add_variable(conf, &z_type_id, NGX_HTTP_VAR_NOHASH);
@@ -571,9 +573,12 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         ngx_http_variable_t * z_conv_var =
                 ngx_http_add_variable(conf, &z_conv_id, NGX_HTTP_VAR_NOHASH);
 
+        ngx_http_variable_t * z_timestamp_var =
+                ngx_http_add_variable(conf, &z_timestamp_id, NGX_HTTP_VAR_NOHASH);
+
         if ( z_type_var == NULL || z_prov_var == NULL || z_bot_var == NULL ||
              z_user_var == NULL || z_client_var == NULL || z_conn_var == NULL ||
-             z_conv_var == NULL )
+             z_conv_var == NULL || z_timestamp_var == NULL)
         {
                 return NGX_ERROR;
         }
@@ -589,6 +594,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         z_prov_var->data        = 'p';
         z_conn_var->get_handler = zauth_token_var_conn;
         z_conv_var->get_handler = zauth_token_var_conv;
+        z_timestamp_var->get_handler = zauth_token_var_timestamp;
 
         return NGX_OK;
 }
@@ -711,6 +717,23 @@ static ngx_int_t zauth_token_var_conv (ngx_http_request_t * r, ngx_http_variable
         ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
         if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH && zauth_token_type(ctx->token) == ZAUTH_TOKEN_TYPE_BOT) {
                 return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, 'c'));
+        } else {
+                zauth_empty_val(v);
+                return NGX_OK;
+        }
+}
+
+static ngx_int_t zauth_token_var_timestamp (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH) {
+                u_char *buf = ngx_pnalloc(r->pool, NGX_INT64_LEN + 1);
+                if (buf == NULL) {
+                        return NGX_ERROR;
+                }
+                u_char *end = ngx_sprintf(buf, "%l", zauth_token_time(ctx->token));
+                *end = '\0';
+                Range range = { buf, end - buf };
+                return zauth_set_var(r->pool, v, range);
         } else {
                 zauth_empty_val(v);
                 return NGX_OK;

@@ -72,6 +72,7 @@ testAWS4_HMAC_SHA256_token = do
       submit "GET" (mkReq header) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
+        resp.json %. "timestamp" `shouldNotMatch` ""
 
 withTestNginz :: Codensity App Int
 withTestNginz = do
@@ -173,7 +174,7 @@ nginxTestConfigTemplate =
 
           location / {
             default_type application/json;
-            return 200 '{"user":"$zauth_user"}';
+            return 200 '{"user":"$zauth_user", "timestamp": "$zauth_timestamp"}';
           }
        }
     }
