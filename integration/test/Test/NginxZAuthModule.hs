@@ -41,6 +41,33 @@ testBearerToken = do
       resp.status `shouldMatchInt` 200
       resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
 
+testAWS4_HMAC_SHA256_token :: (HasCallStack) => App ()
+testAWS4_HMAC_SHA256_token = do
+  runCodensity withTestNginz $ \port -> do
+    alice <- randomUser OwnDomain def
+    email <- asString $ alice %. "email"
+    loginResp <- login alice email defPassword >>= getJSON 200
+    token <- asString $ loginResp %. "access_token"
+
+    req0 <- HTTP.parseRequest "http://localhost"
+
+    let mkReq authHeader =
+          req0
+            { HTTP.port = port,
+              HTTP.requestHeaders = [(hAuthorization, authHeader)]
+            }
+        headersToTest =
+          [ fromString $ "AWS4-HMAC-SHA256 Credential=" <> token <> ", foo=bar",
+            fromString $ "AWS4-HMAC-SHA256 Credential=" <> token,
+            fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token,
+            fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token <> ", baz=qux",
+            fromString $ "AWS4-HMAC-SHA256 foo=bar,Credential=" <> token <> ",baz=qux"
+          ]
+    for_ headersToTest $ \header -> do
+      submit "GET" (mkReq header) `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
+
 withTestNginz :: Codensity App Int
 withTestNginz = do
   tmpDir <- Codensity $ withSystemTempDirectory "integration-testBearerToken"
@@ -72,6 +99,8 @@ withTestNginz = do
 
   -- Stop listening to our port and start nginx, and hope noone takes that
   -- port in the meantime.
+  --
+  -- TODO: This doesn't close in time sometimes making flaky tests.
   liftIO $ Socket.close sock
   let startNginx = do
         (_, Just stdoutHdl, Just stderrHdl, processHandle) <-
