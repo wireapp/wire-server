@@ -2,6 +2,7 @@ module Test.NginxZAuthModule where
 
 import API.Brig
 import API.Common
+import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.List.Extra
 import Data.Streaming.Network
@@ -24,53 +25,76 @@ import UnliftIO.Timeout (timeout)
 
 testBearerToken :: (HasCallStack) => App ()
 testBearerToken = do
-  withSystemTempDirectory "integration-testBearerToken-xxx" $ \tmpDir -> do
-    env <- ask
-    -- Find a port to run our test nginx
-    (port, sock) <- liftIO $ bindRandomPortTCP (fromString "*6")
+  runCodensity withTestNginz $ \port -> do
+    alice <- randomUser OwnDomain def
+    email <- asString $ alice %. "email"
+    loginResp <- login alice email defPassword >>= getJSON 200
+    token <- asString $ loginResp %. "access_token"
 
-    -- Create config
-    let (keystorePath, oauthPubKey) = case env.servicesCwdBase of
-          Nothing ->
-            ( "/etc/wire/nginz/secrets/zauth.conf",
-              "/etc/wire/nginz/secrets/oauth_ed25519_pub.jwk"
-            )
-          Just basedir ->
-            ( basedir </> "nginz/integration-test/resources/zauth/pubkeys.txt",
-              basedir </> "nginz/integration-test/resources/oauth/ed25519_public.jwk"
-            )
-        config =
-          nginxTestConfigTemplate
-            & replace "{port}" (show port)
-            & replace "{pid_file}" (tmpDir </> "pid")
+    req0 <- HTTP.parseRequest "http://localhost"
+    let req =
+          req0
+            { HTTP.port = port,
+              HTTP.requestHeaders = [(hAuthorization, fromString $ "Bearer " <> token)]
+            }
+    submit "GET" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
 
-        configPath = tmpDir </> "nginx.conf"
+withTestNginz :: Codensity App Int
+withTestNginz = do
+  tmpDir <- Codensity $ withSystemTempDirectory "integration-testBearerToken"
+  env <- ask
+  -- Find a port to run our test nginx
+  (port, sock) <- liftIO $ bindRandomPortTCP (fromString "*6")
 
-    putStrLn config
-    copyFile keystorePath (tmpDir </> "keystore")
-    copyFile oauthPubKey (tmpDir </> "oauth-pub-key")
-    liftIO $ writeFile (tmpDir </> "acl") ""
-    liftIO $ writeFile configPath config
+  -- Create config
+  let (keystorePath, oauthPubKey) = case env.servicesCwdBase of
+        Nothing ->
+          ( "/etc/wire/nginz/secrets/zauth.conf",
+            "/etc/wire/nginz/secrets/oauth_ed25519_pub.jwk"
+          )
+        Just basedir ->
+          ( basedir </> "nginz/integration-test/resources/zauth/pubkeys.txt",
+            basedir </> "nginz/integration-test/resources/oauth/ed25519_public.jwk"
+          )
+      config =
+        nginxTestConfigTemplate
+          & replace "{port}" (show port)
+          & replace "{pid_file}" (tmpDir </> "pid")
 
-    -- Stop listening to our port and start nginx, and hope noone takes that
-    -- port in the meantime.
-    liftIO $ Socket.close sock
-    runNginx tmpDir configPath $ do
-      -- Get a token
-      alice <- randomUser OwnDomain def
-      email <- asString $ alice %. "email"
-      loginResp <- login alice email defPassword >>= getJSON 200
-      token <- asString $ loginResp %. "access_token"
+      configPath = tmpDir </> "nginx.conf"
 
-      req0 <- HTTP.parseRequest "http://localhost"
-      let req =
-            req0
-              { HTTP.port = port,
-                HTTP.requestHeaders = [(hAuthorization, fromString $ "Bearer " <> token)]
+  copyFile keystorePath (tmpDir </> "keystore")
+  copyFile oauthPubKey (tmpDir </> "oauth-pub-key")
+  liftIO $ writeFile (tmpDir </> "acl") ""
+  liftIO $ writeFile configPath config
+
+  -- Stop listening to our port and start nginx, and hope noone takes that
+  -- port in the meantime.
+  liftIO $ Socket.close sock
+  let startNginx = do
+        (_, Just stdoutHdl, Just stderrHdl, processHandle) <-
+          createProcess
+            (proc "nginx" ["-c", configPath, "-g", "daemon off;", "-e", "/dev/stdout"])
+              { cwd = Just tmpDir,
+                std_out = CreatePipe,
+                std_err = CreatePipe
               }
-      submit "GET" req `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
+        liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stdoutHdl
+        liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stderrHdl
+        pure (stdoutHdl, stderrHdl, processHandle)
+
+      stopNginx (_, _, processHandle) = do
+        mPid <- liftIO $ getPid processHandle
+        liftIO $ for_ mPid (signalProcess keyboardSignal)
+        timeout 50000 (waitForProcess processHandle) >>= \case
+          Just _ -> pure ()
+          Nothing -> do
+            liftIO $ for_ mPid (signalProcess killProcess)
+            void $ waitForProcess processHandle
+  _ <- Codensity $ bracket startNginx stopNginx
+  pure port
 
 nginxTestConfigTemplate :: String
 nginxTestConfigTemplate =
@@ -98,27 +122,3 @@ nginxTestConfigTemplate =
        }
     }
  |]
-
-runNginx :: FilePath -> FilePath -> App () -> App ()
-runNginx cwd configPath test = do
-  let startNginx = do
-        (_, Just stdoutHdl, Just stderrHdl, processHandle) <-
-          createProcess
-            (proc "nginx" ["-c", configPath, "-g", "daemon off;", "-e", "/dev/stdout"])
-              { cwd = Just cwd,
-                std_out = CreatePipe,
-                std_err = CreatePipe
-              }
-        liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stdoutHdl
-        liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stderrHdl
-        pure (stdoutHdl, stderrHdl, processHandle)
-
-      stopNginx (_, _, processHandle) = do
-        mPid <- liftIO $ getPid processHandle
-        liftIO $ for_ mPid (signalProcess keyboardSignal)
-        timeout 50000 (waitForProcess processHandle) >>= \case
-          Just _ -> pure ()
-          Nothing -> do
-            liftIO $ for_ mPid (signalProcess killProcess)
-            void $ waitForProcess processHandle
-  bracket startNginx stopNginx (const test)
