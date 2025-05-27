@@ -82,12 +82,13 @@ getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
 updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
+  exists <- getUserGroupImpl tid gid
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
       f (Just g) = Just (g {name = newName} :: UserGroup)
 
   modifyUserGroups (Map.alter f (tid, gid))
-  pure $ Just () -- TODO: not quite!
+  pure $ exists $> ()
 
 deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
 deleteUserGroupImpl tid gid = do
