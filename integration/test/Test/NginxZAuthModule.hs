@@ -23,7 +23,6 @@ import Text.RawString.QQ
 import UnliftIO (bracket)
 import UnliftIO.Async (async, waitBoth)
 import qualified UnliftIO.Async as Async
-import UnliftIO.Concurrent (forkIO)
 import UnliftIO.Directory
 import UnliftIO.Process
 import UnliftIO.Timeout (timeout)
@@ -111,8 +110,9 @@ withTestNginz = do
                 std_out = CreatePipe,
                 std_err = CreatePipe
               }
-        liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stdoutHdl
-        liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stderrHdl
+        -- Enable this when debugging
+        -- liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stdoutHdl
+        -- liftIO $ void $ forkIO $ logToConsole id "nginx-zauth-module" stderrHdl
         pure (stdoutHdl, stderrHdl, processHandle)
 
       stopNginx (_, _, processHandle) = do
