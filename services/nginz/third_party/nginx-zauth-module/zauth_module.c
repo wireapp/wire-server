@@ -528,6 +528,7 @@ static ZauthResult token_from_query (ngx_str_t const * query, ZauthToken ** t) {
                 : zauth_token_parse(token_start, token_end - token_start, t);
 }
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
 static ZauthResult token_from_aws_hmac_header(uint8_t const * auth_header, size_t auth_header_len, ZauthToken ** t) {
         char const * component_name = "Credential=";
         size_t component_name_len = strlen(component_name);
