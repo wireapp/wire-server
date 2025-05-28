@@ -32,6 +32,11 @@ data:
       tlsCa: /etc/wire/brig/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    {{- if hasKey $.Values.secrets  "pgPassword" }}
+    postgresqlPassword: /etc/wire/brig/secrets/pgPassword
+    {{- end }}
+
     elasticsearch:
       url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
       index: {{ .elasticsearch.index }}

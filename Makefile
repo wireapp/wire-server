@@ -155,7 +155,7 @@ devtest-package:
 	  || echo -e "\n\n\n*** usage: make devtest-package package=wire-subsystems.\n*** did you make sure the test-suite goal in the cabal file of your\n*** package follows the naming convention (see wire-subsystems)?\n\n"
 
 .PHONY: sanitize-pr
-sanitize-pr: check-weed
+sanitize-pr: check-weed treefmt
 	make lint-all-shallow
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -324,6 +324,12 @@ cqlsh:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
 
+.PHONY: psql
+psql:
+	@grep -q wire-server:wire-server ~/.pgpass || \
+	  echo "consider running 'echo localhost:5432:wire-server:wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
+	psql -h localhost -p 5432 -U wire-server -w
+
 .PHONY: db-reset-package
 db-reset-package:
 	@echo "Deprecated! Please use 'db-reset' instead"
@@ -336,17 +342,31 @@ db-migrate-package:
 
 # Reset all keyspaces and reset the ES index
 .PHONY: db-reset
-db-reset: c
-	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+db-reset: c postgres-reset cassandra-reset es-reset rabbitmq-reset
+
+.PHONY: cassandra-reset
+cassandra-reset: c
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+
 	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
+
+.PHONY: postgres-reset
+postgres-reset: c
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname backendA
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname backendB
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-1
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-2
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-3
+
+.PHONY: es-reset
+es-reset: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
@@ -362,9 +382,11 @@ db-reset: c
 	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
-
+.PHONY: rabbitmq-reset
+rabbitmq-reset: rabbit-clean
 
 # Migrate all keyspaces and reset the ES index
+# Does not migrate postgres as brig does that on startup.
 .PHONY: db-migrate
 db-migrate: c
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null

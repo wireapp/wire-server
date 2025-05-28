@@ -256,6 +256,7 @@ library
     Wire.API.User.Scim
     Wire.API.User.Search
     Wire.API.UserEvent
+    Wire.API.UserGroup
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo
@@ -629,6 +630,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserEvent
+    Test.Wire.API.Golden.Manual.UserGroup
     Test.Wire.API.Golden.Manual.UserIdList
     Test.Wire.API.Golden.Protobuf
     Test.Wire.API.Golden.Run
@@ -662,6 +664,7 @@ test-suite wire-api-golden-tests
     , types-common             >=0.16
     , uri-bytestring
     , uuid
+    , vector
     , wire-api
     , wire-message-proto-lens
 

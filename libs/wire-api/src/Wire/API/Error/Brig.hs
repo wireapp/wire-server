@@ -113,6 +113,9 @@ data BrigError
   | DomainVerificationChallengeNotFound
   | RateLimitExceeded
   | MlsRemovalNotAllowed
+  | UserGroupNotFound
+  | UserGroupCreatorIsNotATeamAdmin
+  | UserGroupMemberIsNotInTheSameTeam
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -337,3 +340,9 @@ type instance MapError 'DomainVerificationChallengeNotFound = 'StaticError 404 "
 type instance MapError 'RateLimitExceeded = 'StaticError 429 "too-many-requests" "Please try again later."
 
 type instance MapError 'MlsRemovalNotAllowed = 'StaticError 409 "mls-protocol-error" "MLS protocol cannot be removed"
+
+type instance MapError 'UserGroupNotFound = 'StaticError 404 "user-group-not-found" "User group not found"
+
+type instance MapError 'UserGroupCreatorIsNotATeamAdmin = 'StaticError 403 "user-group-creation-forbidden" "Only team admins can create user groups."
+
+type instance MapError 'UserGroupMemberIsNotInTheSameTeam = 'StaticError 400 "user-group-invalid" "Only team members of the same team can be added to a user group."
