@@ -80,7 +80,7 @@ services:
 
   redis-master:
     container_name: demo_wire_redis
-    image: redis:6.0-alpine
+    image: redis:7.2-alpine
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6379:6379"
@@ -90,7 +90,7 @@ services:
       - demo_wire
 
   redis-cluster:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command:
       - redis-cli
       - --cluster
@@ -122,7 +122,7 @@ services:
       - redis-node-5
       - redis-node-6
   redis-node-1:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6373:6373"
@@ -136,7 +136,7 @@ services:
       redis:
         ipv4_address: 172.20.0.31
   redis-node-2:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6374:6374"
@@ -150,7 +150,7 @@ services:
       redis:
         ipv4_address: 172.20.0.32
   redis-node-3:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6375:6375"
@@ -164,7 +164,7 @@ services:
       redis:
         ipv4_address: 172.20.0.33
   redis-node-4:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6376:6376"
@@ -178,7 +178,7 @@ services:
       redis:
         ipv4_address: 172.20.0.34
   redis-node-5:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6377:6377"
@@ -192,7 +192,7 @@ services:
       redis:
         ipv4_address: 172.20.0.35
   redis-node-6:
-    image: "redis:6.0-alpine"
+    image: "redis:7.2-alpine"
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - "127.0.0.1:6378:6378"
