@@ -16,7 +16,7 @@ testResetGroupConversation domain = do
 
   resetConversation alice mlsConv.groupId 0 >>= assertStatus 409
   resetConversation bob mlsConv.groupId 0 >>= assertStatus 409
-  resetConversation charlie mlsConv.groupId mlsConv.epoch >>= assertStatus 403
+  resetConversation charlie mlsConv.groupId mlsConv.epoch >>= assertStatus 404
   resetConversation bob mlsConv.groupId mlsConv.epoch >>= assertStatus 200
 
   conv' <- getConversation alice conv >>= getJSON 200

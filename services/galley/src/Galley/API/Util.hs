@@ -97,6 +97,8 @@ import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 
+data NoChanges = NoChanges
+
 ensureAccessRole ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotATeamMember) r,
@@ -1154,6 +1156,9 @@ getBrigClients users = do
   if isInternal
     then fromUserClients <$> lookupClients users
     else getClients users
+
+getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
+getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 --------------------------------------------------------------------------------
 -- Handling remote errors

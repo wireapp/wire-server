@@ -61,7 +61,8 @@ instance ToSchema ConversationActionTag where
           element "ConversationReceiptModeUpdateTag" ConversationReceiptModeUpdateTag,
           element "ConversationAccessDataTag" ConversationAccessDataTag,
           element "ConversationUpdateProtocolTag" ConversationUpdateProtocolTag,
-          element "ConversationUpdateAddPermissionTag" ConversationUpdateAddPermissionTag
+          element "ConversationUpdateAddPermissionTag" ConversationUpdateAddPermissionTag,
+          element "ConversationResetTag" ConversationResetTag
         ]
 
 instance ToJSON ConversationActionTag where

@@ -36,7 +36,6 @@ module Galley.API.Action
     notifyConversationAction,
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
-    kickMember,
     ConversationUpdate,
     getFederationStatus,
     enforceFederationProtocol,
@@ -65,6 +64,10 @@ import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
+import Galley.API.Action.Kick
+import Galley.API.Action.Leave
+import Galley.API.Action.Notify
+import Galley.API.Action.Reset
 import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
@@ -77,7 +80,6 @@ import Galley.Data.Conversation.Types
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BotAccess qualified as E
 import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.CodeStore qualified as E
@@ -94,10 +96,10 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource
 import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
@@ -111,7 +113,6 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
@@ -126,8 +127,6 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.NotificationSubsystem
-
-data NoChanges = NoChanges
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
@@ -268,7 +267,23 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member (ErrorS 'InvalidTargetAccess) r
     )
-  HasConversationActionEffects 'ConversationResetTag r = ()
+  HasConversationActionEffects 'ConversationResetTag r =
+    ( Member (Input Env) r,
+      Member (Input UTCTime) r,
+      Member (ErrorS ConvNotFound) r,
+      Member (ErrorS InvalidOperation) r,
+      Member ConversationStore r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member MemberStore r,
+      Member NotificationSubsystem r,
+      Member ProposalStore r,
+      Member Random r,
+      Member SubConversationStore r,
+      Member Resource r,
+      Member TinyLog r,
+      Member (ErrorS MLSStaleMessage) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -348,6 +363,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
      ]
   HasConversationActionGalleyErrors 'ConversationResetTag =
     '[ ErrorS (ActionDenied LeaveConversation),
+       ErrorS MLSStaleMessage,
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
      ]
@@ -484,10 +500,7 @@ performAction tag origUser lconv action = do
     SConversationJoinTag ->
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
-      let victims = [origUser]
-      lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
-      -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
+      leaveConversation origUser lconv
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
@@ -564,7 +577,8 @@ performAction tag origUser lconv action = do
       E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
       pure (mempty, action)
     SConversationResetTag -> do
-      error "TODO"
+      resetLocalMLSMainConversation origUser lconv action
+      pure (mempty, action)
 
 performConversationJoin ::
   forall r.
@@ -791,12 +805,6 @@ performConversationAccessData qusr lconv action = do
             pure $ bm {bmLocals = Set.fromList noTeamMembers}
           Nothing -> pure bm
 
-data LocalConversationUpdate = LocalConversationUpdate
-  { lcuEvent :: Event,
-    lcuUpdate :: ConversationUpdate
-  }
-  deriving (Show)
-
 updateLocalConversation ::
   forall tag r.
   ( Member BackendNotificationQueueAccess r,
@@ -913,55 +921,6 @@ addMembersToLocalConversation lcnv users role joinType = do
   neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
   let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)
-
-notifyConversationAction ::
-  forall tag r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ExternalAccess r,
-    Member (Error FederationError) r,
-    Member NotificationSubsystem r,
-    Member (Input UTCTime) r
-  ) =>
-  Sing tag ->
-  Qualified UserId ->
-  Bool ->
-  Maybe ConnId ->
-  Local Conversation ->
-  BotsAndMembers ->
-  ConversationAction (tag :: ConversationActionTag) ->
-  Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
-  now <- input
-  let lcnv = fmap (.convId) lconv
-      conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
-      mkUpdate uids =
-        ConversationUpdate
-          now
-          quid
-          (tUnqualified lcnv)
-          uids
-          (SomeConversationAction tag action)
-  update <-
-    fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified) $
-      enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets)) $
-        \ruids -> do
-          let update = mkUpdate (tUnqualified ruids)
-          -- if notifyOrigDomain is false, filter out user from quid's domain,
-          -- because quid's backend will update local state and notify its users
-          -- itself using the ConversationUpdate returned by this function
-          if notifyOrigDomain || tDomain ruids /= qDomain quid
-            then do
-              makeConversationUpdateBundle update >>= sendBundle
-              pure Nothing
-            else pure (Just update)
-
-  -- notify local participants and bots
-  pushConversationEvent con conv e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
-
-  -- return both the event and the 'ConversationUpdate' structure corresponding
-  -- to the originating domain (if it is remote)
-  pure $ LocalConversationUpdate e update
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
@@ -1084,47 +1043,6 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   -- users that are connected to the adder
   E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
-
--- | Kick a user from a conversation and send notifications.
---
--- This function removes the given victim from the conversation by making them
--- leave, but then sends notifications as if the user was removed by someone
--- else.
-kickMember ::
-  ( Member BackendNotificationQueueAccess r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member NotificationSubsystem r,
-    Member ProposalStore r,
-    Member (Input UTCTime) r,
-    Member (Input Env) r,
-    Member MemberStore r,
-    Member SubConversationStore r,
-    Member TinyLog r,
-    Member Random r
-  ) =>
-  Qualified UserId ->
-  Local Conversation ->
-  BotsAndMembers ->
-  Qualified UserId ->
-  Sem r ()
-kickMember qusr lconv targets victim = void . runError @NoChanges $ do
-  (extraTargets, _) <-
-    performAction
-      SConversationLeaveTag
-      victim
-      lconv
-      ()
-  notifyConversationAction
-    (sing @'ConversationRemoveMembersTag)
-    qusr
-    True
-    Nothing
-    lconv
-    (targets <> extraTargets)
-    (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 notifyTypingIndicator ::
   ( Member (Input UTCTime) r,
