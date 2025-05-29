@@ -45,7 +45,6 @@ import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Removal
-import Galley.API.MLS.Reset
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
@@ -124,7 +123,6 @@ federationSitemap =
     :<|> Named @"leave-sub-conversation" leaveSubConversation
     :<|> Named @"get-one2one-conversation@v1" getOne2OneConversationV1
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
-    :<|> Named @"reset-conversation" resetConversation
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
@@ -491,6 +489,7 @@ updateConversation ::
     Member ProposalStore r,
     Member TeamStore r,
     Member TinyLog r,
+    Member Resource r,
     Member ConversationStore r,
     Member Random r,
     Member SubConversationStore r,
@@ -771,7 +770,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
       let qusr = Qualified dscreqUser domain
           dsc = MLSReset dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
-      deleteLocalSubConversation qusr lconv dscreqSubConv dsc
+      resetLocalSubConversation qusr lconv dscreqSubConv dsc
 
 getOne2OneConversationV1 ::
   ( Member (Input (Local ())) r,
@@ -830,45 +829,6 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
         getLocal
         (const (pure GetOne2OneConversationV2BackendMismatch))
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
-
-resetConversation ::
-  ( Member (Input (Local ())) r,
-    Member (Input Env) r,
-    Member (Input UTCTime) r,
-    Member (Error InternalError) r,
-    Member TinyLog r,
-    Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member NotificationSubsystem r,
-    Member MemberStore r,
-    Member ProposalStore r,
-    Member Random r,
-    Member Resource r,
-    Member SubConversationStore r
-  ) =>
-  Domain ->
-  ResetConversationRequest ->
-  Sem r ResetConversationResponse
-resetConversation domain req = handleErrors . mapToGalleyError @ResetConversationStaticErrors $ do
-  loc <- qualifyLocal ()
-  let rusr = toRemoteUnsafe domain req.userId
-  (ctype, qcnvOrSub) <- getConvFromGroupId req.groupId
-  -- only local conversations can be reset via the federation endpoint
-  lcnvOrSub <- foldQualified loc pure (const (throwS @InvalidOperation)) qcnvOrSub
-  let reset = MLSReset {groupId = req.groupId, epoch = req.epoch}
-  resetLocalMLSConversation (tUntagged rusr) ctype lcnvOrSub reset
-  where
-    handleErrors ::
-      Sem (Error GalleyError : Error MLSProtocolError : r) () ->
-      Sem r ResetConversationResponse
-    handleErrors =
-      fmap (either (ResetConversationMLSProtocolError . untag) id)
-        . runError
-        . fmap (either ResetConversationError id)
-        . runError
-        . ($> ResetConversationOk)
 
 --------------------------------------------------------------------------------
 -- Error handling machinery

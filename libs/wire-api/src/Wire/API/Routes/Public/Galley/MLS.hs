@@ -23,6 +23,7 @@ import Data.Schema
 import Imports
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.CommitBundle
@@ -153,6 +154,7 @@ type MLSMessagingAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> CanThrow ('ActionDenied LeaveConversation)
                :> CanThrow 'MLSFederatedResetNotSupported
                :> CanThrow MLSProtocolErrorTag
                :> MultiVerb1
