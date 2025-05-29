@@ -771,7 +771,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
       let qusr = Qualified dscreqUser domain
           dsc = MLSReset dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
-      deleteLocalSubConversation qusr lconv dscreqSubConv dsc
+      resetLocalSubConversation qusr lconv dscreqSubConv dsc
 
 getOne2OneConversationV1 ::
   ( Member (Input (Local ())) r,
@@ -858,7 +858,7 @@ resetConversation domain req = handleErrors . mapToGalleyError @ResetConversatio
   -- only local conversations can be reset via the federation endpoint
   lcnvOrSub <- foldQualified loc pure (const (throwS @InvalidOperation)) qcnvOrSub
   let reset = MLSReset {groupId = req.groupId, epoch = req.epoch}
-  resetLocalMLSConversation (tUntagged rusr) ctype lcnvOrSub reset
+  resetLocalMLSConversation lcnvOrSub (tUntagged rusr) reset
   where
     handleErrors ::
       Sem (Error GalleyError : Error MLSProtocolError : r) () ->

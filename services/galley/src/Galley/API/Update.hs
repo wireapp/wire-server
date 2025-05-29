@@ -354,7 +354,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
               (Just zcon)
               update
       )
-      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr (Just zcon) update)
       qcnv
 
 updateRemoteConversation ::
@@ -373,10 +373,10 @@ updateRemoteConversation ::
   ) =>
   Remote ConvId ->
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   ConversationAction tag ->
   Sem r (UpdateResult Event)
-updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
+updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
   let updateRequest =
         ConversationUpdateRequest
           { user = tUnqualified lusr,
@@ -390,7 +390,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
     ConversationUpdateResponseUnreachableBackends e -> throw e
-  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
+  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) mconn >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -496,9 +496,6 @@ deleteLocalConversation ::
 deleteLocalConversation lusr con lcnv =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
-
-getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
-getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeUnqualifiedWithReqBody ::
   forall r.
@@ -752,7 +749,7 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
             $ newProtocol
       )
       ( \rcnv ->
-          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
+          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr (Just conn) $
             newProtocol
       )
       qcnv
@@ -798,7 +795,7 @@ updateChannelAddPermission lusr zcon qcnv update =
               (Just zcon)
               update
     )
-    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr zcon update)
+    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
 
 joinConversationByReusableCode ::
