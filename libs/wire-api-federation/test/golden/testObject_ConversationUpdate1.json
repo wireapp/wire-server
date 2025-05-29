@@ -1,6 +1,7 @@
 {
     "action": {
         "action": {
+            "join_type": "internal_add",
             "role": "wire_admin",
             "users": [
                 {

@@ -121,6 +121,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol (Protocol (ProtocolMLS), cnvmlsEpoch)
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -131,6 +132,7 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Epoch
 import Wire.API.Message
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
@@ -895,7 +897,7 @@ joinConversation lusr zcon conv access = do
     -- where there is no way to control who joins, etc.
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
-      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
+      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember ExternalAdd
     lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
@@ -907,6 +909,7 @@ joinConversation lusr zcon conv access = do
         action
 
 addMembers ::
+  forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -942,11 +945,19 @@ addMembers ::
   Qualified ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembers lusr zcon qcnv (InviteQualified users role) = do
+addMembers lusr zcon qcnv (InviteQualified users role _userGroups) = do
   lcnv <- ensureLocal lusr qcnv
+  conv <- getConversationWithError lcnv
+  let mEpoch = case conv.convProtocol of
+        ProtocolMLS mlsData -> Just $ cnvmlsEpoch mlsData
+        _ -> Nothing
+  let joinType =
+        if notIsConvMember lusr conv (tUntagged lusr)
+          then if mEpoch == Just (Epoch 0) then ExternalCreate else ExternalAdd
+          else InternalAdd
+  let action = ConversationJoin users role joinType
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
-      ConversationJoin users role
+    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
 
 addMembersUnqualifiedV2 ::
   ( Member BackendNotificationQueueAccess r,
@@ -984,11 +995,11 @@ addMembersUnqualifiedV2 ::
   ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
+addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role _userGroups) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
-      ConversationJoin users role
+      ConversationJoin users role def
 
 addMembersUnqualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -1028,7 +1039,7 @@ addMembersUnqualified ::
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role mempty)
 
 updateSelfMember ::
   ( Member ConversationStore r,
@@ -1645,11 +1656,12 @@ addBot lusr zcon b = do
           (tUntagged lusr)
           t
           ( EdMembersJoin
-              ( SimpleMembers
+              ( MembersJoin
                   [ SimpleMember
                       (tUntagged (qualifyAs lusr (botUserId (botMemId bm))))
                       roleNameWireAdmin
                   ]
+                  InternalAdd
               )
           )
   pushNotifications

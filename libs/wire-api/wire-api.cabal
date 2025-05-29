@@ -462,6 +462,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.LoginCodeTimeout_user
     Test.Wire.API.Golden.Generated.ManagedBy_user
     Test.Wire.API.Golden.Generated.Member_user
+    Test.Wire.API.Golden.Generated.MembersJoin_user
     Test.Wire.API.Golden.Generated.MemberUpdate_user
     Test.Wire.API.Golden.Generated.MemberUpdateData_user
     Test.Wire.API.Golden.Generated.MutedStatus_user
@@ -547,7 +548,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.ServiceToken_provider
     Test.Wire.API.Golden.Generated.SFTServer_user
     Test.Wire.API.Golden.Generated.SimpleMember_user
-    Test.Wire.API.Golden.Generated.SimpleMembers_user
     Test.Wire.API.Golden.Generated.Team_team
     Test.Wire.API.Golden.Generated.TeamBinding_team
     Test.Wire.API.Golden.Generated.TeamContact_user
