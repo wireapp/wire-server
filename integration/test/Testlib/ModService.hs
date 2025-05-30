@@ -6,6 +6,7 @@ module Testlib.ModService
     startDynamicBackends,
     startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
+    logToConsole,
   )
 where
 

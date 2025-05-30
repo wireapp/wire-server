@@ -176,11 +176,10 @@ pub extern "C" fn zauth_token_verification(t: &ZauthToken) -> ZauthTokenVerifica
     From::from(t.0.verification)
 }
 
-// Commented out, looks unused, and causing portability issues with ia32.
-//#[no_mangle]
-//pub extern fn zauth_token_time(t: &ZauthToken) -> c_long {
-//    t.0.timestamp
-//}
+#[no_mangle]
+pub extern fn zauth_token_time(t: &ZauthToken) -> i64 {
+    t.0.timestamp
+}
 
 #[no_mangle]
 pub extern "C" fn zauth_token_version(t: &ZauthToken) -> u8 {

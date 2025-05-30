@@ -329,6 +329,7 @@ http {
         proxy_set_header   Z-Provider     $zauth_provider;
         proxy_set_header   Z-Bot          $zauth_bot;
         proxy_set_header   Z-Conversation $zauth_conversation;
+        proxy_set_header   Z-Timestamp    $zauth_timestamp;
         proxy_set_header   Request-Id     $request_id;
         proxy_set_header   Z-Host         $host;
 
