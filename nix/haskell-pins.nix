@@ -98,8 +98,8 @@ let
     hedis = {
       src = fetchgit {
         url = "https://github.com/wireapp/hedis";
-        rev = "4a50546f02f4c186caa65a20e89d4348a2ca5a26";
-        sha256 = "sha256-A+r18gdaXMlUsQ07sB/jXt8La77W+iZXjLU5WJ4blYQ=";
+        rev = "00d7fbf5f19b812b9e64e12be8860c4741be8558";
+        sha256 = "sha256-BwcqQZf2GaEn2i6o9bVl+jiu/CjShYlHCmO81bYfc8Y=";
       };
     };
 
