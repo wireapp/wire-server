@@ -9,6 +9,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Vector (fromList)
 import GHC.Stack
 import Imports
 import Polysemy
@@ -55,6 +56,10 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
+    UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
+    DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
+    AddUser gid uid -> addUserImpl gid uid
+    RemoveUser gid uid -> removeUserImpl gid uid
 
 createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
@@ -75,9 +80,55 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
+updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
+updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
+  exists <- getUserGroupImpl tid gid
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {name = newName} :: UserGroup)
+
+  modifyUserGroups (Map.alter f (tid, gid))
+  pure $ exists $> ()
+
+deleteUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
+deleteUserGroupImpl tid gid = do
+  exists <- getUserGroupImpl tid gid
+  modifyUserGroups (Map.delete (tid, gid))
+  pure $ exists $> ()
+
+addUserImpl :: (EffectConstraints r) => UserGroupId -> UserId -> Sem r ()
+addUserImpl gid uid = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = fromList . nub $ uid : toList g.members} :: UserGroup)
+
+  modifyUserGroupsGidOnly gid (Map.alter f)
+
+removeUserImpl :: (EffectConstraints r) => UserGroupId -> UserId -> Sem r ()
+removeUserImpl gid uid = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = fromList $ toList g.members \\ [uid]} :: UserGroup)
+
+  modifyUserGroupsGidOnly gid (Map.alter f)
+
+----------------------------------------------------------------------
+
 modifyUserGroups ::
   forall r m.
   (EffectConstraints r, m ~ Map (TeamId, UserGroupId) UserGroup) =>
   (m -> m) ->
   Sem r ()
 modifyUserGroups u = modify (\ms -> ms {userGroups = u ms.userGroups})
+
+modifyUserGroupsGidOnly ::
+  forall r m.
+  (EffectConstraints r, m ~ Map (TeamId, UserGroupId) UserGroup) =>
+  UserGroupId ->
+  ((TeamId, UserGroupId) -> m -> m) ->
+  Sem r ()
+modifyUserGroupsGidOnly gid u = do
+  modify $ \ms -> case filter (\(_, gid') -> gid' == gid) (Map.keys ms.userGroups) of
+    [] -> ms
+    [fullKey] -> ms {userGroups = u fullKey ms.userGroups}
+    bad -> error $ "uuid clash: " <> show bad

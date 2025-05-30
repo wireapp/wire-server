@@ -35,6 +35,10 @@ interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
+    UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
+    DeleteUserGroup tid gid -> deleteGroupImpl tid gid
+    AddUser gid uid -> addUserImpl gid uid
+    RemoveUser gid uid -> removeUserImpl gid uid
 
 getUserGroupImpl ::
   ( Member (Embed IO) r,
@@ -123,3 +127,106 @@ createUserGroupImpl team newUserGroup managedBy = do
         [resultlessStatement|
           insert into user_group_member (user_group_id, user_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
           |]
+
+updateGroupImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  UserGroupUpdate ->
+  Sem r (Maybe ())
+updateGroupImpl tid gid gup = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session (Maybe ())
+    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
+      found <- isJust <$> Transaction.statement (tid, gid, gup.name) updateGroupStatement
+      pure $ if found then Just () else Nothing
+
+    updateGroupStatement :: Statement (TeamId, UserGroupId, UserGroupName) (Maybe Bool)
+    updateGroupStatement =
+      lmap (\(t, g, n) -> (t.toUUID, g.toUUID, userGroupNameToText n)) $
+        [maybeStatement|
+          update user_group set name = ($3 :: text)
+            where team_id = ($1 :: uuid) and id = ($2 :: uuid)
+            returning (true :: bool)
+          |]
+
+deleteGroupImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  Sem r (Maybe ())
+deleteGroupImpl tid gid = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session (Maybe ())
+    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
+      found <- isJust <$> Transaction.statement (tid, gid) deleteGroupStatement
+      pure $ if found then Just () else Nothing
+
+    deleteGroupStatement :: Statement (TeamId, UserGroupId) (Maybe Bool)
+    deleteGroupStatement =
+      lmap (\(t, g) -> (t.toUUID, g.toUUID)) $
+        [maybeStatement|
+          delete from user_group
+            where team_id = ($1 :: uuid) and id = ($2 :: uuid)
+            returning (true :: bool)
+          |]
+
+addUserImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  UserGroupId ->
+  UserId ->
+  Sem r ()
+addUserImpl =
+  crudUser
+    [resultlessStatement|
+      insert into user_group_member (user_group_id, user_id) values (($1 :: uuid), ($2 :: uuid))
+      |]
+
+removeUserImpl ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  UserGroupId ->
+  UserId ->
+  Sem r ()
+removeUserImpl =
+  crudUser
+    [resultlessStatement|
+      delete from user_group_member where user_group_id = ($1 :: uuid) and user_id = ($2 :: uuid)
+      |]
+
+crudUser ::
+  ( Member (Embed IO) r,
+    Member (Input Pool) r,
+    Member (Error UsageError) r
+  ) =>
+  Statement (UUID, UUID) () ->
+  UserGroupId ->
+  UserId ->
+  Sem r ()
+crudUser op gid uid = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
+      Transaction.statement
+        (gid, uid)
+        (lmap (\(gid_, uid_) -> (gid_.toUUID, uid_.toUUID)) op)

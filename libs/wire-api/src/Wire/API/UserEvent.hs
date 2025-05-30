@@ -66,6 +66,8 @@ eventType (PropertyEvent PropertiesCleared) = EventTypePropertiesCleared
 eventType (ClientEvent (ClientAdded _)) = EventTypeClientAdded
 eventType (ClientEvent (ClientRemoved _)) = EventTypeClientRemoved
 eventType (UserGroupEvent (UserGroupCreated _)) = EventTypeUserGroupCreated
+eventType (UserGroupEvent (UserGroupUpdated _)) = EventTypeUserGroupUpdated
+eventType (UserGroupEvent (UserGroupDeleted _)) = EventTypeUserGroupDeleted
 
 data EventType
   = EventTypeUserCreated
@@ -85,6 +87,8 @@ data EventType
   | EventTypeClientRemoved
   | EventTypeConnection
   | EventTypeUserGroupCreated
+  | EventTypeUserGroupUpdated
+  | EventTypeUserGroupDeleted
   deriving stock (Eq, Enum, Bounded)
 
 instance ToSchema EventType where
@@ -107,7 +111,9 @@ instance ToSchema EventType where
           element "user.client-add" EventTypeClientAdded,
           element "user.client-remove" EventTypeClientRemoved,
           element "user.connection" EventTypeConnection,
-          element "user-group.created" EventTypeUserGroupCreated
+          element "user-group.created" EventTypeUserGroupCreated,
+          element "user-group.updated" EventTypeUserGroupUpdated,
+          element "user-group.deleted" EventTypeUserGroupDeleted
         ]
 
 data UserEvent
@@ -132,6 +138,8 @@ data UserEvent
 
 data UserGroupEvent
   = UserGroupCreated !UserGroupId
+  | UserGroupUpdated !UserGroupId
+  | UserGroupDeleted !UserGroupId
   deriving stock (Eq, Show)
 
 data ConnectionEvent = ConnectionUpdated
@@ -381,6 +389,20 @@ eventObjectSchema =
                   _UserGroupCreated
                   (field "user_group" (idObjectSchema schema))
               )
+          EventTypeUserGroupUpdated ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupUpdated
+                  (field "user_group" (idObjectSchema schema))
+              )
+          EventTypeUserGroupDeleted ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupDeleted
+                  (field "user_group" (idObjectSchema schema))
+              )
       )
   where
     noId :: User -> User
@@ -438,3 +460,5 @@ instance ToBytes ClientEvent where
 
 instance ToBytes UserGroupEvent where
   bytes (UserGroupCreated u) = val "user-group.created: " +++ toByteString u
+  bytes (UserGroupUpdated u) = val "user-group.updated: " +++ toByteString u
+  bytes (UserGroupDeleted u) = val "user-group.deleted: " +++ toByteString u
