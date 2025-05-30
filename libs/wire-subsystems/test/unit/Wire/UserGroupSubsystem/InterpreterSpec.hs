@@ -153,7 +153,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                     A.Success (UserGroupEvent (UserGroupCreated ugid)) ->
                       ugid === ug.id_
                         .&&. push.origin === Just (ownerId team)
-                    A.Success (UserGroupEvent (UserGroupMemberAdded ugid)) ->
+                    A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
                       ugid === ug.id_
                         .&&. push.origin === Just (ownerId team)
                         .&&. assertAllMembersReceivedMemberAdded push
@@ -196,7 +196,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                                  RoleMember -> (expectedRecipient `elem` push.recipients) === False
                                  RoleExternalPartner -> (expectedRecipient `elem` push.recipients) === False
                              )
-                    A.Success (UserGroupEvent (UserGroupMemberAdded ugid)) ->
+                    A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
                       ugid === ug.id_
                         .&&. push.origin === Just (ownerId team)
                     _ -> counterexample ("Failed to decode push: " <> show push) False
@@ -458,14 +458,14 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
             assertAddEvent :: UserGroup -> UserId -> Push -> Property
             assertAddEvent ug uid push = case A.fromJSON @Event (A.Object push.json) of
-              A.Success (UserGroupEvent (UserGroupMemberAdded ugid)) ->
+              A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
                 push.origin === Just (ownerId team)
                   .&&. ugid === ug.id_
                   .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]
               _ -> counterexample ("Failed to decode push: " <> show push) False
             assertRemoveEvent :: UserGroup -> UserId -> Push -> Property
             assertRemoveEvent ug uid push = case A.fromJSON @Event (A.Object push.json) of
-              A.Success (UserGroupEvent (UserGroupMemberRemoved ugid)) ->
+              A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
                 push.origin === Just (ownerId team)
                   .&&. ugid === ug.id_
                   .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]

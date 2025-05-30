@@ -82,7 +82,7 @@ createUserGroupImpl creator newGroup = do
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
   pushNotifications
     [ mkEvent creator (UserGroupCreated ug.id_) admins,
-      mkEvent creator (UserGroupMemberAdded ug.id_) (tUnqualified luids)
+      mkEvent creator (UserGroupUpdated ug.id_) (tUnqualified luids)
     ]
   pure ug
 
@@ -204,7 +204,7 @@ addUserImpl adder groupId addeeId = do
   unless (addeeId `elem` ug.members) $ do
     Store.addUser groupId addeeId
     pushNotifications
-      [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId]
+      [ mkEvent adder (UserGroupUpdated groupId) [addeeId]
       ]
 
 removeUserImpl ::
@@ -225,5 +225,5 @@ removeUserImpl remover groupId removeeId = do
   when (removeeId `elem` ug.members) $ do
     Store.removeUser groupId removeeId
     pushNotifications
-      [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId]
+      [ mkEvent remover (UserGroupUpdated groupId) [removeeId]
       ]
