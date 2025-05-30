@@ -29,7 +29,7 @@ spec = do
                   '3',
                   conduitToHxt @(Either String) doc,
                   '4',
-                  docToXML' <$> (conduitToHxt @(Either String) doc),
+                  ourDocToXMLWithRoot <$> (conduitToHxt @(Either String) doc),
                   '5',
                   (conduitToHxt >=> hxtToConduit @(Either String)) doc
                 )

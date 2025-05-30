@@ -224,20 +224,16 @@ setFlag access ws tid featureName value = do
 
   checkFeature featureName ws.user tid expected
 
-checkPatch ::
+checkPatchWithComputeExpected ::
   (HasCallStack, MakesValue domain) =>
   domain ->
   String ->
   Value ->
+  (String -> Value -> Value -> App Value) ->
   App ()
-checkPatch domain featureName patch = do
+checkPatchWithComputeExpected domain featureName patch computeExpectedValue = do
   (owner, tid, _) <- createTeam domain 0
   defFeature <- defAllFeatures %. featureName
-
-  let valueOrDefault :: String -> App Value
-      valueOrDefault key = do
-        mValue <- lookupField patch key
-        maybe (defFeature %. key) pure mValue
 
   checkFeature featureName owner tid defFeature
   void
@@ -256,10 +252,10 @@ checkPatch domain featureName patch = do
         Just ls -> ls `shouldMatch` "locked"
         Nothing -> defFeature %. "lockStatus" `shouldMatch` "locked"
     else do
-      patched %. "status" `shouldMatch` valueOrDefault "status"
+      patched %. "status" `shouldMatch` computeExpectedValue "status" defFeature patch
       mPatchedConfig <- lookupField patched "config"
       case mPatchedConfig of
-        Just patchedConfig -> patchedConfig `shouldMatch` valueOrDefault "config"
+        Just patchedConfig -> patchedConfig `shouldMatch` computeExpectedValue "config" defFeature patch
         Nothing -> do
           mDefConfig <- lookupField defFeature "config"
           assertBool "patch had an unexpected config field" (isNothing mDefConfig)
@@ -271,6 +267,18 @@ checkPatch domain featureName patch = do
         case mPatchedLockStatus of
           Just ls -> ls `shouldMatch` "unlocked"
           Nothing -> defFeature %. "lockStatus" `shouldMatch` "unlocked"
+
+checkPatch ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  Value ->
+  App ()
+checkPatch domain featureName patch = checkPatchWithComputeExpected domain featureName patch computeExpectedValue
+  where
+    computeExpectedValue key defFeature p = do
+      mValue <- lookupField p key
+      maybe (defFeature %. key) pure mValue
 
 data FeatureTests = FeatureTests
   { name :: String,

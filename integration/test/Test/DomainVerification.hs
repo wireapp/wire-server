@@ -599,7 +599,7 @@ testGetDomainRegistrationUserExistsSso = forM_ [ExplicitVersion 8, Versioned] \v
     resp.json %. "domain_redirect" `shouldMatch` "sso"
     resp.json %. "sso_code" `shouldMatch` idpId
 
-  void $ loginWithSaml True tid newUserMail (idpId, idpMeta)
+  void $ loginWithSamlEmail True tid newUserMail (idpId, idpMeta)
 
   -- now the account exists, and but as this is an SSO user they should be directed to the SSO flow
   bindResponse (getDomainRegistrationFromEmail OwnDomain version newUserMail) \resp -> do
@@ -634,7 +634,7 @@ testSsoLoginNoEmailVerification = do
   updateTeamInvite owner emailDomain (object ["team_invite" .= "not-allowed", "sso" .= idpId]) >>= assertSuccess
 
   let email = "user@" <> emailDomain
-  (Just uid, _) <- loginWithSaml True tid email (idpId, idpMeta)
+  (Just uid, _) <- loginWithSamlEmail True tid email (idpId, idpMeta)
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     user <- res.json >>= asList >>= assertOne
@@ -649,7 +649,7 @@ testSsoLoginNoEmailVerification = do
 
   otherEmailDomain <- randomDomain
   let otherEmail = "otherUser@" <> otherEmailDomain
-  (Just otherUid, _) <- loginWithSaml True tid otherEmail (idpId, idpMeta)
+  (Just otherUid, _) <- loginWithSamlEmail True tid otherEmail (idpId, idpMeta)
 
   getUsersId OwnDomain [otherUid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -732,7 +732,7 @@ testScimAndSamlWithRegisteredEmailDomain = do
   uid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "id" >>= asString
-  void $ loginWithSaml True tid email (idpId, idpMeta)
+  void $ loginWithSamlEmail True tid email (idpId, idpMeta)
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -765,7 +765,7 @@ testVerificationRequiredIfEmailDomainRedirectNotSso = do
   updateTeamInvite owner emailDomain (object ["team_invite" .= "team", "team" .= tid]) >>= assertSuccess
 
   let email = "user@" <> emailDomain
-  (Just uid, _) <- loginWithSaml True tid email (idpId, idpMeta)
+  (Just uid, _) <- loginWithSamlEmail True tid email (idpId, idpMeta)
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200

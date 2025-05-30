@@ -111,14 +111,14 @@ normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
 normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
   where
     nameIdTxt :: SAML.UnqualifiedNameID -> Text
-    nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDUnspecified txt) = txt
     nameIdTxt (SAML.UNameIDEmail email) = SAMLEmail.render $ CI.original email
-    nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
-    nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
-    nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDX509 txt) = txt
+    nameIdTxt (SAML.UNameIDWindows txt) = txt
+    nameIdTxt (SAML.UNameIDKerberos txt) = txt
     nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
-    nameIdTxt (SAML.UNameIDPersistent txt) = SAML.unsafeFromXmlText txt
-    nameIdTxt (SAML.UNameIDTransient txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDPersistent txt) = txt
+    nameIdTxt (SAML.UNameIDTransient txt) = txt
 
 -- | Qualifiers are ignored.
 normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID

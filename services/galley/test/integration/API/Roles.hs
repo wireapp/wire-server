@@ -21,7 +21,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
-import Data.Aeson hiding (json)
+import Data.Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List1

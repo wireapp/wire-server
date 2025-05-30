@@ -84,7 +84,6 @@ import Text.XML as XML
 import Text.XML.HXT.Arrow.Pickle.Xml.Invertible qualified as XP
 import Text.XML.HXT.Core qualified as HXTC
 import Text.XML.HXT.DOM.QualifiedName qualified as DOM
-import Text.XML.HXT.DOM.ShowXml qualified as DOM
 import Text.XML.HXT.DOM.XmlNode qualified as DOM
 import Text.XML.HXT.DOM.XmlNode qualified as HXT
 import Text.XML.Util
@@ -150,7 +149,7 @@ stripWhitespaceLBS :: (m ~ Either String) => LBS -> m LBS
 stripWhitespaceLBS lbs = renderLBS def . stripWhitespace <$> fmapL show (parseLBS def lbs)
 
 renderKeyInfo :: (HasCallStack) => X509.SignedCertificate -> LT
-renderKeyInfo cert = cs . HS.samlToXML . HS.KeyInfo Nothing $ HS.X509Data (HS.X509Certificate cert :| []) :| []
+renderKeyInfo cert = cs . ourSamlToXML . HS.KeyInfo Nothing $ HS.X509Data (HS.X509Certificate cert :| []) :| []
 
 certToCreds :: (HasCallStack, MonadError String m) => X509.SignedCertificate -> m SignCreds
 certToCreds cert = do
@@ -354,7 +353,10 @@ applyTransformsXML (HS.Transform (HS.Identified HS.TransformEnvelopedSignature) 
           HXTC.processChildren $
             HXTC.neg (isDSElem "Signature")
       )
-applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . pure
+applyTransformsXML tl = applyTransformsBytes tl . xmlTreesToByteString . pure
+  where
+    xmlTreesToByteString :: HXTC.XmlTrees -> BSL.ByteString
+    xmlTreesToByteString = ourDocToXMLWithoutRoot . (HXT.NTree (HXTC.XText "throw-me-away"))
 
 applyTransforms :: Maybe HS.Transforms -> HXTC.XmlTree -> IO BSL.ByteString
 applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . HS.transforms)

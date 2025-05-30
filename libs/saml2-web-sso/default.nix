@@ -218,6 +218,7 @@ mkDerivation {
     types-common
     uniplate
     uri-bytestring
+    utf8-string
     uuid
     wai
     wai-extra

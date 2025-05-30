@@ -170,7 +170,7 @@ test-suite background-worker-test
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints -Wunused-packages
+    -Wredundant-constraints -Wunused-packages -Wno-x-partial
 
   -- cabal-fmt: expand test
   other-modules:

@@ -72,7 +72,7 @@ storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
   TTL ttl <- Data.mkTTLAssertions env endOfLife
   retry x5 . write ins $ params LocalQuorum (aid, ttl)
   where
-    ins :: PrepQuery W (SAML.XmlText, Int32) ()
+    ins :: PrepQuery W (Text, Int32) ()
     ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
 
 unStoreAssID ::
@@ -81,7 +81,7 @@ unStoreAssID ::
   m ()
 unStoreAssID (SAML.ID aid) = retry x5 . write del . params LocalQuorum $ Identity aid
   where
-    del :: PrepQuery W (Identity SAML.XmlText) ()
+    del :: PrepQuery W (Identity Text) ()
     del = "DELETE FROM authresp WHERE resp = ?"
 
 isAliveAssID ::
@@ -91,5 +91,5 @@ isAliveAssID ::
 isAliveAssID (SAML.ID aid) =
   (==) (Just 1) <$> (retry x1 . query1 sel . params LocalQuorum $ Identity aid)
   where
-    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
+    sel :: PrepQuery R (Identity Text) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"

@@ -5,7 +5,7 @@ import Data.Map
 import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as T
-import Imports
+import Imports hiding ((!?))
 import Polysemy
 import Polysemy.State
 import Text.Printf (printf)

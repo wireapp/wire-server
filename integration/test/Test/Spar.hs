@@ -2,6 +2,7 @@
 
 module Test.Spar where
 
+import API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
@@ -13,6 +14,7 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
+import qualified Data.Text as ST
 import Data.Vector (fromList)
 import qualified Data.Vector as Vector
 import qualified SAML2.WebSSO as SAML
@@ -363,8 +365,11 @@ testSparCreateScimTokenWithName = do
 ----------------------------------------------------------------------
 -- saml stuff
 
-testSparIdPInitiatedLogin :: (HasCallStack) => App ()
-testSparIdPInitiatedLogin = do
+-- | In this test, the IdP attempts an IdP-initiated login, and the client gets redirected
+-- back to IdP from SP with a valid authentication request.  This is to make some hypothetical
+-- attacks harder while still supporting login dashboards in IdP UIs.
+testSparEmulateSPInitiatedLogin :: (HasCallStack) => App ()
+testSparEmulateSPInitiatedLogin = do
   -- set up saml-not-scim team
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -383,6 +388,37 @@ testSparIdPInitiatedLogin = do
     -- /sso/initiate-login here.
     resp.status `shouldMatchInt` 200
     (cs resp.body) `shouldContain` "SAMLRequest"
+
+-- | UTF-8 chars (non-Latin-1) caused issues in XML parsing.
+testSparSPInitiatedLoginWithUtf8 :: (HasCallStack) => App ()
+testSparSPInitiatedLoginWithUtf8 = do
+  -- set up saml-not-scim team
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (createIdpResp, (idpMeta, privcreds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+  assertSuccess createIdpResp
+
+  -- gather info about idp and account
+  idpValue :: A.Value <- createIdpResp.json
+  randomness <- randomId
+  let idp :: SAML.IdPConfig (Value {- not needed -})
+      idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
+
+      userName = "klăusﭲﭳﭴﭵﭶﭷﭸﭹﭺﭻﭼﭽﭾﭿㄖㄗㄘ✈✉♊ႩႪงจฉชซὨὩἈἉἊἋἌἍἎἏຜຝڈډڊڋ" ++ randomness
+      Right (subject :: SAML.NameID) =
+        SAML.mkNameID
+          ((SAML.mkUNameIDUnspecified . ST.pack) userName)
+          Nothing
+          Nothing
+          Nothing
+
+  idpIdString <- asString $ idp ^. SAML.idpId
+
+  -- login
+  (Just uidString, _) <- loginWithSaml True tid subject (idpIdString, (idpMeta, privcreds))
+  ownDomain <- objDomain OwnDomain
+  Brig.getSelf' ownDomain uidString `bindResponse` \resp -> do
+    resp.json %. "name" `shouldMatch` userName
 
 -- | in V6, create two idps then one scim should fail
 testSparCreateTwoScimTokensForOneIdp :: (HasCallStack) => App ()
@@ -405,7 +441,7 @@ testSsoLoginAndEmailVerification = do
   idpId <- asString $ idp.json %. "id"
 
   let email = "user@" <> emailDomain
-  void $ loginWithSaml True tid email (idpId, idpMeta)
+  void $ loginWithSamlEmail True tid email (idpId, idpMeta)
   activateEmail OwnDomain email
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
@@ -426,7 +462,7 @@ testSsoLoginNoSamlEmailValidation = do
   idpId <- asString $ idp.json %. "id"
 
   let email = "user@" <> emailDomain
-  (Just uid, authnResp) <- loginWithSaml True tid email (idpId, idpMeta)
+  (Just uid, authnResp) <- loginWithSamlEmail True tid email (idpId, idpMeta)
   let parsed :: SAML.AuthnResponse =
         fromRight (error "invalid authnResponse")
           . SAMLXML.parseFromDocument
@@ -463,7 +499,7 @@ testIdpUpdate = do
     scimUser <- randomScimUser
     email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
     uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-    void $ loginWithSaml True tid email idp
+    void $ loginWithSamlEmail True tid email idp
     activateEmail OwnDomain email
     getScimUser OwnDomain tok uid `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
@@ -475,11 +511,11 @@ testIdpUpdate = do
     (,meta) <$> asString (resp.json %. "id")
   -- the SCIM users can login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSaml True tid email idp2
+    void $ loginWithSamlEmail True tid email idp2
   -- update the IdP again and use the original metadata
   idp3 <- do
     resp <- updateIdp owner idpId idpmeta
     (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
   -- the SCIM users can still login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSaml True tid email idp3
+    void $ loginWithSamlEmail True tid email idp3

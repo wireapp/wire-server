@@ -4,6 +4,7 @@ module Text.XML.Util where
 
 import Control.Monad.Except
 import Data.ByteString.Lazy qualified as BSL
+import Data.ByteString.Lazy.UTF8 qualified as BSLUTF8
 import Data.Char (isSpace)
 import Data.Generics.Uniplate.Data qualified as Uniplate
 import Data.Kind (Type)
@@ -16,8 +17,8 @@ import Data.Typeable
 import GHC.Stack
 import SAML2.XML qualified as HS
 import Text.XML
+import Text.XML.HXT.Arrow.Pickle.Xml qualified as XP
 import Text.XML.HXT.Core qualified as HXT
-import Text.XML.HXT.DOM.ShowXml qualified
 
 die :: forall (a :: Type) b c m. (HasCallStack, Typeable a, Show b, MonadError String m) => Proxy a -> b -> m c
 die = die' Nothing
@@ -49,17 +50,28 @@ defMiscellaneous :: [Miscellaneous]
 defMiscellaneous = []
 
 hxtToConduit :: (MonadError String m) => HXT.XmlTree -> m Document
-hxtToConduit = either (throwError . ("hxtToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . docToXML'
+hxtToConduit = either (throwError . ("hxtToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . ourDocToXMLWithRoot
 
 conduitToHxt :: (MonadError String m) => Document -> m HXT.XmlTree
 conduitToHxt = either (throwError . ("conduitToHxt: xmlToDoc' failed: " <>)) pure . xmlToDoc' . renderLBS def {rsXMLDeclaration = False}
 
 samlToConduit :: (MonadError String m, HXT.XmlPickler a) => a -> m Document
-samlToConduit = either (throwError . ("samlToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . HS.samlToXML
+samlToConduit = either (throwError . ("samlToConduit: parseLBS failed: " <>) . show) pure . parseLBS def . ourSamlToXML
 
--- | This is subtly different from HS.docToXML' and should probably be moved to hsaml2.
-docToXML' :: HXT.XmlTree -> BSL.ByteString
-docToXML' = Text.XML.HXT.DOM.ShowXml.xshowBlob . (: [])
+ourSamlToXML :: (XP.XmlPickler a) => a -> BSL.ByteString
+ourSamlToXML = ourDocToXMLWithoutRoot . HS.samlToDoc
+
+-- | Direct usage of `xshowBlob` breaks non-Latin-1 encodings (e.g. UTF-8,
+-- Unicode)! This helper function works around these issues.
+ourDocToXMLWithoutRoot :: (HasCallStack) => HXT.XmlTree -> BSL.ByteString
+ourDocToXMLWithoutRoot t = case HXT.runLA (HXT.writeDocumentToString []) t of
+  [xmlContent] -> BSLUTF8.fromString xmlContent
+  other -> error $ "Expected one element. Got: " ++ show other
+
+-- | Direct usage of `xshowBlob` breaks non-Latin-1 encodings (e.g. UTF-8,
+-- Unicode)! This helper function works around these issues.
+ourDocToXMLWithRoot :: HXT.XmlTree -> BSL.ByteString
+ourDocToXMLWithRoot t = ourDocToXMLWithoutRoot $ HXT.NTree (HXT.XText "throw-me-away") [t]
 
 -- | This is subtly different from HS.xmlToDoc' and should probably be moved to hsaml2.
 xmlToDoc' :: (MonadError String m) => BSL.ByteString -> m HXT.XmlTree

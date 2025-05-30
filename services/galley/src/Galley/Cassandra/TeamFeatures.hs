@@ -64,6 +64,9 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetAllDbFeatures tid -> do
     logEffect "TeamFeatureStore.GetAllTeamFeatures"
     getAllDbFeaturesDyn tid
+  TFS.PatchDbFeature sing tid feat -> do
+    logEffect "TeamFeatureStore.PatchDbFeature"
+    patchDbFeatureDyn sing tid feat
 
 getDbFeatureDyn ::
   forall cfg r.
@@ -93,24 +96,43 @@ setDbFeatureDyn ::
   TeamId ->
   LockableFeature cfg ->
   Sem r ()
-setDbFeatureDyn sing tid feat = case featureSingIsFeature sing of
-  Dict -> do
-    let q :: PrepQuery W (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig, TeamId, Text) ()
-        q = "update team_features_dyn set status = ?, lock_status = ?, config = ? where team = ? and feature = ?"
-        dbFeat = serialiseDbFeature feat
-    embedClient $
-      retry x5 $
-        write
-          q
-          ( params
-              LocalQuorum
-              ( dbFeat.status,
-                dbFeat.lockStatus,
-                dbFeat.config,
-                tid,
-                featureName @cfg
-              )
-          )
+setDbFeatureDyn sing tid feat =
+  patchDbFeatureDyn
+    sing
+    tid
+    ( LockableFeaturePatch
+        { status = Just feat.status,
+          lockStatus = Just feat.lockStatus,
+          config = Just feat.config
+        }
+    )
+
+patchDbFeatureDyn ::
+  forall cfg r.
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  LockableFeaturePatch cfg ->
+  Sem r ()
+patchDbFeatureDyn sing tid patch = case featureSingIsFeature sing of
+  Dict -> embedClient $ do
+    retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency LocalQuorum
+      for_ patch.status $ \featureStatus -> addPrepQuery writeStatus (featureStatus, tid, featureName @cfg)
+      for_ patch.lockStatus $ \lockStatus -> addPrepQuery writeLockStatus (lockStatus, tid, featureName @cfg)
+      for_ patch.config $ \config -> addPrepQuery writeConfig (serialiseDbConfig config, tid, featureName @cfg)
+  where
+    writeStatus :: PrepQuery W (FeatureStatus, TeamId, Text) ()
+    writeStatus = "update team_features_dyn set status = ? where team = ? and feature = ?"
+
+    writeLockStatus :: PrepQuery W (LockStatus, TeamId, Text) ()
+    writeLockStatus = "update team_features_dyn set lock_status = ? where team = ? and feature = ?"
+
+    writeConfig :: PrepQuery W (DbConfig, TeamId, Text) ()
+    writeConfig = "update team_features_dyn set config = ? where team = ? and feature = ?"
 
 setFeatureLockStatusDyn ::
   forall cfg r.

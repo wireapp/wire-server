@@ -40,7 +40,7 @@ spec:
   restartPolicy: Never
   containers:
   - name: inconsistencies
-    image: <image-in-your-personal-docker-repo>
+    image: <image-with-tag>
     imagePullPolicy: Always
     args:
     - handle-less-users # adjust to the command you need, see Options.hs
@@ -49,7 +49,7 @@ spec:
     - --cassandra-keyspace-brig
     - brig
     - --inconsistencies-file
-    - /inconsistencies.log
+    - /tmp/inconsistencies.log
 ```
 
 4. Wait for the process to finish. Watch logs, it will say something like "sleeping for 4 hours" and then close all connections to cassandra.
@@ -57,7 +57,7 @@ spec:
 5. Copy the logs using `kubectl cp`
 
 ```
-kubectl cp inconsistencies:/inconsistencies.log inconsistencies.log
+kubectl cp inconsistencies:/tmp/inconsistencies.log inconsistencies.log
 ```
 
 6. **IMPORTANT:** Delete the pod. The easiest way to do this is with `kubectl delete -f <filename>` (which also deletes any configmap)

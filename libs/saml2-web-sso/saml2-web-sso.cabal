@@ -38,7 +38,6 @@ library
     SAML2.WebSSO.Types.Email
     SAML2.WebSSO.Types.TH
     SAML2.WebSSO.XML
-    SAML2.WebSSO.XML.Hack
     Text.XML.DSig
     Text.XML.Util
 
@@ -74,9 +73,11 @@ library
     TypeSynonymInstances
     ViewPatterns
 
+  -- FUTUREWORK: Remove -Wno-x-partial -Wno-deprecations
+  -- These *should* be fine for production code!
   ghc-options:
     -j -O2 -Wall -Wcompat -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wtabs -Werror
+    -Wincomplete-uni-patterns -Wtabs -Wno-x-partial -Wno-deprecations
 
   build-depends:
     , aeson                 >=1.4.5.0
@@ -154,7 +155,7 @@ library
 
   default-language:   GHC2021
 
-test-suite spec
+test-suite saml2-web-sso-tests
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
   other-modules:
@@ -266,6 +267,7 @@ test-suite spec
     , types-common
     , uniplate              >=1.6.12
     , uri-bytestring        >=0.3.2.2
+    , utf8-string
     , uuid                  >=1.3.13
     , wai                   >=3.2.2.1
     , wai-extra             >=3.0.28

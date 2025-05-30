@@ -105,7 +105,7 @@ testDisallowRegistrationWhenEmailDomainIsTakenByATeamWithSSO = do
     resp.json %. "label" `shouldMatch` "condition-failed"
 
   -- Registering with SSO works
-  void $ loginWithSaml True tid ("sso@" <> domain) (idpId, idpMeta)
+  void $ loginWithSamlEmail True tid ("sso@" <> domain) (idpId, idpMeta)
 
   (owner2, _, _) <- createTeam OwnDomain 1
 

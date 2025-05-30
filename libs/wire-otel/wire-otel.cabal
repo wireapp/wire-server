@@ -12,7 +12,7 @@ build-type:      Simple
 extra-doc-files: CHANGELOG.md
 
 common common-all
-  ghc-options:        -O2 -Wall
+  ghc-options:        -O2 -Wall -Wredundant-constraints -Wunused-packages
   default-extensions:
     BlockArguments
     OverloadedLists
@@ -21,26 +21,26 @@ common common-all
 
 library
   import:           common-all
-  exposed-modules:  Wire.OpenTelemetry
+  exposed-modules:
+    Wire.OpenTelemetry
+    Wire.OpenTelemetry.Servant
+
   build-depends:
     , base
+    , bytestring
+    , containers
+    , hs-opentelemetry-api
     , hs-opentelemetry-instrumentation-http-client
-    , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
+    , hs-opentelemetry-utils-exceptions
     , http-client
+    , http-types
     , kan-extensions
+    , mtl
+    , servant-client
+    , servant-client-core
     , text
     , unliftio
 
   hs-source-dirs:   src
   default-language: GHC2021
-
-test-suite wire-otel-test
-  import:           common-all
-  default-language: GHC2021
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          Main.hs
-  build-depends:
-    , base
-    , wire-otel

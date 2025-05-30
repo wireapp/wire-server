@@ -105,7 +105,17 @@ tests s =
       test s "GET /teams/:tid/features/domainRegistration" $ testFeatureStatus @DomainRegistrationConfig,
       test s "PUT /teams/:tid/features/domainRegistration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @DomainRegistrationConfig,
       test s "/teams/:tid/features/channels" $ testLockedFeatureConfig @ChannelsConfig,
-      test s "PUT /teams/:tid/features/channels{,'?lockOrUnlock'}" $ testLockStatus @ChannelsConfig
+      test s "PUT /teams/:tid/features/channels{,'?lockOrUnlock'}" $ testLockStatus @ChannelsConfig,
+      test s "PUT /teams/:tid/features/digitalSignatures{,'?lockOrUnlock'}" $ testLockStatus @DigitalSignaturesConfig,
+      test s "PUT /teams/:tid/features/fileSharing{,'?lockOrUnlock'}" $ testLockStatus @FileSharingConfig,
+      test s "PUT /teams/:tid/features/conference-calling{,'?lockOrUnlock'}" $ testLockStatus @ConferenceCallingConfig,
+      test s "PUT /teams/:tid/features/appLock{,'?lockOrUnlock'}" $ testLockStatus @AppLockConfig,
+      test s "PUT /teams/:tid/features/enforceFileDownloadLocation{,'?lockOrUnlock'}" $ testLockStatus @EnforceFileDownloadLocationConfig,
+      test s "PUT /teams/:tid/features/selfDeletingMessages{,'?lockOrUnlock'}" $ testLockStatus @SelfDeletingMessagesConfig,
+      test s "PUT /teams/:tid/features/guestLinks{,'?lockOrUnlock'}" $ testLockStatus @GuestLinksConfig,
+      test s "PUT /teams/:tid/features/sndFactorPasswordChallenge{,'?lockOrUnlock'}" $ testLockStatus @SndFactorPasswordChallengeConfig,
+      test s "PUT /teams/:tid/features/limitedEventFanout{,'?lockOrUnlock'}" $ testLockStatus @LimitedEventFanoutConfig,
+      test s "PUT /teams/:tid/features/cells{,'?lockOrUnlock'}" $ testLockStatus @CellsConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`

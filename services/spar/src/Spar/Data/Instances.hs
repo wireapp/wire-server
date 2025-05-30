@@ -49,13 +49,6 @@ import URI.ByteString
 import Wire.API.User.Saml
 import Wire.API.User.Scim
 
-instance Cql SAML.XmlText where
-  ctype = Tagged TextColumn
-  toCql = CqlText . SAML.unsafeFromXmlText
-
-  fromCql (CqlText t) = pure $ SAML.mkXmlText t
-  fromCql _ = Left "XmlText: expected CqlText"
-
 instance Cql SignedCertificate where
   ctype = Tagged BlobColumn
   toCql = CqlBlob . LT.encodeUtf8 . renderKeyInfo

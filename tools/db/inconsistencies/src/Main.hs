@@ -28,6 +28,7 @@ import Cassandra.Settings as C
 import DanglingHandles qualified
 import DanglingUserKeys qualified
 import EmailLessUsers qualified
+import EmailUnparseableUsers qualified
 import HandleLessUsers qualified
 import Imports
 import Options as O
@@ -53,6 +54,8 @@ main = do
       DanglingUserKeys.runCommand workLogger brig outputFile
     DanglingUserKeys (Just (inputFile, repairData)) ->
       DanglingUserKeys.runRepair workLogger brig inputFile outputFile repairData
+    EmailUnparseableUsers ->
+      EmailUnparseableUsers.runCommand workLogger brig outputFile
     MissingEmailUserKeys (Just (inputFile, repairData)) ->
       EmailLessUsers.runRepair workLogger brig inputFile outputFile repairData
     MissingEmailUserKeys Nothing ->

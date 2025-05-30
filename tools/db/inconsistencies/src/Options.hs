@@ -41,6 +41,7 @@ data Command
   = DanglingHandles (Maybe (FilePath, Bool))
   | HandleLessUsers
   | DanglingUserKeys (Maybe (FilePath, Bool))
+  | EmailUnparseableUsers
   | MissingEmailUserKeys (Maybe (FilePath, Bool))
 
 optionsParser :: Parser (Command, Settings)
@@ -49,7 +50,7 @@ optionsParser = (,) <$> commandParser <*> settingsParser
 commandParser :: Parser Command
 commandParser =
   subparser $
-    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand <> missingEmailsCommand
+    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand <> unparseableEmailsCommand <> missingEmailsCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
 danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional (inputFileRepairParser "handles")) (progDesc "find handle which shouldn't be claimed"))
@@ -59,6 +60,9 @@ danglingKeysCommand = command "dangling-keys" (info (DanglingUserKeys <$> option
 
 missingEmailsCommand :: Mod CommandFields Command
 missingEmailsCommand = command "missing-email-keys" (info (MissingEmailUserKeys <$> optional (inputFileRepairParser "emails")) (progDesc "find missing email keys (users with emails inside user table but not inside user_keys table)"))
+
+unparseableEmailsCommand :: Mod CommandFields Command
+unparseableEmailsCommand = command "unparseable-emails" (info (pure EmailUnparseableUsers) (progDesc "find users with an email stored that cannot be parsed)"))
 
 handleLessUsersCommand :: Mod CommandFields Command
 handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))

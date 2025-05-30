@@ -48,6 +48,7 @@ module Galley.API.Teams
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
     uncheckedUpdateTeamMember,
+    uncheckedGetTeamAdmins,
     userIsTeamOwner,
     canUserJoinTeam,
     ensureNotTooLargeForLegalHold,
@@ -79,7 +80,6 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.Action
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
-import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
@@ -223,8 +223,6 @@ createNonBindingTeamH _ _ _ = do
 createBindingTeam ::
   ( Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -235,7 +233,6 @@ createBindingTeam tid zusr body = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
-  initialiseTeamFeatures tid
 
   E.createTeamMember tid owner
   now <- input
@@ -633,6 +630,12 @@ uncheckedAddTeamMember tid nmem = do
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem
   owners <- E.getBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) owners
+
+uncheckedGetTeamAdmins :: forall r. (Member TeamStore r) => TeamId -> Sem r TeamMemberList
+uncheckedGetTeamAdmins tid = do
+  admins <- E.getTeamAdmins tid
+  membs <- E.selectTeamMembers tid admins
+  pure $ newTeamMemberList membs ListComplete
 
 uncheckedUpdateTeamMember ::
   forall r.

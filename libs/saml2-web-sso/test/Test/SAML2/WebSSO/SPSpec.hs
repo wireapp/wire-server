@@ -44,22 +44,22 @@ specStoreAssertion = describe "storeAssertion" . before mkTestCtxSimple $ do
       peek ctx = ((^. ctxAssertionStore) <$> readMVar ctx)
   context "id is new" $ do
     it "stores id and returns True" $ \ctx -> do
-      ioFromTestSP ctx (storeAssertion (mkID "phoo") timeIn10minutes)
+      ioFromTestSP ctx (storeAssertion (ID "phoo") timeIn10minutes)
         `shouldReturn` True
       peek ctx
-        `shouldReturn` Map.fromList [(mkID "phoo", timeIn10minutes)]
+        `shouldReturn` Map.fromList [(ID "phoo", timeIn10minutes)]
   context "id is already in the map, but life time is exceeded" $ do
     it "stores id and returns True" $ \ctx -> do
-      _ <- ioFromTestSP ctx $ storeAssertion (mkID "phoo") timeLongAgo -- warmup
-      ioFromTestSP ctx (storeAssertion (mkID "phoo") timeIn10minutes)
+      _ <- ioFromTestSP ctx $ storeAssertion (ID "phoo") timeLongAgo -- warmup
+      ioFromTestSP ctx (storeAssertion (ID "phoo") timeIn10minutes)
         `shouldReturn` True
       peek ctx
-        `shouldReturn` Map.fromList [(mkID "phoo", timeIn10minutes)]
+        `shouldReturn` Map.fromList [(ID "phoo", timeIn10minutes)]
   context "id is already in the map and still alive" $ do
     it "keeps map unchanged and returns False" $ \ctx -> do
-      _ <- ioFromTestSP ctx $ storeAssertion (mkID "phoo") timeIn20minutes -- warmup
+      _ <- ioFromTestSP ctx $ storeAssertion (ID "phoo") timeIn20minutes -- warmup
       bef <- peek ctx
-      ioFromTestSP ctx (storeAssertion (mkID "phoo") timeIn10minutes)
+      ioFromTestSP ctx (storeAssertion (ID "phoo") timeIn10minutes)
         `shouldReturn` False
       aft <- peek ctx
       bef
@@ -70,7 +70,7 @@ specCreateAuthnRequest = do
   describe "createAuthnRequest" $ do
     it "works" $ do
       let reqid :: ID AuthnRequest
-          reqid = mkID "66aaea58-db59-11e8-ba03-2bb52c9e2973"
+          reqid = ID "66aaea58-db59-11e8-ba03-2bb52c9e2973"
           idpIssuer = Issuer [uri|https://sp.net/|]
       ctxv <- mkTestCtxSimple
       modifyMVar_ ctxv $ \ctx -> pure $ ctx & ctxRequestStore .~ Map.singleton reqid (idpIssuer, timeIn10minutes)
@@ -145,13 +145,13 @@ specJudgeT = do
               _rspPayload = assertion :| []
             }
         respid :: ID AuthnResponse
-        respid = mkID "49afd274-db59-11e8-b0be-e3130e26594d"
+        respid = ID "49afd274-db59-11e8-b0be-e3130e26594d"
         reqid :: ID AuthnRequest
-        reqid = mkID "66aaea58-db59-11e8-ba03-2bb52c9e2973"
+        reqid = ID "66aaea58-db59-11e8-ba03-2bb52c9e2973"
         assertion :: Assertion
         assertion =
           Assertion
-            { _assID = mkID "00c224c0-db5b-11e8-ba50-5b03ff78040f",
+            { _assID = ID "00c224c0-db5b-11e8-ba50-5b03ff78040f",
               _assIssueInstant = authnresp ^. rspIssueInstant,
               _assIssuer = Issuer [uri|https://idp.net/sso/login/480748de-db5a-11e8-b20f-031d2337a741|],
               _assConditions =
@@ -207,10 +207,10 @@ specJudgeT = do
       -- considered).
       grants id $
         authnresp
-          & rspInRespTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+          & rspInRespTo ?~ (ID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
       denies id $
         authnresp
-          & scdataL . scdInResponseTo ?~ (mkID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
+          & scdataL . scdInResponseTo ?~ (ID "89f926a4-dc4a-11e8-a44d-ab6b5be7205f")
     context "issue instant in the future" $ do
       let violations :: [AuthnResponse -> AuthnResponse]
           violations =

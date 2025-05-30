@@ -159,7 +159,8 @@ makeSuccessfulSamlLogin ::
   (SAML.IdPMetadata, SAML.SignPrivCreds) ->
   App ()
 makeSuccessfulSamlLogin domain host tid email idpId idpMeta = do
-  void $ loginWithSamlWithZHost (Just host) domain True tid email (idpId, idpMeta)
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (cs email)
+  void $ loginWithSamlWithZHost (Just host) domain True tid nameId (idpId, idpMeta)
   activateEmail domain email
   getUsersByEmail domain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200

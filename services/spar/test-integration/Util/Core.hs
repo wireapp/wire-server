@@ -148,7 +148,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Retry
 import Crypto.Random.Types (MonadRandom)
-import Data.Aeson as Aeson hiding (json)
+import Data.Aeson as Aeson
 import Data.Aeson.Lens as Aeson
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Char8 as B8
@@ -550,7 +550,7 @@ nextWireIdP version = WireIdP <$> iid <*> pure (Just version) <*> pure [] <*> pu
     idpHandle = iid <&> IdPHandle . pack . show
 
 nextSAMLID :: (MonadIO m) => m (ID a)
-nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
+nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
 
 nextHandle :: (MonadIO m) => m Handle
 nextHandle = liftIO $ fromJust . parseHandle . cs . show <$> randomRIO (0 :: Int, 13371137)

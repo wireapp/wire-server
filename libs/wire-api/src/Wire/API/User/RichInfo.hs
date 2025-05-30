@@ -314,7 +314,7 @@ validateRichInfoAssocList version fields = do
     checkDuplicates xs =
       case filter ((> 1) . length) . group . sort $ xs of
         [] -> pure ()
-        ds -> fail ("duplicate fields: " <> show (map head ds))
+        ds -> fail ("duplicate fields: " <> show (mapMaybe listToMaybe ds))
 
 instance Arbitrary RichInfoAssocList where
   arbitrary = mkRichInfoAssocList <$> arbitrary

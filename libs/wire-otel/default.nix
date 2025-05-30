@@ -4,13 +4,20 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
+, bytestring
+, containers
 , gitignoreSource
+, hs-opentelemetry-api
 , hs-opentelemetry-instrumentation-http-client
-, hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
+, hs-opentelemetry-utils-exceptions
 , http-client
+, http-types
 , kan-extensions
 , lib
+, mtl
+, servant-client
+, servant-client-core
 , text
 , unliftio
 }:
@@ -20,15 +27,21 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     base
+    bytestring
+    containers
+    hs-opentelemetry-api
     hs-opentelemetry-instrumentation-http-client
-    hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
+    hs-opentelemetry-utils-exceptions
     http-client
+    http-types
     kan-extensions
+    mtl
+    servant-client
+    servant-client-core
     text
     unliftio
   ];
-  testHaskellDepends = [ base ];
   homepage = "https://wire.com/";
   license = lib.licenses.agpl3Only;
 }

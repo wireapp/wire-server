@@ -32,6 +32,11 @@ data TeamFeatureStore m a where
     TeamId ->
     LockableFeature cfg ->
     TeamFeatureStore m ()
+  PatchDbFeature ::
+    FeatureSingleton cfg ->
+    TeamId ->
+    (LockableFeaturePatch cfg) ->
+    TeamFeatureStore m ()
   SetFeatureLockStatus ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -53,6 +58,13 @@ setDbFeature ::
   LockableFeature cfg ->
   Sem r ()
 setDbFeature tid feat = send (SetDbFeature featureSingleton tid feat)
+
+patchDbFeature ::
+  (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
+  TeamId ->
+  (LockableFeaturePatch cfg) ->
+  Sem r ()
+patchDbFeature tid featPatch = send (PatchDbFeature featureSingleton tid featPatch)
 
 setFeatureLockStatus ::
   forall cfg r.
