@@ -91,8 +91,6 @@ hself: hsuper: {
   singletons-base = hlib.dontCheck (hlib.doJailbreak hsuper.singletons-base_3_5);
 
   # requires a too old base for GHC 9.10
-  amazonka-core = (hlib.doJailbreak hsuper.amazonka-core);
-  # requires a too old base for GHC 9.10
   tasty-wai = (hlib.doJailbreak hsuper.tasty-wai);
   # -----------------
   # flags and patches
