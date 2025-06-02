@@ -71,7 +71,7 @@ authenticationSubsystemErrorToHttpError =
 
 zauthError :: ZAuth.Failure -> Wai.Error
 zauthError ZAuth.Expired = authTokenExpired
-zauthError ZAuth.Falsified = authTokenInvalid
+zauthError ZAuth.Falsified = authTokenFalsified
 zauthError ZAuth.Invalid = authTokenInvalid
 zauthError ZAuth.Unsupported = authTokenUnsupported
 
@@ -80,6 +80,9 @@ authTokenExpired = Wai.mkError status403 "invalid-credentials" "Zauth token expi
 
 authTokenInvalid :: Wai.Error
 authTokenInvalid = Wai.mkError status403 "invalid-credentials" "Invalid zauth token"
+
+authTokenFalsified :: Wai.Error
+authTokenFalsified = Wai.mkError status403 "invalid-credentials" "Zauth token falsified"
 
 authTokenUnsupported :: Wai.Error
 authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported token operation for this token type"

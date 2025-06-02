@@ -693,7 +693,7 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
   put (req . header "Authorization" "xxx")
     !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "Failed reading: Invalid token"
+    !!! errResponse "client-error" "Failed reading: Invalid zauth token"
   put (req . header "Authorization" ("Bearer " <> BS.toStrict tok.access))
     !!! errResponse "invalid-credentials" "Invalid zauth token"
   where
