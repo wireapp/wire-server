@@ -11,6 +11,7 @@ import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
@@ -470,13 +471,24 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   .&&. ugid === ug.id_
                   .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]
               _ -> counterexample ("Failed to decode push: " <> show push) False
+            assertUpdateEvent :: UserGroup -> Push -> Property
+            assertUpdateEvent ug push = case A.fromJSON @Event (A.Object push.json) of
+              A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
+                push.origin === Just (ownerId team)
+                  .&&. ugid === ug.id_
+                  .&&. Set.fromList push.recipients
+                    === Set.fromList [Recipient {recipientUserId = User.userId user, recipientClients = RecipientClientsAll} | user <- allAdmins team]
+              _ -> counterexample ("Failed to decode push: " <> show push) False
          in case resultOrError of
               Left err -> counterexample ("Unexpected error: " <> show err) False
-              Right ([rm, add2, add1, _addInitial, _create], (ug, propertyCheck)) ->
-                assertAddEvent ug (User.userId mbr1) add1
+              Right ([rm, update3, add2, update2, add1, update1, _addInitial, _create], (ug, propertyCheck)) ->
+                propertyCheck
+                  .&&. assertUpdateEvent ug update1
+                  .&&. assertAddEvent ug (User.userId mbr1) add1
+                  .&&. assertUpdateEvent ug update2
                   .&&. assertAddEvent ug (User.userId mbr2) add2
+                  .&&. assertUpdateEvent ug update3
                   .&&. assertRemoveEvent ug (User.userId mbr1) rm
-                  .&&. propertyCheck
 
     prop "added/removed user must be team member." $
       \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam)
@@ -582,6 +594,9 @@ allUsers t = fst <$> t.owner : t.members
 
 ownerId :: ArbitraryTeam -> UserId
 ownerId t = User.userId (fst t.owner)
+
+allAdmins :: ArbitraryTeam -> [User]
+allAdmins t = fst <$> filter (isAdminOrOwner . (^. permissions) . snd) (t.owner : t.members)
 
 -- | The Map is required by the mock GalleyAPIAccess
 galleyTeam :: ArbitraryTeam -> Map TeamId [TeamMember]

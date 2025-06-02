@@ -203,8 +203,10 @@ addUserImpl adder groupId addeeId = do
   void $ getTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   unless (addeeId `elem` ug.members) $ do
     Store.addUser groupId addeeId
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
     pushNotifications
-      [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId]
+      [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId],
+        mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
 removeUserImpl ::
@@ -224,6 +226,8 @@ removeUserImpl remover groupId removeeId = do
   void $ getTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   when (removeeId `elem` ug.members) $ do
     Store.removeUser groupId removeeId
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
     pushNotifications
-      [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId]
+      [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId],
+        mkEvent remover (UserGroupUpdated groupId) admins
       ]
