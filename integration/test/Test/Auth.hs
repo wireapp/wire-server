@@ -168,6 +168,6 @@ testInvalidCookie = do
         Nginz.access domain ("zuid=" <> cookie) `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 403
           resp.json %. "label" `shouldMatch` "invalid-credentials"
-          resp.json %. "message" `shouldMatch` "Token expired"
+          resp.json %. "message" `shouldMatch` "Zauth token expired"
 
 -- @END
