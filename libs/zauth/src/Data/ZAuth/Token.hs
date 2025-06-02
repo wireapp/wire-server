@@ -160,7 +160,7 @@ instance (KnownType t, ReadProperties (Body t)) => FromByteString (Token t) wher
   parser =
     takeLazyByteString >>= \bs ->
       case readToken bs of
-        Nothing -> fail "Invalid token"
+        Nothing -> fail "Invalid zauth token"
         Just t -> pure t
 
 -- | Litte alias to help with reducing constraints. These constraints come

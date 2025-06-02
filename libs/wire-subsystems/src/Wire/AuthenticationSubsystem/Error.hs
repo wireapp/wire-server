@@ -76,10 +76,10 @@ zauthError ZAuth.Invalid = authTokenInvalid
 zauthError ZAuth.Unsupported = authTokenUnsupported
 
 authTokenExpired :: Wai.Error
-authTokenExpired = Wai.mkError status403 "invalid-credentials" "Token expired"
+authTokenExpired = Wai.mkError status403 "invalid-credentials" "Zauth token expired"
 
 authTokenInvalid :: Wai.Error
-authTokenInvalid = Wai.mkError status403 "invalid-credentials" "Invalid token"
+authTokenInvalid = Wai.mkError status403 "invalid-credentials" "Invalid zauth token"
 
 authTokenUnsupported :: Wai.Error
 authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported token operation for this token type"
