@@ -287,8 +287,8 @@ let
     amazonka = {
       src = fetchgit {
         url = "https://github.com/wireapp/amazonka";
-        rev = "b482e255d1fe8f33ceced7b55aa1f6e93081dea8";
-        hash = "sha256-p/07Hge/QwMldpnqV7Ic5GRiQFoaTxzrAjhmu554J4U=";
+        rev = "d98cefc04bcc7076a915076a322ab5905c6a4945";
+        hash = "sha256-8HNHoTUaLi5lyOrKYybacZsDSHrju9/oo+Lf/YulbIo=";
       };
       packages = {
         amazonka = "lib/amazonka";
