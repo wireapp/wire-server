@@ -21,6 +21,7 @@ import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind (Append)
 import Polysemy.State
 import System.Random (StdGen)
+import System.Random qualified as Rand
 import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -114,8 +115,11 @@ timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_0
 spec :: Spec
 spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
   describe "CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup" $ do
-    prop "team admins should be able to create and get groups" $ \team newUserGroupName ->
-      let members = filter (\u -> User.userId u /= ownerId team) (allUsers team)
+    prop "team admins should be able to create and get groups" $ \team newUserGroupName seed ->
+      let rndShuffle xs gen = map fst $ sortOn snd $ zip xs (Rand.randoms gen :: [Int])
+          -- ~half the users
+          n = length (allUsers team) `div` 2 + 1
+          members = take n $ rndShuffle (allUsers team) (Rand.mkStdGen seed)
           resultOrError =
             runDependenciesWithReturnState (allUsers team) (galleyTeam team)
               . interpretUserGroupSubsystem
@@ -142,9 +146,13 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               (\user -> Recipient {recipientUserId = User.userId user, recipientClients = RecipientClientsAll} `elem` push.recipients)
               members
 
-          assertOwnerDoesNotReceiveMemberAdded :: Push -> Bool
-          assertOwnerDoesNotReceiveMemberAdded push =
-            notElem Recipient {recipientUserId = ownerId team, recipientClients = RecipientClientsAll} push.recipients
+          assertOwnerEvent :: Push -> Bool
+          assertOwnerEvent push =
+            if ownerId team `elem` (User.userId <$> members)
+              then
+                Recipient {recipientUserId = ownerId team, recipientClients = RecipientClientsAll} `elem` push.recipients
+              else
+                Recipient {recipientUserId = ownerId team, recipientClients = RecipientClientsAll} `notElem` push.recipients
 
           assertPushEvents :: UserGroup -> [Push] -> Property
           assertPushEvents ug pushes =
@@ -158,7 +166,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                       ugid === ug.id_
                         .&&. push.origin === Just (ownerId team)
                         .&&. assertAllMembersReceivedMemberAdded push
-                        .&&. assertOwnerDoesNotReceiveMemberAdded push
+                        .&&. assertOwnerEvent push
                     _ -> counterexample ("Failed to decode push: " <> show push) False
               )
               (length pushes === 2)
@@ -464,6 +472,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   .&&. ugid === ug.id_
                   .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]
               _ -> counterexample ("Failed to decode push: " <> show push) False
+
             assertRemoveEvent :: UserGroup -> UserId -> Push -> Property
             assertRemoveEvent ug uid push = case A.fromJSON @Event (A.Object push.json) of
               A.Success (UserGroupEvent (UserGroupMemberRemoved ugid)) ->
@@ -471,6 +480,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   .&&. ugid === ug.id_
                   .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]
               _ -> counterexample ("Failed to decode push: " <> show push) False
+
             assertUpdateEvent :: UserGroup -> Push -> Property
             assertUpdateEvent ug push = case A.fromJSON @Event (A.Object push.json) of
               A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
