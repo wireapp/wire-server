@@ -75,7 +75,7 @@ type DocsAPI =
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
-  embedLazyByteString
+  (unTypeCode . embedLazyByteString)
     =<< makeRelativeToProject
       ("docs/swagger-v" <> T.unpack (toUrlPiece (VersionNumber v)) <> ".json")
 

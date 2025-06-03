@@ -83,9 +83,6 @@ instance Arbitrary ContactPerson where
       <*> arbitrary
       <*> arbitrary
 
-instance Arbitrary XmlText where
-  arbitrary = mkXmlText <$> arbitrary
-
 instance Arbitrary ContactType where
   arbitrary =
     elements

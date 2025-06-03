@@ -1,5 +1,5 @@
 dependencies:
 - name: redis
-  version: 16.11.3 # redis 6.2.7
+  version: 19.6.4 # redis 7.2.5
   repository: https://charts.bitnami.com/bitnami
   alias: redis-ephemeral

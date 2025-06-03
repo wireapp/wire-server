@@ -158,7 +158,7 @@ let
     ];
 
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl;
+    inherit (pkgs) libsodium protobuf fetchpatch fetchurl curl pkg-config postgresql openssl;
     inherit hlib mls-test-cli;
   });
 
@@ -352,6 +352,9 @@ let
               "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
               "LANG=en_GB.UTF-8"
+              # Use stable conventions for tracing http in opentelemetry
+              # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
+              "OTEL_SEMCONV_STABILITY_OPT_IN=http"
             ];
             User = "65534";
           };
@@ -495,7 +498,7 @@ in
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "96" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "98" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
@@ -520,6 +523,7 @@ in
       pkgs.nginz
       pkgs.rabbitmqadmin
       pkgs.sbomqs
+      pkgs.postgresql
 
       pkgs.cabal-install
       pkgs.nix-prefetch-git

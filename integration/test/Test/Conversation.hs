@@ -970,3 +970,37 @@ testGetConversationInternal = do
     members <- resp.json %. "members" & asList
     memberIds <- for members (%. "qualified_id")
     memberIds `shouldMatchSet` (for (owner : mems) (%. "qualified_id"))
+
+testGetSelfMember :: (HasCallStack) => App ()
+testGetSelfMember = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [bob], newUsersRole = "wire_member"})
+      >>= getJSON 201
+  bindResponse (getSelfMember alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "conversation_role" `shouldMatch` "wire_admin"
+    resp.json %. "hidden" `shouldMatch` False
+    resp.json %. "hidden_ref" `shouldMatch` Null
+    resp.json %. "otr_archived" `shouldMatch` False
+    resp.json %. "otr_archived_ref" `shouldMatch` Null
+    resp.json %. "otr_muted_ref" `shouldMatch` Null
+    resp.json %. "otr_muted_status" `shouldMatch` Null
+    resp.json %. "qualified_id" `shouldMatch` (alice %. "qualified_id")
+    resp.json %. "service" `shouldMatch` Null
+    resp.json %. "status" `shouldMatchInt` 0
+    resp.json %. "status_ref" `shouldMatch` "0.0"
+
+  bindResponse (getSelfMember bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "conversation_role" `shouldMatch` "wire_member"
+    resp.json %. "hidden" `shouldMatch` False
+    resp.json %. "hidden_ref" `shouldMatch` Null
+    resp.json %. "otr_archived" `shouldMatch` False
+    resp.json %. "otr_archived_ref" `shouldMatch` Null
+    resp.json %. "otr_muted_ref" `shouldMatch` Null
+    resp.json %. "otr_muted_status" `shouldMatch` Null
+    resp.json %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+    resp.json %. "service" `shouldMatch` Null
+    resp.json %. "status" `shouldMatchInt` 0
+    resp.json %. "status_ref" `shouldMatch` "0.0"

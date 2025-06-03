@@ -15,6 +15,7 @@ executable inconsistencies
     DanglingHandles
     DanglingUserKeys
     EmailLessUsers
+    EmailUnparseableUsers
     HandleLessUsers
     Options
     Paths_inconsistencies
@@ -74,6 +75,7 @@ executable inconsistencies
     , bytestring
     , cassandra-util
     , conduit
+    , email-validate
     , extended
     , extra
     , imports

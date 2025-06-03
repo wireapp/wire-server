@@ -50,8 +50,6 @@ let
     };
 
   sources = import ./sources.nix;
-
-  pkgs_old = import sources.nixpkgs_old { config.allowUnfree = true; };
 in
 
 self: super: {
@@ -88,13 +86,6 @@ self: super: {
     ];
   };
 
-  haskellPackages = super.haskellPackages.override {
-    overrides = hself: hsuper: {
-      # https://github.com/ocharles/weeder/pull/165
-      weeder = self.haskell.lib.dontCheck (hself.callPackage ./pkgs/weeder { });
-    };
-  };
-
   stack = staticBinaryInTarball rec {
     pname = "stack";
     version = "2.7.3";
@@ -111,7 +102,4 @@ self: super: {
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
   sbomqs = super.callPackage ./pkgs/sbomqs { };
-
-  # FUTUREWORK: Remove this override when vacuum-go has been fixed so it doesn't panic when running `make openapi-validate`
-  vacuum-go = pkgs_old.vacuum-go;
 }

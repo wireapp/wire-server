@@ -23,6 +23,7 @@ common common-all
   default-language:   GHC2021
   ghc-options:
     -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
+    -Wno-x-partial
 
   default-extensions:
     AllowAmbiguousTypes
@@ -142,7 +143,6 @@ library
     Test.FeatureFlags.EnforceFileDownloadLocation
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
-    Test.FeatureFlags.Initialisation
     Test.FeatureFlags.LegalHold
     Test.FeatureFlags.Mls
     Test.FeatureFlags.MlsE2EId
@@ -190,6 +190,7 @@ library
     Test.Teams
     Test.TeamSettings
     Test.User
+    Test.UserGroup
     Test.Version
     Testlib.App
     Testlib.Assertions

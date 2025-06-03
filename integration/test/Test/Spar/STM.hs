@@ -232,10 +232,10 @@ validateStateLoginAllUsers owner tid state = do
       Just idp -> do
         -- check that no invitation was sent
         getInvitationByEmail OwnDomain email >>= assertStatus 404
-        void $ loginWithSaml True tid email idp
+        void $ loginWithSamlEmail True tid email idp
         bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
           resp.status `shouldMatchInt` 204
-        void $ loginWithSaml False tid email idp
+        void $ loginWithSamlEmail False tid email idp
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do

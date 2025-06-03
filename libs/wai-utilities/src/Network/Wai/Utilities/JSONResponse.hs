@@ -62,9 +62,15 @@ waiErrorToJSONResponse :: Wai.Error -> JSONResponse
 waiErrorToJSONResponse e =
   JSONResponse
     { status = Wai.code e,
-      value = toJSON e,
+      value = toJSON sanitized,
       headers = []
     }
+  where
+    sanitized :: Wai.Error
+    sanitized =
+      if Wai.code e == status500
+        then e {Wai.message = "Internal Server Error"}
+        else e
 
 jsonResponseToWai :: JSONResponse -> Response
 jsonResponseToWai r = responseLBS r.status (jsonContent : r.headers) (A.encode r.value)

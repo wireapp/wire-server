@@ -57,7 +57,7 @@ spec = do
           SpecWith TestEnv
         check x = it (show (typeRep @a)) . liftIO $ do
           (fromCql . toCql) x `shouldBe` Right x
-    check (mkXmlText "<>%&'\"")
+    check ("<>%&'\"" :: Text)
   -- FUTUREWORK: collect all Cql instance, make them Arbitrary instances, and do this right.
 
   describe "TTL" $ do

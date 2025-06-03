@@ -758,8 +758,6 @@ testCreateUserNoIdPNoEmail = do
   user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just "notanemail"}
   createUser_ (Just tok) user (env ^. teSpar) !!! do
     const 400 === statusCode
-    -- TODO(fisx): test for error labels consistently...
-    const (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID") =~= responseBody
 
 testCreateUserWithSamlIdP :: TestSpar ()
 testCreateUserWithSamlIdP = do

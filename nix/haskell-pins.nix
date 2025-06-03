@@ -83,32 +83,11 @@ let
       };
     };
 
-    # PR: https://github.com/kazu-yamamoto/crypton-certificate/pull/8
-    crypton-certificates = {
-      src = fetchgit {
-        url = "https://github.com/akshaymankar/hs-certificate";
-        rev = "9e293695d8ca5efc513ee0082ae955ff9b32eb6b";
-        hash = "sha256-mD5Dvuzol3K9CNNSfa2L9ir9AbrQ8HJc0QNmkK3qBWk=";
-      };
-      packages = {
-        "crypton-x509-validation" = "x509-validation";
-      };
-    };
-
-    # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
-    HaskellNet-SSL = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/HaskellNet-SSL";
-        rev = "c2844b63a39f458ffbfe62f2ac824017f1f84453";
-        hash = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
-      };
-    };
-
-    # PR https://github.com/dylex/hsaml2/pull/20
+    # Merged PR https://github.com/dylex/hsaml2/pull/20
     hsaml2 = {
       src = fetchgit {
-        url = "https://github.com/mangoiv/hsaml2";
-        rev = "d35f92a3253d146c92caf371b90eb4889841918a";
+        url = "https://github.com/dylex/hsaml2";
+        rev = "874627ad22e69afe4d9a797e39633ffb30697c78";
         hash = "sha256-gufEAC7fFqafG8dXkGIOSfAcVv+ZWkawmBgUV+Ics2s=";
       };
     };
@@ -119,8 +98,8 @@ let
     hedis = {
       src = fetchgit {
         url = "https://github.com/wireapp/hedis";
-        rev = "87f4a5ecfa572dfdc9ebe905485d0012ad2d1833";
-        sha256 = "sha256-3evlUj/n39SYncJDUjN6hk12tn/DyCFy2TFvP0/6xdU=";
+        rev = "00d7fbf5f19b812b9e64e12be8860c4741be8558";
+        sha256 = "sha256-BwcqQZf2GaEn2i6o9bVl+jiu/CjShYlHCmO81bYfc8Y=";
       };
     };
 
@@ -215,8 +194,8 @@ let
     postie = {
       src = fetchgit {
         url = "https://github.com/alexbiehl/postie";
-        rev = "7321b977a2b427e0be782b7239901e4edfbb027f";
-        hash = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
+        rev = "13404b8cb7164cd9010c9be6cda5423194dd0c06";
+        hash = "sha256-nNivtyBpr4DFsbaXxlCznX+MYtzNshU7vfVpnhMh52c=";
       };
     };
 
@@ -232,8 +211,8 @@ let
     tasty-ant-xml = {
       src = fetchgit {
         url = "https://github.com/wireapp/tasty-ant-xml";
-        rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
-        hash = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
+        rev = "11c53e976e2e941f25a33e8768669eb576d19ea8";
+        hash = "sha256-Aj/iTVECsCGq4f+32FXWyYj/iLH5e4Gm4hYRmewnJJM=";
       };
     };
 
@@ -269,12 +248,13 @@ let
       };
     };
 
-    # hs-opentelemetry-* has not been released for a while on hackage
+    # hs-opentelemetry-* has not been released for a while on hackage. Thus,
+    # we're following main.
     hs-opentelemetry = {
       src = fetchgit {
         url = "https://github.com/iand675/hs-opentelemetry";
-        rev = "0b3c854a88113fc18df8561202a76357e593a294";
-        hash = "sha256-N5FzKz6T1sE9xffGCeWa+iTW8a1GCLsy2TlAjzIed34=";
+        rev = "ee8a6dad7db306eb67748ddcd77df4974ad8259e";
+        hash = "sha256-UirBRxY9gAv5x/t87RZcWCy6GtsigzFMABKqrhS9b7s=";
       };
       packages = {
         hs-opentelemetry-sdk = "sdk";
@@ -283,9 +263,45 @@ let
         hs-opentelemetry-instrumentation-http-client = "instrumentation/http-client";
         hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
         hs-opentelemetry-exporter-otlp = "exporters/otlp";
+        hs-opentelemetry-utils-exceptions = "utils/exceptions";
       };
     };
 
+    HaskellNet = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/HaskellNet";
+        rev = "74cde03b4beb09794a6120ea5321a09430bcd2c7";
+        hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
+      };
+    };
+
+    # Our fork of 2.0.0. This release hasn't been updated for a while and Nix
+    # is bad in coping with Hackage patched revisions and overriding
+    # ghc-options. So, we have our fork to gain GHC 9.8 compatibility.
+    #
+    # N.B. only the listed packages work. If you want to use another:
+    # - list it here
+    # - patch it on the fork (if required)
+    amazonka = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/amazonka";
+        rev = "b482e255d1fe8f33ceced7b55aa1f6e93081dea8";
+        hash = "sha256-p/07Hge/QwMldpnqV7Ic5GRiQFoaTxzrAjhmu554J4U=";
+      };
+      packages = {
+        amazonka = "lib/amazonka";
+        amazonka-core = "lib/amazonka-core";
+        amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+        amazonka-s3 = "lib/services/amazonka-s3";
+        amazonka-sts = "lib/services/amazonka-sts";
+        amazonka-sqs = "lib/services/amazonka-sqs";
+        amazonka-ses = "lib/services/amazonka-ses";
+        amazonka-sns = "lib/services/amazonka-sns";
+        amazonka-sso = "lib/services/amazonka-sso";
+        amazonka-gen = "gen/";
+        amazonka-test = "lib/amazonka-test";
+      };
+    };
   };
 
   hackagePins = {
@@ -293,6 +309,11 @@ let
     http-semantics = {
       version = "0.1.2";
       sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
+    };
+
+    tasty-ant-xml = {
+      version = "1.1.9";
+      sha256 = "sha256-aB7B61XSAZ5V+uW+QBe/PKBmhdFfX3OoOjDE9jB7Mek=";
     };
 
     network-run = {
@@ -303,9 +324,29 @@ let
       version = "0.1.0";
       sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
     };
-    auto-update = {
-      version = "0.2.0";
-      sha256 = "sha256-d/0IDjaaCLz8tlx88z8Ew8ol9PrSRPVWaUwTbim70yE=";
+    hasql = {
+      version = "1.9.1.2";
+      sha256 = "sha256-W2pAC3wLIizmbspWHeWDQqb5AROtwA8Ok+lfZtzTlQg=";
+    };
+
+    hasql-pool = {
+      version = "1.3.0.1";
+      sha256 = "sha256-TtNrs1z8L39WnX8277V97g9Ot1DwutKLrAB1JOjQQoQ=";
+    };
+
+    postgresql-syntax = {
+      version = "0.4.1.3";
+      sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
+    };
+
+    text-builder-core = {
+      version = "0.1.1.1";
+      sha256 = "sha256-BX6JRG+K1PnS3GLvpakG7rTsARfVmGLl1gTW0a4UyDo=";
+    };
+
+    text-builder = {
+      version = "1.0.0.3";
+      sha256 = "sha256-9VCOzwebs89KosOouJjFUcAgY6PF97yJnnIp4HZOK20=";
     };
 
     network-control = {
@@ -314,12 +355,13 @@ let
     };
     # end pinned dependencies for http2
 
-    # PR: https://github.com/wireapp/wire-server/pull/4027
-    HsOpenSSL = {
-      version = "0.11.7.7";
-      sha256 = "sha256-45qWTqfY4fwCjTQsQg/f0EPkC5KZ8CFZYH4cwcw3Y18=";
+    # This pin should not be necessary. However, without it, Nix tries to fetch
+    # the sources from the `amazonka` package and fails.
+    # Fix: https://github.com/NixOS/nixpkgs/pull/409098
+    amazonka-s3-streaming = {
+      version = "2.0.0.0";
+      sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
     };
-
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:

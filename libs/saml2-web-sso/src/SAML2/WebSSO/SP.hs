@@ -110,7 +110,7 @@ getNowIO = Time <$> liftIO getCurrentTime
 -- <>) . filter (/= '-') . cs . UUID.toText <$> createUUID@.  Hopefully the more common form
 -- produced by this function is also ok.)
 createID :: (Functor m, SP m) => m (ID a)
-createID = mkID . ("_" <>) . UUID.toText <$> createUUID
+createID = ID . ("_" <>) . UUID.toText <$> createUUID
 
 -- | Generate an 'AuthnRequest' value for the initiate-login response.  The 'NameIdPolicy' is
 -- 'NameIDFUnspecified'.

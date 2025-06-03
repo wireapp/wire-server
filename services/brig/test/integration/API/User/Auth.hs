@@ -33,7 +33,7 @@ import Cassandra hiding (Client, Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Retry
-import Data.Aeson as Aeson hiding (json)
+import Data.Aeson as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as Lazy

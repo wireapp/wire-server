@@ -1,3 +1,46 @@
+# [2025-05-30] (Chart Release 5.16.0)
+
+## Release notes
+
+
+* With this commit a dependency to postgres is introduced. Postgres must be available in the deployment environment and brig must be configured with the correct connection credentials. (#4545)
+
+* Remove `initialConfig` setting for the `mls` feature flag (#4585)
+
+
+## Features
+
+
+* API to create and get a User Group (#4545)
+
+* New endpoint to get the self member of a conversation (#4592)
+
+
+## Bug fixes and other updates
+
+
+* Unicode support: the last release contained a work-around for an issue with the hxt library.  It turned out the issue was in wire-server all along, and hxt just did things in an unexpected, but sound way.  This release removes the work-around and provides a proper fix. (#4587)
+
+
+## Internal changes
+
+
+* Additional handlers for (un-)locking features via backoffice/stern (#4588)
+
+* Fixed internal team feature patch (#4588)
+
+* Support Redis >= 7.0 (#4598)
+
+* galley: Make servant calls to brig/spar with requestId header and retries (#4589)
+
+* Add tool to find users with unparseable emails (#4578)
+
+* Upgrade nixpkgs to
+  https://github.com/NixOS/nixpkgs/commits/b3582c75c7f21ce0b429898980eddbbf05c68e55
+  . This not only updates our Haskell dependencies to a current state, but also
+  leads to an implicit upgrade of the used GHC to version 9.8. (#4569)
+
+
 # [2025-05-16] (Chart Release 5.15.0)
 
 ## API changes

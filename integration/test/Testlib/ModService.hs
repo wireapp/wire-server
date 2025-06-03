@@ -148,6 +148,7 @@ startDynamicBackend resource beOverrides = do
         mconcat
           [ setKeyspace,
             setEsIndex,
+            setPgDb,
             setFederationSettings,
             setAwsConfigs,
             setMlsPrivateKeyPaths,
@@ -212,6 +213,11 @@ startDynamicBackend resource beOverrides = do
           brigCfg = setField "cassandra.keyspace" resource.berBrigKeyspace,
           sparCfg = setField "cassandra.keyspace" resource.berSparKeyspace,
           gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace
+        }
+    setPgDb :: ServiceOverrides
+    setPgDb =
+      def
+        { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
         }
 
     setEsIndex :: ServiceOverrides

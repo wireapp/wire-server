@@ -578,15 +578,15 @@ setTeamFeatureLockStatus tid lstat = do
     $ rpc'
       "galley"
       gly
-      ( method PUT
+      ( method PATCH
           . Bilge.paths
             [ "i",
               "teams",
               toByteString' tid,
               "features",
-              Public.featureNameBS @cfg,
-              toByteString' lstat
+              Public.featureNameBS @cfg
             ]
+          . Bilge.json (object ["lockStatus" .= lstat])
       )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler ()
