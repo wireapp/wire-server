@@ -502,9 +502,9 @@ static ZauthResult token_from_header (ngx_str_t const * hdr, ZauthToken ** t) {
         char const * aws4_hmac_sha256 = "AWS4-HMAC-SHA256 ";
         size_t aws4_hmac_sha256_len = 17;
         if (hdr->len >= bearer_len && strncmp((char const *) hdr->data, bearer, bearer_len) == 0) {
-                return zauth_token_parse(&hdr->data[7], hdr->len - bearer_len, t);
+                return zauth_token_parse(&hdr->data[bearer_len], hdr->len - bearer_len, t);
         } else if (hdr->len >= aws4_hmac_sha256_len && strncmp((char const *) hdr->data, aws4_hmac_sha256, aws4_hmac_sha256_len) == 0) {
-                return token_from_aws_hmac_header(&hdr->data[17], hdr->len - aws4_hmac_sha256_len, t);
+                return token_from_aws_hmac_header(&hdr->data[aws4_hmac_sha256_len], hdr->len - aws4_hmac_sha256_len, t);
         } else {
                 return ZAUTH_PARSE_ERROR;
         }
