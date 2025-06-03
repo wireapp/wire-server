@@ -498,9 +498,9 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
 
 static ZauthResult token_from_header (ngx_str_t const * hdr, ZauthToken ** t) {
         char const * bearer = "Bearer ";
-        size_t bearer_len = strlen(bearer);
+        size_t bearer_len = 7; // strlen(bearer) is not safe, says sonar cloud
         char const * aws4_hmac_sha256 = "AWS4-HMAC-SHA256 ";
-        size_t aws4_hmac_sha256_len = strlen(bearer);
+        size_t aws4_hmac_sha256_len = 17;
         if (strncmp((char const *) hdr->data, bearer, bearer_len) == 0) {
                 return zauth_token_parse(&hdr->data[7], hdr->len - bearer_len, t);
         } else if (strncmp((char const *) hdr->data, aws4_hmac_sha256, aws4_hmac_sha256_len) == 0) {
@@ -512,7 +512,7 @@ static ZauthResult token_from_header (ngx_str_t const * hdr, ZauthToken ** t) {
 
 static ZauthResult token_from_query (ngx_str_t const * query, ZauthToken ** t) {
         char const * param_name = "access_token=";
-        size_t param_name_len = strlen(param_name);
+        size_t param_name_len = 13;
         uint8_t const * start = memmem(query->data, query->len, param_name , param_name_len);
 
         if (start == NULL) {
@@ -531,7 +531,7 @@ static ZauthResult token_from_query (ngx_str_t const * query, ZauthToken ** t) {
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
 static ZauthResult token_from_aws_hmac_header(uint8_t const * auth_header, size_t auth_header_len, ZauthToken ** t) {
         char const * component_name = "Credential=";
-        size_t component_name_len = strlen(component_name);
+        size_t component_name_len = 11;
         uint8_t const * start = memmem(auth_header, auth_header_len, component_name, component_name_len);
 
         if (start == NULL) {
