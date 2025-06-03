@@ -12,6 +12,54 @@ import Text.Read
 import UnliftIO.Async
 import UnliftIO.Concurrent
 
+-- Happy flow: login yields a valid zauth token.
+--
+-- See also: 'testBearerToken'
+testBearerToken2 :: (HasCallStack) => App ()
+testBearerToken2 = do
+  alice <- randomUser OwnDomain def
+  email <- asString $ alice %. "email"
+  loginResp <- login alice email defPassword >>= getJSON 200
+  token <- asString $ loginResp %. "access_token"
+
+  req <-
+    rawBaseRequest alice Nginz Versioned "/self"
+      <&> addHeader "Authorization" ("Bearer " <> token)
+  submit "GET" req `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "email" `shouldMatch` email
+
+-- Happy flow (zauth token encoded in AWS4_HMAC_SHA256)
+--
+-- See also: 'testAWS4_HMAC_SHA256_token'
+testAWS4_HMAC_SHA256_token2 :: (HasCallStack) => App ()
+testAWS4_HMAC_SHA256_token2 = do
+  alice <- randomUser OwnDomain def
+  email <- asString $ alice %. "email"
+  loginResp <- login alice email defPassword >>= getJSON 200
+  token <- asString $ loginResp %. "access_token"
+
+  let testCases =
+        [ (True, "AWS4-HMAC-SHA256 Credential=" <> token <> ", foo=bar"),
+          (True, "AWS4-HMAC-SHA256 Credential=" <> token),
+          (True, "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token),
+          (True, "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token <> ", baz=qux"),
+          (True, "AWS4-HMAC-SHA256 foo=bar,Credential=" <> token <> ",baz=qux"),
+          (False, "AWS4-HMAC-SHA256 Credential=badtoken")
+        ]
+
+  for_ testCases $ \(good, header) -> do
+    req <-
+      rawBaseRequest alice Nginz Versioned "/self"
+        <&> addHeader "Authorization" header
+    submit "GET" req `bindResponse` \resp -> do
+      if good
+        then do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "email" `shouldMatch` email
+        else do
+          resp.status `shouldMatchInt` 401
+
 -- The testLimitRetries test conforms to the following testing standards:
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
 --

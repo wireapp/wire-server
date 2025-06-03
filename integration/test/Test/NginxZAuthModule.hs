@@ -27,6 +27,10 @@ import UnliftIO.Directory
 import UnliftIO.Process
 import UnliftIO.Timeout (timeout)
 
+-- Happy flow: login yields a valid zauth token.
+--
+-- This test uses `withTestNginz` which responds with the user id and time stamp from the
+-- token instead of proxying anywhere.  See also: 'testBearerToken2'
 testBearerToken :: (HasCallStack) => App ()
 testBearerToken = do
   runCodensity withTestNginz $ \port -> do
@@ -44,7 +48,12 @@ testBearerToken = do
     submit "GET" req `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
+      resp.json %. "timestamp" `shouldNotMatch` ""
 
+-- Happy flow (zauth token encoded in AWS4_HMAC_SHA256)
+--
+-- This test uses `withTestNginz` which responds with the user id and time stamp from the
+-- token instead of proxying anywhere.  See also: 'testAWS4_HMAC_SHA256_token2'
 testAWS4_HMAC_SHA256_token :: (HasCallStack) => App ()
 testAWS4_HMAC_SHA256_token = do
   runCodensity withTestNginz $ \port -> do
@@ -61,17 +70,24 @@ testAWS4_HMAC_SHA256_token = do
               HTTP.requestHeaders = [(hAuthorization, authHeader)]
             }
         testCases =
-          [ fromString $ "AWS4-HMAC-SHA256 Credential=" <> token <> ", foo=bar",
-            fromString $ "AWS4-HMAC-SHA256 Credential=" <> token,
-            fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token,
-            fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token <> ", baz=qux",
-            fromString $ "AWS4-HMAC-SHA256 foo=bar,Credential=" <> token <> ",baz=qux"
+          [ (True, fromString $ "AWS4-HMAC-SHA256 Credential=" <> token <> ", foo=bar"),
+            (True, fromString $ "AWS4-HMAC-SHA256 Credential=" <> token),
+            (True, fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token),
+            (True, fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token <> ", baz=qux"),
+            (True, fromString $ "AWS4-HMAC-SHA256 foo=bar,Credential=" <> token <> ",baz=qux"),
+            (False, fromString $ "AWS4-HMAC-SHA256 Credential=bad")
           ]
-    for_ testCases $ \header -> do
+    for_ testCases $ \(good, header) -> do
       submit "GET" (mkReq header) `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
-        resp.json %. "timestamp" `shouldNotMatch` ""
+        if good
+          then do
+            resp.status `shouldMatchInt` 200
+            resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
+            resp.json %. "timestamp" `shouldNotMatch` ""
+          else do
+            resp.status `shouldMatchInt` 200
+            resp.json %. "user" `shouldMatch` ""
+            resp.json %. "timestamp" `shouldMatch` ""
 
 withTestNginz :: Codensity App Int
 withTestNginz = do
