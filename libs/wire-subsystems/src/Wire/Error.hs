@@ -6,7 +6,7 @@ import Data.ByteString qualified as BS
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LT
-import Hasql.Pool (UsageError)
+import Hasql.Pool
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities.Error qualified as Wai
@@ -43,5 +43,12 @@ httpErrorToJSONResponse e@(RichError werr _ headers) =
     }
 
 postgresUsageErrorToHttpError :: UsageError -> HttpError
-postgresUsageErrorToHttpError =
-  StdError . \err -> Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err)
+postgresUsageErrorToHttpError err = case err of
+  SessionUsageError _se ->
+    -- FUTUREWORK: should this case should be more nuanced?  eg., if a foreign key is dangling, should we
+    -- return "404 not found", not "database crashed"?
+    -- The problem is that the SessionError is not typed to easily be parsed
+    -- To prevent foreign key errors we should check the foreign key constraints before inserting
+    StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))

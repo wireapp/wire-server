@@ -78,7 +78,7 @@ instance (Member ScimTokenStore r) => Scim.Class.Auth.AuthDB SparTag (Sem r) whe
   authCheck Nothing =
     Scim.throwScim (Scim.unauthorized "Token not provided")
   authCheck (Just token) =
-    maybe (Scim.throwScim (Scim.unauthorized "Invalid token")) pure
+    maybe (Scim.throwScim (Scim.unauthorized "Invalid SCIM token")) pure
       =<< lift (ScimTokenStore.lookup token)
 
 ----------------------------------------------------------------------------

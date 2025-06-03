@@ -144,7 +144,7 @@ testInvalidCookie = do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "client-error"
         msg <- asString $ resp.json %. "message"
-        msg `shouldContain` "Invalid token"
+        msg `shouldContain` "Invalid zauth token"
 
       (owner, tid, [alice]) <- createTeam domain 2
       aliceEmail <- asString $ alice %. "email"
@@ -168,6 +168,6 @@ testInvalidCookie = do
         Nginz.access domain ("zuid=" <> cookie) `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 403
           resp.json %. "label" `shouldMatch` "invalid-credentials"
-          resp.json %. "message" `shouldMatch` "Token expired"
+          resp.json %. "message" `shouldMatch` "Zauth token expired"
 
 -- @END
