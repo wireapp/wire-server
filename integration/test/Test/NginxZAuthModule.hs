@@ -60,14 +60,14 @@ testAWS4_HMAC_SHA256_token = do
             { HTTP.port = port,
               HTTP.requestHeaders = [(hAuthorization, authHeader)]
             }
-        headersToTest =
+        testCases =
           [ fromString $ "AWS4-HMAC-SHA256 Credential=" <> token <> ", foo=bar",
             fromString $ "AWS4-HMAC-SHA256 Credential=" <> token,
             fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token,
             fromString $ "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token <> ", baz=qux",
             fromString $ "AWS4-HMAC-SHA256 foo=bar,Credential=" <> token <> ",baz=qux"
           ]
-    for_ headersToTest $ \header -> do
+    for_ testCases $ \header -> do
       submit "GET" (mkReq header) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
