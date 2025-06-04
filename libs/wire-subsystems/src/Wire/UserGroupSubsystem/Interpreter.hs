@@ -169,7 +169,7 @@ deleteGroupImpl ::
   Sem r ()
 deleteGroupImpl deleter groupId =
   getTeamAsMember deleter >>= \case
-    Nothing -> pure ()
+    Nothing -> throw UserGroupNotFound
     Just (team, member) -> do
       if isAdminOrOwner (member ^. permissions)
         then do
