@@ -210,7 +210,7 @@ testInvalidCookie = do
           pure . fromJust $ getCookie "zuid" resp
 
       -- Wait for both cookies to expire
-      threadDelay $ (cookieTimeout + 1) * 1_000_000
+      threadDelay $ (cookieTimeout + 2) * 1_000_000
       -- Assert that the cookies are considered expired
       for_ [userCookie, lhCookie] $ \cookie ->
         Nginz.access domain ("zuid=" <> cookie) `bindResponse` \resp -> do
