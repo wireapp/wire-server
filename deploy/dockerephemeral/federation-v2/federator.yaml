@@ -25,5 +25,5 @@ optSettings:
   clientCertificate: "/etc/wire/federator/conf/integration-leaf.pem"
   clientPrivateKey: "/etc/wire/federator/conf/integration-leaf-key.pem"
   tcpConnectionTimeout: 5000000
-  dnsHost: 172.20.1.4
+  dnsHost: 172.20.1.5
   dnsPort: 53
