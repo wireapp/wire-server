@@ -168,6 +168,7 @@ library
     Test.MLS.Message
     Test.MLS.Notifications
     Test.MLS.One2One
+    Test.MLS.Reset
     Test.MLS.Services
     Test.MLS.SubConversation
     Test.MLS.Unreachable
