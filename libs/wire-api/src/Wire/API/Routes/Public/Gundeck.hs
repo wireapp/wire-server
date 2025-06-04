@@ -31,7 +31,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 
-type GundeckAPI = PushAPI :<|> NotificationAPI
+type GundeckAPI = PushAPI :<|> NotificationAPI :<|> TimeAPI
 
 type PushAPI =
   Named
@@ -129,6 +129,15 @@ type NotificationAPI =
                      ]
                     (Maybe QueuedNotificationList)
            )
+
+type TimeAPI =
+  Named
+    "get-server-time"
+    ( Summary "Get the current server time"
+        :> ZUser
+        :> "time"
+        :> Get '[JSON] ServerTime
+    )
 
 data GundeckAPITag
 

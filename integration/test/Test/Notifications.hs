@@ -5,6 +5,8 @@ import API.Brig
 import API.Common
 import API.Gundeck
 import API.GundeckInternal
+import Data.Time (UTCTime)
+import Data.Time.Format.ISO8601 (iso8601ParseM)
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
@@ -109,3 +111,13 @@ testAddClientNotification = do
     nPayload n
 
   void $ e %. "client.capabilities.capabilities" & asList
+
+testGetServerTime :: (HasCallStack) => App ()
+testGetServerTime = do
+  user <- randomUser OwnDomain def
+  formattedTimestampStr <-
+    getServerTime user `bindResponse` \r -> do
+      r.status `shouldMatchInt` 200
+      r.json %. "time" & asString
+  let valid = isJust $ iso8601ParseM @Maybe @UTCTime formattedTimestampStr
+  valid `shouldMatch` True
