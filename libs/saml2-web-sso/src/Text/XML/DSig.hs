@@ -63,7 +63,6 @@ import Data.Either (isRight)
 import Data.EitherR (fmapL)
 import Data.Foldable (toList)
 import Data.Hourglass qualified as Hourglass
-import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NL
 import Data.List.NonEmpty qualified as NonEmpty
