@@ -11,7 +11,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 common common-all
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -63,9 +63,104 @@ common common-all
     UndecidableInstances
     ViewPatterns
 
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , amazonka
+    , amazonka-core
+    , amazonka-ses
+    , amqp
+    , async
+    , attoparsec
+    , base
+    , base16-bytestring
+    , base64-bytestring
+    , bilge
+    , bloodhound
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , conduit
+    , containers
+    , cql
+    , crypton
+    , currency-codes
+    , data-default
+    , data-timeout
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , file-embed
+    , hashable
+    , HaskellNet
+    , HaskellNet-SSL
+    , hasql
+    , hasql-migration
+    , hasql-pool
+    , hasql-th
+    , hasql-transaction
+    , hex
+    , HsOpenSSL
+    , hspec
+    , html-entities
+    , http-client
+    , http-types
+    , http2-manager
+    , imports
+    , iproute
+    , iso639
+    , lens
+    , lrucaching
+    , memory
+    , mime
+    , mime-mail
+    , network
+    , network-conduit-tls
+    , polysemy
+    , polysemy-plugin
+    , polysemy-time
+    , polysemy-wire-zoo
+    , profunctors
+    , prometheus-client
+    , QuickCheck
+    , resource-pool
+    , resourcet
+    , retry
+    , saml2-web-sso
+    , schema-profunctor
+    , servant
+    , servant-client-core
+    , sodium-crypto-sign
+    , statistics
+    , stomp-queue
+    , template
+    , text
+    , text-icu-translit
+    , time
+    , time-out
+    , time-units
+    , tinylog
+    , token-bucket
+    , transformers
+    , types-common
+    , unliftio
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , vector
+    , wai-utilities
+    , wire-api
+    , wire-api-federation
+    , wire-otel
+    , witherable
+    , zauth
+
 library
-  import:           common-all
-  ghc-options:      -fplugin=Polysemy.Plugin
+  import:             common-all
+  ghc-options:        -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -126,6 +221,7 @@ library
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
@@ -141,6 +237,10 @@ library
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
+    Wire.UserGroupStore
+    Wire.UserGroupStore.Postgres
+    Wire.UserGroupSubsystem
+    Wire.UserGroupSubsystem.Interpreter
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
     Wire.UserSearch.Metrics
@@ -162,7 +262,8 @@ library
     Wire.VerificationCodeSubsystem
     Wire.VerificationCodeSubsystem.Interpreter
 
-  hs-source-dirs:   src
+  hs-source-dirs:     src
+  extra-source-files: postgres-migrations/*.sql
   build-depends:
     , aeson
     , aeson-pretty
@@ -251,12 +352,12 @@ library
     , witherable
     , zauth
 
-  default-language: GHC2021
-
 test-suite wire-subsystems-tests
   import:             common-all
   type:               exitcode-stdio-1.0
-  default-language:   GHC2021
+
+  -- include everything in source dirs we want to watch when running
+  -- `ghcid --command 'cabal repl test:wire-subsystems-tests' --test='main'`.
   hs-source-dirs:     test/unit
   main-is:            ../Main.hs
   ghc-options:        -fplugin=Polysemy.Plugin -Wno-x-partial
@@ -285,6 +386,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.HashPassword
     Wire.MockInterpreters.IndexedUserStore
     Wire.MockInterpreters.InvitationStore
+    Wire.MockInterpreters.NotificationSubsystem
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore
@@ -294,6 +396,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.SparAPIAccess
     Wire.MockInterpreters.TinyLog
+    Wire.MockInterpreters.UserGroupStore
     Wire.MockInterpreters.UserKeyStore
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
@@ -302,6 +405,7 @@ test-suite wire-subsystems-tests
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
+    Wire.UserGroupSubsystem.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
@@ -309,49 +413,10 @@ test-suite wire-subsystems-tests
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-    , aeson
-    , async
-    , base
-    , bilge
-    , bytestring
-    , cassandra-util
-    , containers
-    , crypton
-    , data-default
-    , errors
-    , extended
     , hspec
-    , imports
-    , iproute
-    , iso639
-    , lens
-    , memory
-    , mime-mail
-    , network
-    , pipes
-    , polysemy
-    , polysemy-plugin
-    , polysemy-time
-    , polysemy-wire-zoo
-    , postie
     , QuickCheck
     , quickcheck-instances
     , random
-    , saml2-web-sso
     , scientific
-    , servant-client-core
-    , sodium-crypto-sign
-    , streaming-commons
     , string-conversions
-    , text
-    , time
-    , tinylog
-    , transformers
-    , types-common
-    , uri-bytestring
-    , uuid
-    , vector
-    , wire-api
-    , wire-api-federation
     , wire-subsystems
-    , zauth

@@ -80,6 +80,7 @@ import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.UserGroup
 import Wire.API.UserMap
 
 type BrigAPI =
@@ -105,6 +106,7 @@ type BrigAPI =
     :<|> DomainVerificationAPI
     :<|> DomainVerificationTeamAPI
     :<|> DomainVerificationChallengeAPI
+    :<|> UserGroupAPI
 
 data BrigAPITag
 
@@ -285,6 +287,80 @@ type UserAPI =
                     'GET
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
+           )
+
+type UserGroupAPI =
+  Named
+    "create-user-group"
+    ( From 'V9
+        :> CanThrow 'UserGroupNotATeamAdmin
+        :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
+        :> ZLocalUser
+        :> "user-groups"
+        :> ReqBody '[JSON] NewUserGroup
+        :> Post '[JSON] UserGroup
+    )
+    :<|> Named
+           "get-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    [ ErrorResponse 'UserGroupNotFound,
+                      Respond 200 "User Group Found" UserGroup
+                    ]
+                    (Maybe UserGroup)
+           )
+    :<|> Named
+           "update-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> ReqBody '[JSON] UserGroupUpdate
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User added updated")
+           )
+    :<|> Named
+           "delete-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User group deleted")
+           )
+    :<|> Named
+           "add-user-to-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "User added to group")
+           )
+    :<|> Named
+           "remove-user-from-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
            )
 
 type SelfAPI =

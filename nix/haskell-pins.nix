@@ -98,8 +98,8 @@ let
     hedis = {
       src = fetchgit {
         url = "https://github.com/wireapp/hedis";
-        rev = "87f4a5ecfa572dfdc9ebe905485d0012ad2d1833";
-        sha256 = "sha256-3evlUj/n39SYncJDUjN6hk12tn/DyCFy2TFvP0/6xdU=";
+        rev = "00d7fbf5f19b812b9e64e12be8860c4741be8558";
+        sha256 = "sha256-BwcqQZf2GaEn2i6o9bVl+jiu/CjShYlHCmO81bYfc8Y=";
       };
     };
 
@@ -311,6 +311,11 @@ let
       sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
     };
 
+    tasty-ant-xml = {
+      version = "1.1.9";
+      sha256 = "sha256-aB7B61XSAZ5V+uW+QBe/PKBmhdFfX3OoOjDE9jB7Mek=";
+    };
+
     network-run = {
       version = "0.3.0";
       sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";
@@ -319,6 +324,31 @@ let
       version = "0.1.0";
       sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
     };
+    hasql = {
+      version = "1.9.1.2";
+      sha256 = "sha256-W2pAC3wLIizmbspWHeWDQqb5AROtwA8Ok+lfZtzTlQg=";
+    };
+
+    hasql-pool = {
+      version = "1.3.0.1";
+      sha256 = "sha256-TtNrs1z8L39WnX8277V97g9Ot1DwutKLrAB1JOjQQoQ=";
+    };
+
+    postgresql-syntax = {
+      version = "0.4.1.3";
+      sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
+    };
+
+    text-builder-core = {
+      version = "0.1.1.1";
+      sha256 = "sha256-BX6JRG+K1PnS3GLvpakG7rTsARfVmGLl1gTW0a4UyDo=";
+    };
+
+    text-builder = {
+      version = "1.0.0.3";
+      sha256 = "sha256-9VCOzwebs89KosOouJjFUcAgY6PF97yJnnIp4HZOK20=";
+    };
+
     network-control = {
       version = "0.1.0";
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";

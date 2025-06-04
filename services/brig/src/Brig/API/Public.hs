@@ -150,6 +150,7 @@ import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
+import Wire.API.UserGroup
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
@@ -185,6 +186,8 @@ import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamInvitationSubsystem
+import Wire.UserGroupSubsystem (UserGroupSubsystem)
+import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore (UserStore)
@@ -394,7 +397,8 @@ servantSitemap ::
     Member SessionStore r,
     Member Metrics r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserGroupSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -420,6 +424,7 @@ servantSitemap =
     :<|> domainVerificationAPI
     :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
+    :<|> userGroupAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -434,6 +439,15 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
+
+    userGroupAPI :: ServerT UserGroupAPI (Handler r)
+    userGroupAPI =
+      Named @"create-user-group" createUserGroup
+        :<|> Named @"get-user-group" getUserGroup
+        :<|> Named @"update-user-group" updateUserGroup
+        :<|> Named @"delete-user-group" deleteUserGroup
+        :<|> Named @"add-user-to-group" addUserToGroup
+        :<|> Named @"remove-user-from-group" removeUserFromGroup
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1640,6 +1654,24 @@ verifyChallengeTeam ::
 verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
   lift . liftSem . fmap DomainOwnershipToken $
     EnterpriseLogin.verifyChallenge (Just lusr) domain challengeId token
+
+createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
+createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
+
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
+getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+
+updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
+updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
+
+deleteUserGroup :: (_) => Local UserId -> UserGroupId -> (Handler r) ()
+deleteUserGroup lusr gid = lift . liftSem $ UserGroup.deleteGroup (tUnqualified lusr) gid
+
+addUserToGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
+addUserToGroup lusr gid mid = lift . liftSem $ UserGroup.addUser (tUnqualified lusr) gid mid
+
+removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
+removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
 
 -- Deprecated
 

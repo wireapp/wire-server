@@ -1,1 +1,0 @@
-galley: Make servant calls to brig/spar with requestId header and retries

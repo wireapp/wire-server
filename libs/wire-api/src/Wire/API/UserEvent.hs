@@ -44,6 +44,7 @@ data Event
   | ConnectionEvent !ConnectionEvent
   | PropertyEvent !PropertyEvent
   | ClientEvent !ClientEvent
+  | UserGroupEvent !UserGroupEvent
   deriving stock (Eq, Show)
 
 eventType :: Event -> EventType
@@ -64,6 +65,9 @@ eventType (PropertyEvent (PropertyDeleted _)) = EventTypePropertiesDeleted
 eventType (PropertyEvent PropertiesCleared) = EventTypePropertiesCleared
 eventType (ClientEvent (ClientAdded _)) = EventTypeClientAdded
 eventType (ClientEvent (ClientRemoved _)) = EventTypeClientRemoved
+eventType (UserGroupEvent (UserGroupCreated _)) = EventTypeUserGroupCreated
+eventType (UserGroupEvent (UserGroupUpdated _)) = EventTypeUserGroupUpdated
+eventType (UserGroupEvent (UserGroupDeleted _)) = EventTypeUserGroupDeleted
 
 data EventType
   = EventTypeUserCreated
@@ -82,6 +86,9 @@ data EventType
   | EventTypeClientAdded
   | EventTypeClientRemoved
   | EventTypeConnection
+  | EventTypeUserGroupCreated
+  | EventTypeUserGroupUpdated
+  | EventTypeUserGroupDeleted
   deriving stock (Eq, Enum, Bounded)
 
 instance ToSchema EventType where
@@ -103,7 +110,10 @@ instance ToSchema EventType where
           element "user.properties-clear" EventTypePropertiesCleared,
           element "user.client-add" EventTypeClientAdded,
           element "user.client-remove" EventTypeClientRemoved,
-          element "user.connection" EventTypeConnection
+          element "user.connection" EventTypeConnection,
+          element "user-group.created" EventTypeUserGroupCreated,
+          element "user-group.updated" EventTypeUserGroupUpdated,
+          element "user-group.deleted" EventTypeUserGroupDeleted
         ]
 
 data UserEvent
@@ -124,6 +134,12 @@ data UserEvent
   | UserLegalHoldDisabled !UserId
   | UserLegalHoldEnabled !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
+  deriving stock (Eq, Show)
+
+data UserGroupEvent
+  = UserGroupCreated !UserGroupId
+  | UserGroupUpdated !UserGroupId
+  | UserGroupDeleted !UserGroupId
   deriving stock (Eq, Show)
 
 data ConnectionEvent = ConnectionUpdated
@@ -220,6 +236,7 @@ $(makePrisms ''Event)
 $(makePrisms ''UserEvent)
 $(makePrisms ''PropertyEvent)
 $(makePrisms ''ClientEvent)
+$(makePrisms ''UserGroupEvent)
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
@@ -365,6 +382,27 @@ eventObjectSchema =
                   <$> ucConn .= field "connection" schema
                   <*> ucName .= maybe_ (optField "user" (object "UserName" (field "name" schema)))
               )
+          EventTypeUserGroupCreated ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupCreated
+                  (field "user_group" (idObjectSchema schema))
+              )
+          EventTypeUserGroupUpdated ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupUpdated
+                  (field "user_group" (idObjectSchema schema))
+              )
+          EventTypeUserGroupDeleted ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupDeleted
+                  (field "user_group" (idObjectSchema schema))
+              )
       )
   where
     noId :: User -> User
@@ -393,6 +431,7 @@ instance ToBytes Event where
   bytes (ConnectionEvent e) = bytes e
   bytes (PropertyEvent e) = bytes e
   bytes (ClientEvent e) = bytes e
+  bytes (UserGroupEvent e) = bytes e
 
 instance ToBytes UserEvent where
   bytes (UserCreated u) = val "user.new: " +++ toByteString (userId u)
@@ -418,3 +457,8 @@ instance ToBytes PropertyEvent where
 instance ToBytes ClientEvent where
   bytes (ClientAdded _) = val "user.client-add"
   bytes (ClientRemoved _) = val "user.client-remove"
+
+instance ToBytes UserGroupEvent where
+  bytes (UserGroupCreated u) = val "user-group.created: " +++ toByteString u
+  bytes (UserGroupUpdated u) = val "user-group.updated: " +++ toByteString u
+  bytes (UserGroupDeleted u) = val "user-group.deleted: " +++ toByteString u

@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Run (run, mkApp) where
+module Brig.Run (run, mkApp, migratePostres) where
 
 import AWS.Util (readAuthExpiration)
 import Brig.API.Federation
@@ -59,7 +59,7 @@ import OpenTelemetry.Trace as Otel
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
-import System.Logger (msg, val, (.=), (~~))
+import System.Logger (flush, msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Util.Timeout
@@ -71,6 +71,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
+import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
 import Wire.UserStore
 
@@ -81,6 +82,7 @@ import Wire.UserStore
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (app, e) <- mkApp opts
+  runAllMigrations e.hasqlPool e.appLogger
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $
@@ -107,6 +109,14 @@ run opts = withTracer \tracer -> do
   where
     brig = opts.brig
     server e = defaultServer (unpack $ brig.host) brig.port e.appLogger
+
+migratePostres :: Opts -> Bool -> IO ()
+migratePostres opts resetFirst = do
+  logger <- initLogger opts
+  pool <- initPostgresPool opts.postgresql opts.postgresqlPassword
+  when resetFirst $ resetSchema pool logger
+  runAllMigrations pool logger
+  flush logger
 
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp opts = do

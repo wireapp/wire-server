@@ -373,7 +373,11 @@ mkValidScimId Nothing (Just extid) Nothing = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
-          (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
+          ( Just
+              "Could not process externalId. \
+              \Please check: (1) does the scim user contain a valid email address? \
+              \(2) did you associate your scim token with a SAML IdP in wire?"
+          )
   maybe (throw err) (pure . ST.ValidScimId extid . This) $ emailAddressText extid
 mkValidScimId (Just idp) (Just extid) mEmail = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer

@@ -155,7 +155,7 @@ library
 
   default-language:   GHC2021
 
-test-suite saml2-web-sso-spec
+test-suite saml2-web-sso-tests
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
   other-modules:
