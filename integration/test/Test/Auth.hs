@@ -162,6 +162,11 @@ testInvalidCookie = do
           pure . fromJust $ getCookie "zuid" resp
 
       -- Wait for both cookies to expire
+      -- In order to reduce flakiness, the delay has been increased by 2 seconds
+      -- after an investigation revealed that check for cookie expiration is somewhat lenient due to
+      -- the way the time is calculated in the backend.
+      -- See the interpreter of Now which is implemented using `Control.AutoUpdate` which defaults to an update frequency of 1 sec.
+      -- Furthermore the timestamp is then again rounded down to the nearest second before it is compared to the cookie expiration time.
       threadDelay $ (cookieTimeout + 2) * 1_000_000
       -- Assert that the cookies are considered expired
       for_ [userCookie, lhCookie] $ \cookie ->
