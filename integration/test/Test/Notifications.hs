@@ -119,5 +119,4 @@ testGetServerTime = do
     getServerTime user `bindResponse` \r -> do
       r.status `shouldMatchInt` 200
       r.json %. "time" & asString
-  let valid = isJust $ iso8601ParseM @Maybe @UTCTime formattedTimestampStr
-  valid `shouldMatch` True
+  void $ assertJust ("expected ISO 8601 format, but got: " <> formattedTimestampStr) $ iso8601ParseM @Maybe @UTCTime formattedTimestampStr

@@ -134,6 +134,7 @@ type TimeAPI =
   Named
     "get-server-time"
     ( Summary "Get the current server time"
+        :> Description "Returns the current server time in UTC with seconds precision."
         :> ZUser
         :> "time"
         :> Get '[JSON] ServerTime
