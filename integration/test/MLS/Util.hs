@@ -705,9 +705,19 @@ sendAndConsumeCommitBundle = sendAndConsumeCommitBundleWithProtocol MLSProtocolM
 -- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
 -- update the test state accordingly.
 sendAndConsumeCommitBundleWithProtocol :: (HasCallStack) => MLSProtocol -> MessagePackage -> App Value
-sendAndConsumeCommitBundleWithProtocol protocol mp = do
+sendAndConsumeCommitBundleWithProtocol = sendAndConsumeCommitBundleWithProtocolAndConsumer consumingMessages
+
+-- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
+-- update the test state accordingly.
+sendAndConsumeCommitBundleWithProtocolAndConsumer ::
+  (HasCallStack) =>
+  (MLSProtocol -> MessagePackage -> Codensity App ()) ->
+  MLSProtocol ->
+  MessagePackage ->
+  App Value
+sendAndConsumeCommitBundleWithProtocolAndConsumer consumer protocol mp = do
   lowerCodensity $ do
-    consumingMessages protocol mp
+    consumer protocol mp
     lift $ do
       r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 

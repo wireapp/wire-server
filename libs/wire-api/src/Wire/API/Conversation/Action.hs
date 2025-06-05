@@ -220,7 +220,6 @@ protocolValidAction :: Protocol -> Sing tag -> ConversationAction tag -> Bool
 protocolValidAction ProtocolProteus _ _ = True
 protocolValidAction (ProtocolMixed _) _ _ = True
 protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ InternalAdd) = False
-protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ ExternalCreate) = True
 protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ ExternalAdd) = True
 protocolValidAction (ProtocolMLS _) SConversationLeaveTag _ = True
 protocolValidAction (ProtocolMLS _) SConversationRemoveMembersTag _ = False

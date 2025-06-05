@@ -121,7 +121,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol (Protocol (ProtocolMLS), cnvmlsEpoch)
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -132,7 +131,6 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Epoch
 import Wire.API.Message
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
@@ -948,13 +946,7 @@ addMembers ::
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
-  let mEpoch = case conv.convProtocol of
-        ProtocolMLS mlsData -> Just $ cnvmlsEpoch mlsData
-        _ -> Nothing
-  let joinType =
-        if notIsConvMember lusr conv (tUntagged lusr)
-          then if mEpoch == Just (Epoch 0) then ExternalCreate else ExternalAdd
-          else InternalAdd
+  let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
   let action = ConversationJoin users role joinType
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action

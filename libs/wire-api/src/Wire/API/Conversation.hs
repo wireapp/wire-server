@@ -1039,7 +1039,7 @@ instance ToSchema ConversationMessageTimerUpdate where
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
 
-data JoinType = ExternalCreate | ExternalAdd | InternalAdd
+data JoinType = ExternalAdd | InternalAdd
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform JoinType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema JoinType
@@ -1051,8 +1051,7 @@ instance ToSchema JoinType where
   schema =
     enum @Text "JoinType" $
       mconcat
-        [ element "external_create" ExternalCreate,
-          element "external_add" ExternalAdd,
+        [ element "external_add" ExternalAdd,
           element "internal_add" InternalAdd
         ]
 

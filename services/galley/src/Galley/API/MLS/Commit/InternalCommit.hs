@@ -100,6 +100,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     -- When the MLS group is not initialized, yet, we check if there are any members with MLS capable clients already in the conversations
     -- If those are not all included in the proposal, the request will be rejected.
     -- This is currently only relevant for channels.
+    -- TODO(leif): Do we need this now? What about Epoch > 0?
     Conv conv | epoch == Epoch 0 -> do
       let members = existingMembers (qualifyAs lConvOrSub (mcConv conv))
       let usersToAdd = Set.fromList $ cidQualifiedUser senderIdentity.client : map fst newUserClients
