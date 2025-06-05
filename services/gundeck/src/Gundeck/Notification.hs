@@ -28,9 +28,7 @@ import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Misc (Milliseconds (..))
 import Data.Range
-import Data.Time.Clock.POSIX
 import Data.UUID qualified as UUID
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
@@ -63,8 +61,7 @@ paginate uid since mclt size = do
       queuedNotificationList
         (toList (Data.resultSeq rs))
         (Data.resultHasMore rs)
-        (Just (millisToUTC time))
-    millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
+        (Just (msToUTCSecs time))
 
     validateNotificationId :: NotificationId -> Gundeck ()
     validateNotificationId n =

@@ -23,6 +23,7 @@ module Wire.API.Notification
     isValidNotificationId,
     RawNotificationId (..),
     Event,
+    ServerTime (..),
 
     -- * QueuedNotification
     QueuedNotification,
@@ -173,6 +174,22 @@ instance AsUnion '[Respond 404 "Notification list" QueuedNotificationList, Respo
   fromUnion (S (Z (I xs))) = GetNotificationsSuccess xs
   fromUnion (Z (I xs)) = GetNotificationsWithStatusNotFound xs
   fromUnion (S (S x)) = case x of {}
+
+--------------------------------------------------------------------------------
+-- Server Time
+
+newtype ServerTime = ServerTime {getServerTime :: UTCTime}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServerTime)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ServerTime)
+
+instance ToSchema ServerTime where
+  schema =
+    objectWithDocModifier "ServerTime" serverTimeDoc $
+      ServerTime
+        <$> getServerTime .= field "time" utcTimeSchema
+    where
+      serverTimeDoc = description ?~ "The current server time"
 
 --------------------------------------------------------------------------------
 -- RabbitMQ exchanges and queues

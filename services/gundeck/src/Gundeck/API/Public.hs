@@ -38,7 +38,7 @@ import Wire.API.Routes.Public.Gundeck
 -- Servant API
 
 servantSitemap :: ServerT GundeckAPI Gundeck
-servantSitemap = pushAPI :<|> notificationAPI
+servantSitemap = pushAPI :<|> notificationAPI :<|> timeAPI
   where
     pushAPI =
       Named @"register-push-token" Push.addToken
@@ -50,6 +50,9 @@ servantSitemap = pushAPI :<|> notificationAPI
         :<|> Named @"get-last-notification" Data.fetchLast
         :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
+
+    timeAPI =
+      Named @"get-server-time" getServerTime
 
 -- | Returns a list of notifications for given 'uid'
 --
@@ -119,3 +122,6 @@ paginate uid mbSince mbClient mbSize = do
   let size = fromMaybe (unsafeRange 1000) mbSize
   Notification.PaginateResult gap page <- Notification.paginate uid mbSince mbClient size
   pure $ if gap then Nothing else Just page
+
+getServerTime :: UserId -> Gundeck Public.ServerTime
+getServerTime _ = Public.ServerTime . msToUTCSecs <$> posixTime
