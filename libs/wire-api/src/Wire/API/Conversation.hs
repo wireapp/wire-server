@@ -949,8 +949,7 @@ instance ToSchema Invite where
 data InviteQualified = InviteQualified
   { users :: NonEmpty (Qualified UserId),
     -- | This role name is to be applied to all users
-    roleName :: RoleName,
-    userGroups :: [UserGroupId]
+    roleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InviteQualified)
@@ -962,7 +961,6 @@ instance ToSchema InviteQualified where
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
         <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
-        <*> userGroups .= (fromMaybe mempty <$> optField "user_groups" (array schema))
 
 --------------------------------------------------------------------------------
 -- update

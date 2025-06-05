@@ -3,7 +3,6 @@
 module Wire.UserGroupStore where
 
 import Data.Id
-import Data.Vector (Vector)
 import Imports
 import Polysemy
 import Wire.API.User.Profile
@@ -16,6 +15,5 @@ data UserGroupStore m a where
   DeleteUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe ())
   AddUser :: UserGroupId -> UserId -> UserGroupStore m ()
   RemoveUser :: UserGroupId -> UserId -> UserGroupStore m ()
-  AddUserGroupsToChannel :: ConvId -> Vector UserGroupId -> UserGroupStore m ()
 
 makeSem ''UserGroupStore

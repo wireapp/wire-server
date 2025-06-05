@@ -39,7 +39,6 @@ interpretUserGroupStoreToPostgres =
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
     RemoveUser gid uid -> removeUserImpl gid uid
-    AddUserGroupsToChannel convId ugids -> addUserGroupsToChannelImpl convId ugids
 
 getUserGroupImpl ::
   ( Member (Embed IO) r,

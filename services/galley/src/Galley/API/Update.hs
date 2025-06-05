@@ -945,7 +945,7 @@ addMembers ::
   Qualified ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembers lusr zcon qcnv (InviteQualified users role _userGroups) = do
+addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
   let mEpoch = case conv.convProtocol of
@@ -995,7 +995,7 @@ addMembersUnqualifiedV2 ::
   ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role _userGroups) = do
+addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
@@ -1039,7 +1039,7 @@ addMembersUnqualified ::
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role mempty)
+  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
 
 updateSelfMember ::
   ( Member ConversationStore r,

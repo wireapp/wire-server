@@ -60,7 +60,6 @@ userGroupStoreTestInterpreter =
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
     RemoveUser gid uid -> removeUserImpl gid uid
-    AddUserGroupsToChannel _ _ -> error "AddUserGroupsToChannel not implemented in mock interpreter"
 
 createUserGroupImpl :: (EffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
