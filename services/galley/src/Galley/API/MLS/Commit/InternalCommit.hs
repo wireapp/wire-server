@@ -78,8 +78,7 @@ processInternalCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member SubConversationStore r,
     Member Resource r,
-    Member Random r,
-    Member (ErrorS MLSMissingNewUsers) r
+    Member Random r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->
@@ -95,21 +94,6 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       qusr = cidQualifiedUser senderIdentity.client
       cm = convOrSub.members
       newUserClients = Map.assocs (paAdd action)
-
-  case (tUnqualified lConvOrSub) of
-    -- When the MLS group is not initialized, yet, we check if there are any members with MLS capable clients already in the conversations
-    -- If those are not all included in the proposal, the request will be rejected.
-    -- This is currently only relevant for channels.
-    -- TODO(leif): Do we need this now? What about Epoch > 0?
-    Conv conv | epoch == Epoch 0 -> do
-      let members = existingMembers (qualifyAs lConvOrSub (mcConv conv))
-      let usersToAdd = Set.fromList $ cidQualifiedUser senderIdentity.client : map fst newUserClients
-      let missingUsers = Set.difference members usersToAdd
-
-      lift $ for_ missingUsers $ \missingUser -> do
-        clientData <- fold <$> runError @FederationError (getClientInfo lConvOrSub missingUser ciphersuite)
-        unless (Set.null clientData) $ throwS @'MLSMissingNewUsers
-    _ -> pure ()
 
   -- check that all pending proposals are referenced in the commit
   allPendingProposals <-
