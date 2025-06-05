@@ -5,7 +5,7 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
+import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Imports
 import Polysemy
@@ -79,8 +79,11 @@ createUserGroupImpl creator newGroup = do
     throw $
       UserGroupMemberIsNotInTheSameTeam
   ug <- Store.createUserGroup team newGroup managedBy
-  admins <- getTeamAdmins team
-  pushNotifications [mkEvent creator (UserGroupCreated ug.id_) admins]
+  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+  pushNotifications
+    [ mkEvent creator (UserGroupCreated ug.id_) admins,
+      mkEvent creator (UserGroupMemberAdded ug.id_) (tUnqualified luids)
+    ]
   pure ug
 
 getTeamAsAdmin ::
@@ -105,12 +108,12 @@ getTeamAsMember memberId = runMaybeT do
   mbr <- MaybeT $ getTeamMember memberId team
   pure (team, mbr)
 
-mkEvent :: UserId -> UserGroupEvent -> TeamMemberList -> Push
+mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
 mkEvent author evt recipients =
   def
     { origin = Just author,
       json = toJSONObject $ UserGroupEvent evt,
-      recipients = (\tm -> Recipient (tm ^. TM.userId) RecipientClientsAll) <$> recipients ^. teamMembers,
+      recipients = (\uid -> Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}) <$> recipients,
       transient = True
     }
 
@@ -153,7 +156,7 @@ updateGroupImpl updater groupId groupUpdate = do
   found <- isJust <$> Store.updateUserGroup team groupId groupUpdate
   if found
     then do
-      admins <- getTeamAdmins team
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
       pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
     else throw UserGroupNotFound
 
@@ -176,7 +179,7 @@ deleteGroupImpl deleter groupId =
           found <- isJust <$> Store.deleteUserGroup team groupId
           if found
             then do
-              admins <- getTeamAdmins team
+              admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
               pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
             else
               throw UserGroupNotFound
@@ -187,30 +190,44 @@ addUserImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
   UserId ->
   Sem r ()
 addUserImpl adder groupId addeeId = do
-  void $ getUserGroupImpl adder groupId >>= note UserGroupNotFound
+  ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ getTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  Store.addUser groupId addeeId
+  unless (addeeId `elem` ug.members) $ do
+    Store.addUser groupId addeeId
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+    pushNotifications
+      [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId],
+        mkEvent adder (UserGroupUpdated groupId) admins
+      ]
 
 removeUserImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
   UserId ->
   Sem r ()
 removeUserImpl remover groupId removeeId = do
-  void $ getUserGroupImpl remover groupId >>= note UserGroupNotFound
+  ug <- getUserGroupImpl remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ getTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  Store.removeUser groupId removeeId
+  when (removeeId `elem` ug.members) $ do
+    Store.removeUser groupId removeeId
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+    pushNotifications
+      [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId],
+        mkEvent remover (UserGroupUpdated groupId) admins
+      ]
