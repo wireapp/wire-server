@@ -420,6 +420,21 @@ testTeamAdminCanCreateChannelWithoutJoining = do
   I.getConversation conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
 
+testNonTeamAdminCannotAddMembersWithoutJoining :: (HasCallStack) => App ()
+testNonTeamAdminCannotAddMembersWithoutJoining = do
+  (owner, tid, mems@(m1 : m2 : m3 : _)) <- createTeam OwnDomain 4
+  cs <- for mems $ createMLSClient def
+  for_ cs $ uploadNewKeyPackage def
+
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "admins")
+
+  channel <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+
+  addMembers m1 channel def {users = [m1, m2, m3], role = Just "wire_member"} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "no-conversation"
+
 testTeamAdminCanAddMembersWithoutJoining :: (HasCallStack) => App ()
 testTeamAdminCanAddMembersWithoutJoining = do
   (owner, tid, mems@(m1 : m2 : m3 : m4 : m5 : _)) <- createTeam OwnDomain 6

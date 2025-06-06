@@ -205,10 +205,10 @@ ensureReAuthorised ::
 ensureReAuthorised u secret mbAction mbCode =
   reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
-ensureChannelAndTeamAdmin :: (Member (ErrorS 'InvalidOperation) r) => Data.Conversation -> TeamMember -> Sem r ()
+ensureChannelAndTeamAdmin :: (Member (ErrorS 'ConvNotFound) r) => Data.Conversation -> TeamMember -> Sem r ()
 ensureChannelAndTeamAdmin conv tm = do
   unless (conv.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions)) $
-    throwS @'InvalidOperation
+    throwS @'ConvNotFound
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, or if it has a

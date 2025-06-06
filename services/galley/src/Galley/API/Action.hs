@@ -408,7 +408,6 @@ ensureAllowed ::
   forall tag mem r x.
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
-    Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r
   ) =>
   Sing tag ->
@@ -421,7 +420,7 @@ ensureAllowed tag _ action conv (TeamMember tm) = do
   case tag of
     SConversationJoinTag -> do
       case action of
-        ConversationJoin _ _ InternalAdd -> throwS @'InvalidOperation
+        ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
         ConversationJoin _ _ ExternalAdd -> ensureChannelAndTeamAdmin conv tm
     _ -> throwS @'ConvNotFound
 ensureAllowed tag loc action conv (ConvMember origUser) = do
