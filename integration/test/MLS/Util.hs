@@ -238,6 +238,24 @@ createGroup cs cid convId = do
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
   resetClientGroup cs cid groupId convId keys
 
+deleteGroup :: ConvId -> String -> App MLSConv
+deleteGroup convId groupId = do
+  mlsConv <- getMLSConv convId
+  let allClients = mlsConv.members <> mlsConv.newMembers <> mlsConv.membersToBeRemoved
+  modifyMLSState $ \s ->
+    s
+      { convs = Map.delete convId s.convs,
+        clientGroupState = Map.filterWithKey (\k _ -> Set.member k allClients) s.clientGroupState
+      }
+  pure mlsConv
+
+resetGroup :: ClientIdentity -> ConvId -> String -> App ConvId
+resetGroup cid convId groupId = do
+  mlsConv <- deleteGroup convId groupId
+  let convId' = convId {groupId = Just groupId} :: ConvId
+  createGroup mlsConv.ciphersuite cid convId'
+  pure convId'
+
 createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> String -> App ()
 createSubConv cs convId cid subId = do
   sub <- getSubConversation cid convId subId >>= getJSON 200
@@ -621,7 +639,7 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
     -- notification.
     when (mlsProtocol == MLSProtocolMLS) $
       traverse_
-        (awaitMatch (\n -> isMemberJoinNotif n))
+        (awaitMatch isMemberJoinNotif)
         ( flip Map.restrictKeys newUsers
             . Map.mapKeys ((.user) . fst)
             . Map.fromList

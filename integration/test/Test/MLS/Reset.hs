@@ -4,6 +4,7 @@ import API.Galley
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.VersionedFed
 
 testResetGroupConversation :: (HasCallStack) => Domain -> App ()
 testResetGroupConversation domain = do
@@ -57,3 +58,37 @@ testResetMixedConversation domain = do
   conv' %. "epoch" `shouldMatchInt` 0
   otherMember <- assertOne =<< asList (conv' %. "members.others")
   otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+
+testResetWithLegacyBackend :: (HasCallStack) => AnyFedDomain -> App ()
+testResetWithLegacyBackend domain = when (unFedDomain domain > 0) $ do
+  let suite = Ciphersuite "0x0001"
+  [alice, bob, charlie] <- createAndConnectUsers [make OwnDomain, make OtherDomain, make domain]
+  [alice1, bob1, charlie1] <-
+    traverse
+      (createMLSClient def {ciphersuites = [suite]})
+      [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage suite) [bob1, charlie1]
+  conv <- createNewGroup suite alice1
+  void $ createAddCommit alice1 conv [bob, charlie] >>= sendAndConsumeCommitBundle
+  mlsConv <- getMLSConv conv
+
+  -- reset conversation
+  resetConversation bob mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+  groupId' <- do
+    conv' <- getConversation alice conv >>= getJSON 200
+    conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
+    conv' %. "epoch" `shouldMatchInt` 0
+    otherMember <- assertOne =<< asList (conv' %. "members.others")
+    otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+    conv' %. "group_id" & asString
+  convId' <- resetGroup alice1 mlsConv.convId groupId'
+
+  -- charlie cannot rejoin
+  void $ createAddCommit alice1 convId' [charlie] >>= sendAndConsumeCommitBundle
+
+  do
+    conv' <- getConversation alice conv >>= getJSON 200
+    conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
+    conv' %. "epoch" `shouldMatchInt` 1
+    otherMember <- assertOne =<< asList (conv' %. "members.others")
+    otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
