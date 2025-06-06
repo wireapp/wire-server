@@ -456,7 +456,7 @@ testEventsDeadLettered = do
 
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
       assertEvent ws $ \e -> do
-        e %. "type" `shouldMatch` "notifications.missed"
+        e %. "type" `shouldMatch` "notifications_missed"
 
       -- Until we ack the full sync, we can't get new events
       ackFullSync ws

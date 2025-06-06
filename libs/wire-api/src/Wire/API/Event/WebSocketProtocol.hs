@@ -88,7 +88,7 @@ msgTypeSchemaServerToClient =
   enum @Text "MessageTypeServerToClient" $
     mconcat $
       [ element "event" MsgTypeEventMessage,
-        element "notifications.missed" MsgTypeEventFullSync,
+        element "notifications_missed" MsgTypeEventFullSync,
         element "message_count" MsgTypeEventMessageCount
       ]
 
