@@ -266,6 +266,7 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson                      >=2.0.1.0
+    , amqp
     , asn1-encoding
     , attoparsec                 >=0.10
     , barbies

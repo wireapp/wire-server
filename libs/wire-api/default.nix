@@ -7,6 +7,7 @@
 , aeson-diff
 , aeson-pretty
 , aeson-qq
+, amqp
 , asn1-encoding
 , async
 , attoparsec
@@ -125,6 +126,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amqp
     asn1-encoding
     attoparsec
     barbies
