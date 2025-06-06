@@ -102,7 +102,6 @@ testConsumeTempEvents = do
 
       -- Temp client gets this event as it happens after temp client has started
       -- listening
-      assertMessageCount_ wsTemp
       void $ expectAndAckNewClientEvent wsTemp clientId1
 
       -- Client0 should also be notified even if there is a temp client
@@ -127,7 +126,6 @@ testConsumeTempEventsWithoutOwnClient = do
   runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
     handle <- randomHandle
     putHandle bob handle >>= assertSuccess
-    assertMessageCount_ ws
 
     -- We cannot use 'assertEvent' here because there is a race between the temp
     -- queue being created and rabbitmq fanning out the previous events.
@@ -159,7 +157,6 @@ testTemporaryQueuesAreDeletedAfterUse = do
       addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
         length queuesDuringWS.items `shouldMatchInt` 3
 
-      assertMessageCount_ ws
       -- We cannot use 'assertEvent' here because there is a race between the temp
       -- queue being created and rabbitmq fanning out the previous events.
       void $ assertFindsEvent ws $ \e -> do
@@ -196,7 +193,6 @@ testMLSTempEvents = do
     commit <- createAddCommit alice1 convId [bob]
     void $ postMLSCommitBundle commit.sender (mkBundle commit) >>= getJSON 201
 
-    assertMessageCount_ ws
     -- FUTUREWORK: we should not rely on events arriving in this particular order
 
     -- We cannot use 'assertEvent' here because there is a race between the temp

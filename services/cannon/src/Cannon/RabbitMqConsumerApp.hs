@@ -33,7 +33,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
     runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \wsConn ->
       ( do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          sendMessageCount wsConn queueInfo
+          traverse_ (const $ sendMessageCount wsConn queueInfo) mcid
           sendNotifications chan wsConn
       )
         `catches` [ handleClientMisbehaving wsConn,
