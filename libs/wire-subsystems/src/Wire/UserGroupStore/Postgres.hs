@@ -228,29 +228,5 @@ crudUser op gid uid = do
         (gid, uid)
         (lmap (\(gid_, uid_) -> (gid_.toUUID, uid_.toUUID)) op)
 
-addUserGroupsToChannelImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
-  ConvId ->
-  Vector UserGroupId ->
-  Sem r ()
-addUserGroupsToChannelImpl cid ugids = do
-  pool <- input
-  eitherUuid <- liftIO $ use pool session
-  either throw pure eitherUuid
-  where
-    session :: Session ()
-    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
-      Transaction.statement (cid.toUUID, ugids) insertGroupsToChannelStatement
-
-    insertGroupsToChannelStatement :: Statement (UUID, Vector UserGroupId) ()
-    insertGroupsToChannelStatement =
-      lmap (second (fmap (.toUUID)) . uncurry toRelationTable) $
-        [resultlessStatement|
-          insert into channel_user_group (channel_id, user_group_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
-          |]
-
 toRelationTable :: a -> Vector b -> (Vector a, Vector b)
 toRelationTable a bs = (a <$ bs, bs)
