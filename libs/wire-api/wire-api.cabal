@@ -142,6 +142,7 @@ library
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
+    Wire.API.Pagination
     Wire.API.Password
     Wire.API.Password.Argon2id
     Wire.API.Password.Scrypt
