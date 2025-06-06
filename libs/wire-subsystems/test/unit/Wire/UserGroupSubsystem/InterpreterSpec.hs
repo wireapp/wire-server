@@ -10,23 +10,27 @@ import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
+import Data.Proxy
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
+import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind (Append)
 import Polysemy.State
-import System.Random (StdGen)
+import Servant as Servant
 import System.Random qualified as Rand
 import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll), Route (RouteAny))
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Brig qualified as BrigRoutes
 import Wire.API.Team.Member as TM
 import Wire.API.Team.Role
 import Wire.API.User as User
@@ -36,28 +40,25 @@ import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
-import Wire.Sem.Random qualified as Rnd
-import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserSubsystem (UserSubsystem)
 
+type TestEffectStack =
+  '[ UserSubsystem,
+     GalleyAPIAccess
+   ]
+    `Append` EffectStack
+    `Append` '[ Input (Local ()),
+                NotificationSubsystem,
+                State [Push],
+                Error UserGroupSubsystemError
+              ]
+
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    '[ UserSubsystem,
-       GalleyAPIAccess,
-       UserGroupStore,
-       State UserGroupInMemState,
-       Rnd.Random,
-       State StdGen,
-       Input (Local ()),
-       NotificationSubsystem,
-       State [Push],
-       Error UserGroupSubsystemError
-     ]
-    a ->
+  Sem TestEffectStack a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
   run
@@ -72,18 +73,7 @@ runDependencies initialUsers initialTeams =
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    ( '[ UserSubsystem,
-         GalleyAPIAccess
-       ]
-        `Append` EffectStack
-        `Append` '[ Input (Local ()),
-                    NotificationSubsystem,
-                    State [Push],
-                    Error UserGroupSubsystemError
-                  ]
-    )
-    a ->
+  Sem TestEffectStack a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run

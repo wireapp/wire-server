@@ -20,6 +20,7 @@ module Wire.API.Pagination where
 import Data.Aeson qualified as A
 import Data.Default
 import Data.OpenApi qualified as S
+import Data.OpenApi.ParamSchema qualified as O
 import Data.Range
 import Data.Schema
 import GHC.Generics
@@ -43,7 +44,7 @@ type PaginationQuery (allowedKeyFieldsInfo :: Symbol) api =
               )
           ]
          "sortBy"
-         [Text]
+         SortBy
     :> QueryParam'
          '[Optional, Strict, Description "Sort order"]
          "sortOrder"
@@ -58,6 +59,18 @@ type PaginationQuery (allowedKeyFieldsInfo :: Symbol) api =
          PaginationState
     :> api
 
+data SortBy = SortBy {fromSortBy :: [Text]}
+  deriving (Eq, Ord, Show, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
+
+instance ToSchema SortBy where
+  schema = undefined
+
+instance FromHttpApiData SortBy where
+  parseUrlPiece = undefined
+
+instance O.ToParamSchema SortBy
+
 data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortOrder
@@ -70,12 +83,22 @@ instance ToSchema SortOrder where
           element "desc" Desc
         ]
 
+instance FromHttpApiData SortOrder where
+  parseUrlPiece = undefined
+
+instance O.ToParamSchema SortOrder
+
 newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int}
   deriving (Eq, Show, Ord, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
 
 instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema
+
+instance FromHttpApiData PageSize where
+  parseUrlPiece = undefined
+
+instance O.ToParamSchema PageSize
 
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
@@ -99,6 +122,12 @@ instance ToSchema PaginationState where
         <*> (.sortOrder) .= field "sort_order" schema
         <*> (.pageSize) .= field "page_size" schema
         <*> (.lastRowSent) .= field "last_row_sent" (array schema)
+
+instance FromHttpApiData PaginationState where
+  parseUrlPiece = undefined
+
+instance O.ToParamSchema PaginationState where
+  toParamSchema = undefined
 
 data PaginationResult a = PaginationResult
   { page :: [a],
