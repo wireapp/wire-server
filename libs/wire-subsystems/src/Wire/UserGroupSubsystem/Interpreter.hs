@@ -13,6 +13,7 @@ import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as TM
@@ -38,6 +39,7 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
+  GetGroups getter q sortByKeys sortOrder pSize pState -> getUserGroupsImpl getter q sortByKeys sortOrder pSize pState
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -139,6 +141,17 @@ getUserGroupImpl getter gid = runMaybeT $ do
   if getterCanSeeAll || getter `elem` (toList userGroup.members)
     then pure userGroup
     else MaybeT $ pure Nothing
+
+getUserGroupsImpl ::
+  forall r.
+  UserId ->
+  Maybe Text ->
+  Maybe SortBy ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe PaginationState ->
+  Sem r (PaginationResult UserGroup)
+getUserGroupsImpl = undefined
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
