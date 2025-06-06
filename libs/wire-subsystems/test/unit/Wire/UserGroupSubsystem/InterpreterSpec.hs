@@ -20,7 +20,6 @@ import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind (Append)
 import Polysemy.State
-import System.Random (StdGen)
 import System.Random qualified as Rand
 import System.Timeout (timeout)
 import Test.Hspec
@@ -36,31 +35,28 @@ import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
-import Wire.Sem.Random qualified as Rnd
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
-import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
 import Wire.UserSubsystem (UserSubsystem)
 
+type TestEffectStack =
+  '[ UserSubsystem,
+     TeamSubsystem,
+     GalleyAPIAccess
+   ]
+    `Append` EffectStack
+    `Append` '[ Input (Local ()),
+                NotificationSubsystem,
+                State [Push],
+                Error UserGroupSubsystemError
+              ]
+
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    '[ UserSubsystem,
-       TeamSubsystem,
-       GalleyAPIAccess,
-       UserGroupStore,
-       State UserGroupInMemState,
-       Rnd.Random,
-       State StdGen,
-       Input (Local ()),
-       NotificationSubsystem,
-       State [Push],
-       Error UserGroupSubsystemError
-     ]
-    a ->
+  Sem TestEffectStack a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
   run
@@ -76,19 +72,7 @@ runDependencies initialUsers initialTeams =
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    ( '[ UserSubsystem,
-         TeamSubsystem,
-         GalleyAPIAccess
-       ]
-        `Append` EffectStack
-        `Append` '[ Input (Local ()),
-                    NotificationSubsystem,
-                    State [Push],
-                    Error UserGroupSubsystemError
-                  ]
-    )
-    a ->
+  Sem TestEffectStack a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
