@@ -30,9 +30,10 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
       Log.field "user" (idToText uid)
         . Log.field "client" (maybe "<temporary>" clientToText mcid)
 
-    runWithChannel chan = bracket openWebSocket closeWebSocket $ \wsConn ->
+    runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \wsConn ->
       ( do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
+          sendMessageCount wsConn queueInfo
           sendNotifications chan wsConn
       )
         `catches` [ handleClientMisbehaving wsConn,
@@ -129,7 +130,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
 
     createQueue chan = case mcid of
       Nothing -> Codensity $ \k -> do
-        (queueName, _, _) <-
+        (queueName, messageCount, _) <-
           Q.declareQueue chan $
             newQueue
               { Q.queueExclusive = True,
@@ -137,8 +138,10 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
               }
         for_ [userRoutingKey uid, temporaryRoutingKey uid] $
           Q.bindQueue chan queueName userNotificationExchangeName
-        k queueName
-      Just cid -> Codensity $ \k -> k $ clientNotificationQueueName uid cid
+        k $ QueueInfo {queueName = queueName, messageCount = messageCount}
+      Just cid -> Codensity $ \k -> do
+        (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
+        k $ QueueInfo queueName messageCount
 
     sendNotifications :: RabbitMqChannel -> WS.Connection -> IO ()
     sendNotifications chan wsConn = do
@@ -153,6 +156,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
       let consumeWebsocket = forever $ do
             getClientMessage wsConn >>= \case
               AckFullSync -> throwIO UnexpectedAck
+              AckMessageCount -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
                 void $ ackMessage chan ackData.deliveryTag ackData.multiple
@@ -212,7 +216,7 @@ sendFullSyncMessageIfNeeded wsConn uid env cid = do
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
     q =
-      [sql| SELECT user_id FROM missed_notifications 
+      [sql| SELECT user_id FROM missed_notifications
             WHERE user_id = ? and client_id = ?
         |]
 
@@ -227,6 +231,7 @@ sendFullSyncMessage uid cid wsConn env = do
   WS.sendBinaryData wsConn event
   getClientMessage wsConn >>= \case
     AckMessage _ -> throwIO UnexpectedAck
+    AckMessageCount -> throwIO UnexpectedAck
     AckFullSync ->
       C.runClient env.cassandra do
         retry x1 $ write delete (params LocalQuorum (uid, cid))
@@ -237,6 +242,18 @@ sendFullSyncMessage uid cid wsConn env = do
           DELETE FROM missed_notifications
           WHERE user_id = ? and client_id = ?
         |]
+
+sendMessageCount ::
+  WS.Connection ->
+  QueueInfo ->
+  IO ()
+sendMessageCount wsConn queueInfo = do
+  let event = encode $ EventMessageCount $ MessageCount queueInfo.messageCount
+  WS.sendBinaryData wsConn event
+  getClientMessage wsConn >>= \case
+    AckMessage _ -> throwIO UnexpectedAck
+    AckFullSync -> throwIO UnexpectedAck
+    AckMessageCount -> pure ()
 
 getClientMessage :: WS.Connection -> IO MessageClientToServer
 getClientMessage wsConn = do
