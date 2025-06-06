@@ -22,6 +22,7 @@ import Control.Error.Util (hush)
 import Control.Lens
 import Control.Lens.Extras (is)
 import Control.Monad.Codensity
+import Data.Default
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
@@ -264,8 +265,9 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       lconv
                       bm
                       ConversationJoin
-                        { cjUsers = members,
-                          cjRole = roleNameWireMember
+                        { users = members,
+                          role = roleNameWireMember,
+                          joinType = def
                         }
                   pure [update]
             SubConv _ _ -> pure []
@@ -343,7 +345,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
           . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
-          . flip ConversationJoin roleNameWireMember
+          . (\uids -> ConversationJoin uids roleNameWireMember def)
       )
       . nonEmpty
       . filter (flip Set.notMember (existingMembers lconv))

@@ -893,7 +893,7 @@ testRemoteToRemoteInSub = do
             convId = conv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 

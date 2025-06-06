@@ -134,6 +134,7 @@ createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLe
         lusr
         conn
         newConv
+        def
     conversationCreated lusr conv
 
 -- | The public-facing endpoint for creating group conversations in the client
@@ -258,7 +259,7 @@ createGroupConvAndMkResponse lusr conn newConv mkResponse = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
-  dbConv <- createGroupConversationGeneric lusr conn newConv
+  dbConv <- createGroupConversationGeneric lusr conn newConv def
   mkResponse dbConv
 
 createGroupConversationGeneric ::
@@ -292,8 +293,9 @@ createGroupConversationGeneric ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
+  JoinType ->
   Sem r Conversation
-createGroupConversationGeneric lusr conn newConv = do
+createGroupConversationGeneric lusr conn newConv joinType = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
@@ -305,7 +307,7 @@ createGroupConversationGeneric lusr conn newConv = do
   lcnv <- traverse (const E.createConversationId) lusr
   conv <- E.createConversation lcnv nc
   -- NOTE: We only send (conversation) events to members of the conversation
-  notifyCreatedConversation lusr conn conv
+  notifyCreatedConversation lusr conn conv joinType
   sendCellsNotification conv
   E.getConversation (tUnqualified lcnv)
     >>= note (BadConvState (tUnqualified lcnv))
@@ -564,7 +566,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       c <- E.createConversation lcnv nc
-      runError @UnreachableBackends (notifyCreatedConversation self (Just zcon) c)
+      runError @UnreachableBackends (notifyCreatedConversation self (Just zcon) c def)
         >>= \case
           Left _ -> do
             throw . InternalErrorWithDescription $
@@ -632,7 +634,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 ncProtocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
-      notifyCreatedConversation self (Just zcon) c
+      notifyCreatedConversation self (Just zcon) c def
       conversationCreated self c
 
 createOne2OneConversationRemotely ::
@@ -690,7 +692,7 @@ createConnectConversation lusr conn j = do
       c <- E.createConversation lcnv nc
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
-      notifyCreatedConversation lusr conn c
+      notifyCreatedConversation lusr conn c def
       pushNotifications
         [ def
             { origin = Just (tUnqualified lusr),
@@ -829,12 +831,13 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
+  JoinType ->
   Sem r ()
-notifyCreatedConversation lusr conn c = do
+notifyCreatedConversation lusr conn c joinType = do
   now <- input
   -- Ask remote servers to store conversation membership and notify remote users
   -- of being added to a conversation
-  registerRemoteConversationMemberships now lusr (qualifyAs lusr c)
+  registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType
   unless (null (Data.convRemoteMembers c)) $
     unlessM E.isFederationConfigured $
       throw FederationNotConfigured

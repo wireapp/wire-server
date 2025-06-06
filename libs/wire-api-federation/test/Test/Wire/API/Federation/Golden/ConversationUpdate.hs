@@ -60,7 +60,7 @@ testObject_ConversationUpdate1V0 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [],
-      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
+      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin InternalAdd)
     }
 
 testObject_ConversationUpdate2V0 :: ConversationUpdateV0
@@ -88,7 +88,7 @@ testObject_ConversationUpdate1 =
       convId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       alreadyPresentUsers = [],
-      action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
+      action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin InternalAdd)
     }
 
 testObject_ConversationUpdate2 :: ConversationUpdate

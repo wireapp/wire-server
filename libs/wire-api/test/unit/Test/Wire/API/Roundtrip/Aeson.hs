@@ -146,7 +146,7 @@ tests =
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
-      testRoundTrip @Event.Conversation.SimpleMembers,
+      testRoundTrip @Event.Conversation.MembersJoin,
       testRoundTrip @Event.Conversation.Connect,
       testRoundTrip @Event.Conversation.MemberUpdateData,
       testRoundTrip @Event.Conversation.OtrMessage,

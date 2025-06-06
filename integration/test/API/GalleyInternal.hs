@@ -153,6 +153,5 @@ setCellsState user conv state = do
 getConversation :: (HasCallStack, MakesValue conv) => conv -> App Response
 getConversation conv = do
   (domain, convId) <- objQid conv
-  print domain
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "conversations", convId]
   submit "GET" $ req

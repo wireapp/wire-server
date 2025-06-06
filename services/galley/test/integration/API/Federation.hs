@@ -245,7 +245,7 @@ addLocalUser = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [charlie],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember InternalAdd)
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -299,7 +299,7 @@ addUnconnectedUsersOnly = do
               FedGalley.convId = conv,
               FedGalley.alreadyPresentUsers = [alice],
               FedGalley.action =
-                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember)
+                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember InternalAdd)
             }
     -- Alice receives no notifications from this
     void $ runFedClient @("on-conversation-updated") fedGalleyClient remoteDomain cu
@@ -333,7 +333,7 @@ removeLocalUser = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
           }
       cuRemove =
         FedGalley.ConversationUpdate
@@ -695,7 +695,7 @@ addRemoteUser = do
             FedGalley.convId = qUnqualified qconv,
             FedGalley.alreadyPresentUsers = map qUnqualified [qalice, qcharlie],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember InternalAdd)
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -778,7 +778,7 @@ onMessageSent = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
