@@ -322,16 +322,7 @@ type UserGroupAPI =
            ( From 'V9
                :> ZLocalUser
                :> "user-groups"
-               :> PaginationQuery
-                    "created_at, name"
-                    ( MultiVerb
-                        'GET
-                        '[JSON]
-                        [ ErrorResponse 'UserGroupNotFound,
-                          Respond 200 "User Group Found" UserGroup
-                        ]
-                        (PaginationResult [UserGroup])
-                    )
+               :> PaginationQuery "created_at, name" (Get '[JSON] (PaginationResult UserGroup))
            )
     :<|> Named
            "update-user-group"
