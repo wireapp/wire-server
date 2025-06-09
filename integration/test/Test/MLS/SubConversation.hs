@@ -143,18 +143,8 @@ testDeleteParentOfSubConv secondDomain = do
       resp.status `shouldMatchInt` 404
       resp.json %. "label" `shouldMatch` "no-conversation"
 
-data ResetMethod = DeleteSubConv | ResetConversation
-  deriving (Generic)
-
-resetConvWithMethod :: (MakesValue u, MakesValue sub) => ResetMethod -> u -> sub -> App Response
-resetConvWithMethod DeleteSubConv u sub = deleteSubConversation u sub
-resetConvWithMethod ResetConversation u sub = do
-  groupId <- asString (sub %. "group_id")
-  epoch <- asInt (sub %. "epoch")
-  resetConversation u groupId (fromIntegral epoch)
-
-testDeleteSubConversation :: (HasCallStack) => ResetMethod -> Domain -> App ()
-testDeleteSubConversation method otherDomain = do
+testDeleteSubConversation :: (HasCallStack) => Domain -> App ()
+testDeleteSubConversation otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
   charlie <- randomUser OwnDomain def
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
@@ -164,12 +154,12 @@ testDeleteSubConversation method otherDomain = do
 
   createSubConv def convId alice1 "conference1"
   sub1 <- getSubConversation alice convId "conference1" >>= getJSON 200
-  void $ resetConvWithMethod method charlie sub1 >>= getBody 403
-  void $ resetConvWithMethod method alice sub1 >>= getBody 200
+  void $ deleteSubConversation charlie sub1 >>= getBody 403
+  void $ deleteSubConversation alice sub1 >>= getBody 200
 
   createSubConv def convId alice1 "conference2"
   sub2 <- getSubConversation alice convId "conference2" >>= getJSON 200
-  void $ resetConvWithMethod method bob sub2 >>= getBody 200
+  void $ deleteSubConversation bob sub2 >>= getBody 200
 
   sub2' <- getSubConversation alice1 convId "conference2" >>= getJSON 200
   sub2 `shouldNotMatch` sub2'
