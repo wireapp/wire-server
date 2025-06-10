@@ -60,6 +60,7 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
+    GetUserGroups listUserGroupsQuery -> getUserGroupsImpl listUserGroupsQuery
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -83,6 +84,43 @@ createUserGroupImpl tid nug managedBy = do
 
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
+
+getUserGroupsImpl :: (EffectConstraints r) => ListUserGroupsQuery -> Sem r [UserGroup]
+getUserGroupsImpl queryDetails = do
+  ((snd <$>) . sieve . Map.toList . (.userGroups)) <$> get
+  where
+    sieve,
+      dropAfterPageSize,
+      dropBeforeStart,
+      reverseIfDesc,
+      orderByKeysAsc,
+      narrowToTeam ::
+        [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
+
+    sieve = dropAfterPageSize . dropBeforeStart . reverseIfDesc . orderByKeysAsc . narrowToTeam
+
+    narrowToTeam = filter (\((tid, _), _) -> tid == queryDetails.team)
+
+    orderByKeysAsc = sortBy c
+      where
+        c (_, ug) (_, ug') =
+          if queryDetails.sortByName
+            then compare (ug.name, ug.createdAt) (ug'.name, ug'.createdAt)
+            else compare (ug.createdAt, ug.name) (ug'.createdAt, ug'.name)
+
+    reverseIfDesc = if queryDetails.sortDescending then reverse else id
+
+    dropBeforeStart = dropWhile c
+      where
+        c (_, ug) =
+          case queryDetails.lastRowSent of
+            Just (lastName, lastCreatedAt) ->
+              if queryDetails.sortByName
+                then (userGroupNameToText ug.name, ug.createdAt) <= (lastName, lastCreatedAt)
+                else (ug.createdAt, userGroupNameToText ug.name) <= (lastCreatedAt, lastName)
+            Nothing -> False
+
+    dropAfterPageSize = take queryDetails.pageSize
 
 updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
