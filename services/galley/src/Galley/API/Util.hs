@@ -278,8 +278,7 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- check that each remote backend is compatible with group ID version >= 2
   let (_, remoteUsers) = partitionQualified loc joinAction.users
   lift
-    . (failOnFirstError =<<)
-    . runFederatedConcurrentlyEither @_ @Brig remoteUsers
+    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @Brig remoteUsers)
     $ \_ -> do
       guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
   where

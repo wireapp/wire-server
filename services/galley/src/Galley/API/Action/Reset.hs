@@ -109,5 +109,3 @@ resetLocalMLSMainConversation qusr lcnv reset = do
         results >>= \case
           Left (ruids, _) -> sequenceA (tUntagged ruids)
           Right _ -> []
-
-      pure ()

@@ -119,8 +119,7 @@ resetRemoteMLSConversation ::
 resetRemoteMLSConversation rcnv lusr reset =
   mapError @UnreachableBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected UnreachableBackends error when updating remote protocol")
     . mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote protocol")
-    . (handleFedError =<<)
-    . runError
+    . (handleFedError <=< runError)
     $ updateRemoteConversation @ConversationResetTag
       rcnv
       lusr
