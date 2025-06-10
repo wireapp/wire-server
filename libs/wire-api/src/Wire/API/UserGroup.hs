@@ -95,3 +95,18 @@ instance ToSchema UserGroup where
         <*> (.members) .= field "members" (vector schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
+
+data UserGroupKey = UserGroupKey
+  { name :: UserGroupName,
+    createdAt :: UTCTimeMillis
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupKey
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupKey
+
+instance ToSchema UserGroupKey where
+  schema =
+    object "UserGroupKey" $
+      UserGroupKey
+        <$> (.name) .= field "name" schema
+        <*> (.createdAt) .= field "createdAt" schema
