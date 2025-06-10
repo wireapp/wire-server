@@ -752,7 +752,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
   let (searcherId, searcherTeamId) = (fst <$> searcher, snd <$> searcher)
   teamSearchInfo <- mkTeamSearchInfo (tUnqualified searcherTeamId)
 
-  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
+  maybeExactHandleMatch <- exactHandleSearch
 
   let exactHandleMatchCount = length maybeExactHandleMatch
       esMaxResults = maxResults - exactHandleMatchCount
@@ -803,8 +803,8 @@ searchLocally searcher searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> GalleyAPIAccess.getTeamSearchVisibility t
 
-    exactHandleSearch :: TeamSearchInfo -> Sem r (Maybe Contact)
-    exactHandleSearch _teamSearchInfo = runMaybeT $ do
+    exactHandleSearch :: Sem r (Maybe Contact)
+    exactHandleSearch = runMaybeT $ do
       handle <- MaybeT . pure $ Handle.parseHandle searchTerm
       owner <- MaybeT $ UserStore.lookupHandle handle
       storedUser <- MaybeT $ UserStore.getUser owner
