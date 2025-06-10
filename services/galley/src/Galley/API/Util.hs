@@ -268,12 +268,12 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- if it is an MLS conversation
   d <- MaybeT (pure (getMLSData conv))
 
-  -- if the group ID version is > 1
+  -- if the group ID version is not 1
   (v, _) <-
     either (\_ -> lift (throwS @GroupIdVersionNotSupported)) pure $
       groupIdToConv
         d.cnvmlsGroupId
-  guard $ v > GroupIdVersion1
+  guard $ v /= Just GroupIdVersion1
 
   -- check that each remote backend is compatible with group ID version >= 2
   let (_, remoteUsers) = partitionQualified loc joinAction.users

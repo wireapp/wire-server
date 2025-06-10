@@ -49,7 +49,7 @@ roundtripGroupId v ct convId gen =
               }
         )
         === Right
-          ( v,
+          ( Just v,
             GroupIdParts
               { convType = ct,
                 qConvId = convId,

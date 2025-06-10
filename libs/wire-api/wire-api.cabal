@@ -351,6 +351,7 @@ library
     , these
     , time                       >=1.4
     , tinylog
+    , transformers
     , types-common               >=0.16
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2

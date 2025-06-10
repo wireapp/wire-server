@@ -26,11 +26,12 @@ module Wire.API.MLS.Group.Serialisation
   )
 where
 
-import Data.Bifunctor
+import Control.Monad.Trans.Maybe
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -52,13 +53,13 @@ groupIdVersionNumber :: GroupIdVersion -> Word16
 groupIdVersionNumber GroupIdVersion1 = 1
 groupIdVersionNumber GroupIdVersion2 = 2
 
-getVersion :: Get GroupIdVersion
+getVersion :: Get (Maybe GroupIdVersion)
 getVersion = do
   n <- getWord16be
   case n of
-    1 -> pure GroupIdVersion1
-    2 -> pure GroupIdVersion2
-    _ -> fail ("unsupported GroupId version " <> show n)
+    1 -> pure (Just GroupIdVersion1)
+    2 -> pure (Just GroupIdVersion2)
+    _ -> pure Nothing
 
 data GroupIdParts = GroupIdParts
   { convType :: ConvType,
@@ -88,36 +89,67 @@ convToGroupId v parts = GroupId . L.toStrict . runPut $ do
   putByteString $ T.encodeUtf8 subId
   when (v > GroupIdVersion1 || isJust cs.subconv) $
     putWord32be (unGroupIdGen parts.gidGen)
-  putLazyByteString . toByteString $ qDomain parts.qConvId
 
-groupIdToConv :: GroupId -> Either String (GroupIdVersion, GroupIdParts)
-groupIdToConv gid = do
-  (rem', _, (v, ct, conv, gen)) <- first (\(_, _, msg) -> msg) $ runGetOrFail readConv (L.fromStrict (unGroupId gid))
-  domain <- first displayException . T.decodeUtf8' . L.toStrict $ rem'
-  pure
-    ( v,
-      GroupIdParts
-        { convType = toEnum $ fromIntegral ct,
-          qConvId = Qualified conv (Domain domain),
-          gidGen = gen
-        }
-    )
-  where
-    readConv = do
-      version <- getVersion
-      ct <- getWord16be
-      mUUID <- UUID.fromByteString . L.fromStrict <$> getByteString 16
-      uuid <- maybe (fail "invalid conversation UUID in groupId") pure mUUID
-      n <- getWord8
-      if n == 0
-        then do
-          gen <- if version == GroupIdVersion1 then pure 0 else getWord32be
-          pure $ (version, ct, Conv (Id uuid), GroupIdGen gen)
-        else do
-          subConvIdBS <- getByteString $ fromIntegral n
-          subConvId <- either (fail . T.unpack) pure $ parseHeader subConvIdBS
-          gen <- getWord32be
-          pure $ (version, ct, SubConv (Id uuid) (SubConvId subConvId), GroupIdGen gen)
+  let domain = toByteString (qDomain parts.qConvId)
+  when (v > GroupIdVersion1) $
+    putWord16be (fromIntegral (L.length domain))
+  putLazyByteString domain
+
+groupIdToConv :: GroupId -> Either String (Maybe GroupIdVersion, GroupIdParts)
+groupIdToConv gid = case runGetOrFail getParts ((L.fromStrict (unGroupId gid))) of
+  Left (_, _, e) -> Left e
+  Right (_, _, x) -> pure x
+
+getParts :: Get (Maybe GroupIdVersion, GroupIdParts)
+getParts = do
+  mv <- getVersion
+  convType <- getConvType
+  mUUID <- UUID.fromByteString . L.fromStrict <$> getByteString 16
+  convId <- maybe (fail "invalid conversation UUID in GroupId") (pure . Id) mUUID
+  convOrSub <- maybe (Conv convId) (SubConv convId) <$> getSubConvId
+  parts <- case mv of
+    -- version 1 has a fixed format, with the domain as a trailing string
+    Just GroupIdVersion1 -> do
+      gidGen <- case convOrSub of
+        Conv _ -> pure def
+        SubConv _ _ -> getGroupIdGen
+      eDomain <-
+        T.decodeUtf8' . L.toStrict
+          <$> getRemainingLazyByteString
+      domain <- either (fail . displayException) pure eDomain
+      pure
+        GroupIdParts
+          { convType,
+            qConvId = Qualified convOrSub (Domain domain),
+            gidGen
+          }
+    -- Version 2 and above are extensible. Parse the known fields, and ignore any extensions.
+    _ -> do
+      gidGen <- getGroupIdGen
+      domain <- getDomain
+      pure GroupIdParts {convType, qConvId = Qualified convOrSub domain, gidGen}
+  pure (mv, parts)
+
+getConvType :: Get ConvType
+getConvType = toEnum . fromIntegral <$> getWord16be
+
+getSubConvId :: Get (Maybe SubConvId)
+getSubConvId = runMaybeT $ do
+  n <- lift getWord8
+  guard $ n > 0
+  bs <- lift $ getByteString (fromIntegral n)
+  either (fail . T.unpack) (pure . SubConvId) $ parseHeader bs
+
+getGroupIdGen :: Get GroupIdGen
+getGroupIdGen = GroupIdGen <$> getWord32be
+
+getDomain :: Get Domain
+getDomain = do
+  len <- fromIntegral <$> getWord16be
+  domain <- T.decodeUtf8' <$> getByteString len
+  case domain of
+    Left e -> fail (displayException e)
+    Right d -> pure (Domain d)
 
 newGroupId :: ConvType -> Qualified ConvOrSubConvId -> GroupId
 newGroupId ctype qcs = convToGroupId GroupIdVersion1 (groupIdParts ctype 0 qcs)
