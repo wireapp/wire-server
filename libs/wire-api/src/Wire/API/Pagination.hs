@@ -19,6 +19,7 @@ module Wire.API.Pagination where
 
 import Data.Aeson qualified as A
 import Data.Default
+import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
 import Data.Range
@@ -76,6 +77,9 @@ data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortOrder
 
+instance Default SortOrder where
+  def = Desc
+
 instance ToSchema SortOrder where
   schema =
     enum @Text "SortOrder" $
@@ -116,10 +120,10 @@ instance Default PageSize where
 
 data PaginationState = PaginationState
   { searchString :: Text,
-    sortBy :: [Text],
+    sortByKeys :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
-    lastRowSent :: [Text]
+    lastRowSent :: (Text, UTCTimeMillis)
   }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
