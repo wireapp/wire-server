@@ -9,6 +9,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Time.Clock
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
@@ -24,9 +25,12 @@ import Wire.UserGroupStore
 
 data UserGroupInMemState = UserGroupInMemState
   { userGroups :: Map (TeamId, UserGroupId) UserGroup,
-    now :: UTCTimeMillis
+    now :: UTCTimeMillis -- (we could use `Now` from polysemy-wire-zoo, but that doesn't allow moving the clock deliberately.)
   }
   deriving (Eq, Show)
+
+moveClock :: (Member (State UserGroupInMemState) r) => NominalDiffTime -> Sem r ()
+moveClock diff = modify (\s -> s {now = toUTCTimeMillis (addUTCTime diff (fromUTCTimeMillis s.now))})
 
 instance Default UserGroupInMemState where
   def = UserGroupInMemState mempty (fromJust (readUTCTimeMillis "2021-05-12T10:52:02Z"))
