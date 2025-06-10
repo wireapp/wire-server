@@ -105,6 +105,7 @@
 , these
 , time
 , tinylog
+, transformers
 , types-common
 , unliftio
 , unordered-containers
@@ -211,6 +212,7 @@ mkDerivation {
     these
     time
     tinylog
+    transformers
     types-common
     unordered-containers
     uri-bytestring
