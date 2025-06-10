@@ -723,9 +723,10 @@ searchUsersImpl ::
   Sem r (SearchResult Contact)
 searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
   let searcher = tUnqualified searcherId
-  mSearcherTeamId <-
-    UserStore.getUser searcher >>= \mTeam -> pure (mTeam >>= (.teamId))
-
+  mUser <- UserStore.getUser searcher
+  -- this excludes ephemeral users
+  unless ((mUser >>= (.status)) == Just Active) $ throw UserSubsystemInsufficientPermissions
+  let mSearcherTeamId = mUser >>= (.teamId)
   for_ mSearcherTeamId $ \tid ->
     ensurePermissions searcher tid [SearchContacts]
   let qDomain = Qualified () (fromMaybe (tDomain searcherId) maybeDomain)
@@ -751,7 +752,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
   let (searcherId, searcherTeamId) = (fst <$> searcher, snd <$> searcher)
   teamSearchInfo <- mkTeamSearchInfo (tUnqualified searcherTeamId)
 
-  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
+  maybeExactHandleMatch <- exactHandleSearch
 
   let exactHandleMatchCount = length maybeExactHandleMatch
       esMaxResults = maxResults - exactHandleMatchCount
@@ -802,8 +803,8 @@ searchLocally searcher searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> GalleyAPIAccess.getTeamSearchVisibility t
 
-    exactHandleSearch :: TeamSearchInfo -> Sem r (Maybe Contact)
-    exactHandleSearch _teamSerachInfo = runMaybeT $ do
+    exactHandleSearch :: Sem r (Maybe Contact)
+    exactHandleSearch = runMaybeT $ do
       handle <- MaybeT . pure $ Handle.parseHandle searchTerm
       owner <- MaybeT $ UserStore.lookupHandle handle
       storedUser <- MaybeT $ UserStore.getUser owner
