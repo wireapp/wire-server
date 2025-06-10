@@ -27,6 +27,7 @@ import GHC.Generics
 import GHC.TypeLits
 import Imports
 import Servant.API
+import Wire.Arbitrary
 
 -- | (Is there an elegant way to enforce `allowedKeyFieldsInfo` before the handler kicks in?)
 type PaginationQuery (allowedKeyFieldsInfo :: Symbol) api =
@@ -91,6 +92,16 @@ instance O.ToParamSchema SortOrder
 newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int}
   deriving (Eq, Show, Ord, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
+
+pageSizeToInt :: PageSize -> Int
+pageSizeToInt = fromRange . fromPageSize
+
+-- | Doesn't crash on bad input, but shrinks it into the allowed range.
+pageSizeFromIntUnsafe :: Int -> PageSize
+pageSizeFromIntUnsafe = PageSize . (unsafeRange @Int @1 @500) . (`mod` 500) . (+ 1)
+
+instance Arbitrary PageSize where
+  arbitrary = pageSizeFromIntUnsafe <$> arbitrary
 
 instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema
