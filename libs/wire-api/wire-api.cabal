@@ -628,6 +628,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.Login_user
     Test.Wire.API.Golden.Manual.LoginId_user
     Test.Wire.API.Golden.Manual.MLSKeys
+    Test.Wire.API.Golden.Manual.Pagination
     Test.Wire.API.Golden.Manual.Presence
     Test.Wire.API.Golden.Manual.Push
     Test.Wire.API.Golden.Manual.PushRemove
@@ -658,6 +659,7 @@ test-suite wire-api-golden-tests
     , bytestring-conversion
     , containers               >=0.5
     , currency-codes
+    , data-default
     , imports
     , iso3166-country-codes
     , iso639

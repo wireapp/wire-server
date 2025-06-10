@@ -1,0 +1,18 @@
+{
+    "page": [
+        3,
+        5
+    ],
+    "state": {
+        "last_row_sent": 3,
+        "page_size": 1,
+        "search_string": "q",
+        "sort_by": {
+            "keys": [
+                "key1",
+                "key2"
+            ]
+        },
+        "sort_order": "asc"
+    }
+}

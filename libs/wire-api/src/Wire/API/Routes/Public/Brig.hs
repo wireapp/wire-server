@@ -27,6 +27,7 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Misc
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
@@ -322,7 +323,7 @@ type UserGroupAPI =
            ( From 'V9
                :> ZLocalUser
                :> "user-groups"
-               :> PaginationQuery "created_at, name" (Get '[JSON] (PaginationResult UserGroup))
+               :> PaginationQuery "created_at, name" UserGroupKey UserGroup
            )
     :<|> Named
            "update-user-group"
