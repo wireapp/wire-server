@@ -52,6 +52,7 @@ testConsumeEventsOneWebSocket = do
   clientId <- objId client
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
@@ -89,6 +90,7 @@ testConsumeTempEvents = do
     -- Ensure there is no race between event for this client being pushed and temp
     -- consumer being created
     lift $ do
+      assertMessageCount_ ws0
       expectAndAckNewClientEvent ws0 clientId0
       assertNoEvent_ ws0
 
@@ -228,12 +230,14 @@ testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
   postProteusMessage alice conv protoMsg >>= assertSuccess
 
   runCodensity (createEventsWebSocket bob (Just bobClientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.otr-message-add"
       e %. "data.event.payload.0.data.text" `shouldMatchBase64` "hello, bob"
       ackEvent ws e
 
   runCodensity (createEventsWebSocket alice (Just aliceClientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       ackEvent ws e
@@ -302,6 +306,7 @@ testConsumeEventsForDifferentUsers = do
   where
     assertClientAdd :: (HasCallStack) => String -> EventWebSocket -> App ()
     assertClientAdd clientId ws = do
+      assertMessageCount_ ws
       deliveryTag <- assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` clientId
@@ -332,7 +337,8 @@ testConsumeEventsWhileHavingLegacyClients = do
     oldNotif <- awaitMatch isUserClientAddNotif oldWS
     oldNotif %. "payload.0.client.id" `shouldMatch` newClientId
 
-    runCodensity (createEventsWebSocket alice (Just newClientId)) $ \ws ->
+    runCodensity (createEventsWebSocket alice (Just newClientId)) $ \ws -> do
+      assertMessageCount_ ws
       assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "data.event.payload.0.client.id" `shouldMatch` newClientId
@@ -350,12 +356,14 @@ testConsumeEventsAcks = do
   clientId <- objId client
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
 
   -- without ack, we receive the same event again
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
@@ -363,6 +371,7 @@ testConsumeEventsAcks = do
     sendAck ws deliveryTag False
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertNoEvent_ ws
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
@@ -375,6 +384,7 @@ testConsumeEventsMultipleAcks = do
   putHandle alice handle >>= assertSuccess
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
@@ -387,6 +397,7 @@ testConsumeEventsMultipleAcks = do
     sendAck ws deliveryTag True
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertNoEvent_ ws
 
 testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
@@ -399,6 +410,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
   putHandle alice handle >>= assertSuccess
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
@@ -413,6 +425,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
 
   -- Expect client-add event to be delivered again.
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     deliveryTagClientAdd <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` clientId
@@ -421,6 +434,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
     sendAck ws deliveryTagClientAdd False
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     assertNoEvent_ ws
 
 testEventsDeadLettered :: (HasCallStack) => App ()
@@ -442,10 +456,11 @@ testEventsDeadLettered = do
 
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
       assertEvent ws $ \e -> do
-        e %. "type" `shouldMatch` "notifications.missed"
+        e %. "type" `shouldMatch` "notifications_missed"
 
       -- Until we ack the full sync, we can't get new events
       ackFullSync ws
+      assertMessageCount_ ws
 
       -- withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
       -- Now we can see the next event
@@ -468,6 +483,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
 
     -- consume it
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+      assertMessageCount_ ws
       assertFindsEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
         e %. "type" `shouldMatch` "event"
@@ -483,6 +499,7 @@ testTransientEventsDoNotTriggerDeadLetters = do
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
 
     runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+      assertMessageCount_ ws
       assertNoEvent_ ws
 
 testTransientEvents :: (HasCallStack) => App ()
@@ -516,6 +533,7 @@ testTransientEvents = do
   -- the websocket when it was sent. The other events should still show up in
   -- order.
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    assertMessageCount_ ws
     for_ [handle1, handle2] $ \handle ->
       assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.update"
@@ -544,6 +562,7 @@ testChannelLimit = withModifiedBackend
     lowerCodensity $ do
       for_ clients $ \c -> do
         ws <- createEventsWebSocket alice (Just c)
+        lift $ assertMessageCount_ ws
         lift $ assertEvent ws $ \e -> do
           e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
           e %. "data.event.payload.0.client.id" `shouldMatch` c
@@ -581,6 +600,7 @@ testChannelKilled = do
       runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
         -- If creating the user takes longer (async) than adding the clients, we get a
         -- `"user.activate"` here, so we use `assertFindsEvent`.
+        assertMessageCount_ ws
         assertFindsEvent ws $ \e -> do
           e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
           e %. "data.event.payload.0.client.id" `shouldMatch` c1
@@ -615,6 +635,8 @@ testSingleConsumer = do
   lowerCodensity $ do
     ws <- createEventsWebSocket alice (Just clientId)
     ws' <- createEventsWebSocket alice (Just clientId)
+    lift $ assertMessageCount_ ws
+    lift $ assertMessageCount_ ws'
 
     -- the second websocket should get no notifications as long as the first
     -- one is connected
@@ -639,6 +661,38 @@ testSingleConsumer = do
     lift $ sendAck ws deliveryTag2 False
 
     lift $ assertNoEvent_ ws'
+
+testMessageCount :: (HasCallStack) => App ()
+testMessageCount = do
+  (alice, uid, cid) <- mkUserPlusClient
+  replicateM_ 10 $ do
+    GundeckInternal.postPush OwnDomain [mkEvent uid cid] >>= assertSuccess
+
+  -- when we connect the first time, we should eventually get a message count of 11 (user.client-add + 10 more events)
+  -- however, we only assert that it's greater than 1 to avoid flakiness
+  runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
+    msgCount <- assertMessageCount ws
+    assertBool ("Expected message count to be greater than 1, but got: " <> show msgCount) (msgCount > 1)
+    consumeAllEvents ws
+
+  -- when we reconnect, the message count should be 0
+  runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
+    assertMessageCount ws `shouldMatchInt` 0
+  where
+    mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
+    mkUserPlusClient = do
+      user <- randomUser OwnDomain def
+      uid <- objId user
+      client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+      cid <- objId client
+      pure (user, uid, cid)
+
+    mkEvent :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Value
+    mkEvent uid cid =
+      object
+        [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
+          "payload" .= [object ["hello" .= "world"]]
+        ]
 
 ----------------------------------------------------------------------
 -- helpers
@@ -731,6 +785,11 @@ ackEvent ws event = do
   deliveryTag <- event %. "data.delivery_tag"
   sendAck ws deliveryTag False
 
+ackMessageCount :: (HasCallStack) => EventWebSocket -> App ()
+ackMessageCount ws = do
+  putMVar ws.ack
+    $ Just (object ["type" .= "ack_message_count"])
+
 sendAck :: (HasCallStack) => EventWebSocket -> Value -> Bool -> App ()
 sendAck ws deliveryTag multiple =
   do
@@ -744,6 +803,16 @@ sendAck ws deliveryTag multiple =
               "multiple" .= multiple
             ]
       ]
+
+assertMessageCount :: (HasCallStack) => EventWebSocket -> App Int
+assertMessageCount ws = assertEvent ws $ \e -> do
+  e %. "type" `shouldMatch` "message_count"
+  count <- e %. "data.count" & asInt
+  ackMessageCount ws
+  pure count
+
+assertMessageCount_ :: (HasCallStack) => EventWebSocket -> App ()
+assertMessageCount_ = void . assertMessageCount
 
 assertEvent :: (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
 assertEvent ws expectations = do
@@ -820,7 +889,8 @@ consumeAllEvents ws = do
         $ "Websocket closed while consuming all events: "
         <> displayException e
     Just (Right e) -> do
-      ackEvent ws e
+      t <- e %. "type" & asString
+      if t == "message_count" then ackMessageCount ws else ackEvent ws e
       consumeAllEvents ws
 
 -- | Only considers connections from cannon
