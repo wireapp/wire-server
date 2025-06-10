@@ -1,12 +1,15 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
 import Data.Default
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -49,6 +52,7 @@ data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
+  | UserGroupInvalidQueryParams Text
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -57,6 +61,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
+    UserGroupInvalidQueryParams msg -> _ msg
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
@@ -134,16 +139,29 @@ getUserGroupImpl ::
   Sem r (Maybe UserGroup)
 getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
-  getterCanSeeAll <- do
-    creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
-    pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+  getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid
   if getterCanSeeAll || getter `elem` (toList userGroup.members)
     then pure userGroup
     else MaybeT $ pure Nothing
 
+mkGetterCanSeeAll ::
+  forall r.
+  (Member GalleyAPIAccess r) =>
+  UserId ->
+  TeamId ->
+  MaybeT (Sem r) Bool
+mkGetterCanSeeAll getter team = do
+  creatorTeamMember <- MaybeT $ getTeamMember getter team
+  pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+
 getUserGroupsImpl ::
   forall r.
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r,
+    Member (Error UserGroupSubsystemError) r
+  ) =>
   UserId ->
   Maybe Text ->
   Maybe SortBy ->
@@ -151,7 +169,53 @@ getUserGroupsImpl ::
   Maybe PageSize ->
   Maybe PaginationState ->
   Sem r (PaginationResult UserGroup)
-getUserGroupsImpl = undefined
+getUserGroupsImpl getter q sortByKeys' sortOrder' pSize pState = do
+  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin {- sic! -}
+  getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
+  unless (getterCanSeeAll) $ throw UserGroupNotATeamAdmin
+  checkPaginationState `mapM_` pState
+  details <- either (throw . UserGroupInvalidQueryParams) pure (mkQueryDetails team)
+  page :: [UserGroup] <- Store.getUserGroups details
+  pure (PaginationResult page (newPaginationState page))
+  where
+    ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
+    ifNothing e = maybe (throw e) pure
+
+    -- TODO: try to push most of this to Wire.API.Pagination
+
+    checkPaginationState :: PaginationState -> Sem r ()
+    checkPaginationState st = do
+      let badState = throw . UserGroupInvalidQueryParams . (<> " mismatch")
+      forM_ q $ \x -> unless (st.searchString == x) (badState "searchString")
+      forM_ sortByKeys' $ \x -> unless (st.sortByKeys == x) (badState "sortBy")
+      forM_ sortOrder' $ \x -> unless (st.sortOrder == x) (badState "sortOrder")
+      forM_ pSize $ \x -> unless (st.pageSize == x) (badState "pageSize")
+
+    newPaginationState :: [UserGroup] -> PaginationState
+    newPaginationState ugs = case pState of
+      Just oldState -> oldState {lastRowSent = lastRowSent}
+      Nothing -> PaginationState {..}
+      where
+        searchString :: Text = fromMaybe "" q
+        sortByKeys :: SortBy = fromMaybe (SortBy ["created_at", "name"]) sortByKeys'
+        sortOrder :: SortOrder = fromMaybe def sortOrder'
+        pageSize :: PageSize = fromMaybe def pSize
+        lastRowSent :: (Text, UTCTimeMillis) = let l = last ugs in (userGroupNameToText l.name, l.createdAt)
+
+    mkQueryDetails :: TeamId -> Either Text Store.ListUserGroupsQuery
+    mkQueryDetails team = do
+      let lastRowSent = (.lastRowSent) <$> pState
+          sortDescending = maybe True (== Desc) sortOrder'
+          pageSize = pageSizeToInt $ fromMaybe def pSize
+      sortByName <- case sortByKeys' of
+        Nothing -> pure False
+        Just (SortBy ["name"]) -> pure True
+        Just (SortBy ["name", "created_at"]) -> pure True
+        Just (SortBy ["created_at"]) -> pure False
+        Just (SortBy ["created_at", "name"]) -> pure False
+        Just (SortBy bad) ->
+          Left $ "invalid sort keys (allowed: name,created_at); received: " <> T.intercalate "," bad <> ")"
+      pure Store.ListUserGroupsQuery {..}
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
