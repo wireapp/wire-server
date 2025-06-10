@@ -35,6 +35,7 @@ interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
+    GetUserGroups listUserGroupsQuery -> getUserGroupsImpl listUserGroupsQuery
     UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -80,6 +81,9 @@ getUserGroupImpl team id_ = do
         [vectorStatement|
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
+
+getUserGroupsImpl :: forall r. ListUserGroupsQuery -> Sem r [UserGroup]
+getUserGroupsImpl = undefined
 
 createUserGroupImpl ::
   ( Member (Embed IO) r,
