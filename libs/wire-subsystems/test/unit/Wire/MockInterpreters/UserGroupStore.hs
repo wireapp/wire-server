@@ -9,6 +9,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (fromList)
 import GHC.Stack
@@ -85,7 +86,7 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
-getUserGroupsImpl :: (EffectConstraints r) => ListUserGroupsQuery -> Sem r [UserGroup]
+getUserGroupsImpl :: (EffectConstraints r) => ListUserGroupsQuery UserGroupKey -> Sem r [UserGroup]
 getUserGroupsImpl queryDetails = do
   ((snd <$>) . sieve . Map.toList . (.userGroups)) <$> get
   where
@@ -94,12 +95,28 @@ getUserGroupsImpl queryDetails = do
       dropBeforeStart,
       reverseIfDesc,
       orderByKeysAsc,
+      narrowToSearchString,
       narrowToTeam ::
         [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
 
-    sieve = dropAfterPageSize . dropBeforeStart . reverseIfDesc . orderByKeysAsc . narrowToTeam
+    sieve =
+      dropAfterPageSize
+        . dropBeforeStart
+        . reverseIfDesc
+        . orderByKeysAsc
+        . narrowToSearchString
+        . narrowToTeam
 
     narrowToTeam = filter (\((tid, _), _) -> tid == queryDetails.team)
+
+    narrowToSearchString =
+      filter
+        ( \(_, ug) ->
+            maybe
+              True
+              (`T.isInfixOf` (userGroupNameToText ug.name))
+              queryDetails.searchString
+        )
 
     orderByKeysAsc = sortBy c
       where
@@ -114,10 +131,10 @@ getUserGroupsImpl queryDetails = do
       where
         c (_, ug) =
           case queryDetails.lastRowSent of
-            Just (lastName, lastCreatedAt) ->
+            Just (UserGroupKey lastName lastCreatedAt) ->
               if queryDetails.sortByName
-                then (userGroupNameToText ug.name, ug.createdAt) <= (lastName, lastCreatedAt)
-                else (ug.createdAt, userGroupNameToText ug.name) <= (lastCreatedAt, lastName)
+                then (ug.name, ug.createdAt) > (lastName, lastCreatedAt)
+                else (ug.createdAt, ug.name) > (lastCreatedAt, lastName)
             Nothing -> False
 
     dropAfterPageSize = take queryDetails.pageSize

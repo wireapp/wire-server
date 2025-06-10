@@ -18,8 +18,8 @@ data UserGroupSubsystem m a where
     Maybe SortBy ->
     Maybe SortOrder ->
     Maybe PageSize ->
-    Maybe PaginationState ->
-    UserGroupSubsystem m (PaginationResult UserGroup)
+    Maybe (PaginationState UserGroupKey) ->
+    UserGroupSubsystem m (PaginationResult UserGroupKey UserGroup)
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
   AddUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()

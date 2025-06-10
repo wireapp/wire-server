@@ -18,20 +18,26 @@
 module Wire.API.Pagination where
 
 import Data.Aeson qualified as A
+import Data.Bifunctor (first)
+import Data.ByteString.Lazy qualified as LB
 import Data.Default
-import Data.Json.Util
+import Data.Kind
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
+import Data.Proxy
 import Data.Range
 import Data.Schema
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import GHC.Generics
 import GHC.TypeLits
 import Imports
 import Servant.API
-import Wire.Arbitrary
+import Test.QuickCheck.Gen as Arbitrary
+import Wire.Arbitrary as Arbitrary
 
 -- | (Is there an elegant way to enforce `allowedKeyFieldsInfo` before the handler kicks in?)
-type PaginationQuery (allowedKeyFieldsInfo :: Symbol) api =
+type PaginationQuery (allowedKeyFieldsInfo :: Symbol) (rowKeys :: Type) (row :: Type) =
   QueryParam'
     '[Optional, Strict, Description "Search string"]
     "q"
@@ -43,6 +49,7 @@ type PaginationQuery (allowedKeyFieldsInfo :: Symbol) api =
               ( "Sort key(s): comma-separated list of field names.  Must \
                 \match sort keys encoded in pagination state.  Allowed Fields: "
                   `AppendSymbol` allowedKeyFieldsInfo
+                  -- we need `allowedKeyFieldInfo` because `SortBy` contains that information only on the value level.
               )
           ]
          "sortBy"
@@ -58,24 +65,30 @@ type PaginationQuery (allowedKeyFieldsInfo :: Symbol) api =
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
          "paginationState"
-         PaginationState
-    :> api
+         (PaginationState rowKeys)
+    :> Get '[JSON] (PaginationResult rowKeys row)
 
 data SortBy = SortBy {fromSortBy :: [Text]}
   deriving (Eq, Ord, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
 
+instance Arbitrary SortBy where
+  arbitrary = SortBy <$> arbitrary
+
 instance ToSchema SortBy where
-  schema = undefined
+  schema = object "SortBy" $ SortBy <$> (.fromSortBy) .= field "keys" (array schema)
 
 instance FromHttpApiData SortBy where
-  parseUrlPiece = undefined
+  parseUrlPiece = parseUrlPieceViaSchema
 
 instance O.ToParamSchema SortBy
 
 data SortOrder = Asc | Desc
-  deriving (Eq, Show, Ord, Enum, Generic)
+  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortOrder
+
+instance Arbitrary SortOrder where
+  arbitrary = Arbitrary.elements [minBound ..]
 
 instance Default SortOrder where
   def = Desc
@@ -89,7 +102,7 @@ instance ToSchema SortOrder where
         ]
 
 instance FromHttpApiData SortOrder where
-  parseUrlPiece = undefined
+  parseUrlPiece = parseUrlPieceViaSchema
 
 instance O.ToParamSchema SortOrder
 
@@ -102,7 +115,7 @@ pageSizeToInt = fromRange . fromPageSize
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
 pageSizeFromIntUnsafe :: Int -> PageSize
-pageSizeFromIntUnsafe = PageSize . (unsafeRange @Int @1 @500) . (`mod` 500) . (+ 1)
+pageSizeFromIntUnsafe = PageSize . (unsafeRange @Int @1 @500) . (+ 1) . (`mod` 500)
 
 instance Arbitrary PageSize where
   arbitrary = pageSizeFromIntUnsafe <$> arbitrary
@@ -111,49 +124,60 @@ instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema
 
 instance FromHttpApiData PageSize where
-  parseUrlPiece = undefined
+  parseUrlPiece = parseUrlPieceViaSchema
 
 instance O.ToParamSchema PageSize
 
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
 
-data PaginationState = PaginationState
-  { searchString :: Text,
+data PaginationState key = PaginationState
+  { searchString :: Text, -- TODO: this shouldn't be in the state, but maintained separately. or we need to make it more polymorhpic, maybe?
     sortByKeys :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
-    lastRowSent :: (Text, UTCTimeMillis)
+    lastRowSent :: key
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationState key)
 
-instance ToSchema PaginationState where
+instance (ToSchema key) => ToSchema (PaginationState key) where
   schema =
     object "PagintationState" $
       PaginationState
         <$> (.searchString) .= field "search_string" schema
-        <*> (.sortBy) .= field "sort_by" (array schema)
+        <*> (.sortByKeys) .= field "sort_by" schema
         <*> (.sortOrder) .= field "sort_order" schema
         <*> (.pageSize) .= field "page_size" schema
-        <*> (.lastRowSent) .= field "last_row_sent" (array schema)
+        <*> (.lastRowSent) .= field "last_row_sent" schema
 
-instance FromHttpApiData PaginationState where
-  parseUrlPiece = undefined
+instance (Arbitrary key) => Arbitrary (PaginationState key) where
+  arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance O.ToParamSchema PaginationState where
-  toParamSchema = undefined
+instance (ToSchema key) => FromHttpApiData (PaginationState key) where
+  parseUrlPiece = parseUrlPieceViaSchema
 
-data PaginationResult a = PaginationResult
-  { page :: [a],
-    state :: PaginationState
+instance O.ToParamSchema (PaginationState key) where
+  toParamSchema _ =
+    -- PaginationState is supposed to be opaque for clients, no need to swagger docs.
+    O.toParamSchema (Proxy @Text)
+
+data PaginationResult key row = PaginationResult
+  { page :: [row],
+    state :: PaginationState key
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationResult a)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationResult key row)
 
-instance (ToSchema a) => ToSchema (PaginationResult a) where
+instance (ToSchema key, ToSchema row) => ToSchema (PaginationResult key row) where
   schema =
     object "PagintationResult" $
       PaginationResult
         <$> page .= field "page" (array schema)
         <*> state .= field "state" schema
+
+instance (Arbitrary key, Arbitrary row) => Arbitrary (PaginationResult key row) where
+  arbitrary = PaginationResult <$> arbitrary <*> arbitrary
+
+parseUrlPieceViaSchema :: (A.FromJSON a) => Text -> Either Text a
+parseUrlPieceViaSchema = first T.pack . A.eitherDecode . LB.fromStrict . T.encodeUtf8
