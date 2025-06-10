@@ -705,47 +705,43 @@ sendAndConsumeCommitBundle = sendAndConsumeCommitBundleWithProtocol MLSProtocolM
 -- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
 -- update the test state accordingly.
 sendAndConsumeCommitBundleWithProtocol :: (HasCallStack) => MLSProtocol -> MessagePackage -> App Value
-sendAndConsumeCommitBundleWithProtocol = sendAndConsumeCommitBundleWithProtocolAndConsumer consumingMessages
+sendAndConsumeCommitBundleWithProtocol protocol messagePackage = lowerCodensity $ do
+  consumingMessages protocol messagePackage
+  lift $ sendCommitBundle messagePackage
 
--- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
--- update the test state accordingly.
-sendAndConsumeCommitBundleWithProtocolAndConsumer ::
+-- | Send an MLS commit bundle, and update the test state accordingly.
+sendCommitBundle ::
   (HasCallStack) =>
-  (MLSProtocol -> MessagePackage -> Codensity App ()) ->
-  MLSProtocol ->
   MessagePackage ->
   App Value
-sendAndConsumeCommitBundleWithProtocolAndConsumer consumer protocol mp = do
-  lowerCodensity $ do
-    consumer protocol mp
-    lift $ do
-      r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+sendCommitBundle mp = do
+  r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
-      -- if the sender is a new member (i.e. it's an external commit), then
-      -- process the welcome message directly
-      do
-        conv <- getMLSConv mp.convId
-        when (Set.member mp.sender conv.newMembers) $
-          traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
+  -- if the sender is a new member (i.e. it's an external commit), then
+  -- process the welcome message directly
+  do
+    conv <- getMLSConv mp.convId
+    when (Set.member mp.sender conv.newMembers) $
+      traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
 
-      -- increment epoch and add new/remove clients
-      modifyMLSState $ \mls ->
-        mls
-          { convs =
-              Map.adjust
-                ( \conv ->
-                    conv
-                      { epoch = conv.epoch + 1,
-                        members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
-                        membersToBeRemoved = mempty,
-                        newMembers = mempty
-                      }
-                )
-                mp.convId
-                mls.convs
-          }
+  -- increment epoch and add new/remove clients
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \conv ->
+                conv
+                  { epoch = conv.epoch + 1,
+                    members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
+                    membersToBeRemoved = mempty,
+                    newMembers = mempty
+                  }
+            )
+            mp.convId
+            mls.convs
+      }
 
-      pure r
+  pure r
 
 consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do

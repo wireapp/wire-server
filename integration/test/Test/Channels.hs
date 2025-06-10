@@ -23,7 +23,8 @@ import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
-import Control.Monad.Codensity (Codensity (Codensity))
+import Control.Monad.Codensity (Codensity (Codensity), lowerCodensity)
+import Control.Monad.Trans.Class
 import qualified Data.Set as Set
 import GHC.Stack
 import MLS.Util
@@ -502,7 +503,9 @@ testTeamAdminCanAddMembersWithoutJoining = do
       filterM (\m -> (/= selfQid) <$> (m %. "qualified_id")) allUsers
 
 sendAndConsumeCommitBundleExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> App Value
-sendAndConsumeCommitBundleExpectNoMemberJoin = sendAndConsumeCommitBundleWithProtocolAndConsumer (const consumingMessagesExpectNoMemberJoin) MLSProtocolMLS
+sendAndConsumeCommitBundleExpectNoMemberJoin messagePackage = lowerCodensity $ do
+  consumingMessagesExpectNoMemberJoin messagePackage
+  lift $ sendCommitBundle messagePackage
 
 consumingMessagesExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> Codensity App ()
 consumingMessagesExpectNoMemberJoin mp = Codensity $ \k -> do
