@@ -80,6 +80,7 @@
 , scientific
 , servant
 , servant-client-core
+, servant-server
 , sodium-crypto-sign
 , statistics
 , stomp-queue
@@ -99,6 +100,7 @@
 , uri-bytestring
 , uuid
 , vector
+, wai
 , wai-utilities
 , wire-api
 , wire-api-federation
@@ -182,6 +184,7 @@ mkDerivation {
     schema-profunctor
     servant
     servant-client-core
+    servant-server
     sodium-crypto-sign
     statistics
     stomp-queue
@@ -280,6 +283,7 @@ mkDerivation {
     scientific
     servant
     servant-client-core
+    servant-server
     sodium-crypto-sign
     statistics
     stomp-queue
@@ -299,6 +303,7 @@ mkDerivation {
     uri-bytestring
     uuid
     vector
+    wai
     wai-utilities
     wire-api
     wire-api-federation
