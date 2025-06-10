@@ -257,7 +257,7 @@ ensureConvRoleNotElevated origMember targetRole = do
       throwS @'InvalidAction
 
 checkGroupIdSupport ::
-  ( Member (ErrorS InvalidAction) r,
+  ( Member (ErrorS GroupIdVersionNotSupported) r,
     Member FederatorAccess r
   ) =>
   Local x ->
@@ -270,7 +270,7 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
 
   -- if the group ID version is > 1
   (v, _) <-
-    either (\_ -> lift (throwS @InvalidAction)) pure $
+    either (\_ -> lift (throwS @GroupIdVersionNotSupported)) pure $
       groupIdToConv
         d.cnvmlsGroupId
   guard $ v > GroupIdVersion1
@@ -283,8 +283,8 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
     $ \_ -> do
       guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
   where
-    failOnFirstError :: (Member (ErrorS InvalidAction) r) => [Either e x] -> Sem r ()
-    failOnFirstError = traverse_ $ either (\_ -> throwS @InvalidAction) pure
+    failOnFirstError :: (Member (ErrorS GroupIdVersionNotSupported) r) => [Either e x] -> Sem r ()
+    failOnFirstError = traverse_ $ either (\_ -> throwS @GroupIdVersionNotSupported) pure
 
 getMLSData :: Data.Conversation -> Maybe ConversationMLSData
 getMLSData conv = case Data.convProtocol conv of

@@ -142,6 +142,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvNotFound) r,
       Member (ErrorS 'TooManyMembers) r,
       Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (ErrorS 'GroupIdVersionNotSupported) r,
       Member (Error NonFederatingBackends) r,
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
@@ -289,6 +290,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
   HasConversationActionGalleyErrors 'ConversationJoinTag =
     '[ ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS ('ActionDenied 'AddConversationMember),
+       ErrorS 'GroupIdVersionNotSupported,
        ErrorS 'NotATeamMember,
        ErrorS 'InvalidOperation,
        ErrorS 'ConvNotFound,
@@ -363,6 +365,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
      ]
   HasConversationActionGalleyErrors 'ConversationResetTag =
     '[ ErrorS (ActionDenied LeaveConversation),
+       ErrorS GroupIdVersionNotSupported,
        ErrorS MLSStaleMessage,
        ErrorS InvalidOperation,
        ErrorS ConvNotFound

@@ -106,6 +106,7 @@ data GalleyError
   | MLSMigrationCriteriaNotSatisfied
   | MLSFederatedOne2OneNotSupported
   | MLSFederatedResetNotSupported
+  | GroupIdVersionNotSupported
   | -- | MLS and federation are incompatible with legalhold - this error is thrown if a user
     -- tries to create an MLS group while being under legalhold
     MLSLegalholdIncompatible
@@ -265,6 +266,8 @@ type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls
 type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-federated-one2one-not-supported" "Federated One2One MLS conversations are only supported in API version >= 6"
 
 type instance MapError 'MLSFederatedResetNotSupported = 'StaticError 400 "mls-federated-reset-not-supported" "Reset is not supported by the owning backend of the conversation"
+
+type instance MapError 'GroupIdVersionNotSupported = 'StaticError 400 "mls-group-id-not-supported" "The group ID version of the conversation is not supported by one of the federated backends"
 
 type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
 

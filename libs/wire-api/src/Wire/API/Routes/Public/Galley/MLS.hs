@@ -115,6 +115,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSIdentityMismatch
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow GroupIdVersionNotSupported
                :> "commit-bundles"
                :> ZLocalUser
                :> ZClient
@@ -156,6 +157,7 @@ type MLSMessagingAPI =
                :> CanThrow 'InvalidOperation
                :> CanThrow ('ActionDenied LeaveConversation)
                :> CanThrow 'MLSFederatedResetNotSupported
+               :> CanThrow 'GroupIdVersionNotSupported
                :> CanThrow MLSProtocolErrorTag
                :> MultiVerb1
                     'POST

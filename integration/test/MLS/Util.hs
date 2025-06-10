@@ -238,8 +238,8 @@ createGroup cs cid convId = do
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
   resetClientGroup cs cid groupId convId keys
 
-deleteGroup :: ConvId -> String -> App MLSConv
-deleteGroup convId groupId = do
+deleteGroup :: ConvId -> App MLSConv
+deleteGroup convId = do
   mlsConv <- getMLSConv convId
   let allClients = mlsConv.members <> mlsConv.newMembers <> mlsConv.membersToBeRemoved
   modifyMLSState $ \s ->
@@ -251,7 +251,7 @@ deleteGroup convId groupId = do
 
 resetGroup :: ClientIdentity -> ConvId -> String -> App ConvId
 resetGroup cid convId groupId = do
-  mlsConv <- deleteGroup convId groupId
+  mlsConv <- deleteGroup convId
   let convId' = convId {groupId = Just groupId} :: ConvId
   createGroup mlsConv.ciphersuite cid convId'
   pure convId'

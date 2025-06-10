@@ -757,6 +757,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'GroupIdVersionNotSupported
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> ZLocalUser
@@ -780,6 +781,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'GroupIdVersionNotSupported
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> ZLocalUser
@@ -804,6 +806,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'GroupIdVersionNotSupported
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> ZLocalUser

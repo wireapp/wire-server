@@ -84,11 +84,15 @@ testResetWithLegacyBackend domain = when (unFedDomain domain > 0) $ do
   convId' <- resetGroup alice1 mlsConv.convId groupId'
 
   -- charlie cannot rejoin
-  void $ createAddCommit alice1 convId' [charlie] >>= sendAndConsumeCommitBundle
+  void $ uploadNewKeyPackage suite charlie1
+  mp <- createAddCommit alice1 convId' [charlie]
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-group-id-not-supported"
 
   do
     conv' <- getConversation alice conv >>= getJSON 200
     conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
-    conv' %. "epoch" `shouldMatchInt` 1
+    conv' %. "epoch" `shouldMatchInt` 0
     otherMember <- assertOne =<< asList (conv' %. "members.others")
     otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
