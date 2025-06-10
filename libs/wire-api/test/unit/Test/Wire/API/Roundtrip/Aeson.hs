@@ -44,6 +44,7 @@ import Wire.API.FederationStatus qualified as FederationStatus
 import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
+import Wire.API.Pagination qualified as Pagination
 import Wire.API.Properties qualified as Properties
 import Wire.API.Provider qualified as Provider
 import Wire.API.Provider.Bot qualified as Provider.Bot
@@ -168,6 +169,7 @@ tests =
       testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,
       testRoundTrip @OAuth.OAuthApplication,
+      testRoundTrip @(Pagination.PaginationResult Int Bool),
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
@@ -345,6 +347,7 @@ tests =
       testRoundTrip @UserGroup.NewUserGroup,
       testRoundTrip @UserGroup.UserGroupUpdate,
       testRoundTrip @UserGroup.UserGroup,
+      testRoundTrip @UserGroup.UserGroupKey,
       testRoundTrip @EventWebSocketProtocol.MessageServerToClient,
       testRoundTrip @EventWebSocketProtocol.MessageClientToServer,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),

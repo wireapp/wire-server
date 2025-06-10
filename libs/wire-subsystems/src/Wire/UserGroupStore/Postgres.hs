@@ -82,7 +82,7 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
-getUserGroupsImpl :: forall r. ListUserGroupsQuery -> Sem r [UserGroup]
+getUserGroupsImpl :: forall r. ListUserGroupsQuery UserGroupKey -> Sem r [UserGroup]
 getUserGroupsImpl = undefined
 
 createUserGroupImpl ::

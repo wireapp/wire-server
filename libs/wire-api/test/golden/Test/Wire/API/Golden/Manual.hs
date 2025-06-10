@@ -47,6 +47,7 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.Pagination
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
 import Test.Wire.API.Golden.Manual.PushRemove
@@ -68,7 +69,13 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "NewUserGroup" $
+    [ testGroup "PaginationResult" $
+        testObjects
+          [ (testObject_PaginationResult_1, "testObject_PaginationResult_1.json"),
+            (testObject_PaginationResult_2, "testObject_PaginationResult_2.json"),
+            (testObject_PaginationResult_3, "testObject_PaginationResult_3.json")
+          ],
+      testGroup "NewUserGroup" $
         testObjects
           [ (testObject_NewUserGroup_1, "testObject_NewUserGroup_1.json"),
             (testObject_NewUserGroup_2, "testObject_NewUserGroup_2.json")

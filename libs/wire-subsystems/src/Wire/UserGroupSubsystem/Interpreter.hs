@@ -167,8 +167,8 @@ getUserGroupsImpl ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe PaginationState ->
-  Sem r (PaginationResult UserGroup)
+  Maybe (PaginationState UserGroupKey) ->
+  Sem r (PaginationResult UserGroupKey UserGroup)
 getUserGroupsImpl getter q sortByKeys' sortOrder' pSize pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin {- sic! -}
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
@@ -183,7 +183,7 @@ getUserGroupsImpl getter q sortByKeys' sortOrder' pSize pState = do
 
     -- TODO: try to push most of this to Wire.API.Pagination
 
-    checkPaginationState :: PaginationState -> Sem r ()
+    checkPaginationState :: PaginationState UserGroupKey -> Sem r ()
     checkPaginationState st = do
       let badState = throw . UserGroupInvalidQueryParams . (<> " mismatch")
       forM_ q $ \x -> unless (st.searchString == x) (badState "searchString")
@@ -191,7 +191,7 @@ getUserGroupsImpl getter q sortByKeys' sortOrder' pSize pState = do
       forM_ sortOrder' $ \x -> unless (st.sortOrder == x) (badState "sortOrder")
       forM_ pSize $ \x -> unless (st.pageSize == x) (badState "pageSize")
 
-    newPaginationState :: [UserGroup] -> PaginationState
+    newPaginationState :: [UserGroup] -> PaginationState UserGroupKey
     newPaginationState ugs = case pState of
       Just oldState -> oldState {lastRowSent = lastRowSent}
       Nothing -> PaginationState {..}
@@ -200,13 +200,14 @@ getUserGroupsImpl getter q sortByKeys' sortOrder' pSize pState = do
         sortByKeys :: SortBy = fromMaybe (SortBy ["created_at", "name"]) sortByKeys'
         sortOrder :: SortOrder = fromMaybe def sortOrder'
         pageSize :: PageSize = fromMaybe def pSize
-        lastRowSent :: (Text, UTCTimeMillis) = let l = last ugs in (userGroupNameToText l.name, l.createdAt)
+        lastRowSent :: UserGroupKey = let l = last ugs in UserGroupKey l.name l.createdAt
 
-    mkQueryDetails :: TeamId -> Either Text Store.ListUserGroupsQuery
+    mkQueryDetails :: TeamId -> Either Text (Store.ListUserGroupsQuery UserGroupKey)
     mkQueryDetails team = do
       let lastRowSent = (.lastRowSent) <$> pState
           sortDescending = maybe True (== Desc) sortOrder'
           pageSize = pageSizeToInt $ fromMaybe def pSize
+          searchString = q
       sortByName <- case sortByKeys' of
         Nothing -> pure False
         Just (SortBy ["name"]) -> pure True
