@@ -335,7 +335,7 @@ ensurePermissions ::
 ensurePermissions u t perms = do
   m <- GalleyAPIAccess.getTeamMember u t
   unless (check m) $
-    throw UserSubsystemInsufficientTeamPermissions
+    throw UserSubsystemInsufficientPermissions
   where
     check :: Maybe TeamMember -> Bool
     check (Just m) = all (hasPermission m) perms

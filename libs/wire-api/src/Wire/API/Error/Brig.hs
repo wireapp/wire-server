@@ -74,6 +74,7 @@ data BrigError
   | TooManyTeamInvitations
   | CannotJoinMultipleTeams
   | InsufficientTeamPermissions
+  | InsufficientPermissions
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
   | CustomerExtensionBlockedDomain
@@ -275,6 +276,8 @@ type instance MapError 'TooManyTeamInvitations = 'StaticError 403 "too-many-team
 type instance MapError 'CannotJoinMultipleTeams = 'StaticError 403 "cannot-join-multiple-teams" "Cannot accept invitations from multiple teams"
 
 type instance MapError 'InsufficientTeamPermissions = 'StaticError 403 "insufficient-permissions" "Insufficient team permissions"
+
+type instance MapError 'InsufficientPermissions = 'StaticError 403 "insufficient-permissions" "Insufficient permissions"
 
 type instance MapError 'KeyPackageDecodingError = 'StaticError 409 "decoding-error" "Key package could not be TLS-decoded"
 

@@ -1367,6 +1367,7 @@ type ConnectionAPI =
            "search-contacts"
            ( Summary "Search for users"
                :> ZLocalUser
+               :> CanThrow 'InsufficientPermissions
                :> "search"
                :> "contacts"
                :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
