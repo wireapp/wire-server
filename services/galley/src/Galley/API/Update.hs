@@ -895,7 +895,7 @@ joinConversation lusr zcon conv access = do
     -- where there is no way to control who joins, etc.
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
-      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
+      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember ExternalAdd
     lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
@@ -907,6 +907,7 @@ joinConversation lusr zcon conv access = do
         action
 
 addMembers ::
+  forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -944,9 +945,11 @@ addMembers ::
   Sem r (UpdateResult Event)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
+  conv <- getConversationWithError lcnv
+  let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
+  let action = ConversationJoin users role joinType
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
-      ConversationJoin users role
+    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
 
 addMembersUnqualifiedV2 ::
   ( Member BackendNotificationQueueAccess r,
@@ -988,7 +991,7 @@ addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
-      ConversationJoin users role
+      ConversationJoin users role def
 
 addMembersUnqualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -1645,11 +1648,12 @@ addBot lusr zcon b = do
           (tUntagged lusr)
           t
           ( EdMembersJoin
-              ( SimpleMembers
+              ( MembersJoin
                   [ SimpleMember
                       (tUntagged (qualifyAs lusr (botUserId (botMemId bm))))
                       roleNameWireAdmin
                   ]
+                  InternalAdd
               )
           )
   pushNotifications

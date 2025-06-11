@@ -117,9 +117,6 @@ createUserGroupImpl team newUserGroup managedBy = do
               returning id :: uuid, name :: text, managed_by :: int, created_at :: timestamptz
             |]
 
-    toRelationTable :: a -> Vector b -> (Vector a, Vector b)
-    toRelationTable a bs = (a <$ bs, bs)
-
     -- This can perhaps be simplified using rel8
     insertGroupMembersStatement :: Statement (UUID, Vector UserId) ()
     insertGroupMembersStatement =
@@ -230,3 +227,6 @@ crudUser op gid uid = do
       Transaction.statement
         (gid, uid)
         (lmap (\(gid_, uid_) -> (gid_.toUUID, uid_.toUUID)) op)
+
+toRelationTable :: a -> Vector b -> (Vector a, Vector b)
+toRelationTable a bs = (a <$ bs, bs)

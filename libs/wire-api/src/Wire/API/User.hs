@@ -219,7 +219,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- UserIdList
 
 -- | This datatype replaces the old `Members` datatype,
--- which has been replaced by `SimpleMembers`. This is
+-- which has been replaced by `MembersJoin`. This is
 -- needed due to backwards compatible reasons since old
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries

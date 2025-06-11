@@ -22,7 +22,6 @@ module Wire.API.Conversation.Protocol
   ( ProtocolTag (..),
     protocolTag,
     protocolTagSchema,
-    protocolValidAction,
     Epoch (..),
     Protocol (..),
     _ProtocolMLS,
@@ -47,7 +46,6 @@ import Data.Schema
 import Data.Time.Clock
 import Imports
 import Test.QuickCheck
-import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
@@ -199,19 +197,6 @@ protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
 protocolTag (ProtocolMixed _) = ProtocolMixedTag
-
--- | Certain actions need to be performed at the level of the underlying
--- protocol (MLS, mostly) before being applied to conversations. This function
--- returns whether a given action tag is directly applicable to a conversation
--- with the given protocol.
-protocolValidAction :: Protocol -> ConversationActionTag -> Bool
-protocolValidAction ProtocolProteus _ = True
-protocolValidAction (ProtocolMixed _) _ = True
-protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
-protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
-protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
-protocolValidAction (ProtocolMLS _) ConversationDeleteTag = True
-protocolValidAction (ProtocolMLS _) _ = True
 
 instance ToSchema ProtocolTag where
   schema =

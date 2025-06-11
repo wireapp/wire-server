@@ -107,6 +107,7 @@ import Test.Wire.API.Golden.Generated.ManagedBy_user qualified
 import Test.Wire.API.Golden.Generated.MemberUpdateData_user qualified
 import Test.Wire.API.Golden.Generated.MemberUpdate_user qualified
 import Test.Wire.API.Golden.Generated.Member_user qualified
+import Test.Wire.API.Golden.Generated.MembersJoin_user qualified
 import Test.Wire.API.Golden.Generated.MutedStatus_user qualified
 import Test.Wire.API.Golden.Generated.NameUpdate_user qualified
 import Test.Wire.API.Golden.Generated.Name_user qualified
@@ -189,7 +190,6 @@ import Test.Wire.API.Golden.Generated.ServiceTag_provider qualified
 import Test.Wire.API.Golden.Generated.ServiceToken_provider qualified
 import Test.Wire.API.Golden.Generated.Service_provider qualified
 import Test.Wire.API.Golden.Generated.SimpleMember_user qualified
-import Test.Wire.API.Golden.Generated.SimpleMembers_user qualified
 import Test.Wire.API.Golden.Generated.TeamBinding_team qualified
 import Test.Wire.API.Golden.Generated.TeamContact_user qualified
 import Test.Wire.API.Golden.Generated.TeamConversationList_team qualified
@@ -704,13 +704,13 @@ tests =
               "testObject_SimpleMember_user_1.json"
             )
           ],
-      testGroup "Golden: SimpleMembers_user" $
+      testGroup "Golden: MembersJoin_user" $
         testObjects
-          [ ( Test.Wire.API.Golden.Generated.SimpleMembers_user.testObject_SimpleMembers_user_1,
-              "testObject_SimpleMembers_user_1.json"
+          [ ( Test.Wire.API.Golden.Generated.MembersJoin_user.testObject_MembersJoin_user_1,
+              "testObject_MembersJoin_user_1.json"
             ),
-            ( Test.Wire.API.Golden.Generated.SimpleMembers_user.testObject_SimpleMembers_user_2,
-              "testObject_SimpleMembers_user_2.json"
+            ( Test.Wire.API.Golden.Generated.MembersJoin_user.testObject_MembersJoin_user_2,
+              "testObject_MembersJoin_user_2.json"
             )
           ],
       testGroup "Golden: Connect_user" $
