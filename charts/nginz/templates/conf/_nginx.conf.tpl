@@ -35,7 +35,7 @@ http {
   # time in case the proxied service does not answer (e.g. due to network
   # issues.) When this timeout is reached nginz answers with HTTP 504 ("gateway
   # timeout.")
-  proxy_connect_timeout 10;
+  proxy_connect_timeout 5;
 
   ignore_invalid_headers off;
 
