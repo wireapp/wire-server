@@ -418,6 +418,7 @@ ensureAllowed ::
   Sem r ()
 ensureAllowed tag _ action conv (TeamMember tm) = do
   case tag of
+    SConversationRenameTag -> ensureChannelAndTeamAdmin conv tm
     SConversationJoinTag -> do
       case action of
         ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound

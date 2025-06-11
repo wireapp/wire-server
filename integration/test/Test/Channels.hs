@@ -436,6 +436,31 @@ testNonTeamAdminCannotAddMembersWithoutJoining = do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "no-conversation"
 
+testTeamAdminCanChangeChannelNameWithoutJoining :: (HasCallStack) => App ()
+testTeamAdminCanChangeChannelNameWithoutJoining = do
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+  conv <-
+    postConversation
+      owner
+      defMLS {name = Just "foo", groupConvType = Just "channel", team = Just tid, skipCreator = Just True}
+      >>= getJSON 201
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` "foo"
+  newName <- randomName
+  changeConversationName owner conv newName >>= assertSuccess
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` newName
+  changeConversationName mem conv newName `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "no-conversation"
+  I.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` newName
+
 testTeamAdminCanAddMembersWithoutJoining :: (HasCallStack) => App ()
 testTeamAdminCanAddMembersWithoutJoining = do
   (owner, tid, mems@(m1 : m2 : m3 : m4 : m5 : _)) <- createTeam OwnDomain 6
