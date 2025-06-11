@@ -305,3 +305,4 @@ library
     , xml
     , xml-conduit
     , yaml
+    , unix-time

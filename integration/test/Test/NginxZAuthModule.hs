@@ -7,6 +7,7 @@ import Control.Monad.Reader
 import qualified Data.ByteString as BS
 import Data.List.Extra
 import Data.Streaming.Network
+import Data.UnixTime
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types
 import Network.Socket (Socket)
@@ -49,6 +50,10 @@ testBearerToken = do
       resp.status `shouldMatchInt` 200
       resp.json %. "user" `shouldMatch` (alice %. "qualified_id.id")
       resp.json %. "timestamp" `shouldNotMatch` ""
+      timestampI <- (resp.json %. "timestamp" >>= asString)
+      let timestampUnix = UnixTime ((fromInteger . read) timestampI) 0
+      now <- liftIO $ getUnixTime
+      assertBool "not in future" (timestampUnix > now)
 
 -- Happy flow (zauth token encoded in AWS4_HMAC_SHA256)
 --
