@@ -449,13 +449,13 @@ testSsoLoginAndEmailVerification = do
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
-testSsoLoginNoSamlEmailValidation :: (HasCallStack) => App ()
-testSsoLoginNoSamlEmailValidation = do
+testSsoLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "validateSAMLEmails" -> App ()
+testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   (owner, tid, _) <- createTeam OwnDomain 1
   emailDomain <- randomDomain
 
-  assertSuccess =<< do
-    setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  let status = if validateSAMLEmails then "enabled" else "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -471,15 +471,79 @@ testSsoLoginNoSamlEmailValidation = do
       uref = either (error . show) id $ SAML.assertionsToUserRef (parsed ^. SAML.rspPayload)
       eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
   eid `shouldMatch` email
+
+  when validateSAMLEmails $ do
+    getUsersId OwnDomain [uid] `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      user <- res.json >>= asList >>= assertOne
+      user %. "status" `shouldMatch` "active"
+      lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+
+    getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      res.json >>= asList >>= shouldBeEmpty
+
+    activateEmail OwnDomain email
+
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
-    lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+    user %. "email" `shouldMatch` email
 
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json >>= asList >>= shouldBeEmpty
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
+
+testScimLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "validateSAMLEmails" -> App ()
+testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+
+  let status = if validateSAMLEmails then "enabled" else "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+  tok <-
+    createScimToken owner (def {idp = Just idpId}) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "token" >>= asString
+
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+  getScimUser OwnDomain tok uid `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "id" `shouldMatch` uid
+
+  when validateSAMLEmails $ do
+    getUsersId OwnDomain [uid] `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      user <- res.json >>= asList >>= assertOne
+      user %. "status" `shouldMatch` "active"
+      lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+
+    getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      res.json >>= asList >>= shouldBeEmpty
+
+    activateEmail OwnDomain email
+
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
+
+  getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` email
 
 testIdpUpdate :: (HasCallStack) => App ()
 testIdpUpdate = do

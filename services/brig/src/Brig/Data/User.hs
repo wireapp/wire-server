@@ -120,7 +120,25 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User (Qualified uid domain) ident Nothing name Nothing pict assets colour status l Nothing mbHandle e tid managedBy prots
+    user uid domain l e =
+      User
+        { userQualifiedId = (Qualified uid domain),
+          userIdentity = ident,
+          userEmailUnvalidated = Nothing,
+          userDisplayName = name,
+          userTextStatus = Nothing,
+          userPict = pict,
+          userAssets = assets,
+          userAccentId = colour,
+          userStatus = status,
+          userLocale = l,
+          userService = Nothing,
+          userHandle = mbHandle,
+          userExpire = e,
+          userTeam = tid,
+          userManagedBy = managedBy,
+          userSupportedProtocols = prots
+        }
 
 newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m User
 newAccountInviteViaScim uid externalId tid locale name email = do
