@@ -294,6 +294,7 @@ library
     , transformers
     , transformers-base
     , unix
+    , unix-time
     , unliftio
     , uuid
     , vector
