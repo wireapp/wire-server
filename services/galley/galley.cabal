@@ -74,6 +74,10 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Galley.API.Action
+    Galley.API.Action.Kick
+    Galley.API.Action.Leave
+    Galley.API.Action.Notify
+    Galley.API.Action.Reset
     Galley.API.Cells
     Galley.API.Clients
     Galley.API.Create
@@ -103,6 +107,7 @@ library
     Galley.API.MLS.Propagate
     Galley.API.MLS.Proposal
     Galley.API.MLS.Removal
+    Galley.API.MLS.Reset
     Galley.API.MLS.SubConversation
     Galley.API.MLS.Types
     Galley.API.MLS.Util

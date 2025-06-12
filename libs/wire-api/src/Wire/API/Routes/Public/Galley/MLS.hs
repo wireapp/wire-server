@@ -17,11 +17,18 @@
 
 module Wire.API.Routes.Public.Galley.MLS where
 
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.OpenApi qualified as S
+import Data.Schema
+import Imports
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
@@ -30,6 +37,22 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.Arbitrary
+
+data MLSReset = MLSReset
+  { groupId :: GroupId,
+    epoch :: Epoch
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSReset
+  deriving (Arbitrary) via (GenericUniform MLSReset)
+
+instance ToSchema MLSReset where
+  schema =
+    object "MLSReset" $
+      MLSReset
+        <$> (.groupId) .= field "group_id" schema
+        <*> (.epoch) .= field "epoch" schema
 
 type MLSMessagingAPI =
   Named
@@ -92,6 +115,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSIdentityMismatch
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
+               :> CanThrow GroupIdVersionNotSupported
                :> "commit-bundles"
                :> ZLocalUser
                :> ZClient
@@ -119,6 +143,26 @@ type MLSMessagingAPI =
                         "Public keys"
                         (MLSKeysByPurpose (MLSKeys SomeKey))
                     )
+           )
+    :<|> Named
+           "mls-reset-conversation"
+           ( Summary "Reset an MLS conversation to epoch 0"
+               :> "reset-conversation"
+               :> ZLocalUser
+               :> ReqBody '[JSON] MLSReset
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow ('ActionDenied LeaveConversation)
+               :> CanThrow 'MLSFederatedResetNotSupported
+               :> CanThrow 'GroupIdVersionNotSupported
+               :> CanThrow MLSProtocolErrorTag
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    (RespondEmpty 200 "Conversation reset")
            )
 
 type MLSAPI = LiftNamed ("mls" :> MLSMessagingAPI)

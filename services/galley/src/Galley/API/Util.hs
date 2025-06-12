@@ -21,6 +21,7 @@ module Galley.API.Util where
 
 import Control.Lens (to, view, (^.))
 import Control.Monad.Extra (allM, anyM)
+import Control.Monad.Trans.Maybe
 import Data.Bifunctor
 import Data.Code qualified as Code
 import Data.Default
@@ -79,6 +80,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
@@ -88,10 +91,13 @@ import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
+import Wire.API.VersionInfo
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
+
+data NoChanges = NoChanges
 
 ensureAccessRole ::
   ( Member BrigAccess r,
@@ -249,6 +255,41 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       -- custom roles not supported
       throwS @'InvalidAction
+
+checkGroupIdSupport ::
+  ( Member (ErrorS GroupIdVersionNotSupported) r,
+    Member FederatorAccess r
+  ) =>
+  Local x ->
+  Data.Conversation ->
+  ConversationJoin ->
+  Sem r ()
+checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
+  -- if it is an MLS conversation
+  d <- MaybeT (pure (getMLSData conv))
+
+  -- if the group ID version is not 1
+  (v, _) <-
+    either (\_ -> lift (throwS @GroupIdVersionNotSupported)) pure $
+      groupIdToConv
+        d.cnvmlsGroupId
+  guard $ v /= Just GroupIdVersion1
+
+  -- check that each remote backend is compatible with group ID version >= 2
+  let (_, remoteUsers) = partitionQualified loc joinAction.users
+  lift
+    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @Brig remoteUsers)
+    $ \_ -> do
+      guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
+  where
+    failOnFirstError :: (Member (ErrorS GroupIdVersionNotSupported) r) => [Either e x] -> Sem r ()
+    failOnFirstError = traverse_ $ either (\_ -> throwS @GroupIdVersionNotSupported) pure
+
+getMLSData :: Data.Conversation -> Maybe ConversationMLSData
+getMLSData conv = case Data.convProtocol conv of
+  ProtocolMLS d -> Just d
+  ProtocolMixed d -> Just d
+  ProtocolProteus -> Nothing
 
 -- | Same as 'permissionCheck', but for a statically known permission.
 permissionCheckS ::
@@ -1114,6 +1155,9 @@ getBrigClients users = do
   if isInternal
     then fromUserClients <$> lookupClients users
     else getClients users
+
+getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
+getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 --------------------------------------------------------------------------------
 -- Handling remote errors

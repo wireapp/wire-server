@@ -83,7 +83,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley
+import Wire.API.Federation.API.Galley hiding (id)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
@@ -95,6 +95,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.NotificationSubsystem
@@ -488,6 +489,7 @@ updateConversation ::
     Member ProposalStore r,
     Member TeamStore r,
     Member TinyLog r,
+    Member Resource r,
     Member ConversationStore r,
     Member Random r,
     Member SubConversationStore r,
@@ -557,6 +559,11 @@ updateConversation origDomain updateRequest = do
           @(HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag)
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationUpdateAddPermissionTag lcnv (tUntagged rusr) Nothing action
+      SConversationResetTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationResetTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationResetTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse =
       fmap (either ConversationUpdateResponseError Imports.id)
@@ -761,9 +768,9 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
     . mapToGalleyError @MLSDeleteSubConvStaticErrors
     $ do
       let qusr = Qualified dscreqUser domain
-          dsc = DeleteSubConversationRequest dscreqGroupId dscreqEpoch
+          dsc = MLSReset dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
-      deleteLocalSubConversation qusr lconv dscreqSubConv dsc
+      resetLocalSubConversation qusr lconv dscreqSubConv dsc
 
 getOne2OneConversationV1 ::
   ( Member (Input (Local ())) r,

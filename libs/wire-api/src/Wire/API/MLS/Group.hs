@@ -18,6 +18,7 @@
 module Wire.API.MLS.Group where
 
 import Data.Aeson qualified as A
+import Data.Default
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -50,3 +51,6 @@ instance ToSchema GroupId where
 newtype GroupIdGen = GroupIdGen {unGroupIdGen :: Word32}
   deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform GroupIdGen)
+
+instance Default GroupIdGen where
+  def = GroupIdGen 0

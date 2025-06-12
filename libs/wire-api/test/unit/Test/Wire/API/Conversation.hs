@@ -66,6 +66,7 @@ testIsCellsConversationEvent =
         ConvConnect -> isCellsConversationEvent e === False
         ConvCreate -> isCellsConversationEvent e === True
         ConvDelete -> isCellsConversationEvent e === True
+        ConvReset -> isCellsConversationEvent e === False
         ConvMessageTimerUpdate -> isCellsConversationEvent e === False
         ConvReceiptModeUpdate -> isCellsConversationEvent e === False
         ConvRename -> isCellsConversationEvent e === True

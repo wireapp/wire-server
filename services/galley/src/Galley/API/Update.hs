@@ -354,7 +354,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
               (Just zcon)
               update
       )
-      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr (Just zcon) update)
       qcnv
 
 updateRemoteConversation ::
@@ -369,28 +369,32 @@ updateRemoteConversation ::
     RethrowErrors (HasConversationActionGalleyErrors tag) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
+    Member (Error FederationError) r,
     SingI tag
   ) =>
   Remote ConvId ->
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   ConversationAction tag ->
   Sem r (UpdateResult Event)
-updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
+updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
   let updateRequest =
         ConversationUpdateRequest
           { user = tUnqualified lusr,
             convId = tUnqualified rcnv,
             action = SomeConversationAction (sing @tag) action
           }
-  response <- E.runFederated rcnv (fedClient @'Galley @"update-conversation" updateRequest)
+  eResponse <- E.runFederatedEither rcnv (fedClient @'Galley @"update-conversation" updateRequest)
+  response <- case eResponse of
+    Left e -> throw e
+    Right x -> pure x
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
     ConversationUpdateResponseUnreachableBackends e -> throw e
-  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
+  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) mconn >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -496,9 +500,6 @@ deleteLocalConversation ::
 deleteLocalConversation lusr con lcnv =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
-
-getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
-getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeUnqualifiedWithReqBody ::
   forall r.
@@ -752,7 +753,7 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
             $ newProtocol
       )
       ( \rcnv ->
-          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
+          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr (Just conn) $
             newProtocol
       )
       qcnv
@@ -798,7 +799,7 @@ updateChannelAddPermission lusr zcon qcnv update =
               (Just zcon)
               update
     )
-    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr zcon update)
+    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
 
 joinConversationByReusableCode ::
@@ -921,6 +922,7 @@ addMembers ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error FederationError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
@@ -966,6 +968,7 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
@@ -1008,6 +1011,7 @@ addMembersUnqualified ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,

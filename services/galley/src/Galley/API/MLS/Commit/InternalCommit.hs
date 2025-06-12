@@ -76,6 +76,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member SubConversationStore r,
     Member Resource r,
     Member Random r

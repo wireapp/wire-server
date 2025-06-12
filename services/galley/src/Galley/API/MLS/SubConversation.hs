@@ -19,7 +19,6 @@ module Galley.API.MLS.SubConversation
   ( getSubConversation,
     getLocalSubConversation,
     deleteSubConversation,
-    deleteLocalSubConversation,
     getSubConversationGroupInfo,
     getSubConversationGroupInfoFromLocalConv,
     leaveSubConversation,
@@ -28,11 +27,12 @@ module Galley.API.MLS.SubConversation
     leaveLocalSubConversation,
     MLSGetSubConvStaticErrors,
     MLSDeleteSubConvStaticErrors,
+    resetLocalSubConversation,
   )
 where
 
 import Control.Arrow
-import Control.Monad.Codensity
+import Control.Monad.Codensity hiding (reset)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
@@ -68,6 +68,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.NotificationSubsystem
 
 type MLSGetSubConvStaticErrors =
@@ -213,107 +214,52 @@ type MLSDeleteSubConvStaticErrors =
    ]
 
 deleteSubConversation ::
-  ( Members
-      '[ ConversationStore,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MLSStaleMessage,
-         Error FederationError,
-         FederatorAccess,
-         Input Env,
-         MemberStore,
-         Resource,
-         SubConversationStore
-       ]
-      r
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (Error FederationError) r,
+    Member FederatorAccess r,
+    Member (Input Env) r,
+    Member MemberStore r,
+    Member Resource r,
+    Member SubConversationStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversationRequest ->
+  MLSReset ->
   Sem r ()
-deleteSubConversation lusr qconv sconv dsc =
+deleteSubConversation lusr qconv sconv reset = do
+  assertMLSEnabled
   foldQualified
     lusr
-    (\lcnv -> deleteLocalSubConversation (tUntagged lusr) lcnv sconv dsc)
-    (\rcnv -> deleteRemoteSubConversation lusr rcnv sconv dsc)
+    (\lcnv -> resetLocalSubConversation (tUntagged lusr) lcnv sconv reset)
+    (\rcnv -> resetRemoteSubConversation lusr rcnv sconv reset)
     qconv
 
-deleteLocalSubConversation ::
-  ( Members
-      '[ ConversationStore,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MLSStaleMessage,
-         FederatorAccess,
-         Input Env,
-         MemberStore,
-         Resource,
-         SubConversationStore
-       ]
-      r
-  ) =>
-  Qualified UserId ->
-  Local ConvId ->
-  SubConvId ->
-  DeleteSubConversationRequest ->
-  Sem r ()
-deleteLocalSubConversation qusr lcnvId scnvId dsc = do
-  assertMLSEnabled
-  let cnvId = tUnqualified lcnvId
-      lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
-  cnv <- getConversationAndCheckMembership qusr lcnvId
-
-  lowerCodensity $ do
-    withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc)
-    lift $ do
-      sconv <- Eff.getSubConversation cnvId scnvId >>= noteS @'ConvNotFound
-      let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
-      unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
-      unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
-      Eff.removeAllMLSClients gid
-
-      -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
-      let newGid =
-            fromRight
-              ( convToGroupId $
-                  groupIdParts
-                    (Data.convType cnv)
-                    (flip SubConv scnvId <$> tUntagged lcnvId)
-              )
-              $ nextGenGroupId gid
-
-      -- the following overwrites any prior information about the subconversation
-      void $ Eff.createSubConversation cnvId scnvId newGid
-
-deleteRemoteSubConversation ::
-  ( Members
-      '[ ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MLSStaleMessage,
-         Error FederationError,
-         FederatorAccess,
-         Input Env
-       ]
-      r
+resetRemoteSubConversation ::
+  ( Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (Error FederationError) r,
+    Member FederatorAccess r
   ) =>
   Local UserId ->
   Remote ConvId ->
   SubConvId ->
-  DeleteSubConversationRequest ->
+  MLSReset ->
   Sem r ()
-deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
-  assertMLSEnabled
+resetRemoteSubConversation lusr rcnvId scnvId reset = do
   let deleteRequest =
         DeleteSubConversationFedRequest
           { dscreqUser = tUnqualified lusr,
             dscreqConv = tUnqualified rcnvId,
             dscreqSubConv = scnvId,
-            dscreqGroupId = dscGroupId dsc,
-            dscreqEpoch = dscEpoch dsc
+            dscreqGroupId = reset.groupId,
+            dscreqEpoch = reset.epoch
           }
   response <-
     runFederated
@@ -324,21 +270,18 @@ deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
     DeleteSubConversationResponseSuccess -> pure ()
 
 type HasLeaveSubConversationEffects r =
-  ( Members
-      '[ BackendNotificationQueueAccess,
-         ConversationStore,
-         ExternalAccess,
-         FederatorAccess,
-         NotificationSubsystem,
-         Input Env,
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         Random,
-         SubConversationStore,
-         TinyLog
-       ]
-      r
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member SubConversationStore r,
+    Member TinyLog r
   )
 
 type LeaveSubConversationStaticErrors =
@@ -401,11 +344,11 @@ leaveLocalSubConversation cid lcnv sub = do
   let cm = cmRemoveClient cid (scMembers subConv)
   if Map.null cm
     then do
-      deleteLocalSubConversation
+      resetLocalSubConversation
         (cidQualifiedUser cid)
         lcnv
         sub
-        $ DeleteSubConversationRequest gid epoch
+        $ MLSReset gid epoch
     else
       lowerCodensity $
         createAndSendRemoveProposals
@@ -444,3 +387,43 @@ leaveRemoteSubConversation cid rcnv sub = do
     LeaveSubConversationResponseProtocolError e ->
       throw (mlsProtocolError e)
     LeaveSubConversationResponseOk -> pure ()
+
+resetLocalSubConversation ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member MemberStore r,
+    Member Resource r,
+    Member SubConversationStore r
+  ) =>
+  Qualified UserId ->
+  Local ConvId ->
+  SubConvId ->
+  MLSReset ->
+  Sem r ()
+resetLocalSubConversation qusr lcnvId scnvId reset = do
+  let cnvId = tUnqualified lcnvId
+      lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
+  cnv <- getConversationAndCheckMembership qusr lcnvId
+
+  lowerCodensity $ do
+    withCommitLock lConvOrSubId reset.groupId reset.epoch
+    lift $ do
+      sconv <- Eff.getSubConversation cnvId scnvId >>= noteS @'ConvNotFound
+      let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
+      unless (reset.groupId == gid) $ throwS @'ConvNotFound
+      unless (reset.epoch == epoch) $ throwS @'MLSStaleMessage
+      Eff.removeAllMLSClients gid
+
+      -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId fails
+      let newGid =
+            fromRight
+              ( newGroupId
+                  cnv.convMetadata.cnvmType
+                  (flip SubConv scnvId <$> tUntagged lcnvId)
+              )
+              $ nextGenGroupId gid
+
+      -- the following overwrites any prior information about the subconversation
+      void $ Eff.createSubConversation cnvId scnvId newGid
