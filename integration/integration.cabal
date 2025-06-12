@@ -293,6 +293,7 @@ library
     , transformers
     , transformers-base
     , unix
+    , unix-time
     , unliftio
     , uuid
     , vector
@@ -305,4 +306,3 @@ library
     , xml
     , xml-conduit
     , yaml
-    , unix-time
