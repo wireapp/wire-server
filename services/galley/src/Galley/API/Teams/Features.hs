@@ -95,8 +95,7 @@ patchFeatureInternal tid patch = do
   prepareFeature tid patchedFeature
   patchDbFeature tid patch
   returnedFeature <- getFeatureForTeam @cfg tid
-  pushFeatureEvent tid (mkUpdateEvent tid returnedFeature)
-  postSetFeature tid returnedFeature
+  pushFeatureEvent @cfg tid (mkUpdateEvent tid returnedFeature)
   pure returnedFeature
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
@@ -200,7 +199,9 @@ persistFeature tid feat = do
   getFeatureForTeam @cfg tid
 
 pushFeatureEvent ::
-  ( Member NotificationSubsystem r,
+  forall cfg r.
+  ( IsFeatureConfig cfg,
+    Member NotificationSubsystem r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -219,7 +220,7 @@ pushFeatureEvent tid event = do
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
       pushNotifications
-        [def {json = toJSONObject event, recipients}]
+        [def {json = toJSONObject event, recipients, isCellsEvent = isCellsFeatureConfigEvent @cfg}]
 
 guardLockStatus ::
   forall r.
@@ -231,6 +232,7 @@ guardLockStatus = \case
   LockStatusLocked -> throw FeatureLocked
 
 setFeatureForTeam ::
+  forall cfg r.
   ( SetFeatureConfig cfg,
     SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
@@ -246,8 +248,7 @@ setFeatureForTeam ::
 setFeatureForTeam tid feat = do
   prepareFeature tid feat
   newFeat <- persistFeature tid feat
-  pushFeatureEvent tid (mkUpdateEvent tid newFeat)
-  postSetFeature tid newFeat
+  pushFeatureEvent @cfg tid (mkUpdateEvent tid newFeat)
   pure newFeat
 
 -------------------------------------------------------------------------------
@@ -271,16 +272,6 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     Sem r ()
   default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r ()
   prepareFeature _tid _feat = pure ()
-
-  -- | This method runs after the feature has been set, to perform any
-  -- additional operations that are required, such as sending additional notifications.
-  postSetFeature ::
-    (SetFeatureForTeamConstraints cfg r) =>
-    TeamId ->
-    LockableFeature cfg ->
-    Sem r ()
-  default postSetFeature :: TeamId -> LockableFeature cfg -> Sem r ()
-  postSetFeature _tid _feat = pure ()
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -456,10 +447,4 @@ instance SetFeatureConfig LimitedEventFanoutConfig
 
 instance SetFeatureConfig DomainRegistrationConfig
 
-instance SetFeatureConfig CellsConfig where
-  type SetFeatureForTeamConstraints CellsConfig r = (Member NotificationSubsystem r)
-
-  postSetFeature tid feat = do
-    let event = mkUpdateEvent tid feat
-    pushNotifications
-      [def {json = toJSONObject event, isCellsEvent = True}]
+instance SetFeatureConfig CellsConfig
