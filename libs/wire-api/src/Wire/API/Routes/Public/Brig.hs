@@ -322,7 +322,7 @@ type UserGroupAPI =
            ( From 'V9
                :> ZLocalUser
                :> "user-groups"
-               :> PaginationQuery "created_at, name" UserGroupKey UserGroup
+               :> PaginationQuery "created_at, name" UserGroupKey '[Text, UTCTimeMillis] UserGroup
            )
     :<|> Named
            "update-user-group"
@@ -1995,3 +1995,6 @@ type SystemSettingsAPI =
                :> "settings"
                :> Get '[JSON] SystemSettings
            )
+
+_ -- check out this: https://hackage.haskell.org/package/servant-pagination
+_ -- https://github.com/chordify/haskell-servant-pagination/issues/22
