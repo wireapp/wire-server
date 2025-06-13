@@ -513,7 +513,7 @@ testTransientEvents = do
   selfConvId <- objQidObject alice
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    consumeAllEvents ws
+    void $ consumeAllEvents ws
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
@@ -679,14 +679,6 @@ testMessageCount = do
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
     assertMessageCount ws `shouldMatchInt` 0
   where
-    mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
-    mkUserPlusClient = do
-      user <- randomUser OwnDomain def
-      uid <- objId user
-      client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-      cid <- objId client
-      pure (user, uid, cid)
-
     mkEvent :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Value
     mkEvent uid cid =
       object
@@ -694,8 +686,45 @@ testMessageCount = do
           "payload" .= [object ["hello" .= "world"]]
         ]
 
+testQosLimit :: (HasCallStack) => App ()
+testQosLimit = do
+  (alice, uid, cid) <- mkUserPlusClient
+  for_ [1 :: Int .. 150] $ \i ->
+    do
+      let event =
+            object
+              [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
+                "payload" .= [object ["no" .= show i]]
+              ]
+      GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
+
+  runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
+    assertMessageCount ws `shouldMatchInt` 151
+    deliveryTag <- assertEvent ws $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+      e %. "data.event.payload.0.client.id" `shouldMatch` cid
+      e %. "data.delivery_tag"
+    sendAck ws deliveryTag False
+
+    es <- consumeAllEventsNoAck ws
+    assertBool "First 100 events" $ length es == 100
+
+    forM_ es $ \e -> do
+      t <- e %. "type" & asString
+      if t == "message_count" then ackMessageCount ws else ackEvent ws e
+
+    es' <- consumeAllEventsNoAck ws
+    assertBool "First 100 events" $ length es' == 50
+
 ----------------------------------------------------------------------
 -- helpers
+mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
+mkUserPlusClient = do
+  user <- randomUser OwnDomain def
+  uid <- objId user
+  client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  cid <- objId client
+  pure (user, uid, cid)
 
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
@@ -892,6 +921,17 @@ consumeAllEvents ws = do
       t <- e %. "type" & asString
       if t == "message_count" then ackMessageCount ws else ackEvent ws e
       consumeAllEvents ws
+
+consumeAllEventsNoAck :: EventWebSocket -> App [Value]
+consumeAllEventsNoAck ws = do
+  timeout 1_000_000 (readChan ws.events) >>= \case
+    Nothing -> pure []
+    Just (Left e) ->
+      assertFailure
+        $ "Websocket closed while consuming all events: "
+        <> displayException e
+    Just (Right e) -> do
+      (e :) <$> consumeAllEventsNoAck ws
 
 -- | Only considers connections from cannon
 waitUntilNoRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
