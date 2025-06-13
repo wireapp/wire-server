@@ -256,10 +256,11 @@ validateEmail ::
   UserId ->
   EmailAddress ->
   Sem r ()
-validateEmail mbTid uid email = do
-  enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
-  when enabled $ do
-    BrigAccess.updateEmail uid email
+validateEmail (Just tid) uid email = do
+  enabled <- GalleyAccess.isEmailValidationEnabledTeam tid
+  let activation = if enabled then SendActivationEmail else AutoActivate
+  BrigAccess.updateEmail uid email activation
+validateEmail _ _ _ = pure ()
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we

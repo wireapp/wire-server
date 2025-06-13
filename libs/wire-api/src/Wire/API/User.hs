@@ -146,6 +146,7 @@ module Wire.API.User
     defSupportedProtocols,
     protocolSetBits,
     protocolSetFromBits,
+    EmailActivation (..),
   )
 where
 
@@ -1486,6 +1487,15 @@ instance ToJSON EmailUpdate where
 instance FromJSON EmailUpdate where
   parseJSON = A.withObject "email-update" $ \o ->
     EmailUpdate <$> o A..: "email"
+
+data EmailActivation
+  = -- | email needs to be activated, an activation email will be sent
+    SendActivationEmail
+  | -- | no activation email is sent, the email will stay unverified (this case might actually be deprecated)
+    DoNotSendActivationEmail
+  | -- | email will be activated immediately, no activation email will be sent
+    AutoActivate
+  deriving stock (Eq, Show, Generic)
 
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)

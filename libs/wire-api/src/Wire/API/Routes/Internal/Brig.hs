@@ -195,7 +195,8 @@ type AccountAPI =
                :> "self"
                :> "email"
                :> ReqBody '[Servant.JSON] EmailUpdate
-               :> QueryParam' [Optional, Strict, Description "whether to send validation email, or activate"] "validate" Bool
+               :> QueryParam' [Optional, Strict, Description "Whether to send an activation email, defaults to false. This parameter will be ignored if `activate=true`."] "validate" Bool
+               :> QueryParam' [Optional, Strict, Description "Whether to activate the email without sending an activation email, default is false."] "activate" Bool
                :> MultiVerb
                     'PUT
                     '[Servant.JSON]
