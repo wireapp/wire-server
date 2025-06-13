@@ -102,8 +102,8 @@ testCellsFeatureCheck = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
 
-testCellsEvenOnFeatureToggle :: (HasCallStack) => App ()
-testCellsEvenOnFeatureToggle = do
+testCellsEventOnFeatureToggle :: (HasCallStack) => App ()
+testCellsEventOnFeatureToggle = do
   q0 <- watchCellsEvents def
   (_, tid, _) <- createTeam OwnDomain 1
   I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
