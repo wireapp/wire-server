@@ -102,6 +102,23 @@ testCellsFeatureCheck = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
 
+testCellsEventOnFeatureToggle :: (HasCallStack) => App ()
+testCellsEventOnFeatureToggle = do
+  q0 <- watchCellsEvents def
+  (_, tid, _) <- createTeam OwnDomain 1
+  I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
+  getMessage q0 >>= \event -> do
+    event %. "payload.0.type" `shouldMatch` "feature-config.update"
+    event %. "payload.0.name" `shouldMatch` "cells"
+    event %. "payload.0.team" `shouldMatch` (asString tid)
+    event %. "payload.0.data.status" `shouldMatch` "disabled"
+  I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "enabled"]) >>= assertSuccess
+  getMessage q0 >>= \event -> do
+    event %. "payload.0.type" `shouldMatch` "feature-config.update"
+    event %. "payload.0.name" `shouldMatch` "cells"
+    event %. "payload.0.team" `shouldMatch` (asString tid)
+    event %. "payload.0.data.status" `shouldMatch` "enabled"
+
 testCellsTeamConversationCheck :: (HasCallStack) => App ()
 testCellsTeamConversationCheck = do
   alice <- randomUser OwnDomain def

@@ -18,15 +18,27 @@
 module Test.Wire.API.Golden.Manual.FeatureConfigEvent where
 
 import Data.Aeson qualified as A
+import Data.Id (Id (Id))
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Event.FeatureConfig
 import Wire.API.Team.Feature
 
 testObject_FeatureConfigEvent_1 :: Event
-testObject_FeatureConfigEvent_1 = Event Update (featureName @FileSharingConfig) (A.object ["lockStatus" A..= A.String "unlocked", "status" A..= A.String "enabled"])
+testObject_FeatureConfigEvent_1 =
+  Event
+    Update
+    (featureName @FileSharingConfig)
+    (A.object ["lockStatus" A..= A.String "unlocked", "status" A..= A.String "enabled"])
+    (Id (fromJust $ UUID.fromString "00000000-0000-0000-0000-000000000000"))
 
 testObject_FeatureConfigEvent_2 :: Event
-testObject_FeatureConfigEvent_2 = Event Update (featureName @SSOConfig) (A.object ["status" A..= A.String "disabled"])
+testObject_FeatureConfigEvent_2 =
+  Event
+    Update
+    (featureName @SSOConfig)
+    (A.object ["status" A..= A.String "disabled"])
+    (Id (fromJust $ UUID.fromString "00000000-0000-0000-0000-000000000000"))
 
 testObject_FeatureConfigEvent_3 :: Event
 testObject_FeatureConfigEvent_3 =
@@ -34,3 +46,4 @@ testObject_FeatureConfigEvent_3 =
     Update
     (featureName @AppLockConfig)
     (A.object ["status" A..= A.String "disabled", "config" A..= A.object ["enforceAppLock" A..= A.Bool True, "inactivityTimeoutSecs" A..= A.Number (fromIntegral (300 :: Int))]])
+    (Id (fromJust $ UUID.fromString "00000000-0000-0000-0000-000000000000"))

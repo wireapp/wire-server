@@ -97,6 +97,7 @@ module Wire.API.Team.Feature
     serialiseDbFeature,
     mkAllFeatures,
     TeamFeatureMigrationState (..),
+    isCellsFeatureConfigEvent,
   )
 where
 
@@ -1693,6 +1694,10 @@ mkAllFeatures m =
   where
     get :: forall cfg. (IsFeatureConfig cfg) => K (LockableFeaturePatch DbConfig) cfg
     get = K $ M.findWithDefault def (featureName @cfg) m
+
+isCellsFeatureConfigEvent :: forall cfg. (IsFeatureConfig cfg) => Bool
+isCellsFeatureConfigEvent =
+  featureName @cfg == featureName @CellsConfig
 
 --------------------------------------------------------------------------------
 -- Team Feature Migration

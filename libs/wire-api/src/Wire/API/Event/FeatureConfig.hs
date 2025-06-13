@@ -25,6 +25,7 @@ where
 import Data.Aeson (toJSON)
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -36,7 +37,8 @@ import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 data Event = Event
   { _eventType :: EventType,
     _eventFeatureName :: Text,
-    _eventData :: A.Value
+    _eventData :: A.Value,
+    _eventTeam :: TeamId
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Event
@@ -65,6 +67,7 @@ instance Arbitrary Event where
       <$> arbitrary
       <*> arbitrary
       <*> oneof (allArbitraryFeatures @Features)
+      <*> arbitrary
 
 data EventType = Update
   deriving (Eq, Show, Generic)
@@ -83,6 +86,7 @@ eventObjectSchema =
     <$> _eventType .= field "type" schema
     <*> _eventFeatureName .= field "name" schema
     <*> _eventData .= field "data" jsonValue
+    <*> _eventTeam .= field "team" schema
 
 instance ToSchema Event where
   schema =
@@ -97,5 +101,11 @@ instance ToJSONObject Event where
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
 
-mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg) => LockableFeature cfg -> Event
-mkUpdateEvent ws = Event Update (featureName @cfg) (toJSON ws)
+mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg) => TeamId -> LockableFeature cfg -> Event
+mkUpdateEvent tid ws =
+  Event
+    { _eventType = Update,
+      _eventFeatureName = (featureName @cfg),
+      _eventData = (toJSON ws),
+      _eventTeam = tid
+    }
