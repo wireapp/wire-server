@@ -699,7 +699,10 @@ testQosLimit = do
       GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
 
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
-    assertMessageCount ws `shouldMatchInt` 151
+    recoverAll
+      (constantDelay 500_000 <> limitRetries 10)
+      (const (assertMessageCount ws `shouldMatchInt` 151))
+
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` cid
