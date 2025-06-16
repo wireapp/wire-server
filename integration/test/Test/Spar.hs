@@ -56,7 +56,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
   email <- randomEmail
   extId <- randomExternalId
-  scimUser <- randomScimUserWith extId email
+  scimUser <- randomScimUserWithEmail extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   activateEmail OwnDomain email
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
@@ -145,7 +145,7 @@ testSparExternalIdDifferentFromEmail = do
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   email <- randomEmail
   extId <- randomExternalId
-  scimUser <- randomScimUserWith extId email
+  scimUser <- randomScimUserWithEmail extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
 
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do

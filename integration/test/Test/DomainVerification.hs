@@ -685,7 +685,7 @@ testScimOnlyWithRegisteredEmailDomain = do
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
   let email = "user@" <> emailDomain
       extId = email
-  scimUser <- randomScimUserWith extId email
+  scimUser <- randomScimUserWithEmail extId email
   uid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "id" >>= asString
@@ -728,7 +728,7 @@ testScimAndSamlWithRegisteredEmailDomain = do
       >>= asString
   let email = "user@" <> emailDomain
       extId = email
-  scimUser <- randomScimUserWith extId email
+  scimUser <- randomScimUserWithEmail extId email
   uid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "id" >>= asString
