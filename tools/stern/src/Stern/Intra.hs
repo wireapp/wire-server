@@ -419,7 +419,7 @@ getUserBindingTeam u = do
   teams <- parseResponse (mkError status502 "bad-upstream") r
   pure $
     listToMaybe $
-      fmap (view teamId) $
+      fmap (view Wire.API.Team.teamId) $
         filter ((== Binding) . view teamBinding) $
           teams
             ^. teamListTeams

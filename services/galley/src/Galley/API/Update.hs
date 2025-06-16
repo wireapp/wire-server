@@ -495,11 +495,12 @@ deleteLocalConversation ::
   ) =>
   Local UserId ->
   ConnId ->
+  TeamId ->
   Local ConvId ->
   Sem r (UpdateResult Event)
-deleteLocalConversation lusr con lcnv =
+deleteLocalConversation lusr con tid lcnv =
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
+    updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) (ConversationDelete tid)
 
 addCodeUnqualifiedWithReqBody ::
   forall r.
