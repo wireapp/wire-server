@@ -89,7 +89,7 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (teamId)
 import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
@@ -2697,13 +2697,13 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamDelete
 
-checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> WS.WebSocket -> TestM ()
-checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> TeamId -> WS.WebSocket -> TestM ()
+checkConvDeleteEvent cid tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
-  evtData e @?= Conv.EdConvDelete
+  evtData e @?= Conv.EdConvDelete (ConversationDelete tid)
 
 checkConvMemberLeaveEvent :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
