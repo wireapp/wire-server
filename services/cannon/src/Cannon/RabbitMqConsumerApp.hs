@@ -21,6 +21,7 @@ import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
+import Network.WebSockets.Connection
 import System.Logger qualified as Log
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
@@ -274,10 +275,25 @@ sendFullSyncMessage uid cid wsConn env = do
 
 getClientMessage :: WS.Connection -> IO MessageClientToServer
 getClientMessage wsConn = do
-  msg <- WS.receiveData wsConn
+  msg <- WS.fromDataMessage <$> receiveDataMessageWithTimeout wsConn
   case eitherDecode msg of
     Left err -> throwIO (FailedToParseClientMessage err)
     Right m -> pure m
+
+receiveDataMessageWithTimeout :: Connection -> IO DataMessage
+receiveDataMessageWithTimeout conn = do
+  msg <- WS.receive conn
+  case msg of
+    DataMessage _ _ _ am -> return am
+    ControlMessage cm -> case cm of
+      Close i closeMsg -> do
+        hasSentClose <- readIORef $ connectionSentClose conn
+        unless hasSentClose $ send conn msg
+        throwIO $ CloseRequest i closeMsg
+      Pong _ -> receiveDataMessage conn
+      Ping pl -> do
+        send conn (ControlMessage (Pong pl))
+        receiveDataMessage conn
 
 data WebSocketServerError
   = FailedToParseClientMessage String
