@@ -1,5 +1,15 @@
 # [2025-06-16] (Chart Release 5.17.0)
 
+## Release notes
+
+
+* Behavior of email validation in the context of SCIM user provisioning has changed: if your users receive a validation email on address change, you need to do nothing.  If they don't, the behavior changes: before this release, the email address was only used as SCIM external_id, not to send emails to the user, because there was no validation step.  With this release, the default behavior is that SCIM has the authority to auto-validate email addresses, and no further user action is needed.
+
+  Consider changing the `validateSAMLEmails` feature flag value for some teams, or the default for your instance accordingly.
+
+  The old behavior for `validateSAMLEmails == disabled` (no validation email, but also no valid email address) is not supported any more.  We suggest you use something as `external_id` that is not an email address if you want that.  (#4612)
+
+
 ## API changes
 
 
@@ -13,15 +23,15 @@
 ## Features
 
 
+* Auto activate SAML emails if validateSAMLEmails feature is disabled (#4612)
+
 * Add update, delete, add/remove users to UserGroups. (#4600, #4604, #4605)
+
+* Send notifications on user group updates (#4600)
 
 * Team admin can add user to a channel (#4574)
 
 * Allow team admin to change the name of a channel (#4584)
-
-* Send notifications on user group updates (#4600)
-
-* Auto activate SAML emails if validateSAMLEmails feature is disabled (#4612)
 
 * Endpoint to get the current server time (#4606)
 
@@ -41,13 +51,11 @@
 
 * Send message count to websocket on connect (#4608)
 
-* Add `proxy_connect_timeout` to nginz's congiguration. Otherwise, not answering
+* Add `proxy_connect_timeout` to nginz's configuration. Otherwise, not answering
   services (e.g. due to network issues) can delay requests/response for a very
   long time. (#4610)
 
-* Assert the value of nginz's `zauth_timestamp` in test. (#4611)
-
-* nginz: Set `Z-Timestamp` header when proxying requests (#4593)
+* nginz: Set `Z-Timestamp` header when proxying requests (#4593, #4611)
 
 
 # [2025-05-30] (Chart Release 5.16.0)
