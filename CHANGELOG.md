@@ -1,3 +1,55 @@
+# [2025-06-16] (Chart Release 5.17.0)
+
+## API changes
+
+
+* Add a new endpoint `/mls/reset-conversation` which can be used to restore an MLS group that ended up in an invalid state for any reason. After resetting, the conversation has the same users, but the corresponding MLS group gets a new group ID and resets to epoch 0 with no clients.
+
+  Users on backends that don't support reset are kicked out of the conversation upon reset, and no such user can join afterwards.
+
+  A new event type `conversation.mls-reset` has been added, and is sent to all members of a conversation when it is reset. (#4558)
+
+
+## Features
+
+
+* Add update, delete, add/remove users to UserGroups. (#4600, #4604, #4605)
+
+* Team admin can add user to a channel (#4574)
+
+* Allow team admin to change the name of a channel (#4584)
+
+* Send notifications on user group updates (#4600)
+
+* Auto activate SAML emails if validateSAMLEmails feature is disabled (#4612)
+
+* Endpoint to get the current server time (#4606)
+
+* Add support for AWS Signature V4 authentication header to ZAuth (#4593)
+
+
+## Bug fixes and other updates
+
+
+* Do not allow ephemeral users to search for contacts (#4609)
+
+
+## Internal changes
+
+
+* Send cells notification when cells feature is updated (#4614)
+
+* Send message count to websocket on connect (#4608)
+
+* Add `proxy_connect_timeout` to nginz's congiguration. Otherwise, not answering
+  services (e.g. due to network issues) can delay requests/response for a very
+  long time. (#4610)
+
+* Assert the value of nginz's `zauth_timestamp` in test. (#4611)
+
+* nginz: Set `Z-Timestamp` header when proxying requests (#4593)
+
+
 # [2025-05-30] (Chart Release 5.16.0)
 
 ## Release notes
