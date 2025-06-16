@@ -272,7 +272,7 @@ createChannel uid mcid pool createQueue = do
         -- Limit the amount of unacknowledged message a consumer receives
         -- (`true` means limit per consumer, `false` per channel.) This
         -- prevents overloading the consumer with new messages.
-        liftIO $ Q.qos chan 0 100 True
+        liftIO $ Q.qos chan 0 500 True
 
         connSize <- atomically $ do
           let conn' = conn {channels = Map.insert key chan conn.channels}

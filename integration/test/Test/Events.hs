@@ -689,7 +689,7 @@ testMessageCount = do
 testQosLimit :: (HasCallStack) => App ()
 testQosLimit = do
   (alice, uid, cid) <- mkUserPlusClient
-  for_ [1 :: Int .. 150] $ \i ->
+  for_ [1 :: Int .. 550] $ \i ->
     do
       let event =
             object
@@ -701,7 +701,7 @@ testQosLimit = do
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
     recoverAll
       (constantDelay 500_000 <> limitRetries 10)
-      (const (assertMessageCount ws `shouldMatchInt` 151))
+      (const (assertMessageCount ws `shouldMatchInt` 551))
 
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
@@ -710,12 +710,12 @@ testQosLimit = do
     sendAck ws deliveryTag False
 
     es <- consumeAllEventsNoAck ws
-    assertBool "First 100 events" $ length es == 100
+    assertBool "First 500 events" $ length es == 500
 
     forM_ es (ackEvent ws)
 
     es' <- consumeAllEventsNoAck ws
-    assertBool "First 100 events" $ length es' == 50
+    assertBool "Outstanding 50 events" $ length es' == 50
 
 ----------------------------------------------------------------------
 -- helpers
