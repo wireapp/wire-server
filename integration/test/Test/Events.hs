@@ -712,9 +712,7 @@ testQosLimit = do
     es <- consumeAllEventsNoAck ws
     assertBool "First 100 events" $ length es == 100
 
-    forM_ es $ \e -> do
-      t <- e %. "type" & asString
-      if t == "message_count" then ackMessageCount ws else ackEvent ws e
+    forM_ es (ackEvent ws)
 
     es' <- consumeAllEventsNoAck ws
     assertBool "First 100 events" $ length es' == 50
