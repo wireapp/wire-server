@@ -185,7 +185,7 @@ data EventData
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
-  | EdConvDelete ConversationDelete
+  | EdConvDelete
   | EdConvReset GroupId
   | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
@@ -218,7 +218,7 @@ genEventData = \case
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
-  ConvDelete -> EdConvDelete <$> arbitrary
+  ConvDelete -> pure EdConvDelete
   ConvReset -> EdConvReset <$> arbitrary
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
   AddPermissionUpdate -> EdAddPermissionUpdate <$> arbitrary
@@ -239,7 +239,7 @@ eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
-eventDataType (EdConvDelete _) = ConvDelete
+eventDataType EdConvDelete = ConvDelete
 eventDataType (EdConvReset _) = ConvReset
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
@@ -449,7 +449,7 @@ taggedEventDataSchema =
       MLSWelcome -> tag _EdMLSWelcome base64Schema
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
-      ConvDelete -> tag _EdConvDelete (unnamed schema)
+      ConvDelete -> tag _EdConvDelete null_
       ConvReset -> tag _EdConvReset (unnamed (object "ConvResetData" (field "group_id" schema)))
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)

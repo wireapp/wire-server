@@ -48,9 +48,7 @@ testObject_Event_user_1 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com"))
     (read "1864-05-22 09:51:07.104 UTC")
-    ( EdConvDelete
-        (ConversationDelete (Id (fromJust (UUID.fromString "90eda181-bb05-4525-a5cc-d0038deda9b7"))))
-    )
+    EdConvDelete
 
 testObject_Event_user_2 :: Event
 testObject_Event_user_2 =

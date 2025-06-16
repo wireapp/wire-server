@@ -87,9 +87,6 @@ module Wire.API.Conversation
     ConversationRemoveMembers (..),
     AddPermissionUpdate (..),
 
-    -- * delete
-    ConversationDelete (..),
-
     -- * re-exports
     module Wire.API.Conversation.Member,
   )
@@ -1152,24 +1149,6 @@ instance ToSchema AddPermissionUpdate where
       (description ?~ "The action of changing the permission to add members to a channel")
       $ AddPermissionUpdate
         <$> addPermission .= field "add_permission" schema
-
-newtype ConversationDelete = ConversationDelete
-  { teamId :: TeamId
-  }
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
-  deriving (S.ToSchema, ToJSON, FromJSON) via Schema ConversationDelete
-
-instance ToSchema ConversationDelete where
-  schema =
-    objectWithDocModifier
-      "ConversationDelete"
-      (description ?~ "The action of deleting a conversation")
-      $ ConversationDelete
-        <$> teamId
-          .= field
-            "teamId"
-            (unnamed (schema @TeamId))
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

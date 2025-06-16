@@ -77,24 +77,6 @@ testCellsCreationEvent = do
 
   assertNoMessage q
 
-testCellsDeletionEvent :: (HasCallStack) => App ()
-testCellsDeletionEvent = do
-  -- start watcher before creating conversation
-  q0 <- watchCellsEvents def
-  (alice, tid, _) <- createTeam OwnDomain 1
-  conv <- postConversation alice defProteus {team = Just tid, cells = True} >>= getJSON 201
-  void $ deleteTeamConversation tid conv alice >>= assertSuccess
-
-  let q = q0 {filter = isConvDeleteNotif} :: QueueConsumer
-
-  event <- getMessage q %. "payload.0"
-  printJSON event
-  event %. "type" `shouldMatch` "conversation.delete"
-  event %. "qualified_conversation.id" `shouldMatch` (conv %. "qualified_id.id")
-  event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
-
-  assertNoMessage q
-
 testCellsCreationEventIsSentOnlyOnce :: (HasCallStack) => App ()
 testCellsCreationEventIsSentOnlyOnce = do
   -- start watcher before creating conversation

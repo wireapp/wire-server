@@ -60,7 +60,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction ConversationJoinTag = ConversationJoin
   ConversationAction ConversationLeaveTag = ()
   ConversationAction ConversationMemberUpdateTag = ConversationMemberUpdate
-  ConversationAction ConversationDeleteTag = ConversationDelete
+  ConversationAction ConversationDeleteTag = ()
   ConversationAction ConversationRenameTag = ConversationRename
   ConversationAction ConversationMessageTimerUpdateTag = ConversationMessageTimerUpdate
   ConversationAction ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
@@ -136,7 +136,11 @@ conversationActionSchema SConversationLeaveTag =
     $ pure ()
 conversationActionSchema SConversationRemoveMembersTag = schema
 conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
-conversationActionSchema SConversationDeleteTag = schema
+conversationActionSchema SConversationDeleteTag =
+  objectWithDocModifier
+    "ConversationDelete"
+    (S.description ?~ "The action of deleting a conversation")
+    (pure ())
 conversationActionSchema SConversationRenameTag = schema
 conversationActionSchema SConversationMessageTimerUpdateTag = schema
 conversationActionSchema SConversationReceiptModeUpdateTag = schema
@@ -203,7 +207,7 @@ conversationActionToEvent tag now quid qcnv subconv action =
           let ConversationMemberUpdate target (OtherMemberUpdate role) = action
               update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
            in EdMemberUpdate update
-        SConversationDeleteTag -> EdConvDelete action
+        SConversationDeleteTag -> EdConvDelete
         SConversationRenameTag -> EdConvRename action
         SConversationMessageTimerUpdateTag -> EdConvMessageTimerUpdate action
         SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
