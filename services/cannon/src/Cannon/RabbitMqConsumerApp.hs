@@ -23,8 +23,14 @@ import Network.WebSockets
 import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection
 import System.Logger qualified as Log
+import System.Timeout
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
+
+data InactivityTimeout = InactivityTimeout
+  deriving (Show)
+
+instance Exception InactivityTimeout
 
 rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
@@ -35,25 +41,38 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
       Log.field "user" (idToText uid)
         . Log.field "client" (maybe "<temporary>" clientToText mcid)
 
-    runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \conn ->
-      ( do
-          activity <- newEmptyMVar
-          let wsConn =
-                WSConnection
-                  { inner = conn,
-                    activity,
-                    activityTimeout = 30000000, -- TODO
-                    pongTimeout = 30000000 -- TODO
-                  }
-          traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
-          sendNotifications chan wsConn
-      )
-        `catches` [ handleClientMisbehaving conn,
-                    handleWebSocketExceptions conn,
-                    handleRabbitMqChannelException conn,
-                    handleOtherExceptions conn
-                  ]
+    runWithChannel (chan, queueInfo) = lowerCodensity $ do
+      conn <- Codensity $ bracket openWebSocket closeWebSocket
+      activity <- liftIO newEmptyMVar
+      let wsConn =
+            WSConnection
+              { inner = conn,
+                activity,
+                activityTimeout = 30000000, -- TODO
+                pongTimeout = 30000000 -- TODO
+              }
+      void $
+        Codensity $
+          withAsync $
+            forever $
+              timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
+                Just _ -> pure ()
+                Nothing -> do
+                  WS.sendPing wsConn.inner ("ping" :: Text)
+                  timeout wsConn.pongTimeout (takeMVar wsConn.inner.connectionHeartbeat) >>= \case
+                    Just _ -> pure ()
+                    Nothing -> throwIO InactivityTimeout
+      liftIO $
+        ( do
+            traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
+            traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
+            sendNotifications chan wsConn
+        )
+          `catches` [ handleClientMisbehaving conn,
+                      handleWebSocketExceptions conn,
+                      handleRabbitMqChannelException conn,
+                      handleOtherExceptions conn
+                    ]
 
     openWebSocket =
       acceptRequest pendingConn
