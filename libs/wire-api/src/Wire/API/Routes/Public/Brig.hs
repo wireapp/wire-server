@@ -293,7 +293,7 @@ type UserGroupAPI =
   Named
     "create-user-group"
     ( From 'V9
-        :> CanThrow 'UserGroupCreatorIsNotATeamAdmin
+        :> CanThrow 'UserGroupNotATeamAdmin
         :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
         :> ZLocalUser
         :> "user-groups"
@@ -304,6 +304,7 @@ type UserGroupAPI =
            "get-user-group"
            ( From 'V9
                :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
                :> "user-groups"
                :> Capture "gid" UserGroupId
                :> MultiVerb
@@ -313,6 +314,53 @@ type UserGroupAPI =
                       Respond 200 "User Group Found" UserGroup
                     ]
                     (Maybe UserGroup)
+           )
+    :<|> Named
+           "update-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> ReqBody '[JSON] UserGroupUpdate
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User added updated")
+           )
+    :<|> Named
+           "delete-user-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User group deleted")
+           )
+    :<|> Named
+           "add-user-to-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "User added to group")
+           )
+    :<|> Named
+           "remove-user-from-group"
+           ( From 'V9
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
            )
 
 type SelfAPI =
@@ -1319,6 +1367,7 @@ type ConnectionAPI =
            "search-contacts"
            ( Summary "Search for users"
                :> ZLocalUser
+               :> CanThrow 'InsufficientPermissions
                :> "search"
                :> "contacts"
                :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text

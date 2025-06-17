@@ -84,6 +84,7 @@ type HasProposalActionEffects r =
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member (Input Env) r,

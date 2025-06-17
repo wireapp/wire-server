@@ -1,1 +1,2 @@
-a (whitelist (regex "/await"))
+a (whitelist (regex "/await")
+             (regex "(/v[0-9]+)?/events"))

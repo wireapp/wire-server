@@ -155,14 +155,11 @@ specImportToScimFromSAML =
       assertSparCassandraScim ((teamid, email), Nothing)
       assertBrigCassandra uid uref usr (valemail, False) ManagedByWire
 
-      -- activate email
-      case valemail of
-        Feature.FeatureStatusEnabled -> do
-          asks (view teBrig) >>= \brig -> call (activateEmail brig email)
-          assertBrigCassandra uid uref usr (valemail, True) ManagedByWire
-        Feature.FeatureStatusDisabled -> do
-          pure ()
+      -- activate email if needed (when email validation is disabled, emails are auto-activated)
+      when (valemail == Feature.FeatureStatusEnabled) $
+        asks (view teBrig) >>= \brig -> call (activateEmail brig email)
 
+      assertBrigCassandra uid uref usr (valemail, True) ManagedByWire
       -- now import to scim
       tok :: ScimToken <- do
         -- this can only happen now, since it turns off saml-autoprovisioning.
@@ -362,6 +359,9 @@ assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
 
         email = case (valemail, emailValidated) of
           (Feature.FeatureStatusEnabled, True) ->
+            Just . fromJust . emailAddressText . fromJust . Scim.User.externalId $ usr
+          -- in this case the email is auto-activated
+          (Feature.FeatureStatusDisabled, _) ->
             Just . fromJust . emailAddressText . fromJust . Scim.User.externalId $ usr
           _ ->
             Nothing
@@ -2318,18 +2318,18 @@ specEmailValidation = do
           brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.
-          if enabled
-            then call $ activateEmail brig email
-            else call $ failActivatingEmail brig email
+          when enabled $
+            call $
+              activateEmail brig email
           pure (uid, email)
 
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
       eventually $ checkEmail uid (Just email)
 
-    context "not enabled in team" . it "does not give user email" $ do
-      (uid, _) <- setup False
-      eventually $ checkEmail uid Nothing
+    context "disabled in team" . it "gives user email (email is auto activated)" $ do
+      (uid, email) <- setup False
+      eventually $ checkEmail uid (Just email)
 
 testDeletedUsersFreeExternalIdNoIdp :: TestSpar ()
 testDeletedUsersFreeExternalIdNoIdp = do

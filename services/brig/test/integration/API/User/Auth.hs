@@ -589,7 +589,7 @@ testInvalidToken authCfg b = do
   where
     errResponse = do
       const 403 === statusCode
-      const (Just "Invalid token") =~= responseBody
+      const (Just "Invalid zauth token") =~= responseBody
 
 testMissingCookie :: forall u. (ZAuth.UserTokenLike u) => AuthenticationSubsystemConfig -> Brig -> Http ()
 testMissingCookie authCfg b = do
@@ -693,9 +693,9 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
   put (req . header "Authorization" "xxx")
     !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "Failed reading: Invalid token"
+    !!! errResponse "client-error" "Failed reading: Invalid zauth token"
   put (req . header "Authorization" ("Bearer " <> BS.toStrict tok.access))
-    !!! errResponse "invalid-credentials" "Invalid token"
+    !!! errResponse "invalid-credentials" "Invalid zauth token"
   where
     errResponse label msg = do
       const 403 === statusCode

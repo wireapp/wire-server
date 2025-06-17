@@ -28,6 +28,7 @@ module Wire.API.Conversation.Action
     conversationActionPermission,
     ConversationActionPermission,
     sConversationActionPermission,
+    protocolValidAction,
   )
 where
 
@@ -45,27 +46,29 @@ import Data.Time.Clock
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
-import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.Conversation.Protocol hiding (protocolTag)
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
 import Wire.API.MLS.SubConversation
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: Type where
-  ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationLeaveTag = ()
-  ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
-  ConversationAction 'ConversationDeleteTag = ()
-  ConversationAction 'ConversationRenameTag = ConversationRename
-  ConversationAction 'ConversationMessageTimerUpdateTag = ConversationMessageTimerUpdate
-  ConversationAction 'ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
-  ConversationAction 'ConversationAccessDataTag = ConversationAccessData
-  ConversationAction 'ConversationRemoveMembersTag = ConversationRemoveMembers
-  ConversationAction 'ConversationUpdateProtocolTag = ProtocolTag
-  ConversationAction 'ConversationUpdateAddPermissionTag = AddPermissionUpdate
+  ConversationAction ConversationJoinTag = ConversationJoin
+  ConversationAction ConversationLeaveTag = ()
+  ConversationAction ConversationMemberUpdateTag = ConversationMemberUpdate
+  ConversationAction ConversationDeleteTag = ()
+  ConversationAction ConversationRenameTag = ConversationRename
+  ConversationAction ConversationMessageTimerUpdateTag = ConversationMessageTimerUpdate
+  ConversationAction ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
+  ConversationAction ConversationAccessDataTag = ConversationAccessData
+  ConversationAction ConversationRemoveMembersTag = ConversationRemoveMembers
+  ConversationAction ConversationUpdateProtocolTag = ProtocolTag
+  ConversationAction ConversationUpdateAddPermissionTag = AddPermissionUpdate
+  ConversationAction ConversationResetTag = MLSReset
 
 data SomeConversationAction where
   SomeConversationAction :: Sing tag -> ConversationAction tag -> SomeConversationAction
@@ -144,6 +147,7 @@ conversationActionSchema SConversationReceiptModeUpdateTag = schema
 conversationActionSchema SConversationAccessDataTag = schema
 conversationActionSchema SConversationUpdateProtocolTag = schema
 conversationActionSchema SConversationUpdateAddPermissionTag = schema
+conversationActionSchema SConversationResetTag = schema
 
 instance FromJSON SomeConversationAction where
   parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
@@ -177,6 +181,7 @@ $( singletons
        conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
        conversationActionPermission ConversationUpdateProtocolTag = LeaveConversation
        conversationActionPermission ConversationUpdateAddPermissionTag = ModifyAddPermission
+       conversationActionPermission ConversationResetTag = LeaveConversation
        |]
  )
 
@@ -192,8 +197,8 @@ conversationActionToEvent ::
 conversationActionToEvent tag now quid qcnv subconv action =
   let edata = case tag of
         SConversationJoinTag ->
-          let ConversationJoin newMembers role = action
-           in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
+          let ConversationJoin newMembers role joinType = action
+           in EdMembersJoin $ MembersJoin (map (`SimpleMember` role) (toList newMembers)) joinType
         SConversationLeaveTag ->
           EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
@@ -209,4 +214,19 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationAccessDataTag -> EdConvAccessUpdate action
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
         SConversationUpdateAddPermissionTag -> EdAddPermissionUpdate action
+        SConversationResetTag -> EdConvReset action.groupId
    in Event qcnv subconv quid now edata
+
+-- | Certain actions need to be performed at the level of the underlying
+-- protocol (MLS, mostly) before being applied to conversations. This function
+-- returns whether a given action tag is directly applicable to a conversation
+-- with the given protocol.
+protocolValidAction :: Protocol -> Sing tag -> ConversationAction tag -> Bool
+protocolValidAction ProtocolProteus _ _ = True
+protocolValidAction (ProtocolMixed _) _ _ = True
+protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ InternalAdd) = False
+protocolValidAction (ProtocolMLS _) SConversationJoinTag (ConversationJoin _ _ ExternalAdd) = True
+protocolValidAction (ProtocolMLS _) SConversationLeaveTag _ = True
+protocolValidAction (ProtocolMLS _) SConversationRemoveMembersTag _ = False
+protocolValidAction (ProtocolMLS _) SConversationDeleteTag _ = True
+protocolValidAction (ProtocolMLS _) _ _ = True

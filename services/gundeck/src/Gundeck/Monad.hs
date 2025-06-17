@@ -37,6 +37,7 @@ module Gundeck.Monad
     -- * Select which redis to target
     runWithDefaultRedis,
     runWithAdditionalRedis,
+    msToUTCSecs,
   )
 where
 
@@ -48,6 +49,8 @@ import Control.Exception (throwIO)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Misc (Milliseconds (..))
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Database.Redis qualified as Redis
@@ -201,6 +204,9 @@ lookupReqId l r = case lookup requestIdName (requestHeaders r) of
 posixTime :: Gundeck Milliseconds
 posixTime = view time >>= liftIO
 {-# INLINE posixTime #-}
+
+msToUTCSecs :: Milliseconds -> UTCTime
+msToUTCSecs = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
 
 getRabbitMqChan :: Gundeck Channel
 getRabbitMqChan = do

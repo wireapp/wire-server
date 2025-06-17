@@ -22,7 +22,7 @@ data UserSubsystemError
   | UserSubsystemHandleExists
   | UserSubsystemInvalidHandle
   | UserSubsystemProfileNotFound
-  | UserSubsystemInsufficientTeamPermissions
+  | UserSubsystemInsufficientPermissions
   | UserSubsystemCannotJoinMultipleTeams
   | UserSubsystemTooManyTeamMembers
   | UserSubsystemMissingIdentity
@@ -60,7 +60,7 @@ userSubsystemErrorToHttpError =
     UserSubsystemHandleExists -> errorToWai @E.HandleExists
     UserSubsystemInvalidHandle -> errorToWai @E.InvalidHandle
     UserSubsystemHandleManagedByScim -> errorToWai @E.HandleManagedByScim
-    UserSubsystemInsufficientTeamPermissions -> errorToWai @E.InsufficientTeamPermissions
+    UserSubsystemInsufficientPermissions -> errorToWai @E.InsufficientPermissions
     UserSubsystemCannotJoinMultipleTeams -> errorToWai @E.CannotJoinMultipleTeams
     UserSubsystemTooManyTeamMembers -> errorToWai @E.TooManyTeamMembers
     UserSubsystemMissingIdentity -> errorToWai @E.MissingIdentity

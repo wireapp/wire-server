@@ -12,6 +12,54 @@ import Text.Read
 import UnliftIO.Async
 import UnliftIO.Concurrent
 
+-- Happy flow: login yields a valid zauth token.
+--
+-- See also: 'testBearerToken'
+testBearerToken2 :: (HasCallStack) => App ()
+testBearerToken2 = do
+  alice <- randomUser OwnDomain def
+  email <- asString $ alice %. "email"
+  loginResp <- login alice email defPassword >>= getJSON 200
+  token <- asString $ loginResp %. "access_token"
+
+  req <-
+    rawBaseRequest alice Nginz Versioned "/self"
+      <&> addHeader "Authorization" ("Bearer " <> token)
+  submit "GET" req `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "email" `shouldMatch` email
+
+-- Happy flow (zauth token encoded in AWS4_HMAC_SHA256)
+--
+-- See also: 'testAWS4_HMAC_SHA256_token'
+testAWS4_HMAC_SHA256_token2 :: (HasCallStack) => App ()
+testAWS4_HMAC_SHA256_token2 = do
+  alice <- randomUser OwnDomain def
+  email <- asString $ alice %. "email"
+  loginResp <- login alice email defPassword >>= getJSON 200
+  token <- asString $ loginResp %. "access_token"
+
+  let testCases =
+        [ (True, "AWS4-HMAC-SHA256 Credential=" <> token <> ", foo=bar"),
+          (True, "AWS4-HMAC-SHA256 Credential=" <> token),
+          (True, "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token),
+          (True, "AWS4-HMAC-SHA256 foo=bar, Credential=" <> token <> ", baz=qux"),
+          (True, "AWS4-HMAC-SHA256 foo=bar,Credential=" <> token <> ",baz=qux"),
+          (False, "AWS4-HMAC-SHA256 Credential=badtoken")
+        ]
+
+  for_ testCases $ \(good, header) -> do
+    req <-
+      rawBaseRequest alice Nginz Versioned "/self"
+        <&> addHeader "Authorization" header
+    submit "GET" req `bindResponse` \resp -> do
+      if good
+        then do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "email" `shouldMatch` email
+        else do
+          resp.status `shouldMatchInt` 401
+
 -- The testLimitRetries test conforms to the following testing standards:
 -- @SF.Channel @TSFI.RESTfulAPI @TSFI.NTP @S2
 --
@@ -144,7 +192,7 @@ testInvalidCookie = do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "client-error"
         msg <- asString $ resp.json %. "message"
-        msg `shouldContain` "Invalid token"
+        msg `shouldContain` "Invalid zauth token"
 
       (owner, tid, [alice]) <- createTeam domain 2
       aliceEmail <- asString $ alice %. "email"
@@ -162,12 +210,17 @@ testInvalidCookie = do
           pure . fromJust $ getCookie "zuid" resp
 
       -- Wait for both cookies to expire
-      threadDelay $ (cookieTimeout + 1) * 1_000_000
+      -- In order to reduce flakiness, the delay has been increased by 2 seconds
+      -- after an investigation revealed that check for cookie expiration is somewhat lenient due to
+      -- the way the time is calculated in the backend.
+      -- See the interpreter of Now which is implemented using `Control.AutoUpdate` which defaults to an update frequency of 1 sec.
+      -- Furthermore the timestamp is then again rounded down to the nearest second before it is compared to the cookie expiration time.
+      threadDelay $ (cookieTimeout + 2) * 1_000_000
       -- Assert that the cookies are considered expired
       for_ [userCookie, lhCookie] $ \cookie ->
         Nginz.access domain ("zuid=" <> cookie) `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 403
           resp.json %. "label" `shouldMatch` "invalid-credentials"
-          resp.json %. "message" `shouldMatch` "Token expired"
+          resp.json %. "message" `shouldMatch` "Zauth token expired"
 
 -- @END

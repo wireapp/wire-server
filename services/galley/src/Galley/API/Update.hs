@@ -354,7 +354,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
               (Just zcon)
               update
       )
-      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr (Just zcon) update)
       qcnv
 
 updateRemoteConversation ::
@@ -369,28 +369,32 @@ updateRemoteConversation ::
     RethrowErrors (HasConversationActionGalleyErrors tag) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
+    Member (Error FederationError) r,
     SingI tag
   ) =>
   Remote ConvId ->
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   ConversationAction tag ->
   Sem r (UpdateResult Event)
-updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
+updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
   let updateRequest =
         ConversationUpdateRequest
           { user = tUnqualified lusr,
             convId = tUnqualified rcnv,
             action = SomeConversationAction (sing @tag) action
           }
-  response <- E.runFederated rcnv (fedClient @'Galley @"update-conversation" updateRequest)
+  eResponse <- E.runFederatedEither rcnv (fedClient @'Galley @"update-conversation" updateRequest)
+  response <- case eResponse of
+    Left e -> throw e
+    Right x -> pure x
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
     ConversationUpdateResponseUnreachableBackends e -> throw e
-  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
+  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) mconn >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -496,9 +500,6 @@ deleteLocalConversation ::
 deleteLocalConversation lusr con lcnv =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
-
-getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
-getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeUnqualifiedWithReqBody ::
   forall r.
@@ -752,7 +753,7 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
             $ newProtocol
       )
       ( \rcnv ->
-          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
+          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr (Just conn) $
             newProtocol
       )
       qcnv
@@ -798,7 +799,7 @@ updateChannelAddPermission lusr zcon qcnv update =
               (Just zcon)
               update
     )
-    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr zcon update)
+    (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
 
 joinConversationByReusableCode ::
@@ -895,7 +896,7 @@ joinConversation lusr zcon conv access = do
     -- where there is no way to control who joins, etc.
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
-      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
+      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember ExternalAdd
     lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
@@ -907,6 +908,7 @@ joinConversation lusr zcon conv access = do
         action
 
 addMembers ::
+  forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -920,6 +922,7 @@ addMembers ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error FederationError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
@@ -944,9 +947,11 @@ addMembers ::
   Sem r (UpdateResult Event)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
+  conv <- getConversationWithError lcnv
+  let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
+  let action = ConversationJoin users role joinType
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
-      ConversationJoin users role
+    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
 
 addMembersUnqualifiedV2 ::
   ( Member BackendNotificationQueueAccess r,
@@ -963,6 +968,7 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
@@ -988,7 +994,7 @@ addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
-      ConversationJoin users role
+      ConversationJoin users role def
 
 addMembersUnqualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -1005,6 +1011,7 @@ addMembersUnqualified ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
@@ -1645,11 +1652,12 @@ addBot lusr zcon b = do
           (tUntagged lusr)
           t
           ( EdMembersJoin
-              ( SimpleMembers
+              ( MembersJoin
                   [ SimpleMember
                       (tUntagged (qualifyAs lusr (botUserId (botMemId bm))))
                       roleNameWireAdmin
                   ]
+                  InternalAdd
               )
           )
   pushNotifications

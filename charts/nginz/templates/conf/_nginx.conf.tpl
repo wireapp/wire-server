@@ -31,6 +31,12 @@ http {
   keepalive_timeout 75;
   send_timeout 60;
 
+  # Without this timeout, requests/responses can be delayed for a very long
+  # time in case the proxied service does not answer (e.g. due to network
+  # issues.) When this timeout is reached nginz answers with HTTP 504 ("gateway
+  # timeout.")
+  proxy_connect_timeout 5;
+
   ignore_invalid_headers off;
 
   types_hash_max_size 2048;
@@ -329,6 +335,7 @@ http {
         proxy_set_header   Z-Provider     $zauth_provider;
         proxy_set_header   Z-Bot          $zauth_bot;
         proxy_set_header   Z-Conversation $zauth_conversation;
+        proxy_set_header   Z-Timestamp    $zauth_timestamp;
         proxy_set_header   Request-Id     $request_id;
         proxy_set_header   Z-Host         $host;
 

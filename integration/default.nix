@@ -81,6 +81,7 @@
 , transformers
 , transformers-base
 , unix
+, unix-time
 , unliftio
 , uuid
 , vector
@@ -183,6 +184,7 @@ mkDerivation {
     transformers
     transformers-base
     unix
+    unix-time
     unliftio
     uuid
     vector

@@ -117,7 +117,8 @@ type MLSBundleStaticErrors =
   Append
     MLSMessageStaticErrors
     '[ ErrorS 'MLSWelcomeMismatch,
-       ErrorS 'MLSIdentityMismatch
+       ErrorS 'MLSIdentityMismatch,
+       ErrorS 'GroupIdVersionNotSupported
      ]
 
 postMLSMessageFromLocalUser ::
@@ -155,6 +156,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 postMLSCommitBundle ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
     Member SubConversationStore r,
@@ -179,6 +181,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 postMLSCommitBundleFromLocalUser ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
     Member SubConversationStore r,
@@ -203,6 +206,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
     Member SubConversationStore r,

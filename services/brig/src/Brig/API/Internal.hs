@@ -91,7 +91,6 @@ import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Activation
-import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
@@ -649,9 +648,12 @@ changeSelfEmailMaybeSendH ::
   ) =>
   UserId ->
   EmailUpdate ->
+  -- validate if needed?
+  Maybe Bool ->
+  -- auto activate email?
   Maybe Bool ->
   (Handler r) ChangeEmailResponse
-changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) = do
+changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) (fromMaybe False -> autoActivate) = do
   let email = euEmail body
   luid <- qualifyLocal uid
   needsActivation <-
@@ -663,19 +665,13 @@ changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) = do
       guard (domReg.authorizedTeam == Just tid)
       guard (domReg.domainRedirect & is _SSO)
 
-  -- `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
-  if needsActivation
-    then do
-      changeSelfEmailMaybeSend uid (if validate then ActuallySendEmail else DoNotSendEmail) email UpdateOriginScim
-    else do
-      token <- lift $ liftSem $ createEmailChangeToken luid email UpdateOriginScim
-      case token of
-        ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
-        ChangeEmailNeedsActivation (_, Activation k c, _) -> do
-          let activate = Public.Activate (Public.ActivateKey k) c False
-          API.activateNoVerifyEmailDomain activate.activateTarget c (Just uid) !>> actError $> ChangeEmailResponseActivated
+  let activation
+        | autoActivate || not needsActivation = AutoActivate
+        | validate = SendActivationEmail
+        | otherwise = DoNotSendActivationEmail
 
-data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
+  -- Note: `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
+  changeSelfEmailMaybeSend uid activation email UpdateOriginScim
 
 changeSelfEmailMaybeSend ::
   ( Member BlockListStore r,
@@ -688,24 +684,34 @@ changeSelfEmailMaybeSend ::
     Member (Input UserSubsystemConfig) r,
     Member TinyLog r,
     Member DomainRegistrationStore r,
-    Member SparAPIAccess r
+    Member SparAPIAccess r,
+    Member GalleyAPIAccess r,
+    Member Events r,
+    Member PasswordResetCodeStore r
   ) =>
   UserId ->
-  MaybeSendEmail ->
+  EmailActivation ->
   EmailAddress ->
   UpdateOriginType ->
   (Handler r) ChangeEmailResponse
-changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
+changeSelfEmailMaybeSend u activation email allowScim = do
   lusr <- qualifyLocal u
-  lift . liftSem $
-    UserSubsystem.requestEmailChange lusr email allowScim
-changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
-  lusr <- qualifyLocal u
-  (lift . liftSem)
-    (UserSubsystem.createEmailChangeToken lusr email allowScim)
-    >>= \case
-      ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
-      ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
+  case activation of
+    SendActivationEmail ->
+      lift . liftSem $ UserSubsystem.requestEmailChange lusr email allowScim
+    DoNotSendActivationEmail -> do
+      (lift . liftSem)
+        (UserSubsystem.createEmailChangeToken lusr email allowScim)
+        >>= \case
+          ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+          ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
+    AutoActivate -> do
+      (lift . liftSem)
+        (UserSubsystem.createEmailChangeToken lusr email allowScim)
+        >>= \case
+          ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+          ChangeEmailNeedsActivation (_, Activation k c, _) -> do
+            API.activateNoVerifyEmailDomain (ActivateKey k) c (Just u) !>> actError $> ChangeEmailResponseActivated
 
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This

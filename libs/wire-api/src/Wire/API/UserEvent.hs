@@ -66,6 +66,10 @@ eventType (PropertyEvent PropertiesCleared) = EventTypePropertiesCleared
 eventType (ClientEvent (ClientAdded _)) = EventTypeClientAdded
 eventType (ClientEvent (ClientRemoved _)) = EventTypeClientRemoved
 eventType (UserGroupEvent (UserGroupCreated _)) = EventTypeUserGroupCreated
+eventType (UserGroupEvent (UserGroupUpdated _)) = EventTypeUserGroupUpdated
+eventType (UserGroupEvent (UserGroupDeleted _)) = EventTypeUserGroupDeleted
+eventType (UserGroupEvent (UserGroupMemberAdded _)) = EventTypeUserGroupMemberAdded
+eventType (UserGroupEvent (UserGroupMemberRemoved _)) = EventTypeUserGroupMemberRemoved
 
 data EventType
   = EventTypeUserCreated
@@ -85,6 +89,10 @@ data EventType
   | EventTypeClientRemoved
   | EventTypeConnection
   | EventTypeUserGroupCreated
+  | EventTypeUserGroupUpdated
+  | EventTypeUserGroupDeleted
+  | EventTypeUserGroupMemberAdded
+  | EventTypeUserGroupMemberRemoved
   deriving stock (Eq, Enum, Bounded)
 
 instance ToSchema EventType where
@@ -107,7 +115,11 @@ instance ToSchema EventType where
           element "user.client-add" EventTypeClientAdded,
           element "user.client-remove" EventTypeClientRemoved,
           element "user.connection" EventTypeConnection,
-          element "user-group.created" EventTypeUserGroupCreated
+          element "user-group.created" EventTypeUserGroupCreated,
+          element "user-group.updated" EventTypeUserGroupUpdated,
+          element "user-group.deleted" EventTypeUserGroupDeleted,
+          element "user-group.member-added" EventTypeUserGroupMemberAdded,
+          element "user-group.member-removed" EventTypeUserGroupMemberRemoved
         ]
 
 data UserEvent
@@ -132,6 +144,10 @@ data UserEvent
 
 data UserGroupEvent
   = UserGroupCreated !UserGroupId
+  | UserGroupUpdated !UserGroupId
+  | UserGroupDeleted !UserGroupId
+  | UserGroupMemberAdded !UserGroupId
+  | UserGroupMemberRemoved !UserGroupId
   deriving stock (Eq, Show)
 
 data ConnectionEvent = ConnectionUpdated
@@ -381,6 +397,34 @@ eventObjectSchema =
                   _UserGroupCreated
                   (field "user_group" (idObjectSchema schema))
               )
+          EventTypeUserGroupUpdated ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupUpdated
+                  (field "user_group" (idObjectSchema schema))
+              )
+          EventTypeUserGroupDeleted ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupDeleted
+                  (field "user_group" (idObjectSchema schema))
+              )
+          EventTypeUserGroupMemberAdded ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupMemberAdded
+                  (field "user_group" (idObjectSchema schema))
+              )
+          EventTypeUserGroupMemberRemoved ->
+            tag
+              _UserGroupEvent
+              ( tag
+                  _UserGroupMemberRemoved
+                  (field "user_group" (idObjectSchema schema))
+              )
       )
   where
     noId :: User -> User
@@ -438,3 +482,7 @@ instance ToBytes ClientEvent where
 
 instance ToBytes UserGroupEvent where
   bytes (UserGroupCreated u) = val "user-group.created: " +++ toByteString u
+  bytes (UserGroupUpdated u) = val "user-group.updated: " +++ toByteString u
+  bytes (UserGroupDeleted u) = val "user-group.deleted: " +++ toByteString u
+  bytes (UserGroupMemberAdded u) = val "user-group.member-added: " +++ toByteString u
+  bytes (UserGroupMemberRemoved u) = val "user-group.member-removed: " +++ toByteString u

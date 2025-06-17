@@ -141,3 +141,11 @@ unregisterClient user client = do
     baseRequest user Gundeck Unversioned
       $ joinHttpPath ["/i/clients", cid]
   submit "DELETE" req
+
+getServerTime ::
+  (MakesValue user) =>
+  user ->
+  App Response
+getServerTime user = do
+  req <- baseRequest user Gundeck Versioned "/time"
+  submit "GET" req

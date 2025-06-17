@@ -95,7 +95,7 @@ patchFeatureInternal tid patch = do
   prepareFeature tid patchedFeature
   patchDbFeature tid patch
   returnedFeature <- getFeatureForTeam @cfg tid
-  pushFeatureEvent tid (mkUpdateEvent returnedFeature)
+  pushFeatureEvent @cfg tid (mkUpdateEvent tid returnedFeature)
   pure returnedFeature
   where
     applyPatch :: LockableFeature cfg -> LockableFeature cfg
@@ -199,7 +199,9 @@ persistFeature tid feat = do
   getFeatureForTeam @cfg tid
 
 pushFeatureEvent ::
-  ( Member NotificationSubsystem r,
+  forall cfg r.
+  ( IsFeatureConfig cfg,
+    Member NotificationSubsystem r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -218,7 +220,7 @@ pushFeatureEvent tid event = do
     else do
       let recipients = membersToRecipients Nothing (memList ^. teamMembers)
       pushNotifications
-        [def {json = toJSONObject event, recipients}]
+        [def {json = toJSONObject event, recipients, isCellsEvent = isCellsFeatureConfigEvent @cfg}]
 
 guardLockStatus ::
   forall r.
@@ -230,6 +232,7 @@ guardLockStatus = \case
   LockStatusLocked -> throw FeatureLocked
 
 setFeatureForTeam ::
+  forall cfg r.
   ( SetFeatureConfig cfg,
     SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
@@ -245,7 +248,7 @@ setFeatureForTeam ::
 setFeatureForTeam tid feat = do
   prepareFeature tid feat
   newFeat <- persistFeature tid feat
-  pushFeatureEvent tid (mkUpdateEvent newFeat)
+  pushFeatureEvent @cfg tid (mkUpdateEvent tid newFeat)
   pure newFeat
 
 -------------------------------------------------------------------------------

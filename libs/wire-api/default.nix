@@ -7,6 +7,7 @@
 , aeson-diff
 , aeson-pretty
 , aeson-qq
+, amqp
 , asn1-encoding
 , async
 , attoparsec
@@ -104,6 +105,7 @@
 , these
 , time
 , tinylog
+, transformers
 , types-common
 , unliftio
 , unordered-containers
@@ -125,6 +127,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amqp
     asn1-encoding
     attoparsec
     barbies
@@ -209,6 +212,7 @@ mkDerivation {
     these
     time
     tinylog
+    transformers
     types-common
     unordered-containers
     uri-bytestring

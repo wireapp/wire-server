@@ -238,6 +238,24 @@ createGroup cs cid convId = do
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
   resetClientGroup cs cid groupId convId keys
 
+deleteGroup :: ConvId -> App MLSConv
+deleteGroup convId = do
+  mlsConv <- getMLSConv convId
+  let allClients = mlsConv.members <> mlsConv.newMembers <> mlsConv.membersToBeRemoved
+  modifyMLSState $ \s ->
+    s
+      { convs = Map.delete convId s.convs,
+        clientGroupState = Map.filterWithKey (\k _ -> Set.member k allClients) s.clientGroupState
+      }
+  pure mlsConv
+
+resetGroup :: ClientIdentity -> ConvId -> String -> App ConvId
+resetGroup cid convId groupId = do
+  mlsConv <- deleteGroup convId
+  let convId' = convId {groupId = Just groupId} :: ConvId
+  createGroup mlsConv.ciphersuite cid convId'
+  pure convId'
+
 createSubConv :: (HasCallStack) => Ciphersuite -> ConvId -> ClientIdentity -> String -> App ()
 createSubConv cs convId cid subId = do
   sub <- getSubConversation cid convId subId >>= getJSON 200
@@ -621,7 +639,7 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
     -- notification.
     when (mlsProtocol == MLSProtocolMLS) $
       traverse_
-        (awaitMatch (\n -> isMemberJoinNotif n))
+        (awaitMatch isMemberJoinNotif)
         ( flip Map.restrictKeys newUsers
             . Map.mapKeys ((.user) . fst)
             . Map.fromList
@@ -705,37 +723,43 @@ sendAndConsumeCommitBundle = sendAndConsumeCommitBundleWithProtocol MLSProtocolM
 -- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
 -- update the test state accordingly.
 sendAndConsumeCommitBundleWithProtocol :: (HasCallStack) => MLSProtocol -> MessagePackage -> App Value
-sendAndConsumeCommitBundleWithProtocol protocol mp = do
-  lowerCodensity $ do
-    consumingMessages protocol mp
-    lift $ do
-      r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+sendAndConsumeCommitBundleWithProtocol protocol messagePackage = lowerCodensity $ do
+  consumingMessages protocol messagePackage
+  lift $ sendCommitBundle messagePackage
 
-      -- if the sender is a new member (i.e. it's an external commit), then
-      -- process the welcome message directly
-      do
-        conv <- getMLSConv mp.convId
-        when (Set.member mp.sender conv.newMembers) $
-          traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
+-- | Send an MLS commit bundle, and update the test state accordingly.
+sendCommitBundle ::
+  (HasCallStack) =>
+  MessagePackage ->
+  App Value
+sendCommitBundle mp = do
+  r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
-      -- increment epoch and add new/remove clients
-      modifyMLSState $ \mls ->
-        mls
-          { convs =
-              Map.adjust
-                ( \conv ->
-                    conv
-                      { epoch = conv.epoch + 1,
-                        members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
-                        membersToBeRemoved = mempty,
-                        newMembers = mempty
-                      }
-                )
-                mp.convId
-                mls.convs
-          }
+  -- if the sender is a new member (i.e. it's an external commit), then
+  -- process the welcome message directly
+  do
+    conv <- getMLSConv mp.convId
+    when (Set.member mp.sender conv.newMembers) $
+      traverse_ (fromWelcome mp.convId conv.ciphersuite mp.sender) mp.welcome
 
-      pure r
+  -- increment epoch and add new/remove clients
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            ( \conv ->
+                conv
+                  { epoch = conv.epoch + 1,
+                    members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
+                    membersToBeRemoved = mempty,
+                    newMembers = mempty
+                  }
+            )
+            mp.convId
+            mls.convs
+      }
+
+  pure r
 
 consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do

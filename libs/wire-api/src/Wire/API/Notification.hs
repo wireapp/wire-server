@@ -23,6 +23,7 @@ module Wire.API.Notification
     isValidNotificationId,
     RawNotificationId (..),
     Event,
+    ServerTime (..),
 
     -- * QueuedNotification
     QueuedNotification,
@@ -42,6 +43,7 @@ module Wire.API.Notification
     userRoutingKey,
     temporaryRoutingKey,
     clientRoutingKey,
+    queueOpts,
   )
 where
 
@@ -54,6 +56,7 @@ import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
+import Data.Map qualified as Map
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.SOP
@@ -62,6 +65,8 @@ import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
 import Data.UUID qualified as UUID
 import Imports
+import Network.AMQP
+import Network.AMQP.Types
 import Servant
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -175,6 +180,22 @@ instance AsUnion '[Respond 404 "Notification list" QueuedNotificationList, Respo
   fromUnion (S (S x)) = case x of {}
 
 --------------------------------------------------------------------------------
+-- Server Time
+
+newtype ServerTime = ServerTime {getServerTime :: UTCTime}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServerTime)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ServerTime)
+
+instance ToSchema ServerTime where
+  schema =
+    objectWithDocModifier "ServerTime" serverTimeDoc $
+      ServerTime
+        <$> getServerTime .= field "time" utcTimeSchema
+    where
+      serverTimeDoc = description ?~ "The current server time"
+
+--------------------------------------------------------------------------------
 -- RabbitMQ exchanges and queues
 
 -- | The name of the RabbitMQ exchange to which user notifications are published.
@@ -201,3 +222,20 @@ clientRoutingKey uid cid = userRoutingKey uid <> "." <> clientToText cid
 
 temporaryRoutingKey :: UserId -> Text
 temporaryRoutingKey uid = userRoutingKey uid <> ".temporary"
+
+queueOpts :: Text -> QueueOpts
+queueOpts qName =
+  newQueue
+    { queueName = qName,
+      queueHeaders =
+        FieldTable $
+          Map.fromList
+            [ ( "x-dead-letter-exchange",
+                FVString $
+                  encodeUtf8 userNotificationDlxName
+              ),
+              ( "x-dead-letter-routing-key",
+                FVString $ encodeUtf8 userNotificationDlqName
+              )
+            ]
+    }

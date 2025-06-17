@@ -57,6 +57,25 @@ testSearchContactForExternalUsers = do
       expected <- for users objId
       userIds `shouldMatchSet` expected
 
+testEphemeralUsersSearch :: (HasCallStack) => App ()
+testEphemeralUsersSearch = do
+  userEphemeral <- ephemeralUser OwnDomain
+  [user1, user2] <- replicateM 2 $ randomUser OwnDomain def
+  BrigI.refreshIndex OwnDomain
+
+  -- user1 can find user2
+  BrigP.searchContacts user1 (user2 %. "name") OwnDomain >>= \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    quids <- for docs objId
+    expected <- objId user2
+    quids `shouldMatchSet` [expected]
+
+  -- ephemeral user is not allowed to search for contacts
+  BrigP.searchContacts userEphemeral (user2 %. "name") OwnDomain >>= \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "insufficient-permissions"
+
 --------------------------------------------------------------------------------
 -- FEDERATION SEARCH
 

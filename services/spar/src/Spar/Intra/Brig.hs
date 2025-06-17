@@ -147,19 +147,31 @@ createBrigUserNoSAML extId email uid teamid uname locale role = do
     then userId <$> parseResponse @User "brig" resp
     else rethrow "brig" resp
 
-updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> EmailAddress -> m ()
-updateEmail buid email = do
+updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> EmailAddress -> EmailActivation -> m ()
+updateEmail buid email activation = do
   resp <-
     call $
       method PUT
         . path "/i/self/email"
         . header "Z-User" (toByteString' buid)
-        . query [("validate", Just "true")]
+        . query
+          [ ("validate", Just (fromBool validate)),
+            ("activate", Just (fromBool activate))
+          ]
         . json (EmailUpdate email)
   case statusCode resp of
     204 -> pure ()
     202 -> pure ()
     _ -> rethrow "brig" resp
+  where
+    (validate, activate) = case activation of
+      AutoActivate -> (False, True)
+      SendActivationEmail -> (True, False)
+      DoNotSendActivationEmail -> (False, False)
+
+    fromBool :: Bool -> ByteString
+    fromBool True = "true"
+    fromBool False = "false"
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)

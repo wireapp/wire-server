@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.SimpleMembers_user where
+module Test.Wire.API.Golden.Generated.MembersJoin_user where
 
 import Data.Domain
 import Data.Id (Id (Id))
@@ -25,19 +25,20 @@ import Data.Qualified
 import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation.Role (parseRoleName)
-import Wire.API.Event.Conversation (SimpleMember (..), SimpleMembers (..))
+import Wire.API.Event.Conversation
 
-testObject_SimpleMembers_user_1 :: SimpleMembers
-testObject_SimpleMembers_user_1 =
-  SimpleMembers
+testObject_MembersJoin_user_1 :: MembersJoin
+testObject_MembersJoin_user_1 =
+  MembersJoin
     { mMembers =
         [ SimpleMember
             { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-002b-0000-005500000013"))) (Domain "faraway.example.com"),
               smConvRoleName = fromJust (parseRoleName "n0_wu2h66nj3lerw_blivsh6by09a")
             }
-        ]
+        ],
+      joinType = InternalAdd
     }
 
-testObject_SimpleMembers_user_2 :: SimpleMembers
-testObject_SimpleMembers_user_2 =
-  SimpleMembers {mMembers = []}
+testObject_MembersJoin_user_2 :: MembersJoin
+testObject_MembersJoin_user_2 =
+  MembersJoin {mMembers = [], joinType = InternalAdd}

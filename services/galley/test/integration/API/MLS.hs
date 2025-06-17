@@ -62,6 +62,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Routes.Version
 
 tests :: IO TestSetup -> TestTree
@@ -893,7 +894,7 @@ testRemoteToRemoteInSub = do
             convId = conv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
@@ -1789,7 +1790,7 @@ deleteSubConversationDisabled = do
   cnvId <- Qualified <$> randomId <*> pure (Domain "www.example.com")
   let scnvId = SubConvId "conference"
       dsc =
-        DeleteSubConversationRequest
+        MLSReset
           (GroupId "MLS")
           (Epoch 0)
   withMLSDisabled $
@@ -2082,7 +2083,7 @@ testJoinDeletedSubConvWithRemoval = do
             =<< getSubConv (qUnqualified bob) qcnv subConvId
               <!! const 200 === statusCode
       let Just activeData = pscActiveData sub
-      let dsc = DeleteSubConversationRequest (pscGroupId sub) activeData.epoch
+      let dsc = MLSReset (pscGroupId sub) activeData.epoch
       liftTest $
         deleteSubConv (qUnqualified bob) qcnv subConvId dsc
           !!! const 200 === statusCode
@@ -2112,7 +2113,7 @@ testDeleteSubConvStale = do
 
   -- the commit was made, yet the epoch for the request body is old
   let epoch = maybe (Epoch 0) (.epoch) (pscActiveData sub)
-  let dsc = DeleteSubConversationRequest (pscGroupId sub) epoch
+  let dsc = MLSReset (pscGroupId sub) epoch
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
 
@@ -2140,7 +2141,7 @@ testDeleteRemoteSubConv isAMember = do
           if isAMember
             then DeleteSubConversationResponseSuccess
             else DeleteSubConversationResponseError ConvNotFound
-      dsc = DeleteSubConversationRequest groupId epoch
+      dsc = MLSReset groupId epoch
 
   (_, reqs) <-
     withTempMockFederator' mock $

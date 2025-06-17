@@ -5,6 +5,7 @@ module Cannon.RabbitMq
     RabbitMqChannelException (..),
     RabbitMqPoolOptions (..),
     RabbitMqPool,
+    QueueInfo (..),
     createRabbitMqPool,
     drainRabbitMqPool,
     RabbitMqChannel (..),
@@ -231,11 +232,14 @@ ackMessage :: RabbitMqChannel -> Word64 -> Bool -> IO ()
 ackMessage chan deliveryTag multiple = do
   Q.ackMsg chan.inner deliveryTag multiple
 
-type QueueName = Text
+data QueueInfo = QueueInfo
+  { queueName :: Text,
+    messageCount :: Int
+  }
 
-type CreateQueue = Q.Channel -> Codensity IO QueueName
+type CreateQueue = Q.Channel -> Codensity IO QueueInfo
 
-createChannel :: UserId -> Maybe ClientId -> RabbitMqPool -> CreateQueue -> Codensity IO RabbitMqChannel
+createChannel :: UserId -> Maybe ClientId -> RabbitMqPool -> CreateQueue -> Codensity IO (RabbitMqChannel, QueueInfo)
 createChannel uid mcid pool createQueue = do
   msgVar <- lift newEmptyMVar
   key <- lift newUnique
@@ -286,10 +290,10 @@ createChannel uid mcid pool createQueue = do
       (const $ pure . isNothing)
       (const $ tryCreateChannel)
   chan <- maybe (throw TooManyChannels) pure mChan
-  queueName <- createQueue chan.inner
-  void $ liftIO $ Q.consumeMsgs (chan.inner) queueName Q.Ack $ \(message, envelope) -> do
+  queueInfo <- createQueue chan.inner
+  void $ liftIO $ Q.consumeMsgs (chan.inner) queueInfo.queueName Q.Ack $ \(message, envelope) -> do
     putMVar msgVar (Just (message, envelope))
-  pure chan
+  pure (chan, queueInfo)
 
 acquireConnection :: RabbitMqPool -> IO PooledConnection
 acquireConnection pool = do
