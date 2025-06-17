@@ -13,6 +13,7 @@ import Control.Lens ((.~), (^?!))
 import Control.Monad.Codensity
 import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ProtoLens as Proto
@@ -699,15 +700,10 @@ testQosLimit = do
       GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
 
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
-    recoverAll
-      (constantDelay 500_000 <> limitRetries 10)
-      (const (assertMessageCount ws `shouldMatchInt` 551))
-
-    deliveryTag <- assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` cid
-      e %. "data.delivery_tag"
-    sendAck ws deliveryTag False
+    -- The order of message_count and user.client-add events is not forseeable.
+    -- Thus, we have to handle (ack) them in any order.
+    void $ assertClientAddOrMessageCountEvent ws cid
+    void $ assertClientAddOrMessageCountEvent ws cid
 
     es <- consumeAllEventsNoAck ws
     assertBool "First 500 events" $ length es == 500
@@ -716,6 +712,27 @@ testQosLimit = do
 
     es' <- consumeAllEventsNoAck ws
     assertBool "Outstanding 50 events" $ length es' == 50
+  where
+    assertClientAddOrMessageCountEvent ws cid =
+      assertFindsEventConfigurableAck ((const . const . pure) ()) ws $ \e -> do
+        eventType <-
+          maybe (pure "No Type") asString
+            =<< runMaybeT
+              ( ( lookupFieldM e "data.event"
+                    >>= flip lookupFieldM "payload.0.type"
+                )
+                  <|> (lookupFieldM e "type")
+              )
+
+        case eventType of
+          "user.client-add" -> do
+            e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+            e %. "data.event.payload.0.client.id" `shouldMatch` cid
+            ackEvent ws e
+          "message_count" -> do
+            (e %. "data.count") `shouldMatchInt` 551
+            ackMessageCount ws
+          et -> error $ "Unexpected eventType: " ++ show et
 
 ----------------------------------------------------------------------
 -- helpers
@@ -859,7 +876,16 @@ assertEvent ws expectations = do
 
 -- | Tolerates and consumes other events before expected event
 assertFindsEvent :: forall a. (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
-assertFindsEvent ws expectations = go 0
+assertFindsEvent = assertFindsEventConfigurableAck ackEvent
+
+assertFindsEventConfigurableAck ::
+  forall a.
+  (HasCallStack) =>
+  ((HasCallStack) => EventWebSocket -> Value -> App ()) ->
+  EventWebSocket ->
+  ((HasCallStack) => Value -> App a) ->
+  App a
+assertFindsEventConfigurableAck ackFun ws expectations = go 0
   where
     go :: Int -> App a
     go ignoredEventCount = do
@@ -874,8 +900,11 @@ assertFindsEvent ws expectations = go 0
             `catch` \(_ :: AssertionFailure) -> do
               ignoredEventType <-
                 maybe (pure "No Type") asString
-                  =<< lookupField ev "data.event.payload.0.type"
-              ackEvent ws ev
+                  =<< runMaybeT
+                    ( (lookupFieldM ev "data.event" >>= flip lookupFieldM "payload.0.type")
+                        <|> (lookupFieldM ev "type")
+                    )
+              ackFun ws ev
               addJSONToFailureContext ("Ignored Event (" <> ignoredEventType <> ")") ev
                 $ go (ignoredEventCount + 1)
 
