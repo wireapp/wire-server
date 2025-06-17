@@ -3,6 +3,7 @@
 module Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp) where
 
 import Cannon.App (rejectOnError)
+import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
@@ -48,8 +49,8 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
             WSConnection
               { inner = conn,
                 activity,
-                activityTimeout = 30000000, -- TODO
-                pongTimeout = 30000000 -- TODO
+                activityTimeout = e.wsOpts.activityTimeout,
+                pongTimeout = e.wsOpts.pongTimeout
               }
       void $
         Codensity $
