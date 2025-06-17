@@ -132,6 +132,7 @@ mkEnv external o cs l d conns p g t endpoint = do
           g
           t
           (o ^. drainOpts)
+          o._optsWSOpts
           cs
           pool
   pure $ Env o l d conns (RequestId defRequestId) wsEnv
