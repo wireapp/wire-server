@@ -51,7 +51,7 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import Cannon.Dict qualified as D
-import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
+import Cannon.Options (DrainOpts, WSOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 import Cannon.RabbitMq
 import Cassandra (ClientState)
 import Conduit
@@ -155,6 +155,7 @@ data Env = Env
     rand :: !GenIO,
     clock :: !Clock,
     drainOpts :: DrainOpts,
+    wsOpts :: WSOpts,
     cassandra :: ClientState,
     pool :: RabbitMqPool
   }
@@ -203,6 +204,7 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  WSOpts ->
   ClientState ->
   RabbitMqPool ->
   Env
