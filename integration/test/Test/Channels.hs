@@ -45,9 +45,9 @@ testCreateChannelEveryone = do
   replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
-  assertCreateChannelSuccess ownerClient tid otherTeamMembers
-  assertCreateChannelSuccess memClient tid otherTeamMembers
-  assertCreateChannelSuccess partnerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ memClient tid otherTeamMembers
+  assertCreateChannelSuccess_ partnerClient tid otherTeamMembers
 
 testCreateChannelMembersOnly :: (HasCallStack) => App ()
 testCreateChannelMembersOnly = do
@@ -60,8 +60,8 @@ testCreateChannelMembersOnly = do
   replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "team-members")
-  assertCreateChannelSuccess ownerClient tid otherTeamMembers
-  assertCreateChannelSuccess memClient tid otherTeamMembers
+  assertCreateChannelSuccess_ ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ memClient tid otherTeamMembers
   assertCreateChannelFailure "operation-denied" partnerClient tid
 
 testCreateChannelAdminsOnly :: (HasCallStack) => App ()
@@ -75,7 +75,7 @@ testCreateChannelAdminsOnly = do
   replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "admins")
-  assertCreateChannelSuccess ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ ownerClient tid otherTeamMembers
   assertCreateChannelFailure "operation-denied" memClient tid
   assertCreateChannelFailure "operation-denied" partnerClient tid
 
@@ -104,7 +104,10 @@ testCreateChannelProteusNotAllowed = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "not-mls-conversation"
 
-assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App ()
+assertCreateChannelSuccess_ :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App ()
+assertCreateChannelSuccess_ client tid members = void $ assertCreateChannelSuccess client tid members
+
+assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App Value
 assertCreateChannelSuccess client tid members = do
   conv <-
     postConversation
@@ -116,6 +119,7 @@ assertCreateChannelSuccess client tid members = do
   createGroup def client convId
   resp <- createAddCommit client convId members >>= sendAndConsumeCommitBundle
   (resp %. "events.0.data.user_ids" & asList) `shouldMatchSet` (for members (%. "id"))
+  pure conv
 
 assertCreateChannelFailure :: (HasCallStack) => String -> ClientIdentity -> String -> App ()
 assertCreateChannelFailure label client tid = do
@@ -526,6 +530,31 @@ testTeamAdminCanAddMembersWithoutJoining = do
       allUsers <- memberJoinNotif %. "payload.0.data.users" & asList
       selfQid <- self %. "qualified_id"
       filterM (\m -> (/= selfQid) <$> (m %. "qualified_id")) allUsers
+
+testAdminCanRemoveMemberWithoutJoining :: (HasCallStack) => App ()
+testAdminCanRemoveMemberWithoutJoining = do
+  (owner, tid, mems@(m1 : m2 : _)) <- createTeam OwnDomain 3
+  cs@(c1 : _) <- for mems $ createMLSClient def
+  for_ cs $ uploadNewKeyPackage def
+
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  channel <- assertCreateChannelSuccess c1 tid [m2]
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members" & asList
+    for [m1, m2] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
+
+  withWebSocket c1 $ \ws -> do
+    -- the team admin removes a member without joining
+    removeMember owner channel m2 `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 204
+
+    e <- awaitAnyEvent 1 ws
+    msgData <- e %. "payload.0.data" & asByteString
+    msg <- showMessage def c1 msgData
+    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` 1
 
 sendAndConsumeCommitBundleExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeCommitBundleExpectNoMemberJoin messagePackage = lowerCodensity $ do
