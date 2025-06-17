@@ -89,7 +89,7 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation hiding (teamId)
+import Wire.API.Conversation
 import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol

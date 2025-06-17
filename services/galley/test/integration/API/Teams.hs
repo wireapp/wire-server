@@ -68,7 +68,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import UnliftIO (mapConcurrently)
-import Wire.API.Conversation hiding (teamId)
+import Wire.API.Conversation
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role

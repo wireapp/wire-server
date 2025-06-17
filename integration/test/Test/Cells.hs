@@ -93,7 +93,7 @@ testCellsDeletionEvent = do
   event %. "qualified_conversation" `shouldMatch` (conv %. "qualified_id")
   event %. "qualified_from" `shouldMatch` (alice %. "qualified_id")
   event %. "from" `shouldMatch` (alice %. "qualified_id.id")
-  event %. "data.teamId" `shouldMatch` tid
+  event %. "data.team" `shouldMatch` tid
 
   assertNoMessage q
 

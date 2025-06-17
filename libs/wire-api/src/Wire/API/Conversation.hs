@@ -1,3 +1,5 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -913,7 +915,7 @@ instance ToSchema NewOne2OneConv where
                  <|> pure []
              )
         <*> name .= maybe_ (optField "name" schema)
-        <*> team
+        <*> (.team)
           .= maybe_
             ( optFieldWithDocModifier
                 "team"
@@ -1154,7 +1156,7 @@ instance ToSchema AddPermissionUpdate where
         <$> addPermission .= field "add_permission" schema
 
 newtype ConversationDelete = ConversationDelete
-  { teamId :: TeamId
+  { team :: TeamId
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
@@ -1165,7 +1167,7 @@ instance ToSchema ConversationDelete where
     objectWithDocModifier
       "ConversationDelete"
       (description ?~ "The action of deleting a conversation")
-      $ ConversationDelete <$> teamId .= field "teamId" schema
+      $ ConversationDelete <$> (.team) .= field "team" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

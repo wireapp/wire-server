@@ -110,7 +110,7 @@ import System.Logger.Class hiding (Error, name, (.=))
 import System.Logger.Class qualified as Log
 import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
-import Wire.API.Conversation hiding (teamId)
+import Wire.API.Conversation
 import Wire.API.CustomBackend
 import Wire.API.EnterpriseLogin
 import Wire.API.Internal.Notification
