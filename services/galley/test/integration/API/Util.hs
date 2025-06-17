@@ -2703,7 +2703,8 @@ checkConvDeleteEvent cid tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
-  evtData e @?= Conv.EdConvDelete (ConversationDelete tid)
+  evtData e @?= Conv.EdConvDelete
+  evtTeam e @?= (Just tid)
 
 checkConvMemberLeaveEvent :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do

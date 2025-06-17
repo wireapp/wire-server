@@ -1,8 +1,6 @@
 {
     "conversation": "00005d81-0000-0d71-0000-1d8f00007d32",
-    "data": {
-        "team": "90eda181-bb05-4525-a5cc-d0038deda9b7"
-    },
+    "data": null,
     "from": "00003b8b-0000-3395-0000-076a00007830",
     "qualified_conversation": {
         "domain": "faraway.example.com",
@@ -12,6 +10,7 @@
         "domain": "faraway.example.com",
         "id": "00003b8b-0000-3395-0000-076a00007830"
     },
+    "team": "90eda181-bb05-4525-a5cc-d0038deda9b7",
     "time": "1864-05-22T09:51:07.104Z",
     "type": "conversation.delete"
 }

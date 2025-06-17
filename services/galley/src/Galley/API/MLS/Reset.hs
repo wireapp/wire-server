@@ -90,6 +90,7 @@ resetMLSConversation lusr reset = do
             lcnv
             (tUntagged lusr)
             Nothing
+            Nothing
             reset
     )
     (\rcnv -> resetRemoteMLSConversation rcnv lusr reset)

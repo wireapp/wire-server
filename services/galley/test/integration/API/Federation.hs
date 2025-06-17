@@ -607,7 +607,7 @@ notifyDeletedConversation :: TestM ()
 notifyDeletedConversation = do
   c <- view tsCannon
 
-  (tid, qalice, _) <- createBindingTeamWithQualifiedMembers 0
+  qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
 
   bob <- randomId
@@ -638,7 +638,7 @@ notifyDeletedConversation = do
               FedGalley.origUserId = qbob,
               FedGalley.convId = qUnqualified qconv,
               FedGalley.alreadyPresentUsers = [alice],
-              FedGalley.action = SomeConversationAction (sing @'ConversationDeleteTag) (ConversationDelete tid)
+              FedGalley.action = SomeConversationAction (sing @'ConversationDeleteTag) ()
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
 

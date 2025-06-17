@@ -40,13 +40,14 @@ notifyConversationAction ::
   Maybe ConnId ->
   Local Conversation ->
   BotsAndMembers ->
+  Maybe TeamId ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv targets tid action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing Nothing action
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing tid action
       mkUpdate uids =
         ConversationUpdate
           now

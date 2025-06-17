@@ -1857,7 +1857,8 @@ wsAssertConvDelete ws conv from tid = void $
         evtConv e @?= conv
         evtType e @?= ConvDelete
         evtFrom e @?= from
-        evtData e @?= EdConvDelete (ConversationDelete tid)
+        evtData e @?= EdConvDelete
+        evtTeam e @?= Just tid
 
 wsAssertMessage :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
@@ -1903,7 +1904,8 @@ svcAssertConvDelete buf usr cnv tid = liftIO $ do
       assertEqual "event type" ConvDelete (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (EdConvDelete (ConversationDelete tid)) (evtData e)
+      assertEqual "event data" EdConvDelete (evtData e)
+      assertEqual "team" (Just tid) (evtTeam e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
 svcAssertBotCreated :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
@@ -1937,7 +1939,8 @@ svcAssertEventuallyConvDelete buf usr cnv tid = liftIO $ do
       assertEqual "event type" ConvDelete (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (EdConvDelete (ConversationDelete tid)) (evtData e)
+      assertEqual "event data" EdConvDelete (evtData e)
+      assertEqual "team" (Just tid) (evtTeam e)
     -- We ignore every other message type
     Just (TestBotMessage _) ->
       svcAssertEventuallyConvDelete buf usr cnv tid

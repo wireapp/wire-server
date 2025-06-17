@@ -53,4 +53,5 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     Nothing
     lconv
     targets
+    Nothing
     (ConversationRemoveMembers (pure victim) EdReasonRemoved)

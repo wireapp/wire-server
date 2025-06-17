@@ -110,7 +110,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
-import Wire.API.Conversation (ConversationDelete (..), ConversationRemoveMembers (..))
+import Wire.API.Conversation (ConversationRemoveMembers (..))
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
@@ -439,7 +439,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event qconvId Nothing (tUntagged lusr) now Nothing (Conv.EdConvDelete (ConversationDelete tid))
+      let e = Conv.Event qconvId Nothing (tUntagged lusr) now (Just tid) Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p =
             def
@@ -972,6 +972,7 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
               zcon
               (qualifyAs lusr dc)
               targets
+              (Just tid)
               ( ConversationRemoveMembers
                   (pure . tUntagged . qualifyAs lusr $ remove)
                   EdReasonDeleted

@@ -265,6 +265,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       con
                       lconv
                       bm
+                      Nothing
                       ConversationJoin
                         { users = members,
                           role = roleNameWireMember,
@@ -345,7 +346,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
-          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con Nothing
           . (\uids -> ConversationJoin uids roleNameWireMember def)
       )
       . nonEmpty
@@ -368,7 +369,7 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
-          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con Nothing
           . flip ConversationRemoveMembers EdReasonRemoved
       )
       . nonEmpty
