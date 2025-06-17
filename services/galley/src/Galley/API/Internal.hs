@@ -400,6 +400,7 @@ rmUser lusr conn = do
                       Nothing
                       (tUntagged lusr)
                       now
+                      Nothing
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure . Just $

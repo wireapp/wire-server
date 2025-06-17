@@ -199,6 +199,7 @@ onConversationCreated domain rc = do
             Nothing
             (tUntagged (ccRemoteOrigUserId qrcConnected))
             qrcConnected.time
+            Nothing
             (EdConversation c)
     pushConversationEvent Nothing () event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
@@ -895,7 +896,7 @@ onMLSMessageSent domain rmm =
               $ rmm.recipients
       -- FUTUREWORK: support local bots
       let e =
-            Event (tUntagged rcnv) rmm.subConversation rmm.sender rmm.time $
+            Event (tUntagged rcnv) rmm.subConversation rmm.sender rmm.time Nothing $
               EdMLSMessage (fromBase64ByteString rmm.message)
 
       runMessagePush loc (Just (tUntagged rcnv)) $

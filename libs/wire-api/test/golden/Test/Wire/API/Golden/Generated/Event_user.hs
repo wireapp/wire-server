@@ -48,6 +48,7 @@ testObject_Event_user_1 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com"))
     (read "1864-05-22 09:51:07.104 UTC")
+    Nothing
     ( EdConvDelete
         (ConversationDelete (Id (fromJust (UUID.fromString "90eda181-bb05-4525-a5cc-d0038deda9b7"))))
     )
@@ -59,6 +60,7 @@ testObject_Event_user_2 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2"))) (Domain "faraway.example.com"))
     (read "1864-06-05 23:01:18.769 UTC")
+    Nothing
     ( EdConvAccessUpdate
         ( ConversationAccessData
             { cupAccess = [InviteAccess, LinkAccess, PrivateAccess, InviteAccess, InviteAccess],
@@ -74,6 +76,7 @@ testObject_Event_user_3 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188"))) (Domain "faraway.example.com"))
     (read "1864-04-27 15:44:23.844 UTC")
+    Nothing
     ( EdOtrMessage
         ( OtrMessage
             { otrSender = ClientId 0xc,
@@ -91,6 +94,7 @@ testObject_Event_user_4 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7"))) (Domain "faraway.example.com"))
     (read "1864-05-12 00:59:09.2 UTC")
+    Nothing
     EdConvCodeDelete
 
 testObject_Event_user_5 :: Event
@@ -100,6 +104,7 @@ testObject_Event_user_5 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9"))) (Domain "faraway.example.com"))
     (read "1864-04-12 03:04:00.298 UTC")
+    Nothing
     ( EdMemberUpdate
         ( MemberUpdateData
             { misTarget =
@@ -128,6 +133,7 @@ testObject_Event_user_6 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8"))) (Domain "faraway.example.com"))
     (read "1864-05-09 05:44:41.382 UTC")
+    Nothing
     (EdConvMessageTimerUpdate (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 5029817038083912})}))
 
 testObject_Event_user_7 :: Event
@@ -137,6 +143,7 @@ testObject_Event_user_7 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))) (Domain "faraway.example.com"))
     (read "1864-04-18 05:01:13.761 UTC")
+    Nothing
     (EdTyping StoppedTyping)
 
 testObject_Event_user_8 :: Event
@@ -146,6 +153,7 @@ testObject_Event_user_8 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))) (Domain "faraway.example.com"))
     (read "1864-05-29 19:31:31.226 UTC")
+    Nothing
     ( EdConversation
         ( ConversationV8
             { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
@@ -213,6 +221,7 @@ testObject_Event_user_9 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726"))) (Domain "faraway.example.com"))
     (read "1864-05-01 11:57:35.123 UTC")
+    Nothing
     (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -10505}}))
 
 testObject_Event_user_10 :: Event
@@ -222,6 +231,7 @@ testObject_Event_user_10 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d"))) (Domain "faraway.example.com"))
     (read "1864-05-25 01:31:49.802 UTC")
+    Nothing
     ( EdConnect
         ( Connect
             { cRecipient =
@@ -242,6 +252,7 @@ testObject_Event_user_11 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
     (read "1864-04-12 01:28:25.705 UTC")
+    Nothing
     ( EdMembersLeave
         EdReasonLeft
         ( QualifiedUserIdList
@@ -260,6 +271,7 @@ testObject_Event_user_12 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")
+    Nothing
     ( EdMembersJoin
         ( MembersJoin
             { mMembers =
@@ -284,6 +296,7 @@ testObject_Event_user_13 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")
+    Nothing
     (EdConvRename (ConversationRename "New conversation name"))
 
 testObject_Event_user_14 :: Event
@@ -293,6 +306,7 @@ testObject_Event_user_14 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
     (read "1864-05-12 20:29:47.483 UTC")
+    Nothing
     (EdConvCodeUpdate cc)
   where
     cc =
@@ -312,6 +326,7 @@ testObject_Event_user_15 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "04e68c50-027e-4e84-a33a-e2e28a7b8ea3"))) (Domain "faraway.example.com"))
     (read "2021-11-10 05:39:44.297 UTC")
+    Nothing
     (EdMLSMessage "hello world")
 
 testObject_Event_user_16 :: Event
@@ -321,4 +336,5 @@ testObject_Event_user_16 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "e8f48b8f-fad3-4f60-98e3-a6df082c328d"))) (Domain "faraway.example.com"))
     (read "2021-05-12 13:12:01.005 UTC")
+    Nothing
     (EdMLSWelcome "welcome message content")

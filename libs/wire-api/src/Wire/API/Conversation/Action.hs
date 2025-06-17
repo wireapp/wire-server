@@ -188,9 +188,10 @@ conversationActionToEvent ::
   Qualified UserId ->
   Qualified ConvId ->
   Maybe SubConvId ->
+  Maybe TeamId ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv subconv action =
+conversationActionToEvent tag now quid qcnv subconv tid action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role joinType = action
@@ -211,7 +212,7 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
         SConversationUpdateAddPermissionTag -> EdAddPermissionUpdate action
         SConversationResetTag -> EdConvReset action.groupId
-   in Event qcnv subconv quid now edata
+   in Event qcnv subconv quid now tid edata
 
 -- | Certain actions need to be performed at the level of the underlying
 -- protocol (MLS, mostly) before being applied to conversations. This function

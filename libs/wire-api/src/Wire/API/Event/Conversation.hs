@@ -111,6 +111,7 @@ data Event = Event
     evtSubConv :: Maybe SubConvId,
     evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
+    evtTeam :: Maybe TeamId,
     evtData :: EventData
   }
   deriving stock (Eq, Show, Generic)
@@ -126,6 +127,7 @@ instance Arbitrary Event where
       <*> arbitrary
       <*> arbitrary
       <*> (milli <$> arbitrary)
+      <*> arbitrary
       <*> genEventData typ
     where
       milli = fromUTCTimeMillis . toUTCTimeMillis
@@ -472,8 +474,9 @@ eventObjectSchema =
     <* (qUnqualified . evtFrom) .= optional (field "from" schema)
     <*> evtFrom .= field "qualified_from" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
+    <*> evtTeam .= maybe_ (optField "team" schema)
   where
-    mk (_, d) cid sconvid uid tm = Event cid sconvid uid tm d
+    mk (_, d) cid sconvid uid tm tid = Event cid sconvid uid tm tid d
 
 instance ToJSONObject Event where
   toJSONObject =

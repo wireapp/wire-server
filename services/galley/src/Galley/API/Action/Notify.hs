@@ -46,7 +46,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing Nothing action
       mkUpdate uids =
         ConversationUpdate
           now
