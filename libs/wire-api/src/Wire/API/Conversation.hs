@@ -1165,11 +1165,7 @@ instance ToSchema ConversationDelete where
     objectWithDocModifier
       "ConversationDelete"
       (description ?~ "The action of deleting a conversation")
-      $ ConversationDelete
-        <$> teamId
-          .= field
-            "teamId"
-            (unnamed (schema @TeamId))
+      $ ConversationDelete <$> teamId .= field "teamId" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances
