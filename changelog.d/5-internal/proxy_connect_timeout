@@ -1,3 +1,0 @@
-Add `proxy_connect_timeout` to nginz's congiguration. Otherwise, not answering
-services (e.g. due to network issues) can delay requests/response for a very
-long time.
