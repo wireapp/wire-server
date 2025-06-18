@@ -16,8 +16,6 @@ import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
 import qualified Data.Text as ST
-import Data.Vector (fromList)
-import qualified Data.Vector as Vector
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
@@ -112,7 +110,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   do
     let oldEmail = email
     newEmail <- randomEmail
-    updatedScimUser <- setField "emails" (Array (Vector.fromList [object ["value" .= newEmail]])) scimUserWith2Updates
+    updatedScimUser <- setField "emails" (toJSON [object ["value" .= newEmail]]) scimUserWith2Updates
     currentExtId <- updatedScimUser %. "externalId" >>= asString
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
@@ -209,7 +207,7 @@ testSparExternalIdDifferentFromEmail = do
   do
     let oldEmail = email
     newEmail <- randomEmail
-    updatedScimUser <- setField "emails" (Array (Vector.fromList [object ["value" .= newEmail]])) scimUserWith2Updates
+    updatedScimUser <- setField "emails" (toJSON [object ["value" .= newEmail]]) scimUserWith2Updates
     currentExtId <- updatedScimUser %. "externalId" >>= asString
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
@@ -263,11 +261,11 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
 
   -- Verify that updating a user with an empty emails does not change the email
   bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
-    resp.json %. "emails" `shouldMatch` (Array (fromList [object ["value" .= email]]))
+    resp.json %. "emails" `shouldMatch` (toJSON [object ["value" .= email]])
     resp.status `shouldMatchInt` 200
 
   newEmail <- if emailUnchanged then pure email else randomEmail
-  let newEmails = (Array (fromList [object ["value" .= newEmail]]))
+  let newEmails = (toJSON [object ["value" .= newEmail]])
   updatedScimUser <- setField "emails" newEmails scimUser
   updateScimUser OwnDomain tok userId updatedScimUser `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -542,7 +540,7 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEma
                 Object
                   ( KeyMap.insert
                       (fromString "emails")
-                      (Array (fromList [object ["value" .= newEmail]]))
+                      (toJSON [object ["value" .= newEmail]])
                       o
                   )
          in addEmailsField scimUser
