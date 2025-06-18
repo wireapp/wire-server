@@ -730,7 +730,10 @@ testQosLimit = do
             e %. "data.event.payload.0.client.id" `shouldMatch` cid
             ackEvent ws e
           "message_count" -> do
+            -- TODO: Remove prints
+            printJSON e
             (e %. "data.count") `shouldMatchInt` 551
+            print "Expected message_count received"
             ackMessageCount ws
           et -> error $ "Unexpected eventType: " ++ show et
 
