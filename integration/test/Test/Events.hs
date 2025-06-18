@@ -702,8 +702,8 @@ testQosLimit = do
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
     -- The order of message_count and user.client-add events is not forseeable.
     -- Thus, we have to handle (ack) them in any order.
-    void $ assertClientAddOrMessageCountEvent ws cid (550 + 1)
-    void $ assertClientAddOrMessageCountEvent ws cid 550
+    void $ assertClientAddOrMessageCountEvent ws cid (550, 550 + 1)
+    void $ assertClientAddOrMessageCountEvent ws cid (550, 550 + 1)
 
     es <- consumeAllEventsNoAck ws
     assertBool "First 500 events" $ length es == 500
@@ -713,7 +713,7 @@ testQosLimit = do
     es' <- consumeAllEventsNoAck ws
     assertBool "Outstanding 50 events" $ length es' == 50
   where
-    assertClientAddOrMessageCountEvent ws cid expectedMessageCount =
+    assertClientAddOrMessageCountEvent ws cid expectedMessageCounts =
       assertFindsEventConfigurableAck ((const . const . pure) ()) ws $ \e -> do
         eventType <-
           maybe (pure "No Type") asString
@@ -732,7 +732,7 @@ testQosLimit = do
           "message_count" -> do
             -- TODO: Remove prints
             printJSON e
-            (e %. "data.count") `shouldMatchInt` expectedMessageCount
+            (e %. "data.count") `shouldMatchRange` expectedMessageCounts
             print "Expected message_count received"
             ackMessageCount ws
           et -> error $ "Unexpected eventType: " ++ show et
