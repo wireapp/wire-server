@@ -763,9 +763,9 @@ testDeleteConvBotTeam config db brig galley cannon = withTestService config db b
     -- 200 response on success
     Team.deleteTeamConv galley tid cid uid2
     -- Events for the users
-    forM_ wss $ \ws -> wsAssertConvDelete ws qcid quid2
+    forM_ wss $ \ws -> wsAssertConvDelete ws qcid quid2 tid
     -- Event for the bot
-    svcAssertConvDelete buf quid2 qcid
+    svcAssertConvDelete buf quid2 qcid tid
   -- Check that the conversation no longer exists
   forM_ [uid1, uid2] $ \uid ->
     getConversationQualified galley uid qcid !!! const 404 === statusCode
@@ -787,7 +787,7 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   -- events may or may not be sent (for instance, team members)
   -- leaving a conversation. Thus, we check _only_ for the relevant
   -- ones for the bot, which are the ConvDelete event
-  svcAssertEventuallyConvDelete buf quid1 qcid
+  svcAssertEventuallyConvDelete buf quid1 qcid tid
   -- Wait until all users have been deleted (can take a while)
   forM_ [uid1, uid2] $ \uid -> do
     void $ retryWhileN 20 (/= User.Deleted) (getStatus brig uid)
@@ -1847,8 +1847,8 @@ wsAssertMemberLeave ws conv usr old = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersLeave EdReasonRemoved (QualifiedUserIdList old)
 
-wsAssertConvDelete :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
-wsAssertConvDelete ws conv from = void $
+wsAssertConvDelete :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> TeamId -> m ()
+wsAssertConvDelete ws conv from tid = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
       \n -> do
@@ -1858,6 +1858,7 @@ wsAssertConvDelete ws conv from = void $
         evtType e @?= ConvDelete
         evtFrom e @?= from
         evtData e @?= EdConvDelete
+        evtTeam e @?= Just tid
 
 wsAssertMessage :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
@@ -1895,8 +1896,8 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event data" (EdMembersLeave EdReasonRemoved msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
-svcAssertConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
-svcAssertConvDelete buf usr cnv = liftIO $ do
+svcAssertConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> TeamId -> m ()
+svcAssertConvDelete buf usr cnv tid = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotMessage e) -> do
@@ -1904,6 +1905,7 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
       assertEqual "event data" EdConvDelete (evtData e)
+      assertEqual "team" (Just tid) (evtTeam e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
 svcAssertBotCreated :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
@@ -1929,8 +1931,8 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
-svcAssertEventuallyConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
-svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
+svcAssertEventuallyConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> TeamId -> m ()
+svcAssertEventuallyConvDelete buf usr cnv tid = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotMessage e) | evtType e == ConvDelete -> do
@@ -1938,9 +1940,10 @@ svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
       assertEqual "event data" EdConvDelete (evtData e)
+      assertEqual "team" (Just tid) (evtTeam e)
     -- We ignore every other message type
     Just (TestBotMessage _) ->
-      svcAssertEventuallyConvDelete buf usr cnv
+      svcAssertEventuallyConvDelete buf usr cnv tid
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
 unpackEvents :: Notification -> List1 Event

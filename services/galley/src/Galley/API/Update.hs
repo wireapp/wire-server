@@ -595,7 +595,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       mPw <- for (mReq >>= (.password)) $ HashPassword.hashPassword8 (RateLimitUser (tUnqualified lusr))
       E.createCode code mPw
       now <- input
-      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
+      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
       let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
       pushConversationEvent mZcon conv event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
@@ -655,7 +655,7 @@ rmCode lusr zcon lcnv = do
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
   now <- input
-  let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now EdConvCodeDelete
+  let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing EdConvCodeDelete
   pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map lmId users)) bots
   pure event
 
@@ -1055,7 +1055,7 @@ updateSelfMember lusr zcon qcnv update = do
   unless exists $ throwS @'ConvNotFound
   E.setSelfMember qcnv lusr update
   now <- input
-  let e = Event qcnv Nothing (tUntagged lusr) now (EdMemberUpdate (updateData lusr))
+  let e = Event qcnv Nothing (tUntagged lusr) now Nothing (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) () e (fmap pure lusr) []
   where
     checkLocalMembership ::
@@ -1291,7 +1291,7 @@ removeMemberFromRemoteConv cnv lusr victim
     handleSuccess _ = do
       t <- input
       pure . Just $
-        Event (tUntagged cnv) Nothing (tUntagged lusr) t $
+        Event (tUntagged cnv) Nothing (tUntagged lusr) t Nothing $
           EdMembersLeaveRemoved (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
@@ -1651,6 +1651,7 @@ addBot lusr zcon b = do
           Nothing
           (tUntagged lusr)
           t
+          Nothing
           ( EdMembersJoin
               ( MembersJoin
                   [ SimpleMember
@@ -1722,7 +1723,7 @@ rmBot lusr zcon b = do
       t <- input
       do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
-        let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
+        let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t Nothing evd
         pushNotifications
           [ def
               { origin = Just (tUnqualified lusr),

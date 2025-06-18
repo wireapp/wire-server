@@ -1,0 +1,2 @@
+Add the `TeamId` to the payload of `conversation.delete` events. The field's
+path is `team`.

@@ -910,7 +910,7 @@ instance ToSchema NewOne2OneConv where
                  <|> pure []
              )
         <*> name .= maybe_ (optField "name" schema)
-        <*> team
+        <*> (.team)
           .= maybe_
             ( optFieldWithDocModifier
                 "team"

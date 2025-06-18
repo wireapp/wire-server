@@ -1180,8 +1180,8 @@ testDeleteTeamConv = do
     -- conversation members and as "team.conversation-delete"
     -- to all team members not part of the conversation
     let qcid2 = Qualified cid2 localDomain
-    checkConvDeleteEvent qcid2 wsOwner
-    checkConvDeleteEvent qcid2 wsMember
+    checkConvDeleteEvent qcid2 tid wsOwner
+    checkConvDeleteEvent qcid2 tid wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
 
     deleteTeamConv tid cid1 (member ^. userId)
@@ -1191,9 +1191,9 @@ testDeleteTeamConv = do
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
     -- to all team members not part of the conversation
-    checkConvDeleteEvent qcid1 wsOwner
-    checkConvDeleteEvent qcid1 wsMember
-    checkConvDeleteEvent qcid1 wsExtern
+    checkConvDeleteEvent qcid1 tid wsOwner
+    checkConvDeleteEvent qcid1 tid wsMember
+    checkConvDeleteEvent qcid1 tid wsExtern
     WS.assertNoEvent timeout [wsOwner, wsMember, wsExtern]
   for_ [cid1, cid2] $ \x ->
     for_ [owner, member ^. userId, extern] $ \u -> do

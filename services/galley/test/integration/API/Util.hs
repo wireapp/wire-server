@@ -1931,7 +1931,7 @@ decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCodeEvent r = case responseJsonUnsafe r of
-  (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
+  (Event _ _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
@@ -2697,13 +2697,14 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamDelete
 
-checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> WS.WebSocket -> TestM ()
-checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> TeamId -> WS.WebSocket -> TestM ()
+checkConvDeleteEvent cid tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
+  evtTeam e @?= (Just tid)
 
 checkConvMemberLeaveEvent :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do

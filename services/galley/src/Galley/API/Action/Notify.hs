@@ -13,6 +13,7 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.API.Conversation (ConversationMetadata (..))
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -46,7 +47,8 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
+      tid = conv.convMetadata.cnvmTeam
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing tid action
       mkUpdate uids =
         ConversationUpdate
           now

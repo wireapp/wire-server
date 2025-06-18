@@ -439,7 +439,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
+      let e = Conv.Event qconvId Nothing (tUntagged lusr) now (Just tid) Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p =
             def
