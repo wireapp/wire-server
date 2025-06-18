@@ -827,17 +827,16 @@ updateLocalConversation ::
   Local ConvId ->
   Qualified UserId ->
   Maybe ConnId ->
-  Maybe TeamId ->
   ConversationAction tag ->
   Sem r LocalConversationUpdate
-updateLocalConversation lcnv qusr con tid action = do
+updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
   conv <- getConversationWithError lcnv
   -- check that the action does not bypass the underlying protocol
   unless (protocolValidAction (convProtocol conv) tag action) $
     throwS @'InvalidOperation
   -- perform all authorisation checks and, if successful, then update itself
-  updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con tid action
+  updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
@@ -863,10 +862,9 @@ updateLocalConversationUnchecked ::
   Local Conversation ->
   Qualified UserId ->
   Maybe ConnId ->
-  Maybe TeamId ->
   ConversationAction tag ->
   Sem r LocalConversationUpdate
-updateLocalConversationUnchecked lconv qusr con tid action = do
+updateLocalConversationUnchecked lconv qusr con action = do
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
@@ -879,7 +877,6 @@ updateLocalConversationUnchecked lconv qusr con tid action = do
     con
     lconv
     (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
-    tid
     action'
   where
     getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)

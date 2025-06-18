@@ -972,7 +972,6 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
               zcon
               (qualifyAs lusr dc)
               targets
-              (Just tid)
               ( ConversationRemoveMembers
                   (pure . tUntagged . qualifyAs lusr $ remove)
                   EdReasonDeleted
@@ -1037,9 +1036,9 @@ deleteTeamConversation ::
   TeamId ->
   ConvId ->
   Sem r ()
-deleteTeamConversation lusr zcon tid cid = do
+deleteTeamConversation lusr zcon _tid cid = do
   let lconv = qualifyAs lusr cid
-  void $ API.deleteLocalConversation lusr zcon tid lconv
+  void $ API.deleteLocalConversation lusr zcon lconv
 
 getSearchVisibility ::
   ( Member (ErrorS 'NotATeamMember) r,
