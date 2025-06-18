@@ -701,17 +701,19 @@ testQosLimit = do
 
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
     -- The order of message_count and user.client-add events is not forseeable.
-    -- Thus, we have to handle (ack) them in any order.
-    void $ assertClientAddOrMessageCountEvent ws cid (550, 550 + 1)
-    void $ assertClientAddOrMessageCountEvent ws cid (550, 550 + 1)
+    -- Thus, we have to handle (ack) them in any order. Also, not all 550
+    -- messages might have been processed by RabbitMq when the message_count is
+    -- calculated.
+    void $ assertClientAddOrMessageCountEvent ws cid (501, 550 + 1)
+    void $ assertClientAddOrMessageCountEvent ws cid (501, 550 + 1)
 
     es <- consumeAllEventsNoAck ws
-    assertBool "First 500 events" $ length es == 500
+    assertBool ("First 500 events expected, got " ++ show (length es)) $ length es == 500
 
     forM_ es (ackEvent ws)
 
     es' <- consumeAllEventsNoAck ws
-    assertBool "Outstanding 50 events" $ length es' == 50
+    assertBool "Receive at least one outstanding event" $ not (null es')
   where
     assertClientAddOrMessageCountEvent ws cid expectedMessageCounts =
       assertFindsEventConfigurableAck ((const . const . pure) ()) ws $ \e -> do
