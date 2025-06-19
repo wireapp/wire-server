@@ -13,6 +13,7 @@ import Control.Lens ((.~), (^?!))
 import Control.Monad.Codensity
 import Control.Monad.RWS (asks)
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ProtoLens as Proto
@@ -513,7 +514,7 @@ testTransientEvents = do
   selfConvId <- objQidObject alice
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    consumeAllEvents ws
+    void $ consumeAllEvents ws
     sendTypingStatus alice selfConvId "started" >>= assertSuccess
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
@@ -679,14 +680,6 @@ testMessageCount = do
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
     assertMessageCount ws `shouldMatchInt` 0
   where
-    mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
-    mkUserPlusClient = do
-      user <- randomUser OwnDomain def
-      uid <- objId user
-      client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-      cid <- objId client
-      pure (user, uid, cid)
-
     mkEvent :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Value
     mkEvent uid cid =
       object
@@ -694,8 +687,67 @@ testMessageCount = do
           "payload" .= [object ["hello" .= "world"]]
         ]
 
+testQosLimit :: (HasCallStack) => App ()
+testQosLimit = do
+  (alice, uid, cid) <- mkUserPlusClient
+  for_ [1 :: Int .. 550] $ \i ->
+    do
+      let event =
+            object
+              [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
+                "payload" .= [object ["no" .= show i]]
+              ]
+      GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
+
+  runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
+    -- The order of message_count and user.client-add events is not forseeable.
+    -- Thus, we have to handle (ack) them in any order. Also, not all 550
+    -- messages might have been processed by RabbitMq when the message_count is
+    -- calculated.
+    void $ assertClientAddOrMessageCountEvent ws cid (501, 550 + 1)
+    void $ assertClientAddOrMessageCountEvent ws cid (501, 550 + 1)
+
+    es <- consumeAllEventsNoAck ws
+    assertBool ("First 500 events expected, got " ++ show (length es)) $ length es == 500
+
+    forM_ es (ackEvent ws)
+
+    es' <- consumeAllEventsNoAck ws
+    assertBool "Receive at least one outstanding event" $ not (null es')
+  where
+    assertClientAddOrMessageCountEvent ws cid expectedMessageCounts =
+      assertFindsEventConfigurableAck ((const . const . pure) ()) ws $ \e -> do
+        eventType <-
+          maybe (pure "No Type") asString
+            =<< runMaybeT
+              ( ( lookupFieldM e "data.event"
+                    >>= flip lookupFieldM "payload.0.type"
+                )
+                  <|> (lookupFieldM e "type")
+              )
+
+        case eventType of
+          "user.client-add" -> do
+            e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+            e %. "data.event.payload.0.client.id" `shouldMatch` cid
+            ackEvent ws e
+          "message_count" -> do
+            -- TODO: Remove prints
+            printJSON e
+            (e %. "data.count") `shouldMatchRange` expectedMessageCounts
+            print "Expected message_count received"
+            ackMessageCount ws
+          et -> error $ "Unexpected eventType: " ++ show et
+
 ----------------------------------------------------------------------
 -- helpers
+mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
+mkUserPlusClient = do
+  user <- randomUser OwnDomain def
+  uid <- objId user
+  client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+  cid <- objId client
+  pure (user, uid, cid)
 
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
@@ -829,7 +881,16 @@ assertEvent ws expectations = do
 
 -- | Tolerates and consumes other events before expected event
 assertFindsEvent :: forall a. (HasCallStack) => EventWebSocket -> ((HasCallStack) => Value -> App a) -> App a
-assertFindsEvent ws expectations = go 0
+assertFindsEvent = assertFindsEventConfigurableAck ackEvent
+
+assertFindsEventConfigurableAck ::
+  forall a.
+  (HasCallStack) =>
+  ((HasCallStack) => EventWebSocket -> Value -> App ()) ->
+  EventWebSocket ->
+  ((HasCallStack) => Value -> App a) ->
+  App a
+assertFindsEventConfigurableAck ackFun ws expectations = go 0
   where
     go :: Int -> App a
     go ignoredEventCount = do
@@ -844,8 +905,11 @@ assertFindsEvent ws expectations = go 0
             `catch` \(_ :: AssertionFailure) -> do
               ignoredEventType <-
                 maybe (pure "No Type") asString
-                  =<< lookupField ev "data.event.payload.0.type"
-              ackEvent ws ev
+                  =<< runMaybeT
+                    ( (lookupFieldM ev "data.event" >>= flip lookupFieldM "payload.0.type")
+                        <|> (lookupFieldM ev "type")
+                    )
+              ackFun ws ev
               addJSONToFailureContext ("Ignored Event (" <> ignoredEventType <> ")") ev
                 $ go (ignoredEventCount + 1)
 
@@ -892,6 +956,17 @@ consumeAllEvents ws = do
       t <- e %. "type" & asString
       if t == "message_count" then ackMessageCount ws else ackEvent ws e
       consumeAllEvents ws
+
+consumeAllEventsNoAck :: EventWebSocket -> App [Value]
+consumeAllEventsNoAck ws = do
+  timeout 1_000_000 (readChan ws.events) >>= \case
+    Nothing -> pure []
+    Just (Left e) ->
+      assertFailure
+        $ "Websocket closed while consuming all events: "
+        <> displayException e
+    Just (Right e) -> do
+      (e :) <$> consumeAllEventsNoAck ws
 
 -- | Only considers connections from cannon
 waitUntilNoRabbitMqConns :: (HasCallStack) => BackendResource -> App ()

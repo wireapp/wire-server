@@ -269,6 +269,11 @@ createChannel uid mcid pool createQueue = do
         conn <- Codensity $ bracket (acquireConnection pool) (releaseConnection pool key)
         chan <- Codensity $ bracket (Q.openChannel conn.inner) $ \c ->
           catch (Q.closeChannel c) $ \(_ :: SomeException) -> pure ()
+        -- Limit the amount of unacknowledged message a consumer receives
+        -- (`true` means limit per consumer, `false` per channel.) This
+        -- prevents overloading the consumer with new messages.
+        liftIO $ Q.qos chan 0 500 True
+
         connSize <- atomically $ do
           let conn' = conn {channels = Map.insert key chan conn.channels}
           conns <- readTVar pool.connections

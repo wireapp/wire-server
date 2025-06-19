@@ -1,0 +1,3 @@
+Limit the amount of unacknowledged messages the RabbitMQ notifications consumer
+receives to `100`. Beyond this limit, received messages have to be acknowledged
+to receive new ones.  This prevents overloading the consumer with new messages.
