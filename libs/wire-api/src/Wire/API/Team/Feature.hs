@@ -690,7 +690,7 @@ instance Default (LockableFeature ValidateSAMLEmailsConfig) where
   def = defUnlockedFeature
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
-  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
+  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLEmails"
   featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 

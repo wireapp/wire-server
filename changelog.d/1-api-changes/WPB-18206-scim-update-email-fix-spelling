@@ -1,0 +1,1 @@
+Spelling of the `validateSAMLEmails` feature was against camel casing rules (`emails` with a small `e`), and inconsistent with the yaml syntax for server configuration.  The old spelling is still supported, but deprecated.  Please call it `validateSAMLEmails` everywhere from here on out!
