@@ -455,7 +455,7 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   emailDomain <- randomDomain
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -503,7 +503,7 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEma
   (owner, tid, _) <- createTeam OwnDomain 1
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -591,7 +591,7 @@ testScimUpdateEmailAddressAndExternalId = do
   (owner, tid, _) <- createTeam OwnDomain 1
 
   let status = "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -731,7 +731,7 @@ testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   (owner, tid, _) <- createTeam OwnDomain 1
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
