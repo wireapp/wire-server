@@ -648,12 +648,13 @@ changeSelfEmailMaybeSendH ::
   ) =>
   UserId ->
   EmailUpdate ->
-  -- validate if needed?
+  Maybe EmailActivation ->
+  -- validate if needed? (deprecated, use EmailActivation query param)
   Maybe Bool ->
-  -- auto activate email?
+  -- auto activate email? (deprecated, use EmailActivation query param)
   Maybe Bool ->
   (Handler r) ChangeEmailResponse
-changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) (fromMaybe False -> autoActivate) = do
+changeSelfEmailMaybeSendH uid body mbEmailActivation (fromMaybe False -> validate) (fromMaybe False -> autoActivate) = do
   let email = euEmail body
   luid <- qualifyLocal uid
   needsActivation <-
@@ -665,13 +666,14 @@ changeSelfEmailMaybeSendH uid body (fromMaybe False -> validate) (fromMaybe Fals
       guard (domReg.authorizedTeam == Just tid)
       guard (domReg.domainRedirect & is _SSO)
 
-  let activation
+  let emailActivation = fromMaybe activationDeprecated mbEmailActivation
+      activationDeprecated
         | autoActivate || not needsActivation = AutoActivate
         | validate = SendActivationEmail
-        | otherwise = DoNotSendActivationEmail
+        | otherwise = error "impossible: `Spar.Intra.Brig.updateEmail` is the only call side."
 
   -- Note: `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
-  changeSelfEmailMaybeSend uid activation email UpdateOriginScim
+  changeSelfEmailMaybeSend uid emailActivation email UpdateOriginScim
 
 changeSelfEmailMaybeSend ::
   ( Member BlockListStore r,
@@ -699,12 +701,6 @@ changeSelfEmailMaybeSend u activation email allowScim = do
   case activation of
     SendActivationEmail ->
       lift . liftSem $ UserSubsystem.requestEmailChange lusr email allowScim
-    DoNotSendActivationEmail -> do
-      (lift . liftSem)
-        (UserSubsystem.createEmailChangeToken lusr email allowScim)
-        >>= \case
-          ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
-          ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
     AutoActivate -> do
       (lift . liftSem)
         (UserSubsystem.createEmailChangeToken lusr email allowScim)
