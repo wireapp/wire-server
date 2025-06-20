@@ -1319,6 +1319,7 @@ testUpdateSSOId brig galley = do
   zipWithM_ go users ssoids1
   zipWithM_ go users ssoids2
 
+-- TODO: Migrate or replace this test with a modern integration test
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
   badEmail1 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad1.domain.com"
