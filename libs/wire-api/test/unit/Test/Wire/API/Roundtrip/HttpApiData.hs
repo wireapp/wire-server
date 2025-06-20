@@ -30,7 +30,8 @@ import Wire.Arbitrary qualified as Arbitrary ()
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "HttpApiData roundtrip tests" $
-    [ testRoundTrip @Wire.API.User.InvitationCode,
+    [ testRoundTrip @Wire.API.User.EmailActivation,
+      testRoundTrip @Wire.API.User.InvitationCode,
       testRoundTrip @Wire.API.User.Search.PagingState,
       testRoundTrip @Wire.API.Routes.Version.Version,
       testRoundTrip @Wire.API.Routes.Version.VersionNumber

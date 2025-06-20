@@ -363,19 +363,49 @@ lhDeviceIdOf bob = do
       >>= (%. "id")
       >>= asString
 
-randomScimUser :: App Value
-randomScimUser = do
-  email <- randomEmail
-  randomScimUserWith email email
+randomUUIDString :: App String
+randomUUIDString = UUID.toString <$> liftIO nextRandom
 
-randomScimUserWith :: (HasCallStack) => String -> String -> App Value
-randomScimUserWith extId email = do
+randomScimUser :: App Value
+randomScimUser = randomScimUserWith def
+
+randomScimUserWithEmail :: String -> String -> App Value
+randomScimUserWithEmail extId email =
+  randomScimUserWith
+    def
+      { mkExternalId = pure extId,
+        prependExternalIdToEmails = False,
+        mkOtherEmails = pure [email]
+      }
+
+data RandomScimUserParams = RandomScimUserParams
+  { mkExternalId :: App String,
+    prependExternalIdToEmails :: Bool, -- NB: this flag is also honored if externalId is not an email!
+    mkOtherEmails :: App [String]
+  }
+
+instance Default RandomScimUserParams where
+  def =
+    RandomScimUserParams
+      { mkExternalId = randomEmail,
+        prependExternalIdToEmails = True,
+        mkOtherEmails = pure []
+      }
+
+randomScimUserWith :: (HasCallStack) => RandomScimUserParams -> App Value
+randomScimUserWith params = do
+  extId <- params.mkExternalId
+  emails <- do
+    let mk email = object ["value" .= email]
+        hd = [extId | params.prependExternalIdToEmails]
+    tl <- params.mkOtherEmails
+    pure $ Array (fromList (mk <$> (hd <> tl)))
   handle <- randomHandleWithRange 12 128
   pure $
     object
       [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
         "externalId" .= extId,
-        "emails" .= Array (fromList [object ["value" .= email]]),
+        "emails" .= emails,
         "userName" .= handle,
         "displayName" .= handle
       ]

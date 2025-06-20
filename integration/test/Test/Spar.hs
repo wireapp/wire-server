@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns  -Wno-ambiguous-fields #-}
 
 module Test.Spar where
 
@@ -11,12 +11,11 @@ import API.SparInternal
 import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
 import qualified Data.Text as ST
-import Data.Vector (fromList)
-import qualified Data.Vector as Vector
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
@@ -56,7 +55,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
   email <- randomEmail
   extId <- randomExternalId
-  scimUser <- randomScimUserWith extId email
+  scimUser <- randomScimUserWithEmail extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
   activateEmail OwnDomain email
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
@@ -111,7 +110,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
   do
     let oldEmail = email
     newEmail <- randomEmail
-    updatedScimUser <- setField "emails" (Array (Vector.fromList [object ["value" .= newEmail]])) scimUserWith2Updates
+    updatedScimUser <- setField "emails" (toJSON [object ["value" .= newEmail]]) scimUserWith2Updates
     currentExtId <- updatedScimUser %. "externalId" >>= asString
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
@@ -145,7 +144,7 @@ testSparExternalIdDifferentFromEmail = do
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   email <- randomEmail
   extId <- randomExternalId
-  scimUser <- randomScimUserWith extId email
+  scimUser <- randomScimUserWithEmail extId email
   userId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
 
   checkSparGetUserAndFindByExtId OwnDomain tok extId userId $ \u -> do
@@ -208,7 +207,7 @@ testSparExternalIdDifferentFromEmail = do
   do
     let oldEmail = email
     newEmail <- randomEmail
-    updatedScimUser <- setField "emails" (Array (Vector.fromList [object ["value" .= newEmail]])) scimUserWith2Updates
+    updatedScimUser <- setField "emails" (toJSON [object ["value" .= newEmail]]) scimUserWith2Updates
     currentExtId <- updatedScimUser %. "externalId" >>= asString
     bindResponse (updateScimUser OwnDomain tok userId updatedScimUser) $ \res -> do
       res.status `shouldMatchInt` 200
@@ -262,11 +261,11 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
 
   -- Verify that updating a user with an empty emails does not change the email
   bindResponse (updateScimUser OwnDomain tok userId scimUser) $ \resp -> do
-    resp.json %. "emails" `shouldMatch` (Array (fromList [object ["value" .= email]]))
+    resp.json %. "emails" `shouldMatch` (toJSON [object ["value" .= email]])
     resp.status `shouldMatchInt` 200
 
   newEmail <- if emailUnchanged then pure email else randomEmail
-  let newEmails = (Array (fromList [object ["value" .= newEmail]]))
+  let newEmails = (toJSON [object ["value" .= newEmail]])
   updatedScimUser <- setField "emails" newEmails scimUser
   updateScimUser OwnDomain tok userId updatedScimUser `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -449,6 +448,7 @@ testSsoLoginAndEmailVerification = do
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
+-- | This test may be covered by `testScimUpdateEmailAddress` and maybe can be removed.
 testSsoLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "validateSAMLEmails" -> App ()
 testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   (owner, tid, _) <- createTeam OwnDomain 1
@@ -496,6 +496,235 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
     user <- res.json >>= asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
+
+-- | create user with non-email externalId.  then use put to add an email address.
+testScimUpdateEmailAddress :: (HasCallStack) => TaggedBool "extIdIsEmail" -> TaggedBool "validateSAMLEmails" -> App ()
+testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEmails) = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+
+  let status = if validateSAMLEmails then "enabled" else "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+  tok <-
+    createScimToken owner (def {idp = Just idpId}) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "token" >>= asString
+
+  oldEmail <- randomEmail
+  scimUser <-
+    randomScimUserWith
+      def
+        { mkExternalId = if extIdIsEmail then pure oldEmail else randomUUIDString,
+          prependExternalIdToEmails = False,
+          mkOtherEmails = pure []
+        }
+  uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+  getScimUser OwnDomain tok uid `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "id" `shouldMatch` uid
+    lookupField res.json "emails"
+      `shouldMatch` ( if extIdIsEmail
+                        then Just [object ["value" .= oldEmail]]
+                        else Nothing
+                    )
+
+  newEmail <- randomEmail
+  let newScimUser =
+        let addEmailsField :: Value -> Value
+            addEmailsField = \case
+              Object o ->
+                Object
+                  ( KeyMap.insert
+                      (fromString "emails")
+                      (toJSON [object ["value" .= newEmail]])
+                      o
+                  )
+         in addEmailsField scimUser
+
+  updateScimUser OwnDomain tok uid newScimUser `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+
+  getScimUser OwnDomain tok uid `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+
+  when validateSAMLEmails $ do
+    getUsersId OwnDomain [uid] `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      user <- res.json >>= asList >>= assertOne
+      user %. "status" `shouldMatch` "active"
+      lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
+
+    getUsersByEmail OwnDomain [newEmail] `bindResponse` \res -> do
+      res.status `shouldMatchInt` 200
+      res.json >>= asList >>= shouldBeEmpty
+
+    activateEmail OwnDomain newEmail
+
+  getUsersId OwnDomain [uid] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail
+
+  getUsersByEmail OwnDomain [newEmail] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail
+
+-- | changing externalId and emails subsequently:
+--
+-- 1. create user with extid email;
+-- 2. add email to emails field;
+-- 3. change extId to uuid;
+-- 4. change extId back to *other* email.
+--
+-- (may overlap with `testSsoLoginNoSamlEmailValidation`.)
+testScimUpdateEmailAddressAndExternalId :: (HasCallStack) => App ()
+testScimUpdateEmailAddressAndExternalId = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+
+  let status = "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+  tok <-
+    createScimToken owner (def {idp = Just idpId}) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "token" >>= asString
+
+  -- 1. create user with extid email
+  extId1 <- randomEmail
+  scimUser <-
+    randomScimUserWith
+      def
+        { mkExternalId = pure extId1,
+          prependExternalIdToEmails = False,
+          mkOtherEmails = pure []
+        }
+  brigUserId <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+  getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "id" `shouldMatch` brigUserId
+    res.json %. "emails" `shouldMatch` [object ["value" .= extId1]]
+
+  findUsersByExternalId OwnDomain tok extId1 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    (res.json %. "Resources") >>= asList >>= \[v] -> v %. "id" `shouldMatch` brigUserId
+
+  -- 2. add email to emails field
+  newEmail1 <- randomEmail
+  let newScimUser1 =
+        let addEmailsField :: Value -> Value
+            addEmailsField = \case
+              Object o ->
+                Object
+                  ( KeyMap.insert
+                      (fromString "emails")
+                      (toJSON [object ["value" .= newEmail1]])
+                      o
+                  )
+         in addEmailsField scimUser
+
+  updateScimUser OwnDomain tok brigUserId newScimUser1 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "externalId" `shouldMatch` extId1
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+
+  getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+
+  findUsersByExternalId OwnDomain tok extId1 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    (res.json %. "Resources") >>= asList >>= \[v] -> v %. "id" `shouldMatch` brigUserId
+
+  getUsersId OwnDomain [brigUserId] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail1
+
+  getUsersByEmail OwnDomain [newEmail1] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail1
+
+  -- 3. change extId to uuid
+  newExtId2 <- randomUUIDString
+  let newScimUser2 =
+        let updExtIdField :: Value -> Value
+            updExtIdField = \case
+              Object o -> Object (KeyMap.insert (fromString "externalId") (toJSON newExtId2) o)
+         in updExtIdField newScimUser1
+
+  updateScimUser OwnDomain tok brigUserId newScimUser2 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "externalId" `shouldMatch` newExtId2
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+
+  getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+
+  findUsersByExternalId OwnDomain tok newExtId2 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    (res.json %. "Resources") >>= asList >>= \[v] -> v %. "id" `shouldMatch` {- CRASH (list is empty) -} brigUserId
+
+  getUsersId OwnDomain [brigUserId] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail1
+
+  getUsersByEmail OwnDomain [newEmail1] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail1
+
+  -- 4. change extId back to *other* email
+  newEmail3 <- randomEmail
+  let newScimUser3 =
+        let updEmailExtId :: Value -> Value
+            updEmailExtId = \case
+              Object o -> Object (KeyMap.insert (fromString "externalId") (toJSON newEmail3) o)
+         in updEmailExtId newScimUser2
+
+  updateScimUser OwnDomain tok brigUserId newScimUser3 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "externalId" `shouldMatch` newEmail3
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+
+  getScimUser OwnDomain tok brigUserId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail1]]
+
+  findUsersByExternalId OwnDomain tok newEmail3 `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    (res.json %. "Resources") >>= asList >>= \[v] -> v %. "id" `shouldMatch` brigUserId
+
+  getUsersId OwnDomain [brigUserId] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail1
+
+  getUsersByEmail OwnDomain [newEmail1] `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    user <- res.json >>= asList >>= assertOne
+    user %. "status" `shouldMatch` "active"
+    user %. "email" `shouldMatch` newEmail1
 
 testScimLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "validateSAMLEmails" -> App ()
 testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do

@@ -158,6 +158,7 @@ import Control.Lens (makePrisms, over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
+import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder (toLazyByteString)
@@ -1491,11 +1492,37 @@ instance FromJSON EmailUpdate where
 data EmailActivation
   = -- | email needs to be activated, an activation email will be sent
     SendActivationEmail
-  | -- | no activation email is sent, the email will stay unverified (this case might actually be deprecated)
-    DoNotSendActivationEmail
   | -- | email will be activated immediately, no activation email will be sent
     AutoActivate
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EmailActivation)
+
+instance S.ToParamSchema EmailActivation where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_ ?~ ((toJSON . T.decodeUtf8 . toByteString') <$> [(minBound :: EmailActivation) ..])
+
+instance FromHttpApiData EmailActivation where
+  parseUrlPiece = packError . runParser (parser @EmailActivation) . T.encodeUtf8
+    where
+      packError :: Either String a -> Either Text a
+      packError = Bifunctor.first T.pack
+
+instance ToHttpApiData EmailActivation where
+  toUrlPiece = T.decodeUtf8 . toByteString'
+
+instance FromByteString EmailActivation where
+  parser =
+    Parser.takeByteString >>= \b ->
+      case T.decodeUtf8' b of
+        Right "send_activation_email" -> pure SendActivationEmail
+        Right "auto_activate" -> pure AutoActivate
+        bad -> fail $ "Invalid VerificationAction: " <> show bad
+
+instance ToByteString EmailActivation where
+  builder SendActivationEmail = "send_activation_email"
+  builder AutoActivate = "auto_activate"
 
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)
