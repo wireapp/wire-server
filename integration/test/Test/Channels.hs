@@ -25,6 +25,7 @@ import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
 import Control.Monad.Codensity (Codensity (Codensity), lowerCodensity)
 import Control.Monad.Trans.Class
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Stack
 import MLS.Util
@@ -533,46 +534,80 @@ testTeamAdminCanAddMembersWithoutJoining = do
 
 testAdminCanRemoveMemberWithoutJoining :: (HasCallStack) => App ()
 testAdminCanRemoveMemberWithoutJoining = do
-  (owner, tid, mems@(m1 : m2 : _)) <- createTeam OwnDomain 3
-  cs@(c1 : _) <- for mems $ createMLSClient def
+  (owner, tid, mems@(m1 : m2 : m3 : _)) <- createTeam OwnDomain 4
+  cs@(c1 : c2 : c3 : _) <- for mems $ createMLSClient def
   for_ cs $ uploadNewKeyPackage def
 
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
 
   channel <- assertCreateChannelSuccess c1 tid [m2]
+  convId <- objConvId channel
   I.getConversation channel `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     convMems <- resp.json %. "members" & asList
     for [m1, m2] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
 
-  withWebSocket c1 $ \ws -> do
+  withWebSockets [c1, c2, c3] $ \[ws1, _ws2, ws3] -> do
     -- the team admin removes a member without joining
     removeMember owner channel m2 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 204
 
-    e <- awaitAnyEvent 1 ws
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members" & asList
+      for [m1] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
+
+    e <- awaitAnyEvent 1 ws1
     msgData <- e %. "payload.0.data" & asByteString
     msg <- showMessage def c1 msgData
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` 1
+    void $ mlsCliConsume convId def c1 msgData
+    user <- asString $ m2 %. "id"
+    modifyMLSState $ \mls ->
+      mls
+        { convs =
+            Map.adjust
+              (\conv -> conv {members = Set.filter (\m -> m.user /= user) conv.members})
+              convId
+              mls.convs
+        }
+    -- m1 commits the external proposals
+    r <- createPendingProposalCommit convId c1 >>= sendAndConsumeCommitBundle
+    shouldBeEmpty $ r %. "events"
+
+    -- the team admin now removes the last remaining member
+    removeMember owner channel m1 `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 204
+
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      shouldBeEmpty $ resp.json %. "members" & asList
+
+    -- now there is no one left to create and submit the pending proposal
+    -- the team admin adds a member to the channel again
+    addMembers owner channel def {users = [m3], role = Just "wire_member"} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+
+-- void $ createExternalCommit convId c3 Nothing >>= sendAndConsumeCommitBundleExpectNoMemberJoin
 
 sendAndConsumeCommitBundleExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeCommitBundleExpectNoMemberJoin messagePackage = lowerCodensity $ do
   consumingMessagesExpectNoMemberJoin messagePackage
   lift $ sendCommitBundle messagePackage
+  where
+    consumingMessagesExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> Codensity App ()
+    consumingMessagesExpectNoMemberJoin mp = Codensity $ \k -> do
+      conv <- getMLSConv mp.convId
+      let oldClients = Set.delete mp.sender conv.members
+      let newClients = Set.delete mp.sender conv.newMembers
+      let clients =
+            map (,MLSNotificationMessageTag) (toList oldClients)
+              <> map (,MLSNotificationWelcomeTag) (toList newClients)
 
-consumingMessagesExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> Codensity App ()
-consumingMessagesExpectNoMemberJoin mp = Codensity $ \k -> do
-  conv <- getMLSConv mp.convId
-  let oldClients = Set.delete mp.sender conv.members
-  let newClients = Set.delete mp.sender conv.newMembers
-  let clients =
-        map (,MLSNotificationMessageTag) (toList oldClients)
-          <> map (,MLSNotificationWelcomeTag) (toList newClients)
-
-  withWebSockets (map fst clients) $ \wss -> do
-    r <- k ()
-    for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
-      MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
-    pure r
+      withWebSockets (map fst clients) $ \wss -> do
+        r <- k ()
+        for_ (zip clients wss) $ \((cid, t), ws) -> case t of
+          MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
+          MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
+        pure r
