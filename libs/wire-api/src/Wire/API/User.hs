@@ -1518,7 +1518,7 @@ instance FromByteString EmailActivation where
       case T.decodeUtf8' b of
         Right "send_activation_email" -> pure SendActivationEmail
         Right "auto_activate" -> pure AutoActivate
-        bad -> fail $ "Invalid VerificationAction: " <> show bad
+        bad -> fail $ "Invalid EmailActivation: " <> show bad
 
 instance ToByteString EmailActivation where
   builder SendActivationEmail = "send_activation_email"
