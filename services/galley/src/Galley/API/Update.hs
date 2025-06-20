@@ -88,9 +88,9 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
+import Galley.API.Action.Kick (kickMember)
 import Galley.API.Cells
 import Galley.API.Error
-import Galley.API.MLS.Removal (RemoveUserIncludeMain (RemoveUserIncludeMain), removeUser)
 import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Query qualified as Query
@@ -1373,7 +1373,8 @@ removeMemberFromChannel qusr lconv victim = do
   self :: ConvOrTeamMember (Either LocalMember RemoteMember) <- noteS @'ConvNotFound $ TeamMember <$> mTeamMember
   let action = ConversationRemoveMembers {crmTargets = pure victim, crmReason = EdReasonRemoved}
   ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv self
-  removeUser lconv RemoveUserIncludeMain victim
+  let notificationTargets = convBotsAndMembers conv
+  kickMember qusr lconv notificationTargets victim
   where
     getTeamMembership :: Data.Conversation -> Local UserId -> Sem r (Maybe TeamMember)
     getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
