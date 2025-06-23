@@ -184,7 +184,7 @@ testUpdateUserEmailByTeamOwner opts brig = do
   (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   (teamOwnerDifferentTeam, _) <- createUserWithTeam' brig
   newEmail <- randomEmail
-  initiateEmailUpdateNoSend brig newEmail (userId emailOwner) !!! (const 202 === statusCode)
+  _ <- initiateEmailUpdate brig newEmail (userId emailOwner)
   checkActivationCode newEmail True
   checkLetActivationExpire newEmail
   checkActivationCode newEmail False
@@ -993,7 +993,7 @@ testEmailUpdate brig userJournalWatcher = do
 
     initiateUpdateAndActivate :: UserId -> EmailAddress -> Http ()
     initiateUpdateAndActivate uid eml = do
-      initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
+      _ <- initiateEmailUpdate brig eml uid
       activateEmail brig eml
       checkEmail brig uid eml
       Util.assertEmailUpdateJournaled userJournalWatcher uid eml "user update"
