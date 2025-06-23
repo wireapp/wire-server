@@ -536,6 +536,7 @@ testAdminCanRemoveMemberWithoutJoining = do
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
 
+  -- a channel is created by a team member
   channel <- assertCreateChannelSuccess c1 tid [m2]
   convId <- objConvId channel
   I.getConversation channel `bindResponse` \resp -> do
@@ -544,44 +545,50 @@ testAdminCanRemoveMemberWithoutJoining = do
     for [m1, m2] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
 
   withWebSockets [c1, c2, c3] $ \[ws1, _ws2, ws3] -> do
-    -- the team admin removes a member without joining
-    removeMember owner channel m2 `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 204
+    -- the team admin removes a member from the channel without joining
+    removeMemberFromChannel owner channel m2
 
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       convMems <- resp.json %. "members" & asList
       for [m1] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
 
-    e <- awaitAnyEvent 1 ws1
-    msgData <- e %. "payload.0.data" & asByteString
-    msg <- showMessage def c1 msgData
-    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` 1
-    void $ mlsCliConsume convId def c1 msgData
-    user <- asString $ m2 %. "id"
-    modifyMLSState $ \mls ->
-      mls
-        { convs =
-            Map.adjust
-              (\conv -> conv {members = Set.filter (\m -> m.user /= user) conv.members})
-              convId
-              mls.convs
-        }
-    -- m1 commits the external proposals
-    r <- createPendingProposalCommit convId c1 >>= sendAndConsumeCommitBundle
-    shouldBeEmpty $ r %. "events"
+    -- the client of m1 receives a notification, creates a pending proposal, sends it, and consumes messages
+    awaitAndProcessRemoveProposal convId c1 ws1 1
 
     -- the team admin now removes the last remaining member
-    removeMember owner channel m1 `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 204
+    removeMemberFromChannel owner channel m1
 
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       shouldBeEmpty $ resp.json %. "members" & asList
 
     -- now there is no one left to create and submit the pending proposal
-    -- the team admin adds a member to the channel again
+    -- the team admin adds another member to the channel again
     addMembersToChannel owner channel def {users = [m3], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
--- void $ createExternalCommit convId c3 Nothing >>= sendAndConsumeCommitBundle
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members" & asList
+      for [m3] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
+
+    -- m3 receives a member-join notification and joins via external commit
+    notif <- awaitMatch isMemberJoinNotif ws3
+    notif %. "payload.0.data.add_type" `shouldMatch` "external_add"
+
+    -- c3 adds itself with an external add
+    void $ createExternalCommit convId c3 Nothing >>= sendAndConsumeCommitBundle
+
+    -- now m3 receives the pending remove proposal and processes it
+    awaitAndProcessRemoveProposal convId c3 ws3 0
+  where
+    awaitAndProcessRemoveProposal :: (HasCallStack) => ConvId -> ClientIdentity -> WebSocket -> Int -> App ()
+    awaitAndProcessRemoveProposal convId cid ws index = do
+      e <- awaitAnyEvent 1 ws
+      msgData <- e %. "payload.0.data" & asByteString
+      msg <- showMessage def cid msgData
+      msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` index
+      void $ mlsCliConsume convId def cid msgData
+      r <- createPendingProposalCommit convId cid >>= sendAndConsumeCommitBundle
+      shouldBeEmpty $ r %. "events"

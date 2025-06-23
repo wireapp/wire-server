@@ -951,9 +951,9 @@ createGroupForChannel cs cid convId members = do
   keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
   resetClientGroup cs cid groupId convId keys
 
--- | Adds members to a channel where the user it not a member of.
+-- | Adds members to a channel where the user (must be team admin) it not a member of.
 -- The difference to the "normal" case is that the users are added
--- to the group before the commits are consumed.
+-- to the conversation before they are added to the MLS group.
 addMembersToChannel ::
   (HasCallStack, MakesValue user, MakesValue conv) =>
   user ->
@@ -973,3 +973,19 @@ addMembersToChannel user qcnv opts = do
             mls.convs
       }
   pure response
+
+removeMemberFromChannel :: (HasCallStack) => Value -> Value -> Value -> App ()
+removeMemberFromChannel user channel userToBeRemoved = do
+  removeMember user channel userToBeRemoved `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 204
+  userId <- asString $ userToBeRemoved %. "id"
+  domain <- asString $ userToBeRemoved %. "qualified_id.domain"
+  convId <- objConvId channel
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            (\conv -> conv {members = Set.filter (\m -> m.user /= userId && m.domain == domain) conv.members})
+            convId
+            mls.convs
+      }
