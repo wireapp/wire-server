@@ -23,8 +23,6 @@ import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
-import Control.Monad.Codensity (Codensity (Codensity), lowerCodensity)
-import Control.Monad.Trans.Class
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Stack
@@ -477,10 +475,11 @@ testTeamAdminCanAddMembersWithoutJoining = do
 
   -- the team admin creates a channel without joining
   channel <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  convId <- objConvId channel
 
   withWebSockets [c1, c2, c3, c4, c5] $ \[ws1, ws2, ws3, ws4, ws5] -> do
     -- the team admin adds members to the channel
-    addMembers owner channel def {users = [m1, m2, m3], role = Just "wire_member"} `bindResponse` \resp -> do
+    addMembersToChannel owner channel def {users = [m1, m2, m3], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
     -- the members are added to the backend conversation
@@ -501,29 +500,25 @@ testTeamAdminCanAddMembersWithoutJoining = do
       -- ... and the epoch is 0
       conv %. "epoch" `shouldMatchInt` 0
       -- the client creates the MLS group and adds everyone else
-      convId <- objConvId conv
-      createGroup def c1 convId
-      void $ createAddCommit c1 convId membersToAdd >>= sendAndConsumeCommitBundleExpectNoMemberJoin
+      createGroupForChannel def c1 convId membersToAdd
+      void $ createAddCommit c1 convId membersToAdd >>= sendAndConsumeCommitBundle
 
     -- the members that were added receive a welcome message
     for_ [ws2, ws3] $ \ws -> do
       awaitMatch isWelcomeNotif ws
 
     -- the team admin adds another member to the channel
-    addMembers owner channel def {users = [m4, m5], role = Just "wire_member"} `bindResponse` \resp -> do
+    addMembersToChannel owner channel def {users = [m4, m5], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
     notif <- awaitMatch isMemberJoinNotif ws4
     notif %. "payload.0.data.add_type" `shouldMatch` "external_add"
-    qcid <- notif %. "payload.0.qualified_conversation"
 
     -- c4 adds itself with an external add
-    conv <- getConversation m4 qcid >>= getJSON 200
-    convId <- objConvId conv
-    void $ createExternalCommit convId c4 Nothing >>= sendAndConsumeCommitBundleExpectNoMemberJoin
+    void $ createExternalCommit convId c4 Nothing >>= sendAndConsumeCommitBundle
     -- add others via normal commit
     membersToAdd <- others m4 notif
-    void $ createAddCommit c4 convId membersToAdd >>= sendAndConsumeCommitBundleExpectNoMemberJoin
+    void $ createAddCommit c4 convId membersToAdd >>= sendAndConsumeCommitBundle
     -- m5 receives welcome message
     void $ awaitMatch isWelcomeNotif ws5
   where
@@ -586,28 +581,7 @@ testAdminCanRemoveMemberWithoutJoining = do
 
     -- now there is no one left to create and submit the pending proposal
     -- the team admin adds a member to the channel again
-    addMembers owner channel def {users = [m3], role = Just "wire_member"} `bindResponse` \resp -> do
+    addMembersToChannel owner channel def {users = [m3], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
--- void $ createExternalCommit convId c3 Nothing >>= sendAndConsumeCommitBundleExpectNoMemberJoin
-
-sendAndConsumeCommitBundleExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> App Value
-sendAndConsumeCommitBundleExpectNoMemberJoin messagePackage = lowerCodensity $ do
-  consumingMessagesExpectNoMemberJoin messagePackage
-  lift $ sendCommitBundle messagePackage
-  where
-    consumingMessagesExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> Codensity App ()
-    consumingMessagesExpectNoMemberJoin mp = Codensity $ \k -> do
-      conv <- getMLSConv mp.convId
-      let oldClients = Set.delete mp.sender conv.members
-      let newClients = Set.delete mp.sender conv.newMembers
-      let clients =
-            map (,MLSNotificationMessageTag) (toList oldClients)
-              <> map (,MLSNotificationWelcomeTag) (toList newClients)
-
-      withWebSockets (map fst clients) $ \wss -> do
-        r <- k ()
-        for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-          MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
-          MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
-        pure r
+-- void $ createExternalCommit convId c3 Nothing >>= sendAndConsumeCommitBundle
