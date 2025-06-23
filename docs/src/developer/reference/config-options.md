@@ -260,6 +260,8 @@ The feature status for individual teams can be changed via the public API (if th
 
 ### Validate SAML Emails
 
+The feature only affects email address changes originating from SCIM or SAML.  Personal users and team users provisioned through the team management app will *always* be validated.
+
 `enabled` means "user has authority over email address": if a new user account with an email address is created, the user behind the account will receive a validation email.  If they follow the validation procedure, they will be able to receive emails about their account, eg., if a new device is associated with the account.  If the user does not validate their email address, they can still use it to login.
 
 `disabled` means "team admin has authority over email address, and by extension over all member accounts": if a user account with an email address is created, the address is considered valid immediately, without any emails being sent out, and without confirmation from the recipient.

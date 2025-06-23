@@ -19,7 +19,7 @@ module API.TeamUserSearch (tests) where
 
 import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState, refreshIndex)
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
-import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
+import API.User.Util (initiateEmailUpdateAutoActivate)
 import Bilge (Manager, MonadHttp)
 import Brig.Options qualified as Opt
 import Control.Monad.Catch (MonadCatch)
@@ -57,8 +57,7 @@ testSearchByEmail :: (HasCallStack, TestConstraints m) => Brig -> m (TeamId, Use
 testSearchByEmail brig mkSearcherAndSearchee canFind = do
   (tid, searcher, searchee) <- mkSearcherAndSearchee
   eml <- randomEmail
-  _ <- initiateEmailUpdateNoSend brig eml (userId searchee)
-  activateEmail brig eml
+  _ <- initiateEmailUpdateAutoActivate brig eml (userId searchee)
   refreshIndex brig
   let check = if canFind then assertTeamUserSearchCanFind else assertTeamUserSearchCannotFind
   check brig tid searcher (userId searchee) (fromEmail eml)

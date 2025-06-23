@@ -670,7 +670,7 @@ changeSelfEmailMaybeSendH uid body mbEmailActivation (fromMaybe False -> validat
       activationDeprecated
         | autoActivate || not needsActivation = AutoActivate
         | validate = SendActivationEmail
-        | otherwise = error "impossible: `Spar.Intra.Brig.updateEmail` is the only call side."
+        | otherwise = error $ "impossible: `Spar.Intra.Brig.updateEmail` is the only call side.  details: " <> show (autoActivate, needsActivation, validate)
 
   -- Note: `UpdateOriginType` is hard coded to `UpdateOriginScim` here, so we implicitly assume that the endpoint of this handler is only used by SCIM.
   changeSelfEmailMaybeSend uid emailActivation email UpdateOriginScim
