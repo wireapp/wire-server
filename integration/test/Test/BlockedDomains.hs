@@ -5,6 +5,7 @@ module Test.BlockedDomains where
 import API.Brig as Brig
 import API.Common
 import Data.Yaml (array)
+import SetupHelpers
 import Testlib.Prelude
 
 testCannotRegisterWithBlockedDomain :: (HasCallStack) => App ()
@@ -26,6 +27,20 @@ testCannotRegisterWithBlockedDomain = do
         resp.status `shouldMatchInt` 201
 
       bindResponse (activateSend domain email Nothing) $ \resp -> do
+        resp.status `shouldMatchInt` 451
+        resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
+
+      validUser <- randomUser domain def
+      validUserEmail <- validUser %. "email" & asString
+      username2 <- randomName
+      (cookie, token) <-
+        login domain validUserEmail defPassword `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          token <- resp.json %. "access_token" & asString
+          let cookie = fromJust $ getCookie "zuid" resp
+          pure ("zuid=" <> cookie, token)
+
+      bindResponse (putSelfEmail validUser cookie token (username2 <> "@" <> blockedDomain)) $ \resp -> do
         resp.status `shouldMatchInt` 451
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
 
