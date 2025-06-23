@@ -1443,6 +1443,7 @@ updateUserEmail ::
   Public.EmailUpdate ->
   (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
+  customerExtensionCheckBlockedDomains email
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId

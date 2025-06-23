@@ -35,8 +35,8 @@ testCannotRegisterWithBlockedDomain = do
       let otherValidEmail = username <> "-1@" <> validDomain
       activateSend domain otherValidEmail Nothing >>= assertSuccess
 
-testCannotChangeEmailWithBlockedDomain :: (HasCallStack) => App ()
-testCannotChangeEmailWithBlockedDomain = do
+testCannotChangeOwnEmailWithBlockedDomain :: (HasCallStack) => App ()
+testCannotChangeOwnEmailWithBlockedDomain = do
   let blockedDomain = "blocked.example.com"
       validDomain = "valid.example.com"
   withModifiedBackend
@@ -63,3 +63,32 @@ testCannotChangeEmailWithBlockedDomain = do
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
 
       putSelfEmail validUser cookie token (username2 <> "@" <> validDomain) >>= assertSuccess
+
+testCannotChangeTeamMemberEmailWithBlockedDomain :: (HasCallStack) => App ()
+testCannotChangeTeamMemberEmailWithBlockedDomain = do
+  let blockedDomain = "blocked.example.com"
+      validDomain = "valid.example.com"
+  withModifiedBackend
+    def
+      { brigCfg =
+          setField
+            "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
+            ( array [fromString blockedDomain]
+            )
+      }
+    $ \domain -> do
+      (owner, _team, [mem1]) <- createTeam domain 2
+
+      username <- randomName
+      bindResponse (putUserEmail owner mem1 (username <> "@" <> blockedDomain)) $ \resp -> do
+        resp.status `shouldMatchInt` 451
+        resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
+
+      putUserEmail owner mem1 (username <> "@" <> validDomain) >>= assertSuccess
+
+      ownerUsername <- randomName
+      bindResponse (putUserEmail owner owner (ownerUsername <> "@" <> blockedDomain)) $ \resp -> do
+        resp.status `shouldMatchInt` 451
+        resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
+
+      putUserEmail owner owner (ownerUsername <> "@" <> validDomain) >>= assertSuccess
