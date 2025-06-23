@@ -422,8 +422,8 @@ putSelfLocale caller locale = do
 --
 -- NOTE: the full process of changing (and confirming) the email address is more complicated.
 -- see /services/brig/test/integration for details.
-putSelfEmail :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
-putSelfEmail caller emailAddress = do
+putUserEmail :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
+putUserEmail caller emailAddress = do
   callerid <- asString $ caller %. "id"
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", callerid, "email"]
   submit "PUT" $ req & addJSONObject ["email" .= emailAddress]
