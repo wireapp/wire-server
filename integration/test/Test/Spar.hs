@@ -454,6 +454,10 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   (owner, tid, _) <- createTeam OwnDomain 1
   emailDomain <- randomDomain
 
+  -- the old, inconsistent spelling still works:
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  assertSuccess =<< getTeamFeature owner tid "validateSAMLemails"
+
   let status = if validateSAMLEmails then "enabled" else "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
