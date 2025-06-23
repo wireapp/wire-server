@@ -43,7 +43,7 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
 import Imports
@@ -99,7 +99,6 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending conf b tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
             test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
-            test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
             test m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
             test m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
             test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
@@ -435,16 +434,6 @@ testInvitationEmailAccepted brig galley = do
   email <- randomEmail
   let invite = stdInvitationRequest email
   void $ createAndVerifyInvitation (accept invite.inviteeEmail) invite brig galley
-
--- | Related: 'testDomainsBlockedForRegistration'.  When we remove the customer-specific
--- extension of domain blocking, this test will fail to compile (so you will know it's time to
--- remove it).
-testInvitationEmailAcceptedInBlockedDomain :: Opt.Opts -> Brig -> Galley -> Http ()
-testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
-  email :: EmailAddress <- randomEmail
-  let invite = stdInvitationRequest email
-      replacementBrigApp = withDomainsBlockedForRegistration opts [decodeUtf8 $ domainPart email]
-  void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept invite.inviteeEmail) invite brig galley
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
