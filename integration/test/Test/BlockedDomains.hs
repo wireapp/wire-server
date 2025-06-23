@@ -92,3 +92,26 @@ testCannotChangeTeamMemberEmailWithBlockedDomain = do
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
 
       putUserEmail owner owner (ownerUsername <> "@" <> validDomain) >>= assertSuccess
+
+testCannotCreateTeamInvitationWithBlockedDomain :: (HasCallStack) => App ()
+testCannotCreateTeamInvitationWithBlockedDomain = do
+  let blockedDomain = "blocked.example.com"
+      validDomain = "valid.example.com"
+  withModifiedBackend
+    def
+      { brigCfg =
+          setField
+            "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
+            ( array [fromString blockedDomain]
+            )
+      }
+    $ \domain -> do
+      (owner, _team, []) <- createTeam domain 1
+
+      username <- randomName
+      bindResponse (postInvitation owner (PostInvitation (Just (username <> "@" <> blockedDomain)) Nothing))
+        $ \resp -> do
+          resp.status `shouldMatchInt` 451
+          resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
+
+      void $ postInvitation owner (PostInvitation (Just (username <> "@" <> validDomain)) Nothing) >>= getJSON 201

@@ -119,7 +119,8 @@ spec = do
               cfg =
                 TeamInvitationSubsystemConfig
                   { maxTeamSize = 50,
-                    teamInvitationTimeout = 3_000_000
+                    teamInvitationTimeout = 3_000_000,
+                    blockedDomains = []
                   }
 
               inviterUid = qUnqualified inviter.userQualifiedId

@@ -3,6 +3,7 @@ module Wire.TeamInvitationSubsystem.Interpreter where
 import Control.Arrow ((&&&))
 import Control.Error (MaybeT (..))
 import Data.ByteString.Conversion (toByteString')
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
@@ -42,7 +43,8 @@ import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfP
 
 data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
   { maxTeamSize :: Word32,
-    teamInvitationTimeout :: Timeout
+    teamInvitationTimeout :: Timeout,
+    blockedDomains :: [Domain]
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via GenericUniform TeamInvitationSubsystemConfig
@@ -131,6 +133,11 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
   blacklistedEm <- isBlocked email
   when blacklistedEm $
     throw TeamInvitationBlacklistedEmail
+
+  domain <- either (const (throw TeamInvitationInvalidEmail)) pure $ emailDomain email
+  blocked <- blockedDomains <$> input
+  when (domain `elem` blocked) $
+    throw TeamInvitationBlockedDomain
 
   mEmailOwner <- getLocalUserAccountByUserKey uke
   invitationFlow <- case mEmailOwner of
