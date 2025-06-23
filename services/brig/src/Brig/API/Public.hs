@@ -1256,22 +1256,6 @@ searchUsersHandler ::
 searchUsersHandler luid term mDomain mMaxResults =
   lift . liftSem $ User.searchUsers luid term mDomain mMaxResults
 
--- | If the user presents an email address from a blocked domain, throw an error.
---
--- The tautological constraint in the type signature is added so that once we remove the
--- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
-customerExtensionCheckBlockedDomains email = do
-  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
-  for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
-    case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
-      Left _ ->
-        pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
-      Right domain ->
-        when (domain `elem` blockedDomains) $
-          throwM $
-            customerExtensionBlockedDomain domain
-
 createConnectionUnqualified ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
