@@ -49,7 +49,6 @@ import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import Network.Wai.Test qualified as WaiTest
 import Network.Wai.Utilities.Error qualified as Error
 import Numeric.Natural (Natural)
 import Test.Tasty hiding (Timeout)
@@ -433,38 +432,6 @@ testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
   email <- randomEmail
   let invite = stdInvitationRequest email
-  void $ createAndVerifyInvitation (accept invite.inviteeEmail) invite brig galley
-
--- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
--- added concurrently, and the two should probably be consolidated.
-createAndVerifyInvitation ::
-  (HasCallStack) =>
-  (InvitationCode -> RequestBody) ->
-  InvitationRequest ->
-  Brig ->
-  Galley ->
-  Http (Maybe SelfProfile, Invitation)
-createAndVerifyInvitation acceptFn invite brig galley = do
-  createAndVerifyInvitation' Nothing acceptFn invite brig galley
-
--- | The optional first argument uses a brig fake 'Application' to the test instead of the
--- one on the network.
-createAndVerifyInvitation' ::
-  forall m a.
-  ( HasCallStack,
-    MonadIO m,
-    MonadHttp m,
-    MonadCatch m,
-    MonadFail m,
-    a ~ (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
-  ) =>
-  Maybe (WaiTest.Session a -> m a) ->
-  (InvitationCode -> RequestBody) ->
-  InvitationRequest ->
-  Brig ->
-  Galley ->
-  m (Maybe SelfProfile, Invitation)
-createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   (inviter, tid) <- createUserWithTeam brig
   let invitationHandshake ::
         forall m'.
@@ -474,18 +441,17 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
           MonadCatch m',
           MonadFail m'
         ) =>
-        m' (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
+        m' (Maybe (UserId, UTCTimeMillis), UserId)
       invitationHandshake = do
         inv :: Invitation <- responseJsonError =<< postInvitation brig tid inviter invite
         let invmeta = Just (inviter, inv.createdAt)
         Just inviteeCode <- getInvitationCode brig tid inv.invitationId
-        Just invitation <- getInvitationInfo brig inviteeCode
         rsp2 <-
           post
             ( brig
                 . path "/register"
                 . contentJson
-                . body (acceptFn inviteeCode)
+                . body (accept invite.inviteeEmail inviteeCode)
                 . header "X-Forwarded-For" "127.0.0.42"
             )
             <!! const 201 === statusCode
@@ -494,10 +460,9 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
         -- Verify that the invited user is active
         login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
-        pure (invmeta, invitation, invitee, rsp2)
-  (invmeta, invitation, invitee, rsp2) <- case replacementBrigApp of
-    Nothing -> invitationHandshake
-    Just app -> app invitationHandshake
+        pure (invmeta, invitee)
+  (invmeta, invitee) <- invitationHandshake
+
   -- Verify that the user is part of the team
   mem <- getTeamMember invitee tid galley
   liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Member.userId)
@@ -507,7 +472,6 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
       =<< listConnections brig invitee
         <!! const 200 === statusCode
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
-  pure (responseJsonMaybe rsp2, invitation)
 
 testCreateTeam :: Brig -> Galley -> UserJournalWatcher -> Http ()
 testCreateTeam brig galley userJournalWatcher = do
