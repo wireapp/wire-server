@@ -17,7 +17,7 @@ import Brig.Team.Template (TeamTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
-import Control.Lens (to, (^.))
+import Control.Lens (to, (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
@@ -224,7 +224,15 @@ runBrigToIO e (AppT ma) = do
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig
           { maxTeamSize = e.settings.maxTeamSize,
-            teamInvitationTimeout = e.settings.teamInvitationTimeout
+            teamInvitationTimeout = e.settings.teamInvitationTimeout,
+            blockedDomains =
+              e
+                ^. ( App.settingsLens
+                       . Opt.customerExtensionsLens
+                       . _Just
+                       . to Opt.domainsBlockedForRegistration
+                       . to (\(Opt.DomainsBlockedForRegistration domains) -> domains)
+                   )
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
