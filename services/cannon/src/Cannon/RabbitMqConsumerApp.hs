@@ -156,7 +156,6 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
       let consumeWebsocket = forever $ do
             getClientMessage wsConn >>= \case
               AckFullSync -> throwIO UnexpectedAck
-              AckMessageCount -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
                 void $ ackMessage chan ackData.deliveryTag ackData.multiple
@@ -231,7 +230,6 @@ sendFullSyncMessage uid cid wsConn env = do
   WS.sendBinaryData wsConn event
   getClientMessage wsConn >>= \case
     AckMessage _ -> throwIO UnexpectedAck
-    AckMessageCount -> throwIO UnexpectedAck
     AckFullSync ->
       C.runClient env.cassandra do
         retry x1 $ write delete (params LocalQuorum (uid, cid))
@@ -250,10 +248,6 @@ sendMessageCount ::
 sendMessageCount wsConn queueInfo = do
   let event = encode $ EventMessageCount $ MessageCount queueInfo.messageCount
   WS.sendBinaryData wsConn event
-  getClientMessage wsConn >>= \case
-    AckMessage _ -> throwIO UnexpectedAck
-    AckFullSync -> throwIO UnexpectedAck
-    AckMessageCount -> pure ()
 
 getClientMessage :: WS.Connection -> IO MessageClientToServer
 getClientMessage wsConn = do

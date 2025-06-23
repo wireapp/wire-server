@@ -70,7 +70,6 @@ makePrisms ''MessageServerToClient
 data MessageClientToServer
   = AckMessage AckData
   | AckFullSync
-  | AckMessageCount
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform MessageClientToServer)
 
@@ -119,7 +118,7 @@ deriving via Schema MessageServerToClient instance ToJSON MessageServerToClient
 -- ClientToServer
 
 -- | Local type, only needed for writing the ToSchema instance for 'MessageClientToServer'.
-data MessageTypeClientToServer = MsgTypeAckMessage | MsgTypeAckFullSync | MsgTypeAckMessageCount
+data MessageTypeClientToServer = MsgTypeAckMessage | MsgTypeAckFullSync
   deriving (Eq, Enum, Bounded)
 
 msgTypeSchemaClientToServer :: ValueSchema NamedSwaggerDoc MessageTypeClientToServer
@@ -127,8 +126,7 @@ msgTypeSchemaClientToServer =
   enum @Text "MessageTypeClientToServer" $
     mconcat $
       [ element "ack" MsgTypeAckMessage,
-        element "ack_full_sync" MsgTypeAckFullSync,
-        element "ack_message_count" MsgTypeAckMessageCount
+        element "ack_full_sync" MsgTypeAckFullSync
       ]
 
 instance ToSchema MessageClientToServer where
@@ -139,7 +137,6 @@ instance ToSchema MessageClientToServer where
       toTagged :: MessageClientToServer -> (MessageTypeClientToServer, MessageClientToServer)
       toTagged d@(AckMessage _) = (MsgTypeAckMessage, d)
       toTagged d@AckFullSync = (MsgTypeAckFullSync, d)
-      toTagged d@AckMessageCount = (MsgTypeAckMessageCount, d)
 
       fromTagged :: (MessageTypeClientToServer, MessageClientToServer) -> MessageClientToServer
       fromTagged = snd
@@ -148,7 +145,6 @@ instance ToSchema MessageClientToServer where
       untaggedSchema = dispatch $ \case
         MsgTypeAckMessage -> tag _AckMessage (field "data" schema)
         MsgTypeAckFullSync -> tag _AckFullSync (pure ())
-        MsgTypeAckMessageCount -> tag _AckMessageCount (pure ())
 
 deriving via Schema MessageClientToServer instance FromJSON MessageClientToServer
 
