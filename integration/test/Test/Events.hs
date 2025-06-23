@@ -666,15 +666,15 @@ testSingleConsumer = do
 testMessageCount :: (HasCallStack) => App ()
 testMessageCount = do
   (alice, uid, cid) <- mkUserPlusClient
-  replicateM_ 10 $ do
+  let n = 10
+  replicateM_ n $ do
     GundeckInternal.postPush OwnDomain [mkEvent uid cid] >>= assertSuccess
 
-  -- when we connect the first time, we should eventually get a message count of 11 (user.client-add + 10 more events)
-  -- however, we only assert that it's greater than 1 to avoid flakiness
-  runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
-    msgCount <- assertMessageCount ws
-    assertBool ("Expected message count to be greater than 1, but got: " <> show msgCount) (msgCount > 1)
-    consumeAllEvents ws
+  eventually
+    $ runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
+      -- we expect one user.client-add event and n more events
+      assertMessageCount ws `shouldMatchInt` (n + 1)
+      consumeAllEvents ws
 
   -- when we reconnect, the message count should be 0
   runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
@@ -733,7 +733,6 @@ testQosLimit = do
             ackEvent ws e
           "message_count" -> do
             (e %. "data.count") `shouldMatchRange` expectedMessageCounts
-            ackMessageCount ws
           et -> error $ "Unexpected eventType: " ++ show et
 
 ----------------------------------------------------------------------
@@ -834,11 +833,6 @@ ackEvent ws event = do
   deliveryTag <- event %. "data.delivery_tag"
   sendAck ws deliveryTag False
 
-ackMessageCount :: (HasCallStack) => EventWebSocket -> App ()
-ackMessageCount ws = do
-  putMVar ws.ack
-    $ Just (object ["type" .= "ack_message_count"])
-
 sendAck :: (HasCallStack) => EventWebSocket -> Value -> Bool -> App ()
 sendAck ws deliveryTag multiple =
   do
@@ -856,9 +850,7 @@ sendAck ws deliveryTag multiple =
 assertMessageCount :: (HasCallStack) => EventWebSocket -> App Int
 assertMessageCount ws = assertEvent ws $ \e -> do
   e %. "type" `shouldMatch` "message_count"
-  count <- e %. "data.count" & asInt
-  ackMessageCount ws
-  pure count
+  e %. "data.count" & asInt
 
 assertMessageCount_ :: (HasCallStack) => EventWebSocket -> App ()
 assertMessageCount_ = void . assertMessageCount
@@ -951,7 +943,7 @@ consumeAllEvents ws = do
         <> displayException e
     Just (Right e) -> do
       t <- e %. "type" & asString
-      if t == "message_count" then ackMessageCount ws else ackEvent ws e
+      unless (t == "message_count") $ ackEvent ws e
       consumeAllEvents ws
 
 consumeAllEventsNoAck :: EventWebSocket -> App [Value]
