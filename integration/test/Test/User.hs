@@ -169,7 +169,7 @@ testUpdateSelf (MkTagged mode) = do
       -- allowed unconditionally *for owner* (this is a bit off-topic: team members can't
       -- change their email addresses themselves under any conditions)
       someEmail <- (<> "@example.com") . UUID.toString <$> liftIO UUID.nextRandom
-      bindResponse (putUserEmail owner someEmail) $ \resp -> do
+      bindResponse (putUserEmail owner owner someEmail) $ \resp -> do
         resp.status `shouldMatchInt` 200
     TestUpdateLocale -> do
       -- scim maps "User.preferredLanguage" to brig's locale field.  allowed unconditionally.
