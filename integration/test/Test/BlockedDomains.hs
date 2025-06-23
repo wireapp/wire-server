@@ -11,6 +11,7 @@ import Testlib.Prelude
 testCannotRegisterWithBlockedDomain :: (HasCallStack) => App ()
 testCannotRegisterWithBlockedDomain = do
   let blockedDomain = "blocked.example.com"
+      validDomain = "valid.example.com"
   withModifiedBackend
     def
       { brigCfg =
@@ -21,15 +22,32 @@ testCannotRegisterWithBlockedDomain = do
       }
     $ \domain -> do
       username <- randomName
-      let email = username <> "@" <> blockedDomain
+      let validEmail = username <> "@" <> validDomain
       -- TODO: Wouldn't it be better to forbid registering with blocked domains?
-      addUser domain def {email = Just email} `bindResponse` \resp -> do
+      addUser domain def {email = Just validEmail} `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
-      bindResponse (activateSend domain email Nothing) $ \resp -> do
+      let blockedEmail = username <> "@" <> blockedDomain
+      bindResponse (activateSend domain blockedEmail Nothing) $ \resp -> do
         resp.status `shouldMatchInt` 451
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
 
+      let otherValidEmail = username <> "-1@" <> validDomain
+      activateSend domain otherValidEmail Nothing >>= assertSuccess
+
+testCannotChangeEmailWithBlockedDomain :: (HasCallStack) => App ()
+testCannotChangeEmailWithBlockedDomain = do
+  let blockedDomain = "blocked.example.com"
+      validDomain = "valid.example.com"
+  withModifiedBackend
+    def
+      { brigCfg =
+          setField
+            "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
+            ( array [fromString blockedDomain]
+            )
+      }
+    $ \domain -> do
       validUser <- randomUser domain def
       validUserEmail <- validUser %. "email" & asString
       username2 <- randomName
@@ -44,4 +62,4 @@ testCannotRegisterWithBlockedDomain = do
         resp.status `shouldMatchInt` 451
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
 
--- TODO: Register a user with normal domain email and change it do blocked domain email
+      putSelfEmail validUser cookie token (username2 <> "@" <> validDomain) >>= assertSuccess
