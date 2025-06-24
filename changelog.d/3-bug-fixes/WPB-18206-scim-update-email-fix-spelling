@@ -1,1 +1,0 @@
-The feature flag `validateSAMLEmails` has (almost) consistently been spelled with `E`, but in `values.yaml` it was consistent with the rest api, where it was spelled with `e`.  As a consequence, the default for people who didn't set it has been `disabled`, not `enabled`, as you might conclude from reading `values.yaml`.  This has been fixed, `E` is now used everywhere.

@@ -1,1 +1,1 @@
-If you had *not* set the `validateSAMLEmails` feature in your local instance settings, the default will change from `disabled` to `enabled` with this release.  See also "bug fixes".  Please make sure that is what you want, or provide your own override.
+If you override the `validateSAMLemails` feature in your local instance settings from `values.yaml`, change the spelling to `validateSAMLEmails`.  (The non-capitalized spelling was ignored.  See also "bug fixes".)
