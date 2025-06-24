@@ -1,5 +1,6 @@
 module Wire.UserSubsystem.UserSubsystemConfig where
 
+import Data.Domain
 import Imports
 import Util.Timeout
 import Wire.API.User
@@ -10,7 +11,8 @@ data UserSubsystemConfig = UserSubsystemConfig
     defaultLocale :: Locale,
     searchSameTeamOnly :: Bool,
     maxTeamSize :: Word32,
-    activationCodeTimeout :: Timeout
+    activationCodeTimeout :: Timeout,
+    blockedDomains :: [Domain]
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)

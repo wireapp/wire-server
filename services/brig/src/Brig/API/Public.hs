@@ -60,7 +60,6 @@ import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
 import Control.Lens ((.~), (?~))
-import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson
 import Data.ByteString (fromStrict)
@@ -1443,7 +1442,6 @@ updateUserEmail ::
   Public.EmailUpdate ->
   (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
-  customerExtensionCheckBlockedDomains email
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
   maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId

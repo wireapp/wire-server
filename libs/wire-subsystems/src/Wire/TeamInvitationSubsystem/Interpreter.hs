@@ -137,10 +137,7 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
   when blacklistedEm $
     throw TeamInvitationBlacklistedEmail
 
-  domain <- either (const (throw TeamInvitationInvalidEmail)) pure $ emailDomain email
-  blocked <- blockedDomains <$> input
-  when (domain `elem` blocked) $
-    throw TeamInvitationBlockedDomain
+  guardBlockedDomainEmail email
 
   mEmailOwner <- getLocalUserAccountByUserKey uke
   invitationFlow <- case mEmailOwner of
@@ -189,6 +186,18 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
     invitationUrl <- sendOp email tid inviterEmail code invRequest.locale
     inv <- toInvitation invitationUrl showInvitationUrl newInv
     pure (inv, code)
+  where
+    guardBlockedDomainEmail ::
+      ( Member (Input TeamInvitationSubsystemConfig) r,
+        Member (Error TeamInvitationSubsystemError) r
+      ) =>
+      EmailAddress ->
+      Sem r ()
+    guardBlockedDomainEmail email = do
+      domain <- either (const (throw TeamInvitationInvalidEmail)) pure $ emailDomain email
+      blocked <- blockedDomains <$> input
+      when (domain `elem` blocked) $
+        throw TeamInvitationBlockedDomain
 
 mkInvitationCode :: (Member Random r) => Sem r InvitationCode
 mkInvitationCode = InvitationCode . AsciiText.encodeBase64Url <$> Random.bytes 24

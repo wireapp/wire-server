@@ -242,6 +242,7 @@ requestEmailChange lusr email allowScim = do
   let u = tUnqualified lusr
   team <- (>>= (.teamId)) <$> UserStore.getUser u
   guardRegisteredEmailDomain team
+  guardBlockedDomainEmail
   createEmailChangeToken lusr email allowScim >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
@@ -251,11 +252,12 @@ requestEmailChange lusr email allowScim = do
       internalUpdateSearchIndex u
       pure ChangeEmailResponseNeedsActivation
   where
+    throwGuardFailed = throw . UserSubsystemGuardFailed
+
     guardRegisteredEmailDomain ::
       Maybe TeamId ->
       Sem r ()
     guardRegisteredEmailDomain mTeam = do
-      let throwGuardFailed = throw . UserSubsystemGuardFailed
       mReg <-
         emailDomain email
           -- The error is impossible as long as we use the same parser for both `EmailAddress` and
@@ -282,6 +284,12 @@ requestEmailChange lusr email allowScim = do
         (activationKey adata)
         (activationCode adata)
         (Just (userLocale usr))
+
+    guardBlockedDomainEmail = do
+      domain <- either (throwGuardFailed . InvalidDomain) pure $ emailDomain email
+      blocked <- blockedDomains <$> input
+      when (domain `elem` blocked) $
+        throw UserSubsystemBlockedDomain
 
 -- | Prepare changing the email (checking a number of invariants).
 createEmailChangeToken ::
