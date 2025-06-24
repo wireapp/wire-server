@@ -78,6 +78,7 @@ runAllEffects args =
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
     . runError
 
+-- TODO: Add test(s) for blocked domain
 spec :: Spec
 spec = do
   describe "InviteUser" $ do
