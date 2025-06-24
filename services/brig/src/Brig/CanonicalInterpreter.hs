@@ -213,26 +213,28 @@ type BrigLowerLevelEffects =
 
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
-  let userSubsystemConfig =
+  let blockedDomains =
+        e
+          ^. ( App.settingsLens
+                 . Opt.customerExtensionsLens
+                 . _Just
+                 . to Opt.domainsBlockedForRegistration
+                 . to (\(Opt.DomainsBlockedForRegistration domains) -> domains)
+             )
+      userSubsystemConfig =
         UserSubsystemConfig
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = Opt.defaultUserLocale e.settings,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
             maxTeamSize = e.settings.maxTeamSize,
-            activationCodeTimeout = e.settings.activationTimeout
+            activationCodeTimeout = e.settings.activationTimeout,
+            blockedDomains = blockedDomains
           }
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig
           { maxTeamSize = e.settings.maxTeamSize,
             teamInvitationTimeout = e.settings.teamInvitationTimeout,
-            blockedDomains =
-              e
-                ^. ( App.settingsLens
-                       . Opt.customerExtensionsLens
-                       . _Just
-                       . to Opt.domainsBlockedForRegistration
-                       . to (\(Opt.DomainsBlockedForRegistration domains) -> domains)
-                   )
+            blockedDomains = blockedDomains
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
