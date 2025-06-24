@@ -24,7 +24,6 @@ import Brig.App
 import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Control.Monad.Catch (throwM)
-import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Domain
@@ -201,7 +200,6 @@ changeSelfEmail uts' mat' up = do
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   lusr <- qualifyLocal usr
   let email = euEmail up
-  customerExtensionCheckBlockedDomains email
   lift . liftSem $
     User.requestEmailChange lusr email UpdateOriginWireClient
 

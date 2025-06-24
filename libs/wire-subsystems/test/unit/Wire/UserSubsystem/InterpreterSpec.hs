@@ -47,6 +47,7 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
+-- TODO: Add test(s) for blocked domains
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfiles" do
@@ -65,7 +66,7 @@ spec = describe "UserSubsystem.Interpreter" do
               target1 = mkUserIds remoteDomain1 targetUsers1
               target2 = mkUserIds remoteDomain2 targetUsers2
               localBackend = def {users = [viewer] <> localTargetUsers}
-              config = UserSubsystemConfig visibility miniLocale False 100 undefined
+              config = UserSubsystemConfig visibility miniLocale False 100 undefined []
               retrievedProfiles =
                 runFederationStack localBackend federation mempty config $
                   getUserProfiles
@@ -93,7 +94,7 @@ spec = describe "UserSubsystem.Interpreter" do
             mkUserIds domain users = map (flip Qualified domain . (.id)) users
             onlineUsers = mkUserIds onlineDomain onlineTargetUsers
             offlineUsers = mkUserIds offlineDomain offlineTargetUsers
-            config = UserSubsystemConfig visibility miniLocale False 100 undefined
+            config = UserSubsystemConfig visibility miniLocale False 100 undefined []
             localBackend = def {users = [viewer]}
             result =
               run
@@ -167,7 +168,7 @@ spec = describe "UserSubsystem.Interpreter" do
       \viewer targetUsers visibility domain remoteDomain -> do
         let remoteBackend = def {users = targetUsers}
             federation = [(remoteDomain, remoteBackend)]
-            config = UserSubsystemConfig visibility miniLocale False 100 undefined
+            config = UserSubsystemConfig visibility miniLocale False 100 undefined []
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
               runFederationStack localBackend federation mempty config $
@@ -188,7 +189,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "Remote users on offline backend always fail to return" $
       \viewer (targetUsers :: Set StoredUser) visibility domain remoteDomain -> do
         let online = mempty
-            config = UserSubsystemConfig visibility miniLocale False 100 undefined
+            config = UserSubsystemConfig visibility miniLocale False 100 undefined []
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
               runFederationStack localBackend online mempty config $
@@ -208,7 +209,7 @@ spec = describe "UserSubsystem.Interpreter" do
             allDomains = [domain, remoteDomainA, remoteDomainB]
             remoteAUsers = map (flip Qualified remoteDomainA . (.id)) targetUsers
             remoteBUsers = map (flip Qualified remoteDomainB . (.id)) targetUsers
-            config = UserSubsystemConfig visibility miniLocale False 100 undefined
+            config = UserSubsystemConfig visibility miniLocale False 100 undefined []
             localBackend = def {users = [viewer]}
             retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
               runFederationStack localBackend online mempty config $
@@ -307,7 +308,7 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "getAccountsBy" do
       prop "GetBy userId when pending fails if not explicitly allowed" $
         \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale False 100 undefined
+          let config = UserSubsystemConfig visibility locale False 100 undefined []
               alice =
                 alice'
                   { email = Just email,
@@ -342,7 +343,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy userId works for pending if explicitly queried" $
         \(PendingNotEmptyIdentityStoredUser alice') email teamId invitationInfo localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               alice =
                 alice'
                   { email = Just email,
@@ -376,7 +377,7 @@ spec = describe "UserSubsystem.Interpreter" do
            in result === [mkUserFromStored localDomain locale alice]
       prop "GetBy handle when pending fails if not explicitly allowed" $
         \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               alice =
                 alice'
                   { email = Just email,
@@ -412,7 +413,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy handle works for pending if explicitly queried" $
         \(PendingNotEmptyIdentityStoredUser alice') handl email teamId invitationInfo localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               alice =
                 alice'
                   { email = Just email,
@@ -448,7 +449,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy email does not filter by pending, missing identity or expired invitations" $
         \(alice' :: StoredUser) email localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               alice = alice' {email = Just email}
               localBackend =
                 def
@@ -462,7 +463,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy userId does not return missing identity users, pending invitation off" $
         \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               getBy =
                 toLocalUnsafe localDomain $
                   def
@@ -477,7 +478,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy userId does not return missing identity users, pending invtation on" $
         \(NotPendingEmptyIdentityStoredUser alice) localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               getBy =
                 toLocalUnsafe localDomain $
                   def
@@ -492,7 +493,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy pending user by id works if there is a valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
@@ -521,7 +522,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy pending user by id fails if there is no valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) teamId localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
@@ -542,7 +543,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy pending user handle id works if there is a valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId (invitationInfo :: StoredInvitation) localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
@@ -576,7 +577,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "GetBy pending user by handle fails if there is no valid invitation" $
         \(PendingNotEmptyIdentityStoredUser alice') (email :: EmailAddress) handl teamId localDomain visibility locale ->
-          let config = UserSubsystemConfig visibility locale True 100 undefined
+          let config = UserSubsystemConfig visibility locale True 100 undefined []
               emailKey = mkEmailKey email
               getBy =
                 toLocalUnsafe localDomain $
