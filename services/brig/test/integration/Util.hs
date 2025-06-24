@@ -50,7 +50,7 @@ import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Default
-import Data.Domain (Domain (..), domainText, mkDomain)
+import Data.Domain (Domain (..), domainText)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
