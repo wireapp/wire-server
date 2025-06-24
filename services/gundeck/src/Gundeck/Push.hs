@@ -80,7 +80,7 @@ import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
-import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..))
+import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..), supportsConsumableNotifications)
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -180,7 +180,7 @@ splitPush clientsFull p = do
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
             RecipientClientsTemporaryOnly -> mempty
-          isClientForRabbitMq c = ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
+          isClientForRabbitMq c = supportsConsumableNotifications c
           (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
           legacyClientIds = (.clientId) <$> Set.toList legacyClients

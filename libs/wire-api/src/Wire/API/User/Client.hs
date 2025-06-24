@@ -518,7 +518,6 @@ data Client = Client
 
 type MLSPublicKeys = Map SignatureSchemeTag ByteString
 
--- TODO: Use everywhere
 supportsConsumableNotifications :: Client -> Bool
 supportsConsumableNotifications c =
   ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
