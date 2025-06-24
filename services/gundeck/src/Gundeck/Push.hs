@@ -225,15 +225,16 @@ pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogg
 pushAll pushes = do
   Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
   (rabbitmqPushes, legacyPushes) <- splitPushes pushes
-  pushAllLegacy legacyPushes
-  pushAllViaRabbitMq rabbitmqPushes
-  pushAllToCells pushes
+  legacyNotifs <- catMaybes <$> mapM mkNewNotification legacyPushes
+  rabbitmqNotifs <- catMaybes <$> mapM mkNewNotification rabbitmqPushes
+  pushAllLegacy legacyNotifs
+  pushAllViaRabbitMq rabbitmqNotifs
+  pushAllToCells rabbitmqNotifs
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
-pushAllLegacy pushes = do
-  newNotifications <- catMaybes <$> mapM mkNewNotification pushes
+pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [NewNotification] -> m ()
+pushAllLegacy newNotifications = do
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
@@ -249,29 +250,36 @@ pushAllLegacy pushes = do
     wsTargets <- mapM mkWSTargets newNotifications
     resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
     -- native push
-    perPushConcurrency <- mntgtPerPushConcurrency
-    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
-      let rcps' = nativeTargetsRecipients psh
-          cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
-      -- this is a rough budget cost, since there may be more than one device in a
-      -- 'Presence', so one budget token may trigger at most 8 push notifications
-      -- to be sent out.
-      -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
-      -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
-      unless (psh ^. pushTransient) $
-        mpaRunWithBudget cost () $
-          mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
+    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) ->
+      pushNativeWithBudget notif psh alreadySent
 
-pushAllViaRabbitMq :: (MonadPushAll m) => [Push] -> m ()
-pushAllViaRabbitMq pushes =
-  for_ pushes $ pushViaRabbitMq
+pushNativeWithBudget :: (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) => Notification -> Push -> [Presence] -> m ()
+pushNativeWithBudget notif psh alreadySent = do
+  perPushConcurrency <- mntgtPerPushConcurrency
+  let rcps' = nativeTargetsRecipients psh
+      cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
+  -- this is a rough budget cost, since there may be more than one device in a
+  -- 'Presence', so one budget token may trigger at most 8 push notifications
+  -- to be sent out.
+  -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
+  -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
+  unless (psh ^. pushTransient) $
+    mpaRunWithBudget cost () $
+      mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
 
-pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
-pushViaRabbitMq p = do
-  qMsg <- mkMessage p
+pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> m ()
+pushAllViaRabbitMq newNotifs = do
+  for_ newNotifs $ pushViaRabbitMq
+  mpaForkIO $ do
+    for_ newNotifs $ \newNotif ->
+      pushNativeWithBudget newNotif.nnNotification newNotif.nnPush []
+
+pushViaRabbitMq :: (MonadPushAll m) => NewNotification -> m ()
+pushViaRabbitMq newNotif = do
+  qMsg <- mkMessage newNotif.nnNotification
   let routingKeys =
         Set.unions $
-          flip Set.map p._pushRecipients \r ->
+          flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
             case r._recipientClients of
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
@@ -284,44 +292,43 @@ pushViaRabbitMq p = do
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
-pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [Push] -> m ()
-pushAllToCells ps = do
+pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m ()
+pushAllToCells newNotifs = do
   mQueue <- mpaCellsEventQueue
 
-  let cellPushes = filter (._pushIsCellsEvent) ps
-  unless (null cellPushes) $ case mQueue of
+  let cellNotifs = filter (.nnPush._pushIsCellsEvent) newNotifs
+  unless (null cellNotifs) $ case mQueue of
     Nothing -> do
       Log.err $ msg ("Cells events have been generated, but no Cells queue is configured in gundeck" :: ByteString)
-    Just queue -> traverse_ (pushToCells queue) cellPushes
+    Just queue -> traverse_ (pushToCells queue) newNotifs
 
-pushToCells :: (MonadPushAll m) => Text -> Push -> m ()
-pushToCells queue p = do
-  qMsg <- mkMessage p
+pushToCells :: (MonadPushAll m) => Text -> NewNotification -> m ()
+pushToCells queue newNotif = do
+  qMsg <- mkMessage newNotif.nnNotification
   mpaPublishToRabbitMq "" queue qMsg
 
-mkMessage :: (MonadPushAll m) => Push -> m Message
-mkMessage p = do
-  notifId <- mpaMkNotificationId
+mkMessage :: (MonadPushAll m) => Notification -> m Message
+mkMessage notif = do
   NotificationTTL ttl <- mpaNotificationTTL
   pure $
     Q.newMsg
       { msgBody =
           Aeson.encode
-            . queuedNotification notifId
-            $ toNonEmpty p._pushPayload,
+            . queuedNotification notif.ntfId
+            $ toNonEmpty notif.ntfPayload,
         msgContentType = Just "application/json",
         msgDeliveryMode =
           -- Non-persistent messages never hit the disk and so do not
           -- survive RabbitMQ node restarts, this is great for transient
           -- notifications.
           Just
-            ( if p._pushTransient
+            ( if notif.ntfTransient
                 then Q.NonPersistent
                 else Q.Persistent
             ),
         msgExpiration =
           Just
-            ( if p._pushTransient
+            ( if notif.ntfTransient
                 then
                   ( -- Means that if there is no active consumer, this
                     -- message will never be delivered to anyone. It can
