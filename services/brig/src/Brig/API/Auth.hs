@@ -23,16 +23,13 @@ import Brig.API.Types
 import Brig.App
 import Brig.Options
 import Brig.User.Auth qualified as Auth
-import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
-import Data.Domain
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LT
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token (Token)
@@ -202,22 +199,6 @@ changeSelfEmail uts' mat' up = do
   let email = euEmail up
   lift . liftSem $
     User.requestEmailChange lusr email UpdateOriginWireClient
-
--- | If the user presents an email address from a blocked domain, throw an error.
---
--- The tautological constraint in the type signature is added so that once we remove the
--- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: EmailAddress -> (Handler r) ()
-customerExtensionCheckBlockedDomains email = do
-  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
-  for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
-    case mkDomain (Text.decodeUtf8 $ domainPart email) of
-      Left _ ->
-        pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
-      Right domain ->
-        when (domain `elem` blockedDomains) $
-          throwM $
-            customerExtensionBlockedDomain domain
 
 validateCredentials ::
   (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>

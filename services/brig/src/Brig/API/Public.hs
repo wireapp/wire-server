@@ -1235,13 +1235,14 @@ sendActivationCode ::
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
 sendActivationCode ac = do
   let email = ac.emailKey
-  customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
 
