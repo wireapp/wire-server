@@ -80,7 +80,7 @@ import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
-import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
 
 push :: [Push] -> Gundeck ()
 push ps = do
