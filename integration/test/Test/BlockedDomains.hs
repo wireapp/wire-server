@@ -1,8 +1,7 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-
 module Test.BlockedDomains where
 
 import API.Brig as Brig
+import API.Brig as BrigAddUser (AddUser (..))
 import API.Common
 import Data.Yaml (array)
 import SetupHelpers
@@ -23,8 +22,7 @@ testCannotRegisterWithBlockedDomain = do
     $ \domain -> do
       username <- randomName
       let validEmail = username <> "@" <> validDomain
-      -- TODO: Wouldn't it be better to forbid registering with blocked domains?
-      addUser domain def {email = Just validEmail} `bindResponse` \resp -> do
+      addUser domain def {BrigAddUser.email = Just validEmail} `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 201
 
       let blockedEmail = username <> "@" <> blockedDomain
