@@ -5,7 +5,8 @@ module Test.Spar where
 import API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
-import API.GalleyInternal (getTeamFeature, setTeamFeatureStatus)
+import API.Galley as Galley
+import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
@@ -455,8 +456,8 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   emailDomain <- randomDomain
 
   -- the old, inconsistent spelling still works:
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
-  assertSuccess =<< getTeamFeature owner tid "validateSAMLemails"
+  assertSuccess =<< Galley.getTeamFeatureVersioned (ExplicitVersion 8) owner tid "validateSAMLemails"
+  assertSuccess =<< Galley.setTeamFeatureConfigVersioned (ExplicitVersion 8) owner tid "validateSAMLemails" (object ["status" .= "disabled"])
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status

@@ -86,6 +86,24 @@ data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
 
+instance RenderableSymbol V1 where renderSymbol = "V1"
+
+instance RenderableSymbol V2 where renderSymbol = "V2"
+
+instance RenderableSymbol V3 where renderSymbol = "V3"
+
+instance RenderableSymbol V4 where renderSymbol = "V4"
+
+instance RenderableSymbol V5 where renderSymbol = "V5"
+
+instance RenderableSymbol V6 where renderSymbol = "V6"
+
+instance RenderableSymbol V7 where renderSymbol = "V7"
+
+instance RenderableSymbol V8 where renderSymbol = "V8"
+
+instance RenderableSymbol V9 where renderSymbol = "V9"
+
 -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --
 -- This is not the same as 'fromEnum': we will remove unsupported versions in the future,

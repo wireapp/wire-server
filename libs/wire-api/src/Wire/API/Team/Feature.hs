@@ -144,6 +144,7 @@ import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
+import Wire.API.Routes.Version
 import Wire.API.Team.Feature.Profunctor
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -242,7 +243,7 @@ data FeatureSingleton cfg where
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
 
-type family DeprecatedFeatureName (ix :: Natural) (cfg :: Type) :: Symbol
+type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
 featureName :: forall cfg. (IsFeatureConfig cfg) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
@@ -671,7 +672,7 @@ instance IsFeatureConfig SearchVisibilityAvailableConfig where
 instance ToSchema SearchVisibilityAvailableConfig where
   schema = object "SearchVisibilityAvailableConfig" objectSchema
 
-type instance DeprecatedFeatureName 0 SearchVisibilityAvailableConfig = "search-visibility"
+type instance DeprecatedFeatureName V2 SearchVisibilityAvailableConfig = "search-visibility"
 
 --------------------------------------------------------------------------------
 -- ValidateSAMLEmails feature
@@ -694,9 +695,9 @@ instance IsFeatureConfig ValidateSAMLEmailsConfig where
   featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
-type instance DeprecatedFeatureName 0 ValidateSAMLEmailsConfig = "validate-saml-emails"
+type instance DeprecatedFeatureName V2 ValidateSAMLEmailsConfig = "validate-saml-emails"
 
-type instance DeprecatedFeatureName 1 ValidateSAMLEmailsConfig = "validateSAMLemails"
+type instance DeprecatedFeatureName V9 ValidateSAMLEmailsConfig = "validateSAMLemails"
 
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
@@ -716,7 +717,7 @@ instance IsFeatureConfig DigitalSignaturesConfig where
   featureSingleton = FeatureSingletonDigitalSignaturesConfig
   objectSchema = pure DigitalSignaturesConfig
 
-type instance DeprecatedFeatureName 0 DigitalSignaturesConfig = "digital-signatures"
+type instance DeprecatedFeatureName V2 DigitalSignaturesConfig = "digital-signatures"
 
 instance ToSchema DigitalSignaturesConfig where
   schema = object "DigitalSignaturesConfig" objectSchema
