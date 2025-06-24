@@ -5,7 +5,7 @@ module Test.Spar where
 import API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
-import API.GalleyInternal (setTeamFeatureStatus)
+import API.GalleyInternal (getTeamFeature, setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
