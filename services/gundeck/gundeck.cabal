@@ -536,6 +536,7 @@ test-suite gundeck-tests
     , aeson-pretty
     , amazonka
     , amazonka-core
+    , amqp
     , async
     , base
     , bytestring-conversion

@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -65,14 +66,17 @@ import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
 import Imports
+import Network.AMQP qualified as AMQP
 import Network.URI qualified as URI
 import System.Logger.Class as Log hiding (trace)
 import Test.QuickCheck as QC
 import Test.QuickCheck.Instances ()
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
+import Wire.API.Notification
 import Wire.API.Presence
 import Wire.API.Push.V2 hiding (recipient)
+import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
 
 ----------------------------------------------------------------------
 -- env
@@ -85,7 +89,8 @@ import Wire.API.Push.V2 hiding (recipient)
 type Payload = List1 Aeson.Object
 
 data ClientInfo = ClientInfo
-  { _ciNativeAddress :: Maybe (Address, Bool {- reachable -}),
+  { _ciClient :: Client,
+    _ciNativeAddress :: Maybe (Address, Bool {- reachable -}),
     _ciWSReachable :: Bool
   }
   deriving (Eq, Show)
@@ -102,7 +107,9 @@ data MockState = MockState
     _msNativeQueue :: NotifQueue,
     -- | Non-transient notifications that are stored in the database first thing before
     -- delivery (so clients can always come back and pick them up later until they expire).
-    _msCassQueue :: NotifQueue
+    _msCassQueue :: NotifQueue,
+    -- | A record of notifications that have been puhsed via RabbitMQ.
+    _msRabbitQueue :: Map (Text, Text) IntMultiSet
   }
   deriving (Eq)
 
@@ -118,13 +125,13 @@ makeLenses ''MockEnv
 makeLenses ''MockState
 
 instance Show MockState where
-  show (MockState w n c) =
+  show (MockState w n c r) =
     intercalate
       "\n"
-      ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, ""]
+      ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, "rabbitmq: " <> show r, ""]
 
 emptyMockState :: MockState
-emptyMockState = MockState mempty mempty mempty
+emptyMockState = MockState mempty mempty mempty mempty
 
 -- these custom instances make for better error reports if tests fail.
 instance ToJSON MockEnv where
@@ -133,9 +140,10 @@ instance ToJSON MockEnv where
       ["clientInfos" Aeson..= mp]
 
 instance ToJSON ClientInfo where
-  toJSON (ClientInfo native wsreach) =
+  toJSON (ClientInfo client native wsreach) =
     Aeson.object
-      [ "native" Aeson..= native,
+      [ "client" Aeson..= client,
+        "native" Aeson..= native,
         "wsReachable" Aeson..= wsreach
       ]
 
@@ -166,7 +174,8 @@ instance FromJSON MockEnv where
 instance FromJSON ClientInfo where
   parseJSON = withObject "ClientInfo" $ \cinfo ->
     ClientInfo
-      <$> (cinfo Aeson..: "native")
+      <$> (cinfo Aeson..: "client")
+      <*> (cinfo Aeson..: "native")
       <*> (cinfo Aeson..: "wsReachable")
 
 instance FromJSON Address where
@@ -203,6 +212,7 @@ genMockEnv = do
   -- four scenarios above
   let genClientInfo :: UserId -> ClientId -> Gen ClientInfo
       genClientInfo uid cid = do
+        _ciClient <- arbitrary <&> \client -> client {clientId = cid} :: Client
         _ciNativeAddress <-
           QC.oneof
             [ pure Nothing,
@@ -211,7 +221,10 @@ genMockEnv = do
                 reachable <- arbitrary
                 pure $ Just (protoaddr, reachable)
             ]
-        _ciWSReachable <- arbitrary
+        _ciWSReachable <-
+          if supportsConsumableNotifications _ciClient
+            then pure False
+            else arbitrary
         pure ClientInfo {..}
   -- Generate a list of users
   uids :: [UserId] <-
@@ -426,12 +439,13 @@ instance MonadPushAll MockGundeck where
   mpaBulkPush = mockBulkPush
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
-  mpaForkIO = id -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
-  -- doesn't, this is good enough for testing).
 
+  -- \| just don't fork. (this *may* cause deadlocks in principle, but as long as
+  -- it doesn't, this is good enough for testing).
+  mpaForkIO = id
   mpaRunWithBudget _ _ = id -- no throttling needed as long as we don't overdo it in the tests...
-  mpaGetClients _ = pure mempty
-  mpaPublishToRabbitMq _ _ _ = pure ()
+  mpaGetClients = mockGetClients
+  mpaPublishToRabbitMq = mockPushRabbitMq
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
@@ -470,6 +484,7 @@ mockPushAll pushes = do
     handlePushWS psh
     handlePushNative psh
     handlePushCass psh
+    handlePushRabbit psh
 
 -- | From a single 'Push', deliver only those notifications that real Gundeck would deliver via
 -- websockets.
@@ -539,15 +554,41 @@ handlePushCass Push {..}
   | _pushTransient = pure ()
 handlePushCass Push {..} = do
   forM_ _pushRecipients $ \(Recipient uid _ cids) -> do
+    clients <- Set.toList . Set.unions . Map.elems . (.userClientsFull) <$> mpaGetClients (Set.singleton uid)
+    let consumabeNotifClients = map (.clientId) $ filter supportsConsumableNotifications clients
     let cids' = case cids of
-          RecipientClientsAll -> [ClientId 0]
-          -- clients are stored in cassandra as a list with a notification.  empty list is
-          -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
-          -- store a specific 'ClientId' that signifies "no client".)
-          RecipientClientsSome cc -> toList cc
+          RecipientClientsAll ->
+            case consumabeNotifClients of
+              [] ->
+                -- clients are stored in cassandra as a list with a notification.  empty list is
+                -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
+                -- store a specific 'ClientId' that signifies "no client".)
+                [ClientId 0]
+              _ ->
+                filter (`notElem` consumabeNotifClients) $ map (.clientId) clients
+          RecipientClientsSome cc ->
+            filter (`notElem` consumabeNotifClients) $ toList cc
           RecipientClientsTemporaryOnly -> []
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
+
+handlePushRabbit :: Push -> MockGundeck ()
+handlePushRabbit Push {..} = do
+  forM_ _pushRecipients $ \(Recipient uid _ cids) -> do
+    clients <- Set.toList . Set.unions . Map.elems . (.userClientsFull) <$> mpaGetClients (Set.singleton uid)
+    let legacyClients = map (.clientId) $ filter (not . supportsConsumableNotifications) clients
+    let routingKeys = case cids of
+          RecipientClientsAll ->
+            case legacyClients of
+              [] -> [userRoutingKey uid]
+              _ ->
+                let rabbitClients = filter (`notElem` legacyClients) $ map (.clientId) clients
+                 in temporaryRoutingKey uid : (clientRoutingKey uid <$> rabbitClients)
+          RecipientClientsSome cc ->
+            temporaryRoutingKey uid : (clientRoutingKey uid <$> filter (`notElem` legacyClients) (toList cc))
+          RecipientClientsTemporaryOnly -> [temporaryRoutingKey uid]
+    for routingKeys $ \routingKey ->
+      msRabbitQueue %= deliver ("user-notifications", routingKey) _pushPayload
 
 mockMkNotificationId :: MockGundeck NotificationId
 mockMkNotificationId = Id <$> getRandom
@@ -572,7 +613,7 @@ mockBulkPush notifs = do
       deliveredprcs :: [Presence]
       deliveredprcs = filter isreachable . mconcat . fmap fakePresences $ allRecipients env
       isreachable :: Presence -> Bool
-      isreachable prc = wsReachable env (userId prc, fromJust $ clientId prc)
+      isreachable prc = wsReachable env (userId prc, fromJust $ prc.clientId)
   forM_ delivered $ \(notif, prcs) -> do
     forM_ prcs $ \prc ->
       msWSQueue
@@ -605,6 +646,13 @@ mockPushNative (ntfPayload -> payload) _ addrs = do
       msNativeQueue
         %= deliver (addr ^. addrUser, addr ^. addrClient) payload
 
+mockPushRabbitMq :: Text -> Text -> AMQP.Message -> MockGundeck ()
+mockPushRabbitMq exchange routingKey message = do
+  case Aeson.eitherDecode message.msgBody of
+    Left e -> error $ "Invalid message body: " <> e
+    Right (queuedNotif :: QueuedNotification) ->
+      msRabbitQueue %= deliver (exchange, routingKey) (List1 (queuedNotif ^. queuedNotificationPayload))
+
 mockLookupAddresses ::
   (HasCallStack, m ~ MockGundeck) =>
   UserId ->
@@ -635,6 +683,14 @@ mockBulkSend uri notifs = do
     BulkPushResponse
       [(ntfId ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat]
 
+mockGetClients :: Set UserId -> MockGundeck UserClientsFull
+mockGetClients uids = do
+  MockEnv allClientInfos <- ask
+  let getClients uid =
+        let clientInfos = foldMap Map.elems $ Map.lookup uid allClientInfos
+         in Set.fromList $ map (^. ciClient) clientInfos
+  pure $ UserClientsFull $ Map.fromSet getClients uids
+
 ----------------------------------------------------------------------
 -- helpers
 
@@ -660,7 +716,7 @@ unsafeList1 :: (HasCallStack) => [a] -> List1 a
 unsafeList1 [] = error "unsafeList1: empty list"
 unsafeList1 (x : xs) = list1 x xs
 
-deliver :: (UserId, ClientId) -> Payload -> NotifQueue -> NotifQueue
+deliver :: (Ord key) => key -> Payload -> Map key IntMultiSet -> Map key IntMultiSet
 deliver qkey qval = Map.alter (Just . tweak) qkey
   where
     tweak Nothing = MSet.singleton (payloadToInt qval)
