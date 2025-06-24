@@ -293,9 +293,7 @@ type instance
     'StaticError
       451
       "domain-blocked-for-registration"
-      "[Customer extension] the email domain example.com \
-      \that you are attempting to register a user with has been \
-      \blocked for creating wire users.  Please contact your IT department."
+      "[Customer extension] The email domain has been blocked for Wire users.  Please contact your IT department."
 
 type instance MapError 'PasswordResetInProgress = 'StaticError 409 "code-exists" "A password reset is already in progress."
 
