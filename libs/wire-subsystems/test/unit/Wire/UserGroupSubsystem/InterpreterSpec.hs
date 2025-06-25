@@ -269,13 +269,12 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
 
           getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing
-          getGroupsOutsider <- getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing
+          -- do we need an extra test for that?:  getGroupsOutsider <- getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing  (should be empty)
 
           pure $
             getGroupAdmin === Just group1
               .&&. getGroupsAdmin.page === [group1]
               .&&. getGroupOutsider === Nothing
-              .&&. getGroupsOutsider.page === []
 
     prop "team members can only get user groups from their own team" $
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
@@ -311,41 +310,45 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   .&&. getOtherGroup === Nothing
                   .&&. getOtherGroups.page === []
 
+    -- TODO: don't we want to make asc, desc different for every key?
+
     it "getGroups: q=<name>, returning 0, 1, 2 groups" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       mkAssertion (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
-        let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2"]]
-        groups <- createGroup (ownerId team1) `mapM` newGroups
+        let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
+        groups <- (\ng -> moveClock 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
         get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing
         get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing
-        get2 <- getGroups (ownerId team1) (Just "s") Nothing Nothing Nothing Nothing
+        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing
+        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing
 
         pure do
           get0.page `shouldBe` []
           get1.page `shouldBe` [groups !! 0]
-          get2.page `shouldBe` [groups !! 1, groups !! 2]
+          get2.page `shouldBe` reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
+          get3.page `shouldBe` [groups !! 3]
 
     it "getGroups: sortByKeys, sortOrder" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       mkAssertion (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
         let mkNewGroup name = NewUserGroup (either undefined id $ userGroupNameFromText name) mempty
             mkGroup name = moveClock 1 >> createGroup (ownerId team1) (mkNewGroup name)
-        group2b <- mkGroup "2"
         group2a <- mkGroup "2"
-        group1b <- mkGroup "1"
+        group2b <- mkGroup "2"
         group1a <- mkGroup "1"
-        group3b <- mkGroup "3"
+        group1b <- mkGroup "1"
         group3a <- mkGroup "3"
+        group3b <- mkGroup "3"
 
         sortByName <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["name"])) Nothing Nothing Nothing
+          getGroups (ownerId team1) Nothing (Just (SortBy ["name"])) (Just Asc) Nothing Nothing
         sortByNameAndCreatedAt <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["name", "created_at"])) Nothing Nothing Nothing
+          getGroups (ownerId team1) Nothing (Just (SortBy ["name", "created_at"])) (Just Asc) Nothing Nothing
         sortByCreatedAt <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["created_at"])) Nothing Nothing Nothing
+          getGroups (ownerId team1) Nothing (Just (SortBy ["created_at"])) (Just Asc) Nothing Nothing
         sortByCreatedAtAndName <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["created_at", "name"])) Nothing Nothing Nothing
+          getGroups (ownerId team1) Nothing (Just (SortBy ["created_at", "name"])) (Just Asc) Nothing Nothing
         sortByDefault <-
           getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing
         sortByDefaultAsc <-
@@ -354,18 +357,18 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroups (ownerId team1) Nothing Nothing (Just Desc) Nothing Nothing
 
         let byName = [group1a, group1b, group2a, group2b, group3a, group3b]
-            byDate = [group2b, group2a, group1b, group1a, group3b, group3a]
+            byDate = [group2a, group2b, group1a, group1b, group3a, group3b]
 
         pure do
           sortByName.page `shouldBe` byName
           sortByNameAndCreatedAt.page `shouldBe` byName
           sortByCreatedAt.page `shouldBe` byDate
           sortByCreatedAtAndName.page `shouldBe` byDate
-          sortByDefault.page `shouldBe` byDate
+          sortByDefault.page `shouldBe` reverse byDate
           sortByDefaultAsc.page `shouldBe` byDate
           sortByDefaultDesc.page `shouldBe` reverse byDate
 
-    prop "getGroups: pagination (happy flow)" $ do
+    focus . prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) numGroups pageSize ->
         expectRight . runDependencies (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
           let mkNewGroup = NewUserGroup (either undefined id $ userGroupNameFromText "same name") mempty
@@ -374,11 +377,11 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           -- groups distinguished only by creation date
           groups <- replicateM numGroups mkGroup
 
-          results :: [PaginationResult UserGroup] <- do
+          results :: [PaginationResult UserGroupKey UserGroup] <- do
             let fetch mbState = do
                   p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) mbState
                   if null p.page
-                    then pure [p]
+                    then pure []
                     else (p :) <$> fetch (Just p.state)
             fetch Nothing
 

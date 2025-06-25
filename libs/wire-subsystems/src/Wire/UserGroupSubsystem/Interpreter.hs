@@ -61,11 +61,11 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
-    UserGroupInvalidQueryParams msg -> _ msg
+    UserGroupInvalidQueryParams _msg -> errorToWai @E.UserGroupInvalidQueryParams -- TODO: msg should also be rendered here!
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
-    Member (Error UserGroupSubsystemError) r,
+    Member (Error UserGroupSubsystemError) r, -- TODO: use ErrorS everywhere!
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,

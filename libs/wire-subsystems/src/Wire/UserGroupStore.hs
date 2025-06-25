@@ -16,6 +16,7 @@ data ListUserGroupsQuery a = ListUserGroupsQuery
     sortDescending :: Bool {- False: ascending -},
     pageSize :: Int {- page size -}
   }
+  deriving (Eq, Show)
 
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
