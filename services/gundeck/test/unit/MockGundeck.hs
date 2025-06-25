@@ -330,7 +330,7 @@ genPush env = do
   let alluids = allUsers env
   sender <- QC.elements alluids
   rcps :: Set Recipient <- do
-    numrcp <- choose (1, min 1024 (length alluids))
+    numrcp <- choose (0, min 1024 (length alluids))
     rcps <- genRecipients numrcp env
     Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
@@ -361,12 +361,14 @@ genPush env = do
       [ pure Nothing,
         genOriginConnId
       ]
+  isCells <- arbitrary
   pure $
     newPush (Just sender) rcps pload
       & pushConnections .~ onlyPushToConnections
       & pushOriginConnection .~ originConnection
       & pushTransient .~ transient
       & pushNativeIncludeOrigin .~ inclorigin
+      & pushIsCellsEvent .~ isCells
 
 -- (not covered: pushNativeAps, pushNativePriority)
 
@@ -433,7 +435,7 @@ instance MonadThrow MockGundeck where
 
 instance MonadPushAll MockGundeck where
   mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
-  mpaCellsEventQueue = pure Nothing
+  mpaCellsEventQueue = pure $ Just "cells"
   mpaMkNotificationId = mockMkNotificationId
   mpaListAllPresences = mockListAllPresences
   mpaBulkPush = mockBulkPush
@@ -589,6 +591,8 @@ handlePushRabbit Push {..} = do
           RecipientClientsTemporaryOnly -> [temporaryRoutingKey uid]
     for routingKeys $ \routingKey ->
       msRabbitQueue %= deliver ("user-notifications", routingKey) _pushPayload
+  when _pushIsCellsEvent $ do
+    msRabbitQueue %= deliver ("", "cells") _pushPayload
 
 mockMkNotificationId :: MockGundeck NotificationId
 mockMkNotificationId = Id <$> getRandom
