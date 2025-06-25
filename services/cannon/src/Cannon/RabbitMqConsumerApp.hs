@@ -52,28 +52,30 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
                 activityTimeout = e.wsOpts.activityTimeout,
                 pongTimeout = e.wsOpts.pongTimeout
               }
-      void $
-        Codensity $
-          withAsync $
-            forever $
-              timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
-                Just _ -> pure ()
-                Nothing -> do
-                  WS.sendPing wsConn.inner ("ping" :: Text)
-                  timeout wsConn.pongTimeout (takeMVar wsConn.inner.connectionHeartbeat) >>= \case
-                    Just _ -> pure ()
-                    Nothing -> throwIO InactivityTimeout
-      liftIO $
-        ( do
-            traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-            traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
-            sendNotifications chan wsConn
-        )
-          `catches` [ handleClientMisbehaving conn,
-                      handleWebSocketExceptions conn,
-                      handleRabbitMqChannelException conn,
-                      handleOtherExceptions conn
-                    ]
+
+      main <- Codensity $ withAsync $ do
+        liftIO $
+          ( do
+              traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
+              traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
+              sendNotifications chan wsConn
+          )
+            `catches` [ handleClientMisbehaving conn,
+                        handleWebSocketExceptions conn,
+                        handleRabbitMqChannelException conn,
+                        handleInactivity conn,
+                        handleOtherExceptions conn
+                      ]
+
+      let monitor = do
+            timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
+              Just _ -> monitor
+              Nothing -> do
+                WS.sendPing wsConn.inner ("ping" :: Text)
+                timeout wsConn.pongTimeout (takeMVar wsConn.inner.connectionHeartbeat) >>= \case
+                  Just _ -> monitor
+                  Nothing -> cancelWith main InactivityTimeout
+      liftIO $ monitor
 
     openWebSocket =
       acceptRequest pendingConn
@@ -139,6 +141,13 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
                   . Log.field "error" (displayException err)
                   . logClient
               WS.sendCloseCode wsConn 1003 ("websocket-failure" :: ByteString)
+
+    handleInactivity wsConn =
+      Handler $ \(_ :: InactivityTimeout) -> do
+        Log.info e.logg $
+          Log.msg (Log.val "Closing websocket due to inactivity")
+            . logClient
+        WS.sendCloseCode wsConn 1003 ("inactivity" :: ByteString)
 
     handleClientMisbehaving wsConn =
       Handler $ \(err :: WebSocketServerError) -> do
