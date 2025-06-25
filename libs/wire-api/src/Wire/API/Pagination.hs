@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -37,7 +39,7 @@ import Test.QuickCheck.Gen as Arbitrary
 import Wire.Arbitrary as Arbitrary
 
 -- | (Is there an elegant way to enforce `allowedKeyFieldsInfo` before the handler kicks in?)
-type PaginationQuery (allowedKeyFieldsInfo :: Symbol) (rowKeys :: Type) (row :: Type) =
+type PaginationQuery (allowedKeyFieldsInfo :: Symbol) (rowKeys :: Type) (rowQuery :: Type) (row :: Type) =
   QueryParam'
     '[Optional, Strict, Description "Search string"]
     "q"
@@ -65,8 +67,8 @@ type PaginationQuery (allowedKeyFieldsInfo :: Symbol) (rowKeys :: Type) (row :: 
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
          "paginationState"
-         (PaginationState rowKeys)
-    :> Get '[JSON] (PaginationResult rowKeys row)
+         (PaginationState rowKeys rowQuery)
+    :> Get '[JSON] (PaginationResult rowKeys rowQuery row)
 
 data SortBy = SortBy {fromSortBy :: [Text]}
   deriving (Eq, Ord, Show, Generic)
@@ -131,52 +133,52 @@ instance O.ToParamSchema PageSize
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
 
-data PaginationState key = PaginationState
-  { searchString :: Text, -- TODO: this shouldn't be in the state, but maintained separately. or we need to make it more polymorhpic, maybe?
-    sortByKeys :: SortBy,
+data PaginationState key query = PaginationState
+  { sortByKeys :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
+    searchString :: query,
     lastRowSent :: key
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationState key)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationState key query)
 
-instance (ToSchema key) => ToSchema (PaginationState key) where
+instance (ToSchema key, ToSchema query) => ToSchema (PaginationState key query) where
   schema =
-    object "PagintationState" $
+    object "PagintationStatePayload" $
       PaginationState
-        <$> (.searchString) .= field "search_string" schema
-        <*> (.sortByKeys) .= field "sort_by" schema
+        <$> (.sortByKeys) .= field "sort_by" schema
         <*> (.sortOrder) .= field "sort_order" schema
         <*> (.pageSize) .= field "page_size" schema
+        <*> (.searchString) .= field "search_string" schema
         <*> (.lastRowSent) .= field "last_row_sent" schema
 
-instance (Arbitrary key) => Arbitrary (PaginationState key) where
+instance (Arbitrary key, Arbitrary query) => Arbitrary (PaginationState key query) where
   arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (ToSchema key) => FromHttpApiData (PaginationState key) where
+instance (ToSchema key, ToSchema query) => FromHttpApiData (PaginationState key query) where
   parseUrlPiece = parseUrlPieceViaSchema
 
-instance O.ToParamSchema (PaginationState key) where
+instance O.ToParamSchema (PaginationState key query) where
   toParamSchema _ =
     -- PaginationState is supposed to be opaque for clients, no need to swagger docs.
     O.toParamSchema (Proxy @Text)
 
-data PaginationResult key row = PaginationResult
+data PaginationResult key query row = PaginationResult
   { page :: [row],
-    state :: PaginationState key
+    state :: Maybe (PaginationState key query)
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationResult key row)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationResult key query row)
 
-instance (ToSchema key, ToSchema row) => ToSchema (PaginationResult key row) where
+instance (ToSchema key, ToSchema query, ToSchema row) => ToSchema (PaginationResult key query row) where
   schema =
     object "PagintationResult" $
       PaginationResult
         <$> page .= field "page" (array schema)
-        <*> state .= field "state" schema
+        <*> state .= maybe_ (optField "state" schema) -- TODO: add to swagger: "no state means no more data, last page was empty"
 
-instance (Arbitrary key, Arbitrary row) => Arbitrary (PaginationResult key row) where
+instance (Arbitrary key, Arbitrary query, Arbitrary row) => Arbitrary (PaginationResult key query row) where
   arbitrary = PaginationResult <$> arbitrary <*> arbitrary
 
 parseUrlPieceViaSchema :: (A.FromJSON a) => Text -> Either Text a
