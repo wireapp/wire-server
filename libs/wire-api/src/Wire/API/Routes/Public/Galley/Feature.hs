@@ -99,7 +99,6 @@ type DeprecatedFeatureAPI =
     :<|> FeatureStatusDeprecatedPut DeprecationNotice1 V2 SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedGet DeprecationNotice1 V2 ValidateSAMLEmailsConfig
     :<|> FeatureStatusDeprecatedGet DeprecationNotice1 V9 ValidateSAMLEmailsConfig
-    :<|> FeatureStatusDeprecatedPut DeprecationNotice1 V9 ValidateSAMLEmailsConfig
     :<|> FeatureStatusDeprecatedGet DeprecationNotice2 V2 DigitalSignaturesConfig
 
 type FeatureAPIGet cfg =

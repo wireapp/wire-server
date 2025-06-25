@@ -457,7 +457,6 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
 
   -- the old, inconsistent spelling still works:
   assertSuccess =<< Galley.getTeamFeatureVersioned (ExplicitVersion 8) owner tid "validateSAMLemails"
-  assertSuccess =<< Galley.setTeamFeatureConfigVersioned (ExplicitVersion 8) owner tid "validateSAMLemails" (object ["status" .= "disabled"])
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
