@@ -6,12 +6,12 @@ import Testlib.Prelude
 
 testPatchValidateSAMLEmails :: (HasCallStack) => App ()
 testPatchValidateSAMLEmails =
-  checkPatch OwnDomain "validateSAMLemails"
+  checkPatch OwnDomain "validateSAMLEmails"
     $ object ["status" .= "disabled"]
 
 testValidateSAMLEmailsInternal :: (HasCallStack) => App ()
 testValidateSAMLEmailsInternal = do
   (alice, tid, _) <- createTeam OwnDomain 0
   withWebSocket alice $ \ws -> do
-    setFlag InternalAPI ws tid "validateSAMLemails" disabled
-    setFlag InternalAPI ws tid "validateSAMLemails" enabled
+    setFlag InternalAPI ws tid "validateSAMLEmails" disabled
+    setFlag InternalAPI ws tid "validateSAMLEmails" enabled

@@ -27,6 +27,7 @@ import Galley.App
 import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
@@ -70,10 +71,12 @@ featureAPI =
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
-  mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) getFeature
-    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) setFeature
-    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) getFeature
-    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) getFeature
+  mkNamedAPI @'("get-deprecated", '(SearchVisibilityAvailableConfig, V2)) getFeature
+    <@> mkNamedAPI @'("put-deprecated", '(SearchVisibilityAvailableConfig, V2)) setFeature
+    <@> mkNamedAPI @'("get-deprecated", '(ValidateSAMLEmailsConfig, V2)) getFeature
+    <@> mkNamedAPI @'("get-deprecated", '(ValidateSAMLEmailsConfig, V9)) getFeature
+    <@> mkNamedAPI @'("put-deprecated", '(ValidateSAMLEmailsConfig, V9)) setFeature
+    <@> mkNamedAPI @'("get-deprecated", '(DigitalSignaturesConfig, V2)) getFeature
 
 deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
 deprecatedFeatureAPI =

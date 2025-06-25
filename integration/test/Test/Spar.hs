@@ -5,6 +5,7 @@ module Test.Spar where
 import API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
+import API.Galley as Galley
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
@@ -454,8 +455,12 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   (owner, tid, _) <- createTeam OwnDomain 1
   emailDomain <- randomDomain
 
+  -- the old, inconsistent spelling still works:
+  assertSuccess =<< Galley.getTeamFeatureVersioned (ExplicitVersion 8) owner tid "validateSAMLemails"
+  assertSuccess =<< Galley.setTeamFeatureConfigVersioned (ExplicitVersion 8) owner tid "validateSAMLemails" (object ["status" .= "disabled"])
+
   let status = if validateSAMLEmails then "enabled" else "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -503,7 +508,7 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEma
   (owner, tid, _) <- createTeam OwnDomain 1
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -591,7 +596,7 @@ testScimUpdateEmailAddressAndExternalId = do
   (owner, tid, _) <- createTeam OwnDomain 1
 
   let status = "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
@@ -731,7 +736,7 @@ testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   (owner, tid, _) <- createTeam OwnDomain 1
 
   let status = if validateSAMLEmails then "enabled" else "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLEmails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner

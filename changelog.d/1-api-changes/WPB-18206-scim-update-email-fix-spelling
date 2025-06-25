@@ -1,0 +1,1 @@
+Spelling of the `validateSAMLEmails` feature had a typo (`validateSAMLemails`, without the capitalized `E` in `Email`).  This has been fixed.
