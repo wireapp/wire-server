@@ -50,6 +50,7 @@ import Cassandra.Options (CassandraOpts)
 import Control.Lens (makeFields)
 import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
+import Data.Default
 import Imports
 import Network.AMQP.Extended (AmqpEndpoint)
 import System.Logger.Extended (Level, LogFormat)
@@ -83,11 +84,18 @@ data WSOpts = WSOpts
   }
   deriving (Eq, Show, Generic)
 
+instance Default WSOpts where
+  def =
+    WSOpts
+      { activityTimeout = 30000000,
+        pongTimeout = 30000000
+      }
+
 instance FromJSON WSOpts where
   parseJSON = withObject "WSOpts" $ \o ->
     WSOpts
-      <$> o .:? "activityTimeout" .!= 30000000
-      <*> o .:? "pongTimeout" .!= 30000000
+      <$> o .:? "activityTimeout" .!= (def :: WSOpts).activityTimeout
+      <*> o .:? "pongTimeout" .!= (def :: WSOpts).pongTimeout
 
 data DrainOpts = DrainOpts
   { -- | Maximum amount of time draining should take. Must not be set to 0.
@@ -143,7 +151,7 @@ instance FromJSON Opts where
       <*> o .:? "logNetStrings"
       <*> o .:? "logFormat"
       <*> o .: "drainOpts"
-      <*> o .: "wsOpts"
+      <*> o .:? "wsOpts" .!= def
       <*> o .: "disabledAPIVersions"
       <*> o .: "cassandra"
       <*> o .:? "rabbitMqMaxConnections" .!= 1000
