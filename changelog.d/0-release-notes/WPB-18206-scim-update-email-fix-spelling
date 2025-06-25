@@ -1,1 +1,1 @@
-If you override the `validateSAMLemails` feature in your local instance settings from `values.yaml`, change the spelling to `validateSAMLEmails`.  (The non-capitalized spelling was ignored.  See also "bug fixes".)
+If you override the `validateSAMLemails` feature in your local instance settings from `values.yaml`, change the spelling to `validateSAMLEmails`.  The non-capitalized spelling was ignored.  See also "bug fixes".  (#4621, #4627)

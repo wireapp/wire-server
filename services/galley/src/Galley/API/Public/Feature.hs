@@ -75,7 +75,6 @@ deprecatedFeatureConfigAPI =
     <@> mkNamedAPI @'("put-deprecated", '(SearchVisibilityAvailableConfig, V2)) setFeature
     <@> mkNamedAPI @'("get-deprecated", '(ValidateSAMLEmailsConfig, V2)) getFeature
     <@> mkNamedAPI @'("get-deprecated", '(ValidateSAMLEmailsConfig, V9)) getFeature
-    <@> mkNamedAPI @'("put-deprecated", '(ValidateSAMLEmailsConfig, V9)) setFeature
     <@> mkNamedAPI @'("get-deprecated", '(DigitalSignaturesConfig, V2)) getFeature
 
 deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
