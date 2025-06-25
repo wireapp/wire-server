@@ -178,8 +178,7 @@ splitPush clientsFull p = do
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
             RecipientClientsTemporaryOnly -> mempty
-          isClientForRabbitMq c = supportsConsumableNotifications c
-          (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
+          (rabbitmqClients, legacyClients) = Set.partition supportsConsumableNotifications relevantClients
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
           legacyClientIds = (.clientId) <$> Set.toList legacyClients
       case (rabbitmqClientIds, legacyClientIds) of
