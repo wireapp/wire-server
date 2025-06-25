@@ -151,8 +151,8 @@ devtest:
 # find . -name '*.hs' | entr -s 'make -C ~/src/wire-server c package=wire-subsystems test=1'
 .PHONY: devtest-package
 devtest-package:
-	@ghcid --command 'cabal repl test:$(package)-tests' --test='main' \
-	  || echo -e "\n\n\n*** usage: make devtest-package package=wire-subsystems.\n*** did you make sure the test-suite goal in the cabal file of your\n*** package follows the naming convention (see wire-subsystems)?\n\n"
+	@ghcid --command 'cabal repl $(package):tests lib:$(package)' --test='main' \
+	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
 
 .PHONY: sanitize-pr
 sanitize-pr: check-weed treefmt
