@@ -323,7 +323,7 @@ type UserGroupAPI =
            ( From 'V9
                :> ZLocalUser
                :> "user-groups"
-               :> PaginationQuery "created_at, name" UserGroupKey UserGroup
+               :> PaginationQuery "created_at, name" UserGroupKey '[Text, UTCTimeMillis] UserGroup
            )
     :<|> Named
            "update-user-group"
