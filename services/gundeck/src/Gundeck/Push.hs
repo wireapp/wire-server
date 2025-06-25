@@ -33,7 +33,6 @@ where
 import Bilge qualified
 import Bilge.RPC qualified as Bilge
 import Control.Error
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (throwError)
@@ -41,7 +40,6 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
-import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1 (..), list1, toNonEmpty)
 import Data.Map qualified as Map
 import Data.Misc
@@ -225,11 +223,21 @@ pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogg
 pushAll pushes = do
   Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
   (rabbitmqPushes, legacyPushes) <- splitPushes pushes
-  legacyNotifs <- catMaybes <$> mapM mkNewNotification legacyPushes
-  rabbitmqNotifs <- catMaybes <$> mapM mkNewNotification rabbitmqPushes
+
+  legacyNotifs <- mapM mkNewNotification legacyPushes
   pushAllLegacy legacyNotifs
+
+  rabbitmqNotifs <- mapM mkNewNotification rabbitmqPushes
   pushAllViaRabbitMq rabbitmqNotifs
-  pushAllToCells rabbitmqNotifs
+
+  -- Note that Cells needs all notifications because it doesn't matter whether
+  -- some recipients have rabbitmq clients or not.
+  --
+  -- We cannot simply merge 'legacyNotifs' and 'rabbitmqNotifs' because
+  -- notifications could be duplicated in case cells notifications have users
+  -- who have legacy and rabbitmq clients.
+  allNotifs <- mapM mkNewNotification pushes
+  pushAllToCells allNotifs
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
@@ -296,11 +304,12 @@ pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m 
 pushAllToCells newNotifs = do
   mQueue <- mpaCellsEventQueue
 
-  let cellNotifs = filter (.nnPush._pushIsCellsEvent) newNotifs
-  unless (null cellNotifs) $ case mQueue of
+  let cellsNotifs = filter (.nnPush._pushIsCellsEvent) newNotifs
+  unless (null cellsNotifs) $ case mQueue of
     Nothing -> do
       Log.err $ msg ("Cells events have been generated, but no Cells queue is configured in gundeck" :: ByteString)
-    Just queue -> traverse_ (pushToCells queue) newNotifs
+    Just queue ->
+      traverse_ (pushToCells queue) cellsNotifs
 
 pushToCells :: (MonadPushAll m) => Text -> NewNotification -> m ()
 pushToCells queue newNotif = do
@@ -346,13 +355,13 @@ mkMessage notif = do
 data NewNotification = NewNotification
   { nnPush :: Push,
     nnNotification :: Notification,
-    nnRecipients :: List1 Recipient
+    nnRecipients :: [Recipient]
   }
 
-mkNewNotification :: forall m. (MonadPushAll m) => Push -> m (Maybe NewNotification)
-mkNewNotification psh = runMaybeT $ do
-  rcps <- MaybeT . pure . fmap List1 . nonEmpty . toList $ psh ^. pushRecipients
-  notifId <- lift mpaMkNotificationId
+mkNewNotification :: forall m. (MonadPushAll m) => Push -> m NewNotification
+mkNewNotification psh = do
+  let rcps = toList $ psh ^. pushRecipients
+  notifId <- mpaMkNotificationId
   let notif = Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
   pure $ NewNotification psh notif rcps
 
@@ -382,7 +391,7 @@ mkCassandraTargets NewNotification {..} =
 data WSTargets = WSTargets
   { wstPush :: Push,
     wstNotification :: Notification,
-    wstPresences :: List1 (Recipient, [Presence])
+    wstPresences :: [(Recipient, [Presence])]
   }
 
 mkWSTargets :: (MonadPushAll m) => NewNotification -> m WSTargets
@@ -390,19 +399,15 @@ mkWSTargets NewNotification {..} = do
   withPresences <- addPresences nnRecipients
   pure $ WSTargets nnPush nnNotification withPresences
   where
-    addPresences :: forall m. (MonadPushAll m) => List1 Recipient -> m (List1 (Recipient, [Presence]))
-    addPresences (toList -> rcps) = do
+    addPresences :: forall m. (MonadPushAll m) => [Recipient] -> m [(Recipient, [Presence])]
+    addPresences rcps = do
       presences <- mpaListAllPresences $ fmap (view recipientId) rcps
-      zip1 rcps presences
-      where
-        zip1 :: [a] -> [b] -> m (List1 (a, b))
-        zip1 (x : xs) (y : ys) = pure $ list1 (x, y) (zip xs ys)
-        zip1 _ _ = throwM $ ErrorCall "mkNotificationAndTargets: internal error." -- can @listAll@ return @[]@?
+      pure $ zip rcps presences
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
 compilePushReq :: WSTargets -> (Notification, [Presence])
 compilePushReq WSTargets {..} =
-  (wstNotification, mconcat . fmap compileTargets . toList $ wstPresences)
+  (wstNotification, mconcat . fmap compileTargets $ wstPresences)
   where
     compileTargets :: (Recipient, [Presence]) -> [Presence]
     compileTargets (rcp, pre) = filter (shouldActuallyPush wstPush rcp) pre
