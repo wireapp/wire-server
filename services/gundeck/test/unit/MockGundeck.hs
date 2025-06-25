@@ -557,19 +557,19 @@ handlePushCass Push {..}
 handlePushCass Push {..} = do
   forM_ _pushRecipients $ \(Recipient uid _ cids) -> do
     clients <- Set.toList . Set.unions . Map.elems . (.userClientsFull) <$> mpaGetClients (Set.singleton uid)
-    let consumabeNotifClients = map (.clientId) $ filter supportsConsumableNotifications clients
+    let consumableNotifClients = map (.clientId) $ filter supportsConsumableNotifications clients
     let cids' = case cids of
           RecipientClientsAll ->
-            case consumabeNotifClients of
+            case consumableNotifClients of
               [] ->
                 -- clients are stored in cassandra as a list with a notification.  empty list is
                 -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
                 -- store a specific 'ClientId' that signifies "no client".)
                 [ClientId 0]
               _ ->
-                filter (`notElem` consumabeNotifClients) $ map (.clientId) clients
+                filter (`notElem` consumableNotifClients) $ map (.clientId) clients
           RecipientClientsSome cc ->
-            filter (`notElem` consumabeNotifClients) $ toList cc
+            filter (`notElem` consumableNotifClients) $ toList cc
           RecipientClientsTemporaryOnly -> []
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
