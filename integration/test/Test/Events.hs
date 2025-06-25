@@ -81,7 +81,9 @@ testConsumeEventsOneWebSocket = do
 testWebSocketTimeout :: (HasCallStack) => App ()
 testWebSocketTimeout = withModifiedBackend
   def
-    { cannonCfg = setField "wsOpts.activityTimeout" (1000000 :: Int)
+    { cannonCfg =
+        setField "wsOpts.activityTimeout" (1000000 :: Int)
+          >=> setField "wsOpts.pongTimeout" (1000000 :: Int)
     }
   $ \domain -> do
     alice <- randomUser domain def
@@ -99,7 +101,7 @@ testWebSocketTimeout = withModifiedBackend
 
       result <- timeout 2500000 (killWebSocketClient ws)
       when (isNothing result)
-        $ assertFailure "did not timeout"
+        $ assertFailure "Expected web socket timeout"
 
 testConsumeTempEvents :: (HasCallStack) => App ()
 testConsumeTempEvents = do
