@@ -19,6 +19,7 @@ import Data.Range
 import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -52,7 +53,6 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 
--- TODO: Add test(s) for blocked domains
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfiles" do
@@ -906,6 +906,27 @@ spec = describe "UserSubsystem.Interpreter" do
               === ( ChangeEmailResponseNeedsActivation,
                     [user {emailUnvalidated = Just updatedEmail} :: StoredUser]
                   )
+    prop "Email change not allowed for blocked domains" $ do
+      \(locx :: Local ()) (NotPendingStoredUser user) (emailUsername :: EmailUsername) (blockedDomains :: NonEmptyList Domain) config -> do
+        blockedEmailDomain <- anyElementOf blockedDomains
+
+        let blockedEmailAddress :: EmailAddress =
+              unsafeEmailAddress
+                ((fromString . getEmailUsername) emailUsername)
+                ((encodeUtf8 . domainText) blockedEmailDomain)
+            localBackend = def {users = [user]}
+            lusr = qualifyAs locx user.id
+            result =
+              runNoFederationStack
+                localBackend
+                mempty
+                ( config
+                    { blockedDomains = (toList . getNonEmpty) blockedDomains
+                    }
+                )
+                $ try (requestEmailChange lusr blockedEmailAddress UpdateOriginWireClient)
+         in pure $ result === (Left UserSubsystemBlockedDomain)
+
     prop "Email change is not allowed if the email domain is taken by another backend or team" $
       \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) preIdp config ->
         let email :: EmailAddress
@@ -1071,3 +1092,20 @@ spec = describe "UserSubsystem.Interpreter" do
                       }
               pure $
                 result.searchResults === [expectedContact]
+
+-- | Quickcheck helper to generate the first part of an email address (@<email-username>\@<some-domain>@)
+newtype EmailUsername = EmailUsername {getEmailUsername :: String}
+  deriving (Eq, Ord, Show, Read, Typeable)
+
+instance Arbitrary EmailUsername where
+  arbitrary = EmailUsername <$> listOf (arbitraryASCIIChar `suchThat` (\l -> isAlpha l && isLowerCase l))
+  shrink (EmailUsername xs) = EmailUsername `fmap` shrink xs
+
+-- | Generator to get any element from a NonEmpty list
+anyElementOf :: NonEmptyList a -> Gen a
+anyElementOf ne = do
+  let len = getList ne
+  idx :: Int <- elements [0, length len - 1]
+  pure ((getList ne) !! idx)
+  where
+    getList = toList . getNonEmpty
