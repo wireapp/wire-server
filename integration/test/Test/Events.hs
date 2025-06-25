@@ -78,6 +78,29 @@ testConsumeEventsOneWebSocket = do
     resp.status `shouldMatchInt` 200
     shouldBeEmpty $ resp.json %. "notifications"
 
+testWebSocketTimeout :: (HasCallStack) => App ()
+testWebSocketTimeout = withModifiedBackend
+  def
+    { cannonCfg = setField "wsOpts.activityTimeout" (1000000 :: Int)
+    }
+  $ \domain -> do
+    alice <- randomUser domain def
+    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    clientId <- objId client
+
+    runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+      assertMessageCount_ ws
+      deliveryTag <- assertEvent ws $ \e -> do
+        e %. "type" `shouldMatch` "event"
+        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
+        e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+        e %. "data.delivery_tag"
+      sendAck ws deliveryTag False
+
+      result <- timeout 2500000 (killWebSocketClient ws)
+      when (isNothing result)
+        $ assertFailure "did not timeout"
+
 testConsumeTempEvents :: (HasCallStack) => App ()
 testConsumeTempEvents = do
   alice <- randomUser OwnDomain def
@@ -747,7 +770,9 @@ mkUserPlusClient = do
 
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
-    ack :: MVar (Maybe Value)
+    ack :: MVar (Maybe Value),
+    kill :: MVar (),
+    done :: MVar ()
   }
 
 createEventsWebSocket ::
@@ -777,6 +802,9 @@ createEventsWebSocketEither user cid = do
     . when (apiVersion < minAPIVersion)
     $ assertFailure ("Events websocket can only be created when APIVersion is at least " <> show minAPIVersion)
 
+  varKill <- lift $ newEmptyMVar
+  varDone <- lift $ newEmptyMVar
+
   uid <- lift $ objId =<< objQidObject user
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
       path = "/v" <> show apiVersion <> "/events" <> maybe "" ("?client=" <>) cid
@@ -787,7 +815,18 @@ createEventsWebSocketEither user cid = do
           (wsRead conn `catch` (writeChan eventsChan . Left))
           (wsWrite conn)
 
-      wsRead conn = forever $ do
+      wsRead conn = withAsync (wsReadLoop conn) $ \loop -> do
+        takeMVar varKill
+        cancel loop
+        waitClosed conn
+
+      waitClosed conn = do
+        WS.receive conn >>= \case
+          WS.ControlMessage (WS.Close _ _) ->
+            void $ tryPutMVar varDone ()
+          _ -> waitClosed conn
+
+      wsReadLoop conn = forever $ do
         bs <- WS.receiveData conn
         case decodeStrict' bs of
           Just n -> writeChan eventsChan (Right n)
@@ -819,7 +858,7 @@ createEventsWebSocketEither user cid = do
       pure (Left e)
     Just (Right ()) ->
       Codensity $ \k ->
-        k (Right $ EventWebSocket eventsChan ackChan) `finally` do
+        k (Right $ EventWebSocket eventsChan ackChan varKill varDone) `finally` do
           putMVar ackChan Nothing
           liftIO $ wait wsThread
 
@@ -846,6 +885,11 @@ sendAck ws deliveryTag multiple =
               "multiple" .= multiple
             ]
       ]
+
+killWebSocketClient :: EventWebSocket -> App ()
+killWebSocketClient ws = do
+  void $ tryPutMVar ws.kill ()
+  takeMVar ws.done
 
 assertMessageCount :: (HasCallStack) => EventWebSocket -> App Int
 assertMessageCount ws = assertEvent ws $ \e -> do
