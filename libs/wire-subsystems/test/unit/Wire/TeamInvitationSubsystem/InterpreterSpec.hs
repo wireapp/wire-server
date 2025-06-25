@@ -191,19 +191,23 @@ spec = do
 
     prop "try to invite to blocked domain" $
       \(tid :: TeamId)
-       (preInviter :: User)
        (preExistingPersonalAccount :: Maybe User)
        (preExistingInviteeEmail :: EmailAddress)
-       (inviterEmail :: EmailAddress)
        (emailUsername :: EmailUsername)
        (blockedDomains :: NonEmptyList Domain) -> do
+          let hasEmailIdentity user = case user.userIdentity of
+                Just (EmailIdentity _) -> True
+                _ -> False
+
           blockedEmailDomain <- anyElementOf blockedDomains
+          inviter <- arbitrary @User `suchThat` hasEmailIdentity
+
           let blockedEmailAddress :: EmailAddress =
                 unsafeEmailAddress
                   ((fromString . getEmailUsername) emailUsername)
                   ((encodeUtf8 . domainText) blockedEmailDomain)
 
-              invReq =
+              invitationRequest =
                 InvitationRequest
                   { locale = Nothing,
                     role = Nothing,
@@ -212,14 +216,13 @@ spec = do
                     allowExisting = False
                   }
 
-              cfg =
+              config =
                 TeamInvitationSubsystemConfig
                   { maxTeamSize = 50,
                     teamInvitationTimeout = 3_000_000,
                     blockedDomains = getNonEmpty blockedDomains
                   }
 
-              inviter = preInviter {userIdentity = Just $ EmailIdentity inviterEmail}
               inviterUid = qUnqualified inviter.userQualifiedId
               inviterLuid = let domain = qDomain inviter.userQualifiedId in toLocalUnsafe domain inviterUid
               inviterMember = mkTeamMember inviterUid fullPermissions Nothing UserLegalHoldDisabled
@@ -233,7 +236,7 @@ spec = do
                       userManagedBy = ManagedByWire
                     }
 
-              args =
+              interpreterArgs =
                 RunAllEffectsArgs
                   { teams = Map.singleton tid [inviterMember],
                     initialUsers = [inviter] <> maybeToList existingPersonalAccount,
@@ -241,6 +244,6 @@ spec = do
                   }
 
               outcome :: Either TeamInvitationSubsystemError ()
-              outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
-                void $ inviteUser inviterLuid tid invReq
+              outcome = runAllEffects interpreterArgs . runTeamInvitationSubsystem config $ do
+                void $ inviteUser inviterLuid tid invitationRequest
            in pure $ outcome === Left TeamInvitationBlockedDomain
