@@ -52,6 +52,7 @@ import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
+import Wire.Util
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -1092,20 +1093,3 @@ spec = describe "UserSubsystem.Interpreter" do
                       }
               pure $
                 result.searchResults === [expectedContact]
-
--- | Quickcheck helper to generate the first part of an email address (@<email-username>\@<some-domain>@)
-newtype EmailUsername = EmailUsername {getEmailUsername :: String}
-  deriving (Eq, Ord, Show, Read, Typeable)
-
-instance Arbitrary EmailUsername where
-  arbitrary = EmailUsername <$> listOf (arbitraryASCIIChar `suchThat` (\l -> isAlpha l && isLowerCase l))
-  shrink (EmailUsername xs) = EmailUsername `fmap` shrink xs
-
--- | Generator to get any element from a NonEmpty list
-anyElementOf :: NonEmptyList a -> Gen a
-anyElementOf ne = do
-  let len = getList ne
-  idx :: Int <- elements [0, length len - 1]
-  pure ((getList ne) !! idx)
-  where
-    getList = toList . getNonEmpty
