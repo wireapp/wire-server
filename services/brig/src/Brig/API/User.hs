@@ -818,7 +818,7 @@ sendActivationCode email loc = do
             liftSem $ (maybe sendActivationMail (const sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
 
     guardBlockedDomainEmail ::
-      ( Member UserKeyStore r',
+      ( Member (Input UserSubsystemConfig) r',
         Member (Polysemy.Error.Error UserSubsystemError) r'
       ) =>
       Sem r' ()
