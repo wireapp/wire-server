@@ -20,6 +20,7 @@
 
 module Wire.API.Conversation.Member
   ( ConvMembersV8 (..),
+    ConvMembers (..),
 
     -- * Member
     Member (..),
@@ -71,6 +72,24 @@ instance ToSchema ConvMembersV8 where
             "others"
             (description ?~ "All other current users of this conversation")
             (array schema)
+
+data ConvMembers = ConvMembers
+  { self :: Maybe Member,
+    others :: [OtherMember]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConvMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembers
+
+instance ToSchema ConvMembers where
+  schema =
+    objectWithDocModifier "ConvMembers" (description ?~ "Users of a conversation") $
+      ConvMembers
+        <$> self .= maybe_ (optFieldWithDocModifier "self" selfDesc schema)
+        <*> others .= fieldWithDocModifier "others" othersDesc (array schema)
+    where
+      selfDesc = description ?~ "The user ID of the requestor if the requestor is a member of the conversation"
+      othersDesc = description ?~ "All other current users of this conversation"
 
 --------------------------------------------------------------------------------
 -- Members

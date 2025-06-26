@@ -416,7 +416,7 @@ testTeamAdminCanCreateChannelWithoutJoining = do
   conv <-
     postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
-      resp.json %. "members" `shouldMatch` ([] :: [Value])
+      resp.json %. "members.others" `shouldMatch` ([] :: [Value])
       pure resp.json
 
   I.getConversation conv `bindResponse` \resp -> do
@@ -483,7 +483,7 @@ testTeamAdminCanAddMembersWithoutJoining = do
     -- the members are added to the backend conversation
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      convMems <- resp.json %. "members" & asList
+      convMems <- resp.json %. "members.others" & asList
       for [m1, m2, m3] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
 
     do

@@ -58,14 +58,18 @@ conversationViewV8 luid conv = do
 
 conversationView ::
   Local x ->
+  Maybe (Local UserId) ->
   Data.Conversation ->
   Conversation
-conversationView luid conv =
+conversationView l luid conv =
   let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
-      localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
+      localMembers = map (localMemberToOther (tDomain l)) $ Data.convLocalMembers conv
+      selfs = filter ((tUnqualified <$> luid ==) . Just . lmId) (Data.convLocalMembers conv)
+      mSelf = localMemberToSelf l <$> listToMaybe selfs
+      others = filter (\oth -> (tUntagged <$> luid) /= Just (omQualifiedId oth)) localMembers <> remoteMembers
    in Conversation
-        { members = Set.fromList $ localMembers <> remoteMembers,
-          qualifiedId = (tUntagged . qualifyAs luid . Data.convId $ conv),
+        { members = ConvMembers mSelf others,
+          qualifiedId = (tUntagged . qualifyAs l . Data.convId $ conv),
           metadata = conv.convMetadata,
           protocol = conv.convProtocol
         }

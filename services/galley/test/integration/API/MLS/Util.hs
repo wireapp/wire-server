@@ -462,7 +462,12 @@ convV8ToV9 :: ConversationV8 -> Conversation
 convV8ToV9 conv =
   Conversation
     { qualifiedId = conv.cnvQualifiedId,
-      members = Set.fromList $ memberToOtherMember conv.cnvMembers.cmSelf : conv.cnvMembers.cmOthers,
+      -- members = Set.fromList $ memberToOtherMember conv.cnvMembers.cmSelf : conv.cnvMembers.cmOthers,
+      members =
+        ConvMembers
+          { self = Just $ conv.cnvMembers.cmSelf,
+            others = conv.cnvMembers.cmOthers
+          },
       metadata = conv.cnvMetadata,
       protocol = conv.cnvProtocol
     }
