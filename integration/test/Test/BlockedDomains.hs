@@ -7,8 +7,8 @@ import Data.Yaml (array)
 import SetupHelpers
 import Testlib.Prelude
 
-testCannotRegisterWithBlockedDomain :: (HasCallStack) => App ()
-testCannotRegisterWithBlockedDomain = do
+testCannotSendActivationCodeToBlockedDomain :: (HasCallStack) => App ()
+testCannotSendActivationCodeToBlockedDomain = do
   let blockedDomain = "blocked.example.com"
       validDomain = "valid.example.com"
   withModifiedBackend
