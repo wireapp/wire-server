@@ -766,8 +766,10 @@ data CustomerExtensions = CustomerExtensions
   deriving (Show, FromJSON, Generic)
 
 -- | See also: "Galley.API.CustomBackend", `galley.custom_backend`.
-newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
-  deriving newtype (Show, FromJSON, Generic)
+newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration (HashSet Domain)
+  deriving newtype (Show, FromJSON)
+
+deriving stock instance Generic DomainsBlockedForRegistration
 
 data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
