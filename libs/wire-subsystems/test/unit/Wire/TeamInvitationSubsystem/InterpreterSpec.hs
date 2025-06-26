@@ -4,6 +4,7 @@ module Wire.TeamInvitationSubsystem.InterpreterSpec (spec) where
 
 import Data.Default
 import Data.Domain
+import Data.HashSet qualified as HashSet
 import Data.Id
 import Data.LegalHold
 import Data.Map qualified as Map
@@ -126,7 +127,7 @@ spec = do
                 TeamInvitationSubsystemConfig
                   { maxTeamSize = 50,
                     teamInvitationTimeout = 3_000_000,
-                    blockedDomains = []
+                    blockedDomains = HashSet.empty
                   }
 
               inviterUid = qUnqualified inviter.userQualifiedId
@@ -219,7 +220,7 @@ spec = do
                 TeamInvitationSubsystemConfig
                   { maxTeamSize = 50,
                     teamInvitationTimeout = 3_000_000,
-                    blockedDomains = getNonEmpty blockedDomains
+                    blockedDomains = (HashSet.fromList . getNonEmpty) blockedDomains
                   }
 
               inviterUid = qUnqualified inviter.userQualifiedId
