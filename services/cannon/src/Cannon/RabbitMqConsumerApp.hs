@@ -160,6 +160,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
 
     sendNotifications :: RabbitMqChannel -> QueueInfo -> WS.Connection -> IO ()
     sendNotifications chan queueInfo wsConn = do
+      -- Empty when pending, full when done
       initialSync <- newEmptyMVar
       unackedMessages <- newIORef (0 :: Int)
 
@@ -172,15 +173,15 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
 
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
-            let notif = NonEmpty.head (eventData.event ^. queuedNotificationPayload)
-
-            case KM.lookup "type" notif of
-              Just (Aeson.String typ)
-                | typ == endOfInitialSyncNotifType ->
-                    void $ tryPutMVar initialSync ()
-              _ -> pure ()
 
             whenM (isEmptyMVar initialSync) $ do
+              let notif = NonEmpty.head (eventData.event ^. queuedNotificationPayload)
+              case KM.lookup "type" notif of
+                Just (Aeson.String typ)
+                  | typ == endOfInitialSyncNotifType ->
+                      void $ tryPutMVar initialSync ()
+                _ -> pure ()
+
               modifyIORef' unackedMessages (+ 1)
 
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
@@ -198,9 +199,9 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                 when isInitialSyncPending $ do
                   modifyIORef' unackedMessages (subtract 1)
 
-                unackedCount <- readIORef unackedMessages
-                when (unackedCount == 0 && isInitialSyncPending) $ do
-                  publishEndOfInitialSync
+                  unackedCount <- readIORef unackedMessages
+                  when (unackedCount == 0 && isInitialSyncPending) $ do
+                    publishEndOfInitialSync
 
                 void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
