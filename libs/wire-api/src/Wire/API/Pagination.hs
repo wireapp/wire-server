@@ -38,47 +38,28 @@ import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.Arbitrary as Arbitrary
 
--- | (Is there an elegant way to enforce `allowedKeyFieldsInfo` before the handler kicks in?)
-type PaginationQuery (allowedKeyFieldsInfo :: Symbol) (rowKeys :: Type) (rowQuery :: Type) (row :: Type) =
-  QueryParam'
-    '[Optional, Strict, Description "Search string"]
-    "q"
-    Text
-    :> QueryParam'
-         '[ Optional,
-            Strict,
-            Description
-              ( "Sort key(s): comma-separated list of field names.  Must \
-                \match sort keys encoded in pagination state.  Allowed Fields: "
-                  `AppendSymbol` allowedKeyFieldsInfo
-                  -- we need `allowedKeyFieldInfo` because `SortBy` contains that information only on the value level.
-              )
-          ]
-         "sortBy"
-         SortBy
-    :> QueryParam'
-         '[Optional, Strict, Description "Sort order"]
-         "sortOrder"
-         SortOrder
-    :> QueryParam'
-         '[Optional, Strict, Description "Page size"]
-         "pageSize"
-         PageSize
+-- | Servant combinator for a pagination query.  Currently only used for `UserGroup`s
+-- paginated by name and creation date; please generalize as needed.
+type PaginationQuery =
+  QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
+    :> QueryParam' '[Optional, Strict] "sortBy" SortBy
+    :> QueryParam' '[Optional Strict] "sortOrder" SortOrder
+    :> QueryParam' '[Optional, Strict] "pageSize" PageSize
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
          "paginationState"
          (PaginationState rowKeys rowQuery)
     :> Get '[JSON] (PaginationResult rowKeys rowQuery row)
 
-data SortBy = SortBy {fromSortBy :: [Text]}
+data SortBy = SortByName | SortByCreatedAt
   deriving (Eq, Ord, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
-
-instance Arbitrary SortBy where
-  arbitrary = SortBy <$> arbitrary
+  deriving (Arbitrary)
 
 instance ToSchema SortBy where
-  schema = object "SortBy" $ SortBy <$> (.fromSortBy) .= field "keys" (array schema)
+  schema = object "SortBy" $ SortBy <$> (.fromSortBy) .= fieldWithDocModifier "keys" desc (array schema)
+    where
+      desc = "Must match sort key encoded in pagination state.  Allowed values: name, created_at."
 
 instance FromHttpApiData SortBy where
   parseUrlPiece = parseUrlPieceViaSchema
