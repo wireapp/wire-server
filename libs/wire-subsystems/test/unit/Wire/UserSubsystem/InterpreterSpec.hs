@@ -10,6 +10,7 @@ import Data.Coerce
 import Data.Default (Default (def))
 import Data.Domain
 import Data.Handle
+import Data.HashSet qualified as HashSet
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
@@ -926,7 +927,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   localBackend
                   mempty
                   ( config
-                      { blockedDomains = (toList . getNonEmpty) blockedDomains
+                      { blockedDomains = (HashSet.fromList . getNonEmpty) blockedDomains
                       }
                   )
                   $ try (requestEmailChange lusr blockedEmailAddress UpdateOriginWireClient)

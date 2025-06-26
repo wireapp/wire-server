@@ -12,7 +12,7 @@ data UserSubsystemConfig = UserSubsystemConfig
     searchSameTeamOnly :: Bool,
     maxTeamSize :: Word32,
     activationCodeTimeout :: Timeout,
-    blockedDomains :: [Domain]
+    blockedDomains :: HashSet Domain
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSubsystemConfig)
