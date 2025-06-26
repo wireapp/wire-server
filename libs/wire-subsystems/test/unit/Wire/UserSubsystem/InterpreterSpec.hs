@@ -908,25 +908,29 @@ spec = describe "UserSubsystem.Interpreter" do
                     [user {emailUnvalidated = Just updatedEmail} :: StoredUser]
                   )
     prop "Email change not allowed for blocked domains" $ do
-      \(locx :: Local ()) (NotPendingStoredUser user) (emailUsername :: EmailUsername) (blockedDomains :: NonEmptyList Domain) config -> do
-        blockedEmailDomain <- anyElementOf blockedDomains
+      \(locx :: Local ())
+       (NotPendingStoredUser user)
+       (emailUsername :: EmailUsername)
+       (blockedDomains :: NonEmptyList Domain)
+       config -> do
+          blockedEmailDomain <- anyElementOf blockedDomains
 
-        let blockedEmailAddress :: EmailAddress =
-              unsafeEmailAddress
-                ((fromString . getEmailUsername) emailUsername)
-                ((encodeUtf8 . domainText) blockedEmailDomain)
-            localBackend = def {users = [user]}
-            lusr = qualifyAs locx user.id
-            result =
-              runNoFederationStack
-                localBackend
-                mempty
-                ( config
-                    { blockedDomains = (toList . getNonEmpty) blockedDomains
-                    }
-                )
-                $ try (requestEmailChange lusr blockedEmailAddress UpdateOriginWireClient)
-         in pure $ result === (Left UserSubsystemBlockedDomain)
+          let blockedEmailAddress :: EmailAddress =
+                unsafeEmailAddress
+                  ((fromString . getEmailUsername) emailUsername)
+                  ((encodeUtf8 . domainText) blockedEmailDomain)
+              localBackend = def {users = [user]}
+              lusr = qualifyAs locx user.id
+              result =
+                runNoFederationStack
+                  localBackend
+                  mempty
+                  ( config
+                      { blockedDomains = (toList . getNonEmpty) blockedDomains
+                      }
+                  )
+                  $ try (requestEmailChange lusr blockedEmailAddress UpdateOriginWireClient)
+           in pure $ result === (Left UserSubsystemBlockedDomain)
 
     prop "Email change is not allowed if the email domain is taken by another backend or team" $
       \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) preIdp config ->
