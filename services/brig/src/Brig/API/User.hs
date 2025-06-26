@@ -817,9 +817,15 @@ sendActivationCode email loc = do
           _otherwise ->
             liftSem $ (maybe sendActivationMail (const sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
 
-    guardBlockedDomainEmail :: Sem r ()
+    guardBlockedDomainEmail ::
+      ( Member UserKeyStore r',
+        Member (Polysemy.Error.Error UserSubsystemError) r'
+      ) =>
+      Sem r' ()
     guardBlockedDomainEmail = do
-      domain <- either (Polysemy.Error.throw . UserSubsystemGuardFailed . InvalidDomain) pure $ emailDomain email
+      domain <-
+        either (Polysemy.Error.throw . UserSubsystemGuardFailed . InvalidDomain) pure $
+          emailDomain email
       blocked <- blockedDomains <$> input
       when (domain `elem` blocked) $
         Polysemy.Error.throw UserSubsystemBlockedDomain
