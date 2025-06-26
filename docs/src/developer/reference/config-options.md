@@ -247,12 +247,12 @@ fileSharing:
 
 These are all the possible combinations of `status` and `lockStatus`:
 
-| `status`   | `lockStatus`   |                                                   |
-|------------|----------------|---------------------------------------------------|
-| `enabled`  | `locked`       | Feature enabled, cannot be disabled by team admin |
-| `enabled`  | `unlocked`     | Feature enabled, can be disabled by team admin    |
-| `disabled` | `locked`       | Feature disabled, cannot be enabled by team admin |
-| `disabled` | `unlocked`     | Feature disabled, can be enabled by team admin    |
+| `status`   | `lockStatus` |                                                   |
+| ---------- | ------------ | ------------------------------------------------- |
+| `enabled`  | `locked`     | Feature enabled, cannot be disabled by team admin |
+| `enabled`  | `unlocked`   | Feature enabled, can be disabled by team admin    |
+| `disabled` | `locked`     | Feature disabled, cannot be enabled by team admin |
+| `disabled` | `unlocked`   | Feature disabled, can be enabled by team admin    |
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/fileSharing/(un)?locked`).
 
@@ -576,6 +576,18 @@ This feature flag enables cells integration in wire-server. By default, it is di
 ```yaml
 # galley.yaml
 cells:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
+### Ephemeral User Creation
+
+Controls the ability to create ephemeral (temporary) users via the `/register` endpoint. Ephemeral users are limited to 24 hours and require only a display name (not unique). This is primarily used for the guests feature. The feature is enabled per default. If you wish to not allow the creation of ephemeral users at all, server-wide, this feature must be disabled. Disabling this feature ensures that no ephemeral users can be created on any team or via any endpoint.
+
+```yaml
+# galley.yaml
+ephemeralUserCreation:
   defaults:
     status: disabled
     lockStatus: locked

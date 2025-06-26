@@ -48,9 +48,8 @@ setTeamFeatureStatus domain team featureName status = do
 setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureLockStatus domain team featureName status = do
   tid <- asString team
-  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName, status]
-  bindResponse (submit "PUT" $ req) $ \res ->
-    res.status `shouldMatchInt` 200
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "PATCH" (req & addJSONObject ["lockStatus" .= status]) >>= assertSuccess
 
 getFederationStatus ::
   ( HasCallStack,
