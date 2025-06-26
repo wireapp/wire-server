@@ -19,7 +19,6 @@ import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.), _Just)
 import Control.Monad.Catch (throwM)
-import Data.HashSet qualified as HashSet
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
@@ -220,7 +219,7 @@ runBrigToIO e (AppT ma) = do
                  . Opt.customerExtensionsLens
                  . _Just
                  . to Opt.domainsBlockedForRegistration
-                 . to (\(Opt.DomainsBlockedForRegistration domains) -> HashSet.fromList domains)
+                 . to (\(Opt.DomainsBlockedForRegistration domains) -> domains)
              )
       userSubsystemConfig =
         UserSubsystemConfig
