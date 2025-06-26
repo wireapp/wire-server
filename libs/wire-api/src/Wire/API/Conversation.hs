@@ -251,7 +251,7 @@ data ConversationV9 = ConversationV9
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
     cnvMetadata :: ConversationMetadata,
-    cnvMembers :: ConvMembersV8,
+    cnvMembers :: ConvMembersV9,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
     cnvProtocol :: Protocol
   }
@@ -311,7 +311,7 @@ conversationSchema v =
 data Conversation = Conversation
   { qualifiedId :: Qualified ConvId,
     metadata :: ConversationMetadata,
-    members :: Set OtherMember,
+    members :: ConvMembers,
     protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
@@ -330,7 +330,7 @@ conversationV9ObjectSchema =
   Conversation
     <$> qualifiedId .= field "qualified_id" schema
     <*> metadata .= conversationMetadataObjectSchema accessRolesSchema
-    <*> members .= field "members" (set schema)
+    <*> members .= field "members" schema
     <*> protocol .= protocolSchema Nothing
 
 data MLSOne2OneConversation a = MLSOne2OneConversation

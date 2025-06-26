@@ -220,7 +220,13 @@ createGroupConversation lusr conn newConv = do
     lusr
     conn
     newConv
-    (\dbConv -> pure $ CreateGroupConversation (conversationView lusr dbConv) mempty)
+    ( \dbConv ->
+        pure $
+          CreateGroupConversation
+            { conversation = conversationView (qualifyAs lusr ()) (Just lusr) dbConv,
+              failedToAdd = mempty
+            }
+    )
 
 createGroupConvAndMkResponse ::
   ( Member (Input Opts) r,

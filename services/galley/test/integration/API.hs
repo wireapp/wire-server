@@ -28,7 +28,7 @@ where
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
 import API.MLS qualified
-import API.MLS.Util (convV9ToV10, memberToOtherMember)
+import API.MLS.Util (convV9ToV10)
 import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
 import API.SQS
@@ -1516,10 +1516,8 @@ getConvsOk2 = do
       Nothing -> assertFailure $ "Did not find expected conversation: " <> show expected
       Just actual -> do
         assertEqual "name mismatch" expected.metadata.cnvmName actual.cnvMetadata.cnvmName
-        assertEqual
-          "members"
-          expected.members
-          (Set.fromList (memberToOtherMember actual.cnvMembers.cmSelf : actual.cnvMembers.cmOthers))
+        assertEqual "members.self" expected.members.self (Just actual.cnvMembers.cmSelf)
+        assertEqual "members.others" expected.members.others actual.cnvMembers.cmOthers
 
 getConvsFailMaxSizeV2 :: TestM ()
 getConvsFailMaxSizeV2 = do

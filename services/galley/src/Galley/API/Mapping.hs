@@ -28,7 +28,6 @@ where
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
-import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.Data.Conversation qualified as Data
 import Galley.Types.Conversations.Members
@@ -58,14 +57,18 @@ conversationViewV9 luid conv = do
 
 conversationView ::
   Local x ->
+  Maybe (Local UserId) ->
   Data.Conversation ->
   Conversation
-conversationView luid conv =
+conversationView l luid conv =
   let remoteMembers = map remoteMemberToOther $ Data.convRemoteMembers conv
-      localMembers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
+      localMembers = map (localMemberToOther (tDomain l)) $ Data.convLocalMembers conv
+      selfs = filter ((tUnqualified <$> luid ==) . Just . lmId) (Data.convLocalMembers conv)
+      mSelf = localMemberToSelf l <$> listToMaybe selfs
+      others = filter (\oth -> (tUntagged <$> luid) /= Just (omQualifiedId oth)) localMembers <> remoteMembers
    in Conversation
-        { members = Set.fromList $ localMembers <> remoteMembers,
-          qualifiedId = (tUntagged . qualifyAs luid . Data.convId $ conv),
+        { members = ConvMembers mSelf others,
+          qualifiedId = (tUntagged . qualifyAs l . Data.convId $ conv),
           metadata = conv.convMetadata,
           protocol = conv.convProtocol
         }
@@ -106,7 +109,7 @@ conversationViewMaybe luid remoteOthers localOthers conv = do
     ConversationV9
       (tUntagged . qualifyAs luid . Data.convId $ conv)
       (Data.convMetadata conv)
-      (ConvMembersV8 self others)
+      (ConvMembersV9 self others)
       (Data.convProtocol conv)
 
 -- | View for a local user of a remote conversation.
@@ -130,7 +133,7 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
    in ConversationV9
         (Qualified rconv.id rDomain)
         rconv.metadata
-        (ConvMembersV8 self others)
+        (ConvMembersV9 self others)
         rconv.protocol
 
 -- | Convert a local conversation to a structure to be returned to a remote
