@@ -86,6 +86,7 @@ module Wire.API.Team.Feature
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
     CellsConfig (..),
+    EphemeralUserCreationConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -242,6 +243,7 @@ data FeatureSingleton cfg where
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
+  FeatureSingletonEphemeralUserCreationConfig :: FeatureSingleton EphemeralUserCreationConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1433,7 +1435,27 @@ instance IsFeatureConfig CellsConfig where
   featureSingleton = FeatureSingletonCellsConfig
   objectSchema = pure CellsConfig
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- EphemeralUserCreation feature
+
+data EphemeralUserCreationConfig = EphemeralUserCreationConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform EphemeralUserCreationConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName EphemeralUserCreationConfig)
+  deriving (ParseDbFeature, Default) via (TrivialFeature EphemeralUserCreationConfig)
+
+instance ToSchema EphemeralUserCreationConfig where
+  schema = object "EphemeralUserCreationConfig" objectSchema
+
+instance Default (LockableFeature EphemeralUserCreationConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig EphemeralUserCreationConfig where
+  type FeatureSymbol EphemeralUserCreationConfig = "ephemeralUserCreation"
+  featureSingleton = FeatureSingletonEphemeralUserCreationConfig
+  objectSchema = pure EphemeralUserCreationConfig
+
+--------------------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1518,7 +1540,8 @@ type Features =
     LimitedEventFanoutConfig,
     DomainRegistrationConfig,
     ChannelsConfig,
-    CellsConfig
+    CellsConfig,
+    EphemeralUserCreationConfig
   ]
 
 -- | list of available features as a record
