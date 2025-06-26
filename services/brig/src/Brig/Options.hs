@@ -731,36 +731,14 @@ parseUserFeatureStatus = withObject "UserFeatureStatus" $ \obj -> obj .: "status
 -- This is code implemented to comply with particular contracts.  It may change or be removed
 -- at any point in the future without any further notice.
 data CustomerExtensions = CustomerExtensions
-  { -- | You cannot create an account (free user without team or user with new team) if your
-    -- email address has a domain listed here.  You can only accept an invitation from a team
-    -- that has already been created.
+  { -- TODO: Update comment
+
+    -- | When a `Domain` is blocked, users cannot use email addresses of this domain.
     --
-    -- This feature is a work-around for issues with our somewhat convoluted onboarding
-    -- process.  We are working on a more sustainable solution.  Meanwhile this should not be
-    -- used unless absolutely necessary (legal reasons, constracts).  It has numerous
-    -- drawbacks:
-    --
-    -- * Changing it requires changing the configuration of the backend, which usually means
-    --   a new release.  This is intentional to keep this feature from contaminating more of
-    --   the code base (see below), but it also makes it awkward to use.
-    --
-    -- * So far, we have been using emails as opaque identifiers and not made any assumptions
-    --   about their structure.  Now, email is still securely associated with a user, but can
-    --   also be securely associated with another user who owns the first user's domain.  This
-    --   new setup is more complex, and complexity is bad for security.  Security is now based
-    --   on a much larger number of assumptions, and any one of these assumptions can be
-    --   broken by software or usage errors.  Example: is it even legal for the owner of an
-    --   email domain to keep users from signing up with wire using that email?  This is
-    --   possibly true for domains like @mystartup.com@, but what about
-    --   @globalmailhosting.com@?  Other example: next point.
-    --
-    -- * We could implement something more sophisticated involving 'TXT' DNS records that the
-    --   team admin needs to set up containing some secrets obtainable via team settings.
-    --   This is a lot more involved to implement, and very easy for coders or users to get
-    --   wrong.
-    --
-    -- Bottom line: you probably want to keep either @customerExtensions = Nothing@ or at
-    -- least @domainsBlockedForRegistration = []@.  :)
+    -- This includes:
+    --   - Account activations
+    --   - Team invitations
+    --   - Changes of the account's email address
     domainsBlockedForRegistration :: DomainsBlockedForRegistration
   }
   deriving (Show, FromJSON, Generic)
