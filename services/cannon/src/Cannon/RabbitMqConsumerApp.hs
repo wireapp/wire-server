@@ -11,7 +11,10 @@ import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KM
 import Data.Id
+import Data.List.NonEmpty qualified as NonEmpty
 import Imports hiding (min, threadDelay)
 import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
@@ -33,8 +36,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
     runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \wsConn ->
       ( do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          traverse_ (const $ sendMessageCount wsConn queueInfo) mcid
-          sendNotifications chan wsConn
+          sendNotifications chan queueInfo wsConn
       )
         `catches` [ handleClientMisbehaving wsConn,
                     handleWebSocketExceptions wsConn,
@@ -143,10 +145,44 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
         (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
         k $ QueueInfo queueName messageCount
 
-    sendNotifications :: RabbitMqChannel -> WS.Connection -> IO ()
-    sendNotifications chan wsConn = do
+    endOfInitialSyncNotifType :: Text
+    endOfInitialSyncNotifType = "notification.end-of-initial-sync"
+
+    endOfInitialSyncMsg notificationId =
+      Q.newMsg
+        { Q.msgBody =
+            Aeson.encode . queuedNotification notificationId . NonEmpty.singleton $
+              KM.fromList ["type" Aeson..= endOfInitialSyncNotifType],
+          Q.msgContentType = Just "application/json",
+          Q.msgDeliveryMode = Just Q.NonPersistent,
+          Q.msgExpiration = Just "0"
+        }
+
+    sendNotifications :: RabbitMqChannel -> QueueInfo -> WS.Connection -> IO ()
+    sendNotifications chan queueInfo wsConn = do
+      initialSync <- newEmptyMVar
+      unackedMessages <- newIORef (0 :: Int)
+
+      let publishEndOfInitialSync = do
+            notificationId <- mkNotificationId
+            void $ Q.publishMsg chan.inner "" queueInfo.queueName (endOfInitialSyncMsg notificationId)
+
+      when (queueInfo.messageCount == 0) $ do
+        publishEndOfInitialSync
+
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
+            let notif = NonEmpty.head (eventData.event ^. queuedNotificationPayload)
+
+            case KM.lookup "type" notif of
+              Just (Aeson.String typ)
+                | typ == endOfInitialSyncNotifType ->
+                    void $ tryPutMVar initialSync ()
+              _ -> pure ()
+
+            whenM (isEmptyMVar initialSync) $ do
+              modifyIORef' unackedMessages (+ 1)
+
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
               \(err :: SomeException) -> do
                 logSendFailure err
@@ -158,6 +194,14 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
+                isInitialSyncPending <- isEmptyMVar initialSync
+                when isInitialSyncPending $ do
+                  modifyIORef' unackedMessages (subtract 1)
+
+                unackedCount <- readIORef unackedMessages
+                when (unackedCount == 0 && isInitialSyncPending) $ do
+                  publishEndOfInitialSync
+
                 void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
@@ -240,14 +284,6 @@ sendFullSyncMessage uid cid wsConn env = do
           DELETE FROM missed_notifications
           WHERE user_id = ? and client_id = ?
         |]
-
-sendMessageCount ::
-  WS.Connection ->
-  QueueInfo ->
-  IO ()
-sendMessageCount wsConn queueInfo = do
-  let event = encode $ EventMessageCount $ MessageCount queueInfo.messageCount
-  WS.sendBinaryData wsConn event
 
 getClientMessage :: WS.Connection -> IO MessageClientToServer
 getClientMessage wsConn = do

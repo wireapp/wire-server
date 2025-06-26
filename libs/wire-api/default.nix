@@ -79,6 +79,7 @@
 , quickcheck-instances
 , random
 , resourcet
+, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -191,6 +192,7 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
+    retry
     saml2-web-sso
     schema-profunctor
     scientific
