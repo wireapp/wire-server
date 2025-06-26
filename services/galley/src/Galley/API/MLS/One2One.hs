@@ -49,7 +49,7 @@ localMLSOne2OneConversation ::
   ConversationV9
 localMLSOne2OneConversation lself (tUntagged -> convId) =
   let members =
-        ConvMembers
+        ConvMembersV8
           { cmSelf = defMember (tUntagged lself),
             cmOthers = []
           }
@@ -105,7 +105,7 @@ remoteMLSOne2OneConversation ::
   (MLSOne2OneConversation MLSPublicKey)
 remoteMLSOne2OneConversation lself rother rc =
   let members =
-        ConvMembers
+        ConvMembersV8
           { cmSelf = defMember (tUntagged lself),
             cmOthers = rc.conversation.members.others
           }

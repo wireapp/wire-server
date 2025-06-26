@@ -578,11 +578,11 @@ tests =
           ],
       testGroup "Golden: ConvMembers_user" $
         testObjects
-          [ ( Test.Wire.API.Golden.Generated.ConvMembers_user.testObject_ConvMembers_user_1,
-              "testObject_ConvMembers_user_1.json"
+          [ ( Test.Wire.API.Golden.Generated.ConvMembers_user.testObject_ConvMembersV8_user_1,
+              "testObject_ConvMembersV8_user_1.json"
             ),
-            ( Test.Wire.API.Golden.Generated.ConvMembers_user.testObject_ConvMembers_user_2,
-              "testObject_ConvMembers_user_2.json"
+            ( Test.Wire.API.Golden.Generated.ConvMembers_user.testObject_ConvMembersV8_user_2,
+              "testObject_ConvMembersV8_user_2.json"
             )
           ],
       testGroup "Golden: OtherMemberUpdate_user" $

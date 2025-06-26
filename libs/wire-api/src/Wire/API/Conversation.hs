@@ -251,7 +251,7 @@ data ConversationV9 = ConversationV9
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
     cnvMetadata :: ConversationMetadata,
-    cnvMembers :: ConvMembers,
+    cnvMembers :: ConvMembersV8,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
     cnvProtocol :: Protocol
   }

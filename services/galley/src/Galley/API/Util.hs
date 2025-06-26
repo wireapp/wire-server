@@ -901,7 +901,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def
           }
-        (ConvMembers this others)
+        (ConvMembersV8 this others)
         ProtocolProteus
 
 ensureNoUnreachableBackends ::

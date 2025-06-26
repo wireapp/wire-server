@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Conversation.Member
-  ( ConvMembers (..),
+  ( ConvMembersV8 (..),
 
     -- * Member
     Member (..),
@@ -49,18 +49,18 @@ import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
-data ConvMembers = ConvMembers
+data ConvMembersV8 = ConvMembersV8
   { cmSelf :: Member,
     cmOthers :: [OtherMember]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConvMembers)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembers
+  deriving (Arbitrary) via (GenericUniform ConvMembersV8)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembersV8
 
-instance ToSchema ConvMembers where
+instance ToSchema ConvMembersV8 where
   schema =
-    objectWithDocModifier "ConvMembers" (description ?~ "Users of a conversation") $
-      ConvMembers
+    objectWithDocModifier "ConvMembersV8" (description ?~ "Users of a conversation") $
+      ConvMembersV8
         <$> cmSelf
           .= fieldWithDocModifier
             "self"

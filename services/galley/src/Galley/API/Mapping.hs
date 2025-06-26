@@ -106,7 +106,7 @@ conversationViewMaybe luid remoteOthers localOthers conv = do
     ConversationV9
       (tUntagged . qualifyAs luid . Data.convId $ conv)
       (Data.convMetadata conv)
-      (ConvMembers self others)
+      (ConvMembersV8 self others)
       (Data.convProtocol conv)
 
 -- | View for a local user of a remote conversation.
@@ -130,7 +130,7 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
    in ConversationV9
         (Qualified rconv.id rDomain)
         rconv.metadata
-        (ConvMembers self others)
+        (ConvMembersV8 self others)
         rconv.protocol
 
 -- | Convert a local conversation to a structure to be returned to a remote
