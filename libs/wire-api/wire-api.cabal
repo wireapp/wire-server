@@ -270,7 +270,7 @@ library
     , asn1-encoding
     , attoparsec                 >=0.10
     , barbies
-    , base                       >=4       && <5
+    , base                       >=4        && <5
     , base64-bytestring          >=1.0
     , binary
     , binary-parsers
@@ -330,6 +330,7 @@ library
     , quickcheck-instances       >=0.3.16
     , random                     >=1.2.0
     , resourcet
+    , retry                      ^>=0.9.3.1
     , saml2-web-sso
     , schema-profunctor
     , scientific

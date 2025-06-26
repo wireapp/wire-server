@@ -39,7 +39,6 @@ import Gundeck.Options
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
-import Gundeck.Util
 import Imports
 import Prometheus qualified as Prom
 import System.Logger.Class (MonadLogger, field, msg, val, (.=), (~~))
@@ -47,6 +46,7 @@ import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)
 import Wire.API.Event.Gundeck
 import Wire.API.Internal.Notification
+import Wire.API.Notification (mkNotificationId)
 import Wire.API.Push.V2
 
 push :: NativePush -> [Address] -> Gundeck ()

@@ -20,6 +20,7 @@
 
 module Wire.API.Notification
   ( NotificationId,
+    mkNotificationId,
     isValidNotificationId,
     RawNotificationId (..),
     Event,
@@ -49,6 +50,8 @@ where
 
 import Control.Lens (makeLenses, (.~))
 import Control.Lens.Operators ((?~))
+import Control.Monad.Trans.Resource (MonadThrow (..))
+import Control.Retry
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson.Types qualified as Aeson
 import Data.Bits
@@ -64,14 +67,27 @@ import Data.Schema
 import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
 import Data.UUID qualified as UUID
+import Data.UUID.V1
 import Imports
 import Network.AMQP
 import Network.AMQP.Types
+import Network.HTTP.Types
+import Network.Wai.Utilities (mkError)
 import Servant
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
+
+-- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
+mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
+mkNotificationId = do
+  ni <- fmap Id <$> retrying x10 fun (const (liftIO nextUUID))
+  maybe (throwM err) pure ni
+  where
+    x10 = limitRetries 10 <> exponentialBackoff 10
+    fun = const (pure . isNothing)
+    err = mkError status500 "internal-error" "unable to generate notification ID"
 
 -- FUTUREWORK:
 -- This definition is very opaque, but we know some of the structure already
