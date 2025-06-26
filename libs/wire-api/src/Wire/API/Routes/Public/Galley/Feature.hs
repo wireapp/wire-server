@@ -95,11 +95,10 @@ type family AllDeprecatedFeatureConfigAPI cfgs where
       :<|> AllDeprecatedFeatureConfigAPI cfgs
 
 type DeprecatedFeatureAPI =
-  FeatureStatusDeprecatedGet DeprecationNotice1 V2 SearchVisibilityAvailableConfig
-    :<|> FeatureStatusDeprecatedPut DeprecationNotice1 V2 SearchVisibilityAvailableConfig
-    :<|> FeatureStatusDeprecatedGet DeprecationNotice1 V2 ValidateSAMLEmailsConfig
-    :<|> FeatureStatusDeprecatedGet DeprecationNotice1 V9 ValidateSAMLEmailsConfig
-    :<|> FeatureStatusDeprecatedGet DeprecationNotice2 V2 DigitalSignaturesConfig
+  FeatureStatusDeprecatedGet DeprecationNotice1 SearchVisibilityAvailableConfig V2
+    :<|> FeatureStatusDeprecatedPut DeprecationNotice1 SearchVisibilityAvailableConfig V2
+    :<|> FeatureStatusDeprecatedGet DeprecationNotice1 ValidateSAMLEmailsConfig V2
+    :<|> FeatureStatusDeprecatedGet DeprecationNotice2 DigitalSignaturesConfig V2
 
 type FeatureAPIGet cfg =
   Named
@@ -116,15 +115,15 @@ type FeatureAPIPut cfg =
         :> FeatureStatusBasePutPublic cfg
     )
 
-type FeatureStatusDeprecatedGet d untilVersion feature =
+type FeatureStatusDeprecatedGet d feature untilVersion =
   Named
     '("get-deprecated", '(feature, untilVersion))
-    (ZUser :> FeatureStatusBaseDeprecatedGet d untilVersion feature)
+    (ZUser :> FeatureStatusBaseDeprecatedGet d feature untilVersion)
 
-type FeatureStatusDeprecatedPut d untilVersion feature =
+type FeatureStatusDeprecatedPut d feature untilVersion =
   Named
     '("put-deprecated", '(feature, untilVersion))
-    (ZUser :> FeatureStatusBaseDeprecatedPut d untilVersion feature)
+    (ZUser :> FeatureStatusBaseDeprecatedPut d feature untilVersion)
 
 type FeatureStatusBaseGet featureConfig =
   Summary (AppendSymbol "Get config for " (FeatureSymbol featureConfig))
@@ -152,7 +151,7 @@ type FeatureStatusBasePutPublic featureConfig =
     :> Put '[Servant.JSON] (LockableFeature featureConfig)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type FeatureStatusBaseDeprecatedGet desc untilVersion featureConfig =
+type FeatureStatusBaseDeprecatedGet desc featureConfig untilVersion =
   ( Summary
       (AppendSymbol "[deprecated] Get config for " (FeatureSymbol featureConfig))
       :> Until untilVersion
@@ -173,7 +172,7 @@ type FeatureStatusBaseDeprecatedGet desc untilVersion featureConfig =
   )
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
-type FeatureStatusBaseDeprecatedPut desc untilVersion featureConfig =
+type FeatureStatusBaseDeprecatedPut desc featureConfig untilVersion =
   Summary
     (AppendSymbol "[deprecated] Get config for " (FeatureSymbol featureConfig))
     :> Until untilVersion
