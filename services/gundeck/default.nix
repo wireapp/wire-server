@@ -202,6 +202,7 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amqp
     async
     base
     bytestring-conversion
