@@ -75,7 +75,7 @@ defAllFeatures =
     [ "legalhold" .= disabled,
       "sso" .= disabled,
       "searchVisibility" .= disabled,
-      "validateSAMLEmails" .= enabled,
+      "validateSAMLemails" .= enabled,
       "digitalSignatures" .= disabled,
       "appLock" .= defEnabledObj (object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]),
       "fileSharing" .= enabled,

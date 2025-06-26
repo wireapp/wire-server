@@ -757,12 +757,9 @@ getTeamFeatures user tid = do
   submit "GET" req
 
 getTeamFeature :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> String -> App Response
-getTeamFeature = getTeamFeatureVersioned Versioned
-
-getTeamFeatureVersioned :: (HasCallStack, MakesValue user, MakesValue tid) => Versioned -> user -> tid -> String -> App Response
-getTeamFeatureVersioned versioned user tid featureName = do
+getTeamFeature user tid featureName = do
   tidStr <- asString tid
-  req <- baseRequest user Galley versioned (joinHttpPath ["teams", tidStr, "features", featureName])
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features", featureName])
   submit "GET" req
 
 setTeamFeatureConfig ::

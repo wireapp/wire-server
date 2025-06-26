@@ -691,13 +691,11 @@ instance Default (LockableFeature ValidateSAMLEmailsConfig) where
   def = defUnlockedFeature
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
-  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLEmails"
+  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
   featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
 type instance DeprecatedFeatureName V2 ValidateSAMLEmailsConfig = "validate-saml-emails"
-
-type instance DeprecatedFeatureName V9 ValidateSAMLEmailsConfig = "validateSAMLemails"
 
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
