@@ -46,7 +46,6 @@ testCannotChangeOwnEmailWithBlockedDomain = do
     $ \domain -> do
       validUser <- randomUser domain def
       validUserEmail <- validUser %. "email" & asString
-      username2 <- randomName
       (cookie, token) <-
         login domain validUserEmail defPassword `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
@@ -54,6 +53,7 @@ testCannotChangeOwnEmailWithBlockedDomain = do
           let cookie = fromJust $ getCookie "zuid" resp
           pure ("zuid=" <> cookie, token)
 
+      username2 <- randomName
       bindResponse (putSelfEmail validUser cookie token (username2 <> "@" <> blockedDomain)) $ \resp -> do
         resp.status `shouldMatchInt` 451
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
