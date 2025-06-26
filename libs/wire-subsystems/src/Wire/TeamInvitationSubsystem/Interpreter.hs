@@ -45,7 +45,7 @@ import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfP
 data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
   { maxTeamSize :: Word32,
     teamInvitationTimeout :: Timeout,
-    blockedDomains :: [Domain]
+    blockedDomains :: HashSet Domain
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via GenericUniform TeamInvitationSubsystemConfig
