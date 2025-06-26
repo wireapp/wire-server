@@ -162,7 +162,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
     sendNotifications chan queueInfo wsConn = do
       -- Empty when pending, full when done
       initialSync <- newEmptyMVar
-      unackedMessages <- newIORef (0 :: Int)
+      latestUnackedTag <- newIORef (Nothing :: Maybe Word64)
 
       let publishEndOfInitialSync = do
             notificationId <- mkNotificationId
@@ -186,7 +186,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
             -- modify this value, so we should check again. This avoids sending
             -- duplicate end-of-initial-sync messages.
             whenM (isEmptyMVar initialSync) $ do
-              atomicModifyIORef' unackedMessages (\x -> (x + 1, ()))
+              atomicModifyIORef' latestUnackedTag (const (Just eventData.deliveryTag, ()))
 
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
               \(err :: SomeException) -> do
@@ -201,9 +201,9 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                 logAckReceived ackData
                 isInitialSyncPending <- isEmptyMVar initialSync
                 when isInitialSyncPending $ do
-                  unackedCount <- atomicModifyIORef' unackedMessages (\x -> (x - 1, x - 1))
+                  tag <- readIORef latestUnackedTag
 
-                  when (unackedCount == 0 && isInitialSyncPending) $ do
+                  when (tag == Just ackData.deliveryTag) $ do
                     publishEndOfInitialSync
 
                 void $ ackMessage chan ackData.deliveryTag ackData.multiple

@@ -53,16 +53,7 @@ testConsumeEventsOneWebSocket = do
   clientId <- objId client
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    deliveryTag <- assertEvent ws $ \e -> do
-      e %. "type" `shouldMatch` "event"
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
-      e %. "data.delivery_tag"
-    assertEndOfInitialSync ws
-
-    sendAck ws deliveryTag False
-    assertNoEvent_ ws
-
+    consumeAllEvents ws
     handle <- randomHandle
     putHandle alice handle >>= assertSuccess
 
@@ -89,9 +80,7 @@ testConsumeTempEvents = do
 
     -- Ensure there is no race between event for this client being pushed and temp
     -- consumer being created
-    lift $ do
-      expectAndAckNewClientEvent ws0 clientId0
-      assertEndOfInitialSync ws0
+    lift $ consumeAllEvents ws0
 
     wsTemp <- createEventsWebSocket alice Nothing
     lift $ assertEndOfInitialSync wsTemp
@@ -347,20 +336,18 @@ testConsumeEventsWhileHavingLegacyClients = do
 
 testConsumeEventsAcks :: (HasCallStack) => App ()
 testConsumeEventsAcks = do
-  alice <- randomUser OwnDomain def
-  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  clientId <- objId client
+  (alice, uid, clientId) <- mkUserPlusClient
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    consumeAllEvents ws
+    GundeckInternal.postPush OwnDomain [mkEvent uid clientId False] >>= assertSuccess
     assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "test"
 
   -- without ack, we receive the same event again
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     deliveryTag <- assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "test"
       e %. "data.delivery_tag"
     sendAck ws deliveryTag False
 
@@ -369,21 +356,20 @@ testConsumeEventsAcks = do
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
 testConsumeEventsMultipleAcks = do
-  alice <- randomUser OwnDomain def
-  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  clientId <- objId client
-
-  handle <- randomHandle
-  putHandle alice handle >>= assertSuccess
+  (alice, uid, clientId) <- mkUserPlusClient
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+    consumeAllEvents ws
+    assertNoEvent_ ws
+
+    GundeckInternal.postPush OwnDomain [mkEvent uid clientId False] >>= assertSuccess
+    GundeckInternal.postPush OwnDomain [mkEvent uid clientId False] >>= assertSuccess
+
     assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "test"
 
     deliveryTag <- assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
-      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
+      e %. "data.event.payload.0.type" `shouldMatch` "test"
       e %. "data.delivery_tag"
 
     sendAck ws deliveryTag True
@@ -696,14 +682,27 @@ testEndOfInitialSync = do
   runCodensity (createEventsWebSocket alice (Just cid)) $ \ws -> do
     events <- consumeEventsUntilEndOfInitialSync ws
     length events `shouldMatchInt` n
-  where
-    mkEvent :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Bool -> Value
-    mkEvent uid cid transient =
-      object
-        [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
-          "payload" .= [object ["hello" .= "world", "type" .= "test"]],
-          "transient" .= transient
-        ]
+
+  -- send more messages
+  replicateM_ n $ do
+    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+
+  runCodensity (createEventsWebSocket alice (Just cid)) $ \ws -> do
+    void $ assertEvent ws pure
+    e <- assertEvent ws pure
+    dt <- e %. "data.delivery_tag"
+    -- we ack the first 2 events with one ack
+    sendAck ws dt True
+    events <- consumeEventsUntilEndOfInitialSync ws
+    length events `shouldMatchInt` (n - 2)
+
+mkEvent :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Bool -> Value
+mkEvent uid cid transient =
+  object
+    [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
+      "payload" .= [object ["hello" .= "world", "type" .= "test"]],
+      "transient" .= transient
+    ]
 
 testQosLimit :: (HasCallStack) => App ()
 testQosLimit = do
@@ -906,18 +905,20 @@ assertNoEventHelper ws = do
       eventJSON <- prettyJSON e
       assertFailure $ "Did not expect event: \n" <> eventJSON
 
--- -- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
--- -- `/await`).
+-- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
+-- `/await`).
 assertNoEvent_ :: (HasCallStack) => EventWebSocket -> App ()
 assertNoEvent_ = void . assertNoEventHelper
 
 -- | Similar to `assertNoEvent` from Testlib, but with rabbitMQ typing (`/event` end-point, not
 -- `/await`).
 assertEndOfInitialSync :: (HasCallStack) => EventWebSocket -> App ()
-assertEndOfInitialSync ws =
-  assertEvent ws $ \e -> do
+assertEndOfInitialSync ws = do
+  e <- assertEvent ws $ \e -> do
     e %. "type" `shouldMatch` "event"
     e %. "data.event.payload.0.type" `shouldMatch` "notification.end-of-initial-sync"
+    pure e
+  ackEvent ws e
 
 assertWebSocketDied :: (HasCallStack) => EventWebSocket -> App ()
 assertWebSocketDied ws = do
@@ -957,8 +958,7 @@ consumeAllEvents ws = do
         $ "Websocket closed while consuming all events: "
         <> displayException e
     Just (Right e) -> do
-      t <- e %. "type" & asString
-      unless (t == "message_count") $ ackEvent ws e
+      ackEvent ws e
       consumeAllEvents ws
 
 consumeAllEventsNoAck :: EventWebSocket -> App [Value]
