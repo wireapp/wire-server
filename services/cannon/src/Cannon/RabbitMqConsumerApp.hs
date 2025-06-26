@@ -182,6 +182,10 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                       void $ tryPutMVar initialSync ()
                 _ -> pure ()
 
+            -- This looks like a duplicate check, but the previous whenM can
+            -- modify this value, so we should check again. This avoids sending
+            -- duplicate end-of-initial-sync messages.
+            whenM (isEmptyMVar initialSync) $ do
               atomicModifyIORef' unackedMessages (\x -> (x + 1, ()))
 
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
