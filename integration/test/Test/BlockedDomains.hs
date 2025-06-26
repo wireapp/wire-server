@@ -16,8 +16,7 @@ testCannotRegisterWithBlockedDomain = do
       { brigCfg =
           setField
             "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
-            ( array [fromString blockedDomain]
-            )
+            (array [fromString blockedDomain])
       }
     $ \domain -> do
       username <- randomName
@@ -42,8 +41,7 @@ testCannotChangeOwnEmailWithBlockedDomain = do
       { brigCfg =
           setField
             "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
-            ( array [fromString blockedDomain]
-            )
+            (array [fromString blockedDomain])
       }
     $ \domain -> do
       validUser <- randomUser domain def
@@ -71,8 +69,7 @@ testCannotChangeTeamMemberEmailWithBlockedDomain = do
       { brigCfg =
           setField
             "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
-            ( array [fromString blockedDomain]
-            )
+            (array [fromString blockedDomain])
       }
     $ \domain -> do
       (owner, _team, [mem1]) <- createTeam domain 2
@@ -100,8 +97,7 @@ testCannotCreateTeamInvitationWithBlockedDomain = do
       { brigCfg =
           setField
             "optSettings.setCustomerExtensions.domainsBlockedForRegistration"
-            ( array [fromString blockedDomain]
-            )
+            (array [fromString blockedDomain])
       }
     $ \domain -> do
       (owner, _team, []) <- createTeam domain 1
