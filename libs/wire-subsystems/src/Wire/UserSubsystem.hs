@@ -252,6 +252,10 @@ requestEmailChange lusr email allowScim = do
       internalUpdateSearchIndex u
       pure ChangeEmailResponseNeedsActivation
   where
+    throwGuardFailed ::
+      (Member (Error UserSubsystemError) r') =>
+      GuardFailure ->
+      Sem r' a
     throwGuardFailed = throw . UserSubsystemGuardFailed
 
     guardRegisteredEmailDomain ::
@@ -285,8 +289,15 @@ requestEmailChange lusr email allowScim = do
         (activationCode adata)
         (Just (userLocale usr))
 
+    guardBlockedDomainEmail ::
+      ( Member (Input UserSubsystemConfig) r',
+        Member (Error UserSubsystemError) r'
+      ) =>
+      Sem r' ()
     guardBlockedDomainEmail = do
-      domain <- either (throwGuardFailed . InvalidDomain) pure $ emailDomain email
+      domain <-
+        either (throwGuardFailed . InvalidDomain) pure $
+          emailDomain email
       blocked <- blockedDomains <$> input
       when (domain `elem` blocked) $
         throw UserSubsystemBlockedDomain
