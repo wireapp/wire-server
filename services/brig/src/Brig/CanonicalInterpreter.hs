@@ -19,6 +19,7 @@ import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.), _Just)
 import Control.Monad.Catch (throwM)
+import Data.Coerce (coerce)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
@@ -218,8 +219,10 @@ runBrigToIO e (AppT ma) = do
           ^. ( App.settingsLens
                  . Opt.customerExtensionsLens
                  . _Just
-                 . to Opt.domainsBlockedForRegistration
-                 . to (\(Opt.DomainsBlockedForRegistration domains) -> domains)
+                 . to
+                   ( coerce {- safely drop newtype wrapper -}
+                       Opt.domainsBlockedForRegistration
+                   )
              )
       userSubsystemConfig =
         UserSubsystemConfig
