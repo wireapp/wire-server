@@ -182,7 +182,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                       void $ tryPutMVar initialSync ()
                 _ -> pure ()
 
-              modifyIORef' unackedMessages (+ 1)
+              atomicModifyIORef' unackedMessages (\x -> (x + 1, ()))
 
             catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
               \(err :: SomeException) -> do
@@ -197,9 +197,8 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                 logAckReceived ackData
                 isInitialSyncPending <- isEmptyMVar initialSync
                 when isInitialSyncPending $ do
-                  modifyIORef' unackedMessages (subtract 1)
+                  unackedCount <- atomicModifyIORef' unackedMessages (\x -> (x - 1, x - 1))
 
-                  unackedCount <- readIORef unackedMessages
                   when (unackedCount == 0 && isInitialSyncPending) $ do
                     publishEndOfInitialSync
 
