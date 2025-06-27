@@ -35,9 +35,6 @@ startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
   markAsWorking BackendDeadUserNoticationWatcher
-
-  cassandra <- asks (.cassandra)
-
   void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
   QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) ->
     if (msg.msgDeliveryMode == Just Q.NonPersistent)
@@ -56,7 +53,7 @@ startConsumer chan = do
               cid <- hoistMaybe $ fromByteString cidBS
               pure (uid, cid)
             (uid, cid) <- maybe (logParseError env dat) pure m
-            markAsNeedsFullSync cassandra uid cid
+            markAsNeedsFullSync env.cassandra uid cid
             lift $ Q.ackEnv envelope
           _ -> void $ logParseError env dat
   where

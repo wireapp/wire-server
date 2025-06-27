@@ -44,6 +44,9 @@ supervisor env workerName workerAction = async loop
         Left e ->
           if fromException e == Just AsyncCancelled
             then do
+              Log.info (logger env) $
+                (Log.field "worker name: " workerName)
+                  . Log.msg (Log.val $ "worker cancelled, shutting down.")
               pure Nothing
             else do
               Log.err (logger env) $
