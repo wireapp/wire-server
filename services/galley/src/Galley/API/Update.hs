@@ -88,6 +88,7 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
+import Galley.API.Action.Kick (kickMember)
 import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
@@ -109,7 +110,7 @@ import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..))
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Polysemy
@@ -137,6 +138,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
+import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
@@ -896,7 +898,7 @@ joinConversation lusr zcon conv access = do
     -- where there is no way to control who joins, etc.
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
-      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember ExternalAdd
+      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember InternalAdd
     lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
@@ -1327,14 +1329,55 @@ removeMemberFromLocalConv lcnv lusr con victim
         . runError @NoChanges
         . updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged lusr) con
         $ ()
-  | otherwise =
-      fmap (fmap lcuEvent . hush)
-        . runError @NoChanges
-        $ updateLocalConversation @'ConversationRemoveMembersTag
-          lcnv
-          (tUntagged lusr)
-          con
-          (ConversationRemoveMembers (pure victim) EdReasonRemoved)
+  | otherwise = do
+      conv <- getConversationWithError lcnv
+      let lconv = qualifyAs lusr conv
+      if not (isConvMemberL lconv lusr) && conv.convMetadata.cnvmGroupConvType == Just Channel
+        then
+          fmap (const Nothing) . runError @NoChanges $ removeMemberFromChannel (tUntagged lusr) lconv victim
+        else
+          fmap (fmap lcuEvent . hush)
+            . runError @NoChanges
+            $ updateLocalConversation @'ConversationRemoveMembersTag
+              lcnv
+              (tUntagged lusr)
+              con
+              (ConversationRemoveMembers (pure victim) EdReasonRemoved)
+
+removeMemberFromChannel ::
+  forall r.
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member TeamStore r,
+    Member (Input Env) r,
+    Member MemberStore r,
+    Member (Error NoChanges) r,
+    Member SubConversationStore r,
+    Member ProposalStore r,
+    Member (Input UTCTime) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member (Error InternalError) r,
+    Member Random r,
+    Member TinyLog r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
+  ) =>
+  Qualified UserId ->
+  Local Data.Conversation ->
+  Qualified UserId ->
+  Sem r ()
+removeMemberFromChannel qusr lconv victim = do
+  let conv = tUnqualified lconv
+  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
+  self :: ConvOrTeamMember (Either LocalMember RemoteMember) <- noteS @'ConvNotFound $ TeamMember <$> mTeamMember
+  let action = ConversationRemoveMembers {crmTargets = pure victim, crmReason = EdReasonRemoved}
+  ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv self
+  let notificationTargets = convBotsAndMembers conv
+  kickMember qusr lconv notificationTargets victim
+  where
+    getTeamMembership :: Data.Conversation -> Local UserId -> Sem r (Maybe TeamMember)
+    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
 
 -- OTR
 

@@ -264,7 +264,19 @@ testMLSOne2OneUnblocked scenario = do
   -- Reset the group membership in the test setup as only 'bob1' is left in
   -- reality, even though the test state believes 'alice1' is still part of the
   -- conversation.
-  modifyMLSState $ \s -> s {convs = Map.adjust (\conv -> conv {members = Set.singleton bob1}) one2OneConvId s.convs}
+  modifyMLSState $ \s ->
+    s
+      { convs =
+          Map.adjust
+            ( \conv ->
+                conv
+                  { members = Set.singleton bob1,
+                    memberUsers = Set.singleton bob1.qualifiedUserId
+                  }
+            )
+            one2OneConvId
+            s.convs
+      }
 
   -- Bob creates a new client and adds it to the one-to-one conversation just so
   -- that the epoch advances.

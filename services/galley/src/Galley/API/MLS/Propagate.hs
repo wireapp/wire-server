@@ -84,7 +84,15 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
           SubConv c s -> (mcId c, Just (scSubConvId s))
       qcnv = fst <$> qt
       sconv = snd (qUnqualified qt)
-      e = Event qcnv sconv qusr now Nothing $ EdMLSMessage msg.raw
+      e =
+        Event
+          { evtConv = qcnv,
+            evtSubConv = sconv,
+            evtFrom = qusr,
+            evtTime = now,
+            evtTeam = Nothing,
+            evtData = EdMLSMessage msg.raw
+          }
 
   runMessagePush lConvOrSub (Just qcnv) $
     newMessagePush botMap con mm (lmems >>= toList . localMemberRecipient mlsConv) e

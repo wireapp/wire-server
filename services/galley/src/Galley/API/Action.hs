@@ -41,6 +41,7 @@ module Galley.API.Action
     enforceFederationProtocol,
     checkFederationStatus,
     firstConflictOrFullyConnected,
+    ensureAllowed,
   )
 where
 
@@ -449,6 +450,7 @@ ensureAllowed tag _ action conv (TeamMember tm) = do
       case action of
         ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
         ConversationJoin _ _ ExternalAdd -> ensureChannelAndTeamAdmin conv tm
+    SConversationRemoveMembersTag -> ensureChannelAndTeamAdmin conv tm
     _ -> throwS @'ConvNotFound
 ensureAllowed tag loc action conv (ConvMember origUser) = do
   case tag of
