@@ -34,7 +34,6 @@ getLastDeathQueue Nothing = Nothing
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
-  markAsWorking BackendDeadUserNoticationWatcher
   void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
   QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) ->
     if (msg.msgDeliveryMode == Just Q.NonPersistent)
@@ -56,6 +55,7 @@ startConsumer chan = do
             markAsNeedsFullSync env.cassandra uid cid
             lift $ Q.ackEnv envelope
           _ -> void $ logParseError env dat
+  markAsWorking BackendDeadUserNoticationWatcher
   where
     logHeaderError env headers = do
       Log.err
