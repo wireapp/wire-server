@@ -285,6 +285,13 @@ newtype instance FeatureDefaults CellsConfig
   deriving (FromJSON) via Defaults (LockableFeature CellsConfig)
   deriving (ParseFeatureDefaults) via OptionalField CellsConfig
 
+newtype instance FeatureDefaults EphemeralUserCreationConfig
+  = EphemeralUserCreationDefaults (LockableFeature EphemeralUserCreationConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature EphemeralUserCreationConfig)
+  deriving (ParseFeatureDefaults) via OptionalField EphemeralUserCreationConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
