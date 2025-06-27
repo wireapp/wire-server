@@ -154,7 +154,7 @@ data RabbitMqConnectionError = RabbitMqConnectionFailed String
 
 instance Exception RabbitMqConnectionError
 
--- | Connects with RabbitMQ and opens a channel.
+-- | Connects with RabbitMQ with jittered exponential backoff.
 withConnection ::
   forall m a.
   (MonadIO m, MonadMask m) =>
