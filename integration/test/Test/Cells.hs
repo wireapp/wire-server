@@ -117,7 +117,7 @@ connectToCellsQueue sm messages = do
           skipAsyncExceptions
           ( const $ do
               connOpts <-
-                mkConnectionOpts opts
+                mkConnectionOpts (fromString "test: connectToCellsQueue") opts
               liftIO $ openConnection'' connOpts
           )
   conn <-

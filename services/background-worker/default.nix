@@ -29,6 +29,7 @@
 , monad-control
 , prometheus-client
 , QuickCheck
+, random
 , retry
 , servant
 , servant-client
@@ -71,6 +72,7 @@ mkDerivation {
     metrics-wai
     monad-control
     prometheus-client
+    random
     retry
     servant-client
     servant-server
