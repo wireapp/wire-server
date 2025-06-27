@@ -2,18 +2,18 @@
 
 module Wire.BackgroundWorker where
 
-import Control.Concurrent.Async (cancel)
-import Data.Domain
-import Data.Map.Strict qualified as Map
+import Control.Concurrent.Async
+import Control.Exception
+import Data.ByteString.Conversion
 import Data.Metrics.Servant qualified as Metrics
 import Data.Text qualified as T
 import Imports
-import Network.AMQP qualified as Q
 import Network.AMQP.Extended (demoteOpts)
 import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
 import System.Logger qualified as Log
+import System.Random
 import Util.Options
 import Wire.BackendDeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
@@ -21,12 +21,43 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
 
+-- | Restart crashed worker threads: if thread terminates normally, return result.  If thread
+-- is cancelled, return `Nothing`.  If anything else happens to the it, log an error and
+-- restart.
+supervisor ::
+  forall a.
+  -- | for `runAppT` and logging
+  Env ->
+  -- | worker name
+  String ->
+  -- | action
+  AppT IO a ->
+  -- | the ascyn thread (result is `Nothing` if thread is cancelled)
+  IO (Async (Maybe a))
+supervisor env workerName workerAction = async loop
+  where
+    loop :: IO (Maybe a)
+    loop = do
+      result <- try (runAppT env workerAction)
+      case result of
+        Right a -> pure (Just a)
+        Left e ->
+          if fromException e == Just AsyncCancelled
+            then do
+              pure Nothing
+            else do
+              Log.err (logger env) $
+                (Log.field "worker name: " workerName)
+                  . Log.msg (Log.val $ "worker crashed: " <> toByteString' (show e) <> ", restarting in <3s")
+              threadDelay =<< randomRIO (300_000, 3_000_000)
+              loop
+
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
   let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   (notifChanRef, notifConsumersRef) <- runAppT env $ BackendNotificationPusher.startWorker amqpEP
-  deadWatcherAsync <- runAppT env $ DeadUserNotificationWatcher.startWorker amqpEP
+  deadWatcherAsync <- supervisor env "DeadUserNotificationWatcher" (DeadUserNotificationWatcher.startWorker amqpEP)
   let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
       -- specific exception types to message threads to clean up
       l = logger env
