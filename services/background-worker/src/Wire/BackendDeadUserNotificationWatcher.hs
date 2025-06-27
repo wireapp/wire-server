@@ -35,9 +35,6 @@ startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
   markAsWorking BackendDeadUserNoticationWatcher
-
-  cassandra <- asks (.cassandra)
-
   void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
   QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) ->
     if (msg.msgDeliveryMode == Just Q.NonPersistent)
@@ -56,7 +53,7 @@ startConsumer chan = do
               cid <- hoistMaybe $ fromByteString cidBS
               pure (uid, cid)
             (uid, cid) <- maybe (logParseError env dat) pure m
-            markAsNeedsFullSync cassandra uid cid
+            markAsNeedsFullSync env.cassandra uid cid
             lift $ Q.ackEnv envelope
           _ -> void $ logParseError env dat
   where
@@ -85,6 +82,8 @@ markAsNeedsFullSync cassandra uid cid = do
           VALUES (?, ?)
       |]
 
+----------------------------------------------------------------------
+
 startWorker ::
   AmqpEndpoint ->
   AppT IO (Async ())
@@ -94,7 +93,7 @@ startWorker amqp = do
   connOpts <- mkConnectionOpts amqp
 
   -- This function will open a connection to rabbitmq and start the consumer.
-  -- We use an mvar to signal when the connection is closed so we can re-open it.
+  -- We use an mvar to signal when the connection or channel are closed so we can re-open it.
   -- If the empty mvar is filled, we know the connection itself was closed and we need to re-open it.
   -- If the mvar is filled with a connection, we know the connection itself is fine,
   -- so we only need to re-open the channel
@@ -103,6 +102,7 @@ startWorker amqp = do
         closingRef <- newIORef False
 
         mConn <- lowerCodensity $ do
+          -- Open amqp connection
           conn <- case connM of
             Nothing -> do
               -- Open the rabbit mq connection
@@ -112,6 +112,7 @@ startWorker amqp = do
                 $ \conn -> do
                   writeIORef closingRef True
                   liftIO $ Q.closeConnection conn
+
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True do
                 closing <- readIORef closingRef
@@ -119,7 +120,10 @@ startWorker amqp = do
                   Log.err env.logger $
                     Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
                 putMVar mVar Nothing
-              runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
+
+              runAppT env $
+                -- there is a connection now, but it's not consuming yet.
+                markAsNotWorking BackendDeadUserNoticationWatcher
               pure conn
             Just conn -> pure conn
 
@@ -137,7 +141,7 @@ startWorker amqp = do
 
           -- Set up the consumer
           void $ Codensity $ bracket (startConsumer chan) (liftIO . Q.cancelConsumer chan)
-          lift $ takeMVar mVar
+          lift $ takeMVar mVar -- this blocks and waits for one of the above puts.
         openConnection mConn
 
   async (openConnection Nothing)

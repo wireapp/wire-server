@@ -215,7 +215,7 @@ sendNotificationIgnoringVersionMismatch env comp path body =
 pairedMaximumOn :: (Ord b) => (a -> b) -> [a] -> (a, b)
 pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 
--- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
+-- FUTUREWORK: Reconsider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
 startPusher :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
