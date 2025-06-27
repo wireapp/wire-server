@@ -731,9 +731,7 @@ parseUserFeatureStatus = withObject "UserFeatureStatus" $ \obj -> obj .: "status
 -- This is code implemented to comply with particular contracts.  It may change or be removed
 -- at any point in the future without any further notice.
 data CustomerExtensions = CustomerExtensions
-  { -- TODO: Update comment
-
-    -- | When a `Domain` is blocked, users cannot use email addresses of this domain.
+  { -- | When a `Domain` is blocked, users cannot use email addresses of this domain.
     --
     -- This includes:
     --   - Account activations
