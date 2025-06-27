@@ -215,7 +215,7 @@ getLocalConversationInternal ::
 getLocalConversationInternal cid = do
   lcid <- qualifyLocal cid
   conv <- getConversationWithError lcid
-  pure $ conversationView lcid conv
+  pure $ conversationView lcid Nothing conv
 
 data FailedGetConversationReason
   = FailedGetConversationLocally
