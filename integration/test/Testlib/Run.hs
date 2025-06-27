@@ -171,7 +171,17 @@ deleteFederationQueues testDomains opts username password = do
     page <- client.listQueuesByVHost opts.vHost (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
     for_ page.items $ \queue -> do
       putStrLn $ "Deleting queue " <> T.unpack queue.name
-      void $ deleteQueue client opts.vHost queue.name
+      void $
+        addPolicy
+          client
+          opts.vHost
+          (T.pack "expiry")
+          ( RabbitMQPolicy
+              { polPattern = (fromString $ "^backend-notifications\\." <> domain <> "$"),
+                polApplyTo = Queues,
+                polDefinition = RabbitMQPolicyDefinition {expires = Just 60000}
+              }
+          )
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do
