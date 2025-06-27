@@ -10,6 +10,7 @@ import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -17,6 +18,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
+import Network.AMQP.Types qualified as QL
 import Network.RabbitMqAdmin hiding (adminClient)
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import Network.Wai.Utilities.Error
@@ -35,13 +37,27 @@ import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
 startPushingNotifications ::
+  IORef (Map Domain (Q.ConsumerTag, MVar ())) ->
   MVar () ->
   Q.Channel ->
   Domain ->
   AppT IO Q.ConsumerTag
-startPushingNotifications runningFlag chan domain = do
+startPushingNotifications consumers runningFlag chan domain = do
   lift $ ensureQueue chan domain._domainText
-  QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (void . pushNotification runningFlag domain)
+  QL.consumeMsgs'
+    chan
+    (routingKey domain._domainText)
+    Q.Ack
+    (void . pushNotification runningFlag domain)
+    ( \consumerTag ->
+        Log.err
+          ( Log.msg (Log.val "Got basic.cancel message for queue. Cancel queue consumer.")
+              . Log.field "domain" (domainText domain)
+              . Log.field "consumer" consumerTag
+          )
+          >> (cancelConsumer consumers chan domain)
+    )
+    (QL.FieldTable M.empty)
 
 pushNotification :: (RabbitMQEnvelope e) => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
 pushNotification runningFlag targetDomain (msg, envelope) = do
@@ -274,7 +290,7 @@ ensureConsumer consumers chan domain = do
     -- The cleanup code that runs when the service receives a SIGTERM or SIGINT will wait on these MVars
     -- to allow current messages to finish processing before we close AMQP connections.
     runningFlag <- newMVar ()
-    tag <- startPushingNotifications runningFlag chan domain
+    tag <- startPushingNotifications consumers runningFlag chan domain
     oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain (tag, runningFlag) c, Map.lookup domain c)
     -- This isn't strictly nessacary. `unless consumerExists` won't
     -- let us come down this path if there is an old consumer.
