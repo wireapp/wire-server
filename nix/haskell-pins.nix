@@ -267,11 +267,13 @@ let
       };
     };
 
+    # We applied minimal fixes to support newer GHC versions. I.e. remove this
+    # once our GHC version is supported by upstream.
     HaskellNet = {
       src = fetchgit {
         url = "https://github.com/wireapp/HaskellNet";
-        rev = "74cde03b4beb09794a6120ea5321a09430bcd2c7";
-        hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
+        rev = "c023c18388c9454f97107b976746227d5eed53e6";
+        hash = "sha256-arHo3mtJhCx59zK435B/TziyLM/qOqw5yONyMnbUZQU=";
       };
     };
 
@@ -285,8 +287,8 @@ let
     amazonka = {
       src = fetchgit {
         url = "https://github.com/wireapp/amazonka";
-        rev = "b482e255d1fe8f33ceced7b55aa1f6e93081dea8";
-        hash = "sha256-p/07Hge/QwMldpnqV7Ic5GRiQFoaTxzrAjhmu554J4U=";
+        rev = "d98cefc04bcc7076a915076a322ab5905c6a4945";
+        hash = "sha256-8HNHoTUaLi5lyOrKYybacZsDSHrju9/oo+Lf/YulbIo=";
       };
       packages = {
         amazonka = "lib/amazonka";
@@ -361,6 +363,12 @@ let
     amazonka-s3-streaming = {
       version = "2.0.0.0";
       sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
+    };
+
+    # 0.8 is not compatible to GHC 9.10
+    proto-lens-protoc = {
+      version = "0.9.0.0";
+      sha256 = "sha256-wuSyhckbK+Q9bM+2rFTxHGThKJkNWgmXrdEx8suHYKE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
