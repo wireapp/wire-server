@@ -32,6 +32,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Char8 qualified as BS.Char8
 import Data.ByteString.Conversion
+import Data.Hashable
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
@@ -66,6 +67,7 @@ newtype Domain = Domain {_domainText :: Text}
   deriving stock (Eq, Ord, Generic, Show)
   deriving newtype (S.ToParamSchema, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Domain
+  deriving (Hashable)
 
 instance ToSchema Domain where
   schema =
