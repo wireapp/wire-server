@@ -249,7 +249,7 @@ newEnv opts = do
   ptp <- loadProviderTemplates opts
   ttp <- loadTeamTemplates opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
-  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
+  (emailAWSOpts, emailSMTP) <- emailConn lgr opts.emailSMS.email
   aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
   zau <- initZAuth opts
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
@@ -330,11 +330,12 @@ newEnv opts = do
     emailConn lgr (Opt.EmailSMTP s) = do
       let h = s.smtpEndpoint.host
           p = Just . fromInteger . toInteger $ s.smtpEndpoint.port
-      smtpCredentials <- case Opt.smtpCredentials s of
-        Just (Opt.EmailSMTPCredentials u p') -> do
-          Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
-        _ -> pure Nothing
-      smtp <- SMTP.initSMTP lgr h p smtpCredentials (Opt.smtpConnType s)
+      smtpCredentials <- for s.smtpCredentials \case
+        Opt.EmailSMTPBasicAuth u passFile ->
+          SMTP.BasicAuth u <$> initCredentials passFile
+        Opt.EmailSMTPXOAUTH2 u clientCredentialFile ->
+          SMTP.XOAUTH2ClientCredential u <$> initCredentials clientCredentialFile
+      smtp <- SMTP.initSMTP lgr h p smtpCredentials s.smtpConnType
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 service.host) . RPC.port service.port $ RPC.empty
 
