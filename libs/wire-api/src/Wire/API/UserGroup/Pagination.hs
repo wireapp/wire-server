@@ -17,13 +17,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Pagination where
+module Wire.API.UserGroup.Pagination where
 
 import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as LB
 import Data.Default
-import Data.Kind
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
 import Data.Proxy
@@ -32,39 +31,54 @@ import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import GHC.Generics
-import GHC.TypeLits
 import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
+import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
--- | Servant combinator for a pagination query.  Currently only used for `UserGroup`s
--- paginated by name and creation date; please generalize as needed.
+-- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
+-- also sorting (and possibly filtering, who knows?).  Please generalize when needed
+-- elsewhere.
+--
+-- Prior art: https://github.com/chordify/haskell-servant-pagination/
 type PaginationQuery =
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sortBy" SortBy
-    :> QueryParam' '[Optional Strict] "sortOrder" SortOrder
+    --     :> QueryParam' '[Optional Strict] "sortOrder" SortOrder
     :> QueryParam' '[Optional, Strict] "pageSize" PageSize
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
          "paginationState"
-         (PaginationState rowKeys rowQuery)
-    :> Get '[JSON] (PaginationResult rowKeys rowQuery row)
+         PaginationState
+    :> Get '[JSON] PaginationResult
+
+------------------------------
 
 data SortBy = SortByName | SortByCreatedAt
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
-  deriving (Arbitrary)
+
+instance Default SortBy where
+  def = SortByCreatedAt
 
 instance ToSchema SortBy where
-  schema = object "SortBy" $ SortBy <$> (.fromSortBy) .= fieldWithDocModifier "keys" desc (array schema)
-    where
-      desc = "Must match sort key encoded in pagination state.  Allowed values: name, created_at."
+  schema =
+    enum @Text "SortBy" $
+      mconcat
+        [ element "name" SortByName,
+          element "created_at" SortByCreatedAt
+        ]
+
+instance Arbitrary SortBy where
+  arbitrary = Arbitrary.elements [minBound ..]
 
 instance FromHttpApiData SortBy where
   parseUrlPiece = parseUrlPieceViaSchema
 
 instance O.ToParamSchema SortBy
+
+------------------------------
 
 data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
@@ -89,6 +103,8 @@ instance FromHttpApiData SortOrder where
 
 instance O.ToParamSchema SortOrder
 
+------------------------------
+
 newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int}
   deriving (Eq, Show, Ord, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
@@ -98,7 +114,7 @@ pageSizeToInt = fromRange . fromPageSize
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
 pageSizeFromIntUnsafe :: Int -> PageSize
-pageSizeFromIntUnsafe = PageSize . (unsafeRange @Int @1 @500) . (+ 1) . (`mod` 500)
+pageSizeFromIntUnsafe = PageSize . (unsafeRange @Int @1 @500) . (+ 1) . (`mod` 500) . (+ (-1))
 
 instance Arbitrary PageSize where
   arbitrary = pageSizeFromIntUnsafe <$> arbitrary
@@ -114,17 +130,20 @@ instance O.ToParamSchema PageSize
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
 
-data PaginationState key query = PaginationState
+------------------------------
+
+data PaginationState = PaginationState
   { sortByKeys :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
-    searchString :: query,
-    lastRowSent :: key
+    searchString :: Text,
+    -- | `Nothing` means no more data available, pagination complete.
+    lastRowSent :: Maybe UserGroup
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationState key query)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
 
-instance (ToSchema key, ToSchema query) => ToSchema (PaginationState key query) where
+instance ToSchema PaginationState where
   schema =
     object "PagintationStatePayload" $
       PaginationState
@@ -132,35 +151,39 @@ instance (ToSchema key, ToSchema query) => ToSchema (PaginationState key query) 
         <*> (.sortOrder) .= field "sort_order" schema
         <*> (.pageSize) .= field "page_size" schema
         <*> (.searchString) .= field "search_string" schema
-        <*> (.lastRowSent) .= field "last_row_sent" schema
+        <*> (.lastRowSent) .= maybe_ (optField "last_row_sent" schema)
 
-instance (Arbitrary key, Arbitrary query) => Arbitrary (PaginationState key query) where
+instance Arbitrary PaginationState where
   arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (ToSchema key, ToSchema query) => FromHttpApiData (PaginationState key query) where
+instance FromHttpApiData PaginationState where
   parseUrlPiece = parseUrlPieceViaSchema
 
-instance O.ToParamSchema (PaginationState key query) where
+instance O.ToParamSchema PaginationState where
   toParamSchema _ =
     -- PaginationState is supposed to be opaque for clients, no need to swagger docs.
     O.toParamSchema (Proxy @Text)
 
-data PaginationResult key query row = PaginationResult
-  { page :: [row],
-    state :: Maybe (PaginationState key query)
+------------------------------
+
+data PaginationResult = PaginationResult
+  { page :: [UserGroup],
+    state :: PaginationState
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (PaginationResult key query row)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationResult
 
-instance (ToSchema key, ToSchema query, ToSchema row) => ToSchema (PaginationResult key query row) where
+instance ToSchema PaginationResult where
   schema =
     object "PagintationResult" $
       PaginationResult
         <$> page .= field "page" (array schema)
-        <*> state .= maybe_ (optField "state" schema) -- TODO: add to swagger: "no state means no more data, last page was empty"
+        <*> state .= field "state" schema
 
-instance (Arbitrary key, Arbitrary query, Arbitrary row) => Arbitrary (PaginationResult key query row) where
+instance Arbitrary PaginationResult where
   arbitrary = PaginationResult <$> arbitrary <*> arbitrary
+
+------------------------------
 
 parseUrlPieceViaSchema :: (A.FromJSON a) => Text -> Either Text a
 parseUrlPieceViaSchema = first T.pack . A.eitherDecode . LB.fromStrict . T.encodeUtf8
