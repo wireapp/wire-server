@@ -27,7 +27,6 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
-import Data.Json.Util (UTCTimeMillis)
 import Data.Misc
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
@@ -52,7 +51,6 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.OAuth
-import Wire.API.Pagination
 import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -84,6 +82,7 @@ import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, Password
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
 
 type BrigAPI =
@@ -323,7 +322,7 @@ type UserGroupAPI =
            ( From 'V9
                :> ZLocalUser
                :> "user-groups"
-               :> PaginationQuery "created_at, name" UserGroupKey '[Text, UTCTimeMillis] UserGroup
+               :> PaginationQuery
            )
     :<|> Named
            "update-user-group"

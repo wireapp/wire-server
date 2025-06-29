@@ -142,7 +142,6 @@ library
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
-    Wire.API.Pagination
     Wire.API.Password
     Wire.API.Password.Argon2id
     Wire.API.Password.Scrypt
@@ -261,6 +260,7 @@ library
     Wire.API.User.Search
     Wire.API.UserEvent
     Wire.API.UserGroup
+    Wire.API.UserGroup.Pagination
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo

@@ -44,7 +44,6 @@ import Wire.API.FederationStatus qualified as FederationStatus
 import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
-import Wire.API.Pagination qualified as Pagination
 import Wire.API.Properties qualified as Properties
 import Wire.API.Provider qualified as Provider
 import Wire.API.Provider.Bot qualified as Provider.Bot
@@ -80,6 +79,7 @@ import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
 import Wire.API.UserGroup qualified as UserGroup
+import Wire.API.UserGroup.Pagination qualified as Pagination
 import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
@@ -169,7 +169,7 @@ tests =
       testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,
       testRoundTrip @OAuth.OAuthApplication,
-      testRoundTrip @(Pagination.PaginationResult Int Bool),
+      testRoundTrip @Pagination.PaginationResult,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
