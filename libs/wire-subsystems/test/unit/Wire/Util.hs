@@ -21,9 +21,4 @@ instance Arbitrary EmailUsername where
 
 -- | Generator to get any element from a NonEmpty list
 anyElementOf :: NonEmptyList a -> Gen a
-anyElementOf ne = do
-  let len = getList ne
-  idx :: Int <- elements [0, length len - 1]
-  pure ((getList ne) !! idx)
-  where
-    getList = toList . getNonEmpty
+anyElementOf = elements . toList . getNonEmpty
