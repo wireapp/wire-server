@@ -134,6 +134,7 @@ common common-all
     , schema-profunctor
     , servant
     , servant-client-core
+    , servant-server
     , sodium-crypto-sign
     , statistics
     , stomp-queue
@@ -366,6 +367,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
+    Wire.APICompatSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.HashPassword.InterpreterSpec
@@ -419,4 +421,5 @@ test-suite wire-subsystems-tests
     , random
     , scientific
     , string-conversions
+    , wai
     , wire-subsystems
