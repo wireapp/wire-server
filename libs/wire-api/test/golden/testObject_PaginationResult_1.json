@@ -1,12 +1,9 @@
 {
     "page": [],
     "state": {
-        "last_row_sent": -1,
         "page_size": 15,
         "search_string": "",
-        "sort_by": {
-            "keys": []
-        },
+        "sort_by": "created_at",
         "sort_order": "desc"
     }
 }

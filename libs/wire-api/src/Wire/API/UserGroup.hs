@@ -96,6 +96,7 @@ instance ToSchema UserGroup where
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
+-- TODO: am i still using UserGroupKey anywhere?
 data UserGroupKey = UserGroupKey
   { name :: UserGroupName,
     createdAt :: UTCTimeMillis
