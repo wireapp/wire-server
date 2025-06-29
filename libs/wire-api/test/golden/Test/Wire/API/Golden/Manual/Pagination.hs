@@ -3,9 +3,14 @@
 module Test.Wire.API.Golden.Manual.Pagination where
 
 import Data.Default
+import Data.Id
 import Data.Json.Util
+import Data.UUID qualified as UUID
+import Data.Vector qualified as Vec
 import Imports
-import Wire.API.Pagination
+import Wire.API.User.Profile
+import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 
 someUTCTime :: UTCTimeMillis
 Just someUTCTime = readUTCTimeMillis "2025-04-16T16:22:21.703Z"
@@ -13,38 +18,76 @@ Just someUTCTime = readUTCTimeMillis "2025-04-16T16:22:21.703Z"
 someOtherUTCTime :: UTCTimeMillis
 Just someOtherUTCTime = readUTCTimeMillis "2021-12-12T00:00:00.000Z"
 
-testObject_PaginationResult_1 :: PaginationResult Int Int
+ug1 :: UserGroup
+ug1 =
+  UserGroup
+    { id_ = Id UUID.nil,
+      name = either (error . show) id (userGroupNameFromText "*"),
+      members = mempty,
+      managedBy = ManagedByWire,
+      createdAt = someUTCTime
+    }
+
+ug2 :: UserGroup
+ug2 =
+  UserGroup
+    { id_ = Id . fromJust $ UUID.fromString "63dd98c0-552d-11f0-8df7-b3e03cd56036",
+      name = either (error . show) id (userGroupNameFromText "##name1##"),
+      members =
+        Vec.fromList
+          ( Id . fromJust . UUID.fromString
+              <$> [ "1f815fa2-552f-11f0-8642-77f29e68cbc9",
+                    "28a9c560-552f-11f0-9082-97e15e952720",
+                    "3ec5afe4-552f-11f0-afbb-9b038a8edbd2"
+                  ]
+          ),
+      managedBy = ManagedByWire,
+      createdAt = someUTCTime
+    }
+
+ug3 :: UserGroup
+ug3 =
+  UserGroup
+    { id_ = Id . fromJust $ UUID.fromString "60278b50-552d-11f0-892b-ebd66f6c2c30",
+      name = either (error . show) id (userGroupNameFromText "!! user group !!"),
+      members =
+        Vec.fromList (Id . fromJust . UUID.fromString <$> ["37b636e2-552f-11f0-abe8-5bf7b2ad08c9"]),
+      managedBy = ManagedByScim,
+      createdAt = someOtherUTCTime
+    }
+
+testObject_PaginationResult_1 :: PaginationResult
 testObject_PaginationResult_1 =
   PaginationResult
     []
     PaginationState
       { searchString = "",
-        sortByKeys = SortBy [],
+        sortByKeys = def,
         sortOrder = def,
         pageSize = def,
-        lastRowSent = -1
+        lastRowSent = Nothing
       }
 
-testObject_PaginationResult_2 :: PaginationResult Int Int
+testObject_PaginationResult_2 :: PaginationResult
 testObject_PaginationResult_2 =
   PaginationResult
-    [3, 5]
+    [ug1, ug2]
     PaginationState
       { searchString = "q",
-        sortByKeys = SortBy ["key1", "key2"],
+        sortByKeys = SortByName,
         sortOrder = Asc,
         pageSize = pageSizeFromIntUnsafe 500,
-        lastRowSent = 3
+        lastRowSent = Just ug3
       }
 
-testObject_PaginationResult_3 :: PaginationResult Int Int
+testObject_PaginationResult_3 :: PaginationResult
 testObject_PaginationResult_3 =
   PaginationResult
-    [7 .. 12]
+    [ug2]
     PaginationState
       { searchString = "rst",
-        sortByKeys = SortBy ["key1", "", "key2"],
+        sortByKeys = SortByCreatedAt,
         sortOrder = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
-        lastRowSent = 10
+        lastRowSent = Just ug1
       }
