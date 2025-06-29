@@ -229,6 +229,10 @@ startPusher adminClient consumersRef chan = do
       cleanup e = do
         consumers <- liftIO $ readIORef consumersRef
         traverse_ (liftIO . Q.cancelConsumer chan . fst) $ Map.elems consumers
+
+        --  https://github.com/wireapp/wire-server/pull/4620
+        --  https://github.com/wireapp/wire-server/pull/4633
+
         throwM e
   timeBeforeNextRefresh <- asks (.backendNotificationsConfig.remotesRefreshInterval)
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.

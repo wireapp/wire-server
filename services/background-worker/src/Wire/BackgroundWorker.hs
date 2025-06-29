@@ -53,7 +53,13 @@ supervisor env workerName workerAction = async loop
                 (Log.field "worker name: " workerName)
                   . Log.msg (Log.val $ "worker crashed: " <> toByteString' (show e) <> ", restarting in <3s")
               threadDelay =<< randomRIO (300_000, 3_000_000)
-              loop
+              loop -- TODO: crash pod instead of half-assed recovery attempt?
+
+-- TODO: other things to try:
+--
+-- - find out where the network errors are coming from.
+-- - crank up logging.
+-- - while waiting for the intermediate results to get merged, try reproducing the problem.
 
 run :: Opts -> IO ()
 run opts = do
