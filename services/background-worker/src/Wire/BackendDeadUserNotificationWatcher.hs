@@ -89,13 +89,15 @@ startWorker ::
   AppT IO (Async ())
 startWorker amqp = do
   env <- ask
-  mVar <- newEmptyMVar
+  reconnectSignal :: MVar (Maybe Q.Connection) <- do
+    -- If we put anything here, openConnection (below) will recurse.  Nothing means
+    -- "connection died, open a new one"; Just conn means "connection is still ok, but channel
+    -- died".
+    newEmptyMVar
 
-  -- This function will open a connection to rabbitmq and start the consumer.
-  -- We use an mvar to signal when the connection or channel are closed so we can re-open it.
-  -- If the empty mvar is filled, we know the connection itself was closed and we need to re-open it.
-  -- If the mvar is filled with a connection, we know the connection itself is fine,
-  -- so we only need to re-open the channel
+  -- This function will open a connection to rabbitmq and start the consumer.  We use
+  -- `reconnectSignal` to signal when the connection or channel are closed so we can re-open
+  -- it.
   let openConnection connM = do
         -- keep track of whether the connection is being closed normally
         closingAbnormallyRef <- newIORef True
@@ -112,7 +114,7 @@ startWorker amqp = do
                 else do
                   Log.info env.logger $
                     Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed normally.")
-              putMVar mVar Nothing
+              putMVar reconnectSignal Nothing
 
         mConn <- lowerCodensity $ do
           -- Open amqp connection
@@ -142,13 +144,13 @@ startWorker amqp = do
                 Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
                   . Log.field "exception" (displayException e)
             runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
-            putMVar mVar (Just conn)
+            putMVar reconnectSignal (Just conn)
 
           -- Set up the consumer
           void $ Codensity $ bracket (startConsumer chan) (liftIO . Q.cancelConsumer chan)
           lift $
             -- block and waits for one of the above puts.
-            takeMVar mVar
+            takeMVar reconnectSignal
         openConnection mConn
 
   async (openConnection Nothing)
