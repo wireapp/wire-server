@@ -75,7 +75,7 @@ conversationView l luid conv =
 
 -- | Like 'conversationView' but optimized for situations which could benefit
 -- from pre-computing the list of @OtherMember@s in the conversation. For
--- instance, creating @ConvesationView@ for more than 1 member of the same conversation.
+-- instance, creating @ConversationView@ for more than 1 member of the same conversation.
 conversationViewWithCachedOthers ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
