@@ -5,6 +5,7 @@ module Network.AMQP.Extended
     RabbitMqAdminOpts (..),
     AmqpEndpoint (..),
     withConnection,
+    withConnectionWithClose,
     openConnectionWithRetries,
     mkRabbitMqAdminClientEnv,
     mkRabbitMqAdminClientEnvWithCreds,
@@ -162,7 +163,18 @@ withConnection ::
   AmqpEndpoint ->
   (Q.Connection -> m a) ->
   m a
-withConnection l AmqpEndpoint {..} k = do
+withConnection = withConnectionWithClose (\_ -> pure ())
+
+-- | Variant of `withConnection` that takes a custom close handler.
+withConnectionWithClose ::
+  forall m a.
+  (MonadIO m, MonadMask m) =>
+  (Q.Connection -> IO ()) ->
+  Logger ->
+  AmqpEndpoint ->
+  (Q.Connection -> m a) ->
+  m a
+withConnectionWithClose closeHandler l AmqpEndpoint {..} k = do
   -- Jittered exponential backoff with 1ms as starting delay and 1s as total
   -- wait time.
   let policy = limitRetriesByCumulativeDelay 1_000_000 $ fullJitterBackoff 1000
@@ -183,7 +195,7 @@ withConnection l AmqpEndpoint {..} k = do
               connOpts <- mkConnectionOpts AmqpEndpoint {..}
               liftIO $ Q.openConnection'' connOpts
           )
-  bracket getConn (liftIO . Q.closeConnection) k
+  bracket getConn (\conn -> liftIO $ closeHandler conn >> Q.closeConnection conn) k
 
 mkConnectionOpts :: (MonadIO m) => AmqpEndpoint -> m Q.ConnectionOpts
 mkConnectionOpts AmqpEndpoint {..} = do

@@ -90,7 +90,6 @@ startWorker ::
 startWorker amqp = do
   env <- ask
   mVar <- newEmptyMVar
-  connOpts <- mkConnectionOpts amqp
 
   -- This function will open a connection to rabbitmq and start the consumer.
   -- We use an mvar to signal when the connection or channel are closed so we can re-open it.
@@ -99,27 +98,33 @@ startWorker amqp = do
   -- so we only need to re-open the channel
   let openConnection connM = do
         -- keep track of whether the connection is being closed normally
-        closingRef <- newIORef False
+        closingAbnormallyRef <- newIORef True
+
+        let -- `onCloseConn` is called in two situations: (1) bracket finalizer is called
+            -- after in-between action has either terminated normally or received an
+            -- exception; (2) the connection is closed unexpectedly by the amqp library.
+            onCloseConn = do
+              closingAbnormally <- readIORef closingAbnormallyRef
+              if closingAbnormally
+                then do
+                  Log.err env.logger $
+                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed unexpectedly.")
+                else do
+                  Log.info env.logger $
+                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed normally.")
+              putMVar mVar Nothing
 
         mConn <- lowerCodensity $ do
           -- Open amqp connection
           conn <- case connM of
             Nothing -> do
               -- Open the rabbit mq connection
-              conn <- Codensity
-                $ bracket
-                  (liftIO $ Q.openConnection'' connOpts)
-                $ \conn -> do
-                  writeIORef closingRef True
-                  liftIO $ Q.closeConnection conn
+              conn <-
+                Codensity $
+                  withConnectionWithClose (\_ -> writeIORef closingAbnormallyRef False) env.logger amqp
 
               -- We need to recover from connection closed by restarting it
-              liftIO $ Q.addConnectionClosedHandler conn True do
-                closing <- readIORef closingRef
-                unless closing $ do
-                  Log.err env.logger $
-                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
-                putMVar mVar Nothing
+              liftIO $ Q.addConnectionClosedHandler conn True onCloseConn
 
               runAppT env $
                 -- there is a connection now, but it's not consuming yet.
@@ -141,7 +146,9 @@ startWorker amqp = do
 
           -- Set up the consumer
           void $ Codensity $ bracket (startConsumer chan) (liftIO . Q.cancelConsumer chan)
-          lift $ takeMVar mVar -- this blocks and waits for one of the above puts.
+          lift $
+            -- block and waits for one of the above puts.
+            takeMVar mVar
         openConnection mConn
 
   async (openConnection Nothing)
