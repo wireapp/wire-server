@@ -332,7 +332,7 @@ receiveDataMessageWithTimeout :: WSConnection -> IO DataMessage
 receiveDataMessageWithTimeout wsConn = do
   msg <- WS.receive wsConn.inner
   case msg of
-    DataMessage _ _ _ am -> return am
+    DataMessage _ _ _ am -> pure am
     ControlMessage cm -> case cm of
       Close i closeMsg -> do
         hasSentClose <- readIORef $ connectionSentClose wsConn.inner
