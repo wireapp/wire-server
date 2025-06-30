@@ -20,6 +20,7 @@ import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Wire.API.User
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Random
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
@@ -86,7 +87,7 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
-getUserGroupsImpl :: (EffectConstraints r) => ListUserGroupsQuery UserGroupKey -> Sem r [UserGroup]
+getUserGroupsImpl :: (EffectConstraints r) => PaginationState -> Sem r [UserGroup]
 getUserGroupsImpl queryDetails = do
   ((snd <$>) . sieve . Map.toList . (.userGroups)) <$> get
   where
@@ -110,20 +111,14 @@ getUserGroupsImpl queryDetails = do
     narrowToTeam = filter (\((tid, _), _) -> tid == queryDetails.team)
 
     narrowToSearchString =
-      filter
-        ( \(_, ug) ->
-            maybe
-              True
-              (`T.isInfixOf` (userGroupNameToText ug.name))
-              queryDetails.searchString
-        )
+      filter (\(_, ug) -> queryDetails.searchString `T.isInfixOf` userGroupNameToText ug.name)
 
-    orderByKeysAsc = sortBy c
+    orderByKeysAsc = Imports.sortBy c
       where
         c (_, ug) (_, ug') =
-          if queryDetails.sortByName
-            then compare (ug.name, ug.createdAt) (ug'.name, ug'.createdAt)
-            else compare (ug.createdAt, ug.name) (ug'.createdAt, ug'.name)
+          case queryDetails.sortBy of
+            SortByName -> compare (ug.createdAt, ug.name) (ug'.createdAt, ug'.name)
+            SortByCreatedAt -> compare (ug.name, ug.createdAt) (ug'.name, ug'.createdAt)
 
     reverseIfDesc = if queryDetails.sortDescending then reverse else id
 
@@ -137,7 +132,7 @@ getUserGroupsImpl queryDetails = do
                 else (ug.createdAt, ug.name) > (lastCreatedAt, lastName)
             Nothing -> False
 
-    dropAfterPageSize = take queryDetails.pageSize
+    dropAfterPageSize = take (pageSizeToInt queryDetails.pageSize)
 
 updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
