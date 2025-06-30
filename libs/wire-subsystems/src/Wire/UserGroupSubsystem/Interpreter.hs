@@ -9,7 +9,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
-import Data.Text qualified as T
 import Imports
 import Numeric.Natural
 import Polysemy
@@ -173,9 +172,9 @@ getUserGroupsImpl ::
 getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin {- sic! -}
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
-  unless (getterCanSeeAll) $ throw UserGroupNotATeamAdmin
+  unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
   checkPaginationState `mapM_` pState
-  page :: [UserGroup] <- Store.getUserGroups currentPaginationState
+  page :: [UserGroup] <- Store.getUserGroups team currentPaginationState
   pure (PaginationResult page (nextPaginationState (fromIntegral $ length page)))
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
@@ -184,21 +183,37 @@ getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
     checkPaginationState :: PaginationState -> Sem r ()
     checkPaginationState st = do
       let badState = throw . UserGroupInvalidQueryParams . (<> " mismatch")
-      forM_ q $ \x -> unless (st.searchString == x) (badState "searchString")
+      forM_ q $ (\x -> forM_ st.searchString $ \y -> unless (y == x) (badState "searchString"))
       forM_ sortBy' $ \x -> unless (st.sortBy == x) (badState "sortBy")
-      forM_ sortOrder' $ \x -> unless (st.sortOrder == x) (badState "sortOrder")
+      forM_ sortOrder' $ \x ->
+        case fromMaybe def sortBy' of
+          SortByName -> unless (st.sortOrderName == x) (badState "sortOrderName")
+          SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sortOrderCreatedAt")
       forM_ pSize $ \x -> unless (st.pageSize == x) (badState "pageSize")
 
     currentPaginationState :: PaginationState
     currentPaginationState = case pState of
       Just oldState -> oldState
-      Nothing -> PaginationState {..}
-      where
-        searchString = fromMaybe mempty q
-        sortBy = fromMaybe def sortBy'
-        sortOrder = fromMaybe def sortOrder'
-        pageSize = fromMaybe def pSize
-        offset = Just 0
+      Nothing ->
+        let sb = fromMaybe def sortBy'
+
+            -- Map the `sort_order` query parameter to `sortOrderName` and
+            -- `sortOrderCreatedAt`.  `sort_order` is taken to refer to whatever we already
+            -- have in the state under `sortBy`.
+            son = fromMaybe (defaultSortOrder SortByName) $ case sb of
+              SortByName -> sortOrder'
+              SortByCreatedAt -> Nothing
+            soc = fromMaybe (defaultSortOrder SortByCreatedAt) $ case sb of
+              SortByName -> Nothing
+              SortByCreatedAt -> sortOrder'
+         in PaginationState
+              { searchString = q,
+                sortBy = sb,
+                sortOrderName = son,
+                sortOrderCreatedAt = soc,
+                pageSize = fromMaybe def pSize,
+                offset = Just 0
+              }
 
     nextPaginationState :: Natural -> PaginationState
     nextPaginationState newOffset =

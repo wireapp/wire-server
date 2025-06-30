@@ -17,6 +17,7 @@
         "page_size": 1,
         "search_string": "rst",
         "sort_by": "created_at",
-        "sort_order": "asc"
+        "sort_order_by_created_at": "asc",
+        "sort_order_by_name": "desc"
     }
 }
