@@ -16,6 +16,7 @@
 , conduit
 , containers
 , criterion
+, data-default
 , data-timeout
 , exceptions
 , extended
@@ -78,6 +79,7 @@ mkDerivation {
     cassandra-util
     conduit
     containers
+    data-default
     data-timeout
     exceptions
     extended
