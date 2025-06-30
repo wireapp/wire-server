@@ -12,10 +12,12 @@ import Data.Id
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
@@ -26,13 +28,13 @@ import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll), Route (RouteAny))
 import Wire.API.Team.Member as TM
 import Wire.API.Team.Role
 import Wire.API.User as User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
@@ -329,68 +331,67 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           get2.page `shouldBe` reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
           get3.page `shouldBe` [groups !! 3]
 
-    it "getGroups: sortByKeys, sortOrder" $ do
+    prop "getGroups: pagination (happy flow)" $ do
+      \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
+       numGroupsPre
+       pageSizePre ->
+          let numGroups = fromIntegral @Natural numGroupsPre + 1
+              pageSize =
+                let smallify = (\case 0 -> 3; other -> other) . (`mod` (numGroups + 5))
+                 in PageSize . unsafeRange . smallify . fromRange . fromPageSize $ pageSizePre
+           in expectRight
+                . runDependencies (allUsers team1) (galleyTeam team1)
+                . interpretUserGroupSubsystem
+                $ do
+                  let mkNewGroup = NewUserGroup (either undefined id $ userGroupNameFromText "same name") mempty
+                      mkGroup = moveClock 1 >> createGroup (ownerId team1) mkNewGroup
+
+                  -- groups are only distinguished by creation date
+                  groups <- replicateM numGroups mkGroup
+
+                  results :: [PaginationResult] <- do
+                    let fetch mbState = do
+                          p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) mbState
+                          if null p.page
+                            then pure []
+                            else (p :) <$> fetch (Just p.state)
+                    fetch Nothing
+
+                  pure $
+                    -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
+                    mconcat ((.page) <$> results) === reverse groups
+                      -- every page has the expected size
+                      .&&. all (\r -> length r.page == pageSizeToInt pageSize) (init results)
+                      .&&. length ((last results).page) <= pageSizeToInt pageSize
+
+    it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       mkAssertion (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
         let mkNewGroup name = NewUserGroup (either undefined id $ userGroupNameFromText name) mempty
-            mkGroup name = moveClock 1 >> createGroup (ownerId team1) (mkNewGroup name)
+            mkGroup name = createGroup (ownerId team1) (mkNewGroup name)
+
+        -- construct groups such that there are groups with same name and different creation
+        -- date and vice versa.  create names in random order (not alpha).  the digits are
+        -- group names, `a` and `b` are times.
         group2a <- mkGroup "2"
-        group2b <- mkGroup "2"
         group1a <- mkGroup "1"
-        group1b <- mkGroup "1"
         group3a <- mkGroup "3"
+        moveClock 1
+        group2b <- mkGroup "2"
+        group1b <- mkGroup "1"
         group3b <- mkGroup "3"
 
-        sortByName <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["name"])) (Just Asc) Nothing Nothing
-        sortByNameAndCreatedAt <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["name", "created_at"])) (Just Asc) Nothing Nothing
-        sortByCreatedAt <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["created_at"])) (Just Asc) Nothing Nothing
-        sortByCreatedAtAndName <-
-          getGroups (ownerId team1) Nothing (Just (SortBy ["created_at", "name"])) (Just Asc) Nothing Nothing
-        sortByDefault <-
-          getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing
-        sortByDefaultAsc <-
-          getGroups (ownerId team1) Nothing Nothing (Just Asc) Nothing Nothing
-        sortByDefaultDesc <-
-          getGroups (ownerId team1) Nothing Nothing (Just Desc) Nothing Nothing
+        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing
+        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing
+        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing
 
-        let byName = [group1a, group1b, group2a, group2b, group3a, group3b]
-            byDate = [group2a, group2b, group1a, group1b, group3a, group3b]
-
+        let expectSortByDefaults = [group1b, group2b, group3b, group1a, group2a, group3a]
+            expectSortByNameDesc = [group3b, group3a, group2b, group2a, group1b, group1a]
+            expectSortByCreatedAtAsc = [group1a, group2a, group3a, group1b, group2b, group3b]
         pure do
-          sortByName.page `shouldBe` byName
-          sortByNameAndCreatedAt.page `shouldBe` byName
-          sortByCreatedAt.page `shouldBe` byDate
-          sortByCreatedAtAndName.page `shouldBe` byDate
-          sortByDefault.page `shouldBe` reverse byDate
-          sortByDefaultAsc.page `shouldBe` byDate
-          sortByDefaultDesc.page `shouldBe` reverse byDate
-
-    focus . prop "getGroups: pagination (happy flow)" $ do
-      \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) numGroups pageSize ->
-        expectRight . runDependencies (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
-          let mkNewGroup = NewUserGroup (either undefined id $ userGroupNameFromText "same name") mempty
-              mkGroup = moveClock 1 >> createGroup (ownerId team1) mkNewGroup
-
-          -- groups distinguished only by creation date
-          groups <- replicateM numGroups mkGroup
-
-          results :: [PaginationResult UserGroupKey UserGroup] <- do
-            let fetch mbState = do
-                  p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) mbState
-                  if null p.page
-                    then pure []
-                    else (p :) <$> fetch (Just p.state)
-            fetch Nothing
-
-          pure $
-            -- result is complete and correct
-            mconcat ((.page) <$> results) === groups
-              -- every page has the expected size
-              .&&. all (\r -> length r.page == pageSizeToInt pageSize) (init results)
-              .&&. length ((last results).page) <= pageSizeToInt pageSize
+          ((.id_) <$> sortByDefaults.page) `shouldBe` ((.id_) <$> expectSortByDefaults)
+          ((.id_) <$> sortByNameDesc.page) `shouldBe` ((.id_) <$> expectSortByNameDesc)
+          ((.id_) <$> sortByCreatedAtAsc.page) `shouldBe` ((.id_) <$> expectSortByCreatedAtAsc)
 
   describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
     prop "updateGroup updates the name" $

@@ -9,6 +9,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Range
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (fromList)
@@ -62,7 +63,7 @@ userGroupStoreTestInterpreter =
   interpret \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid -> getUserGroupImpl tid gid
-    GetUserGroups listUserGroupsQuery -> getUserGroupsImpl listUserGroupsQuery
+    GetUserGroups tid listUserGroupsQuery -> getUserGroupsImpl tid listUserGroupsQuery
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -87,15 +88,14 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
-getUserGroupsImpl :: (EffectConstraints r) => PaginationState -> Sem r [UserGroup]
-getUserGroupsImpl queryDetails = do
+getUserGroupsImpl :: (EffectConstraints r) => TeamId -> PaginationState -> Sem r [UserGroup]
+getUserGroupsImpl tid pstate = do
   ((snd <$>) . sieve . Map.toList . (.userGroups)) <$> get
   where
     sieve,
       dropAfterPageSize,
       dropBeforeStart,
-      reverseIfDesc,
-      orderByKeysAsc,
+      orderByKeys,
       narrowToSearchString,
       narrowToTeam ::
         [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
@@ -103,36 +103,53 @@ getUserGroupsImpl queryDetails = do
     sieve =
       dropAfterPageSize
         . dropBeforeStart
-        . reverseIfDesc
-        . orderByKeysAsc
+        . orderByKeys
         . narrowToSearchString
         . narrowToTeam
 
-    narrowToTeam = filter (\((tid, _), _) -> tid == queryDetails.team)
+    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == tid)
 
     narrowToSearchString =
-      filter (\(_, ug) -> queryDetails.searchString `T.isInfixOf` userGroupNameToText ug.name)
+      filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) pstate.searchString)
 
-    orderByKeysAsc = Imports.sortBy c
+    orderByKeys = Imports.sortBy c
       where
         c (_, ug) (_, ug') =
-          case queryDetails.sortBy of
-            SortByName -> compare (ug.createdAt, ug.name) (ug'.createdAt, ug'.name)
-            SortByCreatedAt -> compare (ug.name, ug.createdAt) (ug'.name, ug'.createdAt)
+          compare
+            (mostSignificantSmaller, leastSignificantSmaller)
+            (mostSignificantGreater, leastSignificantGreater)
+          where
+            showName = fromRange . unUserGroupName
 
-    reverseIfDesc = if queryDetails.sortDescending then reverse else id
+            mostSignificantSmaller = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
+              (SortByName, Asc, _) -> showName ug.name
+              (SortByName, Desc, _) -> showName ug'.name
+              (SortByCreatedAt, _, Asc) -> showUTCTimeMillis ug.createdAt
+              (SortByCreatedAt, _, Desc) -> showUTCTimeMillis ug'.createdAt
 
-    dropBeforeStart = dropWhile c
-      where
-        c (_, ug) =
-          case queryDetails.lastRowSent of
-            Just (UserGroupKey lastName lastCreatedAt) ->
-              if queryDetails.sortByName
-                then (ug.name, ug.createdAt) > (lastName, lastCreatedAt)
-                else (ug.createdAt, ug.name) > (lastCreatedAt, lastName)
-            Nothing -> False
+            leastSignificantSmaller = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
+              (SortByName, _, Asc) -> showUTCTimeMillis ug.createdAt
+              (SortByName, _, Desc) -> showUTCTimeMillis ug'.createdAt
+              (SortByCreatedAt, Asc, _) -> showName ug.name
+              (SortByCreatedAt, Desc, _) -> showName ug'.name
 
-    dropAfterPageSize = take (pageSizeToInt queryDetails.pageSize)
+            mostSignificantGreater = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
+              (SortByName, Asc, _) -> showName ug'.name
+              (SortByName, Desc, _) -> showName ug.name
+              (SortByCreatedAt, _, Asc) -> showUTCTimeMillis ug'.createdAt
+              (SortByCreatedAt, _, Desc) -> showUTCTimeMillis ug.createdAt
+
+            leastSignificantGreater = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
+              (SortByName, _, Asc) -> showUTCTimeMillis ug'.createdAt
+              (SortByName, _, Desc) -> showUTCTimeMillis ug.createdAt
+              (SortByCreatedAt, Asc, _) -> showName ug'.name
+              (SortByCreatedAt, Desc, _) -> showName ug.name
+
+    dropBeforeStart = case pstate.offset of
+      Nothing -> const []
+      (Just off) -> drop (fromIntegral off)
+
+    dropAfterPageSize = take (pageSizeToInt pstate.pageSize)
 
 updateUserGroupImpl :: (EffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do

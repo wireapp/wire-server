@@ -3,6 +3,7 @@
     "state": {
         "page_size": 15,
         "sort_by": "created_at",
-        "sort_order": "desc"
+        "sort_order_by_created_at": "desc",
+        "sort_order_by_name": "asc"
     }
 }

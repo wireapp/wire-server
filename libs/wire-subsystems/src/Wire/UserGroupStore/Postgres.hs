@@ -23,6 +23,7 @@ import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.User.Profile
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.UserGroupStore
 
 interpretUserGroupStoreToPostgres ::
@@ -35,7 +36,7 @@ interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
-    GetUserGroups listUserGroupsQuery -> getUserGroupsImpl listUserGroupsQuery
+    GetUserGroups team listUserGroupsQuery -> getUserGroupsImpl team listUserGroupsQuery
     UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -82,7 +83,7 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
-getUserGroupsImpl :: forall r. ListUserGroupsQuery UserGroupKey -> Sem r [UserGroup]
+getUserGroupsImpl :: forall r. TeamId -> PaginationState -> Sem r [UserGroup]
 getUserGroupsImpl = undefined
 
 createUserGroupImpl ::

@@ -88,8 +88,9 @@ data SortOrder = Asc | Desc
 instance Arbitrary SortOrder where
   arbitrary = Arbitrary.elements [minBound ..]
 
-instance Default SortOrder where
-  def = Desc
+defaultSortOrder :: SortBy -> SortOrder
+defaultSortOrder SortByName = Asc
+defaultSortOrder SortByCreatedAt = Desc
 
 instance ToSchema SortOrder where
   schema =
@@ -134,9 +135,12 @@ instance Default PageSize where
 ------------------------------
 
 data PaginationState = PaginationState
-  { searchString :: Text,
+  { -- | `searchString` always applies to name, no matter what the sort order.  `Nothing`
+    -- means do not filter.
+    searchString :: Maybe Text,
     sortBy :: SortBy,
-    sortOrder :: SortOrder,
+    sortOrderName :: SortOrder,
+    sortOrderCreatedAt :: SortOrder,
     pageSize :: PageSize,
     -- | Next page starts at the `offset`th row.  An offset of `Nothing` means no more data
     -- available, pagination complete.
@@ -149,14 +153,15 @@ instance ToSchema PaginationState where
   schema =
     object "PagintationStatePayload" $
       PaginationState
-        <$> (.searchString) .= field "search_string" schema
+        <$> (.searchString) .= maybe_ (optField "search_string" schema)
         <*> (.sortBy) .= field "sort_by" schema
-        <*> (.sortOrder) .= field "sort_order" schema
+        <*> (.sortOrderName) .= field "sort_order_by_name" schema
+        <*> (.sortOrderCreatedAt) .= field "sort_order_by_created_at" schema
         <*> (.pageSize) .= field "page_size" schema
         <*> (.offset) .= maybe_ (optField "offset" schema)
 
 instance Arbitrary PaginationState where
-  arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance FromHttpApiData PaginationState where
   parseUrlPiece = parseUrlPieceViaSchema
