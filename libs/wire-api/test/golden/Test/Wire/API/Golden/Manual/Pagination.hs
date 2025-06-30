@@ -61,9 +61,10 @@ testObject_PaginationResult_1 =
   PaginationResult
     []
     PaginationState
-      { searchString = "",
+      { searchString = Nothing,
         sortBy = def,
-        sortOrder = def,
+        sortOrderName = defaultSortOrder SortByName,
+        sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
         pageSize = def,
         offset = Nothing
       }
@@ -73,9 +74,10 @@ testObject_PaginationResult_2 =
   PaginationResult
     [ug1, ug2]
     PaginationState
-      { searchString = "q",
+      { searchString = Just "q",
         sortBy = SortByName,
-        sortOrder = Asc,
+        sortOrderName = Asc,
+        sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 500,
         offset = Just 3
       }
@@ -85,9 +87,10 @@ testObject_PaginationResult_3 =
   PaginationResult
     [ug2]
     PaginationState
-      { searchString = "rst",
+      { searchString = Just "rst",
         sortBy = SortByCreatedAt,
-        sortOrder = Asc,
+        sortOrderName = Desc,
+        sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
         offset = Just 1911684
       }
