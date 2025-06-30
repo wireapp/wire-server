@@ -24,6 +24,7 @@
         "page_size": 500,
         "search_string": "q",
         "sort_by": "name",
-        "sort_order": "asc"
+        "sort_order_by_created_at": "asc",
+        "sort_order_by_name": "asc"
     }
 }
