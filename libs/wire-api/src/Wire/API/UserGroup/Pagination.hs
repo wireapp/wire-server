@@ -32,6 +32,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import GHC.Generics
 import Imports
+import Numeric.Natural
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.UserGroup
@@ -45,7 +46,7 @@ import Wire.Arbitrary as Arbitrary
 type PaginationQuery =
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sortBy" SortBy
-    --     :> QueryParam' '[Optional Strict] "sortOrder" SortOrder
+    :> QueryParam' '[Optional, Strict] "sortOrder" SortOrder
     :> QueryParam' '[Optional, Strict] "pageSize" PageSize
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
@@ -133,12 +134,13 @@ instance Default PageSize where
 ------------------------------
 
 data PaginationState = PaginationState
-  { sortByKeys :: SortBy,
+  { searchString :: Text,
+    sortBy :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
-    searchString :: Text,
-    -- | `Nothing` means no more data available, pagination complete.
-    lastRowSent :: Maybe UserGroup
+    -- | Next page starts at the `offset`th row.  An offset of `Nothing` means no more data
+    -- available, pagination complete.
+    offset :: Maybe Natural
   }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
@@ -147,11 +149,11 @@ instance ToSchema PaginationState where
   schema =
     object "PagintationStatePayload" $
       PaginationState
-        <$> (.sortByKeys) .= field "sort_by" schema
+        <$> (.searchString) .= field "search_string" schema
+        <*> (.sortBy) .= field "sort_by" schema
         <*> (.sortOrder) .= field "sort_order" schema
         <*> (.pageSize) .= field "page_size" schema
-        <*> (.searchString) .= field "search_string" schema
-        <*> (.lastRowSent) .= maybe_ (optField "last_row_sent" schema)
+        <*> (.offset) .= maybe_ (optField "offset" schema)
 
 instance Arbitrary PaginationState where
   arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
