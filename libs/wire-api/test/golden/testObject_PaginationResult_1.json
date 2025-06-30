@@ -2,7 +2,6 @@
     "page": [],
     "state": {
         "page_size": 15,
-        "search_string": "",
         "sort_by": "created_at",
         "sort_order": "desc"
     }

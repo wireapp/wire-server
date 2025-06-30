@@ -13,13 +13,7 @@
         }
     ],
     "state": {
-        "last_row_sent": {
-            "createdAt": "2025-04-16T16:22:21.703Z",
-            "id": "00000000-0000-0000-0000-000000000000",
-            "managedBy": "wire",
-            "members": [],
-            "name": "*"
-        },
+        "offset": 1911684,
         "page_size": 1,
         "search_string": "rst",
         "sort_by": "created_at",
