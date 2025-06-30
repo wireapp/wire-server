@@ -62,10 +62,10 @@ testObject_PaginationResult_1 =
     []
     PaginationState
       { searchString = "",
-        sortByKeys = def,
+        sortBy = def,
         sortOrder = def,
         pageSize = def,
-        lastRowSent = Nothing
+        offset = Nothing
       }
 
 testObject_PaginationResult_2 :: PaginationResult
@@ -74,10 +74,10 @@ testObject_PaginationResult_2 =
     [ug1, ug2]
     PaginationState
       { searchString = "q",
-        sortByKeys = SortByName,
+        sortBy = SortByName,
         sortOrder = Asc,
         pageSize = pageSizeFromIntUnsafe 500,
-        lastRowSent = Just ug3
+        offset = Just 3
       }
 
 testObject_PaginationResult_3 :: PaginationResult
@@ -86,8 +86,8 @@ testObject_PaginationResult_3 =
     [ug2]
     PaginationState
       { searchString = "rst",
-        sortByKeys = SortByCreatedAt,
+        sortBy = SortByCreatedAt,
         sortOrder = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
-        lastRowSent = Just ug1
+        offset = Just 1911684
       }

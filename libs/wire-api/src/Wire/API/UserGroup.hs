@@ -111,3 +111,6 @@ instance ToSchema UserGroupKey where
       UserGroupKey
         <$> (.name) .= field "name" schema
         <*> (.createdAt) .= field "createdAt" schema
+
+userGroupToKey :: UserGroup -> UserGroupKey
+userGroupToKey ug = UserGroupKey ug.name ug.createdAt
