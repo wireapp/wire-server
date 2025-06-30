@@ -111,7 +111,6 @@ import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
-import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -151,6 +150,7 @@ import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
@@ -1679,7 +1679,7 @@ getUserGroups ::
   Maybe SortOrder ->
   Maybe PageSize ->
   Maybe PaginationState ->
-  Handler r (PaginationResult UserGroup)
+  Handler r PaginationResult
 getUserGroups lusr q sortByKeys sortOrder pSize pState =
   lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize pState
 
