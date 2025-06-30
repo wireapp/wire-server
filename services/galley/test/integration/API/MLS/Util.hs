@@ -458,25 +458,12 @@ memberToOtherMember m =
       omConvRoleName = m.memConvRoleName
     }
 
-convV9ToV10 :: ConversationV9 -> Conversation
-convV9ToV10 conv =
-  Conversation
-    { qualifiedId = conv.cnvQualifiedId,
-      members =
-        ConvMembers
-          { self = Just $ conv.cnvMembers.cmSelf,
-            others = conv.cnvMembers.cmOthers
-          },
-      metadata = conv.cnvMetadata,
-      protocol = conv.cnvProtocol
-    }
-
 -- | Create self-conversation and corresponding group.
 setupMLSSelfGroup :: (HasCallStack) => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
   where
     action =
-      fmap convV9ToV10
+      fmap fromConversationV9
         . responseJsonError
         =<< liftTest
           (getSelfConv (ciUser creator))

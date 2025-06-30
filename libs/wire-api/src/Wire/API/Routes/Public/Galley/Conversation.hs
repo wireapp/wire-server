@@ -164,15 +164,27 @@ type ConversationAPI =
                :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "Conversation" ConversationV9)
            )
     :<|> Named
-           "get-conversation"
+           "get-conversation@v8"
            ( Summary "Get a conversation by ID"
                :> From 'V6
+               :> Until 'V9
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
                :> Get '[JSON] ConversationV9
+           )
+    :<|> Named
+           "get-conversation"
+           ( Summary "Get a conversation by ID"
+               :> From 'V9
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> Get '[JSON] Conversation
            )
     :<|> Named
            "get-conversation-roles"

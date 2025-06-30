@@ -590,3 +590,16 @@ testAdminCanRemoveMemberWithoutJoining = do
       void $ mlsCliConsume convId def cid msgData
       r <- createPendingProposalCommit convId cid >>= sendAndConsumeCommitBundle
       shouldBeEmpty $ r %. "events"
+
+testTeamAdminCanGetChannelData :: (HasCallStack) => App ()
+testTeamAdminCanGetChannelData = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+  conv <-
+    postConversation
+      owner
+      defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True}
+      >>= getJSON 201
+  getConversation owner conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200

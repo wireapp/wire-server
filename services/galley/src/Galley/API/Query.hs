@@ -20,7 +20,8 @@
 
 module Galley.API.Query
   ( getBotConversation,
-    getUnqualifiedConversation,
+    getUnqualifiedConversationV9,
+    getConversationV9,
     getConversation,
     getLocalConversationInternal,
     getConversationRoles,
@@ -51,6 +52,7 @@ where
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Extra
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code
@@ -138,7 +140,8 @@ getBotConversation zbot cnv = do
       | otherwise =
           Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
-getUnqualifiedConversation ::
+getUnqualifiedConversationV9 ::
+  forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -148,11 +151,65 @@ getUnqualifiedConversation ::
   Local UserId ->
   ConvId ->
   Sem r Public.ConversationV9
-getUnqualifiedConversation lusr cnv = do
+getUnqualifiedConversationV9 lusr cnv = do
   c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
   Mapping.conversationViewV9 lusr c
 
+getUnqualifiedConversation ::
+  forall r.
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  ConvId ->
+  Sem r Public.Conversation
+getUnqualifiedConversation lusr cnv = do
+  mChannel <- getChannel lusr cnv
+  case mChannel of
+    Just channel -> pure channel
+    Nothing ->
+      Mapping.conversationView (qualifyAs lusr ()) (Just lusr)
+        <$> getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
+
+getChannel ::
+  forall r.
+  ( Member ConversationStore r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  ConvId ->
+  Sem r (Maybe Public.Conversation)
+getChannel lusr cnv =
+  runMaybeT $ do
+    conv <- MaybeT (E.getConversation cnv)
+    tid <- MaybeT $ pure (conv.convMetadata.cnvmTeam)
+    tm <- MaybeT $ E.getTeamMember tid (tUnqualified lusr)
+    guard (conv.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
+    pure $ Mapping.conversationView (qualifyAs lusr ()) (Just lusr) conv
+
 getConversation ::
+  forall r.
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
+    Member FederatorAccess r,
+    Member P.TinyLog r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  Qualified ConvId ->
+  Sem r Public.Conversation
+getConversation lusr cnv =
+  foldQualified
+    lusr
+    (getUnqualifiedConversation lusr . tUnqualified)
+    (fmap fromConversationV9 . getRemoteConversation lusr)
+    cnv
+
+getConversationV9 ::
   forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
@@ -165,10 +222,10 @@ getConversation ::
   Local UserId ->
   Qualified ConvId ->
   Sem r Public.ConversationV9
-getConversation lusr cnv = do
+getConversationV9 lusr cnv = do
   foldQualified
     lusr
-    (getUnqualifiedConversation lusr . tUnqualified)
+    (getUnqualifiedConversationV9 lusr . tUnqualified)
     (getRemoteConversation lusr)
     cnv
 
@@ -215,7 +272,7 @@ getLocalConversationInternal ::
 getLocalConversationInternal cid = do
   lcid <- qualifyLocal cid
   conv <- getConversationWithError lcid
-  pure $ conversationView lcid Nothing conv
+  pure $ conversationView (qualifyAs lcid ()) Nothing conv
 
 data FailedGetConversationReason
   = FailedGetConversationLocally
@@ -562,6 +619,19 @@ listConversations luser (Public.ListConversations ids) = do
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- current user should be considered removed from this conversation at this
+    -- current user should be considered removed from this conversation at this
+    -- current user should be considered removed from this conversation at this
+    -- current user should be considered removed from this conversation at this
+    -- point.
+    -- point.
+    -- point.
+    -- point.
+
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.
