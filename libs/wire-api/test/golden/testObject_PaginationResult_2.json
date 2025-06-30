@@ -20,15 +20,7 @@
         }
     ],
     "state": {
-        "last_row_sent": {
-            "createdAt": "2021-12-12T00:00:00.000Z",
-            "id": "60278b50-552d-11f0-892b-ebd66f6c2c30",
-            "managedBy": "scim",
-            "members": [
-                "37b636e2-552f-11f0-abe8-5bf7b2ad08c9"
-            ],
-            "name": "!! user group !!"
-        },
+        "offset": 3,
         "page_size": 500,
         "search_string": "q",
         "sort_by": "name",
