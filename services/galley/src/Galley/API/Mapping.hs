@@ -28,7 +28,6 @@ where
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
-import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.Data.Conversation qualified as Data
 import Galley.Types.Conversations.Members
@@ -76,7 +75,7 @@ conversationView l luid conv =
 
 -- | Like 'conversationView' but optimized for situations which could benefit
 -- from pre-computing the list of @OtherMember@s in the conversation. For
--- instance, creating @ConvesationView@ for more than 1 member of the same conversation.
+-- instance, creating @ConversationView@ for more than 1 member of the same conversation.
 conversationViewWithCachedOthers ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
