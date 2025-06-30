@@ -964,6 +964,16 @@ assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
 
+## Settings in cannon
+
+### Events websocket inactivity
+
+The /events websocket will close a connection when it detects client inactivity. The inactivity behaviour can be controlled by setting the cannon options `wsOpts.activityTimeout` and `wsOpts.pongTimeout`.
+
+After `wsOpts.activityTimeout` microseconds of client inactivity (including no pings), the server sends a ping, and waits for a corresponding pong for `wsOpts.pongTimeout` microseconds. If no pong is received within this time window, the connection is terminated.
+
+If not specified, both options default to 30 seconds.
+
 ## Settings in spar
 
 This section describes the common "single-ingress" (one backend is reachable by
