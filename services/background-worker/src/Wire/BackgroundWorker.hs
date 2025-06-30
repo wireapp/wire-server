@@ -59,15 +59,27 @@ run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
   let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
-  pusherState <- runAppT env $ BackendNotificationPusher.startWorker amqpEP
-  deadWatcherAsync <- supervisor env "DeadUserNotificationWatcher" (DeadUserNotificationWatcher.startWorker amqpEP)
-  let cleanup = do
-        cancel deadWatcherAsync
-        runAppT env $ BackendNotificationPusher.cancelWorker pusherState
+
+  cleanupCallback :: MVar (IO ()) <- newMVar (pure ())
+  let addToCleanupCallback action = do
+        modifyMVar_ cleanupCallback (\actions -> pure (actions >> action))
+      runCleanupCallback = do
+        cb <- readMVar cleanupCallback
+        cb
+
+  runAppT env (BackendNotificationPusher.startWorker amqpEP) >>= \pusherState ->
+    addToCleanupCallback (runAppT env (BackendNotificationPusher.cancelWorker pusherState))
+
+  supervisor env "DeadUserNotificationWatcher" (DeadUserNotificationWatcher.startWorker amqpEP) >>= \worker ->
+    addToCleanupCallback (cancel worker)
+
   let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   settings <- newSettings server
-  -- Additional cleanup when shutting down via signals.
-  runSettingsWithCleanup cleanup settings (servantApp env) Nothing
+  warpAsync <- async (runSettingsWithCleanup runCleanupCallback settings (servantApp env) Nothing)
+  addToCleanupCallback (cancel warpAsync)
+  waitCatch warpAsync >>= \case
+    Right v -> runCleanupCallback >> pure v
+    Left e -> runCleanupCallback >> throw e
 
 servantApp :: Env -> Application
 servantApp env =
