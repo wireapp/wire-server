@@ -93,6 +93,9 @@ startWorker amqp = do
     -- If we put anything here, openConnection (below) will recurse.  Nothing means
     -- "connection died, open a new one"; Just conn means "connection is still ok, but channel
     -- died".
+    --
+    -- The only reason for `reconnectSignal` is that we can avoid re-opening the connection
+    -- when channel crashes.
     newEmptyMVar
 
   -- This function will open a connection to rabbitmq and start the consumer.  We use
@@ -116,6 +119,23 @@ startWorker amqp = do
                     Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed normally.")
               putMVar reconnectSignal Nothing
 
+            onBlockedConn msg = do
+              Log.err env.logger $
+                Log.field "amqp message" msg
+                  . Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection blocked -- waiting for unblock.")
+
+            onUnblockedConn = do
+              Log.err env.logger $
+                Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection unblocked.")
+
+            onChannelException conn e = do
+              unless (Q.isNormalChannelClose e) $
+                Log.err env.logger $
+                  Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
+                    . Log.field "exception" (displayException e)
+              runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
+              putMVar reconnectSignal (Just conn)
+
         mConn <- lowerCodensity $ do
           -- Open amqp connection
           conn <- case connM of
@@ -127,6 +147,7 @@ startWorker amqp = do
 
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True onCloseConn
+              liftIO $ Q.addConnectionBlockedHandler conn onBlockedConn onUnblockedConn
 
               runAppT env $
                 -- there is a connection now, but it's not consuming yet.
@@ -136,15 +157,7 @@ startWorker amqp = do
 
           -- After starting the connection, open the channel
           chan <- Codensity $ bracket (liftIO $ Q.openChannel conn) (liftIO . Q.closeChannel)
-
-          -- If the channel stops, we need to re-open
-          liftIO $ Q.addChannelExceptionHandler chan $ \e -> do
-            unless (Q.isNormalChannelClose e) $
-              Log.err env.logger $
-                Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
-                  . Log.field "exception" (displayException e)
-            runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
-            putMVar reconnectSignal (Just conn)
+          liftIO $ Q.addChannelExceptionHandler chan (onChannelException conn)
 
           -- Set up the consumer
           void $ Codensity $ bracket (startConsumer chan) (liftIO . Q.cancelConsumer chan)
