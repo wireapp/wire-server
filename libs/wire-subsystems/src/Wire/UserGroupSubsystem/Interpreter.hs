@@ -11,18 +11,19 @@ import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Imports
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
@@ -167,56 +168,43 @@ getUserGroupsImpl ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe (PaginationState UserGroupKey) ->
-  Sem r (PaginationResult UserGroupKey UserGroup)
-getUserGroupsImpl getter q sortByKeys' sortOrder' pSize pState = do
+  Maybe PaginationState ->
+  Sem r PaginationResult
+getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin {- sic! -}
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless (getterCanSeeAll) $ throw UserGroupNotATeamAdmin
   checkPaginationState `mapM_` pState
-  details <- either (throw . UserGroupInvalidQueryParams) pure (mkQueryDetails team)
-  page :: [UserGroup] <- Store.getUserGroups details
-  pure (PaginationResult page (newPaginationState page))
+  page :: [UserGroup] <- Store.getUserGroups currentPaginationState
+  pure (PaginationResult page (nextPaginationState (fromIntegral $ length page)))
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
 
-    -- TODO: try to push most of this to Wire.API.Pagination
-
-    checkPaginationState :: PaginationState UserGroupKey -> Sem r ()
+    checkPaginationState :: PaginationState -> Sem r ()
     checkPaginationState st = do
       let badState = throw . UserGroupInvalidQueryParams . (<> " mismatch")
       forM_ q $ \x -> unless (st.searchString == x) (badState "searchString")
-      forM_ sortByKeys' $ \x -> unless (st.sortByKeys == x) (badState "sortBy")
+      forM_ sortBy' $ \x -> unless (st.sortBy == x) (badState "sortBy")
       forM_ sortOrder' $ \x -> unless (st.sortOrder == x) (badState "sortOrder")
       forM_ pSize $ \x -> unless (st.pageSize == x) (badState "pageSize")
 
-    newPaginationState :: [UserGroup] -> PaginationState UserGroupKey
-    newPaginationState ugs = case pState of
-      Just oldState -> oldState {lastRowSent = lastRowSent}
+    currentPaginationState :: PaginationState
+    currentPaginationState = case pState of
+      Just oldState -> oldState
       Nothing -> PaginationState {..}
       where
-        searchString :: Text = fromMaybe "" q
-        sortByKeys :: SortBy = fromMaybe (SortBy ["created_at", "name"]) sortByKeys'
-        sortOrder :: SortOrder = fromMaybe def sortOrder'
-        pageSize :: PageSize = fromMaybe def pSize
-        lastRowSent :: UserGroupKey = let l = last ugs in UserGroupKey l.name l.createdAt
+        searchString = fromMaybe mempty q
+        sortBy = fromMaybe def sortBy'
+        sortOrder = fromMaybe def sortOrder'
+        pageSize = fromMaybe def pSize
+        offset = Just 0
 
-    mkQueryDetails :: TeamId -> Either Text (Store.ListUserGroupsQuery UserGroupKey)
-    mkQueryDetails team = do
-      let lastRowSent = (.lastRowSent) <$> pState
-          sortDescending = maybe True (== Desc) sortOrder'
-          pageSize = pageSizeToInt $ fromMaybe def pSize
-          searchString = q
-      sortByName <- case sortByKeys' of
-        Nothing -> pure False
-        Just (SortBy ["name"]) -> pure True
-        Just (SortBy ["name", "created_at"]) -> pure True
-        Just (SortBy ["created_at"]) -> pure False
-        Just (SortBy ["created_at", "name"]) -> pure False
-        Just (SortBy bad) ->
-          Left $ "invalid sort keys (allowed: name,created_at); received: " <> T.intercalate "," bad <> ")"
-      pure Store.ListUserGroupsQuery {..}
+    nextPaginationState :: Natural -> PaginationState
+    nextPaginationState newOffset =
+      currentPaginationState
+        { offset = Just $ maybe newOffset (+ newOffset) currentPaginationState.offset
+        }
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
