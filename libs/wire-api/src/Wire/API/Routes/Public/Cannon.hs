@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Cannon where
 
 import Data.Id
+import Data.Text
 import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
@@ -57,6 +58,13 @@ type CannonAPI =
                     ]
                     "client"
                     ClientId
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Synchronization marker ID"
+                    ]
+                    "sync_marker"
+                    Text
                -- FUTUREWORK: Consider higher-level web socket combinator
                :> WebSocketPending
            )

@@ -45,9 +45,25 @@ instance ToSchema EventData where
         <$> event .= field "event" schema
         <*> (.deliveryTag) .= field "delivery_tag" schema
 
+data SynchronizationData = SynchronizationData
+  { markerId :: Text,
+    deliveryTag :: Word64
+  }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform SynchronizationData)
+  deriving (FromJSON, ToJSON) via (Schema SynchronizationData)
+
+instance ToSchema SynchronizationData where
+  schema =
+    object "SynchronizationData " $
+      SynchronizationData
+        <$> markerId .= field "marker_id" schema
+        <*> (.deliveryTag) .= field "delivery_tag" schema
+
 data MessageServerToClient
   = EventMessage EventData
   | EventFullSync
+  | EventSyncMessage SynchronizationData
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform MessageServerToClient)
 
@@ -65,7 +81,7 @@ makePrisms ''MessageClientToServer
 -- ServerToClient
 
 -- | Local type, only needed for writing the ToSchema instance for 'MessageServerToClient'.
-data MessageTypeServerToClient = MsgTypeEventMessage | MsgTypeEventFullSync
+data MessageTypeServerToClient = MsgTypeEventMessage | MsgTypeEventFullSync | MsgTypeSynchronization
   deriving (Eq, Enum, Bounded)
 
 msgTypeSchemaServerToClient :: ValueSchema NamedSwaggerDoc MessageTypeServerToClient
@@ -73,7 +89,8 @@ msgTypeSchemaServerToClient =
   enum @Text "MessageTypeServerToClient" $
     mconcat $
       [ element "event" MsgTypeEventMessage,
-        element "notifications_missed" MsgTypeEventFullSync
+        element "notifications_missed" MsgTypeEventFullSync,
+        element "synchronization" MsgTypeSynchronization
       ]
 
 instance ToSchema MessageServerToClient where
@@ -84,6 +101,7 @@ instance ToSchema MessageServerToClient where
       toTagged :: MessageServerToClient -> (MessageTypeServerToClient, MessageServerToClient)
       toTagged d@(EventMessage _) = (MsgTypeEventMessage, d)
       toTagged d@EventFullSync = (MsgTypeEventFullSync, d)
+      toTagged d@(EventSyncMessage _) = (MsgTypeSynchronization, d)
 
       fromTagged :: (MessageTypeServerToClient, MessageServerToClient) -> MessageServerToClient
       fromTagged = snd
@@ -92,6 +110,7 @@ instance ToSchema MessageServerToClient where
       untaggedSchema = dispatch $ \case
         MsgTypeEventMessage -> tag _EventMessage (field "data" schema)
         MsgTypeEventFullSync -> tag _EventFullSync (pure ())
+        MsgTypeSynchronization -> tag _EventSyncMessage (field "data" schema)
 
 deriving via Schema MessageServerToClient instance FromJSON MessageServerToClient
 

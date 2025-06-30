@@ -11,10 +11,10 @@ import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
-import Data.Aeson qualified as Aeson
-import Data.Aeson.KeyMap qualified as KM
 import Data.Id
-import Data.List.NonEmpty qualified as NonEmpty
+import Data.Text
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TLE
 import Imports hiding (min, threadDelay)
 import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
@@ -24,8 +24,8 @@ import System.Logger qualified as Log
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
 
-rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Env -> ServerApp
-rabbitMQWebSocketApp uid mcid e pendingConn = do
+rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
+rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
   runCodensity (createChannel uid mcid e.pool createQueue) runWithChannel
     `catches` [handleTooManyChannels]
   where
@@ -36,7 +36,8 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
     runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \wsConn ->
       ( do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          sendNotifications chan queueInfo wsConn
+          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage) (mcid *> mSyncMarkerId)
+          sendNotifications chan wsConn
       )
         `catches` [ handleClientMisbehaving wsConn,
                     handleWebSocketExceptions wsConn,
@@ -53,26 +54,40 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
 
-    getEventData :: RabbitMqChannel -> IO EventData
+    getEventData :: RabbitMqChannel -> IO (Either EventData SynchronizationData)
     getEventData chan = do
       (msg, envelope) <- getMessage chan
-      case eitherDecode @QueuedNotification msg.msgBody of
-        Left err -> do
-          logParseError err
-          -- This message cannot be parsed, make sure it doesn't requeue. There
-          -- is no need to throw an error and kill the websocket as this is
-          -- probably caused by a bug or someone messing with RabbitMQ.
-          --
-          -- The bug case is slightly dangerous as it could drop a lot of events
-          -- en masse, if at some point we decide that Events should not be
-          -- pushed as JSONs, hopefully we think of the parsing side if/when
-          -- that happens.
-          Q.rejectEnv envelope False
-          -- try again
-          getEventData chan
-        Right notif -> do
-          logEvent notif
-          pure $ EventData notif envelope.envDeliveryTag
+      case msg.msgType of
+        Just "synchronization" -> do
+          let syncData =
+                SynchronizationData
+                  { markerId = TL.toStrict $ TLE.decodeUtf8 msg.msgBody,
+                    deliveryTag = envelope.envDeliveryTag
+                  }
+          pure $ Right syncData
+        _ -> do
+          case eitherDecode @QueuedNotification msg.msgBody of
+            Left err -> do
+              logParseError err
+              -- This message cannot be parsed, make sure it doesn't requeue. There
+              -- is no need to throw an error and kill the websocket as this is
+              -- probably caused by a bug or someone messing with RabbitMQ.
+              --
+              -- The bug case is slightly dangerous as it could drop a lot of events
+              -- en masse, if at some point we decide that Events should not be
+              -- pushed as JSONs, hopefully we think of the parsing side if/when
+              -- that happens.
+              Q.rejectEnv envelope False
+              -- try again
+              getEventData chan
+            Right notif -> do
+              logEvent notif
+              pure $
+                Left $
+                  EventData
+                    { event = notif,
+                      deliveryTag = envelope.envDeliveryTag
+                    }
 
     handleWebSocketExceptions wsConn =
       Handler $
@@ -145,50 +160,24 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
         (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
         k $ QueueInfo queueName messageCount
 
-    endOfInitialSyncNotifType :: Text
-    endOfInitialSyncNotifType = "notification.end-of-initial-sync"
-
-    endOfInitialSyncMsg notificationId =
+    mkSynchronizationMessage markerId =
       Q.newMsg
-        { Q.msgBody =
-            Aeson.encode . queuedNotification notificationId . NonEmpty.singleton $
-              KM.fromList ["type" Aeson..= endOfInitialSyncNotifType],
-          Q.msgContentType = Just "application/json",
+        { Q.msgBody = TLE.encodeUtf8 (TL.fromStrict markerId),
+          Q.msgContentType = Just "text/plain; charset=utf-8",
           Q.msgDeliveryMode = Just Q.NonPersistent,
-          Q.msgExpiration = Just "0"
+          Q.msgExpiration = Just "0",
+          Q.msgType = Just "synchronization"
         }
 
-    sendNotifications :: RabbitMqChannel -> QueueInfo -> WS.Connection -> IO ()
-    sendNotifications chan queueInfo wsConn = do
-      -- Empty when pending, full when done
-      initialSync <- newEmptyMVar
-      latestUnackedTag <- newIORef (Nothing :: Maybe Word64)
-
-      let publishEndOfInitialSync = do
-            notificationId <- mkNotificationId
-            void $ Q.publishMsg chan.inner "" queueInfo.queueName (endOfInitialSyncMsg notificationId)
-
-      when (queueInfo.messageCount == 0) $ do
-        publishEndOfInitialSync
-
+    sendNotifications :: RabbitMqChannel -> WS.Connection -> IO ()
+    sendNotifications chan wsConn = do
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
+            let msg = case eventData of
+                  Left event -> EventMessage event
+                  Right sync -> EventSyncMessage sync
 
-            whenM (isEmptyMVar initialSync) $ do
-              let notif = NonEmpty.head (eventData.event ^. queuedNotificationPayload)
-              case KM.lookup "type" notif of
-                Just (Aeson.String typ)
-                  | typ == endOfInitialSyncNotifType ->
-                      void $ tryPutMVar initialSync ()
-                _ -> pure ()
-
-            -- This looks like a duplicate check, but the previous whenM can
-            -- modify this value, so we should check again. This avoids sending
-            -- duplicate end-of-initial-sync messages.
-            whenM (isEmptyMVar initialSync) $ do
-              atomicModifyIORef' latestUnackedTag (const (Just eventData.deliveryTag, ()))
-
-            catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
+            catch (WS.sendBinaryData wsConn (encode msg)) $
               \(err :: SomeException) -> do
                 logSendFailure err
                 throwIO err
@@ -199,13 +188,6 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                isInitialSyncPending <- isEmptyMVar initialSync
-                when isInitialSyncPending $ do
-                  tag <- readIORef latestUnackedTag
-
-                  when (tag == Just ackData.deliveryTag) $ do
-                    publishEndOfInitialSync
-
                 void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
