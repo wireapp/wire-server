@@ -6,8 +6,8 @@ module Wire.UserGroupSubsystem where
 import Data.Id
 import Imports
 import Polysemy
-import Wire.API.Pagination
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
@@ -18,8 +18,8 @@ data UserGroupSubsystem m a where
     Maybe SortBy ->
     Maybe SortOrder ->
     Maybe PageSize ->
-    Maybe (PaginationState UserGroupKey) ->
-    UserGroupSubsystem m (PaginationResult UserGroupKey UserGroup)
+    Maybe PaginationState ->
+    UserGroupSubsystem m PaginationResult
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
   AddUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
