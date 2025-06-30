@@ -8,7 +8,7 @@ import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, handle, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
@@ -34,15 +34,10 @@ data InactivityTimeout = InactivityTimeout
 instance Exception InactivityTimeout
 
 rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
-rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
-  runCodensity (createChannel uid mcid e.pool createQueue) runWithChannel
-    `catches` [handleTooManyChannels]
-  where
-    logClient =
-      Log.field "user" (idToText uid)
-        . Log.field "client" (maybe "<temporary>" clientToText mcid)
-
-    runWithChannel (chan, queueInfo) = lowerCodensity $ do
+rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
+  handle handleTooManyChannels . lowerCodensity $
+    do
+      (chan, queueInfo) <- createChannel uid mcid e.pool createQueue
       conn <- Codensity $ bracket openWebSocket closeWebSocket
       activity <- liftIO newEmptyMVar
       let wsConn =
@@ -53,19 +48,20 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
                 pongTimeout = e.wsOpts.pongTimeout
               }
 
-      main <- Codensity $ withAsync $ do
-        liftIO $
-          ( do
-              traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-              traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
-              sendNotifications chan wsConn
-          )
-            `catches` [ handleClientMisbehaving conn,
-                        handleWebSocketExceptions conn,
-                        handleRabbitMqChannelException conn,
-                        handleInactivity conn,
-                        handleOtherExceptions conn
-                      ]
+      main <- Codensity
+        $ withAsync
+        $ flip
+          catches
+          [ handleClientMisbehaving conn,
+            handleWebSocketExceptions conn,
+            handleRabbitMqChannelException conn,
+            handleInactivity conn,
+            handleOtherExceptions conn
+          ]
+        $ do
+          traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
+          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
+          sendNotifications chan wsConn
 
       let monitor = do
             timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
@@ -75,7 +71,14 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
                 timeout wsConn.pongTimeout (takeMVar wsConn.inner.connectionHeartbeat) >>= \case
                   Just _ -> monitor
                   Nothing -> cancelWith main InactivityTimeout
-      liftIO $ monitor
+
+      _ <- Codensity $ withAsync monitor
+
+      liftIO $ wait main
+  where
+    logClient =
+      Log.field "user" (idToText uid)
+        . Log.field "client" (maybe "<temporary>" clientToText mcid)
 
     openWebSocket =
       acceptRequest pendingConn
@@ -174,15 +177,14 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
         WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
         throwIO err
 
-    handleTooManyChannels = Handler $
-      \TooManyChannels ->
-        rejectRequestWith pendingConn $
-          RejectRequest
-            { rejectCode = 503,
-              rejectMessage = "Service Unavailable",
-              rejectHeaders = [],
-              rejectBody = ""
-            }
+    handleTooManyChannels TooManyChannels =
+      rejectRequestWith pendingConn $
+        RejectRequest
+          { rejectCode = 503,
+            rejectMessage = "Service Unavailable",
+            rejectHeaders = [],
+            rejectBody = ""
+          }
 
     createQueue chan = case mcid of
       Nothing -> Codensity $ \k -> do
