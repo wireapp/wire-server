@@ -214,8 +214,6 @@ env externalHostname portnum gundeckHost gundeckPort logg manager websockets rab
       reqId = RequestId defRequestId
    in Env {..}
 
--- Env leh lp  (RequestId defRequestId)
-
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e
 
