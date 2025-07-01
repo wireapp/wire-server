@@ -82,7 +82,7 @@ markAsNeedsFullSync cassandra uid cid = do
           VALUES (?, ?)
       |]
 
-----------------------------------------------------------------------
+-- * start worker
 
 startWorker ::
   AmqpEndpoint ->
