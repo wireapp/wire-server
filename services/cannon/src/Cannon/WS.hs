@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -156,7 +157,8 @@ data Env = Env
     clock :: !Clock,
     drainOpts :: DrainOpts,
     cassandra :: ClientState,
-    pool :: RabbitMqPool
+    pool :: RabbitMqPool,
+    notificationTTL :: Int
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -205,8 +207,14 @@ env ::
   DrainOpts ->
   ClientState ->
   RabbitMqPool ->
+  Int ->
   Env
-env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
+env externalHostname portnum gundeckHost gundeckPort logg manager websockets rabbitConnections rand clock drainOpts cassandra pool notificationTTL =
+  let upstream = (Bilge.host gundeckHost . Bilge.port gundeckPort $ empty)
+      reqId = RequestId defRequestId
+   in Env {..}
+
+-- Env leh lp  (RequestId defRequestId)
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

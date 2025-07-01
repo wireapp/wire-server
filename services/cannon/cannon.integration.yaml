@@ -35,6 +35,8 @@ drainOpts:
   millisecondsBetweenBatches: 500
   minBatchSize: 5
 
+notificationTTL: 24192200
+
 # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
 # brig, cannon, cargohold, galley, gundeck, proxy, spar.
 disabledAPIVersions: []

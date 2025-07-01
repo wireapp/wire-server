@@ -45,6 +45,7 @@ data:
       minBatchSize: {{ .config.drainOpts.minBatchSize }}
 
     disabledAPIVersions: {{ toJson .config.disabledAPIVersions }}
+    notificationTTL: {{ .config.notificationTTL }}
   {{- end }}
 
 

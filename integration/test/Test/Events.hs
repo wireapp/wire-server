@@ -653,7 +653,7 @@ testQosLimit = do
               ]
       GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
 
-  runCodensity (createEventsWebSocket alice (Just cid)) \ws -> do
+  runCodensity (createEventsWebSocketWithSync alice (Just cid) "end-marker") \ws -> do
     assertFindsEventConfigurableAck ((const . const . pure) ()) ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
       e %. "data.event.payload.0.client.id" `shouldMatch` cid
@@ -664,7 +664,7 @@ testQosLimit = do
 
     forM_ es (ackEvent ws)
 
-    es' <- consumeAllEventsNoAck ws
+    es' <- consumeEventsUntilEndOfInitialSync ws "end-marker"
     assertBool "Receive at least one outstanding event" $ not (null es')
 
 testEndOfInitialSync :: (HasCallStack) => App ()

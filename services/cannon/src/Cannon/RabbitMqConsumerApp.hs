@@ -13,6 +13,7 @@ import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Id
 import Data.Text
+import Data.Text qualified as Text
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
 import Imports hiding (min, threadDelay)
@@ -36,7 +37,7 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
     runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \wsConn ->
       ( do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage) (mcid *> mSyncMarkerId)
+          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
           sendNotifications chan wsConn
       )
         `catches` [ handleClientMisbehaving wsConn,
@@ -160,12 +161,12 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn = do
         (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
         k $ QueueInfo queueName messageCount
 
-    mkSynchronizationMessage markerId =
+    mkSynchronizationMessage ttl markerId =
       Q.newMsg
         { Q.msgBody = TLE.encodeUtf8 (TL.fromStrict markerId),
           Q.msgContentType = Just "text/plain; charset=utf-8",
-          Q.msgDeliveryMode = Just Q.NonPersistent,
-          Q.msgExpiration = Just "0",
+          Q.msgDeliveryMode = Just Q.Persistent,
+          Q.msgExpiration = Just (Text.pack $ show ttl),
           Q.msgType = Just "synchronization"
         }
 

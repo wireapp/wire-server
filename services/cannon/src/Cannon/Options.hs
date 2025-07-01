@@ -34,6 +34,7 @@ module Cannon.Options
     cassandraOpts,
     rabbitMqMaxConnections,
     rabbitMqMaxChannels,
+    notificationTTL,
     Opts,
     gracePeriodSeconds,
     millisecondsBetweenBatches,
@@ -105,7 +106,8 @@ data Opts = Opts
     -- | Maximum number of rabbitmq connections. Must be strictly positive.
     _optsRabbitMqMaxConnections :: Int,
     -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
-    _optsRabbitMqMaxChannels :: Int
+    _optsRabbitMqMaxChannels :: Int,
+    _optsNotificationTTL :: Int
   }
   deriving (Show, Generic)
 
@@ -132,3 +134,4 @@ instance FromJSON Opts where
       <*> o .: "cassandra"
       <*> o .:? "rabbitMqMaxConnections" .!= 1000
       <*> o .:? "rabbitMqMaxChannels" .!= 300
+      <*> o .: "notificationTTL"
