@@ -229,10 +229,10 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
-  aliceConvBeforeDelete :: ConversationV8 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvBeforeDelete :: ConversationV9 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
 
-  bobConvBeforeDelete :: ConversationV8 <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
+  bobConvBeforeDelete :: ConversationV9 <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers bobConvBeforeDelete)) @?= [aliceId]
 
   -- Alice kicks Bob out of the conversation
@@ -251,7 +251,7 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
     )
     !!! const 200 === statusCode
 
-  aliceConvAfterDelete :: ConversationV8 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvAfterDelete :: ConversationV9 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvAfterDelete)) @?= []
 
   getConversationQualified galley2 (userId bob) convId
@@ -271,10 +271,10 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
-  aliceConvBeforeDelete :: ConversationV8 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvBeforeDelete :: ConversationV9 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
 
-  bobConvBeforeDelete :: ConversationV8 <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
+  bobConvBeforeDelete :: ConversationV9 <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers bobConvBeforeDelete)) @?= [aliceId]
 
   -- Bob leaves the conversation
@@ -293,7 +293,7 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
     )
     !!! const 200 === statusCode
 
-  aliceConvAfterDelete :: ConversationV8 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvAfterDelete :: ConversationV9 <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvAfterDelete)) @?= []
 
   getConversationQualified galley2 (userId bob) convId
@@ -379,7 +379,7 @@ testListConversations brig1 brig2 galley1 galley2 = do
   cids <- liftIO $ case checked (mtpResults page) of
     Nothing -> assertFailure "too many conversations"
     Just r -> pure r
-  (cs :: [ConversationV8]) <-
+  (cs :: [ConversationV9]) <-
     (fmap crFound . responseJsonError)
       =<< listConvs galley1 (userId alice) cids <!! (const 200 === statusCode)
   let c1 = find ((== cnv1.qualifiedId) . cnvQualifiedId) cs

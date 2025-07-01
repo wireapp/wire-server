@@ -38,7 +38,7 @@ instance HasCellsState CellsState where
 instance HasCellsState Data.Conversation where
   getCellsState = getCellsState . Data.convMetadata
 
-instance HasCellsState Public.ConversationV8 where
+instance HasCellsState Public.ConversationV9 where
   getCellsState = getCellsState . Public.cnvMetadata
 
 instance HasCellsState ConversationMetadata where

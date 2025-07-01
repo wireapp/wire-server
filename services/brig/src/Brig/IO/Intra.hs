@@ -485,7 +485,7 @@ acceptLocalConnectConv ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r ConversationV8
+  Sem r ConversationV9
 acceptLocalConnectConv from conn cnv = do
   Log.debug $
     remote "galley"
@@ -506,7 +506,7 @@ acceptConnectConv ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  AppT r ConversationV8
+  AppT r ConversationV9
 acceptConnectConv from conn =
   foldQualified
     from

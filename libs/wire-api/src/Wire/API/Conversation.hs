@@ -24,7 +24,7 @@ module Wire.API.Conversation
   ( -- * Conversation
     ConversationMetadata (..),
     defConversationMetadata,
-    ConversationV8 (..),
+    ConversationV9 (..),
     Conversation (..),
     conversationSchema,
     cnvType,
@@ -36,7 +36,7 @@ module Wire.API.Conversation
     cnvReceiptMode,
     cnvAccessRoles,
     MLSOne2OneConversation (..),
-    CreateGroupConversationV8 (..),
+    CreateGroupConversationV9 (..),
     CreateGroupConversation (..),
     ConversationCoverView (..),
     ConversationList (..),
@@ -247,7 +247,7 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
 --
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
-data ConversationV8 = ConversationV8
+data ConversationV9 = ConversationV9
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
     cnvMetadata :: ConversationMetadata,
@@ -256,42 +256,42 @@ data ConversationV8 = ConversationV8
     cnvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationV8)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationV8
+  deriving (Arbitrary) via (GenericUniform ConversationV9)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationV9
 
-cnvType :: ConversationV8 -> ConvType
+cnvType :: ConversationV9 -> ConvType
 cnvType = cnvmType . cnvMetadata
 
-cnvCreator :: ConversationV8 -> Maybe UserId
+cnvCreator :: ConversationV9 -> Maybe UserId
 cnvCreator = cnvmCreator . cnvMetadata
 
-cnvAccess :: ConversationV8 -> [Access]
+cnvAccess :: ConversationV9 -> [Access]
 cnvAccess = cnvmAccess . cnvMetadata
 
-cnvAccessRoles :: ConversationV8 -> Set AccessRole
+cnvAccessRoles :: ConversationV9 -> Set AccessRole
 cnvAccessRoles = cnvmAccessRoles . cnvMetadata
 
-cnvName :: ConversationV8 -> Maybe Text
+cnvName :: ConversationV9 -> Maybe Text
 cnvName = cnvmName . cnvMetadata
 
-cnvTeam :: ConversationV8 -> Maybe TeamId
+cnvTeam :: ConversationV9 -> Maybe TeamId
 cnvTeam = cnvmTeam . cnvMetadata
 
-cnvMessageTimer :: ConversationV8 -> Maybe Milliseconds
+cnvMessageTimer :: ConversationV9 -> Maybe Milliseconds
 cnvMessageTimer = cnvmMessageTimer . cnvMetadata
 
-cnvReceiptMode :: ConversationV8 -> Maybe ReceiptMode
+cnvReceiptMode :: ConversationV9 -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
-instance ToSchema ConversationV8 where
+instance ToSchema ConversationV9 where
   schema = conversationSchema Nothing
 
-instance (SingI v) => ToSchema (Versioned v ConversationV8) where
+instance (SingI v) => ToSchema (Versioned v ConversationV9) where
   schema = Versioned <$> unVersioned .= conversationSchema (Just (demote @v))
 
-conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc ConversationV8
+conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc ConversationV9
 conversationObjectSchema v =
-  ConversationV8
+  ConversationV9
     <$> cnvQualifiedId .= field "qualified_id" schema
     <* (qUnqualified . cnvQualifiedId)
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
@@ -301,7 +301,7 @@ conversationObjectSchema v =
 
 conversationSchema ::
   Maybe Version ->
-  ValueSchema NamedSwaggerDoc ConversationV8
+  ValueSchema NamedSwaggerDoc ConversationV9
 conversationSchema v =
   objectWithDocModifier
     ("Conversation" <> foldMap (Text.toUpper . versionText) v)
@@ -334,7 +334,7 @@ conversationV9ObjectSchema =
     <*> protocol .= protocolSchema Nothing
 
 data MLSOne2OneConversation a = MLSOne2OneConversation
-  { conversation :: ConversationV8,
+  { conversation :: ConversationV9,
     publicKeys :: MLSKeysByPurpose (MLSKeys a)
   }
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a))
@@ -349,28 +349,28 @@ instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
 
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
-data CreateGroupConversationV8 = CreateGroupConversationV8
-  { cgcConversation :: ConversationV8,
+data CreateGroupConversationV9 = CreateGroupConversationV9
+  { cgcConversation :: ConversationV9,
     -- | Remote users that could not be added to the created group conversation
     -- because their backend was not reachable.
     cgcFailedToAdd :: Map Domain (Set UserId)
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform CreateGroupConversationV8)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateGroupConversationV8
+  deriving (Arbitrary) via (GenericUniform CreateGroupConversationV9)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateGroupConversationV9
 
-instance ToSchema CreateGroupConversationV8 where
+instance ToSchema CreateGroupConversationV9 where
   schema = createGroupConversationSchema Nothing
 
-instance (SingI v) => ToSchema (Versioned v CreateGroupConversationV8) where
+instance (SingI v) => ToSchema (Versioned v CreateGroupConversationV9) where
   schema = Versioned <$> unVersioned .= createGroupConversationSchema (Just (demote @v))
 
-createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupConversationV8
+createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupConversationV9
 createGroupConversationSchema v =
   objectWithDocModifier
-    "CreateGroupConversationV8"
+    "CreateGroupConversationV9"
     (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
-    $ CreateGroupConversationV8
+    $ CreateGroupConversationV9
       <$> cgcConversation .= conversationObjectSchema v
       <*> (toFlatList . cgcFailedToAdd)
         .= field "failed_to_add" (fromFlatList <$> array schema)
@@ -436,13 +436,13 @@ class ConversationListItem a where
 instance ConversationListItem ConvId where
   convListItemName _ = "conversation IDs"
 
-instance ConversationListItem ConversationV8 where
+instance ConversationListItem ConversationV9 where
   convListItemName _ = "conversations"
 
 instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
   schema = conversationListSchema schema
 
-instance ToSchema (Versioned 'V2 (ConversationList ConversationV8)) where
+instance ToSchema (Versioned 'V2 (ConversationList ConversationV9)) where
   schema =
     Versioned
       <$> unVersioned
@@ -500,7 +500,7 @@ instance ToSchema ListConversations where
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
 
 data ConversationsResponse = ConversationsResponse
-  { crFound :: [ConversationV8],
+  { crFound :: [ConversationV9],
     crNotFound :: [Qualified ConvId],
     crFailed :: [Qualified ConvId]
   }
@@ -1153,7 +1153,7 @@ instance ToSchema AddPermissionUpdate where
 --------------------------------------------------------------------------------
 -- MultiVerb instances
 
-instance AsHeaders '[ConvId] ConversationV8 ConversationV8 where
+instance AsHeaders '[ConvId] ConversationV9 ConversationV9 where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
 
@@ -1161,7 +1161,7 @@ instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified c.qualifiedId) :* Nil, c)
   fromHeaders = snd
 
-instance AsHeaders '[ConvId] CreateGroupConversationV8 CreateGroupConversationV8 where
+instance AsHeaders '[ConvId] CreateGroupConversationV9 CreateGroupConversationV9 where
   toHeaders c =
     ((I . qUnqualified . cnvQualifiedId . cgcConversation $ c) :* Nil, c)
   fromHeaders = snd

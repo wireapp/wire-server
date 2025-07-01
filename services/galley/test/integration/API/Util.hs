@@ -1048,7 +1048,7 @@ getConvs u cids = do
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
 
-getAllConvs :: (HasCallStack) => UserId -> TestM [ConversationV8]
+getAllConvs :: (HasCallStack) => UserId -> TestM [ConversationV9]
 getAllConvs u = do
   g <- viewGalley
   cids <- do
@@ -1604,7 +1604,7 @@ assertNotConvMember u c =
     const 200 === statusCode
     const (Right Null) === responseJsonEither
 
-assertConvEquals :: (HasCallStack, MonadIO m) => ConversationV8 -> ConversationV8 -> m ()
+assertConvEquals :: (HasCallStack, MonadIO m) => ConversationV9 -> ConversationV9 -> m ()
 assertConvEquals c1 c2 = liftIO $ do
   assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
   assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
@@ -1661,7 +1661,7 @@ assertConvWithRole r t c s us n mt role = do
       _ -> pure ()
   pure cnv.qualifiedId
 
-assertConvV8 ::
+assertConvV9 ::
   (HasCallStack) =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
@@ -1671,9 +1671,9 @@ assertConvV8 ::
   Maybe Text ->
   Maybe Milliseconds ->
   TestM (Qualified ConvId)
-assertConvV8 r t c s us n mt = assertConvWithRoleV8 r t c s us n mt roleNameWireAdmin
+assertConvV9 r t c s us n mt = assertConvWithRoleV9 r t c s us n mt roleNameWireAdmin
 
-assertConvWithRoleV8 ::
+assertConvWithRoleV9 ::
   (HasCallStack) =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
@@ -1684,7 +1684,7 @@ assertConvWithRoleV8 ::
   Maybe Milliseconds ->
   RoleName ->
   TestM (Qualified ConvId)
-assertConvWithRoleV8 r t c s us n mt role = do
+assertConvWithRoleV9 r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   cnv <- responseJsonError r
   let _self = cmSelf (cnvMembers cnv)
@@ -1934,14 +1934,14 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event _ _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
-decodeConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvIdV8 = qUnqualified . decodeQualifiedConvIdV8
+decodeConvIdV9 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
+decodeConvIdV9 = qUnqualified . decodeQualifiedConvIdV9
 
 decodeConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = qUnqualified . decodeQualifiedConvId
 
-decodeQualifiedConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvIdV8 = cnvQualifiedId . responseJsonUnsafe
+decodeQualifiedConvIdV9 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvIdV9 = cnvQualifiedId . responseJsonUnsafe
 
 decodeQualifiedConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
 decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @Conversation

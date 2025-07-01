@@ -52,7 +52,7 @@ data GalleyAPIAccess m a where
   GetConv ::
     UserId ->
     Local ConvId ->
-    GalleyAPIAccess m (Maybe ConversationV8)
+    GalleyAPIAccess m (Maybe ConversationV9)
   GetTeamConv ::
     UserId ->
     TeamId ->
@@ -132,7 +132,7 @@ data GalleyAPIAccess m a where
     Local UserId ->
     Maybe ConnId ->
     Qualified ConvId ->
-    GalleyAPIAccess m ConversationV8
+    GalleyAPIAccess m ConversationV9
   GetEJPDConvInfo ::
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]

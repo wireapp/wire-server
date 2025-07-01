@@ -136,7 +136,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[JSON] Connect
-               :> ConversationVerb 'V6 ConversationV8
+               :> ConversationVerb 'V6 ConversationV9
            )
     -- This endpoint is meant for testing membership of a conversation
     :<|> Named
@@ -401,7 +401,7 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "accept"
                :> "v2"
-               :> Put '[JSON] ConversationV8
+               :> Put '[JSON] ConversationV9
            )
     :<|> Named
            "conversation-block"
@@ -443,7 +443,7 @@ type IConversationAPI =
                :> "mls-one2one-conversations"
                :> ZLocalUser
                :> QualifiedCapture "user" UserId
-               :> Get '[JSON] ConversationV8
+               :> Get '[JSON] ConversationV9
            )
     :<|> Named
            "conversation-mls-one-to-one-established"
