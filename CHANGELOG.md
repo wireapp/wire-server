@@ -106,7 +106,7 @@
 ## API changes
 
 
-* From API version V9 on, the `POST /domain-verification/{domain}/backend` and
+* From API version V10 on, the `POST /domain-verification/{domain}/backend` and
   `POST /get-domain-registration` endpoints are adjusted to also carry the
   `webapp_url` in their payloads. The structure of these payloads changes as
   well: The former `backend_url` and the new `webapp_url` are now combined in one

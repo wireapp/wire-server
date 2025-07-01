@@ -49,7 +49,7 @@ conversationAPI =
     <@> mkNamedAPI @"create-group-conversation@v2" createGroupConversationUpToV3
     <@> mkNamedAPI @"create-group-conversation@v3" createGroupConversationUpToV3
     <@> mkNamedAPI @"create-group-conversation@v5" createGroupConversationV8
-    <@> mkNamedAPI @"create-group-conversation@v8" createGroupConversationV8
+    <@> mkNamedAPI @"create-group-conversation@v9" createGroupConversationV8
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation@v5" createProteusSelfConversation

@@ -363,41 +363,41 @@ tests =
         "DomainRedirectResponse"
         $ [ testGroup "V8" $
               testObjects
-                [ (testObject_DomainRedirectResponseV8_1, "testObject_DomainRedirectResponseV8_1.json"),
-                  (testObject_DomainRedirectResponseV8_2, "testObject_DomainRedirectResponseV8_2.json"),
-                  (testObject_DomainRedirectResponseV8_3, "testObject_DomainRedirectResponseV8_3.json"),
-                  (testObject_DomainRedirectResponseV8_4, "testObject_DomainRedirectResponseV8_4.json"),
-                  (testObject_DomainRedirectResponseV8_6, "testObject_DomainRedirectResponseV8_6.json"),
-                  (testObject_DomainRedirectResponseV8_7, "testObject_DomainRedirectResponseV8_7.json")
-                ]
-                ++ [ testCase
-                       "non-isomorph in webappUrl"
-                       (assertJSONIsGolden testObject_DomainRedirectResponseV8_5 "testObject_DomainRedirectResponseV8_5.json")
-                   ],
-            testGroup "V9" $
-              testObjects
                 [ (testObject_DomainRedirectResponseV9_1, "testObject_DomainRedirectResponseV9_1.json"),
                   (testObject_DomainRedirectResponseV9_2, "testObject_DomainRedirectResponseV9_2.json"),
                   (testObject_DomainRedirectResponseV9_3, "testObject_DomainRedirectResponseV9_3.json"),
                   (testObject_DomainRedirectResponseV9_4, "testObject_DomainRedirectResponseV9_4.json"),
-                  (testObject_DomainRedirectResponseV9_5, "testObject_DomainRedirectResponseV9_5.json"),
                   (testObject_DomainRedirectResponseV9_6, "testObject_DomainRedirectResponseV9_6.json"),
                   (testObject_DomainRedirectResponseV9_7, "testObject_DomainRedirectResponseV9_7.json")
+                ]
+                ++ [ testCase
+                       "non-isomorph in webappUrl"
+                       (assertJSONIsGolden testObject_DomainRedirectResponseV9_5 "testObject_DomainRedirectResponseV9_5.json")
+                   ],
+            testGroup "V9" $
+              testObjects
+                [ (testObject_DomainRedirectResponseV10_1, "testObject_DomainRedirectResponseV10_1.json"),
+                  (testObject_DomainRedirectResponseV10_2, "testObject_DomainRedirectResponseV10_2.json"),
+                  (testObject_DomainRedirectResponseV10_3, "testObject_DomainRedirectResponseV10_3.json"),
+                  (testObject_DomainRedirectResponseV10_4, "testObject_DomainRedirectResponseV10_4.json"),
+                  (testObject_DomainRedirectResponseV10_5, "testObject_DomainRedirectResponseV10_5.json"),
+                  (testObject_DomainRedirectResponseV10_6, "testObject_DomainRedirectResponseV10_6.json"),
+                  (testObject_DomainRedirectResponseV10_7, "testObject_DomainRedirectResponseV10_7.json")
                 ]
           ],
       testGroup
         "DomainRedirectConfig"
-        $ [ testGroup "V8" $
+        $ [ testGroup "V9" $
               testObjects
-                [ (testObject_DomainRedirectConfigV8_1, "testObject_DomainRedirectConfigV8_1.json"),
-                  (testObject_DomainRedirectConfigV8_3, "testObject_DomainRedirectConfigV8_3.json"),
-                  (testObject_DomainRedirectConfigV8_4, "testObject_DomainRedirectConfigV8_4.json")
+                [ (testObject_DomainRedirectConfigV9_1, "testObject_DomainRedirectConfigV9_1.json"),
+                  (testObject_DomainRedirectConfigV9_3, "testObject_DomainRedirectConfigV9_3.json"),
+                  (testObject_DomainRedirectConfigV9_4, "testObject_DomainRedirectConfigV9_4.json")
                 ]
                 ++ [ testCase
                        "non-isomorph in webappUrl"
-                       (assertJSONIsGolden testObject_DomainRedirectConfigV8_2 "testObject_DomainRedirectConfigV8_2.json")
+                       (assertJSONIsGolden testObject_DomainRedirectConfigV9_2 "testObject_DomainRedirectConfigV9_2.json")
                    ],
-            testGroup "V9" $
+            testGroup "V10" $
               testObjects
                 [ (testObject_DomainRedirectConfig_1, "testObject_DomainRedirectConfig_1.json"),
                   (testObject_DomainRedirectConfig_2, "testObject_DomainRedirectConfig_2.json"),

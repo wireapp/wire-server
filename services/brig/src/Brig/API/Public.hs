@@ -228,6 +228,22 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
+versionedSwaggerDocsAPI (Just (VersionNumber V10)) =
+  swaggerSchemaUIServer $
+    ( serviceSwagger @VersionAPITag @'V10
+        <> serviceSwagger @BrigAPITag @'V10
+        <> serviceSwagger @GalleyAPITag @'V10
+        <> serviceSwagger @SparAPITag @'V10
+        <> serviceSwagger @CargoholdAPITag @'V10
+        <> serviceSwagger @CannonAPITag @'V10
+        <> serviceSwagger @GundeckAPITag @'V10
+        <> serviceSwagger @ProxyAPITag @'V10
+        <> serviceSwagger @OAuthAPITag @'V10
+    )
+      & S.info . S.title .~ "Wire-Server API"
+      & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V10) Nothing mempty]
+      & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V9)) =
   swaggerSchemaUIServer $
     ( serviceSwagger @VersionAPITag @'V9
@@ -586,9 +602,9 @@ servantSitemap =
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
-      Named @"update-domain-redirect@v8" updateDomainRedirectV8
+      Named @"update-domain-redirect@v9" updateDomainRedirectV9
         :<|> Named @"update-domain-redirect" updateDomainRedirect
-        :<|> Named @"get-domain-registration@v8" getDomainRegistration
+        :<|> Named @"get-domain-registration@v9" getDomainRegistration
         :<|> Named @"get-domain-registration" getDomainRegistration
 
     domainVerificationTeamAPI :: ServerT DomainVerificationTeamAPI (Handler r)
@@ -1578,13 +1594,13 @@ authorizeTeam ::
 authorizeTeam lusr domain token =
   lift . liftSem $ EnterpriseLogin.authorizeTeam lusr domain token
 
-updateDomainRedirectV8 ::
+updateDomainRedirectV9 ::
   (_) =>
   Bearer Token ->
   Domain ->
-  DomainRedirectConfigV8 ->
+  DomainRedirectConfigV9 ->
   Handler r ()
-updateDomainRedirectV8 (Bearer authToken) domain config =
+updateDomainRedirectV9 (Bearer authToken) domain config =
   lift . liftSem $ EnterpriseLogin.updateDomainRedirect authToken domain config
 
 updateDomainRedirect ::
@@ -1594,14 +1610,14 @@ updateDomainRedirect ::
   DomainRedirectConfig ->
   Handler r ()
 updateDomainRedirect authToken domain config =
-  updateDomainRedirectV8 authToken domain (domainRedirectConfigToV8 config)
+  updateDomainRedirectV9 authToken domain (domainRedirectConfigToV8 config)
   where
-    domainRedirectConfigToV8 :: DomainRedirectConfig -> DomainRedirectConfigV8
-    domainRedirectConfigToV8 DomainRedirectConfigRemove = DomainRedirectConfigRemoveV8
+    domainRedirectConfigToV8 :: DomainRedirectConfig -> DomainRedirectConfigV9
+    domainRedirectConfigToV8 DomainRedirectConfigRemove = DomainRedirectConfigRemoveV9
     domainRedirectConfigToV8 (DomainRedirectConfigBackend backendUrl webappUrl) =
-      DomainRedirectConfigBackendV8 backendUrl (Just webappUrl)
+      DomainRedirectConfigBackendV9 backendUrl (Just webappUrl)
     domainRedirectConfigToV8 DomainRedirectConfigNoRegistration =
-      DomainRedirectConfigNoRegistrationV8
+      DomainRedirectConfigNoRegistrationV9
 
 updateTeamInvite ::
   (_) =>

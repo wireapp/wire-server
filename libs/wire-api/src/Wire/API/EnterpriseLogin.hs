@@ -80,8 +80,8 @@ instance ToSchema DomainRedirectTag where
 domainRedirectTagSchema :: ObjectSchema SwaggerDoc DomainRedirectTag
 domainRedirectTagSchema = field "domain_redirect" schema
 
-domainRedirectSchemaV8 :: ObjectSchema SwaggerDoc DomainRedirect
-domainRedirectSchemaV8 =
+domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchemaV9 =
   snd
     <$> (domainRedirectTag &&& id)
       .= bind

@@ -438,10 +438,10 @@ type ConversationAPI =
                :> ConversationVerb 'V5 CreateGroupConversationV8
            )
     :<|> Named
-           "create-group-conversation@v8"
+           "create-group-conversation@v9"
            ( Summary "Create a new conversation"
                :> From 'V6
-               :> Until 'V9
+               :> Until 'V10
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
@@ -463,7 +463,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
-               :> From 'V9
+               :> From 'V10
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
