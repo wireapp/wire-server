@@ -79,7 +79,7 @@ domainRedirectConfigV9Schema =
   where
     domainRedirectConfigObjectSchema :: DomainRedirectConfigTag -> ObjectSchema SwaggerDoc DomainRedirectConfigV9
     domainRedirectConfigObjectSchema = \case
-      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackendV9 backendConfigSchemaV8
+      DomainRedirectConfigBackendTag -> tag _DomainRedirectConfigBackendV9 backendConfigSchemaV9
       DomainRedirectConfigNoRegistrationTag -> tag _DomainRedirectConfigNoRegistrationV9 (pure ())
       DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemoveV9 (pure ())
 
