@@ -64,7 +64,7 @@ run opts = do
   let addToCleanupCallback action = do
         modifyMVar_ cleanupCallback (\actions -> pure (actions >> action))
       runCleanupCallback = do
-        join readMVar cleanupCallback
+        join (readMVar cleanupCallback)
 
   runAppT env (BackendNotificationPusher.startWorker amqpEP) >>= \pusherState ->
     addToCleanupCallback (runAppT env (BackendNotificationPusher.cancelWorker pusherState))
