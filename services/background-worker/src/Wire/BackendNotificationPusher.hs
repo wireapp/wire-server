@@ -331,6 +331,7 @@ startWorker rabbitmqOpts = do
       -- This is so we aren't trying to close consumers
       -- that don't exist when the service is shutdown.
       clearRefs = do
+        Log.debug $ Log.msg (Log.val "BackendNotificationPusher.startWorker: clearRefs")
         atomicWriteIORef chanRef Nothing
         atomicWriteIORef consumersRef mempty
   case env.rabbitmqAdminClient of
@@ -348,12 +349,15 @@ startWorker rabbitmqOpts = do
                 { -- The exception handling in `openConnectionWithRetries` won't open a new
                   -- connection on an explicit close call.
                   onNewChannel = \chan -> do
+                    Log.debug $ Log.msg (Log.val "BackendNotificationPusher.startWorker: onNewChannel")
                     atomicWriteIORef chanRef $ pure chan
                     runAppT env $ startPusher client consumersRef chan,
-                  onChannelException = \_ -> do
+                  onChannelException = \chan -> do
+                    Log.debug $ Log.msg (Log.val "BackendNotificationPusher.startWorker: onNewException")
                     clearRefs
                     runAppT env $ markAsNotWorking BackendNotificationPusher,
                   onConnectionClose = do
+                    Log.debug $ Log.msg (Log.val "BackendNotificationPusher.startWorker: onConnectionClose")
                     clearRefs
                     runAppT env $ markAsNotWorking BackendNotificationPusher
                 }
