@@ -17,7 +17,6 @@ import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.AMQP.Types
 import System.Logger qualified as Log
-import UnliftIO hiding (bracket, putMVar)
 import UnliftIO.Exception (bracket)
 import Wire.API.Notification
 import Wire.BackgroundWorker.Env
@@ -86,7 +85,7 @@ markAsNeedsFullSync cassandra uid cid = do
 
 startWorker ::
   AmqpEndpoint ->
-  AppT IO (Async ())
+  AppT IO ()
 startWorker amqp = do
   env <- ask
   reconnectSignal :: MVar (Maybe Q.Connection) <- do
@@ -170,4 +169,4 @@ startWorker amqp = do
             takeMVar reconnectSignal
         openConnection mConn
 
-  async (openConnection Nothing)
+  (openConnection Nothing)
