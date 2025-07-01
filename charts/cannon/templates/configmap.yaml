@@ -36,6 +36,9 @@ data:
       {{- end }}
     {{- end }}
 
+    rabbitMqMaxConnections: {{ .config.rabbitMqMaxConnections }}
+    rabbitMqMaxChannels: {{ .config.rabbitMqMaxChannels}
+
     drainOpts:
       gracePeriodSeconds: {{ .config.drainOpts.gracePeriodSeconds }}
       millisecondsBetweenBatches: {{ .config.drainOpts.millisecondsBetweenBatches }}

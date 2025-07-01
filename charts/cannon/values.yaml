@@ -17,6 +17,8 @@ config:
     vHost: /
     enableTls: false
     insecureSkipVerifyTls: false
+  rabbitMqMaxConnections: 1000
+  rabbitMqMaxChannels: 300
   cassandra:
     host: aws-cassandra
     # To enable TLS provide a CA:
