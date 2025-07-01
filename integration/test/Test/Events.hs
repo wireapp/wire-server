@@ -641,8 +641,8 @@ testSingleConsumer = do
 
     lift $ assertNoEvent_ ws'
 
-testQosLimit :: (HasCallStack) => App ()
-testQosLimit = do
+testPrefetchCount :: (HasCallStack) => App ()
+testPrefetchCount = do
   (alice, uid, cid) <- mkUserPlusClient
   for_ [1 :: Int .. 550] $ \i ->
     do
