@@ -644,6 +644,8 @@ testSingleConsumer = do
 testPrefetchCount :: (HasCallStack) => App ()
 testPrefetchCount = do
   (alice, uid, cid) <- mkUserPlusClient
+  emptyQueue alice cid
+
   for_ [1 :: Int .. 550] $ \i ->
     do
       let event =
@@ -652,19 +654,13 @@ testPrefetchCount = do
                 "payload" .= [object ["no" .= show i]]
               ]
       GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
-
-  runCodensity (createEventsWebSocketWithSync alice (Just cid) "end-marker") \ws -> do
-    assertFindsEventConfigurableAck ((const . const . pure) ()) ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` cid
-      ackEvent ws e
-
+  runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
     es <- consumeAllEventsNoAck ws
     assertBool ("First 500 events expected, got " ++ show (length es)) $ length es == 500
 
     forM_ es (ackEvent ws)
 
-    es' <- consumeEventsUntilEndOfInitialSync ws "end-marker"
+    es' <- consumeEventsUntilEndOfInitialSync ws endMarker
     assertBool "Receive at least one outstanding event" $ not (null es')
 
 testEndOfInitialSync :: (HasCallStack) => App ()
@@ -674,9 +670,9 @@ testEndOfInitialSync = do
   replicateM_ n $ do
     GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
 
-  marker0 <- randomId
-  runCodensity (createEventsWebSocketWithSync alice (Just cid) marker0) \ws -> do
-    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws marker0
+  -- marker0 <- randomId
+  runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
+    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws endMarker
     otherEvents <- consumeAllEvents ws
 
     -- we expect one user.client-add event, n more events, and one sync event
@@ -691,9 +687,8 @@ testEndOfInitialSync = do
 
   -- when we reconnect, there are no messages but we still get the
   -- synchronization notification.
-  marker1 <- randomId
-  runCodensity (createEventsWebSocketWithSync alice (Just cid) marker1) \ws -> do
-    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws marker1
+  runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
+    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws endMarker
     otherEvents <- consumeAllEvents ws
     let events = preExistingEvents <> otherEvents
     length events `shouldMatchInt` 1
@@ -712,8 +707,7 @@ testEndOfInitialSyncMoreEventsAfterSyncMessage = do
   replicateM_ n $ do
     GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
 
-  marker <- randomId
-  runCodensity (createEventsWebSocketWithSync alice (Just cid) marker) \ws -> do
+  runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
     -- it seems this is needed to reduce flakiness,
     -- when the messages below are pushed faster than the sync message is inserted
     Timeout.threadDelay (1 # Second)
@@ -722,7 +716,7 @@ testEndOfInitialSyncMoreEventsAfterSyncMessage = do
     replicateM_ n $ do
       GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
 
-    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws marker
+    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws endMarker
     otherEvents <- consumeAllEvents ws
 
     length (preExistingEvents <> otherEvents) `shouldMatchInt` (n + n + 2)
@@ -743,9 +737,8 @@ testEndOfInitialSyncIgnoreExpired = do
   -- Wait for transient events to expire
   Timeout.threadDelay (1 # Second)
 
-  marker <- randomId
-  runCodensity (createEventsWebSocketWithSync alice (Just cid) marker) $ \ws -> do
-    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws marker
+  runCodensity (createEventsWebSocketWithSync alice (Just cid)) $ \(endMarker, ws) -> do
+    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws endMarker
     otherEvents <- consumeAllEvents ws
     let events = preExistingEvents <> otherEvents
     length events `shouldMatchInt` (n + 2) -- +1 for the sync event, +1 for the client add event
@@ -757,15 +750,14 @@ testEndOfInitialSyncAckMultiple = do
   replicateM_ n $ do
     GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
 
-  marker <- randomId
-  runCodensity (createEventsWebSocketWithSync alice (Just cid) marker) $ \ws -> do
+  runCodensity (createEventsWebSocketWithSync alice (Just cid)) $ \(endMarker, ws) -> do
     void $ assertEvent ws pure
     e <- assertEvent ws pure
     dt <- e %. "data.delivery_tag"
     -- we ack the first 2 events with one ack
     sendAck ws dt True
     let expectedNumEvents = n - 2 + 2 -- +1 for the sync event, +1 for the client add event
-    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws marker
+    preExistingEvents <- consumeEventsUntilEndOfInitialSync ws endMarker
     otherEvents <- consumeAllEvents ws
     let events = preExistingEvents <> otherEvents
     length events `shouldMatchInt` expectedNumEvents
@@ -809,13 +801,13 @@ createEventsWebSocketWithSync ::
   (HasCallStack, MakesValue user) =>
   user ->
   Maybe String ->
-  String ->
-  Codensity App EventWebSocket
-createEventsWebSocketWithSync user cid syncMarker = do
+  Codensity App (String, EventWebSocket)
+createEventsWebSocketWithSync user cid = do
+  syncMarker <- lift randomId
   eithWS <- createEventsWebSocketEither user cid (Just syncMarker)
   case eithWS of
     Left e -> lift $ assertFailure $ "Websocket failed to connect due to handshake exception: " <> displayException e
-    Right ws -> pure ws
+    Right ws -> pure (syncMarker, ws)
 
 createEventsWebSocketEither ::
   (HasCallStack, MakesValue user) =>
@@ -1007,6 +999,11 @@ consumeEventsUntilEndOfInitialSync ws expectedMarkerId = go []
 
 consumeAllEvents_ :: EventWebSocket -> App ()
 consumeAllEvents_ = void . consumeAllEvents
+
+emptyQueue :: (HasCallStack, MakesValue user) => user -> String -> App ()
+emptyQueue user cid = do
+  runCodensity (createEventsWebSocketWithSync user (Just cid)) $ \(endMarker, ws) -> do
+    void $ consumeEventsUntilEndOfInitialSync ws endMarker
 
 consumeAllEvents :: EventWebSocket -> App [Value]
 consumeAllEvents ws = do
