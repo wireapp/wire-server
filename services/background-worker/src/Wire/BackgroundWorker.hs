@@ -74,11 +74,7 @@ run opts = do
 
   let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   settings <- newSettings server
-  warpAsync <- async (runSettingsWithCleanup runCleanupCallback settings (servantApp env) Nothing)
-  addToCleanupCallback (cancel warpAsync)
-  waitCatch warpAsync >>= \case
-    Right v -> runCleanupCallback >> pure v
-    Left e -> runCleanupCallback >> throw e
+  runSettingsWithCleanup runCleanupCallback settings (servantApp env) Nothing
 
 servantApp :: Env -> Application
 servantApp env =
