@@ -45,10 +45,28 @@ type CannonAPI =
         :> WebSocketPending
     )
     :<|> Named
-           "consume-events"
+           "consume-events@v8"
            ( Summary "Consume events over a websocket connection"
                :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
                :> From 'V8
+               :> Until 'V9
+               :> "events"
+               :> ZUser
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Client ID"
+                    ]
+                    "client"
+                    ClientId
+               -- FUTUREWORK: Consider higher-level web socket combinator
+               :> WebSocketPending
+           )
+    :<|> Named
+           "consume-events"
+           ( Summary "Consume events over a websocket connection"
+               :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
+               :> From 'V9
                :> "events"
                :> ZUser
                :> QueryParam'

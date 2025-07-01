@@ -36,6 +36,7 @@ import Wire.API.Routes.Public.Cannon
 publicAPIServer :: ServerT CannonAPI Cannon
 publicAPIServer =
   Named @"await-notifications" streamData
+    :<|> Named @"consume-events@v8" (\userId mClientId -> consumeEvents userId mClientId Nothing)
     :<|> Named @"consume-events" consumeEvents
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
