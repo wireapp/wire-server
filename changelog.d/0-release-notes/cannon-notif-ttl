@@ -1,0 +1,3 @@
+charts/cannon: There is a new configuration value called
+`config.notificationTTL`, this defaults to the same value as gundeck. If it is
+overriden in gundeck, it must also be overriden in cannon.
