@@ -348,7 +348,7 @@ startWorker rabbitmqOpts = do
       void $
         async $
           liftIO $
-            openConnectionWithRetries env.logger rabbitmqOpts $
+            openConnectionWithRetries env.logger "BackendNotificationPusher" rabbitmqOpts $
               RabbitMqHooks
                 { -- The exception handling in `openConnectionWithRetries` won't open a new
                   -- connection on an explicit close call.

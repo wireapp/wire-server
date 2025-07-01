@@ -143,7 +143,11 @@ startWorker amqp = do
               -- Open the rabbit mq connection
               conn <-
                 Codensity $
-                  withConnectionWithClose (\_ -> writeIORef closingAbnormallyRef False) env.logger amqp
+                  withConnectionWithClose
+                    (\_ -> writeIORef closingAbnormallyRef False)
+                    env.logger
+                    "BackendDeadUserNoticationWatcher"
+                    amqp
 
               -- We need to recover from connection closed by restarting it
               liftIO $ Q.addConnectionClosedHandler conn True onCloseConn
