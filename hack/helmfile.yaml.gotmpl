@@ -254,13 +254,15 @@ releases:
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/rabbitmq'
+    chart: 'bitnami/rabbitmq'
+    version: '15.2.0'
     values:
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/rabbitmq'
+    chart: 'bitnami/rabbitmq'
+    version: '15.2.0'
     values:
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
