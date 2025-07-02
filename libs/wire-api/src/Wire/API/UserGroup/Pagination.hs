@@ -149,6 +149,17 @@ data PaginationState = PaginationState
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
 
+instance Default PaginationState where
+  def =
+    PaginationState
+      { searchString = Nothing,
+        sortBy = def,
+        sortOrderName = defaultSortOrder SortByName,
+        sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
+        pageSize = def,
+        offset = Just 0
+      }
+
 instance ToSchema PaginationState where
   schema =
     object "PagintationStatePayload" $
