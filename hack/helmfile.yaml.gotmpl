@@ -255,14 +255,14 @@ releases:
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'
     chart: 'bitnami/rabbitmq'
-    version: '15.2.0'
+    version: '16.0.9'
     values:
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace2 }}'
     chart: 'bitnami/rabbitmq'
-    version: '15.2.0'
+    version: '16.0.9'
     values:
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
