@@ -77,7 +77,7 @@ clean:
 clean-hint:
 	@echo -e "\n\n\n>>> PSA: if you get errors that are hard to explain,"
 	@echo -e ">>> try 'git submodule update --init --recursive' and 'make full-clean' and run your command again."
-	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling"
+	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/building.md#linker-errors-while-compiling"
 	@echo -e ">>> to never have to remember submodules again, try 'git config --global submodule.recurse true'"
 	@echo -e "\n\n\n"
 
@@ -540,7 +540,7 @@ upload-chart-%: release-chart-%
 	./hack/bin/upload-helm-charts-s3.sh -r $(HELM_REPO) -d .local/charts/$(*)
 
 # Usecases for this make target:
-# To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)
+# To upload all helm charts in the CHARTS_RELEASE list (see top of the time)
 # (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-charts
 upload-charts: charts-release
@@ -626,7 +626,7 @@ kind-restart-%: .local/kind-kubeconfig
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
 # This target can be used to template a helm chart with values filled in from
-# hack/helm_vars (what CI uses) as overrrides, if available. This allows debugging helm
+# hack/helm_vars (what CI uses) as overrides, if available. This allows debugging helm
 # templating issues without actually installing anything, and without needing
 # access to a kubernetes cluster. e.g.:
 #   make helm-template-wire-server
