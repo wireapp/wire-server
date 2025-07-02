@@ -620,19 +620,6 @@ listConversations luser (Public.ListConversations ids) = do
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- current user should be considered removed from this conversation at this
-    -- current user should be considered removed from this conversation at this
-    -- current user should be considered removed from this conversation at this
-    -- current user should be considered removed from this conversation at this
-    -- point.
-    -- point.
-    -- point.
-    -- point.
-
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.
     P.warn $

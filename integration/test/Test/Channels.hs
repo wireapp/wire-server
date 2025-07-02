@@ -603,3 +603,5 @@ testTeamAdminCanGetChannelData = do
       >>= getJSON 201
   getConversation owner conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "members.others" `shouldMatch` ([] :: [Value])
+    lookupField resp.json "members.self" `shouldMatch` (Nothing :: Maybe Value)
