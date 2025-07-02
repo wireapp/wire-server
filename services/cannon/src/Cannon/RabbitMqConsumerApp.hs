@@ -1,13 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Cannon.RabbitMqConsumerApp where
+module Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp) where
 
 import Cannon.App (rejectOnError)
+import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, handle, throwIO, try)
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
@@ -17,30 +18,63 @@ import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
+import Network.WebSockets.Connection
 import System.Logger qualified as Log
+import System.Timeout
 import Wire.API.Event.WebSocketProtocol
 import Wire.API.Notification
 
+data InactivityTimeout = InactivityTimeout
+  deriving (Show)
+
+instance Exception InactivityTimeout
+
 rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Env -> ServerApp
-rabbitMQWebSocketApp uid mcid e pendingConn = do
-  runCodensity (createChannel uid mcid e.pool createQueue) runWithChannel
-    `catches` [handleTooManyChannels]
+rabbitMQWebSocketApp uid mcid e pendingConn =
+  handle handleTooManyChannels . lowerCodensity $
+    do
+      (chan, queueInfo) <- createChannel uid mcid e.pool createQueue
+      conn <- Codensity $ bracket openWebSocket closeWebSocket
+      activity <- liftIO newEmptyMVar
+      let wsConn =
+            WSConnection
+              { inner = conn,
+                activity,
+                activityTimeout = e.wsOpts.activityTimeout,
+                pongTimeout = e.wsOpts.pongTimeout
+              }
+
+      main <- Codensity
+        $ withAsync
+        $ flip
+          catches
+          [ handleClientMisbehaving conn,
+            handleWebSocketExceptions conn,
+            handleRabbitMqChannelException conn,
+            handleInactivity conn,
+            handleOtherExceptions conn
+          ]
+        $ do
+          traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
+          traverse_ (const $ sendMessageCount wsConn queueInfo) mcid
+          sendNotifications chan wsConn
+
+      let monitor = do
+            timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
+              Just _ -> monitor
+              Nothing -> do
+                WS.sendPing wsConn.inner ("ping" :: Text)
+                timeout wsConn.pongTimeout (takeMVar wsConn.inner.connectionHeartbeat) >>= \case
+                  Just _ -> monitor
+                  Nothing -> cancelWith main InactivityTimeout
+
+      _ <- Codensity $ withAsync monitor
+
+      liftIO $ wait main
   where
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (maybe "<temporary>" clientToText mcid)
-
-    runWithChannel (chan, queueInfo) = bracket openWebSocket closeWebSocket $ \wsConn ->
-      ( do
-          traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          traverse_ (const $ sendMessageCount wsConn queueInfo) mcid
-          sendNotifications chan wsConn
-      )
-        `catches` [ handleClientMisbehaving wsConn,
-                    handleWebSocketExceptions wsConn,
-                    handleRabbitMqChannelException wsConn,
-                    handleOtherExceptions wsConn
-                  ]
 
     openWebSocket =
       acceptRequest pendingConn
@@ -93,6 +127,13 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
                   . logClient
               WS.sendCloseCode wsConn 1003 ("websocket-failure" :: ByteString)
 
+    handleInactivity wsConn =
+      Handler $ \(_ :: InactivityTimeout) -> do
+        Log.info e.logg $
+          Log.msg (Log.val "Closing websocket due to inactivity")
+            . logClient
+        WS.sendCloseCode wsConn 1003 ("inactivity" :: ByteString)
+
     handleClientMisbehaving wsConn =
       Handler $ \(err :: WebSocketServerError) -> do
         case err of
@@ -118,15 +159,14 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
         WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
         throwIO err
 
-    handleTooManyChannels = Handler $
-      \TooManyChannels ->
-        rejectRequestWith pendingConn $
-          RejectRequest
-            { rejectCode = 503,
-              rejectMessage = "Service Unavailable",
-              rejectHeaders = [],
-              rejectBody = ""
-            }
+    handleTooManyChannels TooManyChannels =
+      rejectRequestWith pendingConn $
+        RejectRequest
+          { rejectCode = 503,
+            rejectMessage = "Service Unavailable",
+            rejectHeaders = [],
+            rejectBody = ""
+          }
 
     createQueue chan = case mcid of
       Nothing -> Codensity $ \k -> do
@@ -143,11 +183,11 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
         (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
         k $ QueueInfo queueName messageCount
 
-    sendNotifications :: RabbitMqChannel -> WS.Connection -> IO ()
+    sendNotifications :: RabbitMqChannel -> WSConnection -> IO ()
     sendNotifications chan wsConn = do
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
-            catch (WS.sendBinaryData wsConn (encode (EventMessage eventData))) $
+            catch (WS.sendBinaryData wsConn.inner (encode (EventMessage eventData))) $
               \(err :: SomeException) -> do
                 logSendFailure err
                 throwIO err
@@ -203,7 +243,7 @@ rabbitMQWebSocketApp uid mcid e pendingConn = do
 -- | Check if client has missed messages. If so, send a full synchronisation
 -- message and wait for the corresponding ack.
 sendFullSyncMessageIfNeeded ::
-  WS.Connection ->
+  WSConnection ->
   UserId ->
   Env ->
   ClientId ->
@@ -222,12 +262,12 @@ sendFullSyncMessageIfNeeded wsConn uid env cid = do
 sendFullSyncMessage ::
   UserId ->
   ClientId ->
-  WS.Connection ->
+  WSConnection ->
   Env ->
   IO ()
 sendFullSyncMessage uid cid wsConn env = do
   let event = encode EventFullSync
-  WS.sendBinaryData wsConn event
+  WS.sendBinaryData wsConn.inner event
   getClientMessage wsConn >>= \case
     AckMessage _ -> throwIO UnexpectedAck
     AckFullSync ->
@@ -242,19 +282,46 @@ sendFullSyncMessage uid cid wsConn env = do
         |]
 
 sendMessageCount ::
-  WS.Connection ->
+  WSConnection ->
   QueueInfo ->
   IO ()
 sendMessageCount wsConn queueInfo = do
   let event = encode $ EventMessageCount $ MessageCount queueInfo.messageCount
-  WS.sendBinaryData wsConn event
+  WS.sendBinaryData wsConn.inner event
 
-getClientMessage :: WS.Connection -> IO MessageClientToServer
+data WSConnection = WSConnection
+  { inner :: WS.Connection,
+    activity :: MVar (),
+    activityTimeout :: Int,
+    pongTimeout :: Int
+  }
+
+getClientMessage :: WSConnection -> IO MessageClientToServer
 getClientMessage wsConn = do
-  msg <- WS.receiveData wsConn
+  msg <- WS.fromDataMessage <$> receiveDataMessageWithTimeout wsConn
   case eitherDecode msg of
     Left err -> throwIO (FailedToParseClientMessage err)
     Right m -> pure m
+
+-- | A modified copy of 'WS.receiveDataMessage' which can detect client
+-- inactivity.
+receiveDataMessageWithTimeout :: WSConnection -> IO DataMessage
+receiveDataMessageWithTimeout wsConn = do
+  msg <- WS.receive wsConn.inner
+  case msg of
+    DataMessage _ _ _ am -> pure am
+    ControlMessage cm -> case cm of
+      Close i closeMsg -> do
+        hasSentClose <- readIORef $ connectionSentClose wsConn.inner
+        unless hasSentClose $ send wsConn.inner msg
+        throwIO $ CloseRequest i closeMsg
+      Pong _ -> do
+        _ <- tryPutMVar (connectionHeartbeat wsConn.inner) ()
+        receiveDataMessageWithTimeout wsConn
+      Ping pl -> do
+        _ <- tryPutMVar wsConn.activity ()
+        send wsConn.inner (ControlMessage (Pong pl))
+        receiveDataMessageWithTimeout wsConn
 
 data WebSocketServerError
   = FailedToParseClientMessage String
