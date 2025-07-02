@@ -23,9 +23,6 @@ import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
 import qualified API.GalleyInternal as I
-import Control.Monad.Codensity (Codensity (Codensity), lowerCodensity)
-import Control.Monad.Trans.Class
-import qualified Data.Set as Set
 import GHC.Stack
 import MLS.Util
 import Notifications (isChannelAddPermissionUpdate, isMemberJoinNotif, isWelcomeNotif)
@@ -45,9 +42,9 @@ testCreateChannelEveryone = do
   replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
-  assertCreateChannelSuccess ownerClient tid otherTeamMembers
-  assertCreateChannelSuccess memClient tid otherTeamMembers
-  assertCreateChannelSuccess partnerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ memClient tid otherTeamMembers
+  assertCreateChannelSuccess_ partnerClient tid otherTeamMembers
 
 testCreateChannelMembersOnly :: (HasCallStack) => App ()
 testCreateChannelMembersOnly = do
@@ -60,8 +57,8 @@ testCreateChannelMembersOnly = do
   replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "team-members")
-  assertCreateChannelSuccess ownerClient tid otherTeamMembers
-  assertCreateChannelSuccess memClient tid otherTeamMembers
+  assertCreateChannelSuccess_ ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ memClient tid otherTeamMembers
   assertCreateChannelFailure "operation-denied" partnerClient tid
 
 testCreateChannelAdminsOnly :: (HasCallStack) => App ()
@@ -75,7 +72,7 @@ testCreateChannelAdminsOnly = do
   replicateM_ 3 $ for_ (memClient : ownerClient : partnerClient : otherClients) (uploadNewKeyPackage def)
   setTeamFeatureLockStatus owner tid "channels" "unlocked"
   void $ setTeamFeatureConfig owner tid "channels" (config "admins")
-  assertCreateChannelSuccess ownerClient tid otherTeamMembers
+  assertCreateChannelSuccess_ ownerClient tid otherTeamMembers
   assertCreateChannelFailure "operation-denied" memClient tid
   assertCreateChannelFailure "operation-denied" partnerClient tid
 
@@ -104,7 +101,10 @@ testCreateChannelProteusNotAllowed = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "not-mls-conversation"
 
-assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App ()
+assertCreateChannelSuccess_ :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App ()
+assertCreateChannelSuccess_ client tid members = void $ assertCreateChannelSuccess client tid members
+
+assertCreateChannelSuccess :: (HasCallStack) => ClientIdentity -> String -> [Value] -> App Value
 assertCreateChannelSuccess client tid members = do
   conv <-
     postConversation
@@ -116,6 +116,7 @@ assertCreateChannelSuccess client tid members = do
   createGroup def client convId
   resp <- createAddCommit client convId members >>= sendAndConsumeCommitBundle
   (resp %. "events.0.data.user_ids" & asList) `shouldMatchSet` (for members (%. "id"))
+  pure conv
 
 assertCreateChannelFailure :: (HasCallStack) => String -> ClientIdentity -> String -> App ()
 assertCreateChannelFailure label client tid = do
@@ -472,10 +473,11 @@ testTeamAdminCanAddMembersWithoutJoining = do
 
   -- the team admin creates a channel without joining
   channel <- postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  convId <- objConvId channel
 
   withWebSockets [c1, c2, c3, c4, c5] $ \[ws1, ws2, ws3, ws4, ws5] -> do
     -- the team admin adds members to the channel
-    addMembers owner channel def {users = [m1, m2, m3], role = Just "wire_member"} `bindResponse` \resp -> do
+    addMembersToChannel owner channel def {users = [m1, m2, m3], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
     -- the members are added to the backend conversation
@@ -496,29 +498,25 @@ testTeamAdminCanAddMembersWithoutJoining = do
       -- ... and the epoch is 0
       conv %. "epoch" `shouldMatchInt` 0
       -- the client creates the MLS group and adds everyone else
-      convId <- objConvId conv
-      createGroup def c1 convId
-      void $ createAddCommit c1 convId membersToAdd >>= sendAndConsumeCommitBundleExpectNoMemberJoin
+      createGroupForChannel def c1 convId membersToAdd
+      void $ createAddCommit c1 convId membersToAdd >>= sendAndConsumeCommitBundle
 
     -- the members that were added receive a welcome message
     for_ [ws2, ws3] $ \ws -> do
       awaitMatch isWelcomeNotif ws
 
     -- the team admin adds another member to the channel
-    addMembers owner channel def {users = [m4, m5], role = Just "wire_member"} `bindResponse` \resp -> do
+    addMembersToChannel owner channel def {users = [m4, m5], role = Just "wire_member"} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
 
     notif <- awaitMatch isMemberJoinNotif ws4
     notif %. "payload.0.data.add_type" `shouldMatch` "external_add"
-    qcid <- notif %. "payload.0.qualified_conversation"
 
     -- c4 adds itself with an external add
-    conv <- getConversation m4 qcid >>= getJSON 200
-    convId <- objConvId conv
-    void $ createExternalCommit convId c4 Nothing >>= sendAndConsumeCommitBundleExpectNoMemberJoin
+    void $ createExternalCommit convId c4 Nothing >>= sendAndConsumeCommitBundle
     -- add others via normal commit
     membersToAdd <- others m4 notif
-    void $ createAddCommit c4 convId membersToAdd >>= sendAndConsumeCommitBundleExpectNoMemberJoin
+    void $ createAddCommit c4 convId membersToAdd >>= sendAndConsumeCommitBundle
     -- m5 receives welcome message
     void $ awaitMatch isWelcomeNotif ws5
   where
@@ -527,23 +525,68 @@ testTeamAdminCanAddMembersWithoutJoining = do
       selfQid <- self %. "qualified_id"
       filterM (\m -> (/= selfQid) <$> (m %. "qualified_id")) allUsers
 
-sendAndConsumeCommitBundleExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> App Value
-sendAndConsumeCommitBundleExpectNoMemberJoin messagePackage = lowerCodensity $ do
-  consumingMessagesExpectNoMemberJoin messagePackage
-  lift $ sendCommitBundle messagePackage
+testAdminCanRemoveMemberWithoutJoining :: (HasCallStack) => App ()
+testAdminCanRemoveMemberWithoutJoining = do
+  (owner, tid, mems@(m1 : m2 : m3 : _)) <- createTeam OwnDomain 4
+  cs@(c1 : c2 : c3 : _) <- for mems $ createMLSClient def
+  for_ cs $ uploadNewKeyPackage def
 
-consumingMessagesExpectNoMemberJoin :: (HasCallStack) => MessagePackage -> Codensity App ()
-consumingMessagesExpectNoMemberJoin mp = Codensity $ \k -> do
-  conv <- getMLSConv mp.convId
-  let oldClients = Set.delete mp.sender conv.members
-  let newClients = Set.delete mp.sender conv.newMembers
-  let clients =
-        map (,MLSNotificationMessageTag) (toList oldClients)
-          <> map (,MLSNotificationWelcomeTag) (toList newClients)
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
 
-  withWebSockets (map fst clients) $ \wss -> do
-    r <- k ()
-    for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
-      MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
-    pure r
+  -- a channel is created by a team member
+  channel <- assertCreateChannelSuccess c1 tid [m2]
+  convId <- objConvId channel
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members" & asList
+    for [m1, m2] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
+
+  withWebSockets [c1, c2, c3] $ \[ws1, _ws2, ws3] -> do
+    -- the team admin removes a member from the channel without joining
+    removeMemberFromChannel owner channel m2
+
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members" & asList
+      for [m1] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
+
+    -- the client of m1 receives a notification, creates a pending proposal, sends it, and consumes messages
+    awaitAndProcessRemoveProposal convId c1 ws1 1
+
+    -- the team admin now removes the last remaining member
+    removeMemberFromChannel owner channel m1
+
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      shouldBeEmpty $ resp.json %. "members" & asList
+
+    -- now there is no one left to create and submit the pending proposal
+    -- the team admin adds another member to the channel again
+    addMembersToChannel owner channel def {users = [m3], role = Just "wire_member"} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members" & asList
+      for [m3] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
+
+    -- m3 receives a member-join notification and joins via external commit
+    notif <- awaitMatch isMemberJoinNotif ws3
+    notif %. "payload.0.data.add_type" `shouldMatch` "external_add"
+
+    -- c3 adds itself with an external add
+    void $ createExternalCommit convId c3 Nothing >>= sendAndConsumeCommitBundle
+
+    -- now m3 receives the pending remove proposal and processes it
+    awaitAndProcessRemoveProposal convId c3 ws3 0
+  where
+    awaitAndProcessRemoveProposal :: (HasCallStack) => ConvId -> ClientIdentity -> WebSocket -> Int -> App ()
+    awaitAndProcessRemoveProposal convId cid ws index = do
+      e <- awaitAnyEvent 1 ws
+      msgData <- e %. "payload.0.data" & asByteString
+      msg <- showMessage def cid msgData
+      msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` index
+      void $ mlsCliConsume convId def cid msgData
+      r <- createPendingProposalCommit convId cid >>= sendAndConsumeCommitBundle
+      shouldBeEmpty $ r %. "events"

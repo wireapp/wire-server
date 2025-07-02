@@ -92,6 +92,7 @@ testFutureStaleApplicationMessage = do
                 conv
                   { epoch = conv.epoch + 1,
                     members = Set.insert charlie1 conv.members,
+                    memberUsers = Set.insert charlie1.qualifiedUserId conv.memberUsers,
                     newMembers = mempty
                   }
             )
@@ -838,7 +839,12 @@ testBackendRemoveProposal suite domain = do
     mls
       { convs =
           Map.adjust
-            (\conv -> conv {members = Set.filter (\m -> m.user /= bobUser) conv.members})
+            ( \conv ->
+                conv
+                  { members = Set.filter (\m -> m.user /= bobUser) conv.members,
+                    memberUsers = Set.filter (\quid -> quid /= (head bobClients).qualifiedUserId) conv.memberUsers
+                  }
+            )
             convId
             mls.convs
       }

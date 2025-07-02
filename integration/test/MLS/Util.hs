@@ -228,6 +228,7 @@ createGroup cs cid convId = do
           MLSConv
             { members = Set.singleton cid,
               newMembers = mempty,
+              memberUsers = Set.singleton cid.qualifiedUserId,
               membersToBeRemoved = mempty,
               groupId,
               convId = convId,
@@ -284,6 +285,7 @@ resetOne2OneGroupGeneric cs cid conv keys = do
           MLSConv
             { members = Set.singleton cid,
               newMembers = mempty,
+              memberUsers = Set.singleton cid.qualifiedUserId,
               membersToBeRemoved = mempty,
               groupId = groupId,
               convId = convId,
@@ -295,6 +297,7 @@ resetOne2OneGroupGeneric cs cid conv keys = do
             { groupId = new.groupId,
               convId = new.convId,
               members = new.members,
+              memberUsers = new.memberUsers,
               newMembers = new.newMembers,
               epoch = new.epoch
             }
@@ -626,10 +629,11 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
           <> map (,MLSNotificationWelcomeTag) (toList newClients)
 
   let newUsers =
-        Set.delete mp.sender.user $
+        Set.delete mp.sender.qualifiedUserId $
           Set.difference
-            (Set.map (.user) newClients)
-            (Set.map (.user) oldClients)
+            (Set.map (.qualifiedUserId) newClients)
+            conv.memberUsers
+
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 
@@ -641,7 +645,7 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
       traverse_
         (awaitMatch isMemberJoinNotif)
         ( flip Map.restrictKeys newUsers
-            . Map.mapKeys ((.user) . fst)
+            . Map.mapKeys ((.qualifiedUserId) . fst)
             . Map.fromList
             . toList
             $ zip clients wss
@@ -748,12 +752,16 @@ sendCommitBundle mp = do
       { convs =
           Map.adjust
             ( \conv ->
-                conv
-                  { epoch = conv.epoch + 1,
-                    members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
-                    membersToBeRemoved = mempty,
-                    newMembers = mempty
-                  }
+                let newUsers = Set.map (.qualifiedUserId) conv.newMembers
+                    removedUsers = Set.map (.qualifiedUserId) conv.membersToBeRemoved
+                    users = (conv.memberUsers Set.\\ removedUsers) <> newUsers
+                 in conv
+                      { epoch = conv.epoch + 1,
+                        members = (conv.members <> conv.newMembers) Set.\\ conv.membersToBeRemoved,
+                        memberUsers = users,
+                        membersToBeRemoved = mempty,
+                        newMembers = mempty
+                      }
             )
             mp.convId
             mls.convs
@@ -897,7 +905,16 @@ leaveConv convId cid = do
       void $ leaveSubConversation cid convId >>= getBody 200
       modifyMLSState $ \s ->
         s
-          { convs = Map.adjust (\conv -> conv {members = Set.delete cid conv.members}) convId s.convs
+          { convs =
+              Map.adjust
+                ( \conv ->
+                    conv
+                      { members = Set.delete cid conv.members,
+                        memberUsers = Set.delete cid.qualifiedUserId conv.memberUsers
+                      }
+                )
+                convId
+                s.convs
           }
 
 getConv :: (HasCallStack) => ConvId -> ClientIdentity -> App Value
@@ -912,3 +929,63 @@ getSubConvId user convId subConvName =
   getSubConversation user convId subConvName
     >>= getJSON 200
     >>= objConvId
+
+-- | Use this when the user creating the group has not yet joined the channel.
+createGroupForChannel :: Ciphersuite -> ClientIdentity -> ConvId -> [Value] -> App ()
+createGroupForChannel cs cid convId members = do
+  let Just groupId = convId.groupId
+  memberUsers <- for members objQidObject >>= asSet
+  modifyMLSState $ \s ->
+    let mlsConv =
+          MLSConv
+            { members = Set.singleton cid,
+              newMembers = mempty,
+              memberUsers = Set.singleton cid.qualifiedUserId <> memberUsers,
+              membersToBeRemoved = mempty,
+              groupId,
+              convId = convId,
+              epoch = 0,
+              ciphersuite = cs
+            }
+     in s {convs = Map.insert convId mlsConv s.convs}
+  keys <- getMLSPublicKeys cid.qualifiedUserId >>= getJSON 200
+  resetClientGroup cs cid groupId convId keys
+
+-- | Adds members to a channel where the user (must be team admin) it not a member of.
+-- The difference to the "normal" case is that the users are added
+-- to the conversation before they are added to the MLS group.
+addMembersToChannel ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  AddMembers ->
+  App Response
+addMembersToChannel user qcnv opts = do
+  response <- addMembers user qcnv opts
+  convId <- objConvId qcnv
+  memberUsers <- for opts.users objQidObject >>= asSet
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            (\conv -> conv {memberUsers = conv.memberUsers <> memberUsers})
+            convId
+            mls.convs
+      }
+  pure response
+
+removeMemberFromChannel :: (HasCallStack) => Value -> Value -> Value -> App ()
+removeMemberFromChannel user channel userToBeRemoved = do
+  removeMember user channel userToBeRemoved `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 204
+  userId <- asString $ userToBeRemoved %. "id"
+  domain <- asString $ userToBeRemoved %. "qualified_id.domain"
+  convId <- objConvId channel
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.adjust
+            (\conv -> conv {members = Set.filter (\m -> m.user /= userId && m.domain == domain) conv.members})
+            convId
+            mls.convs
+      }

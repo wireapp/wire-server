@@ -257,7 +257,12 @@ testCreatorRemovesUserFromParent = do
         s
           { convs =
               Map.adjust
-                (\conv -> conv {members = conv.members Set.\\ Set.fromList [bob1, bob2]})
+                ( \conv ->
+                    conv
+                      { members = conv.members Set.\\ Set.fromList [bob1, bob2],
+                        memberUsers = conv.memberUsers Set.\\ Set.fromList [bob1.qualifiedUserId]
+                      }
+                )
                 convId
                 s.convs
           }
@@ -298,7 +303,12 @@ testCreatorRemovesUserFromParent = do
         s
           { convs =
               Map.adjust
-                (\conv -> conv {members = conv.members Set.\\ Set.fromList [bob1, bob2]})
+                ( \conv ->
+                    conv
+                      { members = conv.members Set.\\ Set.fromList [bob1, bob2],
+                        memberUsers = conv.memberUsers Set.\\ Set.fromList [bob1.qualifiedUserId]
+                      }
+                )
                 subConvId
                 s.convs
           }
