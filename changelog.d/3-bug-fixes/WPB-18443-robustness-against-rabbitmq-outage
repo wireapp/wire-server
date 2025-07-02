@@ -1,1 +1,1 @@
-There was a condition in the watcher worker in the background-workers service: if the worker crashed at an inopportune time (to be specific, during the computation of `mConn`), it didn't recover.  Fix: use the supervisor to recover all termination conditions or the worker, and drop the `Async` from the worker's signature.
+There was a way the background-worker for cleaning up the rabbitMQ dead letter queue could crash silently without recovering.  Now wrapped in a supervisor that reliably restarts the watchers.
