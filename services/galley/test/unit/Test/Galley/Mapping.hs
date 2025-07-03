@@ -52,32 +52,32 @@ tests :: TestTree
 tests =
   testGroup
     "ConversationMapping"
-    [ testProperty "conversation view V8 for a valid user is non-empty" $
-        \(ConvWithLocalUser c luid) -> isRight (run (conversationViewV8 luid c)),
-      testProperty "conversation view V9 for a valid user is non-empty" $
+    [ testProperty "conversation view V9 for a valid user is non-empty" $
+        \(ConvWithLocalUser c luid) -> isRight (run (conversationViewV9 luid c)),
+      testProperty "conversation view V10 for a valid user is non-empty" $
         \(ConvWithLocalUser c luid) -> isRight (run (pure $ conversationView luid c)),
       testProperty "self user in conversation view is correct" $
         \(ConvWithLocalUser c luid) ->
-          fmap (memId . cmSelf . cnvMembers) (run (conversationViewV8 luid c))
+          fmap (memId . cmSelf . cnvMembers) (run (conversationViewV9 luid c))
             == Right (tUntagged luid),
       testProperty "conversation view metadata is correct" $
         \(ConvWithLocalUser c luid) ->
-          fmap cnvMetadata (run (conversationViewV8 luid c))
+          fmap cnvMetadata (run (conversationViewV9 luid c))
             == Right (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
-        \(ConvWithLocalUser c luid) -> case run $ conversationViewV8 luid c of
+        \(ConvWithLocalUser c luid) -> case run $ conversationViewV9 luid c of
           Left _ -> False
           Right cnv ->
             tUntagged luid
               `notElem` map omQualifiedId (cmOthers (cnvMembers cnv)),
       testProperty "conversation view contains all users" $
         \(ConvWithLocalUser c luid) ->
-          fmap (sort . cnvUids) (run (conversationViewV8 luid c))
+          fmap (sort . cnvUids) (run (conversationViewV9 luid c))
             == Right (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
         \(RandomConversation c) luid ->
           notElem (tUnqualified luid) (map lmId (Data.convLocalMembers c)) ==>
-            isLeft (run (conversationViewV8 luid c)),
+            isLeft (run (conversationViewV9 luid c)),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (tUntagged ruid) /= dom ==>
@@ -100,7 +100,7 @@ tests =
               `notElem` map omQualifiedId rcnv.members.others
     ]
 
-cnvUids :: ConversationV8 -> [Qualified UserId]
+cnvUids :: ConversationV9 -> [Qualified UserId]
 cnvUids c =
   let mems = cnvMembers c
    in memId (cmSelf mems)

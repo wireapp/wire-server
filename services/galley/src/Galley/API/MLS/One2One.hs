@@ -46,7 +46,7 @@ import Wire.API.User
 localMLSOne2OneConversation ::
   Local UserId ->
   Local ConvId ->
-  ConversationV8
+  ConversationV9
 localMLSOne2OneConversation lself (tUntagged -> convId) =
   let members =
         ConvMembers
@@ -54,7 +54,7 @@ localMLSOne2OneConversation lself (tUntagged -> convId) =
             cmOthers = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata convId
-   in ConversationV8
+   in ConversationV9
         { cnvQualifiedId = convId,
           cnvMetadata = metadata,
           cnvMembers = members,
@@ -110,7 +110,7 @@ remoteMLSOne2OneConversation lself rother rc =
             cmOthers = rc.conversation.members.others
           }
       conv =
-        ConversationV8
+        ConversationV9
           { cnvQualifiedId = tUntagged (qualifyAs rother rc.conversation.id),
             cnvMetadata = rc.conversation.metadata,
             cnvMembers = members,

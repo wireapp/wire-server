@@ -194,7 +194,7 @@ data EventData
   | EdConvCodeUpdate ConversationCodeInfo
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
-  | EdConversation ConversationV8
+  | EdConversation ConversationV9
   | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString

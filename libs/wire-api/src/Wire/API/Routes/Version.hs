@@ -81,7 +81,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
-data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9
+data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -104,6 +104,8 @@ instance RenderableSymbol V8 where renderSymbol = "V8"
 
 instance RenderableSymbol V9 where renderSymbol = "V9"
 
+instance RenderableSymbol V10 where renderSymbol = "V10"
+
 -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --
 -- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
@@ -121,6 +123,7 @@ versionInt V6 = 6
 versionInt V7 = 7
 versionInt V8 = 8
 versionInt V9 = 9
+versionInt V10 = 10
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
@@ -238,6 +241,7 @@ isDevelopmentVersion V6 = False
 isDevelopmentVersion V7 = False
 isDevelopmentVersion V8 = False
 isDevelopmentVersion V9 = True
+isDevelopmentVersion V10 = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions

@@ -24,7 +24,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
   ( createGroupConversationUpToV3,
-    createGroupConversationV8,
+    createGroupConversationV9,
     createProteusSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
@@ -126,7 +126,7 @@ createGroupConversationUpToV3 ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $
   do
     conv <-
@@ -139,7 +139,7 @@ createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLe
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in from version 4 to 8
-createGroupConversationV8 ::
+createGroupConversationV9 ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -170,15 +170,15 @@ createGroupConversationV8 ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r CreateGroupConversationResponseV8
-createGroupConversationV8 lusr conn newConv = do
+  Sem r CreateGroupConversationResponseV9
+createGroupConversationV9 lusr conn newConv = do
   createGroupConvAndMkResponse
     lusr
     conn
     newConv
     ( \dbConv -> do
-        conv <- conversationViewV8 lusr dbConv
-        pure . GroupConversationCreatedV8 $ CreateGroupConversationV8 conv mempty
+        conv <- conversationViewV9 lusr dbConv
+        pure . GroupConversationCreatedV9 $ CreateGroupConversationV9 conv mempty
     )
 
 -- | The public-facing endpoint for creating group conversations in the client
@@ -435,13 +435,13 @@ createProteusSelfConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createProteusSelfConversation lusr = do
   let lcnv = fmap Data.selfConv lusr
   c <- E.getConversation (tUnqualified lcnv)
   maybe (create lcnv) (conversationExisted lusr) c
   where
-    create :: Local ConvId -> Sem r (ConversationResponse Public.ConversationV8)
+    create :: Local ConvId -> Sem r (ConversationResponse Public.ConversationV9)
     create lcnv = do
       let nc =
             NewConversation
@@ -476,7 +476,7 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewOne2OneConv ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
     let allUsers = newOne2OneConvMembers lusr j
@@ -546,7 +546,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Local UserId ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
@@ -589,7 +589,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -615,7 +615,7 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -645,7 +645,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
@@ -667,7 +667,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r (ConversationResponse Public.ConversationV8)
+  Sem r (ConversationResponse Public.ConversationV9)
 createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
@@ -810,8 +810,8 @@ conversationCreated ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r (ConversationResponse Public.ConversationV8)
-conversationCreated lusr cnv = Created <$> conversationViewV8 lusr cnv
+  Sem r (ConversationResponse Public.ConversationV9)
+conversationCreated lusr cnv = Created <$> conversationViewV9 lusr cnv
 
 -- | The return set contains all the remote users that could not be contacted.
 -- Consequently, the unreachable users are not added to the member list. This

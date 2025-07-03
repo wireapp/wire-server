@@ -80,8 +80,8 @@ instance ToSchema DomainRedirectTag where
 domainRedirectTagSchema :: ObjectSchema SwaggerDoc DomainRedirectTag
 domainRedirectTagSchema = field "domain_redirect" schema
 
-domainRedirectSchemaV8 :: ObjectSchema SwaggerDoc DomainRedirect
-domainRedirectSchemaV8 =
+domainRedirectSchemaV9 :: ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchemaV9 =
   snd
     <$> (domainRedirectTag &&& id)
       .= bind
@@ -93,15 +93,15 @@ domainRedirectSchemaV8 =
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
       SSOTag -> tag _SSO samlIdPIdObjectSchema
-      BackendTag -> tag (_Backend) backendConfigSchemaV8
+      BackendTag -> tag (_Backend) backendConfigSchemaV9
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
-backendConfigSchemaV8 :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
-backendConfigSchemaV8 =
+backendConfigSchemaV9 :: ObjectSchema SwaggerDoc (HttpsUrl, Maybe HttpsUrl)
+backendConfigSchemaV9 =
   (,)
     <$> fst .= field "backend_url" schema
-    -- API versions <= V8 ignore the WebApp URL
+    -- API versions <= V9 ignore the WebApp URL
     <*> const Nothing .= pure Nothing
 
 domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect

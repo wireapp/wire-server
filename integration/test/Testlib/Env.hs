@@ -116,7 +116,7 @@ mkGlobalEnv cfgFile = do
         gFederationV1Domain = intConfig.federationV1.originDomain,
         gFederationV2Domain = intConfig.federationV2.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 9,
+        gDefaultAPIVersion = 10,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
@@ -169,7 +169,8 @@ mkEnv currentTestName ge = do
           apiVersionByDomain =
             Map.fromList
               [ (gFederationV0Domain ge, 4),
-                (gFederationV1Domain ge, 5)
+                (gFederationV1Domain ge, 5),
+                (gFederationV2Domain ge, 8)
               ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,

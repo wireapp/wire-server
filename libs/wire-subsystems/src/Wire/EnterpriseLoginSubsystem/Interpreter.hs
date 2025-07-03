@@ -562,7 +562,7 @@ updateDomainRedirectImpl ::
   ) =>
   Token ->
   Domain ->
-  DomainRedirectConfigV8 ->
+  DomainRedirectConfigV9 ->
   Sem r ()
 updateDomainRedirectImpl token domain config = do
   mDomainReg <- lookup domain
@@ -572,11 +572,11 @@ updateDomainRedirectImpl token domain config = do
   updateDomainRegistrationImpl domain $ computeUpdate domainReg
   where
     computeUpdate reg = case config of
-      DomainRedirectConfigRemoveV8 ->
+      DomainRedirectConfigRemoveV9 ->
         DomainRegistrationUpdate PreAuthorized reg.teamInvite
-      DomainRedirectConfigBackendV8 url webappUrl ->
+      DomainRedirectConfigBackendV9 url webappUrl ->
         DomainRegistrationUpdate (Backend url webappUrl) NotAllowed
-      DomainRedirectConfigNoRegistrationV8 ->
+      DomainRedirectConfigNoRegistrationV9 ->
         DomainRegistrationUpdate NoRegistration reg.teamInvite
 
     isAllowed = \case

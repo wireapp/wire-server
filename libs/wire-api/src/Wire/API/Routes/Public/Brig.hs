@@ -292,7 +292,7 @@ type UserAPI =
 type UserGroupAPI =
   Named
     "create-user-group"
-    ( From 'V9
+    ( From 'V10
         :> CanThrow 'UserGroupNotATeamAdmin
         :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
         :> ZLocalUser
@@ -302,7 +302,7 @@ type UserGroupAPI =
     )
     :<|> Named
            "get-user-group"
-           ( From 'V9
+           ( From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> "user-groups"
@@ -317,7 +317,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "update-user-group"
-           ( From 'V9
+           ( From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> CanThrow 'UserGroupNotATeamAdmin
@@ -328,7 +328,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "delete-user-group"
-           ( From 'V9
+           ( From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> CanThrow 'UserGroupNotATeamAdmin
@@ -338,7 +338,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "add-user-to-group"
-           ( From 'V9
+           ( From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> CanThrow 'UserGroupNotATeamAdmin
@@ -351,7 +351,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "remove-user-from-group"
-           ( From 'V9
+           ( From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> CanThrow 'UserGroupNotATeamAdmin

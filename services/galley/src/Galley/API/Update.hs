@@ -157,12 +157,12 @@ acceptConv ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r ConversationV8
+  Sem r ConversationV9
 acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   conv' <- acceptOne2One lusr conv conn
-  conversationViewV8 lusr conv'
+  conversationViewV9 lusr conv'
 
 blockConv ::
   ( Member ConversationStore r,
@@ -241,14 +241,14 @@ unblockConvUnqualified ::
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r ConversationV8
+  Sem r ConversationV9
 unblockConvUnqualified lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   conv' <- acceptOne2One lusr conv conn
-  conversationViewV8 lusr conv'
+  conversationViewV9 lusr conv'
 
 unblockRemoteConv ::
   ( Member MemberStore r

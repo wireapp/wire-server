@@ -562,7 +562,7 @@ testGetDomainRegistrationUserExistsBackend = forM_ [ExplicitVersion 8, Versioned
   bindResponse (getDomainRegistrationFromEmail OwnDomain version ("paolo@" <> domain)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "domain_redirect" `shouldMatch` "no-registration"
-    -- Neither old (<= V8) nor new backend URL fields should be received
+    -- Neither old (<= V9) nor new backend URL fields should be received
     lookupField resp.json "backend_url" `shouldMatch` (Nothing :: Maybe String)
     lookupField resp.json "backend" `shouldMatch` (Nothing :: Maybe String)
     resp.json %. "due_to_existing_account" `shouldMatch` True
