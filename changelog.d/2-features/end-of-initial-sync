@@ -1,0 +1,1 @@
+cannon: Replace message count mechanism with detecting the end of initial sync

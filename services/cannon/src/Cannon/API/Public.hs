@@ -26,6 +26,7 @@ import Cannon.Types
 import Cannon.WS
 import Control.Monad.IO.Class
 import Data.Id
+import Data.Text
 import GHC.Base
 import Network.WebSockets.Connection
 import Servant
@@ -35,6 +36,7 @@ import Wire.API.Routes.Public.Cannon
 publicAPIServer :: ServerT CannonAPI Cannon
 publicAPIServer =
   Named @"await-notifications" streamData
+    :<|> Named @"consume-events@v8" (\userId mClientId -> consumeEvents userId mClientId Nothing)
     :<|> Named @"consume-events" consumeEvents
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()
@@ -42,7 +44,7 @@ streamData userId connId clientId con = do
   e <- wsenv
   liftIO $ wsapp (mkKey userId connId) clientId e con
 
-consumeEvents :: UserId -> Maybe ClientId -> PendingConnection -> Cannon ()
-consumeEvents userId mClientId con = do
+consumeEvents :: UserId -> Maybe ClientId -> Maybe Text -> PendingConnection -> Cannon ()
+consumeEvents userId mClientId mSyncMarker con = do
   e <- wsenv
-  liftIO $ rabbitMQWebSocketApp userId mClientId e con
+  liftIO $ rabbitMQWebSocketApp userId mClientId mSyncMarker e con
