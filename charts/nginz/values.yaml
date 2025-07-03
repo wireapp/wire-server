@@ -708,6 +708,9 @@ nginx_conf:
     - path: /notifications
       envs:
       - all
+    - path: /time
+      envs:
+      - all
     spar:
     - path: /identity-providers
       envs:
