@@ -153,7 +153,6 @@ nginx_conf:
       - all
       max_body_size: "0"
       disable_request_buffering: true
-      doc: true
     - path: /bot/assets
       envs:
       - all
@@ -170,12 +169,10 @@ nginx_conf:
       envs:
       - all
       use_websockets: true
-      doc: true
     - path: /events
       envs:
       - all
       use_websockets: true
-      doc: true
     brig:
     - path: /api-version
       envs:
@@ -185,11 +182,9 @@ nginx_conf:
     - path: /users
       envs:
       - all
-      doc: true
     - path: /handles
       envs:
       - all
-      doc: true
     - path: /list-users
       envs:
       - all
@@ -581,12 +576,10 @@ nginx_conf:
     - path: /conversations$
       envs:
       - all
-      doc: true
       oauth_scope: conversations
     - path: /conversations/([^/]*)/code
       envs:
       - all
-      doc: true
       oauth_scope: conversations_code
     - path: /conversations/join
       envs:
@@ -596,7 +589,6 @@ nginx_conf:
     - path: /conversations
       envs:
       - all
-      doc: true
     - path: /legalhold/conversations/(.*)
       envs:
       - all
@@ -701,7 +693,6 @@ nginx_conf:
     - path: /push
       envs:
       - all
-      doc: true
     - path: /presences
       envs:
       - all
@@ -767,7 +758,6 @@ nginx_conf:
     - path: /proxy
       envs:
       - all
-      doc: true
     ibis:
     - path: /billing
       envs:
