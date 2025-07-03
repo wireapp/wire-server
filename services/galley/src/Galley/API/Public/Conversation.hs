@@ -30,10 +30,11 @@ import Wire.API.Routes.Public.Galley.Conversation
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
-  mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
-    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
-    <@> mkNamedAPI @"get-conversation@v2" getConversation
-    <@> mkNamedAPI @"get-conversation@v5" getConversation
+  mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversationV8
+    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversationV8
+    <@> mkNamedAPI @"get-conversation@v2" getConversationV8
+    <@> mkNamedAPI @"get-conversation@v5" getConversationV8
+    <@> mkNamedAPI @"get-conversation@v8" getConversationV8
     <@> mkNamedAPI @"get-conversation" getConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
