@@ -169,7 +169,8 @@ mkEnv currentTestName ge = do
           apiVersionByDomain =
             Map.fromList
               [ (gFederationV0Domain ge, 4),
-                (gFederationV1Domain ge, 5)
+                (gFederationV1Domain ge, 5),
+                (gFederationV2Domain ge, 8)
               ],
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
