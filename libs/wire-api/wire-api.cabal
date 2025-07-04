@@ -121,6 +121,7 @@ library
     Wire.API.MLS.ECDSA
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
+    Wire.API.MLS.RatchetTree
     Wire.API.MLS.Group
     Wire.API.MLS.Group.Serialisation
     Wire.API.MLS.GroupInfo
