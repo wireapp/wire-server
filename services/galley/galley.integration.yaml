@@ -150,6 +150,10 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
+    ephemeralUserCreation:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
 
 logLevel: Warn
 logNetStrings: false

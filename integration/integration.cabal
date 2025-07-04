@@ -141,6 +141,7 @@ library
     Test.FeatureFlags.DigitalSignatures
     Test.FeatureFlags.DomainRegistration
     Test.FeatureFlags.EnforceFileDownloadLocation
+    Test.FeatureFlags.EphemeralUserCreation
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
     Test.FeatureFlags.LegalHold

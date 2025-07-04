@@ -68,6 +68,7 @@ featureAPI =
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
+    <@> featureAPIGetPut
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

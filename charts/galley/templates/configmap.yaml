@@ -175,5 +175,9 @@ data:
         cells:
           {{- toYaml .settings.featureFlags.cells | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.cells }}
+        ephemeralUserCreation:
+          {{- toYaml .settings.featureFlags.ephemeralUserCreation | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

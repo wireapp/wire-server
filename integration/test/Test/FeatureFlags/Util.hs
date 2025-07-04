@@ -148,7 +148,8 @@ defAllFeatures =
                   "allowed_to_open_channels" .= "team-members"
                 ]
           ],
-      "cells" .= enabled
+      "cells" .= enabled,
+      "ephemeralUserCreation" .= enabled
     ]
 
 hasExplicitLockStatus :: String -> Bool

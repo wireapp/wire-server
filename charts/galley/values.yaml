@@ -185,6 +185,10 @@ config:
             allowed_to_create_channels: team-members
             allowed_to_open_channels: team-members
           lockStatus: locked
+      ephemeralUserCreation:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
 
   aws:
     region: "eu-west-1"

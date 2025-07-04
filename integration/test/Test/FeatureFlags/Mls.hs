@@ -5,15 +5,28 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testMls :: (HasCallStack) => APIAccess -> App ()
-testMls access =
-  do
-    user <- randomUser OwnDomain def
-    uid <- asString $ user %. "id"
-    mkFeatureTests "mls"
-      & addUpdate (mls1 uid)
-      & addUpdate mls2
-      & addInvalidUpdate mlsInvalidConfig
-      & runFeatureTests OwnDomain access
+testMls access = do
+  mlsMigrationDefaultConfig <- defAllFeatures %. "mlsMigration.config"
+  withModifiedBackend
+    def
+      { galleyCfg =
+          setField
+            "settings.featureFlags.mlsMigration.defaults"
+            ( object
+                [ "lockStatus" .= "locked",
+                  "status" .= "disabled",
+                  "config" .= mlsMigrationDefaultConfig
+                ]
+            )
+      }
+    $ \domain -> do
+      user <- randomUser domain def
+      uid <- asString $ user %. "id"
+      mkFeatureTests "mls"
+        & addUpdate (mls1 uid)
+        & addUpdate mls2
+        & addInvalidUpdate mlsInvalidConfig
+        & runFeatureTests domain access
 
 testMlsPatch :: (HasCallStack) => App ()
 testMlsPatch = do
