@@ -240,7 +240,7 @@ isDevelopmentVersion V5 = False
 isDevelopmentVersion V6 = False
 isDevelopmentVersion V7 = False
 isDevelopmentVersion V8 = False
-isDevelopmentVersion V9 = True
+isDevelopmentVersion V9 = False
 isDevelopmentVersion V10 = True
 
 developmentVersions :: [Version]
