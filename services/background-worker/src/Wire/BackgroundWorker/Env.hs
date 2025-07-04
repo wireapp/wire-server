@@ -35,7 +35,7 @@ data Worker
 data Env = Env
   { http2Manager :: Http2Manager,
     rabbitmqAdminClient :: Maybe (RabbitMqAdmin.AdminAPI (Servant.AsClientT IO)),
-    rabbitmqVHost :: Text,
+    amqpEP :: AmqpEndpoint,
     logger :: Logger,
     federatorInternal :: Endpoint,
     httpManager :: Manager,
@@ -72,7 +72,7 @@ mkEnv opts = do
           responseTimeoutNone
           (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
           opts.defederationTimeout
-      rabbitmqVHost = either (.vHost) (.vHost) opts.rabbitmq.unRabbitMqOpts
+      amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   rabbitmqAdminClient <- for (rightToMaybe opts.rabbitmq.unRabbitMqOpts) mkRabbitMqAdminClientEnv
   statuses <-
     newIORef $

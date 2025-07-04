@@ -8,7 +8,6 @@ import Data.ByteString.Conversion
 import Data.Metrics.Servant qualified as Metrics
 import Data.Text qualified as T
 import Imports
-import Network.AMQP.Extended (demoteOpts)
 import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
@@ -58,7 +57,6 @@ supervisor env workerName workerAction = async loop
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
-  let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
 
   cleanupCallback :: MVar (IO ()) <- newMVar (pure ())
   let addToCleanupCallback action = do
@@ -66,10 +64,10 @@ run opts = do
       runCleanupCallback = do
         join (readMVar cleanupCallback)
 
-  runAppT env (BackendNotificationPusher.startWorker amqpEP) >>= \pusherState ->
+  runAppT env (BackendNotificationPusher.startWorker env.amqpEP) >>= \pusherState ->
     addToCleanupCallback (runAppT env (BackendNotificationPusher.cancelWorker pusherState))
 
-  supervisor env "DeadUserNotificationWatcher" (DeadUserNotificationWatcher.startWorker amqpEP) >>= \worker ->
+  supervisor env "DeadUserNotificationWatcher" (DeadUserNotificationWatcher.startWorker env.amqpEP) >>= \worker ->
     addToCleanupCallback (cancel worker)
 
   let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger

@@ -20,6 +20,7 @@ import Data.Text.Encoding qualified as Text
 import Federator.MockServer
 import Imports
 import Network.AMQP qualified as Q
+import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import Network.HTTP.Media
 import Network.HTTP.Types
@@ -326,7 +327,7 @@ spec = do
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
-          rabbitmqVHost = "test-vhost"
+          amqpEP = Q.AmqpEndpoint undefined undefined "test-vhost" undefined
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
 
@@ -344,7 +345,7 @@ spec = do
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
-          rabbitmqVHost = "test-vhost"
+          amqpEP = Q.AmqpEndpoint undefined undefined "test-vhost" undefined
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
       backendNotificationMetrics <- mkBackendNotificationMetrics
@@ -364,7 +365,7 @@ spec = do
       -- This test cannot guarantee how many times retries happened due to the
       -- concurrency, so just assert that there were at least 2 calls.
       calls `shouldSatisfy` (\c -> length c >= 2)
-      mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
+      mapM_ (\vhost -> vhost `shouldBe` amqpEP.vHost) calls
 
 untilM :: (Monad m) => m Bool -> m ()
 untilM action = do

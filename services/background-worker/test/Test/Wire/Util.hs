@@ -20,9 +20,9 @@ testEnv = do
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined
-      rabbitmqVHost = undefined
       defederationTimeout = responseTimeoutNone
       backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+      amqpEP = undefined
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a
