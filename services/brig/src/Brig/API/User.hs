@@ -106,6 +106,7 @@ import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
@@ -149,7 +150,9 @@ import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User
+import Wire.UserSubsystem.Error (GuardFailure (..), UserSubsystemError (..))
 import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode qualified as VerificationCode
 import Wire.VerificationCodeGen (mkVerificationCodeGen)
 import Wire.VerificationCodeSubsystem
@@ -744,12 +747,16 @@ sendActivationCode ::
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member ActivationCodeStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member (Polysemy.Error.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   EmailAddress ->
   Maybe Locale ->
   ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode email loc = do
+  lift . liftSem $ guardBlockedDomainEmail
+
   let ek = mkEmailKey email
   doesExist <- lift $ liftSem $ isJust <$> lookupKey ek
   when doesExist $
@@ -803,6 +810,19 @@ sendActivationCode email loc = do
                 liftSem $ sendTeamActivationMail em name aKey aCode loc' (team ^. teamName)
           _otherwise ->
             liftSem $ (maybe sendActivationMail (const sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
+
+    guardBlockedDomainEmail ::
+      ( Member (Input UserSubsystemConfig) r',
+        Member (Polysemy.Error.Error UserSubsystemError) r'
+      ) =>
+      Sem r' ()
+    guardBlockedDomainEmail = do
+      domain <-
+        either (Polysemy.Error.throw . UserSubsystemGuardFailed . InvalidDomain) pure $
+          emailDomain email
+      blocked <- blockedDomains <$> input
+      when (domain `elem` blocked) $
+        Polysemy.Error.throw UserSubsystemBlockedDomain
 
 mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = pure k
