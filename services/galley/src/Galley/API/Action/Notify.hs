@@ -51,11 +51,12 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing tid action
       mkUpdate uids =
         ConversationUpdate
-          now
-          quid
-          (tUnqualified lcnv)
-          uids
-          (SomeConversationAction tag action)
+          { time = now,
+            origUserId = quid,
+            convId = tUnqualified lcnv,
+            alreadyPresentUsers = uids,
+            action = SomeConversationAction tag action
+          }
   update <-
     fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified) $
       enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets)) $
