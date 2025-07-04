@@ -301,7 +301,7 @@ getRemoteDomains adminClient = do
   where
     go :: [Domain] -> Int -> AppT IO [Domain]
     go domains pageNumber = do
-      vhost <- asks rabbitmqVHost
+      vhost <- asks (.amqpEP.vHost)
       queuesPage <- liftIO $ listQueuesByVHost adminClient vhost "^backend-notifications\\..*" True 100 pageNumber
       let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queuesPage.items
       newDomains <- catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
