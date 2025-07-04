@@ -30,15 +30,22 @@ import Control.Monad.Codensity
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as T
-import GHC.Stack
 -- import qualified Network.RabbitMqAdmin as Q
+
+-- TODO: move to test lib?
+
+import qualified Data.Text as Text
+import GHC.Stack
+import Network.RabbitMqAdmin
 import Notifications
+import Servant.Client
 import SetupHelpers hiding (deleteUser)
-import Test.Events (killAllRabbitMqConns) -- TODO: move to test lib?
+import Test.Events (mkRabbitMqAdminClientForResource)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
+import Prelude (getLine)
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do
@@ -830,23 +837,48 @@ testRabbitRecoveryFromBrokenQueue = do
   -- TODO: make sure this actually works, and that it reproduces the problem on develop!
   -- TODO: what about other tests run in parallel? => dyn backend!
 
-  [alice, bob, chad] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
-  [aClient, bClient, cClient] <- forM [alice, bob, chad] $ \user -> objId $ bindResponse (addClient user def) $ getJSON 201
-  connectUsers [alice, bob, chad]
-  conv <- postConversation alice (defProteus {qualifiedUsers = [bob, chad]}) >>= getJSON 201
+  [alice, bob, chad, dee] <- createUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
+  [aClient, bClient] <- forM [alice, bob] $ \user ->
+    objId $ bindResponse (addClient user def) $ getJSON 201
+  startDynamicBackendsReturnResources [def] $ \[resources] -> do
+    let dynDomain :: String = resources.berDomain
+    eve <- randomUser dynDomain def
+    eClient <- objId $ bindResponse (addClient eve def) $ getJSON 201
+    forM_ [bob, chad, dee, eve] $ connectTwoUsers alice
+    conv <-
+      postConversation
+        alice
+        ( defProteus
+            { qualifiedUsers = [bob, chad, dee, eve]
+            }
+        )
+        >>= getJSON 201
 
-  {-
-    pool <- asks (.resourcePool)
-    runCodensity (acquireResources 1 pool) $ \[backend] -> do
-      void $ killAllRabbitMqConns backend
-  -}
+    void $ killAllDeadUserNotificationRabbitMqConns resources
 
-  -- BWI.deleteQueue alice "dead-user-notifications" >>= assertSuccess
-
-  void $ removeMember chad conv chad >>= getBody 200
-  eventually $ do
+    void $ removeMember chad conv chad >>= getBody 200
     assertLeaveNotification chad conv alice aClient chad
     assertLeaveNotification chad conv bob bClient chad
+    assertLeaveNotification chad conv eve eClient chad
+
+-- | Only kills connections from cannon and returns them
+killAllDeadUserNotificationRabbitMqConns :: (HasCallStack) => BackendResource -> App [Connection]
+killAllDeadUserNotificationRabbitMqConns backend = do
+  rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
+  connections <- getDeadUserNotificationConnections rabbitmqAdminClient backend.berVHost
+  print $ "connections" <> show connections
+  for_ connections $ \connection -> do
+    print $ "Closing " <> show connection
+    rabbitmqAdminClient.deleteConnection connection.name
+  pure connections
+
+getDeadUserNotificationConnections :: AdminAPI (AsClientT App) -> String -> App [Connection]
+getDeadUserNotificationConnections rabbitmqAdminClient vhost = do
+  print $ "vhost: " <> vhost
+  void $ liftIO $ getLine
+  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack vhost)
+  print $ "connections'" <> show connections
+  pure $ filter (\c -> Just (fromString "BackendDeadUserNoticationWatcher") == c.userProvidedName) connections
 
 testOnUserDeletedConversations :: (HasCallStack) => App ()
 testOnUserDeletedConversations = do
