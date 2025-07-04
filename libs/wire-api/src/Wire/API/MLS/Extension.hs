@@ -37,3 +37,15 @@ instance SerialiseMLS Extension where
   serialiseMLS (Extension ty d) = do
     serialiseMLS ty
     serialiseMLSBytes @VarInt d
+
+class IsExtension e where
+  extensionType :: Word16
+
+findExtension ::
+  forall e.
+  (ParseMLS e, IsExtension e) =>
+  [Extension] ->
+  Either Text [e]
+findExtension =
+  traverse (decodeMLS' . (.extData))
+    . filter (\e -> e.extType == extensionType @e)
