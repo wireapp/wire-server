@@ -1000,8 +1000,8 @@ updateLocalStateOfRemoteConv rcu con = do
   -- however they are included in the alreadyPresentUsers from the incoming request.
   -- To have a meaningful check here, we need to include the extra targets (the newly added users)
   -- when matching the present users against the alreadyPresentUsers.
-  let allUsersExceptExtraTargetsArePresent =
-        Set.fromList (presentUsers <> extraTargets) == Set.fromList cu.alreadyPresentUsers
+  let targets = nubOrd $ presentUsers <> extraTargets
+      allUsersExceptExtraTargetsArePresent = Set.fromList targets == Set.fromList cu.alreadyPresentUsers
   unless allUsersExceptExtraTargetsArePresent $
     P.warn $
       Log.field "conversation" (toByteString' cu.convId)
@@ -1015,7 +1015,6 @@ updateLocalStateOfRemoteConv rcu con = do
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
     let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing Nothing action
-        targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
