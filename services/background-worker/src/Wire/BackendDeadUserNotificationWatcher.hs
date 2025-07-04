@@ -30,6 +30,7 @@ getLastDeathQueue Nothing = Nothing
 
 -- FUTUREWORK: what happens if messages expire _after_ we checked against cassandra here?
 -- Should we have an async notification terminate this?
+-- TODO: document this function *much* better.  explain the general idea.
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
@@ -170,3 +171,8 @@ startWorker amqp = do
         openConnection mConn
 
   (openConnection Nothing)
+
+-- it's nice that there is heartbeat, but what if the thread
+-- deadlocks and the heartbeat runs in another thread and keeps beating?  is
+-- there something else we can do to make sure the worker threads are still
+-- alive?
