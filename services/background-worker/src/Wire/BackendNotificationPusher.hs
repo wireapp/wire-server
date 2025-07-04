@@ -320,6 +320,7 @@ getRemoteDomains adminClient = do
 type WorkerResult = (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
 
 -- FUTUREWORK: rework this in the vein of DeadLetterWatcher
+-- TODO: document this function *much* better.  explain the general idea.
 startWorker :: AmqpEndpoint -> AppT IO WorkerResult
 startWorker rabbitmqOpts = do
   env <- ask
@@ -348,7 +349,7 @@ startWorker rabbitmqOpts = do
       void $
         async $
           liftIO $
-            openConnectionWithRetries env.logger "BackendNotificationPusher" rabbitmqOpts $
+            openConnectionWithRetries env.logger "BackendNotificationPusher" rabbitmqOpts $ -- can we find a bug here, too?
               RabbitMqHooks
                 { -- The exception handling in `openConnectionWithRetries` won't open a new
                   -- connection on an explicit close call.

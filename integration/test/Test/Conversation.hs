@@ -31,8 +31,10 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as T
 import GHC.Stack
+-- import qualified Network.RabbitMqAdmin as Q
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import Test.Events (killAllRabbitMqConns) -- TODO: move to test lib?
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -822,6 +824,29 @@ testLeaveConversationSuccess = do
     assertLeaveNotification chad conv alice aClient chad
     assertLeaveNotification chad conv bob bClient chad
     assertLeaveNotification chad conv eve eClient chad
+
+testRabbitRecoveryFromBrokenQueue :: (HasCallStack) => App ()
+testRabbitRecoveryFromBrokenQueue = do
+  -- TODO: make sure this actually works, and that it reproduces the problem on develop!
+  -- TODO: what about other tests run in parallel? => dyn backend!
+
+  [alice, bob, chad] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
+  [aClient, bClient, cClient] <- forM [alice, bob, chad] $ \user -> objId $ bindResponse (addClient user def) $ getJSON 201
+  connectUsers [alice, bob, chad]
+  conv <- postConversation alice (defProteus {qualifiedUsers = [bob, chad]}) >>= getJSON 201
+
+  {-
+    pool <- asks (.resourcePool)
+    runCodensity (acquireResources 1 pool) $ \[backend] -> do
+      void $ killAllRabbitMqConns backend
+  -}
+
+  -- BWI.deleteQueue alice "dead-user-notifications" >>= assertSuccess
+
+  void $ removeMember chad conv chad >>= getBody 200
+  eventually $ do
+    assertLeaveNotification chad conv alice aClient chad
+    assertLeaveNotification chad conv bob bClient chad
 
 testOnUserDeletedConversations :: (HasCallStack) => App ()
 testOnUserDeletedConversations = do
