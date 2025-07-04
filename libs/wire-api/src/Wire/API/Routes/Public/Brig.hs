@@ -81,6 +81,7 @@ import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, Password
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
 
 type BrigAPI =
@@ -314,6 +315,13 @@ type UserGroupAPI =
                       Respond 200 "User Group Found" UserGroup
                     ]
                     (Maybe UserGroup)
+           )
+    :<|> Named
+           "get-user-groups"
+           ( From 'V9
+               :> ZLocalUser
+               :> "user-groups"
+               :> PaginationQuery
            )
     :<|> Named
            "update-user-group"

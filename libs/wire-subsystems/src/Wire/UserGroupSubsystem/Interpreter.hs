@@ -1,13 +1,16 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
 import Data.Default
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Imports
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
@@ -19,6 +22,7 @@ import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -38,6 +42,7 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
+  GetGroups getter q sortByKeys sortOrder pSize pState -> getUserGroupsImpl getter q sortByKeys sortOrder pSize pState
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -47,6 +52,7 @@ data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
+  | UserGroupInvalidQueryParams Text
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -55,10 +61,11 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
+    UserGroupInvalidQueryParams _msg -> errorToWai @E.UserGroupInvalidQueryParams -- TODO: msg should also be rendered here!
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
-    Member (Error UserGroupSubsystemError) r,
+    Member (Error UserGroupSubsystemError) r, -- TODO: use ErrorS everywhere!
     Member Store.UserGroupStore r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
@@ -132,13 +139,87 @@ getUserGroupImpl ::
   Sem r (Maybe UserGroup)
 getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
-  getterCanSeeAll <- do
-    creatorTeamMember <- MaybeT $ getTeamMember getter team
-    pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+  getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid
   if getterCanSeeAll || getter `elem` (toList userGroup.members)
     then pure userGroup
     else MaybeT $ pure Nothing
+
+mkGetterCanSeeAll ::
+  forall r.
+  (Member GalleyAPIAccess r) =>
+  UserId ->
+  TeamId ->
+  MaybeT (Sem r) Bool
+mkGetterCanSeeAll getter team = do
+  creatorTeamMember <- MaybeT $ getTeamMember getter team
+  pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+
+getUserGroupsImpl ::
+  forall r.
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member GalleyAPIAccess r,
+    Member (Error UserGroupSubsystemError) r
+  ) =>
+  UserId ->
+  Maybe Text ->
+  Maybe SortBy ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe PaginationState ->
+  Sem r PaginationResult
+getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
+  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin {- sic! -}
+  getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
+  unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
+  checkPaginationState `mapM_` pState
+  page :: [UserGroup] <- Store.getUserGroups team currentPaginationState
+  pure (PaginationResult page (nextPaginationState (fromIntegral $ length page)))
+  where
+    ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
+    ifNothing e = maybe (throw e) pure
+
+    checkPaginationState :: PaginationState -> Sem r ()
+    checkPaginationState st = do
+      let badState = throw . UserGroupInvalidQueryParams . (<> " mismatch")
+      forM_ q $ (\x -> forM_ st.searchString $ \y -> unless (y == x) (badState "searchString"))
+      forM_ sortBy' $ \x -> unless (st.sortBy == x) (badState "sortBy")
+      forM_ sortOrder' $ \x ->
+        case fromMaybe def sortBy' of
+          SortByName -> unless (st.sortOrderName == x) (badState "sortOrderName")
+          SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sortOrderCreatedAt")
+      forM_ pSize $ \x -> unless (st.pageSize == x) (badState "pageSize")
+
+    currentPaginationState :: PaginationState
+    currentPaginationState = case pState of
+      Just oldState -> oldState
+      Nothing ->
+        let sb = fromMaybe def sortBy'
+
+            -- Map the `sort_order` query parameter to `sortOrderName` and
+            -- `sortOrderCreatedAt`.  `sort_order` is taken to refer to whatever we already
+            -- have in the state under `sortBy`.
+            son = fromMaybe (defaultSortOrder SortByName) $ case sb of
+              SortByName -> sortOrder'
+              SortByCreatedAt -> Nothing
+            soc = fromMaybe (defaultSortOrder SortByCreatedAt) $ case sb of
+              SortByName -> Nothing
+              SortByCreatedAt -> sortOrder'
+         in PaginationState
+              { searchString = q,
+                sortBy = sb,
+                sortOrderName = son,
+                sortOrderCreatedAt = soc,
+                pageSize = fromMaybe def pSize,
+                offset = Just 0
+              }
+
+    nextPaginationState :: Natural -> PaginationState
+    nextPaginationState newOffset =
+      currentPaginationState
+        { offset = Just $ maybe newOffset (+ newOffset) currentPaginationState.offset
+        }
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
