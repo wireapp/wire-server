@@ -172,7 +172,7 @@ testObject_Event_user_8 =
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =
-                ConvMembers
+                ConvMembersV9
                   { cmSelf =
                       Member
                         { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),

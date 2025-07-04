@@ -416,7 +416,7 @@ testTeamAdminCanCreateChannelWithoutJoining = do
   conv <-
     postConversation owner defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
-      resp.json %. "members" `shouldMatch` ([] :: [Value])
+      resp.json %. "members.others" `shouldMatch` ([] :: [Value])
       pure resp.json
 
   I.getConversation conv `bindResponse` \resp -> do
@@ -483,7 +483,7 @@ testTeamAdminCanAddMembersWithoutJoining = do
     -- the members are added to the backend conversation
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      convMems <- resp.json %. "members" & asList
+      convMems <- resp.json %. "members.others" & asList
       for [m1, m2, m3] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
 
     do
@@ -539,7 +539,7 @@ testAdminCanRemoveMemberWithoutJoining = do
   convId <- objConvId channel
   I.getConversation channel `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    convMems <- resp.json %. "members" & asList
+    convMems <- resp.json %. "members.others" & asList
     for [m1, m2] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
 
   withWebSockets [c1, c2, c3] $ \[ws1, _ws2, ws3] -> do
@@ -548,7 +548,7 @@ testAdminCanRemoveMemberWithoutJoining = do
 
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      convMems <- resp.json %. "members" & asList
+      convMems <- resp.json %. "members.others" & asList
       for [m1] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
 
     -- the client of m1 receives a notification, creates a pending proposal, sends it, and consumes messages
@@ -559,7 +559,7 @@ testAdminCanRemoveMemberWithoutJoining = do
 
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      shouldBeEmpty $ resp.json %. "members" & asList
+      shouldBeEmpty $ resp.json %. "members.others" & asList
 
     -- now there is no one left to create and submit the pending proposal
     -- the team admin adds another member to the channel again
@@ -568,7 +568,7 @@ testAdminCanRemoveMemberWithoutJoining = do
 
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      convMems <- resp.json %. "members" & asList
+      convMems <- resp.json %. "members.others" & asList
       for [m3] (%. "id") `shouldMatchSet` (for convMems (%. "id"))
 
     -- m3 receives a member-join notification and joins via external commit

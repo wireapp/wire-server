@@ -65,7 +65,7 @@ testObject_Conversation_user_1 =
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
-        ConvMembers
+        ConvMembersV9
           { cmSelf =
               Member
                 { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
@@ -115,7 +115,7 @@ testObject_Conversation_user_2 =
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
-        ConvMembers
+        ConvMembersV9
           { cmSelf =
               Member
                 { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
@@ -183,7 +183,7 @@ testObject_Conversation_user_3 =
             cnvmCellsState = CellsDisabled
           },
       cnvMembers =
-        ConvMembers
+        ConvMembersV9
           { cmSelf =
               Member
                 { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
@@ -248,7 +248,7 @@ testObject_Conversation_user_4 =
             cnvmCellsState = CellsDisabled
           },
       cnvMembers =
-        ConvMembers
+        ConvMembersV9
           { cmSelf =
               Member
                 { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
@@ -291,7 +291,7 @@ testObject_Conversation_user_5 =
             cnvmCellsState = CellsDisabled
           },
       cnvMembers =
-        ConvMembers
+        ConvMembersV9
           { cmSelf =
               Member
                 { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,

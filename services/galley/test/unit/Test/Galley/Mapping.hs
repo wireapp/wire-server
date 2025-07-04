@@ -55,7 +55,7 @@ tests =
     [ testProperty "conversation view V9 for a valid user is non-empty" $
         \(ConvWithLocalUser c luid) -> isRight (run (conversationViewV9 luid c)),
       testProperty "conversation view V10 for a valid user is non-empty" $
-        \(ConvWithLocalUser c luid) -> isRight (run (pure $ conversationView luid c)),
+        \(ConvWithLocalUser c luid) -> isRight (run (pure $ conversationView (qualifyAs luid ()) (Just luid) c)),
       testProperty "self user in conversation view is correct" $
         \(ConvWithLocalUser c luid) ->
           fmap (memId . cmSelf . cnvMembers) (run (conversationViewV9 luid c))

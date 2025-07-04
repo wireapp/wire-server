@@ -134,7 +134,7 @@ tests =
       testRoundTrip @Conversation.Member.MutedStatus,
       testRoundTrip @Conversation.Member.Member,
       testRoundTrip @Conversation.Member.OtherMember,
-      testRoundTrip @Conversation.Member.ConvMembers,
+      testRoundTrip @Conversation.Member.ConvMembersV9,
       testRoundTrip @Conversation.Member.OtherMemberUpdate,
       testRoundTrip @Conversation.Role.RoleName,
       testRoundTrip @Conversation.Role.Action,

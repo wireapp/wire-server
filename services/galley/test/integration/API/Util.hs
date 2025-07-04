@@ -1644,16 +1644,15 @@ assertConvWithRole ::
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   cnv :: Conversation <- responseJsonError r
-  let otherMembers = filter (\m -> m.omQualifiedId /= s) (toList cnv.members)
   liftIO $ do
     assertEqual "id" cId cnv.qualifiedId.qUnqualified
     assertEqual "name" n cnv.metadata.cnvmName
     assertEqual "type" t cnv.metadata.cnvmType
     assertEqual "creator" c cnv.metadata.cnvmCreator
     assertEqual "message_timer" mt cnv.metadata.cnvmMessageTimer
-    assertEqual "members" (Set.fromList $ s : us) (Set.map omQualifiedId cnv.members)
-    assertEqual "creator is always an admin" (Just roleNameWireAdmin) (omConvRoleName <$> find (\m -> m.omQualifiedId == s) (Set.toList cnv.members))
-    assertBool "others role" (all ((== role) . omConvRoleName) otherMembers)
+    assertEqual "members" (Set.fromList $ s : us) (Set.fromList (maybe [] (\self -> [self.memId]) cnv.members.self <> fmap omQualifiedId cnv.members.others))
+    assertEqual "creator is always an admin" (Just roleNameWireAdmin) (memConvRoleName <$> cnv.members.self)
+    assertBool "others role" (all ((== role) . omConvRoleName) cnv.members.others)
     case t of
       SelfConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
       ConnectConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)

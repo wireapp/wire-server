@@ -967,9 +967,10 @@ testGetConversationInternal = do
   I.getConversation conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "qualified_id" `shouldMatch` objQidObject conv
-    members <- resp.json %. "members" & asList
+    members <- resp.json %. "members.others" & asList
     memberIds <- for members (%. "qualified_id")
     memberIds `shouldMatchSet` (for (owner : mems) (%. "qualified_id"))
+    lookupField resp.json "members.self" `shouldMatch` (Nothing @Value)
 
 testGetSelfMember :: (HasCallStack) => App ()
 testGetSelfMember = do

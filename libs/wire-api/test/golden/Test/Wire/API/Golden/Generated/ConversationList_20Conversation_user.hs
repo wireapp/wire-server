@@ -56,7 +56,7 @@ testObject_ConversationList_20Conversation_user_1 =
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =
-                ConvMembers
+                ConvMembersV9
                   { cmSelf =
                       Member
                         { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,

@@ -143,7 +143,6 @@ getConversationsAllFound = do
         (map qUnqualified [cnv1Id, cnv2.qualifiedId])
 
   let c2 = find ((== cnv2.qualifiedId.qUnqualified) . (.id)) convs
-  let selfMember = find (\m -> m.omQualifiedId == bobQ) (Set.toList cnv2.members)
   liftIO $ do
     assertEqual
       "name mismatch"
@@ -151,7 +150,7 @@ getConversationsAllFound = do
       ((.metadata.cnvmName) <$> c2)
     assertEqual
       "self member role mismatch"
-      (omConvRoleName <$> selfMember)
+      (memConvRoleName <$> cnv2.members.self)
       ((.members.selfRole) <$> c2)
     assertEqual
       "other members mismatch"
