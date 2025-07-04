@@ -175,7 +175,7 @@ createEnv o l = do
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
-    <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
+    <*> traverse (mkRabbitMqChannelMVar l "galley") (o ^. rabbitmq)
     <*> pure codeURIcfg
     <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
 
