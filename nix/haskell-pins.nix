@@ -341,16 +341,6 @@ let
       sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
     };
 
-    text-builder-core = {
-      version = "0.1.1.1";
-      sha256 = "sha256-BX6JRG+K1PnS3GLvpakG7rTsARfVmGLl1gTW0a4UyDo=";
-    };
-
-    text-builder = {
-      version = "1.0.0.3";
-      sha256 = "sha256-9VCOzwebs89KosOouJjFUcAgY6PF97yJnnIp4HZOK20=";
-    };
-
     network-control = {
       version = "0.1.0";
       sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
