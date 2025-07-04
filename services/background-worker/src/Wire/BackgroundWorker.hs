@@ -2,18 +2,18 @@
 
 module Wire.BackgroundWorker where
 
-import Control.Concurrent.Async (cancel)
-import Data.Domain
-import Data.Map.Strict qualified as Map
+import Control.Concurrent.Async
+import Control.Exception
+import Data.ByteString.Conversion
 import Data.Metrics.Servant qualified as Metrics
 import Data.Text qualified as T
 import Imports
-import Network.AMQP qualified as Q
 import Network.AMQP.Extended (demoteOpts)
 import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
 import System.Logger qualified as Log
+import System.Random
 import Util.Options
 import Wire.BackendDeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
@@ -21,45 +21,60 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
 
+-- | Restart crashed worker threads: if thread terminates normally, return result.  If thread
+-- is cancelled, return `Nothing`.  If anything else happens to the it, log an error and
+-- restart.
+supervisor ::
+  forall a.
+  -- | for `runAppT` and logging
+  Env ->
+  -- | worker name
+  String ->
+  -- | action
+  AppT IO a ->
+  -- | the ascyn thread (result is `Nothing` if thread is cancelled)
+  IO (Async (Maybe a))
+supervisor env workerName workerAction = async loop
+  where
+    loop :: IO (Maybe a)
+    loop = do
+      result <- try (runAppT env workerAction)
+      case result of
+        Right a -> pure (Just a)
+        Left e ->
+          if fromException e == Just AsyncCancelled
+            then do
+              Log.info (logger env) $
+                (Log.field "worker name: " workerName)
+                  . Log.msg (Log.val $ "worker cancelled, shutting down.")
+              pure Nothing
+            else do
+              Log.err (logger env) $
+                (Log.field "worker name: " workerName)
+                  . Log.msg (Log.val $ "worker crashed: " <> toByteString' (show e) <> ", restarting in <3s")
+              threadDelay =<< randomRIO (300_000, 3_000_000)
+              loop
+
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
   let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
-  (notifChanRef, notifConsumersRef) <- runAppT env $ BackendNotificationPusher.startWorker amqpEP
-  deadWatcherAsync <- runAppT env $ DeadUserNotificationWatcher.startWorker amqpEP
-  let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
-      -- specific exception types to message threads to clean up
-      l = logger env
-      cleanup = do
-        -- cancel the dead letter watcher
-        cancel deadWatcherAsync
 
-        -- Notification pusher thread
-        Log.info l $ Log.msg (Log.val "Cancelling the notification pusher thread")
-        readIORef notifChanRef >>= traverse_ \chan -> do
-          Log.info l $ Log.msg (Log.val "Got channel")
-          readIORef notifConsumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
-            Log.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
-            -- Remove the consumer from the channel so it isn't called again
-            Q.cancelConsumer chan consumer
-            -- Take from the mvar. This will only unblock when the consumer callback isn't running.
-            -- This allows us to wait until the currently running tasks are completed, and new ones
-            -- won't be scheduled because we've already removed the callback from the channel.
-            -- If, for some reason, a consumer is invoked after us cancelling it, taking this MVar
-            -- will block that thread from trying to push out the notification. At this point, we're
-            -- relying on Rabbit to requeue the message for us as we won't be able to ACK or NACK it.
-            -- This helps prevent message redelivery to endpoint services during the brief window between
-            -- receiving a message from rabbit, and the signal handler shutting down the AMQP connection
-            -- before notification delivery has finalised.
-            Log.info l $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
-            takeMVar runningFlag
-          -- Close the channel. `extended` will then close the connection, flushing messages to the server.
-          Log.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
-          Q.closeChannel chan
+  cleanupCallback :: MVar (IO ()) <- newMVar (pure ())
+  let addToCleanupCallback action = do
+        modifyMVar_ cleanupCallback (\actions -> pure (actions >> action))
+      runCleanupCallback = do
+        join (readMVar cleanupCallback)
+
+  runAppT env (BackendNotificationPusher.startWorker amqpEP) >>= \pusherState ->
+    addToCleanupCallback (runAppT env (BackendNotificationPusher.cancelWorker pusherState))
+
+  supervisor env "DeadUserNotificationWatcher" (DeadUserNotificationWatcher.startWorker amqpEP) >>= \worker ->
+    addToCleanupCallback (cancel worker)
+
   let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   settings <- newSettings server
-  -- Additional cleanup when shutting down via signals.
-  runSettingsWithCleanup cleanup settings (servantApp env) Nothing
+  runSettingsWithCleanup runCleanupCallback settings (servantApp env) Nothing
 
 servantApp :: Env -> Application
 servantApp env =

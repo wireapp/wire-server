@@ -1,0 +1,1 @@
+There was a way the background-worker for cleaning up the rabbitMQ dead letter queue could crash silently without recovering.  Now wrapped in a supervisor that reliably restarts the watchers.

@@ -46,6 +46,7 @@ library
     , metrics-wai
     , monad-control
     , prometheus-client
+    , random
     , retry
     , servant-client
     , servant-server

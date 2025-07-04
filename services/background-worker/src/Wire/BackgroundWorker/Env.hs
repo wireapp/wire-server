@@ -42,6 +42,7 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
+    -- | for health reporting on rest api.
     statuses :: IORef (Map Worker IsWorking),
     cassandra :: ClientState
   }

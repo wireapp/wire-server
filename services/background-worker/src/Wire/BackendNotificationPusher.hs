@@ -22,6 +22,7 @@ import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import Network.Wai.Utilities.Error
 import Prometheus
 import Servant.Client qualified as Servant
+import System.Logger qualified as LogNoClass
 import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.API
@@ -215,7 +216,7 @@ sendNotificationIgnoringVersionMismatch env comp path body =
 pairedMaximumOn :: (Ord b) => (a -> b) -> [a] -> (a, b)
 pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 
--- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
+-- FUTUREWORK: Reconsider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
 startPusher :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
@@ -314,19 +315,27 @@ getRemoteDomains adminClient = do
           . Log.field "queue" ("backend-notifications." <> d)
           . Log.field "error" e
 
+-- * start worker
+
+type WorkerResult = (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
+
 -- FUTUREWORK: rework this in the vein of DeadLetterWatcher
-startWorker :: AmqpEndpoint -> AppT IO (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
+startWorker :: AmqpEndpoint -> AppT IO WorkerResult
 startWorker rabbitmqOpts = do
   env <- ask
+  lgr <- asks logger
+
   -- These are used in the POSIX signal handlers, so we need to make
   -- cross thread references that we can use to cancel consumers and
   -- wait for current processing steps to finish.
   chanRef <- newIORef Nothing
   consumersRef <- newIORef mempty
+
   let -- cleanup the refs when channels die
       -- This is so we aren't trying to close consumers
       -- that don't exist when the service is shutdown.
       clearRefs = do
+        LogNoClass.debug lgr $ Log.msg (Log.val "BackendNotificationPusher.startWorker: clearRefs")
         atomicWriteIORef chanRef Nothing
         atomicWriteIORef consumersRef mempty
   case env.rabbitmqAdminClient of
@@ -339,18 +348,48 @@ startWorker rabbitmqOpts = do
       void $
         async $
           liftIO $
-            openConnectionWithRetries env.logger rabbitmqOpts $
+            openConnectionWithRetries env.logger "BackendNotificationPusher" rabbitmqOpts $
               RabbitMqHooks
                 { -- The exception handling in `openConnectionWithRetries` won't open a new
                   -- connection on an explicit close call.
                   onNewChannel = \chan -> do
+                    LogNoClass.debug lgr $ Log.msg (Log.val "BackendNotificationPusher.startWorker: onNewChannel")
                     atomicWriteIORef chanRef $ pure chan
                     runAppT env $ startPusher client consumersRef chan,
                   onChannelException = \_ -> do
+                    LogNoClass.debug lgr $ Log.msg (Log.val "BackendNotificationPusher.startWorker: onNewException")
                     clearRefs
                     runAppT env $ markAsNotWorking BackendNotificationPusher,
                   onConnectionClose = do
+                    LogNoClass.debug lgr $ Log.msg (Log.val "BackendNotificationPusher.startWorker: onConnectionClose")
                     clearRefs
                     runAppT env $ markAsNotWorking BackendNotificationPusher
                 }
   pure (chanRef, consumersRef)
+
+-- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
+-- specific exception types to message threads to clean up
+cancelWorker :: WorkerResult -> AppT IO ()
+cancelWorker (notifChanRef, notifConsumersRef) = do
+  -- Notification pusher thread
+  Log.info $ Log.msg (Log.val "Cancelling the notification pusher thread")
+  readIORef notifChanRef >>= traverse_ \chan -> do
+    Log.info $ Log.msg (Log.val "Got channel")
+    readIORef notifConsumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
+      Log.info $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
+      -- Remove the consumer from the channel so it isn't called again
+      liftIO $ Q.cancelConsumer chan consumer
+      -- Take from the mvar. This will only unblock when the consumer callback isn't running.
+      -- This allows us to wait until the currently running tasks are completed, and new ones
+      -- won't be scheduled because we've already removed the callback from the channel.
+      -- If, for some reason, a consumer is invoked after us cancelling it, taking this MVar
+      -- will block that thread from trying to push out the notification. At this point, we're
+      -- relying on Rabbit to requeue the message for us as we won't be able to ACK or NACK it.
+      -- This helps prevent message redelivery to endpoint services during the brief window between
+      -- receiving a message from rabbit, and the signal handler shutting down the AMQP connection
+      -- before notification delivery has finalised.
+      Log.info $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
+      takeMVar runningFlag
+    -- Close the channel. `extended` will then close the connection, flushing messages to the server.
+    Log.info $ Log.msg $ Log.val "Closing RabbitMQ channel"
+    liftIO $ Q.closeChannel chan
