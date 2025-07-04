@@ -267,11 +267,13 @@ let
       };
     };
 
+    # We applied minimal fixes to support newer GHC versions. I.e. remove this
+    # once our GHC version is supported by upstream.
     HaskellNet = {
       src = fetchgit {
         url = "https://github.com/wireapp/HaskellNet";
-        rev = "74cde03b4beb09794a6120ea5321a09430bcd2c7";
-        hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
+        rev = "c023c18388c9454f97107b976746227d5eed53e6";
+        hash = "sha256-arHo3mtJhCx59zK435B/TziyLM/qOqw5yONyMnbUZQU=";
       };
     };
 
@@ -285,8 +287,8 @@ let
     amazonka = {
       src = fetchgit {
         url = "https://github.com/wireapp/amazonka";
-        rev = "b482e255d1fe8f33ceced7b55aa1f6e93081dea8";
-        hash = "sha256-p/07Hge/QwMldpnqV7Ic5GRiQFoaTxzrAjhmu554J4U=";
+        rev = "d98cefc04bcc7076a915076a322ab5905c6a4945";
+        hash = "sha256-8HNHoTUaLi5lyOrKYybacZsDSHrju9/oo+Lf/YulbIo=";
       };
       packages = {
         amazonka = "lib/amazonka";
@@ -324,35 +326,7 @@ let
       version = "0.1.0";
       sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
     };
-    hasql = {
-      version = "1.9.1.2";
-      sha256 = "sha256-W2pAC3wLIizmbspWHeWDQqb5AROtwA8Ok+lfZtzTlQg=";
-    };
 
-    hasql-pool = {
-      version = "1.3.0.1";
-      sha256 = "sha256-TtNrs1z8L39WnX8277V97g9Ot1DwutKLrAB1JOjQQoQ=";
-    };
-
-    postgresql-syntax = {
-      version = "0.4.1.3";
-      sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
-    };
-
-    text-builder-core = {
-      version = "0.1.1.1";
-      sha256 = "sha256-BX6JRG+K1PnS3GLvpakG7rTsARfVmGLl1gTW0a4UyDo=";
-    };
-
-    text-builder = {
-      version = "1.0.0.3";
-      sha256 = "sha256-9VCOzwebs89KosOouJjFUcAgY6PF97yJnnIp4HZOK20=";
-    };
-
-    network-control = {
-      version = "0.1.0";
-      sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
-    };
     # end pinned dependencies for http2
 
     # This pin should not be necessary. However, without it, Nix tries to fetch
@@ -361,6 +335,12 @@ let
     amazonka-s3-streaming = {
       version = "2.0.0.0";
       sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
+    };
+
+    # 0.8 is not compatible to GHC 9.10
+    proto-lens-protoc = {
+      version = "0.9.0.0";
+      sha256 = "sha256-wuSyhckbK+Q9bM+2rFTxHGThKJkNWgmXrdEx8suHYKE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
