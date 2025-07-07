@@ -320,7 +320,6 @@ getRemoteDomains adminClient = do
 type WorkerResult = (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
 
 -- FUTUREWORK: rework this in the vein of DeadLetterWatcher
--- TODO: document this function *much* better.  explain the general idea.
 startWorker :: AmqpEndpoint -> AppT IO WorkerResult
 startWorker rabbitmqOpts = do
   env <- ask
