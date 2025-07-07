@@ -7,6 +7,11 @@ auth:
     enabled: true
     failIfNoPeerCert: false
     existingSecret: rabbitmq-certificate
+resources:
+  requests:
+    cpu: "1"
+  limits:
+    cpu: "1"
 service:
   extraPorts:
     - name: http-stats-ssl

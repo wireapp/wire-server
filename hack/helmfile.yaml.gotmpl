@@ -172,11 +172,8 @@ releases:
     chart: "bitnami/postgresql"
     values:
       - './helm_vars/bitnami.yaml'
-      - auth:
-          postgresPassword: "posty-the-gres"
-          username: wire-server
-          password: "posty-the-gres"
-        primary:
+      - './helm_vars/postgresql/values.yaml.gotmpl'
+      - primary:
           initdb:
             scripts:
               init.sql: |
@@ -195,11 +192,8 @@ releases:
     chart: "bitnami/postgresql"
     values:
       - './helm_vars/bitnami.yaml'
-      - auth:
-          postgresPassword: "posty-the-gres"
-          username: wire-server
-          password: "posty-the-gres"
-        primary:
+      - './helm_vars/postgresql/values.yaml.gotmpl'
+      - primary:
           initdb:
             scripts:
               init.sql: |
