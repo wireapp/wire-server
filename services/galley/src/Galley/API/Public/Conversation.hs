@@ -34,7 +34,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversationV9
     <@> mkNamedAPI @"get-conversation@v2" getConversationV9
     <@> mkNamedAPI @"get-conversation@v5" getConversationV9
-    <@> mkNamedAPI @"get-conversation@v8" getConversationV9
+    <@> mkNamedAPI @"get-conversation@v9" getConversationV9
     <@> mkNamedAPI @"get-conversation" getConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo

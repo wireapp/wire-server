@@ -164,7 +164,7 @@ type ConversationAPI =
                :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V5 200 "Conversation" ConversationV9)
            )
     :<|> Named
-           "get-conversation@v8"
+           "get-conversation@v9"
            ( Summary "Get a conversation by ID"
                :> From 'V6
                :> Until 'V9
