@@ -34,7 +34,6 @@ import Servant.API.Generic (fromServant)
 import Servant.Client (AsClientT)
 import qualified Servant.Client as Servant
 import SetupHelpers
-import System.IO (getLine)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import UnliftIO hiding (handle)
@@ -465,8 +464,7 @@ testEventsDeadLetteredWithReconnect = do
   startDynamicBackendsReturnResources [def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}] $ \[resources] -> do
     let domain :: String = resources.berDomain
     alice <- randomUser domain def
-    print "Waiting ........"
-    void . liftIO $ getLine
+
     -- Force a reconnect by deleting the existing connection
     void $ killAllDeadUserNotificationRabbitMqConns resources
 
@@ -475,7 +473,7 @@ testEventsDeadLetteredWithReconnect = do
     clientId <- objId client
 
     -- Force a reconnect by deleting the existing connection
-    void $ killAllDeadUserNotificationRabbitMqConns resources
+    killAllDeadUserNotificationRabbitMqConns resources
 
     -- We expire the add client event by waiting it out
     Timeout.threadDelay (notifTTL + 500 # MilliSecond)
@@ -500,25 +498,21 @@ testEventsDeadLetteredWithReconnect = do
 
       -- We've consumed the whole queue.
       assertNoEvent_ ws
-
--- TODO: Move helpers elsewhere
-killAllDeadUserNotificationRabbitMqConns :: (HasCallStack) => BackendResource -> App [Connection]
-killAllDeadUserNotificationRabbitMqConns backend = do
-  rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
-  connections <- getDeadUserNotificationConnections rabbitmqAdminClient backend.berVHost
-  print $ "all connections" <> show connections
-  for_ connections $ \connection -> do
-    print $ "Closing " <> show connection
-    rabbitmqAdminClient.deleteConnection connection.name
-  pure connections
-
--- TODO: Move helpers elsewhere
-getDeadUserNotificationConnections :: AdminAPI (AsClientT App) -> String -> App [Connection]
-getDeadUserNotificationConnections rabbitmqAdminClient vhost = do
-  print $ "vhost: " <> vhost
-  connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack vhost)
-  print $ "connections'" <> show connections
-  pure $ filter (\c -> Just (fromString "BackendDeadUserNoticationWatcher") == c.userProvidedName) connections
+  where
+    killAllDeadUserNotificationRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
+    killAllDeadUserNotificationRabbitMqConns backend = do
+      rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
+      connections <- eventually $ do
+        conns <- getDeadUserNotificationConnections rabbitmqAdminClient backend.berVHost
+        assertAtLeastOne conns
+        pure conns
+      for_ connections $ \connection -> do
+        rabbitmqAdminClient.deleteConnection connection.name
+      where
+        getDeadUserNotificationConnections :: AdminAPI (AsClientT App) -> String -> App [Connection]
+        getDeadUserNotificationConnections rabbitmqAdminClient vhost = do
+          connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack vhost)
+          pure $ filter (\c -> Just (fromString "BackendDeadUserNotificationWatcher") == c.userProvidedName) connections
 
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
