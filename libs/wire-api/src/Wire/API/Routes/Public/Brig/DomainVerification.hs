@@ -10,6 +10,7 @@ import Data.Id
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Singletons (SingI)
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Servant
@@ -250,6 +251,7 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
+-- TODO: Inline type synonyms?
 type RegisteredDomainsV9 = RegisteredDomains V9
 
 type RegisteredDomainsV10 = RegisteredDomains V10
@@ -257,7 +259,7 @@ type RegisteredDomainsV10 = RegisteredDomains V10
 newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (RegisteredDomains v)
 
-instance ToSchema (RegisteredDomains v) where
+instance (SingI v) => ToSchema (RegisteredDomains v) where
   schema =
     object "RegisteredDomains" $
       RegisteredDomains
@@ -307,7 +309,7 @@ instance ToSchema DomainRedirectResponseV10 where
           .= maybe_
             ( fromMaybe False <$> optField "due_to_existing_account" schema
             )
-        <*> (.redirect) .= domainRedirectSchema
+        <*> (.redirect) .= domainRedirectSchema V10
 
 type DomainVerificationChallengeAPI =
   Named
