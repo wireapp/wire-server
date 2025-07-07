@@ -89,7 +89,6 @@ library
 
   -- cabal-fmt: expand test
   exposed-modules:
-    API.BackgroundWorkerInternal
     API.Brig
     API.BrigCommon
     API.BrigInternal
