@@ -250,10 +250,14 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
-newtype RegisteredDomains = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse]}
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisteredDomains)
+type RegisteredDomainsV9 = RegisteredDomains V9
 
-instance ToSchema RegisteredDomains where
+type RegisteredDomainsV10 = RegisteredDomains V10
+
+newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (RegisteredDomains v)
+
+instance ToSchema (RegisteredDomains v) where
   schema =
     object "RegisteredDomains" $
       RegisteredDomains
@@ -370,13 +374,24 @@ type DomainVerificationTeamAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
            )
     :<|> Named
-           "get-all-registered-domains"
+           "get-all-registered-domains@v9"
            ( Summary "Get all registered domains"
+               :> Until V10
                :> ZLocalUser
                :> "teams"
                :> Capture "teamId" TeamId
                :> "registered-domains"
-               :> Get '[JSON] RegisteredDomains
+               :> Get '[JSON] RegisteredDomainsV9
+           )
+    :<|> Named
+           "get-all-registered-domains"
+           ( Summary "Get all registered domains"
+               :> From V10
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "teamId" TeamId
+               :> "registered-domains"
+               :> Get '[JSON] RegisteredDomainsV10
            )
     :<|> Named
            "delete-registered-domain"

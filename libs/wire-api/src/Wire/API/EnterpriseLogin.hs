@@ -19,6 +19,7 @@ import Data.Id
 import Data.Json.Util (base64URLSchema)
 import Data.Misc
 import Data.OpenApi qualified as S
+import Data.Ord
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Ascii (AsciiBase64Url, AsciiText (toText))
@@ -30,6 +31,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import Test.QuickCheck (suchThat)
 import Web.HttpApiData
 import Wire.API.Routes.Bearer
+import Wire.API.Routes.Version
 import Wire.Arbitrary
 
 data DomainRedirect
@@ -240,7 +242,7 @@ instance ToSchema DomainRegistrationUpdate where
         <$> (.domainRedirect) .= domainRedirectSchema
         <*> (.teamInvite) .= teamInviteObjectSchema
 
-data DomainRegistrationResponse = DomainRegistrationResponse
+data DomainRegistrationResponse (v :: Version) = DomainRegistrationResponse
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
@@ -248,12 +250,12 @@ data DomainRegistrationResponse = DomainRegistrationResponse
     dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (DomainRegistrationResponse v)
 
-mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
+mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse v
 mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
 
-instance ToSchema DomainRegistrationResponse where
+instance ToSchema (DomainRegistrationResponse v) where
   schema =
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse

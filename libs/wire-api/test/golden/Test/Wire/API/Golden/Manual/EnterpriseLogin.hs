@@ -25,8 +25,9 @@ import Imports
 import SAML2.WebSSO qualified as SAML
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.EnterpriseLogin
+import Wire.API.Routes.Version
 
-testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_1 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -36,7 +37,7 @@ testObject_DomainRegistrationResponse_1 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_2 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -46,7 +47,7 @@ testObject_DomainRegistrationResponse_2 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_3 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -56,7 +57,7 @@ testObject_DomainRegistrationResponse_3 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_4 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -66,7 +67,7 @@ testObject_DomainRegistrationResponse_4 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_5 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -76,7 +77,7 @@ testObject_DomainRegistrationResponse_5 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_6 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
@@ -86,7 +87,7 @@ testObject_DomainRegistrationResponse_6 =
       dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
     }
 
-testObject_DomainRegistrationResponse_7 :: DomainRegistrationResponse
+testObject_DomainRegistrationResponse_7 :: DomainRegistrationResponse V10
 testObject_DomainRegistrationResponse_7 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
