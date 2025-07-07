@@ -251,11 +251,6 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
--- TODO: Inline type synonyms?
-type RegisteredDomainsV9 = RegisteredDomains V9
-
-type RegisteredDomainsV10 = RegisteredDomains V10
-
 newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (RegisteredDomains v)
 
@@ -383,7 +378,7 @@ type DomainVerificationTeamAPI =
                :> "teams"
                :> Capture "teamId" TeamId
                :> "registered-domains"
-               :> Get '[JSON] RegisteredDomainsV9
+               :> Get '[JSON] (RegisteredDomains V9)
            )
     :<|> Named
            "get-all-registered-domains"
@@ -393,7 +388,7 @@ type DomainVerificationTeamAPI =
                :> "teams"
                :> Capture "teamId" TeamId
                :> "registered-domains"
-               :> Get '[JSON] RegisteredDomainsV10
+               :> Get '[JSON] (RegisteredDomains V10)
            )
     :<|> Named
            "delete-registered-domain"
