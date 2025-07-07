@@ -78,6 +78,8 @@
 , QuickCheck
 , quickcheck-instances
 , random
+, regex-base
+, regex-tdfa
 , resourcet
 , retry
 , saml2-web-sso
@@ -191,6 +193,8 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    regex-base
+    regex-tdfa
     resourcet
     retry
     saml2-web-sso

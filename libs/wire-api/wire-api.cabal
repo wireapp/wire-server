@@ -329,6 +329,8 @@ library
     , QuickCheck                 >=2.14
     , quickcheck-instances       >=0.3.16
     , random                     >=1.2.0
+    , regex-base
+    , regex-tdfa
     , resourcet
     , retry                      ^>=0.9.3.1
     , saml2-web-sso
