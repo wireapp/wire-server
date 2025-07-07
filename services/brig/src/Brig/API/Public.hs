@@ -244,22 +244,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V10)) =
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
       & S.servers .~ [S.Server ("/" <> toUrlPiece V10) Nothing mempty]
       & cleanupSwagger
-versionedSwaggerDocsAPI (Just (VersionNumber V9)) =
-  swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V9
-        <> serviceSwagger @BrigAPITag @'V9
-        <> serviceSwagger @GalleyAPITag @'V9
-        <> serviceSwagger @SparAPITag @'V9
-        <> serviceSwagger @CargoholdAPITag @'V9
-        <> serviceSwagger @CannonAPITag @'V9
-        <> serviceSwagger @GundeckAPITag @'V9
-        <> serviceSwagger @ProxyAPITag @'V9
-        <> serviceSwagger @OAuthAPITag @'V9
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V9) Nothing mempty]
-      & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V9)) = swaggerPregenUIServer $(pregenSwagger V9)
 versionedSwaggerDocsAPI (Just (VersionNumber V8)) = swaggerPregenUIServer $(pregenSwagger V8)
 versionedSwaggerDocsAPI (Just (VersionNumber V7)) = swaggerPregenUIServer $(pregenSwagger V7)
 versionedSwaggerDocsAPI (Just (VersionNumber V6)) = swaggerPregenUIServer $(pregenSwagger V6)
