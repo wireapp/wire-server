@@ -34,7 +34,7 @@ getLastDeathQueue Nothing = Nothing
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
-  markAsWorking BackendDeadUserNoticationWatcher
+  markAsWorking BackendDeadUserNotificationWatcher
   void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
   QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) ->
     if (msg.msgDeliveryMode == Just Q.NonPersistent)
@@ -113,27 +113,27 @@ startWorker amqp = do
               if closingAbnormally
                 then do
                   Log.err env.logger $
-                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed unexpectedly.")
+                    Log.msg (Log.val "BackendDeadUserNotificationWatcher: Connection closed unexpectedly.")
                 else do
                   Log.info env.logger $
-                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed normally.")
+                    Log.msg (Log.val "BackendDeadUserNotificationWatcher: Connection closed normally.")
               putMVar reconnectSignal Nothing
 
             onBlockedConn msg = do
               Log.err env.logger $
                 Log.field "amqp message" msg
-                  . Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection blocked -- waiting for unblock.")
+                  . Log.msg (Log.val "BackendDeadUserNotificationWatcher: Connection blocked -- waiting for unblock.")
 
             onUnblockedConn = do
               Log.err env.logger $
-                Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection unblocked.")
+                Log.msg (Log.val "BackendDeadUserNotificationWatcher: Connection unblocked.")
 
             onChannelException conn e = do
               unless (Q.isNormalChannelClose e) $
                 Log.err env.logger $
-                  Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
+                  Log.msg (Log.val "BackendDeadUserNotificationWatcher: Caught exception in RabbitMQ channel.")
                     . Log.field "exception" (displayException e)
-              runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
+              runAppT env $ markAsNotWorking BackendDeadUserNotificationWatcher
               putMVar reconnectSignal (Just conn)
 
         mConn <- lowerCodensity $ do
@@ -146,7 +146,7 @@ startWorker amqp = do
                   withConnectionWithClose
                     (\_ -> writeIORef closingAbnormallyRef False)
                     env.logger
-                    "BackendDeadUserNoticationWatcher"
+                    "BackendDeadUserNotificationWatcher"
                     amqp
 
               -- We need to recover from connection closed by restarting it
@@ -155,7 +155,7 @@ startWorker amqp = do
 
               runAppT env $
                 -- there is a connection now, but it's not consuming yet.
-                markAsNotWorking BackendDeadUserNoticationWatcher
+                markAsNotWorking BackendDeadUserNotificationWatcher
               pure conn
             Just conn -> pure conn
 
