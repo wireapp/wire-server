@@ -381,3 +381,20 @@ testPasswordChange =
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "invalid-credentials"
       login domain email newPassword >>= assertSuccess
+
+testEphemeralUserCreation :: (HasCallStack) => TaggedBool "ephemeral-user-creation-enabled" -> App ()
+testEphemeralUserCreation (TaggedBool enabled) = do
+  withModifiedBackend
+    def
+      { brigCfg = setField "optSettings.setEphemeralUserCreationEnabled" enabled
+      }
+    $ \domain -> do
+      name <- randomName
+      req <- baseRequest domain Brig Versioned "/register"
+      bindResponse (submit "POST" $ req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42") $ \resp -> do
+        if enabled
+          then do
+            resp.status `shouldMatchInt` 201
+          else do
+            resp.status `shouldMatchInt` 403
+            resp.json %. "label" `shouldMatch` "ephemeral-user-creation-disabled"
