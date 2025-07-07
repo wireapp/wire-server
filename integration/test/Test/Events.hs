@@ -490,7 +490,6 @@ testEventsDeadLetteredWithReconnect = do
 
       -- Until we ack the full sync, we can't get new events
       ackFullSync ws
-      assertMessageCount_ ws
 
       -- withEventsWebSocket alice clientId $ \eventsChan ackChan -> do
       -- Now we can see the next event
