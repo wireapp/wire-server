@@ -169,7 +169,7 @@ startWorker amqp = do
             takeMVar reconnectSignal
         openConnection mConn
 
-  (openConnection Nothing)
+  openConnection Nothing
 
 -- it's nice that there is heartbeat, but what if the thread
 -- deadlocks and the heartbeat runs in another thread and keeps beating?  is
