@@ -901,8 +901,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     [user {emailUnvalidated = Just updatedEmail}]
                   )
     prop "Email change not allowed for blocked domains" $ do
-      \(locx :: Local ())
-       (NotPendingStoredUser user)
+      \(NotPendingStoredUser user)
        (emailUsername :: EmailUsername)
        (blockedDomains :: NonEmptyList Domain)
        config -> do
@@ -913,7 +912,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   ((fromString . getEmailUsername) emailUsername)
                   ((encodeUtf8 . domainText) blockedEmailDomain)
               localBackend = def {users = [user]}
-              lusr = qualifyAs locx user.id
+              lusr = toLocalUnsafe (fromRight' (mkDomain "local.example.com")) user.id
               result =
                 runNoFederationStack
                   localBackend
