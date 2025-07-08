@@ -178,7 +178,7 @@ type ConversationAPI =
     :<|> Named
            "get-conversation"
            ( Summary "Get a conversation by ID"
-               :> From 'V9
+               :> From 'V10
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
