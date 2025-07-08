@@ -314,7 +314,6 @@ getRemoteDomains adminClient = do
           . Log.field "queue" ("backend-notifications." <> d)
           . Log.field "error" e
 
--- FUTUREWORK: rework this in the vein of DeadLetterWatcher
 startWorker :: AmqpEndpoint -> AppT IO (IORef (Maybe Q.Channel), IORef (Map Domain (Q.ConsumerTag, MVar ())))
 startWorker rabbitmqOpts = do
   env <- ask

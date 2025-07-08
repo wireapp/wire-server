@@ -2,7 +2,6 @@
 
 module Wire.BackgroundWorker where
 
-import Control.Concurrent.Async (cancel)
 import Data.Domain
 import Data.Map.Strict qualified as Map
 import Data.Metrics.Servant qualified as Metrics
@@ -26,13 +25,12 @@ run opts = do
   env <- mkEnv opts
   let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   (notifChanRef, notifConsumersRef) <- runAppT env $ BackendNotificationPusher.startWorker amqpEP
-  deadWatcherAsync <- runAppT env $ DeadUserNotificationWatcher.startWorker amqpEP
+  cleanupDeadUserNotifWatcher <- runAppT env $ DeadUserNotificationWatcher.startWorker amqpEP
   let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
       -- specific exception types to message threads to clean up
       l = logger env
       cleanup = do
-        -- cancel the dead letter watcher
-        cancel deadWatcherAsync
+        cleanupDeadUserNotifWatcher
 
         -- Notification pusher thread
         Log.info l $ Log.msg (Log.val "Cancelling the notification pusher thread")

@@ -30,7 +30,6 @@ library
   build-depends:
       aeson
     , amqp
-    , async
     , base
     , bytestring
     , bytestring-conversion
@@ -42,7 +41,6 @@ library
     , http-client
     , http2-manager
     , imports
-    , kan-extensions
     , metrics-wai
     , monad-control
     , prometheus-client
