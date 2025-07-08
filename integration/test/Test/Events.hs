@@ -622,7 +622,6 @@ testChannelKilled = do
     -- Some times RabbitMQ still remembers connections from previous uses of the
     -- dynamic backend. So we wait to ensure that we kill connection only for our
     -- current.
-
     void $ killAllRabbitMqConns backend
     waitUntilNoRabbitMqConns backend
 
