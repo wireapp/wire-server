@@ -1613,7 +1613,8 @@ memberTyping ::
     Member (Input UTCTime) r,
     Member ConversationStore r,
     Member MemberStore r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1624,7 +1625,7 @@ memberTyping lusr zcon qcnv ts = do
   foldQualified
     lusr
     ( \lcnv -> do
-        (conv, _) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged lusr) lcnv
+        conv <- getConversationAndMemberWithError @'ConvNotFound lusr lcnv
         void $ notifyTypingIndicator conv (tUntagged lusr) (Just zcon) ts
     )
     ( \rcnv -> do
@@ -1651,7 +1652,8 @@ memberTypingUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ConversationStore r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

@@ -78,16 +78,14 @@ type MLSGetSubConvStaticErrors =
    ]
 
 getSubConversation ::
-  ( Members
-      '[ SubConversationStore,
-         ConversationStore,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'MLSSubConvUnsupportedConvType,
-         Error FederationError,
-         FederatorAccess
-       ]
-      r
+  ( Member SubConversationStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
+    Member (Error FederationError) r,
+    Member FederatorAccess r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -101,14 +99,12 @@ getSubConversation lusr qconv sconv = do
     qconv
 
 getLocalSubConversation ::
-  ( Members
-      '[ SubConversationStore,
-         ConversationStore,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'MLSSubConvUnsupportedConvType
-       ]
-      r
+  ( Member SubConversationStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
+    Member TeamStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -224,7 +220,8 @@ deleteSubConversation ::
     Member (Input Env) r,
     Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -298,7 +295,8 @@ leaveSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member Resource r,
-    Members LeaveSubConversationStaticErrors r
+    Members LeaveSubConversationStaticErrors r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ClientId ->
@@ -322,7 +320,8 @@ leaveLocalSubConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Error FederationError) r,
     Member Resource r,
-    Members LeaveSubConversationStaticErrors r
+    Members LeaveSubConversationStaticErrors r,
+    Member TeamStore r
   ) =>
   ClientIdentity ->
   Local ConvId ->
@@ -395,7 +394,8 @@ resetLocalSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member TeamStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->

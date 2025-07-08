@@ -52,7 +52,6 @@ where
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Extra
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code
@@ -121,14 +120,16 @@ import Wire.Sem.Paging.Cassandra
 getBotConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamStore r
   ) =>
   BotId ->
   ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot cnv = do
   lcnv <- qualifyLocal cnv
-  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
+  localUid <- qualifyLocal (botUserId zbot)
+  c <- getConversationAndMemberWithError @'ConvNotFound localUid lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -146,7 +147,8 @@ getUnqualifiedConversationV9 ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error InternalError) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConvId ->
@@ -165,29 +167,13 @@ getUnqualifiedConversation ::
   Local UserId ->
   ConvId ->
   Sem r Public.Conversation
-getUnqualifiedConversation lusr cnv = do
-  mChannel <- getChannel lusr cnv
-  case mChannel of
-    Just channel -> pure channel
-    Nothing ->
-      Mapping.conversationView (qualifyAs lusr ()) (Just lusr)
-        <$> getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
-
-getChannel ::
-  forall r.
-  ( Member ConversationStore r,
-    Member TeamStore r
-  ) =>
-  Local UserId ->
-  ConvId ->
-  Sem r (Maybe Public.Conversation)
-getChannel lusr cnv =
-  runMaybeT $ do
-    conv <- MaybeT (E.getConversation cnv)
-    tid <- MaybeT $ pure (conv.convMetadata.cnvmTeam)
-    tm <- MaybeT $ E.getTeamMember tid (tUnqualified lusr)
-    guard (conv.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
-    pure $ Mapping.conversationView (qualifyAs lusr ()) (Just lusr) conv
+getUnqualifiedConversation lusr cnv =
+  Mapping.conversationView (qualifyAs lusr ()) (Just lusr) . unMembership
+    <$> getConversationAndCheckMembershipOrChannel (tUntagged lusr) (qualifyAs lusr cnv)
+  where
+    unMembership :: Membership Data.Conversation -> Data.Conversation
+    unMembership (Member c) = c
+    unMembership (NonMembership c) = c
 
 getConversation ::
   forall r.
@@ -217,7 +203,8 @@ getConversationV9 ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -374,7 +361,8 @@ getRemoteConversationsWithFailures lusr convs = do
 getConversationRoles ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConvId ->
