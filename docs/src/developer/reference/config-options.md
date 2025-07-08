@@ -948,7 +948,7 @@ brig:
 
 ### Ephemeral User Creation
 
-Ephemeral user creation is enabled per default. To disable the feature set `setEphemeralUserCreationEnabled` to `false`:
+An ephemeral user is a temporary user that can be created without an email address to join conversations via a guest link. The ephemeral user account exists only for a limited period of time, usually 24h. Ephemeral user creation is enabled per default. To disable the feature set `setEphemeralUserCreationEnabled` to `false`:
 
 ```yaml
 brig:
