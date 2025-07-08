@@ -30,6 +30,7 @@ getLastDeathQueue Nothing = Nothing
 
 -- FUTUREWORK: what happens if messages expire _after_ we checked against cassandra here?
 -- Should we have an async notification terminate this?
+-- TODO: document this function *much* better.  explain the general idea.
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
