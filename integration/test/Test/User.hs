@@ -389,12 +389,15 @@ testEphemeralUserCreation (TaggedBool enabled) = do
       { brigCfg = setField "optSettings.setEphemeralUserCreationEnabled" enabled
       }
     $ \domain -> do
-      name <- randomName
-      req <- baseRequest domain Brig Versioned "/register"
-      bindResponse (submit "POST" $ req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42") $ \resp -> do
+      registerEphemeralUser domain `bindResponse` \resp -> do
         if enabled
           then do
             resp.status `shouldMatchInt` 201
           else do
             resp.status `shouldMatchInt` 403
             resp.json %. "label" `shouldMatch` "ephemeral-user-creation-disabled"
+
+        registerUserWithEmail domain >>= assertSuccess
+  where
+    registerEphemeralUser domain = addUser domain def
+    registerUserWithEmail domain = addUser domain def {email = Just ("user@" <> domain)}
