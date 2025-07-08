@@ -5,11 +5,10 @@ ${brand_label_url} [${brand_url}]
 WELCOME TO ${team_name}.
 You have just joined a team called ${team_name} on ${brand} with ${email}.
 
-${brand} combines strong encryption, a rich feature set and ease-of-use in one
-app like never before. Works on all popular platforms.
+Enjoy seamless, secure teamwork with ${brand}!
 
-Download ${brand} [${url}]If you can’t select the button, copy and paste this
-link to your browser:
+Open ${brand} [${url}]If you can’t select the button, copy and paste this link
+to your browser:
 
 ${url}
 
