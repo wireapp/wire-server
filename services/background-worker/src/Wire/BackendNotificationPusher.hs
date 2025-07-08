@@ -374,7 +374,7 @@ cancelWorker (notifChanRef, notifConsumersRef) = do
   -- Notification pusher thread
   Log.info $ Log.msg (Log.val "Cancelling the notification pusher thread")
   readIORef notifChanRef >>= traverse_ \chan -> do
-    Log.info $ Log.msg (Log.val "Got channel")
+    Log.info $ Log.msg (Log.val "Got channel") -- (channelID is not exposed by amqp, unfortunately.)
     readIORef notifConsumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
       Log.info $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
       -- Remove the consumer from the channel so it isn't called again
