@@ -72,6 +72,70 @@ galley:
             lockStatus: locked
 ```
 
+## Self-deleting messages
+
+Self-deleting messages is a feature that makes all sent messages delete after a given period of time the message has been read. By default, this feature is unlocked and not enabled for all the teams. The feature can be toggled on/off through Team Settings app. Team settings app has presets that can set up message expiration up to a month. Other time frames can be set either through a backend-wide global setting, or manually through API.
+
+Example of backend-wide global setting:
+
+```yaml
+galley:
+  # ...
+  config:
+    # ...
+    settings:
+      # ...
+      featureFlags:
+        # ...
+        selfDeletingMessages:
+          defaults:
+            config:
+              enforcedTimeoutSeconds: 0 # expressed in seconds
+            lockStatus: unlocked # locked | unlocked
+            status: enabled # enabled | disabled
+```
+
+Locking a feature will prevent team administrators from changing the setting!
+Backend-wide settings are not applied retroactively! For teams made before a global setting has been set, feature will have to be set manually through a combination of API calls.
+
+### Self-deleting messages custom time frame with API calls
+
+As a on-prem backend administrator, if you find yourself in need of a time-frame not provided by the Team Setting app. You can make an API call to `galley` to set it manually.
+
+First, port-forward the galley service:
+
+```bash
+d kubectl port-forward svc/galley 8080:8080
+```
+
+And make a curl request like in example below, set the appropriate <teamID> and <TeamAdminUserId> (these can be fetched from cassandra with `cqlsh` if you are not a direct owner of the team or the admin user)
+
+```bash
+curl -X GET 'http://localhost:8080/teams/<teamID>/features/selfDeletingMessages' -H 'accept: application/json;charset=utf-8' -H 'Content-Type: application/json' -H 'Z-User: <TeamAdminUserId>'   --data-raw '{ "config": { "enforcedTimeoutSeconds": 6000}, "status": "enabled" }'
+```
+
+For locking/unlocking features for a team, use of `backoffice` will be required.
+If you are not already running one and are in posession of a `wire-server` bundle, install it with:
+
+```bash
+d kubectl install backoffice charts/backoffice
+```
+
+If you are not in posession of a `wire-server` installation bundle, you can get yourself Helm charts for it [here](https://github.com/wireapp/wire-server/tree/develop/charts/backoffice).
+Our recommendation is to not expose backoffice to the internet through Ingress or other means, since it requires no authentication, and exposes sensitive internal endpoints.
+
+After installing backoffice, port-forward its service so we can make API calls to it.
+
+```bash
+d kubectl port-forward svc/backoffice 8080:8080
+```
+
+Then make the following request for lock/unlock:
+
+```bash
+curl -X PUT 'http://localhost:8080/teams/<teamID>/features/selfDeletingMessages/lockOrUnlock?lock-status=unlocked' -H 'accept: application/json;charset=utf-8'
+```
+
 ## TTL for nonces
 
 Nonces that can be retrieved e.g. by calling `HEAD /nonce/clients` have a default time-to-live of 5 minutes. To change this setting add the following to your Helm overrides in `values/wire-server/values.yaml`:
@@ -128,7 +192,7 @@ The settings are the following:
 
 - `startTime`: migration start timestamp. Once this time arrives, clients will
   initialise the migration process (no migration-related action will take
-  place before that time).  If the migration feature is enabled, but
+  place before that time). If the migration feature is enabled, but
   `startTime` value is not set (or is set to `null`), migration is never
   started.
 - `finaliseRegardlessAfter`: timestamp of the date by which the migration must
