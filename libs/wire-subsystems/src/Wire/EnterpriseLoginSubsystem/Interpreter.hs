@@ -37,6 +37,7 @@ import System.Logger.Message qualified as Log
 import Util.Options
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Public.Brig.DomainVerification
+import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User hiding (NewUser)
@@ -167,7 +168,7 @@ getRegisteredDomainsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r RegisteredDomains
+  Sem r (RegisteredDomains v)
 getRegisteredDomainsImpl lusr tid = do
   void $ guardTeamAdminAccessWithTeamIdCheck (Just tid) lusr
   domains <- mkDomainRegistrationResponse <$$> lookupByTeam tid
@@ -436,7 +437,7 @@ getDomainRegistrationImpl ::
     Member TinyLog r
   ) =>
   Domain ->
-  Sem r (Maybe DomainRegistrationResponse)
+  Sem r (Maybe (DomainRegistrationResponse v))
 getDomainRegistrationImpl domain = mkDomainRegistrationResponse <$$> lookup domain
 
 lookupOrThrow ::
@@ -524,11 +525,11 @@ sendAuditMail url subject mBefore mAfter = do
   let encodeDomainRegistrationPretty =
         maybe
           "null"
-          (Aeson.encodePretty . mkDomainRegistrationResponse)
+          (Aeson.encodePretty . mkDomainRegistrationResponse @V10)
   let encodeDomainRegistration =
         maybe
           "null"
-          (Aeson.encode . mkDomainRegistrationResponse)
+          (Aeson.encode . mkDomainRegistrationResponse @V10)
   let auditLog :: LText =
         toLazyText $
           url

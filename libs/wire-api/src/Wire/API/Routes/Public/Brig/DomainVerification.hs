@@ -10,6 +10,7 @@ import Data.Id
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Singletons (SingI)
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Servant
@@ -250,10 +251,10 @@ instance ToSchema DomainOwnershipToken where
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
-newtype RegisteredDomains = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse]}
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisteredDomains)
+newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (RegisteredDomains v)
 
-instance ToSchema RegisteredDomains where
+instance (SingI v) => ToSchema (RegisteredDomains v) where
   schema =
     object "RegisteredDomains" $
       RegisteredDomains
@@ -303,7 +304,7 @@ instance ToSchema DomainRedirectResponseV10 where
           .= maybe_
             ( fromMaybe False <$> optField "due_to_existing_account" schema
             )
-        <*> (.redirect) .= domainRedirectSchema
+        <*> (.redirect) .= domainRedirectSchema V10
 
 type DomainVerificationChallengeAPI =
   Named
@@ -370,13 +371,24 @@ type DomainVerificationTeamAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Updated")
            )
     :<|> Named
-           "get-all-registered-domains"
+           "get-all-registered-domains@v9"
            ( Summary "Get all registered domains"
+               :> Until V10
                :> ZLocalUser
                :> "teams"
                :> Capture "teamId" TeamId
                :> "registered-domains"
-               :> Get '[JSON] RegisteredDomains
+               :> Get '[JSON] (RegisteredDomains V9)
+           )
+    :<|> Named
+           "get-all-registered-domains"
+           ( Summary "Get all registered domains"
+               :> From V10
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "teamId" TeamId
+               :> "registered-domains"
+               :> Get '[JSON] (RegisteredDomains V10)
            )
     :<|> Named
            "delete-registered-domain"

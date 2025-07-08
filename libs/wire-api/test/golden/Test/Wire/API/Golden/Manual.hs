@@ -334,18 +334,33 @@ tests =
             (testObject_InvitationUserView_team_2, "testObject_InvitationUserView_team_2.json")
           ],
       testGroup "DomainRegistrationResponse" $
-        testObjects
-          [ (testObject_DomainRegistrationResponse_1, "testObject_DomainRegistrationResponse_1.json"),
-            (testObject_DomainRegistrationResponse_2, "testObject_DomainRegistrationResponse_2.json"),
-            (testObject_DomainRegistrationResponse_3, "testObject_DomainRegistrationResponse_3.json"),
-            (testObject_DomainRegistrationResponse_4, "testObject_DomainRegistrationResponse_4.json"),
-            (testObject_DomainRegistrationResponse_5, "testObject_DomainRegistrationResponse_5.json"),
-            (testObject_DomainRegistrationResponse_6, "testObject_DomainRegistrationResponse_6.json")
-          ]
-          ++ [ testCase
-                 "non-isomorph in webappUrl"
-                 (assertJSONIsGolden testObject_DomainRegistrationResponse_7 "testObject_DomainRegistrationResponse_7.json")
-             ],
+        [ testGroup "V9" $
+            testObjects
+              [ (testObject_DomainRegistrationResponseV9_1, "testObject_DomainRegistrationResponseV9_1.json"),
+                (testObject_DomainRegistrationResponseV9_2, "testObject_DomainRegistrationResponseV9_2.json"),
+                (testObject_DomainRegistrationResponseV9_3, "testObject_DomainRegistrationResponseV9_3.json"),
+                (testObject_DomainRegistrationResponseV9_4, "testObject_DomainRegistrationResponseV9_4.json"),
+                (testObject_DomainRegistrationResponseV9_5, "testObject_DomainRegistrationResponseV9_5.json"),
+                (testObject_DomainRegistrationResponseV9_6, "testObject_DomainRegistrationResponseV9_6.json")
+              ]
+              ++ [ testCase
+                     "non-isomorph in webappUrl"
+                     (assertJSONIsGolden testObject_DomainRegistrationResponseV9_7 "testObject_DomainRegistrationResponseV9_7.json")
+                 ],
+          testGroup "V10" $
+            testObjects
+              [ (testObject_DomainRegistrationResponseV10_1, "testObject_DomainRegistrationResponseV10_1.json"),
+                (testObject_DomainRegistrationResponseV10_2, "testObject_DomainRegistrationResponseV10_2.json"),
+                (testObject_DomainRegistrationResponseV10_3, "testObject_DomainRegistrationResponseV10_3.json"),
+                (testObject_DomainRegistrationResponseV10_4, "testObject_DomainRegistrationResponseV10_4.json"),
+                (testObject_DomainRegistrationResponseV10_5, "testObject_DomainRegistrationResponseV10_5.json"),
+                (testObject_DomainRegistrationResponseV10_6, "testObject_DomainRegistrationResponseV10_6.json")
+              ]
+              ++ [ testCase
+                     "non-isomorph in webappUrl"
+                     (assertJSONIsGolden testObject_DomainRegistrationResponseV10_7 "testObject_DomainRegistrationResponseV10_7.json")
+                 ]
+        ],
       testGroup "DomainRegistrationUpdate" $
         testObjects
           [ (testObject_DomainRegistrationUpdate_1, "testObject_DomainRegistrationUpdate_1.json"),
@@ -361,7 +376,7 @@ tests =
              ],
       testGroup
         "DomainRedirectResponse"
-        $ [ testGroup "V8" $
+        $ [ testGroup "V9" $
               testObjects
                 [ (testObject_DomainRedirectResponseV9_1, "testObject_DomainRedirectResponseV9_1.json"),
                   (testObject_DomainRedirectResponseV9_2, "testObject_DomainRedirectResponseV9_2.json"),
@@ -374,7 +389,7 @@ tests =
                        "non-isomorph in webappUrl"
                        (assertJSONIsGolden testObject_DomainRedirectResponseV9_5 "testObject_DomainRedirectResponseV9_5.json")
                    ],
-            testGroup "V9" $
+            testGroup "V10" $
               testObjects
                 [ (testObject_DomainRedirectResponseV10_1, "testObject_DomainRedirectResponseV10_1.json"),
                   (testObject_DomainRedirectResponseV10_2, "testObject_DomainRedirectResponseV10_2.json"),

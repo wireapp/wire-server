@@ -21,6 +21,7 @@ import Data.Domain
 import Servant
 import Wire.API.EnterpriseLogin
 import Wire.API.Routes.Named
+import Wire.API.Routes.Version
 
 --------------------------------------------------------------------------------
 -- API Internal
@@ -103,5 +104,5 @@ type EnterpriseLoginApi =
                :> Description "Returns the current entry in the domain table for that domain, as a JSON document"
                :> "domain-registration"
                :> Capture "domain" Domain
-               :> Get '[JSON] DomainRegistrationResponse
+               :> Get '[JSON] (DomainRegistrationResponse V10)
            )

@@ -19,7 +19,9 @@ import Data.Id
 import Data.Json.Util (base64URLSchema)
 import Data.Misc
 import Data.OpenApi qualified as S
+import Data.Ord
 import Data.Schema
+import Data.Singletons
 import Data.Text qualified as Text
 import Data.Text.Ascii (AsciiBase64Url, AsciiText (toText))
 import Data.Text.Ascii qualified as Ascii
@@ -30,6 +32,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import Test.QuickCheck (suchThat)
 import Web.HttpApiData
 import Wire.API.Routes.Bearer
+import Wire.API.Routes.Version
 import Wire.Arbitrary
 
 data DomainRedirect
@@ -104,8 +107,8 @@ backendConfigSchemaV9 =
     -- API versions <= V9 ignore the WebApp URL
     <*> const Nothing .= pure Nothing
 
-domainRedirectSchema :: ObjectSchema SwaggerDoc DomainRedirect
-domainRedirectSchema =
+domainRedirectSchema :: Version -> ObjectSchema SwaggerDoc DomainRedirect
+domainRedirectSchema v =
   snd
     <$> (domainRedirectTag &&& id)
       .= bind
@@ -117,7 +120,7 @@ domainRedirectSchema =
       NoneTag -> tag _None (pure ())
       LockedTag -> tag _Locked (pure ())
       SSOTag -> tag _SSO samlIdPIdObjectSchema
-      BackendTag -> tag (_Backend) backendConfigFieldSchema
+      BackendTag -> tag (_Backend) (if v <= V9 then backendConfigSchemaV9 else backendConfigFieldSchema)
       NoRegistrationTag -> tag _NoRegistration (pure ())
       PreAuthorizedTag -> tag _PreAuthorized (pure ())
 
@@ -135,7 +138,7 @@ samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema
 
 instance ToSchema DomainRedirect where
-  schema = object "DomainRedirect " domainRedirectSchema
+  schema = object "DomainRedirect " (domainRedirectSchema V10)
 
 deriving via (Schema DomainRedirect) instance FromJSON DomainRedirect
 
@@ -237,10 +240,10 @@ instance ToSchema DomainRegistrationUpdate where
   schema =
     object "DomainRegistrationUpdate" $
       DomainRegistrationUpdate
-        <$> (.domainRedirect) .= domainRedirectSchema
+        <$> (.domainRedirect) .= domainRedirectSchema V10
         <*> (.teamInvite) .= teamInviteObjectSchema
 
-data DomainRegistrationResponse = DomainRegistrationResponse
+data DomainRegistrationResponse (v :: Version) = DomainRegistrationResponse
   { domain :: Domain,
     authorizedTeam :: Maybe TeamId,
     domainRedirect :: DomainRedirect,
@@ -248,18 +251,18 @@ data DomainRegistrationResponse = DomainRegistrationResponse
     dnsVerificationToken :: Maybe DnsVerificationToken
   }
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema DomainRegistrationResponse
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (DomainRegistrationResponse v)
 
-mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse
+mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse v
 mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
 
-instance ToSchema DomainRegistrationResponse where
+instance (SingI v) => ToSchema (DomainRegistrationResponse v) where
   schema =
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
         <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)
-        <*> (.domainRedirect) .= domainRedirectSchema
+        <*> (.domainRedirect) .= domainRedirectSchema (fromSing (sing @v))
         <*> (.teamInvite) .= teamInviteObjectSchema
         <*> (.dnsVerificationToken) .= optField "dns_verification_token" (maybeWithDefault Aeson.Null schema)
 
