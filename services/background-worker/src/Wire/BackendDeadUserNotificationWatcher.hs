@@ -15,6 +15,7 @@ import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.AMQP.Types
 import System.Logger qualified as Log
+import UnliftIO (async)
 import Wire.API.Notification
 import Wire.BackgroundWorker.Env
 
@@ -89,21 +90,24 @@ startWorker ::
 startWorker amqp = do
   env <- ask
   cleanupRef <- newIORef Nothing
-  openConnectionWithRetries env.logger amqp $
+  logger <- lift $ Log.new $ Log.setName (Just "dead-user-notifications-watcher") $ Log.settings env.logger
+  -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
+  void . async . openConnectionWithRetries logger amqp (Just "dead-user-notifications-watcher") $
     RabbitMqHooks
       { onNewChannel = \chan -> do
           consumerTag <- startConsumer chan
-          writeIORef cleanupRef (Just (chan, consumerTag)),
+          writeIORef cleanupRef (Just (chan, consumerTag))
+          forever $ threadDelay maxBound,
         onConnectionClose = do
           markAsNotWorking BackendDeadUserNoticationWatcher
           writeIORef cleanupRef Nothing
-          Log.err env.logger $
+          Log.err logger $
             Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed."),
         onChannelException = \e -> do
           markAsNotWorking BackendDeadUserNoticationWatcher
           writeIORef cleanupRef Nothing
           unless (Q.isNormalChannelClose e) $
-            Log.err env.logger $
+            Log.err logger $
               Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
                 . Log.field "exception" (displayException e)
       }
