@@ -72,6 +72,7 @@ import Data.UUID as UUID
 import Data.X509 qualified as X509
 import GHC.Stack
 import Network.URI (URI (..), parseRelativeReference)
+import Network.Wai.Utilities.Exception
 import SAML2.XML qualified as HS hiding (Node, URI)
 import SAML2.XML.Canonical qualified as HS
 import SAML2.XML.Signature qualified as HS
@@ -145,7 +146,7 @@ parseKeyInfo doVerify (cs @LT @LBS -> lbs) = case HS.xmlToSAML @HS.KeyInfo =<< s
 
 -- | Call 'stripWhitespaceDoc' on a rendered bytestring.
 stripWhitespaceLBS :: (m ~ Either String) => LBS -> m LBS
-stripWhitespaceLBS lbs = renderLBS def . stripWhitespace <$> fmapL show (parseLBS def lbs)
+stripWhitespaceLBS lbs = renderLBS def . stripWhitespace <$> fmapL displayExceptionNoBacktrace (parseLBS def lbs)
 
 renderKeyInfo :: (HasCallStack) => X509.SignedCertificate -> LT
 renderKeyInfo cert = cs . ourSamlToXML . HS.KeyInfo Nothing $ HS.X509Data (HS.X509Certificate cert :| []) :| []
@@ -224,8 +225,8 @@ mkSignCredsWithCert mValidSince size = do
 verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String -> m HXTC.XmlTree
 verify creds el sid = case unsafePerformIO (try @SomeException $ verifyIO creds el sid) of
   Right (_, Right xml) -> pure xml
-  Right (_, Left exc) -> throwError $ show exc
-  Left exc -> throwError $ show exc
+  Right (_, Left signErr) -> throwError $ show signErr
+  Left exc -> throwError $ displayExceptionNoBacktrace exc
 
 -- | Convenient wrapper that picks the ID of the root element node and passes it to `verify`.
 verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m HXTC.XmlTree
@@ -233,7 +234,7 @@ verifyRoot creds el = do
   signedID <- do
     XML.Document _ (XML.Element _ attrs _) _ <-
       either
-        (throwError . ("Could not parse signed document: " <>) . cs . show)
+        (throwError . ("Could not parse signed document: " <>) . cs . displayExceptionNoBacktrace)
         pure
         (XML.parseLBS XML.def el)
     maybe
@@ -272,7 +273,7 @@ verifySignatureUnenvelopedSigs :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO 
 verifySignatureUnenvelopedSigs pks xid doc = catchAll $ warpResult <$> verifySignature pks xid doc
   where
     catchAll :: IO (Either HS.SignatureError a) -> IO (Either HS.SignatureError a)
-    catchAll = handle $ pure . Left . HS.SignatureVerificationLegacyFailure . Left . (show @SomeException)
+    catchAll = handle $ pure . Left . HS.SignatureVerificationLegacyFailure . Left . (displayExceptionNoBacktrace @SomeException)
 
     warpResult :: Maybe HXTC.XmlTree -> Either HS.SignatureError HXTC.XmlTree
     warpResult (Just xml) = Right xml
@@ -413,7 +414,7 @@ signRootAt sigPos (SignPrivCreds hashAlg (SignPrivKeyRSA keypair)) doc =
                      }
                  ]
     docCanonic :: SBS <-
-      either (throwError . show) (pure . cs) . unsafePerformIO . try @SomeException $
+      either (throwError . displayExceptionNoBacktrace) (pure . cs) . unsafePerformIO . try @SomeException $
         HS.applyTransforms transforms (HXT.mkRoot [] [docInHXT])
     let digest :: SBS
         digest = case hashAlg of
@@ -437,7 +438,7 @@ signRootAt sigPos (SignPrivCreds hashAlg (SignPrivKeyRSA keypair)) doc =
     -- (note that there are two rounds of SHA256 application, hence two mentions of the has alg here)
 
     signedInfoSBS :: SBS <-
-      either (throwError . show) (pure . cs) . unsafePerformIO . try @SomeException $
+      either (throwError . displayExceptionNoBacktrace) (pure . cs) . unsafePerformIO . try @SomeException $
         HS.applyCanonicalization (HS.signedInfoCanonicalizationMethod signedInfo) Nothing $
           HS.samlToDoc signedInfo
     sigval :: SBS <-

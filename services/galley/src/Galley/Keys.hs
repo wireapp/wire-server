@@ -38,6 +38,7 @@ import Data.PEM
 import Data.Proxy
 import Data.X509
 import Imports
+import Network.Wai.Utilities.Exception
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Keys
 
@@ -119,7 +120,7 @@ decodeEcdsaKeyPair bytes = do
   pem <- expectOne "private key" pems
   let content = pemContent pem
   -- parse outer pkcs8 container as BER
-  asn1 <- first displayException (decodeASN1' BER content)
+  asn1 <- first displayExceptionNoBacktrace (decodeASN1' BER content)
   (oid, key) <- case asn1 of
     [ Start Sequence,
       IntVal _version,
@@ -139,7 +140,7 @@ decodeEcdsaKeyPair bytes = do
     )
     $ guard (oid == curveOID @c)
   -- parse key bytestring as BER again, this should be in the format of rfc5915
-  asn1' <- first displayException (decodeASN1' BER key)
+  asn1' <- first displayExceptionNoBacktrace (decodeASN1' BER key)
   (privBS, pubBS) <- case asn1' of
     [ Start Sequence,
       IntVal _version,
@@ -151,10 +152,10 @@ decodeEcdsaKeyPair bytes = do
       ] -> pure (priv, pub)
     _ -> Left "invalid ECDSA key format: expected rfc5915 private key format"
   priv <-
-    first displayException . eitherCryptoError $
+    first displayExceptionNoBacktrace . eitherCryptoError $
       ECDSA.decodePrivate curve privBS
   pub <-
-    first displayException . eitherCryptoError $
+    first displayExceptionNoBacktrace . eitherCryptoError $
       ECDSA.decodePublic curve pubBS
   pure (priv, pub)
 
@@ -165,7 +166,7 @@ decodeEd25519PrivateKey bytes = do
   pems <- pemParseLBS bytes
   pem <- expectOne "private key" pems
   let content = pemContent pem
-  asn1 <- first displayException (decodeASN1' BER content)
+  asn1 <- first displayExceptionNoBacktrace (decodeASN1' BER content)
   (priv, remainder) <- fromASN1 asn1
   expectEmpty remainder
   case priv of

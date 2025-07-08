@@ -64,6 +64,7 @@ import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.One2One
 import Galley.Types.UserList (UserList (UserList))
 import Imports
+import Network.Wai.Utilities.Exception
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -332,7 +333,7 @@ leaveConversation requestingDomain lc = do
 
       pure $ LeaveConversationResponse (Right ())
   where
-    internalErr = InternalErrorWithDescription . LT.pack . displayException
+    internalErr = InternalErrorWithDescription . LT.pack . displayExceptionNoBacktrace
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
