@@ -167,7 +167,7 @@ type ConversationAPI =
            "get-conversation@v9"
            ( Summary "Get a conversation by ID"
                :> From 'V6
-               :> Until 'V9
+               :> Until 'V10
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
