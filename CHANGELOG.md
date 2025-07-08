@@ -1,3 +1,62 @@
+# [2025-07-08] (Chart Release 5.18.0)
+
+## Release notes
+
+
+* charts/cannon: There is a new configuration value called
+  `config.notificationTTL`, this defaults to the same value as gundeck. If it is
+  overriden in gundeck, it must also be overriden in cannon. (#4631)
+
+
+## API changes
+
+
+* Finalize API version V9 (#4645)
+
+* Add the `TeamId` to the payload of `conversation.delete` events. The field's
+  path is `team`. (#4618)
+
+
+## Features
+
+
+* Allow team admin to remove members from a channel (#4620)
+
+* cannon: Replace message count mechanism with detecting the end of initial sync (#4631)
+
+
+## Bug fixes and other updates
+
+
+* gundeck: Send push notifications to clients with `consumable-notifications` capability (#4626)
+
+* Generated Swagger docs differed from the ratified ones for versions up to V9
+  regarding the `get-all-registered-domains`
+  (`/teams/{teamId}/registered-domains`) endpoint: The `backend_url` became part
+  of the `backend` object which should be introduced with V10. As teams do not
+  set backend redirects this should not be seen in practice. (#4647)
+
+
+## Internal changes
+
+
+* Upgrade RabbitMQ to version 4.x locally and on CI (#4639)
+
+* No ack for `message_count` event (#4625)
+
+* More test on validation of scim-provisioned emails.  Cleanup of code and internal APIs. (#4617)
+
+* Fix false positive warning of members not being present in remote conversations. (#4644)
+
+* Updated email templates to v1.0.130 (#4648)
+
+* Limit the amount of unacknowledged messages the RabbitMQ notifications consumer
+  receives to `100`. Beyond this limit, received messages have to be acknowledged
+  to receive new ones.  This prevents overloading the consumer with new messages. (#4615)
+
+* Timestamps for failing integration tests. (#4638)
+
+
 # [2025-06-16] (Chart Release 5.17.0)
 
 ## Release notes
