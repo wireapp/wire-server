@@ -547,7 +547,10 @@ spar:
 federator:
   replicaCount: 1
   resources:
-    requests: {}
+    requests:
+      cpu: "1"
+    limits:
+      cpu: "1"
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   remoteCAContents: {{ .Values.federationCACertificate | quote }}
   tls:
