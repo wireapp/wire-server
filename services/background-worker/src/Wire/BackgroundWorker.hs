@@ -31,7 +31,7 @@ supervisor ::
   String ->
   -- | action
   AppT IO a ->
-  -- | the ascyn thread (result is `Nothing` if thread is cancelled)
+  -- | the async thread (result is `Nothing` if thread is cancelled)
   IO (Async (Maybe a))
 supervisor env workerName workerAction = async loop
   where
