@@ -195,9 +195,7 @@ spec = do
        (preExistingInviteeEmail :: EmailAddress)
        (emailUsername :: EmailUsername)
        (blockedDomains :: NonEmptyList Domain) -> do
-          let hasEmailIdentity user = case user.userIdentity of
-                Just (EmailIdentity _) -> True
-                _ -> False
+          let hasEmailIdentity user = isJust $ emailIdentity =<< userIdentity user
 
           blockedEmailDomain <- anyElementOf blockedDomains
           inviter <- arbitrary @User `suchThat` hasEmailIdentity
