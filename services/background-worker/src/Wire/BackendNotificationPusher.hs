@@ -22,7 +22,6 @@ import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import Network.Wai.Utilities.Error
 import Prometheus
 import Servant.Client qualified as Servant
-import System.Logger qualified as Logger
 import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.API
@@ -353,17 +352,17 @@ startWorker rabbitmqOpts = do
                     clearRefs
                     runAppT env $ markAsNotWorking BackendNotificationPusher
                 }
-  pure $ cleanupWorker env.logger chanRef consumersRef
+  pure $ runAppT env $ cleanupWorker chanRef consumersRef
 
-cleanupWorker :: Logger.Logger -> IORef (Maybe Q.Channel) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> CleanupAction
-cleanupWorker l notifChanRef notifConsumersRef = do
-  Logger.info l $ Log.msg (Log.val "Cancelling the notification pusher thread")
+cleanupWorker :: IORef (Maybe Q.Channel) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> AppT IO ()
+cleanupWorker notifChanRef notifConsumersRef = do
+  Log.info $ Log.msg (Log.val "Cancelling the notification pusher thread")
   readIORef notifChanRef >>= traverse_ \chan -> do
-    Logger.info l $ Log.msg (Log.val "Got channel")
+    Log.info $ Log.msg (Log.val "Got channel")
     readIORef notifConsumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
-      Logger.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
+      Log.info $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
       -- Remove the consumer from the channel so it isn't called again
-      Q.cancelConsumer chan consumer
+      liftIO $ Q.cancelConsumer chan consumer
       -- Take from the mvar. This will only unblock when the consumer callback isn't running.
       -- This allows us to wait until the currently running tasks are completed, and new ones
       -- won't be scheduled because we've already removed the callback from the channel.
@@ -373,8 +372,8 @@ cleanupWorker l notifChanRef notifConsumersRef = do
       -- This helps prevent message redelivery to endpoint services during the brief window between
       -- receiving a message from rabbit, and the signal handler shutting down the AMQP connection
       -- before notification delivery has finalised.
-      Logger.info l $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
+      Log.info $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
       takeMVar runningFlag
     -- Close the channel. `extended` will then close the connection, flushing messages to the server.
-    Logger.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
-    Q.closeChannel chan
+    Log.info $ Log.msg $ Log.val "Closing RabbitMQ channel"
+    liftIO $ Q.closeChannel chan

@@ -21,8 +21,14 @@ run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
   let amqpEP = either id demoteOpts opts.rabbitmq.unRabbitMqOpts
-  cleanupBackendNotifPusher <- runAppT env $ BackendNotificationPusher.startWorker amqpEP
-  cleanupDeadUserNotifWatcher <- runAppT env $ DeadUserNotificationWatcher.startWorker amqpEP
+  cleanupBackendNotifPusher <-
+    runAppT env $
+      withNamedLogger "backend-notifcation-pusher" $
+        BackendNotificationPusher.startWorker amqpEP
+  cleanupDeadUserNotifWatcher <-
+    runAppT env $
+      withNamedLogger "dead-user-notification-watcher" $
+        DeadUserNotificationWatcher.startWorker amqpEP
   let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
       -- specific exception types to message threads to clean up
       cleanup = do

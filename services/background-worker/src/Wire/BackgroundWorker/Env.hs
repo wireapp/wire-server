@@ -134,3 +134,9 @@ markAsWorking worker =
 markAsNotWorking :: (MonadIO m) => Worker -> AppT m ()
 markAsNotWorking worker =
   flip modifyIORef (Map.insert worker False) =<< asks statuses
+
+withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
+withNamedLogger name action = do
+  env <- ask
+  namedLogger <- lift $ Log.new $ Log.setName (Just name) $ Log.settings env.logger
+  lift $ runAppT (env {logger = namedLogger}) action

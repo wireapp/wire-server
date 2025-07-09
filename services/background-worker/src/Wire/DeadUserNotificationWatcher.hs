@@ -89,9 +89,8 @@ startWorker ::
 startWorker amqp = do
   env <- ask
   cleanupRef <- newIORef Nothing
-  logger <- lift $ Log.new $ Log.setName (Just "dead-user-notifications-watcher") $ Log.settings env.logger
   -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
-  void . async . openConnectionWithRetries logger amqp (Just "dead-user-notifications-watcher") $
+  void . async . openConnectionWithRetries env.logger amqp (Just "dead-user-notifications-watcher") $
     RabbitMqHooks
       { onNewChannel = \chan -> do
           consumerTag <- startConsumer chan
@@ -100,13 +99,13 @@ startWorker amqp = do
         onConnectionClose = do
           markAsNotWorking DeadUserNotificationWatcher
           writeIORef cleanupRef Nothing
-          Log.err logger $
+          Log.err env.logger $
             Log.msg (Log.val "RabbitMQ Connection closed."),
         onChannelException = \e -> do
           markAsNotWorking DeadUserNotificationWatcher
           writeIORef cleanupRef Nothing
           unless (Q.isNormalChannelClose e) $
-            Log.err logger $
+            Log.err env.logger $
               Log.msg (Log.val "Caught exception in RabbitMQ channel.")
                 . Log.field "exception" (displayException e)
       }
