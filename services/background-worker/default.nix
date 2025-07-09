@@ -38,7 +38,6 @@
 , transformers-base
 , types-common
 , unliftio
-, utf8-string
 , wai
 , wai-utilities
 , wire-api
@@ -76,7 +75,6 @@ mkDerivation {
     transformers-base
     types-common
     unliftio
-    utf8-string
     wai-utilities
     wire-api
     wire-api-federation

@@ -9,7 +9,6 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Map.Strict qualified as Map
-import Data.Text qualified as Text
 import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
@@ -33,9 +32,10 @@ data Worker
   | DeadUserNotificationWatcher
   deriving (Eq, Ord)
 
-instance Show Worker where
-  show BackendNotificationPusher = "backend-notification-pusher"
-  show DeadUserNotificationWatcher = "dead-user-notification-watcher"
+workerName :: Worker -> Text
+workerName = \case
+  BackendNotificationPusher -> "backend-notification-pusher"
+  DeadUserNotificationWatcher -> "dead-user-notification-watcher"
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -142,13 +142,13 @@ markAsWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
 markAsWorking worker = do
   env <- ask
   modifyIORef env.statuses $ Map.insert worker True
-  withLabel env.workerRunningGauge (Text.pack $ show worker) (flip setGauge 1)
+  withLabel env.workerRunningGauge (workerName worker) (flip setGauge 1)
 
 markAsNotWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
 markAsNotWorking worker = do
   env <- ask
   modifyIORef env.statuses (Map.insert worker False)
-  withLabel env.workerRunningGauge (Text.pack $ show worker) (flip setGauge 1)
+  withLabel env.workerRunningGauge (workerName worker) (flip setGauge 1)
 
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do
