@@ -493,7 +493,7 @@ testEventsDeadLetteredWithReconnect = do
         ackEvent ws e
 
       -- We've consumed the whole queue.
-      consumeEventsUntilEndOfInitialSync ws endMarker `shouldMatch` ([] :: [Value])
+      assertEndOfIniitalSync ws endMarker
   where
     killAllDeadUserNotificationRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
     killAllDeadUserNotificationRabbitMqConns backend = do
@@ -1048,6 +1048,12 @@ consumeEventsUntilEndOfInitialSync ws expectedMarkerId = go []
                 then pure (events <> [e])
                 else assertFailure $ "Expected marker_id " <> expectedMarkerId <> ", but got " <> markerId
             else go (events <> [e])
+
+assertEndOfIniitalSync :: (HasCallStack) => EventWebSocket -> String -> App ()
+assertEndOfIniitalSync ws endMarker =
+  assertEvent ws $ \e -> do
+    e %. "type" `shouldMatch` "synchronization"
+    e %. "data.marker_id" `shouldMatch` endMarker
 
 consumeAllEvents_ :: EventWebSocket -> App ()
 consumeAllEvents_ = void . consumeAllEvents
