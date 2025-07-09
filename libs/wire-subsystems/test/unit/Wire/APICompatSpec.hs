@@ -9,31 +9,13 @@ import Data.Qualified
 import Imports
 import Network.Wai qualified as Wai
 import Polysemy
-import Polysemy.Error
-import Polysemy.Input (Input)
 import Polysemy.Internal.Kind (Append)
-import Polysemy.State
 import Servant as Servant
 import Test.Hspec
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig qualified as BrigRoutes
-import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
-import Wire.NotificationSubsystem
 import Wire.UserGroupSubsystem
-import Wire.UserGroupSubsystem.Interpreter
-import Wire.UserSubsystem (UserSubsystem)
-
-type TestEffectStack =
-  '[ UserSubsystem,
-     GalleyAPIAccess
-   ]
-    `Append` EffectStack
-    `Append` '[ Input (Local ()),
-                NotificationSubsystem,
-                State [Push],
-                Error UserGroupSubsystemError
-              ]
 
 -- FUTUREWORK: extend this to cover all of the APIs?
 spec :: Spec
@@ -56,7 +38,7 @@ spec = describe "api compatibility (compile-type unit tests, yeay!)" do
     -- no need to run anything here, it's supposed to pass or fail at compile time
     True `shouldBe` True
 
-fakeRun :: forall m a. Sem ('[UserGroupSubsystem] `Append` TestEffectStack) a -> m a
+fakeRun :: forall m a. Sem ('[UserGroupSubsystem] `Append` UserGroupStoreInMemEffectStackTest) a -> m a
 fakeRun = error "undefined, but that's fine, we don't need to run this."
 
 -- | `PolyRun` may be absolute overkill, but it was fun to reinvent it!  :)
