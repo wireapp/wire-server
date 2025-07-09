@@ -95,16 +95,16 @@ startWorker amqp = do
     RabbitMqHooks
       { onNewChannel = \chan -> do
           consumerTag <- startConsumer chan
-          writeIORef cleanupRef (Just (chan, consumerTag))
+          atomicWriteIORef cleanupRef (Just (chan, consumerTag))
           forever $ threadDelay maxBound,
         onConnectionClose = do
           markAsNotWorking DeadUserNotificationWatcher
-          writeIORef cleanupRef Nothing
+          atomicWriteIORef cleanupRef Nothing
           Log.err env.logger $
             Log.msg (Log.val "RabbitMQ Connection closed."),
         onChannelException = \e -> do
           markAsNotWorking DeadUserNotificationWatcher
-          writeIORef cleanupRef Nothing
+          atomicWriteIORef cleanupRef Nothing
           unless (Q.isNormalChannelClose e) $
             Log.err env.logger $
               Log.msg (Log.val "Caught exception in RabbitMQ channel.")
