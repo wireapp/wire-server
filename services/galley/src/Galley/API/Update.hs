@@ -1625,7 +1625,7 @@ memberTyping lusr zcon qcnv ts = do
   foldQualified
     lusr
     ( \lcnv -> do
-        conv <- getConversationAndMemberWithError @'ConvNotFound lusr lcnv
+        conv <- maskConvAccessDenied $ getConversationAsMember (tUntagged lusr) lcnv
         void $ notifyTypingIndicator conv (tUntagged lusr) (Just zcon) ts
     )
     ( \rcnv -> do

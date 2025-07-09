@@ -111,7 +111,7 @@ getLocalSubConversation ::
   SubConvId ->
   Sem r PublicSubConversation
 getLocalSubConversation qusr lconv sconv = do
-  c <- getConversationAndCheckMembership qusr lconv
+  c <- getConversationAsMember qusr lconv
 
   unless (Data.convType c == RegularConv || Data.convType c == One2OneConv) $
     throwS @'MLSSubConvUnsupportedConvType
@@ -329,7 +329,7 @@ leaveLocalSubConversation ::
   Sem r ()
 leaveLocalSubConversation cid lcnv sub = do
   assertMLSEnabled
-  cnv <- getConversationAndCheckMembership (cidQualifiedUser cid) lcnv
+  cnv <- getConversationAsMember (cidQualifiedUser cid) lcnv
   mlsConv <- noteS @'ConvNotFound =<< mkMLSConversation cnv
   subConv <-
     noteS @'ConvNotFound
@@ -405,7 +405,7 @@ resetLocalSubConversation ::
 resetLocalSubConversation qusr lcnvId scnvId reset = do
   let cnvId = tUnqualified lcnvId
       lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
-  cnv <- getConversationAndCheckMembership qusr lcnvId
+  cnv <- getConversationAsMember qusr lcnvId
 
   lowerCodensity $ do
     withCommitLock lConvOrSubId reset.groupId reset.epoch

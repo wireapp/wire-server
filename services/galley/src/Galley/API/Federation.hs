@@ -292,12 +292,7 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @'InvalidOperation RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const RemoveFromConversationErrorUnchanged)
       $ do
-        conv <-
-          foldQualified
-            lcnv
-            (\lusr -> getConversationAndMemberWithError @'ConvNotFound lusr lcnv)
-            (\rusr -> getConversationAndMemberWithError @'ConvNotFound rusr lcnv)
-            leaver
+        conv <- maskConvAccessDenied $ getConversationAsMember leaver lcnv
         outcome <-
           runError @FederationError $
             lcuUpdate
@@ -980,12 +975,7 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   ret <- runError
     . mapToRuntimeError @'ConvNotFound ConvNotFound
     $ do
-      conv <-
-        foldQualified
-          lcnv
-          (\lusr -> getConversationAndMemberWithError @'ConvNotFound lusr lcnv)
-          (\rusr -> getConversationAndMemberWithError @'ConvNotFound rusr lcnv)
-          qusr
+      conv <- maskConvAccessDenied $ getConversationAsMember qusr lcnv
       notifyTypingIndicator conv qusr Nothing typingStatus
 
   pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)

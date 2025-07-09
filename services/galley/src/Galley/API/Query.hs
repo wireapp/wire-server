@@ -128,8 +128,8 @@ getBotConversation ::
   Sem r Public.BotConvView
 getBotConversation zbot cnv = do
   lcnv <- qualifyLocal cnv
-  localUid <- qualifyLocal (botUserId zbot)
-  c <- getConversationAndMemberWithError @'ConvNotFound localUid lcnv
+  botQuid <- tUntagged <$> qualifyLocal (botUserId zbot)
+  c <- maskConvAccessDenied $ getConversationAsMember botQuid lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -154,7 +154,7 @@ getUnqualifiedConversationV9 ::
   ConvId ->
   Sem r Public.ConversationV9
 getUnqualifiedConversationV9 lusr cnv = do
-  c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
+  c <- getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
   Mapping.conversationViewV9 lusr c
 
 getUnqualifiedConversation ::
@@ -168,12 +168,8 @@ getUnqualifiedConversation ::
   ConvId ->
   Sem r Public.Conversation
 getUnqualifiedConversation lusr cnv =
-  Mapping.conversationView (qualifyAs lusr ()) (Just lusr) . unMembership
-    <$> getConversationAndCheckMembershipOrChannel (tUntagged lusr) (qualifyAs lusr cnv)
-  where
-    unMembership :: Membership Data.Conversation -> Data.Conversation
-    unMembership (Member c) = c
-    unMembership (NonMembership c) = c
+  Mapping.conversationView (qualifyAs lusr ()) (Just lusr) . (.conv)
+    <$> getConversationAsViewer (tUntagged lusr) (qualifyAs lusr cnv)
 
 getConversation ::
   forall r.
@@ -368,7 +364,7 @@ getConversationRoles ::
   ConvId ->
   Sem r Public.ConversationRolesList
 getConversationRoles lusr cnv = do
-  void $ getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
+  void $ getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles

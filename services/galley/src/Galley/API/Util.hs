@@ -642,13 +642,9 @@ getMember ::
   Sem r mem
 getMember p u = noteS @e . find ((u ==) . p)
 
-data Membership a
-  = -- | Conversation where the caller is a member
-    Member a
-  | -- | Conversation where the caller is not a member
-    NonMembership a
+data ConvView = ConvView {viewingAsMember :: Bool, conv :: Data.Conversation}
 
-getConversationAndCheckMembership ::
+getConversationAsMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -657,13 +653,14 @@ getConversationAndCheckMembership ::
   Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
-getConversationAndCheckMembership quid lcnv = do
-  membershipConv <- getConversationAndCheckMembershipOrChannel quid lcnv
-  case membershipConv of
-    Member conv -> pure conv
-    NonMembership _ -> foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) quid
+getConversationAsMember quid lcnv = do
+  convView <- getConversationAsViewer quid lcnv
+  when convView.viewingAsMember $
+    foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) quid
+  pure convView.conv
 
-getConversationAndCheckMembershipOrChannel ::
+getConversationAsViewer ::
+  forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -671,28 +668,26 @@ getConversationAndCheckMembershipOrChannel ::
   ) =>
   Qualified UserId ->
   Local ConvId ->
-  Sem r (Membership Data.Conversation)
-getConversationAndCheckMembershipOrChannel quid lcnv =
-  foldQualified
-    lcnv
-    ( \lusr -> do
-        (conv, mMem) <-
-          getConversationAndMemberOrChannelWithError
-            @'ConvAccessDenied
-            (tUnqualified lusr)
-            lcnv
+  Sem r ConvView
+getConversationAsViewer qusr lcnv = do
+  c <- getConversationWithError lcnv
+  let mMember = getConvMember lcnv c qusr
+      throwAccessDenied = foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) qusr
+  case (mMember, c.convMetadata.cnvmTeam) of
+    (Just _, _) -> pure ()
+    (Nothing, Just tid) ->
+      maybe throwAccessDenied pure
+        =<< runMaybeT
+          ( do
+              uid <- hoistMaybe $ foldQualified lcnv (Just . tUnqualified) (const Nothing) qusr
+              tm <- MaybeT $ E.getTeamMember tid uid
+              guard (c.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
+          )
+    (Nothing, Nothing) -> throwAccessDenied
+  pure $ ConvView (isJust mMember) c
 
-        pure $ maybe (NonMembership conv) (const (Member conv)) mMem
-    )
-    ( \rusr -> do
-        (conv, mMem) <-
-          getConversationAndMemberOrChannelWithError
-            @'ConvNotFound
-            rusr
-            lcnv
-        pure $ maybe (NonMembership conv) (const (Member conv)) mMem
-    )
-    quid
+maskConvAccessDenied :: (Member (ErrorS 'ConvNotFound) r) => InterpreterFor (ErrorS 'ConvAccessDenied) r
+maskConvAccessDenied = mapErrorS @'ConvAccessDenied @'ConvNotFound
 
 getConversationWithError ::
   ( Member ConversationStore r,
@@ -702,64 +697,6 @@ getConversationWithError ::
   Sem r Data.Conversation
 getConversationWithError lcnv =
   getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-
-class HasLocalUserId a where
-  getLocalUserId :: a -> Maybe UserId
-
-instance HasLocalUserId UserId where
-  getLocalUserId = Just
-
-instance HasLocalUserId (Remote UserId) where
-  getLocalUserId = const Nothing
-
-instance HasLocalUserId (Local UserId) where
-  getLocalUserId = Just . tUnqualified
-
-getConversationAndMemberWithError ::
-  forall e uid mem r.
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS e) r,
-    Member TeamStore r,
-    IsConvMemberId uid mem,
-    HasLocalUserId uid
-  ) =>
-  uid ->
-  Local ConvId ->
-  Sem r Data.Conversation
-getConversationAndMemberWithError usr lcnv = do
-  (conv, mMember) <- getConversationAndMemberOrChannelWithError @e usr lcnv
-  case mMember of
-    Just _ -> pure conv
-    Nothing -> throwS @e
-
-getConversationAndMemberOrChannelWithError ::
-  forall e uid mem r.
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS e) r,
-    Member TeamStore r,
-    IsConvMemberId uid mem,
-    HasLocalUserId uid
-  ) =>
-  uid ->
-  Local ConvId ->
-  Sem r (Data.Conversation, Maybe mem)
-getConversationAndMemberOrChannelWithError usr lcnv = do
-  c <- getConversationWithError lcnv
-  let mMember = getConvMember lcnv c usr
-  case (mMember, c.convMetadata.cnvmTeam) of
-    (Just _, _) -> pure ()
-    (Nothing, Just tid) ->
-      noteS @e
-        =<< runMaybeT
-          ( do
-              uid <- MaybeT $ pure $ getLocalUserId usr
-              tm <- MaybeT $ E.getTeamMember tid uid
-              guard (c.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
-          )
-    (Nothing, Nothing) -> throwS @e
-  pure (c, mMember)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
