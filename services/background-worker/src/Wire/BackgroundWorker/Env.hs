@@ -9,6 +9,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Map.Strict qualified as Map
+import Data.Text qualified as Text
 import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
@@ -30,7 +31,11 @@ type IsWorking = Bool
 data Worker
   = BackendNotificationPusher
   | DeadUserNotificationWatcher
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord)
+
+instance Show Worker where
+  show BackendNotificationPusher = "backend-notification-pusher"
+  show DeadUserNotificationWatcher = "dead-user-notification-watcher"
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -42,6 +47,7 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
+    workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
     cassandra :: ClientState
   }
@@ -58,6 +64,10 @@ mkBackendNotificationMetrics =
     <$> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_pushed" "Number of notifications pushed")
     <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_errors" "Number of errors that occurred while pushing notifications")
     <*> register (vector "targetDomain" $ gauge $ Prometheus.Info "wire_backend_notifications_stuck_queues" "Set to 1 when pushing notifications is stuck")
+
+mkWorkerRunningGauge :: IO (Vector Text Gauge)
+mkWorkerRunningGauge =
+  register (vector "worker" $ gauge $ Prometheus.Info "wire_background_worker_running_workers" "Set to 1 when a worker is running")
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
@@ -80,6 +90,7 @@ mkEnv opts = do
         ]
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
+  workerRunningGauge <- mkWorkerRunningGauge
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
@@ -127,13 +138,17 @@ instance (MonadIO m) => MonadLogger (AppT m) where
 runAppT :: Env -> AppT m a -> m a
 runAppT env app = runReaderT (unAppT app) env
 
-markAsWorking :: (MonadIO m) => Worker -> AppT m ()
-markAsWorking worker =
-  flip modifyIORef (Map.insert worker True) =<< asks statuses
+markAsWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
+markAsWorking worker = do
+  env <- ask
+  modifyIORef env.statuses $ Map.insert worker True
+  withLabel env.workerRunningGauge (Text.pack $ show worker) (flip setGauge 1)
 
-markAsNotWorking :: (MonadIO m) => Worker -> AppT m ()
-markAsNotWorking worker =
-  flip modifyIORef (Map.insert worker False) =<< asks statuses
+markAsNotWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
+markAsNotWorking worker = do
+  env <- ask
+  modifyIORef env.statuses (Map.insert worker False)
+  withLabel env.workerRunningGauge (Text.pack $ show worker) (flip setGauge 1)
 
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do
