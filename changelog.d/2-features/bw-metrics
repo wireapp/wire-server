@@ -1,0 +1,3 @@
+background-worker: New gauge metric `wire_background_worker_running_workers`,
+contains label `worker` for each worker. Set to `1` when the worker is running,
+set to `0` when the worker is not running.
