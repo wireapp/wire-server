@@ -139,16 +139,16 @@ runAppT :: Env -> AppT m a -> m a
 runAppT env app = runReaderT (unAppT app) env
 
 markAsWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
-markAsWorking worker = do
-  env <- ask
-  modifyIORef env.statuses $ Map.insert worker True
-  withLabel env.workerRunningGauge (workerName worker) (flip setGauge 1)
+markAsWorking = updateWorkingStatus True
 
 markAsNotWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
-markAsNotWorking worker = do
+markAsNotWorking = updateWorkingStatus False
+
+updateWorkingStatus :: (MonadIO m, MonadMonitor m) => Bool -> Worker -> AppT m ()
+updateWorkingStatus isWorking worker = do
   env <- ask
-  modifyIORef env.statuses (Map.insert worker False)
-  withLabel env.workerRunningGauge (workerName worker) (flip setGauge 0)
+  modifyIORef env.statuses (Map.insert worker isWorking)
+  withLabel env.workerRunningGauge (workerName worker) (flip setGauge (if isWorking then 0 else 1))
 
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do
