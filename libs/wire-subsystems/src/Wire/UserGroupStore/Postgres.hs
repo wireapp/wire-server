@@ -8,12 +8,12 @@ import Data.Id
 import Data.Json.Util
 import Data.Profunctor
 import Data.Text qualified as T
--- import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import Data.UUID as UUID
 import Data.Vector (Vector)
--- import Hasql.Decoders qualified as HD
--- import Hasql.Encoders qualified as HE
+import Hasql.Decoders qualified as HD
+import Hasql.Encoders qualified as HE
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
@@ -96,21 +96,49 @@ getUserGroupsImpl ::
   TeamId ->
   PaginationState ->
   Sem r [UserGroup]
-getUserGroupsImpl _tid _pstate = do
+getUserGroupsImpl tid pstate = do
   pool <- input
   eitherResult <- liftIO $ use pool session
   either throw pure eitherResult
   where
     session :: Session [UserGroup]
     session = do
-      {-
-      let (sql, searchStr) = paginationStateToSqlQuery tid pstate
-          sql' = case searchStr of
-            Just search -> Statement (encodeUtf8 search) (HE.param HE.text) (HD.rowList (HD.column HD.text)) True
-            Nothing -> Statement (HE.param HE.text) (HD.rowList (HD.column HD.text)) True
-      _ <- statement searchStr sql'
-      -}
-      undefined
+      let (encodeUtf8 -> sqlBS, searchStr) = paginationStateToSqlQuery tid pstate
+      case searchStr of
+        Just search -> do
+          statement search . refineResult (mapM parseRow) $
+            Statement
+              sqlBS
+              (HE.param $ HE.nonNullable HE.text)
+              decodeRow
+              True
+        Nothing -> do
+          statement () . refineResult (mapM parseRow) $
+            Statement
+              sqlBS
+              HE.noParams
+              decodeRow
+              True
+
+    decodeRow :: HD.Result [(UUID, Text, Text, UTCTime)]
+    decodeRow =
+      HD.rowList
+        ( (,,,)
+            <$> HD.column (HD.nonNullable HD.uuid)
+            <*> HD.column (HD.nonNullable HD.text)
+            <*> HD.column (HD.nonNullable HD.text)
+            <*> HD.column (HD.nonNullable HD.timestamptz)
+        )
+
+    parseRow :: (UUID, Text, Text, UTCTime) -> Either Text UserGroup
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
+      managedBy <- case managedByPre of
+        "wire" -> pure ManagedByWire
+        "scim" -> pure ManagedByScim
+        bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
+      name <- userGroupNameFromText namePre
+      let members = mempty -- TODO: do we want `data UserGroup (m :: * -> *) = UserGroup { members :: m (Vector ...), ... }`?
+      pure $ UserGroup {..}
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
@@ -124,10 +152,9 @@ paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
     o = ["order by", cols]
       where
         cols = mconcat (prio [orderN, ", ", orderC])
-          where
-            prio = case pstate.sortBy of
-              SortByName -> id
-              SortByCreatedAt -> reverse
+        prio = case pstate.sortBy of
+          SortByName -> id
+          SortByCreatedAt -> reverse
         orderN = unwords ["name", toLower <$> show pstate.sortOrderName]
         orderC = unwords ["created_at", toLower <$> show pstate.sortOrderCreatedAt]
     p = ["offset " <> show off | off <- maybeToList pstate.offset]

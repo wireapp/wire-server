@@ -407,6 +407,7 @@ test-suite wire-subsystems-tests
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
+    Wire.UserGroupStore.PostgresSpec
     Wire.UserGroupSubsystem.InterpreterSpec
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
