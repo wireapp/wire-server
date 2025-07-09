@@ -247,12 +247,12 @@ fileSharing:
 
 These are all the possible combinations of `status` and `lockStatus`:
 
-| `status`   | `lockStatus`   |                                                   |
-|------------|----------------|---------------------------------------------------|
-| `enabled`  | `locked`       | Feature enabled, cannot be disabled by team admin |
-| `enabled`  | `unlocked`     | Feature enabled, can be disabled by team admin    |
-| `disabled` | `locked`       | Feature disabled, cannot be enabled by team admin |
-| `disabled` | `unlocked`     | Feature disabled, can be enabled by team admin    |
+| `status`   | `lockStatus` |                                                   |
+| ---------- | ------------ | ------------------------------------------------- |
+| `enabled`  | `locked`     | Feature enabled, cannot be disabled by team admin |
+| `enabled`  | `unlocked`   | Feature enabled, can be disabled by team admin    |
+| `disabled` | `locked`     | Feature disabled, cannot be enabled by team admin |
+| `disabled` | `unlocked`   | Feature disabled, can be enabled by team admin    |
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/fileSharing/(un)?locked`).
 
@@ -920,7 +920,7 @@ To configure the team invitation URL for personal users that is sent vai email, 
 
 ```yaml
 brig:
-  config
+  config:
     emailSMS:
       team:
         tExistingUserInvitationUrl: '{{ .Values.accountUrl }}/accept-invitation/?team-code=${code}'
@@ -944,6 +944,17 @@ brig:
   config:
     optSettings:
       setAuditLogEmailRecipient: security@wire.com
+```
+
+### Ephemeral User Creation
+
+An ephemeral user is a temporary user that can be created without an email address to join conversations via a guest link. The ephemeral user account exists only for a limited period of time, usually 24h. Ephemeral user creation is enabled per default. To disable the feature set `setEphemeralUserCreationEnabled` to `false`:
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setEphemeralUserCreationEnabled: false
 ```
 
 ## Settings in cargohold

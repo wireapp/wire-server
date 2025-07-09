@@ -557,13 +557,17 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()
 checkRestrictedUserCreation new = do
-  restrictPlease <- fromMaybe False <$> asks (.settings.restrictUserCreation)
+  restrict <- fromMaybe False <$> asks (.settings.restrictUserCreation)
   when
-    ( restrictPlease
+    ( restrict
         && not (isNewUserTeamMember new)
         && not (isNewUserEphemeral new)
     )
     $ throwE RegisterErrorUserCreationRestricted
+
+  ephemeralUserCreationEnabled <- asks (.settings.ephemeralUserCreationEnabled)
+  when (not ephemeralUserCreationEnabled && isNewUserEphemeral new) $
+    throwE RegisterErrorEphemeralUserCreationDisabled
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity

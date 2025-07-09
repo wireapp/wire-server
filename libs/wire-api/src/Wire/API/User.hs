@@ -831,6 +831,7 @@ data RegisterError
   | RegisterErrorBlacklistedEmail
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
+  | RegisterErrorEphemeralUserCreationDisabled
   deriving (Show, Generic)
   deriving (AsUnion RegisterErrorResponses) via GenericAsUnion RegisterErrorResponses RegisterError
 
@@ -847,7 +848,8 @@ type RegisterErrorResponses =
      ErrorResponse 'InvalidPhone,
      ErrorResponse 'BlacklistedEmail,
      ErrorResponse 'TooManyTeamMembers,
-     ErrorResponse 'UserCreationRestricted
+     ErrorResponse 'UserCreationRestricted,
+     ErrorResponse 'EphemeralUserCreationDisabled
    ]
 
 type RegisterResponses =
