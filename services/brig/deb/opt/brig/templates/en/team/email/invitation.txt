@@ -3,19 +3,23 @@
 ${brand_label_url} [${brand_url}]
 
 TEAM INVITATION
-${inviter} has invited you to join the team “${team_name}” on Wire.
+${inviter} has invited you to join a team on ${brand}. Select the button below
+to accept the invitation.
 
-Join Team [${url}]Or open this link in your browser:
-${url} [${url}]
+Join team [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
-Report abusive invitation link [${support}]
+${url}
 
-What is Wire?Wire is the most secure collaboration platform. Work with your team
-and external partners wherever you are through messages, video conferencing and
-file sharing – always secured with end-to-end-encryption.
-Learn more [https://wire.com/].
+If you have any questions, please contact us [${support}].
 
-Any questions? Contact us [${support}]
+What is Wire?
+Wire is the most secure collaboration platform. Work with your team and external
+partners wherever you are through messages, video conferencing and file sharing
+– always secured with end-to-end-encryption. Learn more [https://wire.com/].
 
-Privacy Policy and Terms of Use [${legal}]· Report misuse [${misuse}]
-${copyright}. All rights reserved.
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.
