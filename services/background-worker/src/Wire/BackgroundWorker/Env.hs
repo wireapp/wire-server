@@ -148,7 +148,7 @@ markAsNotWorking :: (MonadIO m, MonadMonitor m) => Worker -> AppT m ()
 markAsNotWorking worker = do
   env <- ask
   modifyIORef env.statuses (Map.insert worker False)
-  withLabel env.workerRunningGauge (workerName worker) (flip setGauge 1)
+  withLabel env.workerRunningGauge (workerName worker) (flip setGauge 0)
 
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do
