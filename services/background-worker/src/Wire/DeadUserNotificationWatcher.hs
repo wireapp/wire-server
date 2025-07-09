@@ -1,7 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.BackendDeadUserNotificationWatcher where
+module Wire.DeadUserNotificationWatcher where
 
 import Cassandra
 import Control.Monad.Trans.Maybe
@@ -31,7 +31,7 @@ getLastDeathQueue Nothing = Nothing
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
-  markAsWorking BackendDeadUserNoticationWatcher
+  markAsWorking DeadUserNotificationWatcher
 
   cassandra <- asks (.cassandra)
 
@@ -99,16 +99,16 @@ startWorker amqp = do
           writeIORef cleanupRef (Just (chan, consumerTag))
           forever $ threadDelay maxBound,
         onConnectionClose = do
-          markAsNotWorking BackendDeadUserNoticationWatcher
+          markAsNotWorking DeadUserNotificationWatcher
           writeIORef cleanupRef Nothing
           Log.err logger $
-            Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed."),
+            Log.msg (Log.val "RabbitMQ Connection closed."),
         onChannelException = \e -> do
-          markAsNotWorking BackendDeadUserNoticationWatcher
+          markAsNotWorking DeadUserNotificationWatcher
           writeIORef cleanupRef Nothing
           unless (Q.isNormalChannelClose e) $
             Log.err logger $
-              Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
+              Log.msg (Log.val "Caught exception in RabbitMQ channel.")
                 . Log.field "exception" (displayException e)
       }
   pure $ do

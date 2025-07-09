@@ -29,7 +29,7 @@ type IsWorking = Bool
 -- | Eventually this will be a sum type of all the types of workers
 data Worker
   = BackendNotificationPusher
-  | BackendDeadUserNoticationWatcher
+  | DeadUserNotificationWatcher
   deriving (Show, Eq, Ord)
 
 data Env = Env

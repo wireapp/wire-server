@@ -14,11 +14,11 @@ import Servant
 import Servant.Server.Generic
 import System.Logger qualified as Log
 import Util.Options
-import Wire.BackendDeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
+import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 
 run :: Opts -> IO ()
 run opts = do
