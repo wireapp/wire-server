@@ -89,6 +89,7 @@ startWorker ::
 startWorker amqp = do
   env <- ask
   cleanupRef <- newIORef Nothing
+  markAsNotWorking DeadUserNotificationWatcher
   -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
   void . async . openConnectionWithRetries env.logger amqp (Just "dead-user-notifications-watcher") $
     RabbitMqHooks

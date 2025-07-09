@@ -333,7 +333,8 @@ startWorker rabbitmqOpts = do
       Log.info $
         Log.msg $
           Log.val "RabbitMQ admin client not available, skipping backend notification pusher."
-    Just client ->
+    Just client -> do
+      markAsNotWorking BackendNotificationPusher
       -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
       void $
         async $
