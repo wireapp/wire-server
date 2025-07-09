@@ -20,8 +20,7 @@ import Imports
 import Numeric.Natural
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input (Input, runInputConst)
-import Polysemy.Internal.Kind (Append)
+import Polysemy.Input (runInputConst)
 import Polysemy.State
 import System.Random qualified as Rand
 import System.Timeout (timeout)
@@ -36,34 +35,20 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
-import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
-import Wire.UserGroupSubsystem.Interpreter
-import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
 
-type TestEffectStack =
-  '[ UserSubsystem,
-     TeamSubsystem,
-     GalleyAPIAccess
-   ]
-    `Append` EffectStack
-    `Append` '[ Input (Local ()),
-                NotificationSubsystem,
-                State [Push],
-                Error UserGroupSubsystemError
-              ]
-
-mkAssertion :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem TestEffectStack (IO ()) -> IO ()
+mkAssertion :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem UserGroupStoreInMemEffectStackTest (IO ()) -> IO ()
 mkAssertion usrs team = either (error . ("no assertion: " <>) . show) id . runDependencies usrs team
 
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem TestEffectStack a ->
+  Sem UserGroupStoreInMemEffectStackTest a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
   run
@@ -79,7 +64,7 @@ runDependencies initialUsers initialTeams =
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem TestEffectStack a ->
+  Sem UserGroupStoreInMemEffectStackTest a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run

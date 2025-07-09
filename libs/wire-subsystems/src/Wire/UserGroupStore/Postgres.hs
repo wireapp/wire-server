@@ -30,11 +30,15 @@ import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.UserGroupStore
 
-interpretUserGroupStoreToPostgres ::
+type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
-  ) =>
+  )
+
+interpretUserGroupStoreToPostgres ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
@@ -47,10 +51,8 @@ interpretUserGroupStoreToPostgres =
     RemoveUser gid uid -> removeUserImpl gid uid
 
 getUserGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe UserGroup)
@@ -89,10 +91,7 @@ getUserGroupImpl team id_ = do
 
 getUserGroupsImpl ::
   forall r.
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   PaginationState ->
   Sem r [UserGroup]
@@ -163,10 +162,8 @@ paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
     n = ["and name ilike ($1 :: text)" | isJust pstate.searchString]
 
 createUserGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   NewUserGroup ->
   ManagedBy ->
@@ -207,10 +204,8 @@ createUserGroupImpl team newUserGroup managedBy = do
           |]
 
 updateGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   UserGroupUpdate ->
@@ -235,10 +230,8 @@ updateGroupImpl tid gid gup = do
           |]
 
 deleteGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe ())
@@ -262,10 +255,8 @@ deleteGroupImpl tid gid = do
           |]
 
 addUserImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
@@ -276,10 +267,8 @@ addUserImpl =
       |]
 
 removeUserImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
@@ -290,10 +279,8 @@ removeUserImpl =
       |]
 
 crudUser ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   Statement (UUID, UUID) () ->
   UserGroupId ->
   UserId ->
