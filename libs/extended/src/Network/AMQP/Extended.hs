@@ -134,11 +134,11 @@ demoteOpts :: RabbitMqAdminOpts -> AmqpEndpoint
 demoteOpts RabbitMqAdminOpts {..} = AmqpEndpoint {..}
 
 -- | Useful if the application only pushes into some queues.
-mkRabbitMqChannelMVar :: Logger -> AmqpEndpoint -> IO (MVar Q.Channel)
-mkRabbitMqChannelMVar l opts = do
+mkRabbitMqChannelMVar :: Logger -> Maybe Text -> AmqpEndpoint -> IO (MVar Q.Channel)
+mkRabbitMqChannelMVar l connName opts = do
   chanMVar <- newEmptyMVar
   connThread <-
-    async . openConnectionWithRetries l opts Nothing $
+    async . openConnectionWithRetries l opts connName $
       RabbitMqHooks
         { onNewChannel = \conn -> putMVar chanMVar conn >> forever (threadDelay maxBound),
           onChannelException = \_ -> void $ tryTakeMVar chanMVar,
