@@ -96,6 +96,9 @@ startWorker amqp = do
       { onNewChannel = \chan -> do
           consumerTag <- startConsumer chan
           atomicWriteIORef cleanupRef (Just (chan, consumerTag))
+          -- Wait forever because when onNewChannel hooks finishes, it is
+          -- assumed that the work for RabbitMQ is done and the connection with
+          -- RabbitMQ is closed.
           forever $ threadDelay maxBound,
         onConnectionClose = do
           markAsNotWorking DeadUserNotificationWatcher
