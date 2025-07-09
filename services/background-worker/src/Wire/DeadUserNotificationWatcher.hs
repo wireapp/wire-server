@@ -18,6 +18,7 @@ import System.Logger qualified as Log
 import UnliftIO (async)
 import Wire.API.Notification
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Util
 
 getLastDeathQueue :: Maybe FieldTable -> Maybe ByteString
 getLastDeathQueue (Just (FieldTable headers)) = do
@@ -82,11 +83,9 @@ markAsNeedsFullSync cassandra uid cid = do
           VALUES (?, ?)
       |]
 
-type CleanupAction = IO ()
-
 startWorker ::
   AmqpEndpoint ->
-  AppT IO (CleanupAction)
+  AppT IO CleanupAction
 startWorker amqp = do
   env <- ask
   cleanupRef <- newIORef Nothing
