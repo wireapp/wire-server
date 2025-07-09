@@ -74,7 +74,7 @@ galley:
 
 ## Self-deleting messages
 
-Self-deleting messages is a feature that makes all sent messages delete after a given period of time the message has been read. By default, this feature is unlocked and not enabled for all the teams. The feature can be toggled on/off through Team Settings app. Team settings app has presets that can set up message expiration up to a month. Other time frames can be set either through a backend-wide global setting, or manually through API.
+Self-deleting messages is a feature that makes all sent messages delete after a given period of time after the message has been read. By default, this feature is unlocked and not enabled for all the teams. The feature can be toggled on/off through Team Settings app. Team settings app has presets that can set up message expiration up to a month. Other time frames can be set either through a backend-wide global setting, or manually through API.
 
 Example of backend-wide global setting:
 
@@ -100,7 +100,7 @@ Backend-wide settings are not applied retroactively! For teams made before a glo
 
 ### Self-deleting messages custom time frame with API calls
 
-As a on-prem backend administrator, if you find yourself in need of a time-frame not provided by the Team Setting app. You can make an API call to `galley` to set it manually.
+As an on-prem backend administrator, if you find yourself in need of a time-frame not provided by the Team Setting app, you can make an API call to an internal `galley` endpoint to set it manually.
 
 First, port-forward the galley service:
 
@@ -108,33 +108,19 @@ First, port-forward the galley service:
 d kubectl port-forward svc/galley 8080:8080
 ```
 
-And make a curl request like in example below, set the appropriate <teamID> and <TeamAdminUserId> (these can be fetched from cassandra with `cqlsh` if you are not a direct owner of the team or the admin user)
+And make a curl request like in example below, set the appropriate <teamID> (this can be fetched from cassandra with `cqlsh` if you are not a direct owner of the team or the admin user)
 
 ```bash
-curl -X GET 'http://localhost:8080/teams/<teamID>/features/selfDeletingMessages' -H 'accept: application/json;charset=utf-8' -H 'Content-Type: application/json' -H 'Z-User: <TeamAdminUserId>'   --data-raw '{ "config": { "enforcedTimeoutSeconds": 6000}, "status": "enabled" }'
+curl -X PUT 'http://localhost:8080/i/teams/<teamID>/features/selfDeletingMessages' -H 'accept: application/json;charset=utf-8' -H 'Content-Type: application/json' --data-raw '{ "config": { "enforcedTimeoutSeconds": 6000}, "status": "enabled" }'
 ```
 
-For locking/unlocking features for a team, use of `backoffice` will be required.
-If you are not already running one and are in posession of a `wire-server` bundle, install it with:
+For locking/unlocking features for a team make the following request:
 
 ```bash
-d kubectl install backoffice charts/backoffice
+curl -X PUT 'http://localhost:8080/i/teams/<teamID>/features/selfDeletingMessages/<lockStatus>'
 ```
 
-If you are not in posession of a `wire-server` installation bundle, you can get yourself Helm charts for it [here](https://github.com/wireapp/wire-server/tree/develop/charts/backoffice).
-Our recommendation is to not expose backoffice to the internet through Ingress or other means, since it requires no authentication, and exposes sensitive internal endpoints.
-
-After installing backoffice, port-forward its service so we can make API calls to it.
-
-```bash
-d kubectl port-forward svc/backoffice 8080:8080
-```
-
-Then make the following request for lock/unlock:
-
-```bash
-curl -X PUT 'http://localhost:8080/teams/<teamID>/features/selfDeletingMessages/lockOrUnlock?lock-status=unlocked' -H 'accept: application/json;charset=utf-8'
-```
+<lockStatus> = locked | unlocked
 
 ## TTL for nonces
 
