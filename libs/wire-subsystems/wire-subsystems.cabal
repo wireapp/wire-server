@@ -235,6 +235,8 @@ library
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
     Wire.StoredUser
+    Wire.TeamCollaboratorsStore
+    Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
