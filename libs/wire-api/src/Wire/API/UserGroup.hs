@@ -41,6 +41,9 @@ newtype UserGroupName = UserGroupName {unUserGroupName :: Range 1 4000 Text}
 userGroupNameFromText :: Text -> Either Text UserGroupName
 userGroupNameFromText = mapLeft Text.pack . fmap UserGroupName . (checkedEither @Text @1 @4000)
 
+userGroupNameFromTextUnsafe :: Text -> UserGroupName
+userGroupNameFromTextUnsafe = either (error . show) id . userGroupNameFromText
+
 userGroupNameToText :: UserGroupName -> Text
 userGroupNameToText = fromRange . unUserGroupName
 
