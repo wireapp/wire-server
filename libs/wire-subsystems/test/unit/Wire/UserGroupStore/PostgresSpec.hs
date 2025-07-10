@@ -239,7 +239,10 @@ postgresInt action = do
     . interpretUserGroupStoreToPostgres
     $ action
 
--- TODO: copied & cloned from Brig.App.  where should we move & consolidate both?  Postgres.Extended?
+-- TODO: copied & cloned from Brig.App.  where should we move & consolidate both?
+-- Postgres.Extended?
+-- TODO: when running this test suite in a "make devtest-package" loop, postgres clients will
+-- not be cleaned up, and eventually there will be too many.
 initPostgresPool :: IO HasqlPool.Pool
 initPostgresPool = do
   let pgParams =
