@@ -655,7 +655,7 @@ getConversationAsMember ::
   Sem r Data.Conversation
 getConversationAsMember quid lcnv = do
   convView <- getConversationAsViewer quid lcnv
-  when convView.viewingAsMember $
+  unless convView.viewingAsMember $
     foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) quid
   pure convView.conv
 
