@@ -369,7 +369,7 @@ test-suite wire-subsystems-tests
   -- `ghcid --command 'cabal repl test:wire-subsystems-tests' --test='main'`.
   hs-source-dirs:     test/unit
   main-is:            ../Main.hs
-  ghc-options:        -fplugin=Polysemy.Plugin -Wno-x-partial
+  ghc-options:        -fplugin=Polysemy.Plugin -Wno-x-partial -threaded
 
   -- cabal-fmt: expand test/unit
   other-modules:
