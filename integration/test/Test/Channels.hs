@@ -590,3 +590,33 @@ testAdminCanRemoveMemberWithoutJoining = do
       void $ mlsCliConsume convId def cid msgData
       r <- createPendingProposalCommit convId cid >>= sendAndConsumeCommitBundle
       shouldBeEmpty $ r %. "events"
+
+testTeamAdminCanGetChannelData :: (HasCallStack) => App ()
+testTeamAdminCanGetChannelData = do
+  (owner, tid, mem : _) <- createTeam OwnDomain 2
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+  chan <-
+    postConversation
+      owner
+      defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True}
+      >>= getJSON 201
+  chan %. "group_conv_type" `shouldMatch` "channel"
+
+  -- The admin can get channel data without joining
+  getConversation owner chan `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.others" `shouldMatch` ([] :: [Value])
+    lookupField resp.json "members.self" `shouldMatch` (Nothing :: Maybe Value)
+
+  -- A team member cannot get channel data without joining
+  getConversation mem chan `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "access-denied"
+
+  -- The admin cannot get data of a conversation that is not a channel
+  conv <- postConversation mem defMLS {team = Just tid} >>= getJSON 201
+  conv %. "group_conv_type" `shouldMatch` "group_conversation"
+  getConversation owner conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "access-denied"

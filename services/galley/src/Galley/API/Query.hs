@@ -20,7 +20,8 @@
 
 module Galley.API.Query
   ( getBotConversation,
-    getUnqualifiedConversation,
+    getUnqualifiedConversationV9,
+    getConversationV9,
     getConversation,
     getLocalConversationInternal,
     getConversationRoles,
@@ -119,14 +120,16 @@ import Wire.Sem.Paging.Cassandra
 getBotConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamStore r
   ) =>
   BotId ->
   ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot cnv = do
   lcnv <- qualifyLocal cnv
-  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
+  botQuid <- tUntagged <$> qualifyLocal (botUserId zbot)
+  c <- maskConvAccessDenied $ getConversationAsMember botQuid lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -138,19 +141,35 @@ getBotConversation zbot cnv = do
       | otherwise =
           Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
-getUnqualifiedConversation ::
+getUnqualifiedConversationV9 ::
+  forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error InternalError) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConvId ->
   Sem r Public.ConversationV9
-getUnqualifiedConversation lusr cnv = do
-  c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
+getUnqualifiedConversationV9 lusr cnv = do
+  c <- getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
   Mapping.conversationViewV9 lusr c
+
+getUnqualifiedConversation ::
+  forall r.
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  ConvId ->
+  Sem r Public.Conversation
+getUnqualifiedConversation lusr cnv =
+  Mapping.conversationView (qualifyAs lusr ()) (Just lusr) . (.conv)
+    <$> getConversationAsViewer (tUntagged lusr) (qualifyAs lusr cnv)
 
 getConversation ::
   forall r.
@@ -158,17 +177,38 @@ getConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
+    Member FederatorAccess r,
+    Member P.TinyLog r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  Qualified ConvId ->
+  Sem r Public.Conversation
+getConversation lusr cnv =
+  foldQualified
+    lusr
+    (getUnqualifiedConversation lusr . tUnqualified)
+    (fmap fromConversationV9 . getRemoteConversation lusr)
+    cnv
+
+getConversationV9 ::
+  forall r.
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
   Sem r Public.ConversationV9
-getConversation lusr cnv = do
+getConversationV9 lusr cnv = do
   foldQualified
     lusr
-    (getUnqualifiedConversation lusr . tUnqualified)
+    (getUnqualifiedConversationV9 lusr . tUnqualified)
     (getRemoteConversation lusr)
     cnv
 
@@ -215,7 +255,7 @@ getLocalConversationInternal ::
 getLocalConversationInternal cid = do
   lcid <- qualifyLocal cid
   conv <- getConversationWithError lcid
-  pure $ conversationView lcid Nothing conv
+  pure $ conversationView (qualifyAs lcid ()) Nothing conv
 
 data FailedGetConversationReason
   = FailedGetConversationLocally
@@ -317,13 +357,14 @@ getRemoteConversationsWithFailures lusr convs = do
 getConversationRoles ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConvId ->
   Sem r Public.ConversationRolesList
 getConversationRoles lusr cnv = do
-  void $ getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
+  void $ getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles

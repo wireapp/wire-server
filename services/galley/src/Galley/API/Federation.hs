@@ -292,7 +292,7 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @'InvalidOperation RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const RemoveFromConversationErrorUnchanged)
       $ do
-        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
+        conv <- maskConvAccessDenied $ getConversationAsMember leaver lcnv
         outcome <-
           runError @FederationError $
             lcuUpdate
@@ -702,14 +702,10 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
       msg
 
 getSubConversationForRemoteUser ::
-  ( Members
-      '[ SubConversationStore,
-         ConversationStore,
-         Input (Local ()),
-         Error InternalError,
-         P.TinyLog
-       ]
-      r
+  ( Member SubConversationStore r,
+    Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member TeamStore r
   ) =>
   Domain ->
   GetSubConversationsRequest ->
@@ -727,7 +723,8 @@ leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
-    Member Resource r
+    Member Resource r,
+    Member TeamStore r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
@@ -745,16 +742,12 @@ leaveSubConversation domain lscr = do
       $> LeaveSubConversationResponseOk
 
 deleteSubConversationForRemoteUser ::
-  ( Members
-      '[ ConversationStore,
-         FederatorAccess,
-         Input (Local ()),
-         Input Env,
-         MemberStore,
-         Resource,
-         SubConversationStore
-       ]
-      r
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member Resource r,
+    Member SubConversationStore r,
+    Member TeamStore r
   ) =>
   Domain ->
   DeleteSubConversationFedRequest ->
@@ -969,7 +962,8 @@ updateTypingIndicator ::
     Member FederatorAccess r,
     Member ConversationStore r,
     Member (Input UTCTime) r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamStore r
   ) =>
   Domain ->
   TypingDataUpdateRequest ->
@@ -981,7 +975,7 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   ret <- runError
     . mapToRuntimeError @'ConvNotFound ConvNotFound
     $ do
-      (conv, _) <- getConversationAndMemberWithError @'ConvNotFound qusr lcnv
+      conv <- maskConvAccessDenied $ getConversationAsMember qusr lcnv
       notifyTypingIndicator conv qusr Nothing typingStatus
 
   pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)

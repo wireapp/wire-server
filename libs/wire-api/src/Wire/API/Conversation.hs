@@ -89,6 +89,7 @@ module Wire.API.Conversation
 
     -- * re-exports
     module Wire.API.Conversation.Member,
+    fromConversationV9,
   )
 where
 
@@ -307,6 +308,19 @@ conversationSchema v =
     ("Conversation" <> foldMap (Text.toUpper . versionText) v)
     (description ?~ "A conversation object as returned from the server")
     (conversationObjectSchema v)
+
+fromConversationV9 :: ConversationV9 -> Conversation
+fromConversationV9 conv =
+  Conversation
+    { qualifiedId = conv.cnvQualifiedId,
+      members =
+        ConvMembers
+          { self = Just $ conv.cnvMembers.cmSelf,
+            others = conv.cnvMembers.cmOthers
+          },
+      metadata = conv.cnvMetadata,
+      protocol = conv.cnvProtocol
+    }
 
 data Conversation = Conversation
   { qualifiedId :: Qualified ConvId,

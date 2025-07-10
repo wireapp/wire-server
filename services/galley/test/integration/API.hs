@@ -28,7 +28,6 @@ where
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
 import API.MLS qualified
-import API.MLS.Util (convV9ToV10)
 import API.MessageTimer qualified as MessageTimer
 import API.Roles qualified as Roles
 import API.SQS
@@ -291,7 +290,7 @@ testGetConvQualifiedV2 = do
     fmap (unVersioned @'V2) . responseJsonError
       =<< getConvQualifiedV2 alice qcnv
         <!! const 200 === statusCode
-  liftIO $ conv @=? convV9ToV10 conv'
+  liftIO $ conv @=? fromConversationV9 conv'
 
 postProteusConvOk :: TestM ()
 postProteusConvOk = do
@@ -1511,7 +1510,7 @@ getConvsOk2 = do
   convs <- getAllConvs alice
   let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) convs
   let c2 = find ((== cnv2.qualifiedId) . cnvQualifiedId) convs
-  liftIO . forM_ [(convV9ToV10 cnv1, c1), (cnv2, c2)] $ \(expected, mActual) ->
+  liftIO . forM_ [(fromConversationV9 cnv1, c1), (cnv2, c2)] $ \(expected, mActual) ->
     case mActual of
       Nothing -> assertFailure $ "Did not find expected conversation: " <> show expected
       Just actual -> do
@@ -2386,10 +2385,10 @@ testBulkGetQualifiedConvs = do
     let expectedFound =
           sortOn
             (.qualifiedId)
-            $ convV9ToV10 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
-              : convV9ToV10 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
+            $ fromConversationV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              : fromConversationV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
               : [localConv]
-        actualFound = sortOn (.qualifiedId) . map convV9ToV10 $ crFound convs
+        actualFound = sortOn (.qualifiedId) . map fromConversationV9 $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 
     -- Assumes only one request is made
