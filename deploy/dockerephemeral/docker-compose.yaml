@@ -290,6 +290,7 @@ services:
       POSTGRES_PASSWORD: "posty-the-gres"
       POSTGRES_USER: "wire-server"
       POSTGRES_DB: "backendA"
+    command: postgres -c max_connections=50
 
   cassandra:
     container_name: demo_wire_cassandra
