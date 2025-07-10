@@ -45,10 +45,10 @@ spec = do
       def
       ( "select id, name, managed_by, created_at \
         \from user_group \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \order by created_at desc, name asc \
         \offset 0 \
-        \limit 15 \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031'",
+        \limit 15",
         Nothing
       )
 
@@ -62,10 +62,10 @@ spec = do
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \order by name asc, created_at desc \
         \offset 4 \
-        \limit 200 \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031'",
+        \limit 200",
         Nothing
       )
 
@@ -79,10 +79,10 @@ spec = do
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \order by created_at asc, name desc \
         \offset 104 \
-        \limit 100 \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031'",
+        \limit 100",
         Nothing
       )
 
@@ -92,11 +92,11 @@ spec = do
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
+        \and name ilike ($1 :: text) \
         \order by created_at desc, name asc \
         \offset 0 \
-        \limit 15 \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \and name ilike ($1 :: text)",
+        \limit 15",
         Just "%grou%"
       )
 
