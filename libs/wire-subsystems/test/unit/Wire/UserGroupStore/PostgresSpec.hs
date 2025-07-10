@@ -1,5 +1,6 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns -Wno-partial-type-signatures #-}
 
 module Wire.UserGroupStore.PostgresSpec (spec) where
 
@@ -98,6 +99,65 @@ spec = do
         \and name ilike ($1 :: text)",
         Just "%grou%"
       )
+
+  describe "in-mem (mock) interpreter" $ do
+    let new :: (_) => TeamId -> Text -> Sem r UserGroup
+        new tid name = createUserGroup tid (NewUserGroup (userGroupNameFromTextUnsafe name) mempty) ManagedByWire
+
+        pstate =
+          PaginationState
+            { searchString = Nothing,
+              sortBy = SortByName,
+              sortOrderName = Asc,
+              sortOrderCreatedAt = Asc,
+              pageSize = pageSizeFromIntUnsafe 500,
+              offset = Just 0
+            }
+
+    it "can search for substrings" $ do
+      let search :: (_) => TeamId -> Maybe Text -> Sem r [Text]
+          search tid subst =
+            (userGroupNameToText . (.name))
+              <$$> getUserGroups tid pstate {searchString = subst}
+      tid <- randomId
+      ( inMemInt $ do
+          new tid `mapM_` ["01", "02", "10", "12"]
+          search tid `mapM` (Nothing : (Just <$> ["1", "2", "10", "100"]))
+        )
+        `shouldReturn` [ ["01", "02", "10", "12"],
+                         ["01", "10", "12"],
+                         ["02", "12"],
+                         ["10"],
+                         []
+                       ]
+
+    it "can paginate" $ do
+      let search :: (_) => TeamId -> (Int, Maybe Int) -> Sem r [Text]
+          search tid (size, off) =
+            (userGroupNameToText . (.name))
+              <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral <$> off})
+
+      tid <- randomId
+      ( inMemInt $ do
+          new tid `mapM_` ["01", "02", "10", "12"]
+          search tid
+            `mapM` [ (0, Nothing),
+                     (1, Nothing),
+                     (0, Just 0),
+                     (1, Just 0),
+                     (2, Just 0),
+                     (2, Just 1),
+                     (2, Just 3)
+                   ]
+        )
+        `shouldReturn` [ [],
+                         [],
+                         ["01", "02", "10", "12"],
+                         ["01"],
+                         ["01", "02"],
+                         ["02", "10"],
+                         ["12"]
+                       ]
 
   describe "postgres vs. in-mem interpreters" $ do
     runAndCompare "CreateUserGroup" $ \tid -> do
@@ -207,7 +267,7 @@ instance Arbitrary TestPaginationState where
     sortOrderName <- arbitrary
     sortOrderCreatedAt <- arbitrary
     pageSize <- arbitrary
-    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, offset = Nothing, ..})
+    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, offset = Just 0, ..})
 
 testPaginationNewUserGroups :: [NewUserGroup]
 testPaginationNewUserGroups =
