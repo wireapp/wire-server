@@ -33,3 +33,5 @@ import Wire.MockInterpreters.UserKeyStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters
 import Wire.MockInterpreters.VerificationCodeStore as MockInterpreters
+
+-- TODO: Implement mock interpreter for CollaboratorStore
