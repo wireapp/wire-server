@@ -458,6 +458,58 @@ testEventsDeadLettered = do
       -- We've consumed the whole queue.
       assertNoEvent_ ws
 
+testEventsDeadLetteredWithReconnect :: (HasCallStack) => App ()
+testEventsDeadLetteredWithReconnect = do
+  let notifTTL = 1 # Second
+  startDynamicBackendsReturnResources [def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}] $ \[resources] -> do
+    let domain :: String = resources.berDomain
+    alice <- randomUser domain def
+
+    -- This generates an event
+    client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    clientId <- objId client
+
+    -- Force a reconnect by deleting the existing connection
+    killAllDeadUserNotificationRabbitMqConns resources
+
+    -- We expire the add client event by waiting it out
+    Timeout.threadDelay (notifTTL + 500 # MilliSecond)
+
+    -- Generate a second event
+    handle1 <- randomHandle
+    putHandle alice handle1 >>= assertSuccess
+
+    runCodensity (createEventsWebSocketWithSync alice (Just clientId)) $ \(endMarker, ws) -> do
+      assertEvent ws $ \e -> do
+        e %. "type" `shouldMatch` "notifications_missed"
+
+      -- Until we ack the full sync, we can't get new events
+      ackFullSync ws
+
+      -- Now we can see the next event
+      assertEvent ws $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "user.update"
+        e %. "data.event.payload.0.user.handle" `shouldMatch` handle1
+        ackEvent ws e
+
+      -- We've consumed the whole queue.
+      assertEndOfIniitalSync ws endMarker
+  where
+    killAllDeadUserNotificationRabbitMqConns :: (HasCallStack) => BackendResource -> App ()
+    killAllDeadUserNotificationRabbitMqConns backend = do
+      rabbitmqAdminClient <- mkRabbitMqAdminClientForResource backend
+      connections <- eventually $ do
+        conns <- getDeadUserNotificationConnections rabbitmqAdminClient backend.berVHost
+        assertAtLeastOne conns
+        pure conns
+      for_ connections $ \connection -> do
+        rabbitmqAdminClient.deleteConnection connection.name
+
+    getDeadUserNotificationConnections :: (HasCallStack) => AdminAPI (AsClientT App) -> String -> App [Connection]
+    getDeadUserNotificationConnections rabbitmqAdminClient vhost = do
+      connections <- rabbitmqAdminClient.listConnectionsByVHost (Text.pack vhost)
+      pure $ filter (\c -> Just (fromString "dead-user-notifications-watcher") == c.userProvidedName) connections
+
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
   let notifTTL = 1 # Second
@@ -996,6 +1048,12 @@ consumeEventsUntilEndOfInitialSync ws expectedMarkerId = go []
                 then pure (events <> [e])
                 else assertFailure $ "Expected marker_id " <> expectedMarkerId <> ", but got " <> markerId
             else go (events <> [e])
+
+assertEndOfIniitalSync :: (HasCallStack) => EventWebSocket -> String -> App ()
+assertEndOfIniitalSync ws endMarker =
+  assertEvent ws $ \e -> do
+    e %. "type" `shouldMatch` "synchronization"
+    e %. "data.marker_id" `shouldMatch` endMarker
 
 consumeAllEvents_ :: EventWebSocket -> App ()
 consumeAllEvents_ = void . consumeAllEvents

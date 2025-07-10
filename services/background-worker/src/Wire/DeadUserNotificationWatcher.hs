@@ -1,26 +1,24 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.BackendDeadUserNotificationWatcher where
+module Wire.DeadUserNotificationWatcher where
 
 import Cassandra
-import Control.Concurrent (putMVar)
-import Control.Monad.Codensity
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Map qualified as Map
-import Imports hiding (putMVar)
+import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.AMQP.Types
 import System.Logger qualified as Log
-import UnliftIO hiding (bracket, putMVar)
-import UnliftIO.Exception (bracket)
+import UnliftIO (async)
 import Wire.API.Notification
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Util
 
 getLastDeathQueue :: Maybe FieldTable -> Maybe ByteString
 getLastDeathQueue (Just (FieldTable headers)) = do
@@ -34,7 +32,7 @@ getLastDeathQueue Nothing = Nothing
 startConsumer :: Q.Channel -> AppT IO Q.ConsumerTag
 startConsumer chan = do
   env <- ask
-  markAsWorking BackendDeadUserNoticationWatcher
+  markAsWorking DeadUserNotificationWatcher
 
   cassandra <- asks (.cassandra)
 
@@ -87,57 +85,35 @@ markAsNeedsFullSync cassandra uid cid = do
 
 startWorker ::
   AmqpEndpoint ->
-  AppT IO (Async ())
+  AppT IO CleanupAction
 startWorker amqp = do
   env <- ask
-  mVar <- newEmptyMVar
-  connOpts <- mkConnectionOpts amqp
-
-  -- This function will open a connection to rabbitmq and start the consumer.
-  -- We use an mvar to signal when the connection is closed so we can re-open it.
-  -- If the empty mvar is filled, we know the connection itself was closed and we need to re-open it.
-  -- If the mvar is filled with a connection, we know the connection itself is fine,
-  -- so we only need to re-open the channel
-  let openConnection connM = do
-        -- keep track of whether the connection is being closed normally
-        closingRef <- newIORef False
-
-        mConn <- lowerCodensity $ do
-          conn <- case connM of
-            Nothing -> do
-              -- Open the rabbit mq connection
-              conn <- Codensity
-                $ bracket
-                  (liftIO $ Q.openConnection'' connOpts)
-                $ \conn -> do
-                  writeIORef closingRef True
-                  liftIO $ Q.closeConnection conn
-              -- We need to recover from connection closed by restarting it
-              liftIO $ Q.addConnectionClosedHandler conn True do
-                closing <- readIORef closingRef
-                unless closing $ do
-                  Log.err env.logger $
-                    Log.msg (Log.val "BackendDeadUserNoticationWatcher: Connection closed.")
-                putMVar mVar Nothing
-              runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
-              pure conn
-            Just conn -> pure conn
-
-          -- After starting the connection, open the channel
-          chan <- Codensity $ bracket (liftIO $ Q.openChannel conn) (liftIO . Q.closeChannel)
-
-          -- If the channel stops, we need to re-open
-          liftIO $ Q.addChannelExceptionHandler chan $ \e -> do
-            unless (Q.isNormalChannelClose e) $
-              Log.err env.logger $
-                Log.msg (Log.val "BackendDeadUserNoticationWatcher: Caught exception in RabbitMQ channel.")
-                  . Log.field "exception" (displayException e)
-            runAppT env $ markAsNotWorking BackendDeadUserNoticationWatcher
-            putMVar mVar (Just conn)
-
-          -- Set up the consumer
-          void $ Codensity $ bracket (startConsumer chan) (liftIO . Q.cancelConsumer chan)
-          lift $ takeMVar mVar
-        openConnection mConn
-
-  async (openConnection Nothing)
+  cleanupRef <- newIORef Nothing
+  markAsNotWorking DeadUserNotificationWatcher
+  -- We can fire and forget this thread because it keeps respawning itself using the 'onConnectionClosedHandler'.
+  void . async . openConnectionWithRetries env.logger amqp (Just "dead-user-notifications-watcher") $
+    RabbitMqHooks
+      { onNewChannel = \chan -> do
+          consumerTag <- startConsumer chan
+          atomicWriteIORef cleanupRef (Just (chan, consumerTag))
+          -- Wait forever because when onNewChannel hooks finishes, it is
+          -- assumed that the work for RabbitMQ is done and the connection with
+          -- RabbitMQ is closed.
+          forever $ threadDelay maxBound,
+        onConnectionClose = do
+          markAsNotWorking DeadUserNotificationWatcher
+          atomicWriteIORef cleanupRef Nothing
+          Log.err env.logger $
+            Log.msg (Log.val "RabbitMQ Connection closed."),
+        onChannelException = \e -> do
+          markAsNotWorking DeadUserNotificationWatcher
+          atomicWriteIORef cleanupRef Nothing
+          unless (Q.isNormalChannelClose e) $
+            Log.err env.logger $
+              Log.msg (Log.val "Caught exception in RabbitMQ channel.")
+                . Log.field "exception" (displayException e)
+      }
+  pure $ do
+    readIORef cleanupRef >>= \case
+      Just (chan, consumerTag) -> Q.cancelConsumer chan consumerTag
+      Nothing -> pure ()

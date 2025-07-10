@@ -12,13 +12,13 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
-    Wire.BackendDeadUserNotificationWatcher
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
+    Wire.DeadUserNotificationWatcher
 
   hs-source-dirs:     src
   default-language:   GHC2021
@@ -30,7 +30,6 @@ library
   build-depends:
       aeson
     , amqp
-    , async
     , base
     , bytestring
     , bytestring-conversion
@@ -42,7 +41,6 @@ library
     , http-client
     , http2-manager
     , imports
-    , kan-extensions
     , metrics-wai
     , monad-control
     , prometheus-client
@@ -55,7 +53,6 @@ library
     , transformers-base
     , types-common
     , unliftio
-    , utf8-string
     , wai-utilities
     , wire-api
     , wire-api-federation

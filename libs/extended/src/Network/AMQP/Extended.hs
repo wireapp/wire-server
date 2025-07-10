@@ -134,11 +134,11 @@ demoteOpts :: RabbitMqAdminOpts -> AmqpEndpoint
 demoteOpts RabbitMqAdminOpts {..} = AmqpEndpoint {..}
 
 -- | Useful if the application only pushes into some queues.
-mkRabbitMqChannelMVar :: Logger -> AmqpEndpoint -> IO (MVar Q.Channel)
-mkRabbitMqChannelMVar l opts = do
+mkRabbitMqChannelMVar :: Logger -> Maybe Text -> AmqpEndpoint -> IO (MVar Q.Channel)
+mkRabbitMqChannelMVar l connName opts = do
   chanMVar <- newEmptyMVar
   connThread <-
-    async . openConnectionWithRetries l opts $
+    async . openConnectionWithRetries l opts connName $
       RabbitMqHooks
         { onNewChannel = \conn -> putMVar chanMVar conn >> forever (threadDelay maxBound),
           onChannelException = \_ -> void $ tryTakeMVar chanMVar,
@@ -160,9 +160,10 @@ withConnection ::
   (MonadIO m, MonadMask m) =>
   Logger ->
   AmqpEndpoint ->
+  Maybe Text ->
   (Q.Connection -> m a) ->
   m a
-withConnection l AmqpEndpoint {..} k = do
+withConnection l AmqpEndpoint {..} connName k = do
   -- Jittered exponential backoff with 1ms as starting delay and 1s as total
   -- wait time.
   let policy = limitRetriesByCumulativeDelay 1_000_000 $ fullJitterBackoff 1000
@@ -180,13 +181,13 @@ withConnection l AmqpEndpoint {..} k = do
           )
           ( const $ do
               Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-              connOpts <- mkConnectionOpts AmqpEndpoint {..}
+              connOpts <- mkConnectionOpts AmqpEndpoint {..} connName
               liftIO $ Q.openConnection'' connOpts
           )
   bracket getConn (liftIO . Q.closeConnection) k
 
-mkConnectionOpts :: (MonadIO m) => AmqpEndpoint -> m Q.ConnectionOpts
-mkConnectionOpts AmqpEndpoint {..} = do
+mkConnectionOpts :: (MonadIO m) => AmqpEndpoint -> Maybe Text -> m Q.ConnectionOpts
+mkConnectionOpts AmqpEndpoint {..} name = do
   mTlsSettings <- traverse (liftIO . (mkTLSSettings host)) tls
   (username, password) <- liftIO $ readCredsFromEnv
   pure
@@ -194,7 +195,8 @@ mkConnectionOpts AmqpEndpoint {..} = do
       { Q.coServers = [(host, fromIntegral port)],
         Q.coVHost = vHost,
         Q.coAuth = [Q.plain username password],
-        Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
+        Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings,
+        Q.coName = name
       }
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
@@ -205,9 +207,10 @@ openConnectionWithRetries ::
   (MonadIO m, MonadMask m, MonadBaseControl IO m) =>
   Logger ->
   AmqpEndpoint ->
+  Maybe Text ->
   RabbitMqHooks m ->
   m ()
-openConnectionWithRetries l AmqpEndpoint {..} hooks = do
+openConnectionWithRetries l AmqpEndpoint {..} connName hooks = do
   (username, password) <- liftIO $ readCredsFromEnv
   connectWithRetries username password
   where
@@ -230,7 +233,7 @@ openConnectionWithRetries l AmqpEndpoint {..} hooks = do
               )
               ( const $ do
                   Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  connOpts <- mkConnectionOpts AmqpEndpoint {..}
+                  connOpts <- mkConnectionOpts AmqpEndpoint {..} connName
                   liftIO $ Q.openConnection'' connOpts
               )
       bracket getConn (liftIO . Q.closeConnection) $ \conn -> do

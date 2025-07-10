@@ -71,7 +71,7 @@ shouldMatch ::
 shouldMatch = shouldMatchWithMsg Nothing
 
 -- | Retries every 100ms until timeOutSeconds from Env is reached
-eventually :: App () -> App ()
+eventually :: App a -> App a
 eventually action = do
   timeout <- asks (.timeOutSeconds)
   recovering
