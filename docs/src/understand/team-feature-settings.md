@@ -74,7 +74,7 @@ galley:
 
 ## Self-deleting messages
 
-Self-deleting messages is a feature that makes all sent messages delete after a given period of time after the message has been read. By default, this feature is unlocked and not enabled for all the teams. The feature can be toggled on/off through Team Settings app. Team settings app has presets that can set up message expiration up to a month. Other time frames can be set either through a backend-wide global setting, or manually through API.
+Self-deleting messages is a feature that makes all sent messages delete after a given period of time after the message has been read. By default, this feature is unlocked and not enabled for all the teams. The feature can be toggled on/off through Team Settings. Team settings has presets that can set up message expiration up to a month. Other time frames can be set either through a backend-wide global setting, or manually through API.
 
 Example of backend-wide global setting:
 
