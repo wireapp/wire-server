@@ -237,6 +237,8 @@ library
     Wire.StoredUser
     Wire.TeamCollaboratorsStore
     Wire.TeamCollaboratorsStore.Postgres
+    Wire.TeamCollaboratorsSubsystem
+    Wire.TeamCollaboratorsSubsystem.Interpreter
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter

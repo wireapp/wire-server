@@ -5,8 +5,7 @@ module Wire.TeamCollaboratorsStore where
 import Data.Id
 import Imports
 import Polysemy
-
-data CollaboratorPermission = CreateTeamConversation | ImplicitConnection
+import Wire.API.Team.Collaborator
 
 data TeamCollaboratorsStore m a where
   CreateTeamCollaborator :: UserId -> TeamId -> Set CollaboratorPermission -> TeamCollaboratorsStore m ()

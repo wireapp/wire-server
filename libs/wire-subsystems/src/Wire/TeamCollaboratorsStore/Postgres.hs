@@ -15,6 +15,7 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
+import Wire.API.Team.Collaborator
 import Wire.TeamCollaboratorsStore
 
 interpretTeamCollaboratorsStoreToPostgres ::
