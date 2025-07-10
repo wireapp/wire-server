@@ -10,7 +10,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Range
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (fromList)
@@ -130,40 +129,22 @@ getUserGroupsImpl tid pstate = do
     narrowToSearchString =
       filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) pstate.searchString)
 
-    orderByKeys = Imports.sortBy c
+    orderByKeys = Imports.sortBy cmp
       where
-        c (_, ug) (_, ug') =
-          compare
-            (mostSignificantSmaller, leastSignificantSmaller)
-            (mostSignificantGreater, leastSignificantGreater)
+        cmp (_, ug) (_, ug') = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
+          (SortByName, Asc, Asc) -> (n, c) `compare` (n', c')
+          (SortByName, Desc, Asc) -> (n', c) `compare` (n, c')
+          (SortByName, Asc, Desc) -> (n, c') `compare` (n', c)
+          (SortByName, Desc, Desc) -> (n', c') `compare` (n, c)
+          (SortByCreatedAt, Asc, Asc) -> (c, n) `compare` (c', n')
+          (SortByCreatedAt, Desc, Asc) -> (c', n) `compare` (c, n')
+          (SortByCreatedAt, Asc, Desc) -> (c, n') `compare` (c', n)
+          (SortByCreatedAt, Desc, Desc) -> (c', n') `compare` (c, n)
           where
-            showName = fromRange . unUserGroupName
-
-            -- this is wrong.  is there a better way to implement this?
-
-            mostSignificantSmaller = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
-              (SortByName, Asc, _) -> showName ug.name
-              (SortByName, Desc, _) -> showName ug'.name
-              (SortByCreatedAt, _, Asc) -> showUTCTimeMillis ug.createdAt
-              (SortByCreatedAt, _, Desc) -> showUTCTimeMillis ug'.createdAt
-
-            leastSignificantSmaller = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
-              (SortByName, _, Asc) -> showUTCTimeMillis ug.createdAt
-              (SortByName, _, Desc) -> showUTCTimeMillis ug'.createdAt
-              (SortByCreatedAt, Asc, _) -> showName ug.name
-              (SortByCreatedAt, Desc, _) -> showName ug'.name
-
-            mostSignificantGreater = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
-              (SortByName, Asc, _) -> showName ug'.name
-              (SortByName, Desc, _) -> showName ug.name
-              (SortByCreatedAt, _, Asc) -> showUTCTimeMillis ug'.createdAt
-              (SortByCreatedAt, _, Desc) -> showUTCTimeMillis ug.createdAt
-
-            leastSignificantGreater = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
-              (SortByName, _, Asc) -> showUTCTimeMillis ug'.createdAt
-              (SortByName, _, Desc) -> showUTCTimeMillis ug.createdAt
-              (SortByCreatedAt, Asc, _) -> showName ug'.name
-              (SortByCreatedAt, Desc, _) -> showName ug.name
+            n = ug.name
+            n' = ug'.name
+            c = ug.createdAt
+            c' = ug'.createdAt
 
     dropBeforeStart = case pstate.offset of
       Nothing -> const []
