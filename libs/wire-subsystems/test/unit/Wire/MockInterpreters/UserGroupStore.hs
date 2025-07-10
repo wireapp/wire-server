@@ -139,6 +139,8 @@ getUserGroupsImpl tid pstate = do
           where
             showName = fromRange . unUserGroupName
 
+            -- this is wrong.  is there a better way to implement this?
+
             mostSignificantSmaller = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
               (SortByName, Asc, _) -> showName ug.name
               (SortByName, Desc, _) -> showName ug'.name
