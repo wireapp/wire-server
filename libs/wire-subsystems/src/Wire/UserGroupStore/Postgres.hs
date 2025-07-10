@@ -119,21 +119,21 @@ getUserGroupsImpl tid pstate = do
               decodeRow
               True
 
-    decodeRow :: HD.Result [(UUID, Text, Text, UTCTime)]
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
     decodeRow =
       HD.rowList
         ( (,,,)
             <$> HD.column (HD.nonNullable HD.uuid)
             <*> HD.column (HD.nonNullable HD.text)
-            <*> HD.column (HD.nonNullable HD.text)
+            <*> HD.column (HD.nonNullable HD.int4)
             <*> HD.column (HD.nonNullable HD.timestamptz)
         )
 
-    parseRow :: (UUID, Text, Text, UTCTime) -> Either Text UserGroup
+    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroup
     parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
       managedBy <- case managedByPre of
-        "wire" -> pure ManagedByWire
-        "scim" -> pure ManagedByScim
+        0 -> pure ManagedByWire
+        1 -> pure ManagedByScim
         bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
       name <- userGroupNameFromText namePre
       let members = mempty -- TODO: do we want `data UserGroup (m :: * -> *) = UserGroup { members :: m (Vector ...), ... }`?
