@@ -21,8 +21,23 @@ runTeamCollaboratorsSubsystem ::
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
 runTeamCollaboratorsSubsystem = interpret $ \case
-  CreateTeamCollaborator zUser userId teamId permissions -> todo "Implement me"
-  GetAllTeamCollaborators zUser teamId -> getAllTeamCollaboratorsImpl zUser teamId
+  CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
+  GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
+
+createTeamCollaboratorImpl ::
+  ( Member GalleyAPIAccess r,
+    Member (Error TeamCollaboratorsError) r,
+    Member Store.TeamCollaboratorsStore r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+createTeamCollaboratorImpl zUser user team perms = do
+  unlessM (isTeamAdmin (tUnqualified zUser) team) $
+    throw InsufficientRights
+  Store.createTeamCollaborator user team perms
 
 getAllTeamCollaboratorsImpl ::
   ( Member GalleyAPIAccess r,
@@ -32,8 +47,8 @@ getAllTeamCollaboratorsImpl ::
   Local UserId ->
   TeamId ->
   Sem r (Set UserId)
-getAllTeamCollaboratorsImpl lUsr team = do
-  unlessM (isTeamAdmin (tUnqualified lUsr) team) $
+getAllTeamCollaboratorsImpl zUser team = do
+  unlessM (isTeamAdmin (tUnqualified zUser) team) $
     throw InsufficientRights
   Set.fromList <$> Store.getAllTeamCollaborators team
 
