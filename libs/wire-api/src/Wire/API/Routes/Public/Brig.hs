@@ -1966,6 +1966,27 @@ type TeamsAPI =
                :> ReqBody '[JSON] AcceptTeamInvitation
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Team invitation accepted."] ()
            )
+    :<|> Named
+           "add-team-collaborator"
+           ( Summary "Add a collaborator to the team."
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               -- TODO: Specify body
+               :> ReqBody '[JSON] ()
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "get-team-collaborators"
+           ( Summary "Get all collaborators of the team."
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               -- TODO: Specify body
+               :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "")
+           )
 
 type SystemSettingsAPI =
   Named
