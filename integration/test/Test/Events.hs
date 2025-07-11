@@ -564,35 +564,35 @@ testTransientEventsDoNotTriggerDeadLetters = do
 
 testTransientEvents :: (HasCallStack) => App ()
 testTransientEvents = do
-  alice <- randomUser OwnDomain def
-  client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
-  clientId <- objId client
+  (alice, _, _) <- mkUserPlusClient
+  (bob, _, bobClient) <- mkUserPlusClient
+  connectTwoUsers alice bob
+  bobClientId <- objId bobClient
 
-  -- Self conv ID is same as user's ID, we'll use this to send typing
-  -- indicators, so we don't have to create another conv.
-  selfConvId <- objQidObject alice
+  conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
-  runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
-    consumeAllEvents_ ws
-    sendTypingStatus alice selfConvId "started" >>= assertSuccess
-    assertEvent ws $ \e -> do
+  runCodensity (createEventsWebSocketWithSync bob (Just bobClientId)) $ \(marker, bobWs) -> do
+    void $ consumeEventsUntilEndOfInitialSync bobWs marker
+
+    sendTypingStatus alice conv "started" >>= assertSuccess
+
+    assertEvent bobWs $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
-      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` selfConvId
-      deliveryTag <- e %. "data.delivery_tag"
-      sendAck ws deliveryTag False
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      ackEvent bobWs e
 
   handle1 <- randomHandle
-  putHandle alice handle1 >>= assertSuccess
+  putHandle bob handle1 >>= assertSuccess
 
-  sendTypingStatus alice selfConvId "stopped" >>= assertSuccess
+  sendTypingStatus alice conv "stopped" >>= assertSuccess
 
   handle2 <- randomHandle
-  putHandle alice handle2 >>= assertSuccess
+  putHandle bob handle2 >>= assertSuccess
 
   -- We shouldn't see the stopped typing status because we were not connected to
   -- the websocket when it was sent. The other events should still show up in
   -- order.
-  runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
+  runCodensity (createEventsWebSocket bob (Just bobClient)) $ \ws -> do
     for_ [handle1, handle2] $ \handle ->
       assertEvent ws $ \e -> do
         e %. "data.event.payload.0.type" `shouldMatch` "user.update"
@@ -846,16 +846,58 @@ mkEvent uid cid transient =
       "transient" .= transient
     ]
 
+testTypingIndicatorIsNotSentToOwnClient :: (HasCallStack) => TaggedBool "federated" -> App ()
+testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
+  (alice, _, aliceClient) <- mkUserPlusClientWithDomain OwnDomain
+  (bob, _, bobClient) <- mkUserPlusClientWithDomain (if federated then OtherDomain else OwnDomain)
+  connectTwoUsers alice bob
+  aliceClientId <- objId aliceClient
+  bobClientId <- objId bobClient
+  conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+
+  runCodensity (createEventWebSockets [(alice, Just aliceClientId), (bob, Just bobClientId)]) $ \[aliceWs, bobWs] -> do
+    -- consume all events to ensure we start with a clean slate
+    consumeAllEvents_ aliceWs
+    consumeAllEvents_ bobWs
+
+    -- Alice is typing
+    sendTypingStatus alice conv "started" >>= assertSuccess
+
+    -- Bob should receive the typing indicator for Alice
+    assertEvent bobWs $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      e %. "data.event.payload.0.qualified_from" `shouldMatch` (alice %. "qualified_id")
+      ackEvent bobWs e
+
+    -- Alice should not receive the typing indicator for herself
+    assertNoEvent_ aliceWs
+
+    -- Bob is typing
+    sendTypingStatus bob conv "started" >>= assertSuccess
+
+    -- Alice should receive the typing indicator for Bob
+    assertEvent aliceWs $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      e %. "data.event.payload.0.qualified_from" `shouldMatch` (bob %. "qualified_id")
+      ackEvent aliceWs e
+
+    -- Bob should not receive the typing indicator for himself
+    assertNoEvent_ bobWs
+
 ----------------------------------------------------------------------
 -- helpers
-
-mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
-mkUserPlusClient = do
-  user <- randomUser OwnDomain def
+mkUserPlusClientWithDomain :: (HasCallStack, MakesValue domain) => domain -> App (Value, String, String)
+mkUserPlusClientWithDomain domain = do
+  user <- randomUser domain def
   uid <- objId user
   client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   cid <- objId client
   pure (user, uid, cid)
+
+mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
+mkUserPlusClient = mkUserPlusClientWithDomain OwnDomain
 
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
@@ -863,6 +905,12 @@ data EventWebSocket = EventWebSocket
     kill :: MVar (),
     done :: MVar ()
   }
+
+createEventWebSockets ::
+  (HasCallStack, MakesValue user) =>
+  [(user, Maybe String)] ->
+  Codensity App [EventWebSocket]
+createEventWebSockets = traverse (uncurry createEventsWebSocket)
 
 createEventsWebSocket ::
   (HasCallStack, MakesValue user) =>
