@@ -15,6 +15,7 @@
 , base16-bytestring
 , base64-bytestring
 , bilge
+, bimap
 , bloodhound
 , bytestring
 , bytestring-conversion
@@ -121,6 +122,7 @@ mkDerivation {
     base16-bytestring
     base64-bytestring
     bilge
+    bimap
     bloodhound
     bytestring
     bytestring-conversion

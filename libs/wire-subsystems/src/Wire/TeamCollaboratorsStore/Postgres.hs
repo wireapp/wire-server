@@ -3,6 +3,7 @@ module Wire.TeamCollaboratorsStore.Postgres
   )
 where
 
+import Data.Bimap qualified as Bimap
 import Data.Id
 import Data.Profunctor
 import Data.Set
@@ -53,7 +54,7 @@ createTeamCollaboratorImpl userId teamId permissions = do
             (toUUID uid, toUUID tid, collaboratorPermissionToPostgreslRep <$> (Data.Vector.fromList . toAscList) pms)
         )
         $ [resultlessStatement|
-          insert into collaborators (user_id, team_id, permissions) values ($1 :: uuid, $2 :: uuid, $3 :: text[])
+          insert into collaborators (user_id, team_id, permissions) values ($1 :: uuid, $2 :: uuid, $3 :: smallint[])
           |]
 
 getAllTeamCollaboratorsImpl ::
@@ -78,6 +79,13 @@ getAllTeamCollaboratorsImpl teamId = do
           select (user_id :: uuid) from collaborators where team_id = ($1 :: uuid)
           |]
 
-collaboratorPermissionToPostgreslRep :: CollaboratorPermission -> Text
-collaboratorPermissionToPostgreslRep CreateTeamConversation = "create_team_conversation"
-collaboratorPermissionToPostgreslRep ImplicitConnection = "implicit_connection"
+-- We could rely on an `Ord` instance here. Howver, when the order is changed,
+-- this will mess up spectaculary at run time. So, this extra mapping is meant
+-- as a guard: Add to it, but don't change existing mappings!
+
+collaboratorPermissionMap :: Bimap.Bimap Int16 CollaboratorPermission
+collaboratorPermissionMap = Bimap.fromAscPairList [(0, CreateTeamConversation), (1, ImplicitConnection)]
+
+collaboratorPermissionToPostgreslRep :: CollaboratorPermission -> Int16
+collaboratorPermissionToPostgreslRep =
+  (collaboratorPermissionMap Bimap.!> {- `!>` throws if the element isn't found -})
