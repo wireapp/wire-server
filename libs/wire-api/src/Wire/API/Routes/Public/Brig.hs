@@ -68,6 +68,7 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SystemSettings
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
@@ -1973,8 +1974,7 @@ type TeamsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "collaborators"
-               -- TODO: Specify body
-               :> ReqBody '[JSON] ()
+               :> ReqBody '[JSON] AddTeamCollaborator
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
@@ -1984,8 +1984,7 @@ type TeamsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "collaborators"
-               -- TODO: Specify body
-               :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "")
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [UserId])
            )
 
 type SystemSettingsAPI =

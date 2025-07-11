@@ -8,8 +8,11 @@ import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
+import Wire.API.Error
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Member
+import Wire.API.Team.Member qualified as TeamMember
+import Wire.Error
 import Wire.GalleyAPIAccess
 import Wire.TeamCollaboratorsStore qualified as Store
 import Wire.TeamCollaboratorsSubsystem
@@ -60,4 +63,9 @@ isTeamAdmin ::
 isTeamAdmin user team =
   isJust <$> runMaybeT do
     member <- MaybeT $ getTeamMember user team
-    guard (isAdminOrOwner (member ^. permissions))
+    guard (TeamMember.isAdminOrOwner (member ^. TeamMember.permissions))
+
+teamCollaboratorsSubsystemErrorToHttpError :: TeamCollaboratorsError -> HttpError
+teamCollaboratorsSubsystemErrorToHttpError =
+  StdError . \case
+    InsufficientRights -> errorToWai @E.InsufficientTeamPermissions
