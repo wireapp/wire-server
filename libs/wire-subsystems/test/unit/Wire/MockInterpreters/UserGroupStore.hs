@@ -38,6 +38,9 @@ data UserGroupInMemState = UserGroupInMemState
   }
   deriving (Eq, Show)
 
+setClock :: (Member (State UserGroupInMemState) r) => UTCTime -> Sem r ()
+setClock time = modify (\s -> s {now = toUTCTimeMillis time})
+
 moveClock :: (Member (State UserGroupInMemState) r) => NominalDiffTime -> Sem r ()
 moveClock diff = modify (\s -> s {now = toUTCTimeMillis (addUTCTime diff (fromUTCTimeMillis s.now))})
 
