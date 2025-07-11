@@ -150,7 +150,7 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
         Log.info e.logg $
           Log.msg (Log.val "Closing websocket due to inactivity")
             . logClient
-        WS.sendCloseCode wsConn 1003 ("inactivity" :: ByteString)
+        WS.sendCloseCode wsConn 1002 ("inactivity" :: ByteString)
 
     handleClientMisbehaving wsConn =
       Handler $ \(err :: WebSocketServerError) -> do
