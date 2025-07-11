@@ -123,7 +123,7 @@ spec = do
             (userGroupNameToText . (.name))
               <$$> getUserGroups tid pstate {searchString = subst}
       tid <- randomId
-      ( inMemInt $ do
+      ( inMemInt def $ do
           new tid `mapM_` ["01", "02", "10", "12"]
           search tid `mapM` (Nothing : (Just <$> ["1", "2", "10", "100"]))
         )
@@ -145,7 +145,7 @@ spec = do
           x3 = {- time 3 -} "bubble"
 
       tid <- randomId
-      (ugs, result) :: ([UserGroup], [[UserGroup]]) <- inMemInt $ do
+      (ugs, result) :: ([UserGroup], [[UserGroup]]) <- inMemInt def $ do
         setClock (posixSecondsToUTCTime 0)
         ugs <- do
           u012 <- new tid `mapM` [x0, x1, x2]
@@ -193,7 +193,7 @@ spec = do
             (userGroupNameToText . (.name))
               <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral <$> off})
       tid <- randomId
-      ( inMemInt $ do
+      ( inMemInt def $ do
           new tid `mapM_` ["01", "02", "10", "12"]
           search tid
             `mapM` [ (0, Nothing),
@@ -260,7 +260,7 @@ runAndCompare ::
 runAndCompare msg action = it msg do
   tid <- randomId
   pg <- either (error . show) pure =<< postgresInt (action tid)
-  mem <- inMemInt (action tid)
+  mem <- inMemInt def {clockStep = 1} (action tid)
   pg `shouldBe` mem
 
 runAndCompareProp ::
@@ -272,11 +272,11 @@ runAndCompareProp ::
 runAndCompareProp msg action = do
   prop msg $ \tid args -> do
     let pg = unsafePerformIO $ either (error . show) pure =<< postgresInt (action tid args)
-    let mem = unsafePerformIO $ inMemInt (action tid args)
+    let mem = unsafePerformIO $ inMemInt def {clockStep = 1} (action tid args)
     pg `shouldBe` mem
 
-inMemInt :: Sem (UserGroupStoreInMemEffectStack `Append` '[Embed IO]) a -> IO a
-inMemInt = runM . runInMemoryUserGroupStore def
+inMemInt :: UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` '[Embed IO]) a -> IO a
+inMemInt st = runM . runInMemoryUserGroupStore st
 
 type UserGroupStorePostgresEffectStack =
   '[ UserGroupStore,
