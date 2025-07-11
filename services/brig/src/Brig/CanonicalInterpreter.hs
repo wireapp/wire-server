@@ -35,6 +35,7 @@ import Polysemy.TinyLog (TinyLog)
 import Util.Timeout
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.API.Team.Collaborator
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AuthenticationSubsystem
@@ -101,6 +102,10 @@ import Wire.SessionStore
 import Wire.SessionStore.Cassandra (interpretSessionStoreCassandra)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc
+import Wire.TeamCollaboratorsStore
+import Wire.TeamCollaboratorsStore.Postgres
+import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
@@ -125,13 +130,15 @@ type BrigCanonicalEffects =
      TeamInvitationSubsystem,
      EnterpriseLoginSubsystem,
      UserGroupSubsystem,
-     UserSubsystem
+     UserSubsystem,
+     TeamCollaboratorsSubsystem
    ]
     `Append` BrigLowerLevelEffects
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ EmailSubsystem,
+  '[ TeamCollaboratorsStore,
+     EmailSubsystem,
      VerificationCodeSubsystem,
      PropertySubsystem,
      DeleteQueue,
@@ -139,6 +146,7 @@ type BrigLowerLevelEffects =
      NotificationSubsystem,
      RateLimit,
      UserGroupStore,
+     Error TeamCollaboratorsError,
      Error UsageError,
      Error EnterpriseLoginSubsystemError,
      Error UserSubsystemError,
@@ -328,6 +336,7 @@ runBrigToIO e (AppT ma) = do
               . mapError userSubsystemErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
               . mapError postgresUsageErrorToHttpError
+              . mapError teamCollaboratorsSubsystemErrorToHttpError
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
@@ -336,6 +345,8 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
+              . interpretTeamCollaboratorsStoreToPostgres
+              . runTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem
               . maybe

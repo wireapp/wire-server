@@ -185,6 +185,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
+import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
@@ -399,7 +400,8 @@ servantSitemap ::
     Member Metrics r,
     Member CryptoSign r,
     Member Random r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =

@@ -68,6 +68,7 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SystemSettings
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
@@ -1965,6 +1966,25 @@ type TeamsAPI =
                :> "accept"
                :> ReqBody '[JSON] AcceptTeamInvitation
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Team invitation accepted."] ()
+           )
+    :<|> Named
+           "add-team-collaborator"
+           ( Summary "Add a collaborator to the team."
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> ReqBody '[JSON] AddTeamCollaborator
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "get-team-collaborators"
+           ( Summary "Get all collaborators of the team."
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [GetTeamCollaborator])
            )
 
 type SystemSettingsAPI =
