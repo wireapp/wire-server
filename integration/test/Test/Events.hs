@@ -843,6 +843,7 @@ testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
     assertEvent bobWs $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
       e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      e %. "data.event.payload.0.qualified_from" `shouldMatch` (alice %. "qualified_id")
       ackEvent bobWs e
 
     -- Alice should not receive the typing indicator for herself
@@ -855,6 +856,7 @@ testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
     assertEvent aliceWs $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
       e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      e %. "data.event.payload.0.qualified_from" `shouldMatch` (bob %. "qualified_id")
       ackEvent aliceWs e
 
     -- Bob should not receive the typing indicator for himself
