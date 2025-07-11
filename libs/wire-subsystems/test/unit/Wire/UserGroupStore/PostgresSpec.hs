@@ -223,7 +223,7 @@ spec = do
       (userGroupNameToText . (.name)) <$$> getUserGroup tid ugid
 
     runAndCompareProp "GetUserGroups" $ \tid (TestPaginationState pstate) -> do
-      _ugid <- (.id_) <$$> ((\new -> createUserGroup tid new ManagedByWire) `mapM` testPaginationNewUserGroups)
+      (\new -> createUserGroup tid new ManagedByWire) `mapM_` testPaginationNewUserGroups
       (userGroupNameToText . (.name)) <$$> getUserGroups tid pstate
 
     runAndCompare "UpdateUserGroups" $ \tid -> do
