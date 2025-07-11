@@ -17,6 +17,7 @@ testEnv = do
   let cassandra = undefined
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
+  workerRunningGauge <- mkWorkerRunningGauge
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined

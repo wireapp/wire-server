@@ -8,6 +8,7 @@ import Imports
 import Polysemy
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.SearchVisibility
 import Wire.GalleyAPIAccess
 
 -- | interprets galley by statically returning the values passed
@@ -32,7 +33,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
   GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"
-  GetTeamSearchVisibility _ -> error "GetTeamSearchVisibility not implemented in miniGalleyAPIAccess"
+  GetTeamSearchVisibility _ ->
+    pure SearchVisibilityStandard
   ChangeTeamStatus {} -> error "ChangeTeamStatus not implemented in miniGalleyAPIAccess"
   MemberIsTeamOwner tid uid ->
     pure $ memberIsTeamOwnerImpl teams tid uid

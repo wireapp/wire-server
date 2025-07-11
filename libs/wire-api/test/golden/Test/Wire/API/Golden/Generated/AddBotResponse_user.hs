@@ -56,6 +56,7 @@ testObject_AddBotResponse_user_1 =
           Nothing
           (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000400000004"))) (Domain "faraway.example.com"))
           (read "1864-05-12 19:20:22.286 UTC")
+          Nothing
           (EdConvRename (ConversationRename {cupName = "6"}))
     }
 
@@ -77,5 +78,6 @@ testObject_AddBotResponse_user_2 =
           Nothing
           (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000300000001"))) (Domain "faraway.example.com"))
           (read "1864-05-08 19:02:58.6 UTC")
+          Nothing
           (EdTyping StartedTyping)
     }

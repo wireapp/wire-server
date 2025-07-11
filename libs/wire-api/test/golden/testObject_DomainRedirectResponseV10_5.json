@@ -1,0 +1,7 @@
+{
+    "backend": {
+        "config_url": "https://wire.example.com/",
+        "webapp_url": "https://webapp.wire.example.com/"
+    },
+    "domain_redirect": "backend"
+}

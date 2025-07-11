@@ -25,9 +25,10 @@ import Imports
 import SAML2.WebSSO qualified as SAML
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.EnterpriseLogin
+import Wire.API.Routes.Version
 
-testObject_DomainRegistrationResponse_1 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_1 =
+testObject_DomainRegistrationResponseV10_1 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_1 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -36,8 +37,8 @@ testObject_DomainRegistrationResponse_1 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_2 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_2 =
+testObject_DomainRegistrationResponseV10_2 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_2 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -46,8 +47,8 @@ testObject_DomainRegistrationResponse_2 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_3 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_3 =
+testObject_DomainRegistrationResponseV10_3 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_3 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -56,8 +57,8 @@ testObject_DomainRegistrationResponse_3 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_4 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_4 =
+testObject_DomainRegistrationResponseV10_4 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_4 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -66,8 +67,8 @@ testObject_DomainRegistrationResponse_4 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_5 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_5 =
+testObject_DomainRegistrationResponseV10_5 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_5 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Id <$> UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
@@ -76,8 +77,8 @@ testObject_DomainRegistrationResponse_5 =
       dnsVerificationToken = Nothing
     }
 
-testObject_DomainRegistrationResponse_6 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_6 =
+testObject_DomainRegistrationResponseV10_6 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_6 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,
@@ -86,8 +87,81 @@ testObject_DomainRegistrationResponse_6 =
       dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
     }
 
-testObject_DomainRegistrationResponse_7 :: DomainRegistrationResponse
-testObject_DomainRegistrationResponse_7 =
+testObject_DomainRegistrationResponseV10_7 :: DomainRegistrationResponse V10
+testObject_DomainRegistrationResponseV10_7 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect =
+        Backend
+          (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14")))
+          (Just (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://webapp.example.com/inv14")))),
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_1 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_1 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = Locked,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_2 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_2 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = None,
+      teamInvite = NotAllowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_3 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_3 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = SSO (SAML.IdPId $ fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
+      teamInvite = Team $ Id (fromJust (UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284")),
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_4 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_4 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = Backend (HttpsUrl (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))) Nothing,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_5 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_5 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Id <$> UUID.fromString "abf7c0b2-f4e6-4588-8fbb-3b4bf2344284",
+      domainRedirect = NoRegistration,
+      teamInvite = Allowed,
+      dnsVerificationToken = Nothing
+    }
+
+testObject_DomainRegistrationResponseV9_6 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_6 =
+  DomainRegistrationResponse
+    { domain = Domain "example.com",
+      authorizedTeam = Nothing,
+      domainRedirect = PreAuthorized,
+      teamInvite = Allowed,
+      dnsVerificationToken = Just $ DnsVerificationToken "jfdjsejsdjsdfjsdfjlwejwekljwef"
+    }
+
+testObject_DomainRegistrationResponseV9_7 :: DomainRegistrationResponse V9
+testObject_DomainRegistrationResponseV9_7 =
   DomainRegistrationResponse
     { domain = Domain "example.com",
       authorizedTeam = Nothing,

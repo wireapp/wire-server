@@ -600,7 +600,9 @@ data Settings = Settings
     -- | Optional recipient email address for email domain registration audit logs
     auditLogEmailRecipient :: !(Maybe EmailAddress),
     -- | Time-to-live for new domain verification challenges, in seconds
-    challengeTTL :: !Timeout
+    challengeTTL :: !Timeout,
+    -- | Whether to allow ephemeral user creation
+    ephemeralUserCreationEnabled :: !Bool
   }
   deriving (Show, Generic)
 

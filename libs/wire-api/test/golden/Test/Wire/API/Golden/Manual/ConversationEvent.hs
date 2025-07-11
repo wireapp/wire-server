@@ -34,7 +34,8 @@ testObject_Event_conversation_manual_1 =
       evtSubConv = Just (SubConvId "call"),
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "n8nl6tp.h5"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdConvCodeDelete
+      evtData = EdConvCodeDelete,
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_manual_2 :: Event
@@ -44,5 +45,6 @@ testObject_Event_conversation_manual_2 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "a471447c-aa30-4592-81b0-dec6c1c02bca")), qDomain = Domain {_domainText = "example.com"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdProtocolUpdate P.ProtocolMixedTag
+      evtData = EdProtocolUpdate P.ProtocolMixedTag,
+      evtTeam = Nothing
     }

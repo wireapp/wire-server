@@ -33,7 +33,6 @@ where
 import Bilge qualified
 import Bilge.RPC qualified as Bilge
 import Control.Error
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (throwError)
@@ -41,7 +40,6 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
-import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1 (..), list1, toNonEmpty)
 import Data.Map qualified as Map
 import Data.Misc
@@ -80,7 +78,7 @@ import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
-import Wire.API.User.Client (Client (..), ClientCapability (..), ClientCapabilityList (..), UserClientsFull (..))
+import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -180,8 +178,7 @@ splitPush clientsFull p = do
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
             RecipientClientsTemporaryOnly -> mempty
-          isClientForRabbitMq c = ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
-          (rabbitmqClients, legacyClients) = Set.partition isClientForRabbitMq relevantClients
+          (rabbitmqClients, legacyClients) = Set.partition supportsConsumableNotifications relevantClients
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
           legacyClientIds = (.clientId) <$> Set.toList legacyClients
       case (rabbitmqClientIds, legacyClientIds) of
@@ -225,15 +222,26 @@ pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogg
 pushAll pushes = do
   Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
   (rabbitmqPushes, legacyPushes) <- splitPushes pushes
-  pushAllLegacy legacyPushes
-  pushAllViaRabbitMq rabbitmqPushes
-  pushAllToCells pushes
+
+  legacyNotifs <- mapM mkNewNotification legacyPushes
+  pushAllLegacy legacyNotifs
+
+  rabbitmqNotifs <- mapM mkNewNotification rabbitmqPushes
+  pushAllViaRabbitMq rabbitmqNotifs
+
+  -- Note that Cells needs all notifications because it doesn't matter whether
+  -- some recipients have rabbitmq clients or not.
+  --
+  -- We cannot simply merge 'legacyNotifs' and 'rabbitmqNotifs' because
+  -- notifications could be duplicated in case cells notifications have users
+  -- who have legacy and rabbitmq clients.
+  allNotifs <- mapM mkNewNotification pushes
+  pushAllToCells allNotifs
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
-pushAllLegacy pushes = do
-  newNotifications <- catMaybes <$> mapM mkNewNotification pushes
+pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [NewNotification] -> m ()
+pushAllLegacy newNotifications = do
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
@@ -249,29 +257,36 @@ pushAllLegacy pushes = do
     wsTargets <- mapM mkWSTargets newNotifications
     resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
     -- native push
-    perPushConcurrency <- mntgtPerPushConcurrency
-    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
-      let rcps' = nativeTargetsRecipients psh
-          cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
-      -- this is a rough budget cost, since there may be more than one device in a
-      -- 'Presence', so one budget token may trigger at most 8 push notifications
-      -- to be sent out.
-      -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
-      -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
-      unless (psh ^. pushTransient) $
-        mpaRunWithBudget cost () $
-          mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
+    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) ->
+      pushNativeWithBudget notif psh alreadySent
 
-pushAllViaRabbitMq :: (MonadPushAll m) => [Push] -> m ()
-pushAllViaRabbitMq pushes =
-  for_ pushes $ pushViaRabbitMq
+pushNativeWithBudget :: (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) => Notification -> Push -> [Presence] -> m ()
+pushNativeWithBudget notif psh alreadySent = do
+  perPushConcurrency <- mntgtPerPushConcurrency
+  let rcps' = nativeTargetsRecipients psh
+      cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
+  -- this is a rough budget cost, since there may be more than one device in a
+  -- 'Presence', so one budget token may trigger at most 8 push notifications
+  -- to be sent out.
+  -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
+  -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
+  unless (psh ^. pushTransient) $
+    mpaRunWithBudget cost () $
+      mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
 
-pushViaRabbitMq :: (MonadPushAll m) => Push -> m ()
-pushViaRabbitMq p = do
-  qMsg <- mkMessage p
+pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> m ()
+pushAllViaRabbitMq newNotifs = do
+  for_ newNotifs $ pushViaRabbitMq
+  mpaForkIO $ do
+    for_ newNotifs $ \newNotif ->
+      pushNativeWithBudget newNotif.nnNotification newNotif.nnPush []
+
+pushViaRabbitMq :: (MonadPushAll m) => NewNotification -> m ()
+pushViaRabbitMq newNotif = do
+  qMsg <- mkMessage newNotif.nnNotification
   let routingKeys =
         Set.unions $
-          flip Set.map p._pushRecipients \r ->
+          flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
             case r._recipientClients of
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
@@ -284,44 +299,44 @@ pushViaRabbitMq p = do
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
-pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [Push] -> m ()
-pushAllToCells ps = do
+pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m ()
+pushAllToCells newNotifs = do
   mQueue <- mpaCellsEventQueue
 
-  let cellPushes = filter (._pushIsCellsEvent) ps
-  unless (null cellPushes) $ case mQueue of
+  let cellsNotifs = filter (.nnPush._pushIsCellsEvent) newNotifs
+  unless (null cellsNotifs) $ case mQueue of
     Nothing -> do
       Log.err $ msg ("Cells events have been generated, but no Cells queue is configured in gundeck" :: ByteString)
-    Just queue -> traverse_ (pushToCells queue) cellPushes
+    Just queue ->
+      traverse_ (pushToCells queue) cellsNotifs
 
-pushToCells :: (MonadPushAll m) => Text -> Push -> m ()
-pushToCells queue p = do
-  qMsg <- mkMessage p
+pushToCells :: (MonadPushAll m) => Text -> NewNotification -> m ()
+pushToCells queue newNotif = do
+  qMsg <- mkMessage newNotif.nnNotification
   mpaPublishToRabbitMq "" queue qMsg
 
-mkMessage :: (MonadPushAll m) => Push -> m Message
-mkMessage p = do
-  notifId <- mpaMkNotificationId
+mkMessage :: (MonadPushAll m) => Notification -> m Message
+mkMessage notif = do
   NotificationTTL ttl <- mpaNotificationTTL
   pure $
     Q.newMsg
       { msgBody =
           Aeson.encode
-            . queuedNotification notifId
-            $ toNonEmpty p._pushPayload,
+            . queuedNotification notif.ntfId
+            $ toNonEmpty notif.ntfPayload,
         msgContentType = Just "application/json",
         msgDeliveryMode =
           -- Non-persistent messages never hit the disk and so do not
           -- survive RabbitMQ node restarts, this is great for transient
           -- notifications.
           Just
-            ( if p._pushTransient
+            ( if notif.ntfTransient
                 then Q.NonPersistent
                 else Q.Persistent
             ),
         msgExpiration =
           Just
-            ( if p._pushTransient
+            ( if notif.ntfTransient
                 then
                   ( -- Means that if there is no active consumer, this
                     -- message will never be delivered to anyone. It can
@@ -339,13 +354,13 @@ mkMessage p = do
 data NewNotification = NewNotification
   { nnPush :: Push,
     nnNotification :: Notification,
-    nnRecipients :: List1 Recipient
+    nnRecipients :: [Recipient]
   }
 
-mkNewNotification :: forall m. (MonadPushAll m) => Push -> m (Maybe NewNotification)
-mkNewNotification psh = runMaybeT $ do
-  rcps <- MaybeT . pure . fmap List1 . nonEmpty . toList $ psh ^. pushRecipients
-  notifId <- lift mpaMkNotificationId
+mkNewNotification :: forall m. (MonadPushAll m) => Push -> m NewNotification
+mkNewNotification psh = do
+  let rcps = toList $ psh ^. pushRecipients
+  notifId <- mpaMkNotificationId
   let notif = Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
   pure $ NewNotification psh notif rcps
 
@@ -375,7 +390,7 @@ mkCassandraTargets NewNotification {..} =
 data WSTargets = WSTargets
   { wstPush :: Push,
     wstNotification :: Notification,
-    wstPresences :: List1 (Recipient, [Presence])
+    wstPresences :: [(Recipient, [Presence])]
   }
 
 mkWSTargets :: (MonadPushAll m) => NewNotification -> m WSTargets
@@ -383,19 +398,15 @@ mkWSTargets NewNotification {..} = do
   withPresences <- addPresences nnRecipients
   pure $ WSTargets nnPush nnNotification withPresences
   where
-    addPresences :: forall m. (MonadPushAll m) => List1 Recipient -> m (List1 (Recipient, [Presence]))
-    addPresences (toList -> rcps) = do
+    addPresences :: forall m. (MonadPushAll m) => [Recipient] -> m [(Recipient, [Presence])]
+    addPresences rcps = do
       presences <- mpaListAllPresences $ fmap (view recipientId) rcps
-      zip1 rcps presences
-      where
-        zip1 :: [a] -> [b] -> m (List1 (a, b))
-        zip1 (x : xs) (y : ys) = pure $ list1 (x, y) (zip xs ys)
-        zip1 _ _ = throwM $ ErrorCall "mkNotificationAndTargets: internal error." -- can @listAll@ return @[]@?
+      pure $ zip rcps presences
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
 compilePushReq :: WSTargets -> (Notification, [Presence])
 compilePushReq WSTargets {..} =
-  (wstNotification, mconcat . fmap compileTargets . toList $ wstPresences)
+  (wstNotification, mconcat . fmap compileTargets $ wstPresences)
   where
     compileTargets :: (Recipient, [Presence]) -> [Presence]
     compileTargets (rcp, pre) = filter (shouldActuallyPush wstPush rcp) pre

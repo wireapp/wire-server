@@ -78,16 +78,14 @@ type MLSGetSubConvStaticErrors =
    ]
 
 getSubConversation ::
-  ( Members
-      '[ SubConversationStore,
-         ConversationStore,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'MLSSubConvUnsupportedConvType,
-         Error FederationError,
-         FederatorAccess
-       ]
-      r
+  ( Member SubConversationStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
+    Member (Error FederationError) r,
+    Member FederatorAccess r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -101,21 +99,19 @@ getSubConversation lusr qconv sconv = do
     qconv
 
 getLocalSubConversation ::
-  ( Members
-      '[ SubConversationStore,
-         ConversationStore,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'MLSSubConvUnsupportedConvType
-       ]
-      r
+  ( Member SubConversationStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
+    Member TeamStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
   SubConvId ->
   Sem r PublicSubConversation
 getLocalSubConversation qusr lconv sconv = do
-  c <- getConversationAndCheckMembership qusr lconv
+  c <- getConversationAsMember qusr lconv
 
   unless (Data.convType c == RegularConv || Data.convType c == One2OneConv) $
     throwS @'MLSSubConvUnsupportedConvType
@@ -224,7 +220,8 @@ deleteSubConversation ::
     Member (Input Env) r,
     Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -298,7 +295,8 @@ leaveSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member Resource r,
-    Members LeaveSubConversationStaticErrors r
+    Members LeaveSubConversationStaticErrors r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ClientId ->
@@ -322,7 +320,8 @@ leaveLocalSubConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Error FederationError) r,
     Member Resource r,
-    Members LeaveSubConversationStaticErrors r
+    Members LeaveSubConversationStaticErrors r,
+    Member TeamStore r
   ) =>
   ClientIdentity ->
   Local ConvId ->
@@ -330,7 +329,7 @@ leaveLocalSubConversation ::
   Sem r ()
 leaveLocalSubConversation cid lcnv sub = do
   assertMLSEnabled
-  cnv <- getConversationAndCheckMembership (cidQualifiedUser cid) lcnv
+  cnv <- getConversationAsMember (cidQualifiedUser cid) lcnv
   mlsConv <- noteS @'ConvNotFound =<< mkMLSConversation cnv
   subConv <-
     noteS @'ConvNotFound
@@ -395,7 +394,8 @@ resetLocalSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member TeamStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -405,7 +405,7 @@ resetLocalSubConversation ::
 resetLocalSubConversation qusr lcnvId scnvId reset = do
   let cnvId = tUnqualified lcnvId
       lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
-  cnv <- getConversationAndCheckMembership qusr lcnvId
+  cnv <- getConversationAsMember qusr lcnvId
 
   lowerCodensity $ do
     withCommitLock lConvOrSubId reset.groupId reset.epoch

@@ -56,6 +56,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
+import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Members
@@ -422,7 +423,7 @@ memberJoinEvent ::
   [RemoteMember] ->
   Event
 memberJoinEvent lorig qconv t lmems rmems =
-  Event qconv Nothing (tUntagged lorig) t $
+  Event qconv Nothing (tUntagged lorig) t Nothing $
     EdMembersJoin (MembersJoin (map localToSimple lmems <> map remoteToSimple rmems) InternalAdd)
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
@@ -641,34 +642,52 @@ getMember ::
   Sem r mem
 getMember p u = noteS @e . find ((u ==) . p)
 
-getConversationAndCheckMembership ::
+data ConvView = ConvView {viewingAsMember :: Bool, conv :: Data.Conversation}
+
+getConversationAsMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvAccessDenied) r
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
-getConversationAndCheckMembership quid lcnv = do
-  foldQualified
-    lcnv
-    ( \lusr -> do
-        (conv, _) <-
-          getConversationAndMemberWithError
-            @'ConvAccessDenied
-            (tUnqualified lusr)
-            lcnv
-        pure conv
-    )
-    ( \rusr -> do
-        (conv, _) <-
-          getConversationAndMemberWithError
-            @'ConvNotFound
-            rusr
-            lcnv
-        pure conv
-    )
-    quid
+getConversationAsMember quid lcnv = do
+  convView <- getConversationAsViewer quid lcnv
+  unless convView.viewingAsMember $
+    foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) quid
+  pure convView.conv
+
+getConversationAsViewer ::
+  forall r.
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamStore r
+  ) =>
+  Qualified UserId ->
+  Local ConvId ->
+  Sem r ConvView
+getConversationAsViewer qusr lcnv = do
+  c <- getConversationWithError lcnv
+  let mMember = getConvMember lcnv c qusr
+      throwAccessDenied = foldQualified lcnv (const $ throwS @'ConvAccessDenied) (const $ throwS @'ConvNotFound) qusr
+  case (mMember, c.convMetadata.cnvmTeam) of
+    (Just _, _) -> pure ()
+    (Nothing, Just tid) ->
+      maybe throwAccessDenied pure
+        =<< runMaybeT
+          ( do
+              uid <- hoistMaybe $ foldQualified lcnv (Just . tUnqualified) (const Nothing) qusr
+              tm <- MaybeT $ E.getTeamMember tid uid
+              guard (c.convMetadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
+          )
+    (Nothing, Nothing) -> throwAccessDenied
+  pure $ ConvView (isJust mMember) c
+
+maskConvAccessDenied :: (Member (ErrorS 'ConvNotFound) r) => InterpreterFor (ErrorS 'ConvAccessDenied) r
+maskConvAccessDenied = mapErrorS @'ConvAccessDenied @'ConvNotFound
 
 getConversationWithError ::
   ( Member ConversationStore r,
@@ -678,21 +697,6 @@ getConversationWithError ::
   Sem r Data.Conversation
 getConversationWithError lcnv =
   getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-
-getConversationAndMemberWithError ::
-  forall e uid mem r.
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS e) r,
-    IsConvMemberId uid mem
-  ) =>
-  uid ->
-  Local ConvId ->
-  Sem r (Data.Conversation, mem)
-getConversationAndMemberWithError usr lcnv = do
-  c <- getConversationWithError lcnv
-  member <- noteS @e $ getConvMember lcnv c usr
-  pure (c, member)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
@@ -847,7 +851,7 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
 fromConversationCreated ::
   Local x ->
   ConversationCreated (Remote ConvId) ->
-  [(Public.Member, Public.ConversationV8)]
+  [(Public.Member, Public.ConversationV9)]
 fromConversationCreated loc rc@ConversationCreated {..} =
   let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
@@ -880,9 +884,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           memHiddenRef = Nothing,
           memConvRoleName = Public.omConvRoleName m
         }
-    conv :: Public.Member -> [OtherMember] -> Public.ConversationV8
+    conv :: Public.Member -> [OtherMember] -> Public.ConversationV9
     conv this others =
-      Public.ConversationV8
+      Public.ConversationV9
         (tUntagged cnvId)
         ConversationMetadata
           { cnvmType = cnvType,
@@ -901,7 +905,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def
           }
-        (ConvMembers this others)
+        (ConvMembersV9 this others)
         ProtocolProteus
 
 ensureNoUnreachableBackends ::
@@ -1138,8 +1142,8 @@ conversationExisted ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r (ConversationResponse ConversationV8)
-conversationExisted lusr cnv = Existed <$> conversationViewV8 lusr cnv
+  Sem r (ConversationResponse ConversationV9)
+conversationExisted lusr cnv = Existed <$> conversationViewV9 lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList

@@ -110,13 +110,11 @@ splitPushActualRecipients p =
 
       allRabbitMqClientsFor :: UserId -> Set Client
       allRabbitMqClientsFor =
-        Set.filter (\c -> Set.member ClientSupportsConsumableNotifications c.clientCapabilities.fromClientCapabilityList)
-          . clientsFor
+        Set.filter supportsConsumableNotifications . clientsFor
 
       allCassandraClientsFor :: UserId -> Set Client
       allCassandraClientsFor =
-        Set.filter (\c -> not $ Set.member ClientSupportsConsumableNotifications c.clientCapabilities.fromClientCapabilityList)
-          . clientsFor
+        Set.filter (not . supportsConsumableNotifications) . clientsFor
 
       actualCassandraRecipients :: Set (UserId, ClientId)
       actualCassandraRecipients =

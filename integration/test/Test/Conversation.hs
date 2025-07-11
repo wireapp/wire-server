@@ -38,6 +38,29 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
 
+testFederatedConversation :: (HasCallStack) => App ()
+testFederatedConversation = do
+  -- This test was created to verify that the false positive log message:
+  -- "Attempt to send notification about conversation update to users not in the conversation"
+  -- does not happen when a user is added to a conversation that is federated.
+  -- Unfortunately, that can only be manually verified by looking at the logs.
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  conv <- postConversation alice defProteus >>= getJSON 201
+
+  withWebSocket bob $ \bobWs -> do
+    addMembers alice conv def {users = [bob]} >>= assertSuccess
+    void $ awaitMatch isMemberJoinNotif bobWs
+
+  checkConvMembers conv alice [bob]
+  retryT $ checkConvMembers conv bob [alice]
+  where
+    checkConvMembers :: (HasCallStack, MakesValue user) => Value -> user -> [Value] -> App ()
+    checkConvMembers conv self others =
+      bindResponse (getConversation self conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <- resp.json %. "members.others" & asList
+        for mems (%. "qualified_id") `shouldMatchSet` (for others (%. "qualified_id"))
+
 testDynamicBackendsFullyConnectedWhenAllowAll :: (HasCallStack) => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
   -- The default setting is 'allowAll'
@@ -967,9 +990,10 @@ testGetConversationInternal = do
   I.getConversation conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "qualified_id" `shouldMatch` objQidObject conv
-    members <- resp.json %. "members" & asList
+    members <- resp.json %. "members.others" & asList
     memberIds <- for members (%. "qualified_id")
     memberIds `shouldMatchSet` (for (owner : mems) (%. "qualified_id"))
+    lookupField resp.json "members.self" `shouldMatch` (Nothing @Value)
 
 testGetSelfMember :: (HasCallStack) => App ()
 testGetSelfMember = do

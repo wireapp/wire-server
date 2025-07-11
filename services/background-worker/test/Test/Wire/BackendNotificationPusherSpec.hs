@@ -331,6 +331,7 @@ spec = do
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
+      workerRunningGauge <- mkWorkerRunningGauge
       domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
       readTVarIO mockAdmin.listQueuesVHostCalls `shouldReturn` ["test-vhost"]
@@ -348,6 +349,7 @@ spec = do
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
       backendNotificationMetrics <- mkBackendNotificationMetrics
+      workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
 
       -- Wait for first call

@@ -782,12 +782,12 @@ getUserCookies uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserConversations :: UserId -> Int -> Handler [ConversationV8]
+getUserConversations :: UserId -> Int -> Handler [ConversationV9]
 getUserConversations uid maxConvs = do
   info $ msg "Getting user conversations"
   fetchAll [] Nothing maxConvs
   where
-    fetchAll :: [ConversationV8] -> Maybe ConvId -> Int -> Handler [ConversationV8]
+    fetchAll :: [ConversationV9] -> Maybe ConvId -> Int -> Handler [ConversationV9]
     fetchAll xs start remaining = do
       userConversationList <- fetchBatch start (min 100 remaining)
       let batch = convList userConversationList
@@ -795,7 +795,7 @@ getUserConversations uid maxConvs = do
       if (not . null) batch && convHasMore userConversationList && remaining' > 0
         then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList ConversationV8)
+    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList ConversationV9)
     fetchBatch start batchSize = do
       baseReq <- asks (.galley)
       r <-
@@ -1071,7 +1071,7 @@ domRegPreAuthorize :: Domain -> SC.ClientM NoContent
 domRegUnauthorize :: Domain -> SC.ClientM NoContent
 domRegUpdate :: Domain -> DomainRegistrationUpdate -> SC.ClientM NoContent
 domRegDelete :: Domain -> SC.ClientM NoContent
-domRegGet :: Domain -> SC.ClientM DomainRegistrationResponse
+domRegGet :: Domain -> SC.ClientM (DomainRegistrationResponse V10)
 ( domRegLock
     :<|> domRegUnlock
     :<|> domRegPreAuthorize

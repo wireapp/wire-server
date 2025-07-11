@@ -36,12 +36,16 @@ data:
       {{- end }}
     {{- end }}
 
+    rabbitMqMaxConnections: {{ .config.rabbitMqMaxConnections }}
+    rabbitMqMaxChannels: {{ .config.rabbitMqMaxChannels }}
+
     drainOpts:
       gracePeriodSeconds: {{ .config.drainOpts.gracePeriodSeconds }}
       millisecondsBetweenBatches: {{ .config.drainOpts.millisecondsBetweenBatches }}
       minBatchSize: {{ .config.drainOpts.minBatchSize }}
 
     disabledAPIVersions: {{ toJson .config.disabledAPIVersions }}
+    notificationTTL: {{ .config.notificationTTL }}
   {{- end }}
 
 

@@ -80,7 +80,7 @@ config:
     #   key: <ca-attribute>
 
   # Postgres connection settings
-  # 
+  #
   # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
   # To set the password via a brig secret see `secrets.pgPassword`.
   #
@@ -189,6 +189,7 @@ config:
       ipAddressExceptions: []
       maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
     # setAuditLogEmailRecipient: security@wire.com
+    setEphemeralUserCreationEnabled: true
 
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt

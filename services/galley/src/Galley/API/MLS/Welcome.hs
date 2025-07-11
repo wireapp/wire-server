@@ -99,7 +99,7 @@ sendLocalWelcomes qcnv qusr con now welcome lclients = do
             (\(u, c) -> Map.insertWith (<>) u (pure c))
             mempty
           $ tUnqualified lclients
-  let e = Event qcnv Nothing qusr now $ EdMLSWelcome welcome.raw
+  let e = Event qcnv Nothing qusr now Nothing $ EdMLSWelcome welcome.raw
   runMessagePush lclients (Just qcnv) $
     newMessagePush mempty con defMessageMetadata rcpts e
 

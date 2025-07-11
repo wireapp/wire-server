@@ -78,7 +78,10 @@
 , QuickCheck
 , quickcheck-instances
 , random
+, regex-base
+, regex-tdfa
 , resourcet
+, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -190,7 +193,10 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    regex-base
+    regex-tdfa
     resourcet
+    retry
     saml2-web-sso
     schema-profunctor
     scientific

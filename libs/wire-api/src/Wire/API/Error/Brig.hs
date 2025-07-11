@@ -45,6 +45,7 @@ data BrigError
   | InvalidHandle
   | HandleNotFound
   | UserCreationRestricted
+  | EphemeralUserCreationDisabled
   | AllowlistError
   | InvalidInvitationCode
   | MissingIdentity
@@ -235,6 +236,8 @@ type instance
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 type instance MapError 'UserCreationRestricted = 'StaticError 403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
+
+type instance MapError 'EphemeralUserCreationDisabled = 'StaticError 403 "ephemeral-user-creation-disabled" "Ephemeral user creation is disabled on this instance."
 
 type instance MapError 'MLSProtocolError = 'StaticError 400 "mls-protocol-error" "MLS protocol error"
 

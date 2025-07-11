@@ -753,7 +753,6 @@ searchLocally searcher searchTerm maybeMaxResults = do
   teamSearchInfo <- mkTeamSearchInfo (tUnqualified searcherTeamId)
 
   maybeExactHandleMatch <- exactHandleSearch
-
   let exactHandleMatchCount = length maybeExactHandleMatch
       esMaxResults = maxResults - exactHandleMatchCount
 
@@ -768,10 +767,14 @@ searchLocally searcher searchTerm maybeMaxResults = do
           esMaxResults
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
-  -- Prepend results matching exact handle and results from ES.
+  let esContacts = map userDocToContact (searchResults esResult)
+      -- Prepend results matching exact handle and results from ES.
+      allContacts = case maybeExactHandleMatch of
+        Nothing -> esContacts
+        Just exactHandleMatch -> exactHandleMatch : filter (\c -> c.contactQualifiedId /= exactHandleMatch.contactQualifiedId) esContacts
   pure $
     esResult
-      { searchResults = maybeToList maybeExactHandleMatch <> map userDocToContact (searchResults esResult),
+      { searchResults = allContacts,
         searchFound = exactHandleMatchCount + searchFound esResult,
         searchReturned = exactHandleMatchCount + searchReturned esResult
       }

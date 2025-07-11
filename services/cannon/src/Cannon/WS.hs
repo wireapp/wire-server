@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -51,7 +52,7 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import Cannon.Dict qualified as D
-import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
+import Cannon.Options (DrainOpts, WSOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 import Cannon.RabbitMq
 import Cassandra (ClientState)
 import Conduit
@@ -155,8 +156,10 @@ data Env = Env
     rand :: !GenIO,
     clock :: !Clock,
     drainOpts :: DrainOpts,
+    wsOpts :: WSOpts,
     cassandra :: ClientState,
-    pool :: RabbitMqPool
+    pool :: RabbitMqPool,
+    notificationTTL :: Int
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -203,10 +206,15 @@ env ::
   GenIO ->
   Clock ->
   DrainOpts ->
+  WSOpts ->
   ClientState ->
   RabbitMqPool ->
+  Int ->
   Env
-env leh lp gh gp = Env leh lp (Bilge.host gh . Bilge.port gp $ empty) (RequestId defRequestId)
+env externalHostname portnum gundeckHost gundeckPort logg manager websockets rabbitConnections rand clock drainOpts wsOpts cassandra pool notificationTTL =
+  let upstream = (Bilge.host gundeckHost . Bilge.port gundeckPort $ empty)
+      reqId = RequestId defRequestId
+   in Env {..}
 
 runWS :: (MonadIO m) => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

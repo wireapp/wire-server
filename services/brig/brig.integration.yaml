@@ -260,6 +260,7 @@ optSettings:
       - 127.0.0.1/8
     maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
   setChallengeTTL: 172800
+  setEphemeralUserCreationEnabled: true
 
 logLevel: Warn
 logNetStrings: false

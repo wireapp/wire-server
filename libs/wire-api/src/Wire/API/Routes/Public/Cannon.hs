@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Cannon where
 
 import Data.Id
+import Data.Text
 import Servant
 import Wire.API.Routes.API
 import Wire.API.Routes.Named
@@ -44,10 +45,11 @@ type CannonAPI =
         :> WebSocketPending
     )
     :<|> Named
-           "consume-events"
+           "consume-events@v8"
            ( Summary "Consume events over a websocket connection"
                :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
                :> From 'V8
+               :> Until 'V9
                :> "events"
                :> ZUser
                :> QueryParam'
@@ -57,6 +59,30 @@ type CannonAPI =
                     ]
                     "client"
                     ClientId
+               -- FUTUREWORK: Consider higher-level web socket combinator
+               :> WebSocketPending
+           )
+    :<|> Named
+           "consume-events"
+           ( Summary "Consume events over a websocket connection"
+               :> Description "This is the rabbitMQ-based variant of \"await-notifications\""
+               :> From 'V9
+               :> "events"
+               :> ZUser
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Client ID"
+                    ]
+                    "client"
+                    ClientId
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Synchronization marker ID"
+                    ]
+                    "sync_marker"
+                    Text
                -- FUTUREWORK: Consider higher-level web socket combinator
                :> WebSocketPending
            )

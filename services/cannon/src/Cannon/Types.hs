@@ -132,8 +132,10 @@ mkEnv external o cs l d conns p g t endpoint = do
           g
           t
           (o ^. drainOpts)
+          o._optsWSOpts
           cs
           pool
+          (o ^. notificationTTL)
   pure $ Env o l d conns (RequestId defRequestId) wsEnv
 
 runCannon :: Env -> Cannon a -> IO a

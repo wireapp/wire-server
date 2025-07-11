@@ -19,7 +19,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Conversation.Member
-  ( ConvMembers (..),
+  ( ConvMembersV9 (..),
+    ConvMembers (..),
 
     -- * Member
     Member (..),
@@ -49,18 +50,18 @@ import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
-data ConvMembers = ConvMembers
+data ConvMembersV9 = ConvMembersV9
   { cmSelf :: Member,
     cmOthers :: [OtherMember]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConvMembers)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembers
+  deriving (Arbitrary) via (GenericUniform ConvMembersV9)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembersV9
 
-instance ToSchema ConvMembers where
+instance ToSchema ConvMembersV9 where
   schema =
-    objectWithDocModifier "ConvMembers" (description ?~ "Users of a conversation") $
-      ConvMembers
+    objectWithDocModifier "ConvMembersV9" (description ?~ "Users of a conversation") $
+      ConvMembersV9
         <$> cmSelf
           .= fieldWithDocModifier
             "self"
@@ -71,6 +72,24 @@ instance ToSchema ConvMembers where
             "others"
             (description ?~ "All other current users of this conversation")
             (array schema)
+
+data ConvMembers = ConvMembers
+  { self :: Maybe Member,
+    others :: [OtherMember]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConvMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembers
+
+instance ToSchema ConvMembers where
+  schema =
+    objectWithDocModifier "ConvMembers" (description ?~ "Users of a conversation") $
+      ConvMembers
+        <$> self .= maybe_ (optFieldWithDocModifier "self" selfDesc schema)
+        <*> others .= fieldWithDocModifier "others" othersDesc (array schema)
+    where
+      selfDesc = description ?~ "The user ID of the requestor if the requestor is a member of the conversation"
+      othersDesc = description ?~ "All other current users of this conversation"
 
 --------------------------------------------------------------------------------
 -- Members

@@ -43,7 +43,7 @@ testVersion (Versioned' v) = withModifiedBackend
       domain <- resp.json %. "domain" & asString
       federation <- resp.json %. "federation" & asBool
 
-      -- currently there is only one development version
+      -- currently there is one development version
       -- it is however theoretically possible to have multiple development versions
       length dev `shouldMatchInt` 1
       domain `shouldMatch` dom

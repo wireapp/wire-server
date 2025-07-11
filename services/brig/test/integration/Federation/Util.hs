@@ -63,7 +63,7 @@ import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
-import Wire.API.Conversation (ConversationV8 (cnvMembers))
+import Wire.API.Conversation (ConversationV9 (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.MLS.CommitBundle

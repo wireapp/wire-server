@@ -6,11 +6,9 @@ WILLKOMMEN BEI ${team_name}.
 Sie sind soeben mit ${email} einem Team namens ${team_name} auf ${brand}
 beigetreten.
 
-${brand} vereint sichere Verschlüsselung mit reichhaltigem Funktionsumfang und
-einfacher Bedienung in einer einzigen App. Unterstützt alle gängigen
-Plattformen.
+Genießen Sie die nahtlose und sichere Teamarbeit mit ${brand}!
 
-${brand} herunterladen [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
+${brand} öffnen [${url}]Wenn Sie die Schaltfläche nicht auswählen können,
 kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}

@@ -41,6 +41,7 @@ module Galley.API.Action
     enforceFederationProtocol,
     checkFederationStatus,
     firstConflictOrFullyConnected,
+    ensureAllowed,
   )
 where
 
@@ -449,6 +450,7 @@ ensureAllowed tag _ action conv (TeamMember tm) = do
       case action of
         ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
         ConversationJoin _ _ ExternalAdd -> ensureChannelAndTeamAdmin conv tm
+    SConversationRemoveMembersTag -> ensureChannelAndTeamAdmin conv tm
     _ -> throwS @'ConvNotFound
 ensureAllowed tag loc action conv (ConvMember origUser) = do
   case tag of
@@ -948,7 +950,7 @@ updateLocalStateOfRemoteConv rcu con = do
   -- Note: we generally do not send notifications to users that are not part of
   -- the conversation (from our point of view), to prevent spam from the remote
   -- backend. See also the comment below.
-  (presentUsers, allUsersArePresent) <-
+  (presentUsers, _) <-
     E.selectRemoteMembers cu.alreadyPresentUsers rconvId
 
   -- Perform action, and determine extra notification targets.
@@ -994,7 +996,13 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationUpdateAddPermissionTag -> pure (Just sca, [])
       SConversationResetTag -> pure (Just sca, [])
 
-  unless allUsersArePresent $
+  -- On conversation join, the member(s) joining are not included in the presentUsers,
+  -- however they are included in the alreadyPresentUsers from the incoming request.
+  -- To have a meaningful check here, we need to include the extra targets (the newly added users)
+  -- when matching the present users against the alreadyPresentUsers.
+  let targets = nubOrd $ presentUsers <> extraTargets
+      allUsersExceptExtraTargetsArePresent = Set.fromList targets == Set.fromList cu.alreadyPresentUsers
+  unless allUsersExceptExtraTargetsArePresent $
     P.warn $
       Log.field "conversation" (toByteString' cu.convId)
         . Log.field "domain" (toByteString' (tDomain rcu))
@@ -1006,8 +1014,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
-        targets = nubOrd $ presentUsers <> extraTargets
+    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing Nothing action
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
@@ -1091,7 +1098,7 @@ pushTypingIndicatorEvents ::
   TypingStatus ->
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
-  let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
+  let e = Event qcnv Nothing qusr tEvent Nothing (EdTyping ts)
   pushNotifications
     [ def
         { origin = Just (qUnqualified qusr),

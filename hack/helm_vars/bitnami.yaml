@@ -1,0 +1,6 @@
+global:
+  # The default is to use docker hub, which has very strict rate limiting. This
+  # comes in the way of testing, specially when running flake-news.
+  imageRegistry: public.ecr.aws
+  security:
+    allowInsecureImages: true

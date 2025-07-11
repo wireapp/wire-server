@@ -1,1 +1,1 @@
-Sie wurden eingeladen, einem ${brand}-Team beizutreten
+Sie wurden eingeladen, einem Team auf ${brand} beizutreten

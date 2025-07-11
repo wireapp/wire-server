@@ -31,6 +31,8 @@ import Servant.API.ContentTypes
 import Servant.OpenApi
 import Servant.OpenApi.Internal
 import Test.QuickCheck (Arbitrary)
+import Text.Regex.Base
+import Text.Regex.TDFA
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 
@@ -117,13 +119,20 @@ deriving via Schema (Versioned v a) instance (ToSchema (Versioned v a)) => ToJSO
 instance (SingI v, ToSchema (Versioned v a), Typeable a, Typeable v) => S.ToSchema (Versioned v a) where
   declareNamedSchema _ = do
     S.NamedSchema n s <- schemaToSwagger (Proxy @(Versioned v a))
-    pure $ S.NamedSchema (fmap withVersionSuffix n) s
+    pure $
+      S.NamedSchema
+        { _namedSchemaName = fmap withVersionSuffix n,
+          _namedSchemaSchema = s
+        }
     where
       versionSuffix :: Text
       versionSuffix = Text.pack $ show (demote @v)
 
       withVersionSuffix :: Text -> Text
       withVersionSuffix origName =
-        if versionSuffix `Text.isSuffixOf` origName
-          then origName
-          else origName <> versionSuffix
+        -- some types may already have a version suffix, in which case it will be replaced
+        -- otherwise it will be appended
+        let versionPattern :: Regex = makeRegex ("V[0-9]+$" :: String)
+         in case matchOnceText versionPattern origName of
+              Just (beforeVersion, _, afterVersion) | afterVersion == "" -> beforeVersion <> versionSuffix
+              _ -> origName <> versionSuffix

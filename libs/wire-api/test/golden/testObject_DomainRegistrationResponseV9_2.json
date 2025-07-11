@@ -1,0 +1,6 @@
+{
+    "dns_verification_token": null,
+    "domain": "example.com",
+    "domain_redirect": "none",
+    "team_invite": "not-allowed"
+}

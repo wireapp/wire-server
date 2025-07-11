@@ -138,8 +138,12 @@ activateEmail brig email = do
     Nothing -> liftIO $ assertFailure "missing activation key/code"
     Just kc ->
       activate brig kc !!! do
-        const 200 === statusCode
-        const (Just False) === fmap activatedFirst . responseJsonMaybe
+        let statusCodeGood = \case
+              204 -> True
+              200 -> True
+              _ -> False
+        const True === statusCodeGood . statusCode
+        const (Just False) === maybe (Just False) (Just . activatedFirst) . responseJsonMaybe
 
 checkEmail :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> EmailAddress -> m ()
 checkEmail brig uid expectedEmail =
@@ -167,11 +171,18 @@ initiateEmailUpdateCreds brig email (cky, tok) uid = do
       . zUser uid
       . Bilge.json (EmailUpdate email)
 
-initiateEmailUpdateNoSend :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> EmailAddress -> UserId -> m ResponseLBS
-initiateEmailUpdateNoSend brig email uid =
+-- | Register an email address as 'unvalidated' and trigger validation email.
+initiateEmailUpdate :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Brig -> EmailAddress -> UserId -> m ResponseLBS
+initiateEmailUpdate brig email uid = initiateEmailUpdate' "validate" brig email uid <!! const 202 === statusCode
+
+-- | Update and auto-activate a new email address for a user account.
+initiateEmailUpdateAutoActivate :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> EmailAddress -> UserId -> m ResponseLBS
+initiateEmailUpdateAutoActivate brig email uid = initiateEmailUpdate' "activate" brig email uid <!! const 204 === statusCode
+
+initiateEmailUpdate' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => ByteString -> Brig -> EmailAddress -> UserId -> m ResponseLBS
+initiateEmailUpdate' param brig email uid =
   let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
-   in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
-        <!! const 202 === statusCode
+   in put (brig . path "/i/self/email" . contentJson . zUser uid . queryItem param "true" . body emailUpdate)
 
 removeBlacklist :: Brig -> EmailAddress -> (MonadIO m, MonadHttp m) => m ()
 removeBlacklist brig email =

@@ -6,8 +6,8 @@ SUA NOVA CONTA EM ${brand}
 Um nova conta na equipe ${brand} foi criada com ${email}. Por favor, verifique
 seu e-mail.
 
-Verificar [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verificar [${url}]Se você não conseguir selecionar o botão, copie e cole este
+link no seu navegador:
 
 ${url}
 

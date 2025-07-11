@@ -13,7 +13,7 @@ import Data.Maybe (fromMaybe)
 import Data.String (IsString (fromString))
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time.Clock
+import Data.Time
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import RunAllTests
@@ -89,6 +89,9 @@ printTime =
     . (* 100)
     . nominalDiffTimeToSeconds
 
+printTimestamp :: UTCTime -> String
+printTimestamp = formatTime defaultTimeLocale "%FT%T.%03qZ"
+
 main :: IO ()
 main = do
   opts <- getOptions
@@ -121,6 +124,7 @@ runTests tests mXMLOutput cfg = do
     withAsync displayOutput $ \displayThread -> do
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
+        timestamp <- getCurrentTime
         (mErr, tm) <- withTime (runTest qname genv action)
         case mErr of
           Left err -> do
@@ -130,6 +134,8 @@ runTests tests mXMLOutput cfg = do
                 <> colored red " FAIL"
                 <> " ("
                 <> printTime tm
+                <> "; failed at "
+                <> printTimestamp timestamp
                 <> ") -----\n"
                 <> err
                 <> "\n"

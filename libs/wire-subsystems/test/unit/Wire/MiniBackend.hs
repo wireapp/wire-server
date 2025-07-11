@@ -28,6 +28,7 @@ module Wire.MiniBackend
     PendingNotEmptyIdentityStoredUser (..),
     NotPendingSSOIdWithEmailStoredUser (..),
     PendingStoredUser (..),
+    ActiveStoredUser (..),
   )
 where
 
@@ -157,6 +158,21 @@ instance Arbitrary NotPendingSSOIdWithEmailStoredUser where
             }
         )
 
+newtype ActiveStoredUser = ActiveStoredUser StoredUser
+  deriving (Show, Eq)
+
+instance Arbitrary ActiveStoredUser where
+  arbitrary = do
+    user <- arbitrary
+    pure $
+      ActiveStoredUser
+        ( user
+            { status = Just Active,
+              activated = True,
+              serviceId = Nothing
+            }
+        )
+
 type AllErrors =
   [ Error UserSubsystemError,
     Error FederationError,
@@ -259,6 +275,7 @@ type StateEffects =
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
      State [StoredUser],
+     State UserIndex,
      State (Map EmailKey UserId),
      State [DRS.StoredDomainRegistration],
      State [InternalNotification],
@@ -273,6 +290,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . evalState []
     . evalState []
     . liftUserKeyStoreState
+    . liftIndexedUserStoreState
     . liftUserStoreState
     . liftBlockListStoreState
     . liftActivationCodeStoreState
@@ -337,6 +355,7 @@ data MiniBackend = MkMiniBackend
   { -- | this is morally the same as the users stored in the actual backend
     --   invariant: for each key, the user.id and the key are the same
     users :: [StoredUser],
+    userIndex :: UserIndex,
     userKeys :: Map EmailKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
     blockList :: [EmailKey],
@@ -351,6 +370,7 @@ instance Default MiniBackend where
   def =
     MkMiniBackend
       { users = mempty,
+        userIndex = emptyIndex,
         userKeys = mempty,
         passwordResetCodes = mempty,
         blockList = mempty,
@@ -614,6 +634,11 @@ liftUserStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredUser] 
 liftUserStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.users)
   Put newUsers -> modify $ \b -> (b :: MiniBackend) {users = newUsers}
+
+liftIndexedUserStoreState :: (Member (State MiniBackend) r) => Sem (State UserIndex : r) a -> Sem r a
+liftIndexedUserStoreState = interpret $ \case
+  Polysemy.State.Get -> gets (.userIndex)
+  Put newUserIndex -> modify $ \b -> (b :: MiniBackend) {userIndex = newUserIndex}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
 runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe

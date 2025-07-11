@@ -72,6 +72,56 @@ galley:
             lockStatus: locked
 ```
 
+## Self-deleting messages
+
+Self-deleting messages is a feature that makes all sent messages delete after a given period of time after the message has been read. By default, this feature is unlocked and not enabled for all the teams. The feature can be toggled on/off through Team Settings. Team settings has presets that can set up message expiration up to a month. Other time frames can be set either through a backend-wide global setting, or manually through API.
+
+Example of backend-wide global setting:
+
+```yaml
+galley:
+  # ...
+  config:
+    # ...
+    settings:
+      # ...
+      featureFlags:
+        # ...
+        selfDeletingMessages:
+          defaults:
+            config:
+              enforcedTimeoutSeconds: 0 # expressed in seconds
+            lockStatus: unlocked # locked | unlocked
+            status: enabled # enabled | disabled
+```
+
+Locking a feature will prevent team administrators from changing the setting!
+Backend-wide settings are not applied retroactively! For teams made before a global setting has been set, feature will have to be set manually through a combination of API calls.
+
+### Self-deleting messages custom time frame with API calls
+
+As an on-prem backend administrator, if you find yourself in need of a time-frame not provided by the Team Setting app, you can make an API call to an internal `galley` endpoint to set it manually.
+
+First, port-forward the galley service:
+
+```bash
+d kubectl port-forward svc/galley 8080:8080
+```
+
+And make a curl request like in example below, set the appropriate <teamID> (this can be fetched from cassandra with `cqlsh` if you are not a direct owner of the team or the admin user)
+
+```bash
+curl -X PUT 'http://localhost:8080/i/teams/<teamID>/features/selfDeletingMessages' -H 'accept: application/json;charset=utf-8' -H 'Content-Type: application/json' --data-raw '{ "config": { "enforcedTimeoutSeconds": 6000}, "status": "enabled" }'
+```
+
+For locking/unlocking features for a team make the following request:
+
+```bash
+curl -X PUT 'http://localhost:8080/i/teams/<teamID>/features/selfDeletingMessages/<lockStatus>'
+```
+
+<lockStatus> = locked | unlocked
+
 ## TTL for nonces
 
 Nonces that can be retrieved e.g. by calling `HEAD /nonce/clients` have a default time-to-live of 5 minutes. To change this setting add the following to your Helm overrides in `values/wire-server/values.yaml`:
@@ -128,7 +178,7 @@ The settings are the following:
 
 - `startTime`: migration start timestamp. Once this time arrives, clients will
   initialise the migration process (no migration-related action will take
-  place before that time).  If the migration feature is enabled, but
+  place before that time). If the migration feature is enabled, but
   `startTime` value is not set (or is set to `null`), migration is never
   started.
 - `finaliseRegardlessAfter`: timestamp of the date by which the migration must

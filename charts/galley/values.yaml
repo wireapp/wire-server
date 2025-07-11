@@ -148,7 +148,7 @@ config:
           status: disabled
       sso: disabled-by-default
       teamSearchVisibility: disabled-by-default
-      validateSAMLemails:
+      validateSAMLEmails:
         defaults:
           status: enabled
       outlookCalIntegration:

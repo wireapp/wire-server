@@ -220,7 +220,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
     (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients mCaps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
-  when (ClientSupportsConsumableNotifications `Set.member` (foldMap fromClientCapabilityList mCaps)) $ lift $ liftSem $ do
+  when (supportsConsumableNotifications clt) $ lift $ liftSem $ do
     setupConsumableNotifications u clt.clientId
   lift $ do
     for_ old $ execDelete u con

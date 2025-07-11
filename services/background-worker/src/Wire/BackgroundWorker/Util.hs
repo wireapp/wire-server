@@ -12,3 +12,5 @@ class RabbitMQEnvelope e where
 instance RabbitMQEnvelope Q.Envelope where
   ack = Q.ackEnv
   reject = Q.rejectEnv
+
+type CleanupAction = IO ()

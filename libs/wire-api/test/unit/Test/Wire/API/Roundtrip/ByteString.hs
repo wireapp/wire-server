@@ -70,6 +70,7 @@ tests =
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.ActivationKey,
       testRoundTrip @User.Auth.CookieLabel,
+      testRoundTrip @User.EmailActivation,
       testRoundTrip @User.Identity.EmailAddress,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.InvitationCode,
