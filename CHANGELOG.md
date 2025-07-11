@@ -1,3 +1,86 @@
+# [2025-07-11] (Chart Release 5.18.0)
+
+## Release notes
+
+
+* charts/cannon: There is a new configuration value called
+  `config.notificationTTL`, this defaults to the same value as gundeck. If it is
+  overriden in gundeck, it must also be overriden in cannon. (#4631)
+
+
+## API changes
+
+
+* Finalize API version V9 (#4645)
+
+* Add the `TeamId` to the payload of `conversation.delete` events. The field's
+  path is `team`. (#4618)
+
+
+## Features
+
+
+* Allow team admin to query channel data (#4633, #4635)
+
+* Brig setting to en-/disable ephemeral user creation (#4630)
+
+* Allow team admin to remove members from a channel (#4620)
+
+* background-worker: New gauge metric `wire_background_worker_running_workers`,
+  contains label `worker` for each worker. Set to `1` when the worker is running,
+  set to `0` when the worker is not running. (#4652)
+
+* cannon: Replace message count mechanism with detecting the end of initial sync (#4631)
+
+* The /events websocket will close a connection when it detects client inactivity. The inactivity behaviour can be controlled by setting the cannon options `wsOpts.activityTimeout` and `wsOpts.pongTimeout`. After `wsOpts.activityTimeout` microseconds of client inactivity (including no pings), the server sends a ping, and waits for a corresponding pong for `wsOpts.pongTimeout` microseconds. If no pong is received within this time window, the connection is terminated. (#4636)
+
+
+## Bug fixes and other updates
+
+
+* Team name removed from team invitation email template (#4654)
+
+* gundeck: Send push notifications to clients with `consumable-notifications` capability (#4626)
+
+* Avoid returning duplicate user search results when handle matches exactly  (#4656)
+
+* background-worker/dead-user-notifs-watcher: Reconnect when connection with RabbitMQ is broken (#4652)
+
+* Generated Swagger docs differed from the ratified ones for versions up to V9
+  regarding the `get-all-registered-domains`
+  (`/teams/{teamId}/registered-domains`) endpoint: The `backend_url` became part
+  of the `backend` object which should be introduced with V10. As teams do not
+  set backend redirects this should not be seen in practice. (#4647)
+
+
+## Documentation
+
+
+* Add documentation on self-deleting messages and setting custom time-frames for operators (#4650)
+
+
+## Internal changes
+
+
+* Upgrade RabbitMQ to version 4.x locally and on CI (#4639)
+
+* No ack for `message_count` event (#4625)
+
+* More test on validation of scim-provisioned emails.  Cleanup of code and internal APIs. (#4617)
+
+* Fix false positive warning of members not being present in remote conversations. (#4644)
+
+* Updated email templates to v1.0.130 (#4648)
+
+* Updated email templates to v1.0.133 (#4655)
+
+* Limit the amount of unacknowledged messages the RabbitMQ notifications consumer
+  receives to `100`. Beyond this limit, received messages have to be acknowledged
+  to receive new ones.  This prevents overloading the consumer with new messages. (#4615)
+
+* Timestamps for failing integration tests. (#4638)
+
+
 # [2025-06-16] (Chart Release 5.17.0)
 
 ## Release notes

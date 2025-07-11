@@ -1,1 +1,0 @@
-background-worker/dead-user-notifs-watcher: Reconnect when connection with RabbitMQ is broken
