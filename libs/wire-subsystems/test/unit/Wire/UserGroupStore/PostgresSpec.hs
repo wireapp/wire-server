@@ -214,7 +214,8 @@ spec = do
                          ["12"]
                        ]
 
-  describe "postgres vs. in-mem interpreters" $ do
+  -- TODO: currently this only works locally with /deploy/docker-ephemeral/run.sh running.
+  xdescribe "postgres vs. in-mem interpreters" $ do
     runAndCompare "CreateUserGroup" $ \tid -> do
       (userGroupNameToText . (.name)) <$> createUserGroup tid someNewUserGroup ManagedByWire
 
