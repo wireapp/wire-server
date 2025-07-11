@@ -1071,7 +1071,7 @@ notifyTypingIndicator conv qusr mcon ts = do
   lconv <- qualifyLocal (Data.convId conv)
   let origDomain = qDomain qusr
       (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
-      localMembers = fmap lmId (tryRemoveSelfLocalUsers lconv $ Data.convLocalMembers conv)
+      localMembers = fmap lmId (tryRemoveSelfFromLocalUsers lconv $ Data.convLocalMembers conv)
       remoteMembersFromOriginDomain = fmap (tUnqualified . rmId) (tryRemoveSelfFromRemoteUsers lconv remoteMemsOrig)
       remoteMembersFromOtherDomains = fmap rmId remoteMemsOther
       tdu users =
@@ -1090,8 +1090,8 @@ notifyTypingIndicator conv qusr mcon ts = do
 
   pure (tdu remoteMembersFromOriginDomain)
   where
-    tryRemoveSelfLocalUsers :: Local x -> [LocalMember] -> [LocalMember]
-    tryRemoveSelfLocalUsers l ms = foldQualified l (\usr -> filter (\m -> lmId m /= tUnqualified usr) ms) (const ms) qusr
+    tryRemoveSelfFromLocalUsers :: Local x -> [LocalMember] -> [LocalMember]
+    tryRemoveSelfFromLocalUsers l ms = foldQualified l (\usr -> filter (\m -> lmId m /= tUnqualified usr) ms) (const ms) qusr
 
     tryRemoveSelfFromRemoteUsers :: Local x -> [RemoteMember] -> [RemoteMember]
     tryRemoveSelfFromRemoteUsers l rms = foldQualified l (const rms) (\rusr -> filter (\rm -> rmId rm /= rusr) rms) qusr
