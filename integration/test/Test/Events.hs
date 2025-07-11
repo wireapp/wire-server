@@ -822,21 +822,67 @@ mkEvent uid cid transient =
       "transient" .= transient
     ]
 
+testTypingIndicatorIsNotSentToOwnClient :: (HasCallStack) => TaggedBool "federated" -> App ()
+testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
+  (alice, _, aliceClient) <- mkUserPlusClientWithDomain OwnDomain
+  (bob, _, bobClient) <- mkUserPlusClientWithDomain (if federated then OtherDomain else OwnDomain)
+  connectTwoUsers alice bob
+  aliceClientId <- objId aliceClient
+  bobClientId <- objId bobClient
+  conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+
+  runCodensity (createEventWebSockets [(alice, Just aliceClientId), (bob, Just bobClientId)]) $ \[aliceWs, bobWs] -> do
+    -- consume all events to ensure we start with a clean slate
+    consumeAllEvents_ aliceWs
+    consumeAllEvents_ bobWs
+
+    -- Alice is typing
+    sendTypingStatus alice conv "started" >>= assertSuccess
+
+    -- Bob should receive the typing indicator for Alice
+    assertEvent bobWs $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      ackEvent bobWs e
+
+    -- Alice should not receive the typing indicator for herself
+    assertNoEvent_ aliceWs
+
+    -- Bob is typing
+    sendTypingStatus bob conv "started" >>= assertSuccess
+
+    -- Alice should receive the typing indicator for Bob
+    assertEvent aliceWs $ \e -> do
+      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+      ackEvent aliceWs e
+
+    -- Bob should not receive the typing indicator for himself
+    assertNoEvent_ bobWs
+
 ----------------------------------------------------------------------
 -- helpers
-
-mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
-mkUserPlusClient = do
-  user <- randomUser OwnDomain def
+mkUserPlusClientWithDomain :: (HasCallStack, MakesValue domain) => domain -> App (Value, String, String)
+mkUserPlusClientWithDomain domain = do
+  user <- randomUser domain def
   uid <- objId user
   client <- addClient user def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   cid <- objId client
   pure (user, uid, cid)
 
+mkUserPlusClient :: (HasCallStack) => App (Value, String, String)
+mkUserPlusClient = mkUserPlusClientWithDomain OwnDomain
+
 data EventWebSocket = EventWebSocket
   { events :: Chan (Either WS.ConnectionException Value),
     ack :: MVar (Maybe Value)
   }
+
+createEventWebSockets ::
+  (HasCallStack, MakesValue user) =>
+  [(user, Maybe String)] ->
+  Codensity App [EventWebSocket]
+createEventWebSockets = traverse (uncurry createEventsWebSocket)
 
 createEventsWebSocket ::
   (HasCallStack, MakesValue user) =>

@@ -1067,13 +1067,13 @@ notifyTypingIndicator ::
   TypingStatus ->
   Sem r TypingDataUpdated
 notifyTypingIndicator conv qusr mcon ts = do
-  let origDomain = qDomain qusr
   now <- input
   lconv <- qualifyLocal (Data.convId conv)
-
-  pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
-
-  let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+  let origDomain = qDomain qusr
+      (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+      localMembers = fmap lmId (tryRemoveSelfLocalUsers lconv $ Data.convLocalMembers conv)
+      remoteMembersFromOriginDomain = fmap (tUnqualified . rmId) (tryRemoveSelfFromRemoteUsers lconv remoteMemsOrig)
+      remoteMembersFromOtherDomains = fmap rmId remoteMemsOther
       tdu users =
         TypingDataUpdated
           { time = now,
@@ -1083,10 +1083,18 @@ notifyTypingIndicator conv qusr mcon ts = do
             typingStatus = ts
           }
 
-  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
+  pushTypingIndicatorEvents qusr now localMembers mcon (tUntagged lconv) ts
+
+  void $ E.runFederatedConcurrentlyEither remoteMembersFromOtherDomains $ \rmems -> do
     fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
 
-  pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
+  pure (tdu remoteMembersFromOriginDomain)
+  where
+    tryRemoveSelfLocalUsers :: Local x -> [LocalMember] -> [LocalMember]
+    tryRemoveSelfLocalUsers l ms = foldQualified l (\usr -> filter (\m -> lmId m /= tUnqualified usr) ms) (const ms) qusr
+
+    tryRemoveSelfFromRemoteUsers :: Local x -> [RemoteMember] -> [RemoteMember]
+    tryRemoveSelfFromRemoteUsers l rms = foldQualified l (const rms) (\rusr -> filter (\rm -> rmId rm /= rusr) rms) qusr
 
 pushTypingIndicatorEvents ::
   (Member NotificationSubsystem r) =>
