@@ -7,3 +7,5 @@ CREATE TABLE collaborators (
   team_id uuid NOT NULL,
   permissions permission_flag []
 );
+
+CREATE INDEX collaborators_team_id_idx ON collaborators (team_id);
