@@ -332,6 +332,22 @@ services:
     networks:
       - demo_wire
 
+  rabbitmq2:
+    container_name: rabbitmq-2
+    image: rabbitmq:4.1.1-management-alpine
+    environment:
+      - RABBITMQ_USERNAME
+      - RABBITMQ_PASSWORD
+    ports:
+      - "127.0.0.1:5672:5671"
+      - "127.0.0.1:25671:15671"
+      - "127.0.0.1:25672:15672"
+    volumes:
+      - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/20-wire.conf
+      - ./rabbitmq-config/certificates:/etc/rabbitmq/certificates
+    networks:
+      - demo_wire
+
   init_vhosts:
     image: alpine/curl:3.14
     environment:

@@ -26,17 +26,25 @@ import API.GalleyInternal hiding (getConversation)
 import qualified API.GalleyInternal as I
 import Control.Applicative
 import Control.Concurrent (threadDelay)
+import qualified Control.Concurrent.Timeout as Timeout
+import Control.Lens ((.~), (^?!))
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
+import qualified Data.ProtoLens as Proto
 import qualified Data.Text as T
+import Data.Timeout
 import GHC.Stack
 import Notifications
+import Numeric.Lens
+import qualified Proto.Otr as Proto
+import qualified Proto.Otr_Fields as Proto
 import SetupHelpers hiding (deleteUser)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
+import Prelude (getLine)
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do
@@ -1028,3 +1036,49 @@ testGetSelfMember = do
     resp.json %. "service" `shouldMatch` Null
     resp.json %. "status" `shouldMatchInt` 0
     resp.json %. "status_ref" `shouldMatch` "0.0"
+
+testSendMessageInFederatedConversation :: (HasCallStack) => App ()
+testSendMessageInFederatedConversation = do
+  [user, otherUser] <- createUsers [make OwnDomain, make OtherDomain]
+  userClient <- addClient user def >>= getJSON 201 >>= objId
+  otherClient <- addClient otherUser def >>= getJSON 201 >>= objId
+
+  connectTwoUsers user otherUser
+
+  conv <- postConversation user (defProteus {qualifiedUsers = [otherUser]}) >>= getJSON 201
+
+  -- msg2 <- do
+  --   recipients <- mkProteusRecipients otherUser [(otherUser, [otherClient])] "hello my friends 2"
+  --   pure $ Proto.defMessage @Proto.QualifiedNewOtrMessage
+  --     & #sender . Proto.client .~ (userClient ^?! hex)
+  --     & #recipients .~ [recipients]
+  --     & #reportAll .~ Proto.defMessage
+
+  withWebSocket otherUser $ \ws -> do
+    for_ [1 .. 10] $ \(n :: Int) -> do
+      --  printJSON "Press enter to receive the message..."
+      --  _ <- liftIO $ getLine
+      let msgText = ("hello my friends: " <> show n)
+      printJSON msgText
+      msg <- do
+        recipients <- mkProteusRecipients otherUser [(otherUser, [otherClient])] msgText
+        pure $ Proto.defMessage @Proto.QualifiedNewOtrMessage
+          & #sender . Proto.client .~ (userClient ^?! hex)
+          & #recipients .~ [recipients]
+          & #reportAll .~ Proto.defMessage
+
+      postProteusMessage user conv msg >>= assertSuccess
+
+      e <- awaitMatch isNewMessageNotif ws
+      e %. "payload.0.type" `shouldMatch` "conversation.otr-message-add"
+      e %. "payload.0.data.text" `shouldMatchBase64` msgText
+
+      Timeout.threadDelay (1 # Second)
+
+-- e1 <- awaitMatch isNewMessageNotif ws
+-- e1 %. "payload.0.type" `shouldMatch` "conversation.otr-message-add"
+-- e1 %. "payload.0.data.text" `shouldMatchBase64` "hello my friends"
+
+-- e2 <- awaitMatch isNewMessageNotif ws
+-- e2 %. "payload.0.type" `shouldMatch` "conversation.otr-message-add"
+-- e2 %. "payload.0.data.text" `shouldMatchBase64` "hello my friends 2"

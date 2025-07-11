@@ -3,6 +3,7 @@
 
 module Wire.BackendNotificationPusher where
 
+import Cassandra.Options
 import Control.Arrow
 import Control.Monad.Catch
 import Control.Retry
@@ -13,6 +14,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Debug.Trace (traceM)
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -23,6 +25,7 @@ import Network.Wai.Utilities.Error
 import Prometheus
 import Servant.Client qualified as Servant
 import System.Logger.Class qualified as Log
+import System.Random
 import UnliftIO
 import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
@@ -156,6 +159,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                   ceOriginRequestId =
                     fromMaybe (RequestId defRequestId) . (.requestId) . NE.head $ bundle.notifications
                 }
+
         remoteVersions :: Set Int <-
           liftIO
             -- use versioned client with no version set: since we are manually
@@ -242,6 +246,9 @@ startPusher adminClient consumersRef chan = do
     ]
     $ forever
     $ do
+      portNum <- asks (.federatorInternal.port)
+      n :: Double <- liftIO $ randomRIO (0.0, 1.0)
+      when (n > 0.5 && portNum == 8097) $ error "random failure"
       remotes <- getRemoteDomains adminClient
       ensureConsumers consumersRef chan remotes
       threadDelay timeBeforeNextRefresh
