@@ -130,6 +130,7 @@ nginx_conf:
     # galeb: integrations
   }
 
+  # TODO: Add upstream for collaborators endpoint
   upstreams:
     cargohold:
     - path: /conversations/([^/]*)/assets
