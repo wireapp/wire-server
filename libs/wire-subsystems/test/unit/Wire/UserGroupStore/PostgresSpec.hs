@@ -8,6 +8,7 @@ import Data.Default
 import Data.Id
 import Data.String.Conversions
 import Data.Text qualified as T
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.UUID qualified as UUID
 import Hasql.Connection.Setting qualified as HasqlSetting
 import Hasql.Connection.Setting.Connection qualified as HasqlConn
@@ -102,7 +103,9 @@ spec = do
 
   describe "in-mem (mock) interpreter" $ do
     let new :: (_) => TeamId -> Text -> Sem r UserGroup
-        new tid name = createUserGroup tid (NewUserGroup (userGroupNameFromTextUnsafe name) mempty) ManagedByWire
+        new tid name = do
+          moveClock 1
+          createUserGroup tid (NewUserGroup (userGroupNameFromTextUnsafe name) mempty) ManagedByWire
 
         pstate =
           PaginationState
@@ -114,7 +117,7 @@ spec = do
               offset = Just 0
             }
 
-    it "can search for substrings" $ do
+    it "searches for substrings" $ do
       let search :: (_) => TeamId -> Maybe Text -> Sem r [Text]
           search tid subst =
             (userGroupNameToText . (.name))
@@ -131,12 +134,64 @@ spec = do
                          []
                        ]
 
-    it "can paginate" $ do
+    it "answer contains rows in correct order" $ do
+      let search :: (_) => TeamId -> (SortBy, SortOrder, SortOrder) -> Sem r [UserGroup]
+          search tid (sBy, soName, soTime) =
+            getUserGroups tid (pstate {sortBy = sBy, sortOrderName = soName, sortOrderCreatedAt = soTime})
+
+          x0 = {- time 1 -} "anarchy"
+          x1 = {- time 2 -} "bubble"
+          x2 = {- time 3 -} "chocolate"
+          x3 = {- time 3 -} "bubble"
+
+      tid <- randomId
+      (ugs, result) :: ([UserGroup], [[UserGroup]]) <- inMemInt $ do
+        setClock (posixSecondsToUTCTime 0)
+        ugs <- do
+          u012 <- new tid `mapM` [x0, x1, x2]
+          moveClock (-1)
+          u3 <- new tid x3
+          pure (u012 <> [u3])
+
+        res <-
+          search tid
+            `mapM` [ (SortByName, Asc, Asc),
+                     (SortByName, Desc, Asc),
+                     (SortByName, Asc, Desc),
+                     (SortByName, Desc, Desc),
+                     (SortByCreatedAt, Asc, Asc),
+                     (SortByCreatedAt, Desc, Asc),
+                     (SortByCreatedAt, Asc, Desc),
+                     (SortByCreatedAt, Desc, Desc)
+                   ]
+        pure (ugs, res)
+
+      -- remove the `--` from the following line if you find the error of this test unhelpful.
+      --
+      -- length (show (ugs, result)) `seq` traceShowM `mapM_` (fingerprint <$$> result)
+      --
+      -- fingerprint :: UserGroup -> (Text, Text)
+      -- fingerprint ug =
+      -- ( userGroupNameToText ug.name,
+      --   T.pack (formatTime defaultTimeLocale "%T" (fromUTCTimeMillis ug.createdAt))
+      -- )
+
+      result
+        `shouldBe` [ (ugs !!) <$> [0, 1, 3, 2],
+                     (ugs !!) <$> [2, 1, 3, 0],
+                     (ugs !!) <$> [0, 3, 1, 2],
+                     (ugs !!) <$> [2, 3, 1, 0],
+                     (ugs !!) <$> [0, 1, 3, 2],
+                     (ugs !!) <$> [0, 1, 3, 2],
+                     (ugs !!) <$> [3, 2, 1, 0],
+                     (ugs !!) <$> [2, 3, 1, 0]
+                   ]
+
+    it "paginates" $ do
       let search :: (_) => TeamId -> (Int, Maybe Int) -> Sem r [Text]
           search tid (size, off) =
             (userGroupNameToText . (.name))
               <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral <$> off})
-
       tid <- randomId
       ( inMemInt $ do
           new tid `mapM_` ["01", "02", "10", "12"]
@@ -167,7 +222,7 @@ spec = do
       ugid <- (.id_) <$> createUserGroup tid someNewUserGroup ManagedByScim
       (userGroupNameToText . (.name)) <$$> getUserGroup tid ugid
 
-    focus $ runAndCompareProp "GetUserGroups" $ \tid (TestPaginationState pstate) -> do
+    runAndCompareProp "GetUserGroups" $ \tid (TestPaginationState pstate) -> do
       _ugid <- (.id_) <$$> ((\new -> createUserGroup tid new ManagedByWire) `mapM` testPaginationNewUserGroups)
       (userGroupNameToText . (.name)) <$$> getUserGroups tid pstate
 
