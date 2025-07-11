@@ -4,7 +4,6 @@ import Control.Lens
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Qualified
-import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -49,11 +48,11 @@ getAllTeamCollaboratorsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r (Set UserId)
+  Sem r [GetTeamCollaborator]
 getAllTeamCollaboratorsImpl zUser team = do
   unlessM (isTeamAdmin (tUnqualified zUser) team) $
     throw InsufficientRights
-  Set.fromList <$> Store.getAllTeamCollaborators team
+  Store.getAllTeamCollaborators team
 
 isTeamAdmin ::
   (Member GalleyAPIAccess r) =>

@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.TeamCollaboratorsStore.Postgres
   ( interpretTeamCollaboratorsStoreToPostgres,
   )
@@ -7,6 +9,7 @@ import Data.Bimap qualified as Bimap
 import Data.Id
 import Data.Profunctor
 import Data.Set
+import Data.UUID
 import Data.Vector
 import Hasql.Pool
 import Hasql.Session
@@ -63,21 +66,28 @@ getAllTeamCollaboratorsImpl ::
     Member (Error UsageError) r
   ) =>
   TeamId ->
-  Sem r [UserId]
+  Sem r [GetTeamCollaborator]
 getAllTeamCollaboratorsImpl teamId = do
   pool <- input
   eitherTeamCollaborators <- liftIO $ use pool session
   either throw pure eitherTeamCollaborators
   where
-    session :: Session [UserId]
+    session :: Session [GetTeamCollaborator]
     session = statement teamId getAllTeamCollaboratorsStatement
 
-    getAllTeamCollaboratorsStatement :: Statement TeamId [UserId]
+    getAllTeamCollaboratorsStatement :: Statement TeamId [GetTeamCollaborator]
     getAllTeamCollaboratorsStatement =
-      dimap toUUID (Data.Vector.toList . (Id <$>)) $
+      dimap toUUID (Data.Vector.toList . (toGetTeamCollaborator <$>)) $
         [vectorStatement|
-          select (user_id :: uuid) from collaborators where team_id = ($1 :: uuid)
+          select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where team_id = ($1 :: uuid)
           |]
+
+    toGetTeamCollaborator :: (UUID, UUID, Vector Int16) -> GetTeamCollaborator
+    toGetTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
+      GetTeamCollaborator {..}
+
+    toPermissions :: Vector Int16 -> [CollaboratorPermission]
+    toPermissions = (Data.Vector.toList . Data.Vector.map postgreslRepToCollaboratorPermission)
 
 -- We could rely on an `Ord` instance here. Howver, when the order is changed,
 -- this will mess up spectaculary at run time. So, this extra mapping is meant
@@ -89,3 +99,7 @@ collaboratorPermissionMap = Bimap.fromAscPairList [(0, CreateTeamConversation), 
 collaboratorPermissionToPostgreslRep :: CollaboratorPermission -> Int16
 collaboratorPermissionToPostgreslRep =
   (collaboratorPermissionMap Bimap.!> {- `!>` throws if the element isn't found -})
+
+postgreslRepToCollaboratorPermission :: Int16 -> CollaboratorPermission
+postgreslRepToCollaboratorPermission =
+  (collaboratorPermissionMap Bimap.! {- `!` throws if the element isn't found -})

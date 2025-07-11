@@ -12,6 +12,6 @@ data TeamCollaboratorsSubsystem m a where
   CreateTeamCollaborator :: Local UserId -> UserId -> TeamId -> Set CollaboratorPermission -> TeamCollaboratorsSubsystem m ()
   -- TODO: Create a data type for the response containing: UserID, TeamID and permissions
   -- Only the UserId isn't enough
-  GetAllTeamCollaborators :: Local UserId -> TeamId -> TeamCollaboratorsSubsystem m (Set UserId)
+  GetAllTeamCollaborators :: Local UserId -> TeamId -> TeamCollaboratorsSubsystem m [GetTeamCollaborator]
 
 makeSem ''TeamCollaboratorsSubsystem

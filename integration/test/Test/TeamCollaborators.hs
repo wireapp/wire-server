@@ -10,8 +10,19 @@ testCreateTeamCollaborator = do
 
   -- TODO: Just creating any user might be wrong. Should this be a bot?
   userId <- randomUser OwnDomain def >>= asString . (%. "id")
-  addTeamCollaborator owner team userId [] >>= assertSuccess
+  addTeamCollaborator
+    owner
+    team
+    userId
+    [ "create_team_conversation",
+      "implicit_connection"
+    ]
+    >>= assertSuccess
+
   bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
     -- TODO: Assert more here
     resp.status `shouldMatchInt` 200
-    printJSON resp.jsonBody
+    res <- (resp.jsonBody & asList) <&> assertOne
+    res %. "user" `shouldMatch` userId
+    res %. "team" `shouldMatch` team
+    res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]

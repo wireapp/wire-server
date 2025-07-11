@@ -1984,7 +1984,7 @@ type TeamsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "collaborators"
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [UserId])
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [GetTeamCollaborator])
            )
 
 type SystemSettingsAPI =

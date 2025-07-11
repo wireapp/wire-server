@@ -9,6 +9,6 @@ import Wire.API.Team.Collaborator
 
 data TeamCollaboratorsStore m a where
   CreateTeamCollaborator :: UserId -> TeamId -> Set CollaboratorPermission -> TeamCollaboratorsStore m ()
-  GetAllTeamCollaborators :: TeamId -> TeamCollaboratorsStore m [UserId]
+  GetAllTeamCollaborators :: TeamId -> TeamCollaboratorsStore m [GetTeamCollaborator]
 
 makeSem ''TeamCollaboratorsStore
