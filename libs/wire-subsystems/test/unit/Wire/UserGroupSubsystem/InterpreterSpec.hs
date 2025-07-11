@@ -297,8 +297,6 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   .&&. getOtherGroup === Nothing
                   .&&. getOtherGroups.page === []
 
-    -- TODO: don't we want to make asc, desc different for every key?
-
     it "getGroups: q=<name>, returning 0, 1, 2 groups" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       mkAssertion (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
