@@ -12,6 +12,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
@@ -34,9 +35,17 @@ import Wire.UserSubsystem
 
 data UserGroupInMemState = UserGroupInMemState
   { userGroups :: Map (TeamId, UserGroupId) UserGroup,
-    now :: UTCTimeMillis -- (we could use `Now` from polysemy-wire-zoo, but that doesn't allow moving the clock deliberately.)
+    -- | current time.  we could use `Now` from polysemy-wire-zoo, but that doesn't allow
+    -- moving the clock deliberately.
+    now :: UTCTimeMillis,
+    -- | time passing before every action.  default is 0, so you can control time by setClock,
+    -- moveClock (see below).
+    clockStep :: NominalDiffTime
   }
   deriving (Eq, Show)
+
+instance Default UserGroupInMemState where
+  def = UserGroupInMemState mempty (toUTCTimeMillis $ posixSecondsToUTCTime 0) 0
 
 setClock :: (Member (State UserGroupInMemState) r) => UTCTime -> Sem r ()
 setClock time = modify (\s -> s {now = toUTCTimeMillis time})
@@ -44,8 +53,10 @@ setClock time = modify (\s -> s {now = toUTCTimeMillis time})
 moveClock :: (Member (State UserGroupInMemState) r) => NominalDiffTime -> Sem r ()
 moveClock diff = modify (\s -> s {now = toUTCTimeMillis (addUTCTime diff (fromUTCTimeMillis s.now))})
 
-instance Default UserGroupInMemState where
-  def = UserGroupInMemState mempty (fromJust (readUTCTimeMillis "2021-05-12T10:52:02Z"))
+moveClockOneStep :: (Member (State UserGroupInMemState) r) => Sem r ()
+moveClockOneStep = do
+  st <- get
+  moveClock st.clockStep
 
 type UserGroupStoreInMemEffectConstraints r =
   ( Member (State UserGroupInMemState) r,
@@ -80,14 +91,15 @@ runInMemoryUserGroupStore state =
 
 userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r) => InterpreterFor UserGroupStore r
 userGroupStoreTestInterpreter =
-  interpret \case
-    CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
-    GetUserGroup tid gid -> getUserGroupImpl tid gid
-    GetUserGroups tid listUserGroupsQuery -> getUserGroupsImpl tid listUserGroupsQuery
-    UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
-    DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
-    AddUser gid uid -> addUserImpl gid uid
-    RemoveUser gid uid -> removeUserImpl gid uid
+  interpret $
+    (moveClockOneStep >>) . \case
+      CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
+      GetUserGroup tid gid -> getUserGroupImpl tid gid
+      GetUserGroups tid listUserGroupsQuery -> getUserGroupsImpl tid listUserGroupsQuery
+      UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
+      DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
+      AddUser gid uid -> addUserImpl gid uid
+      RemoveUser gid uid -> removeUserImpl gid uid
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
