@@ -140,8 +140,8 @@ getUserGroupsImpl tid pstate = do
           (SortByName, Asc, Desc) -> (n, c') `compare` (n', c)
           (SortByName, Desc, Desc) -> (n', c') `compare` (n, c)
           (SortByCreatedAt, Asc, Asc) -> (c, n) `compare` (c', n')
-          (SortByCreatedAt, Desc, Asc) -> (c', n) `compare` (c, n')
-          (SortByCreatedAt, Asc, Desc) -> (c, n') `compare` (c', n)
+          (SortByCreatedAt, Desc, Asc) -> (c, n) `compare` (c', n')
+          (SortByCreatedAt, Asc, Desc) -> (c', n) `compare` (c, n')
           (SortByCreatedAt, Desc, Desc) -> (c', n') `compare` (c, n)
           where
             n = ug.name
