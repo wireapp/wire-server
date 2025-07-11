@@ -134,6 +134,11 @@ instance Default PageSize where
 
 ------------------------------
 
+-- | Offset-based pagination.
+--
+-- FUTUREWORK: For cursor-based pagination, there is postgres machinery.  It requires
+-- transaction handling, but this may not imply table locks, so it may be fine.  (Jumping to
+-- the last page may not be that relevant in practice, refining the search is more common.)
 data PaginationState = PaginationState
   { -- | `searchString` always applies to name, no matter what the sort order.  `Nothing`
     -- means do not filter.
