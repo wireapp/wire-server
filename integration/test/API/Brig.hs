@@ -1056,10 +1056,16 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
-getUserGroups :: (MakesValue user) => user -> Maybe Int -> Maybe String -> App Response
-getUserGroups user mbLimit mbLastKey = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups"]
-  submit "GET" $ req & addQueryParams (catMaybes [(("limit",) . show) <$> mbLimit, ("last_key",) <$> mbLastKey])
+getUserGroups ::
+  (MakesValue user) =>
+  user ->
+  Maybe String ->
+  Maybe String ->
+  Maybe String ->
+  Maybe Int ->
+  Maybe Value ->
+  App Response
+getUserGroups = undefined
 
 updateUserGroup :: (MakesValue user, MakesValue userGroupUpdate) => user -> String -> userGroupUpdate -> App Response
 updateUserGroup user gid userGroupUpdate = do
