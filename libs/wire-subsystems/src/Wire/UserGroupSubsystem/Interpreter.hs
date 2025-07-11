@@ -170,7 +170,7 @@ getUserGroupsImpl ::
   Maybe PaginationState ->
   Sem r PaginationResult
 getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
-  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin {- sic! -}
+  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin -- TODO: really this exception?  about admin?
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
   checkPaginationState `mapM_` pState
@@ -198,8 +198,7 @@ getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
         let sb = fromMaybe def sortBy'
 
             -- Map the `sort_order` query parameter to `sortOrderName` and
-            -- `sortOrderCreatedAt`.  `sort_order` is taken to refer to whatever we already
-            -- have in the state under `sortBy`.
+            -- `sortOrderCreatedAt`, depending on the value of `sort_order`.
             son = fromMaybe (defaultSortOrder SortByName) $ case sb of
               SortByName -> sortOrder'
               SortByCreatedAt -> Nothing
