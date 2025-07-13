@@ -6,6 +6,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import Data.Foldable
 import Data.Function
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
@@ -1065,7 +1066,19 @@ getUserGroups ::
   Maybe Int ->
   Maybe Value ->
   App Response
-getUserGroups = undefined
+getUserGroups user q sortByKeys sortOrder pSize pState = do
+  req <- baseRequest user Brig Versioned "user-groups"
+  submit "GET" $
+    req
+      & addQueryParams
+        ( catMaybes
+            [ ("q",) <$> q,
+              ("sort_by",) <$> sortByKeys,
+              ("sort_order",) <$> sortOrder,
+              (("page_size",) . show) <$> pSize,
+              (("pagination_state",) . cs . Aeson.encode) <$> pState
+            ]
+        )
 
 updateUserGroup :: (MakesValue user, MakesValue userGroupUpdate) => user -> String -> userGroupUpdate -> App Response
 updateUserGroup user gid userGroupUpdate = do

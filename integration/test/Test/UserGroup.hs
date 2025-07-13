@@ -62,9 +62,9 @@ testUserGroupSmoke = do
 
   bindResponse (getUserGroups owner Nothing Nothing Nothing Nothing Nothing) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    -- TODO: mempty's wrong!
-    -- TODO: translate unit tests for getUserGroups!
-    resp.json %. "page" `shouldMatch` (mempty :: [Value])
+    resp.json %. "page.0.name" `shouldMatch` "also good"
+
+  -- TODO: give every query param at least one try.
 
   bindResponse (deleteUserGroup owner badGid) $ \resp -> do
     resp.status `shouldMatchInt` 404
