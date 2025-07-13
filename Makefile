@@ -345,7 +345,7 @@ psql:
 	@grep -q wire-server:wire-server ~/.pgpass || \
 	  echo "consider running 'echo localhost:5432:wire-server:wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
 	psql -h localhost -p 5432 -d $(PSQL_DB) -U wire-server -w || \
-	  echo "if the database is missing, consider running 'make postgres-reset'."
+	  echo 'if the database is missing, consider running "make postgres-reset", or setting $$PSQL_DB to the correct table space.'
 
 .PHONY: db-reset-package
 db-reset-package:
