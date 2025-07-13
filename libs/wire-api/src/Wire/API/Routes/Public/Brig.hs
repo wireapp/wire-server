@@ -318,7 +318,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "get-user-groups"
-           ( From 'V9
+           ( From 'V10
                :> ZLocalUser
                :> "user-groups"
                :> PaginationQuery
