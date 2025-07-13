@@ -310,7 +310,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
         pure do
           get0.page `shouldBe` []
-          get1.page `shouldBe` [groups !! 0]
+          get1.page `shouldBe` [head groups]
           get2.page `shouldBe` reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
           get3.page `shouldBe` [groups !! 3]
 
