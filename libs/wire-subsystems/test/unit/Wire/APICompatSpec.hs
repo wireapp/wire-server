@@ -10,7 +10,7 @@ import Imports
 import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Internal.Kind (Append)
-import Servant as Servant
+import Servant
 import Test.Hspec
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig qualified as BrigRoutes

@@ -123,9 +123,11 @@ spec = do
             (userGroupNameToText . (.name))
               <$$> getUserGroups tid pstate {searchString = subst}
       tid <- randomId
-      ( inMemInt def $ do
-          new tid `mapM_` ["01", "02", "10", "12"]
-          search tid `mapM` (Nothing : (Just <$> ["1", "2", "10", "100"]))
+      inMemInt
+        def
+        ( do
+            new tid `mapM_` ["01", "02", "10", "12"]
+            search tid `mapM` (Nothing : (Just <$> ["1", "2", "10", "100"]))
         )
         `shouldReturn` [ ["01", "02", "10", "12"],
                          ["01", "10", "12"],
@@ -193,17 +195,19 @@ spec = do
             (userGroupNameToText . (.name))
               <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral <$> off})
       tid <- randomId
-      ( inMemInt def $ do
-          new tid `mapM_` ["01", "02", "10", "12"]
-          search tid
-            `mapM` [ (0, Nothing),
-                     (1, Nothing),
-                     (0, Just 0),
-                     (1, Just 0),
-                     (2, Just 0),
-                     (2, Just 1),
-                     (2, Just 3)
-                   ]
+      inMemInt
+        def
+        ( do
+            new tid `mapM_` ["01", "02", "10", "12"]
+            search tid
+              `mapM` [ (0, Nothing),
+                       (1, Nothing),
+                       (0, Just 0),
+                       (1, Just 0),
+                       (2, Just 0),
+                       (2, Just 1),
+                       (2, Just 3)
+                     ]
         )
         `shouldReturn` [ [],
                          [],
