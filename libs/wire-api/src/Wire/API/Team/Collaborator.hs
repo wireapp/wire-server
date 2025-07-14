@@ -20,6 +20,9 @@ instance ToSchema CollaboratorPermission where
         ]
 
 data TeamCollaboratorsError = InsufficientRights
+  deriving (Eq, Show)
+
+instance Exception TeamCollaboratorsError
 
 data AddTeamCollaborator = AddTeamCollaborator
   { aUser :: UserId,
@@ -36,9 +39,10 @@ instance ToSchema AddTeamCollaborator where
 
 data GetTeamCollaborator = GetTeamCollaborator
   { gUser :: UserId,
-    gTeam :: UserId,
+    gTeam :: TeamId,
     gPermissions :: [CollaboratorPermission]
   }
+  deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema GetTeamCollaborator)
 
 instance ToSchema GetTeamCollaborator where
