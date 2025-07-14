@@ -34,6 +34,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tagged
@@ -81,8 +82,12 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Extension
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
+import Wire.API.MLS.RatchetTree
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
@@ -270,6 +275,15 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       Just _ -> do
         -- extract added/removed clients from bundle
         action <- lift $ getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+
+        lift $
+          checkGroupState
+            ( paApply
+                action
+                (cmToMap (tUnqualified lConvOrSub).members)
+            )
+            bundle.groupInfo.value
+
         -- process additions and removals
         events <-
           processInternalCommit
@@ -287,6 +301,12 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         pure (events, newClients)
       Nothing -> do
         action <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
+        let groupState =
+              externalCommitActionApply
+                action
+                senderIdentity.client
+                (cmToMap convOrSub.members)
+        lift $ checkGroupState groupState bundle.groupInfo.value
         let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
           senderIdentity'
@@ -298,13 +318,41 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.commit.value.path
         pure ([], [])
     lift $ do
-      storeGroupInfo (tUnqualified lConvOrSub).id (GroupInfoData bundle.groupInfo.raw)
-      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+      storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
+      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage convOrSub.members
     pure (events, newClients)
 
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
   pure events
+
+checkGroupState ::
+  forall r.
+  (Member (Error MLSProtocolError) r) =>
+  Map LeafIndex ClientIdentity ->
+  GroupInfo ->
+  Sem r ()
+checkGroupState leaves groupInfo = do
+  trees <-
+    either
+      (\_ -> throw (mlsProtocolError "Could not parse ratchet tree extension in GroupInfo"))
+      pure
+      $ findExtension groupInfo.tbs.extensions
+  tree :: RatchetTree <- case trees of
+    (tree : _) -> pure tree
+    _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
+  giLeaves :: Map LeafIndex ClientIdentity <-
+    Map.fromList . zip [0 ..]
+      <$> traverse getIdentity (ratchetTreeLeaves tree)
+  when (leaves /= giLeaves) $ do
+    -- TODO: use specific error
+    throw $ mlsProtocolError "GroupInfo mismatch"
+  pure ()
+  where
+    getIdentity :: LeafNode -> Sem r ClientIdentity
+    getIdentity leaf = case credentialIdentityAndKey leaf.credential of
+      Left e -> throw (mlsProtocolError e)
+      Right (cid, _) -> pure cid
 
 postMLSCommitBundleToRemoteConv ::
   ( Member BrigAccess r,

@@ -88,6 +88,9 @@ mkClientMap = foldr addEntry mempty
       | pending_removal = id -- treat as removed, don't add to ClientMap
       | otherwise = Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral leafidx))
 
+cmToMap :: (Ord a) => ClientMap a -> Map a ClientIdentity
+cmToMap = Map.fromList . map swap . cmAssocs
+
 cmLookupIndex :: ClientIdentity -> ClientMap LeafIndex -> Maybe LeafIndex
 cmLookupIndex cid cm = do
   clients <- Map.lookup (cidQualifiedUser cid) cm

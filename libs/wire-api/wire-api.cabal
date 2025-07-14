@@ -121,7 +121,6 @@ library
     Wire.API.MLS.ECDSA
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
-    Wire.API.MLS.RatchetTree
     Wire.API.MLS.Group
     Wire.API.MLS.Group.Serialisation
     Wire.API.MLS.GroupInfo
@@ -134,6 +133,7 @@ library
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
+    Wire.API.MLS.RatchetTree
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation

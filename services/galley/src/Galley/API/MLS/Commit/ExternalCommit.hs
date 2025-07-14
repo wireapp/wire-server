@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.Commit.ExternalCommit
   ( ExternalCommitAction (..),
+    externalCommitActionApply,
     getExternalCommitData,
     processExternalCommit,
   )
@@ -59,6 +60,11 @@ data ExternalCommitAction = ExternalCommitAction
   { add :: LeafIndex,
     remove :: Maybe LeafIndex
   }
+
+externalCommitActionApply :: ExternalCommitAction -> a -> Map LeafIndex a -> Map LeafIndex a
+externalCommitActionApply action x =
+  Map.insert action.add x
+    . maybe id Map.delete action.remove
 
 getExternalCommitData ::
   forall r.

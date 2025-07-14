@@ -23,16 +23,17 @@ import Wire.API.MLS.HPKEPublicKey
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 
-data RatchetTree = RatchetTree {nodes :: [RatchetTreeNode]}
+data RatchetTree = RatchetTree {nodes :: [Maybe RatchetTreeNode]}
+  deriving (Eq, Show)
 
 instance IsExtension RatchetTree where
   extensionType = 2
 
 instance ParseMLS RatchetTree where
-  parseMLS = RatchetTree <$> parseMLSVector @VarInt parseMLS
+  parseMLS = RatchetTree <$> parseMLSVector @VarInt (parseMLSOptional parseMLS)
 
 data RatchetTreeNodeTag = RatchetTreeLeafNodeTag | RatchetTreeParentNodeTag
-  deriving (Eq, Ord, Enum, Bounded)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 instance ParseMLS RatchetTreeNodeTag where
   parseMLS = parseMLSEnum @Word8 "NodeType"
@@ -40,6 +41,7 @@ instance ParseMLS RatchetTreeNodeTag where
 data RatchetTreeNode
   = RatchetTreeParentNode RatchetTreeParent
   | RatchetTreeLeafNode LeafNode
+  deriving (Eq, Show)
 
 instance ParseMLS RatchetTreeNode where
   parseMLS =
@@ -52,6 +54,7 @@ data RatchetTreeParent = RatchetTreeParent
     parentHash :: ByteString,
     unmergedLeaves :: [Word32]
   }
+  deriving (Eq, Show)
 
 instance ParseMLS RatchetTreeParent where
   parseMLS =
@@ -59,3 +62,12 @@ instance ParseMLS RatchetTreeParent where
       <$> parseMLS
       <*> parseMLSBytes @VarInt
       <*> parseMLSVector @VarInt parseMLS
+
+ratchetTreeLeaves :: RatchetTree -> [LeafNode]
+ratchetTreeLeaves =
+  foldMap
+    ( \case
+        Just (RatchetTreeLeafNode n) -> [n]
+        _ -> []
+    )
+    . (.nodes)
