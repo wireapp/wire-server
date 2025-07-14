@@ -64,8 +64,6 @@ testUserGroupSmoke = do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.name" `shouldMatch` "also good"
 
-  -- TODO: give every query param at least one try.
-
   bindResponse (deleteUserGroup owner badGid) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
