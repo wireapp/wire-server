@@ -122,6 +122,7 @@ data EventType
   | MemberUpdate
   | ConvCreate
   | ConvDelete
+  | CollaboratorAdd
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -137,7 +138,8 @@ instance ToSchema EventType where
           element "team.member-leave" MemberLeave,
           element "team.member-update" MemberUpdate,
           element "team.conversation-create" ConvCreate,
-          element "team.conversation-delete" ConvDelete
+          element "team.conversation-delete" ConvDelete,
+          element "team.collaborator-add" CollaboratorAdd
         ]
 
 --------------------------------------------------------------------------------
@@ -152,6 +154,8 @@ data EventData
   | EdMemberUpdate UserId (Maybe Permissions)
   | EdConvCreate ConvId
   | EdConvDelete ConvId
+  | -- TODO: Add permissions and/or teamId?
+    EdCollaboratorAdd UserId
   deriving stock (Eq, Show, Generic)
 
 -- FUTUREWORK: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
@@ -176,6 +180,7 @@ instance ToJSON EventData where
   toJSON (EdConvCreate cnv) = A.object ["conv" A..= cnv]
   toJSON (EdConvDelete cnv) = A.object ["conv" A..= cnv]
   toJSON (EdTeamUpdate upd) = toJSON upd
+  toJSON (EdCollaboratorAdd usr) = A.object ["user" A..= usr]
 
 eventDataType :: EventData -> EventType
 eventDataType (EdTeamCreate _) = TeamCreate
@@ -186,6 +191,7 @@ eventDataType (EdMemberLeave _) = MemberLeave
 eventDataType (EdMemberUpdate _ _) = MemberUpdate
 eventDataType (EdConvCreate _) = ConvCreate
 eventDataType (EdConvDelete _) = ConvDelete
+eventDataType (EdCollaboratorAdd _) = CollaboratorAdd
 
 parseEventData :: EventType -> Maybe Value -> Parser EventData
 parseEventData MemberJoin Nothing = fail "missing event data for type 'team.member-join'"
@@ -225,5 +231,6 @@ genEventData = \case
   MemberUpdate -> EdMemberUpdate <$> arbitrary <*> arbitrary
   ConvCreate -> EdConvCreate <$> arbitrary
   ConvDelete -> EdConvDelete <$> arbitrary
+  CollaboratorAdd -> EdCollaboratorAdd <$> arbitrary
 
 makeLenses ''Event

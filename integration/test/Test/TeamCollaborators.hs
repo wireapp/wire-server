@@ -1,26 +1,30 @@
 module Test.TeamCollaborators where
 
 import API.Brig
+import Notifications (isTeamCollaboratorAddedNotif)
 import SetupHelpers
 import Testlib.Prelude
 
 testCreateTeamCollaborator :: (HasCallStack) => App ()
 testCreateTeamCollaborator = do
-  (owner, team, []) <- createTeam OwnDomain 0
+  (owner, team, [alice]) <- createTeam OwnDomain 2
 
   -- TODO: Just creating any user might be wrong. Should this be a bot?
   userId <- randomUser OwnDomain def >>= asString . (%. "id")
-  addTeamCollaborator
-    owner
-    team
-    userId
-    [ "create_team_conversation",
-      "implicit_connection"
-    ]
-    >>= assertSuccess
+  withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
+    addTeamCollaborator
+      owner
+      team
+      userId
+      [ "create_team_conversation",
+        "implicit_connection"
+      ]
+      >>= assertSuccess
+
+    void $ awaitMatch isTeamCollaboratorAddedNotif wsOwner
+    void $ awaitMatch isTeamCollaboratorAddedNotif wsAlice
 
   bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
-    -- TODO: Assert more here
     resp.status `shouldMatchInt` 200
     res <- (resp.jsonBody & asList) <&> assertOne
     res %. "user" `shouldMatch` userId
