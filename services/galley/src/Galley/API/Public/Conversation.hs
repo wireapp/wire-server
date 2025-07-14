@@ -30,10 +30,11 @@ import Wire.API.Routes.Public.Galley.Conversation
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
-  mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
-    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
-    <@> mkNamedAPI @"get-conversation@v2" getConversation
-    <@> mkNamedAPI @"get-conversation@v5" getConversation
+  mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversationV9
+    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversationV9
+    <@> mkNamedAPI @"get-conversation@v2" getConversationV9
+    <@> mkNamedAPI @"get-conversation@v5" getConversationV9
+    <@> mkNamedAPI @"get-conversation@v9" getConversationV9
     <@> mkNamedAPI @"get-conversation" getConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
@@ -48,8 +49,8 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
     <@> mkNamedAPI @"create-group-conversation@v2" createGroupConversationUpToV3
     <@> mkNamedAPI @"create-group-conversation@v3" createGroupConversationUpToV3
-    <@> mkNamedAPI @"create-group-conversation@v5" createGroupConversationV8
-    <@> mkNamedAPI @"create-group-conversation@v8" createGroupConversationV8
+    <@> mkNamedAPI @"create-group-conversation@v5" createGroupConversationV9
+    <@> mkNamedAPI @"create-group-conversation@v9" createGroupConversationV9
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation@v5" createProteusSelfConversation

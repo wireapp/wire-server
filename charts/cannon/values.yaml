@@ -17,6 +17,8 @@ config:
     vHost: /
     enableTls: false
     insecureSkipVerifyTls: false
+  rabbitMqMaxConnections: 1000
+  rabbitMqMaxChannels: 300
   cassandra:
     host: aws-cassandra
     # To enable TLS provide a CA:
@@ -36,6 +38,11 @@ config:
     gracePeriodSeconds: 25
     millisecondsBetweenBatches: 50
     minBatchSize: 20
+
+  # TTL of stored notifications in Seconds. After this period, notifications
+  # will be deleted and thus not delivered.
+  # The default is 28 days.
+  notificationTTL: 2419200
 
   # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.

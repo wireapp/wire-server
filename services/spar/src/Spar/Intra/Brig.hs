@@ -155,7 +155,11 @@ updateEmail buid email activation = do
         . path "/i/self/email"
         . header "Z-User" (toByteString' buid)
         . query
-          [ ("validate", Just (fromBool validate)),
+          [ ("activation", Just (toByteString' activation)),
+            -- FUTUREWORK: the following two are for backwards compatibility during deployment
+            -- of the release containing https://github.com/wireapp/wire-server/pull/4617, can
+            -- be removed later (fisx, 2025-06-19)
+            ("validate", Just (fromBool validate)),
             ("activate", Just (fromBool activate))
           ]
         . json (EmailUpdate email)
@@ -167,7 +171,6 @@ updateEmail buid email activation = do
     (validate, activate) = case activation of
       AutoActivate -> (False, True)
       SendActivationEmail -> (True, False)
-      DoNotSendActivationEmail -> (False, False)
 
     fromBool :: Bool -> ByteString
     fromBool True = "true"

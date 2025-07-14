@@ -348,6 +348,7 @@ data MLSConv = MLSConv
   { members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
     newMembers :: Set ClientIdentity,
+    memberUsers :: Set Value,
     membersToBeRemoved :: Set ClientIdentity,
     groupId :: String,
     convId :: ConvId,

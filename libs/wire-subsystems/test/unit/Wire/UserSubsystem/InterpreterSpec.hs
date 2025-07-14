@@ -13,7 +13,9 @@ import Data.Handle
 import Data.Id
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.Map qualified as Map
+import Data.Proxy
 import Data.Qualified
+import Data.Range
 import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
@@ -33,12 +35,14 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.IdentityProvider (IdPList (..), team)
+import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
+import Wire.MockInterpreters
 import Wire.RateLimit
 import Wire.StoredUser
 import Wire.UserKeyStore
@@ -1062,3 +1066,33 @@ spec = describe "UserSubsystem.Interpreter" do
               Team tid | tid == storedInv.teamId -> Right storedInv
               Team _ -> Left $ UserSubsystemGuardFailed TeamInviteRestrictedToOtherTeam
          in outcome === expected
+
+  describe "SearchUsers" $ do
+    prop "exact handle matches are not duplicate" $
+      \(ActiveStoredUser searcheeNoHandle) (searcheeHandle :: Handle) (ActiveStoredUser searcher) localDomain configBase ->
+        let teamMember = mkTeamMember searcher.id fullPermissions Nothing defUserLegalHoldStatus
+            searchee = searcheeNoHandle {handle = Just searcheeHandle}
+            localBackend =
+              def
+                { users = [searchee, searcher],
+                  userIndex = indexFromStoredUsers [searchee, searcher]
+                }
+            galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) searcher.teamId
+            config = configBase {searchSameTeamOnly = False}
+         in runNoFederationStack localBackend galleyState config $ do
+              result <-
+                searchUsers
+                  (toLocalUnsafe localDomain searcher.id)
+                  (fromHandle searcheeHandle)
+                  Nothing
+                  (Just $ toRange (Proxy @2))
+              let expectedContact =
+                    Contact
+                      { contactTeam = searchee.teamId,
+                        contactQualifiedId = Qualified searchee.id localDomain,
+                        contactName = fromName searchee.name,
+                        contactHandle = fromHandle <$> searchee.handle,
+                        contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId
+                      }
+              pure $
+                result.searchResults === [expectedContact]

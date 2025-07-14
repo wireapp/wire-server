@@ -77,7 +77,7 @@ clean:
 clean-hint:
 	@echo -e "\n\n\n>>> PSA: if you get errors that are hard to explain,"
 	@echo -e ">>> try 'git submodule update --init --recursive' and 'make full-clean' and run your command again."
-	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling"
+	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/src/developer/developer/building.md#linker-errors-while-compiling"
 	@echo -e ">>> to never have to remember submodules again, try 'git config --global submodule.recurse true'"
 	@echo -e "\n\n\n"
 
@@ -151,8 +151,8 @@ devtest:
 # find . -name '*.hs' | entr -s 'make -C ~/src/wire-server c package=wire-subsystems test=1'
 .PHONY: devtest-package
 devtest-package:
-	@ghcid --command 'cabal repl test:$(package)-tests' --test='main' \
-	  || echo -e "\n\n\n*** usage: make devtest-package package=wire-subsystems.\n*** did you make sure the test-suite goal in the cabal file of your\n*** package follows the naming convention (see wire-subsystems)?\n\n"
+	@ghcid --command 'cabal repl $(package):tests lib:$(package)' --test='main' \
+	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
 
 .PHONY: sanitize-pr
 sanitize-pr: check-weed treefmt
@@ -444,7 +444,7 @@ libzauth:
 kube-integration:  kube-integration-setup kube-integration-test
 
 .PHONY: kube-integration-setup
-kube-integration-setup: charts-integration
+kube-integration-setup: charts-integration helm-oci-login
 	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test
@@ -467,6 +467,9 @@ kube-integration-e2e-telepresence:
 kube-restart-%:
 	kubectl delete pod -n $(NAMESPACE) -l app=$(*)
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
+
+helm-oci-login:
+	./hack/bin/helm-oci-login.sh
 
 .PHONY: latest-tag
 latest-tag:
@@ -540,7 +543,7 @@ upload-chart-%: release-chart-%
 	./hack/bin/upload-helm-charts-s3.sh -r $(HELM_REPO) -d .local/charts/$(*)
 
 # Usecases for this make target:
-# To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)
+# To upload all helm charts in the CHARTS_RELEASE list (see top of the time)
 # (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-charts
 upload-charts: charts-release
@@ -626,7 +629,7 @@ kind-restart-%: .local/kind-kubeconfig
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
 # This target can be used to template a helm chart with values filled in from
-# hack/helm_vars (what CI uses) as overrrides, if available. This allows debugging helm
+# hack/helm_vars (what CI uses) as overrides, if available. This allows debugging helm
 # templating issues without actually installing anything, and without needing
 # access to a kubernetes cluster. e.g.:
 #   make helm-template-wire-server

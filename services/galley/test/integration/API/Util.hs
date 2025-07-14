@@ -1048,7 +1048,7 @@ getConvs u cids = do
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
 
-getAllConvs :: (HasCallStack) => UserId -> TestM [ConversationV8]
+getAllConvs :: (HasCallStack) => UserId -> TestM [ConversationV9]
 getAllConvs u = do
   g <- viewGalley
   cids <- do
@@ -1604,7 +1604,7 @@ assertNotConvMember u c =
     const 200 === statusCode
     const (Right Null) === responseJsonEither
 
-assertConvEquals :: (HasCallStack, MonadIO m) => ConversationV8 -> ConversationV8 -> m ()
+assertConvEquals :: (HasCallStack, MonadIO m) => ConversationV9 -> ConversationV9 -> m ()
 assertConvEquals c1 c2 = liftIO $ do
   assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
   assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
@@ -1644,16 +1644,15 @@ assertConvWithRole ::
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   cnv :: Conversation <- responseJsonError r
-  let otherMembers = filter (\m -> m.omQualifiedId /= s) (toList cnv.members)
   liftIO $ do
     assertEqual "id" cId cnv.qualifiedId.qUnqualified
     assertEqual "name" n cnv.metadata.cnvmName
     assertEqual "type" t cnv.metadata.cnvmType
     assertEqual "creator" c cnv.metadata.cnvmCreator
     assertEqual "message_timer" mt cnv.metadata.cnvmMessageTimer
-    assertEqual "members" (Set.fromList $ s : us) (Set.map omQualifiedId cnv.members)
-    assertEqual "creator is always an admin" (Just roleNameWireAdmin) (omConvRoleName <$> find (\m -> m.omQualifiedId == s) (Set.toList cnv.members))
-    assertBool "others role" (all ((== role) . omConvRoleName) otherMembers)
+    assertEqual "members" (Set.fromList $ s : us) (Set.fromList (maybe [] (\self -> [self.memId]) cnv.members.self <> fmap omQualifiedId cnv.members.others))
+    assertEqual "creator is always an admin" (Just roleNameWireAdmin) (memConvRoleName <$> cnv.members.self)
+    assertBool "others role" (all ((== role) . omConvRoleName) cnv.members.others)
     case t of
       SelfConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
       ConnectConv -> assertEqual "access" privateAccess (cnv.metadata.cnvmAccess)
@@ -1661,7 +1660,7 @@ assertConvWithRole r t c s us n mt role = do
       _ -> pure ()
   pure cnv.qualifiedId
 
-assertConvV8 ::
+assertConvV9 ::
   (HasCallStack) =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
@@ -1671,9 +1670,9 @@ assertConvV8 ::
   Maybe Text ->
   Maybe Milliseconds ->
   TestM (Qualified ConvId)
-assertConvV8 r t c s us n mt = assertConvWithRoleV8 r t c s us n mt roleNameWireAdmin
+assertConvV9 r t c s us n mt = assertConvWithRoleV9 r t c s us n mt roleNameWireAdmin
 
-assertConvWithRoleV8 ::
+assertConvWithRoleV9 ::
   (HasCallStack) =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
@@ -1684,7 +1683,7 @@ assertConvWithRoleV8 ::
   Maybe Milliseconds ->
   RoleName ->
   TestM (Qualified ConvId)
-assertConvWithRoleV8 r t c s us n mt role = do
+assertConvWithRoleV9 r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
   cnv <- responseJsonError r
   let _self = cmSelf (cnvMembers cnv)
@@ -1931,17 +1930,17 @@ decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCodeEvent r = case responseJsonUnsafe r of
-  (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
+  (Event _ _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
-decodeConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvIdV8 = qUnqualified . decodeQualifiedConvIdV8
+decodeConvIdV9 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
+decodeConvIdV9 = qUnqualified . decodeQualifiedConvIdV9
 
 decodeConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = qUnqualified . decodeQualifiedConvId
 
-decodeQualifiedConvIdV8 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvIdV8 = cnvQualifiedId . responseJsonUnsafe
+decodeQualifiedConvIdV9 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvIdV9 = cnvQualifiedId . responseJsonUnsafe
 
 decodeQualifiedConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
 decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @Conversation
@@ -2697,13 +2696,14 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamDelete
 
-checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> WS.WebSocket -> TestM ()
-checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> TeamId -> WS.WebSocket -> TestM ()
+checkConvDeleteEvent cid tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
+  evtTeam e @?= (Just tid)
 
 checkConvMemberLeaveEvent :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do

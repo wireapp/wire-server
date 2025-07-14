@@ -66,6 +66,10 @@ features must be listed.  Each feature defines its own set of allowed
 flag values.  (The reason for that is that as we will see, the
 semantics is slightly different (or more specific) than boolean.)
 
+NOTE: some feature flags can also be changed for individual teams via
+the backoffice app, or the internal rest API
+([example](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/iget_ChannelsConfigB)).
+
 ### SSO
 
 This sets the default setting for all teams, and can be overridden by
@@ -243,12 +247,12 @@ fileSharing:
 
 These are all the possible combinations of `status` and `lockStatus`:
 
-| `status`   | `lockStatus`   |                                                   |
-|------------|----------------|---------------------------------------------------|
-| `enabled`  | `locked`       | Feature enabled, cannot be disabled by team admin |
-| `enabled`  | `unlocked`     | Feature enabled, can be disabled by team admin    |
-| `disabled` | `locked`       | Feature disabled, cannot be enabled by team admin |
-| `disabled` | `unlocked`     | Feature disabled, can be enabled by team admin    |
+| `status`   | `lockStatus` |                                                   |
+| ---------- | ------------ | ------------------------------------------------- |
+| `enabled`  | `locked`     | Feature enabled, cannot be disabled by team admin |
+| `enabled`  | `unlocked`   | Feature enabled, can be disabled by team admin    |
+| `disabled` | `locked`     | Feature disabled, cannot be enabled by team admin |
+| `disabled` | `unlocked`   | Feature disabled, can be enabled by team admin    |
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/fileSharing/(un)?locked`).
 
@@ -256,9 +260,13 @@ The feature status for individual teams can be changed via the public API (if th
 
 ### Validate SAML Emails
 
-If this is enabled, if a new user account is created with an email address as SAML NameID or SCIM externalId, users will receive a validation email.  If they follow the validation procedure, they will be able to receive emails about their account, eg., if a new device is associated with the account.  If the user does not validate their email address, they can still use it to login.
+The feature only affects email address changes originating from SCIM or SAML.  Personal users and team users provisioned through the team management app will *always* be validated.
 
-Validate SAML emails is enabled by default; this is almost always what you want. If you want a different configuration, use the following syntax:
+`enabled` means "user has authority over email address": if a new user account with an email address is created, the user behind the account will receive a validation email.  If they follow the validation procedure, they will be able to receive emails about their account, eg., if a new device is associated with the account.  If the user does not validate their email address, they can still use it to login.
+
+`disabled` means "team admin has authority over email address, and by extension over all member accounts": if a user account with an email address is created, the address is considered valid immediately, without any emails being sent out, and without confirmation from the recipient.
+
+Validate SAML emails is enabled by default.  To disable, use the following syntax:
 
 ```yaml
 # galley.yaml
@@ -912,7 +920,7 @@ To configure the team invitation URL for personal users that is sent vai email, 
 
 ```yaml
 brig:
-  config
+  config:
     emailSMS:
       team:
         tExistingUserInvitationUrl: '{{ .Values.accountUrl }}/accept-invitation/?team-code=${code}'
@@ -938,12 +946,33 @@ brig:
       setAuditLogEmailRecipient: security@wire.com
 ```
 
+### Ephemeral User Creation
+
+An ephemeral user is a temporary user that can be created without an email address to join conversations via a guest link. The ephemeral user account exists only for a limited period of time, usually 24h. Ephemeral user creation is enabled per default. To disable the feature set `setEphemeralUserCreationEnabled` to `false`:
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setEphemeralUserCreationEnabled: false
+```
+
 ## Settings in cargohold
 
 AWS S3 (or an alternative provider / service) is used to upload and download
 assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
+
+## Settings in cannon
+
+### Events websocket inactivity
+
+The /events websocket will close a connection when it detects client inactivity. The inactivity behaviour can be controlled by setting the cannon options `wsOpts.activityTimeout` and `wsOpts.pongTimeout`.
+
+After `wsOpts.activityTimeout` microseconds of client inactivity (including no pings), the server sends a ping, and waits for a corresponding pong for `wsOpts.pongTimeout` microseconds. If no pong is received within this time window, the connection is terminated.
+
+If not specified, both options default to 30 seconds.
 
 ## Settings in spar
 
@@ -1008,7 +1037,7 @@ For a multi-ingress setup multiple services need to be configured:
 nginz sets [CORS
 headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS). To generate
 them for multiple domains (usually, *nginz* works with only one root domain `nginx_conf.external_env_domain`)
-these need to be defined with `nginx_conf.additional_external_env_domains`. 
+these need to be defined with `nginx_conf.additional_external_env_domains`.
 
 E.g.
 
@@ -1029,7 +1058,7 @@ nginx_conf:
 headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) for direct API
 accesses by clients. To generate them for multiple domains (usually, *cannon*
 works with only one root domain) these need to be defined with
-`nginx_conf.additional_external_env_domains`. 
+`nginx_conf.additional_external_env_domains`.
 
 E.g.
 
@@ -1118,7 +1147,7 @@ config:
       givenName: <name> # Optional
       surname: <name> # Optional
       phone: <phone-number-string> # Optional
-... 
+...
 ```
 
 To the multi-domain *SP* configuration:

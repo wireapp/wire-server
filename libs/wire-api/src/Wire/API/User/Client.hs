@@ -50,6 +50,7 @@ module Wire.API.User.Client
     ClientType (..),
     ClientClass (..),
     MLSPublicKeys,
+    supportsConsumableNotifications,
 
     -- * New/Update/Remove Client
     NewClient (..),
@@ -516,6 +517,10 @@ data Client = Client
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
 
 type MLSPublicKeys = Map SignatureSchemeTag ByteString
+
+supportsConsumableNotifications :: Client -> Bool
+supportsConsumableNotifications c =
+  ClientSupportsConsumableNotifications `Set.member` c.clientCapabilities.fromClientCapabilityList
 
 mlsPublicKeysSchema :: ValueSchema NamedSwaggerDoc MLSPublicKeys
 mlsPublicKeysSchema =

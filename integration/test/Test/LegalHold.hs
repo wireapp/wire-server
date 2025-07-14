@@ -798,9 +798,9 @@ testLHNoConsentRemoveFromGroup approvedOrPending admin = do
 
         let createConv = defProteus {qualifiedUsers = [invitee], newUsersRole = inviteeRole, team = Just tidInviter}
         postConversation inviter createConv `bindResponse` \resp -> do
-          allMembers <- resp.json %. "members" & asList
-          selfMember <- findM (\m -> (==) <$> m %. "qualified_id" <*> inviter %. "qualified_id") allMembers
-          otherMember <- findM (\m -> (==) <$> m %. "qualified_id" <*> invitee %. "qualified_id") allMembers
+          otherMembers <- resp.json %. "members.others" & asList
+          selfMember <- resp.json %. "members.self"
+          otherMember <- findM (\m -> (==) <$> m %. "qualified_id" <*> invitee %. "qualified_id") otherMembers
           selfMember %. "conversation_role" `shouldMatch` "wire_admin"
           otherMember %. "conversation_role" `shouldMatch` case admin of
             BothAreAdmins -> "wire_admin"

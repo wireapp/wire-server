@@ -1,0 +1,6 @@
+{
+    "dns_verification_token": "jfdjsejsdjsdfjsdfjlwejwekljwef",
+    "domain": "example.com",
+    "domain_redirect": "pre-authorized",
+    "team_invite": "allowed"
+}

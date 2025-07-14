@@ -1,14 +1,15 @@
-cabal-version: 3.0
-name:          wire-subsystems
-version:       0.1.0
-description:   Subsystems of the Wire collaboration platform
-category:      Network
-author:        Wire Swiss GmbH
-maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2020 Wire Swiss GmbH
-license:       AGPL-3.0-only
-license-file:  LICENSE
-build-type:    Simple
+cabal-version:      3.0
+name:               wire-subsystems
+version:            0.1.0
+description:        Subsystems of the Wire collaboration platform
+category:           Network
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2020 Wire Swiss GmbH
+license:            AGPL-3.0-only
+license-file:       LICENSE
+build-type:         Simple
+extra-source-files: postgres-migrations/*.sql
 
 common common-all
   default-language:   GHC2021
@@ -159,8 +160,8 @@ common common-all
     , zauth
 
 library
-  import:             common-all
-  ghc-options:        -fplugin=Polysemy.Plugin
+  import:          common-all
+  ghc-options:     -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -262,8 +263,7 @@ library
     Wire.VerificationCodeSubsystem
     Wire.VerificationCodeSubsystem.Interpreter
 
-  hs-source-dirs:     src
-  extra-source-files: postgres-migrations/*.sql
+  hs-source-dirs:  src
   build-depends:
     , aeson
     , aeson-pretty

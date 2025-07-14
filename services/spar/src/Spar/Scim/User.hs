@@ -206,6 +206,29 @@ instance
 -- 'ValidScimUser''.
 validateScimUser ::
   forall r.
+  ( Member (Logger (Msg -> Msg)) r,
+    Member SAMLUserStore r,
+    Member BrigAccess r,
+    Member (Input Opts) r,
+    Member IdPConfigStore r
+  ) =>
+  Text ->
+  -- | Used to decide what IdP to assign the user to
+  ScimTokenInfo ->
+  Scim.User ST.SparTag ->
+  Scim.ScimHandler (Sem r) ST.ValidScimUser
+validateScimUser errloc tokinfo user =
+  logScim
+    ( logFunction "Spar.Scim.User.mkValidScimId"
+        . Log.field "errloc" errloc
+        . Log.field "tokinfo" (show tokinfo)
+        . Log.field "user" (show user)
+    )
+    (Log.field "result" . show)
+    (validateScimUserNoLogging errloc tokinfo user)
+
+validateScimUserNoLogging ::
+  forall r.
   ( Member SAMLUserStore r,
     Member BrigAccess r,
     Member (Input Opts) r,
@@ -216,7 +239,7 @@ validateScimUser ::
   ScimTokenInfo ->
   Scim.User ST.SparTag ->
   Scim.ScimHandler (Sem r) ST.ValidScimUser
-validateScimUser errloc tokinfo user = do
+validateScimUserNoLogging errloc tokinfo user = do
   mIdpConfig <- tokenInfoToIdP tokinfo
   richInfoLimit <- lift $ inputs richInfoLimit
   eitherUser <- lift $ runError $ validateScimUser' errloc mIdpConfig richInfoLimit user
@@ -433,10 +456,10 @@ logScim context postcontext action =
                 Just d -> d
                 Nothing ->
                   Text.decodeUtf8With lenientDecode . toStrict . Aeson.encode $ e
-        Logger.warn $ context . Log.msg errorMsg
+        Logger.trace $ context . Log.msg errorMsg
         pure (Left e)
       Right x -> do
-        Logger.info $ context . postcontext x . Log.msg @Text "call without exception"
+        Logger.trace $ context . postcontext x . Log.msg @Text "call without exception"
         pure (Right x)
 
 logEmail :: EmailAddress -> (Msg -> Msg)
@@ -444,10 +467,10 @@ logEmail email =
   Log.field "email_sha256" (sha256String . Text.pack . show $ email)
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
-logVSU (ST.ValidScimUser veid handl _name _emails _richInfo _active _lang _role) =
-  -- FUTUREWORK(elland): Take SCIM emails field into account.
-  maybe id logEmail (justHere $ ST.validScimIdAuthInfo veid)
-    . logHandle handl
+logVSU vsu =
+  maybe id logEmail (justHere $ ST.validScimIdAuthInfo vsu.externalId)
+    . logHandle vsu.handle
+    . Log.field "valid scim user" (show vsu)
 
 logTokenInfo :: ScimTokenInfo -> (Msg -> Msg)
 logTokenInfo ScimTokenInfo {stiTeam} = logTeam stiTeam
@@ -460,8 +483,6 @@ logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
 vsUserEmail :: ST.ValidScimUser -> Maybe EmailAddress
 vsUserEmail usr = justHere $ ST.validScimIdAuthInfo usr.externalId
-
--- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
 -- | Creates a SCIM User.
 --

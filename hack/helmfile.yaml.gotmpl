@@ -103,6 +103,7 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
+      - './helm_vars/bitnami.yaml'
       - redis-ephemeral:
           fullnameOverride: databases-ephemeral-redis-ephemeral
           auth:
@@ -146,6 +147,7 @@ releases:
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
+      - './helm_vars/bitnami.yaml'
       - redis-ephemeral:
           fullnameOverride: databases-ephemeral-redis-ephemeral
           auth:
@@ -169,11 +171,9 @@ releases:
     namespace: "{{ .Values.namespace1 }}"
     chart: "bitnami/postgresql"
     values:
-      - auth:
-          postgresPassword: "posty-the-gres"
-          username: wire-server
-          password: "posty-the-gres"
-        primary:
+      - './helm_vars/bitnami.yaml'
+      - './helm_vars/postgresql/values.yaml.gotmpl'
+      - primary:
           initdb:
             scripts:
               init.sql: |
@@ -191,11 +191,9 @@ releases:
     namespace: "{{ .Values.namespace2 }}"
     chart: "bitnami/postgresql"
     values:
-      - auth:
-          postgresPassword: "posty-the-gres"
-          username: wire-server
-          password: "posty-the-gres"
-        primary:
+      - './helm_vars/bitnami.yaml'
+      - './helm_vars/postgresql/values.yaml.gotmpl'
+      - primary:
           initdb:
             scripts:
               init.sql: |
@@ -226,6 +224,7 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
+      - './helm_vars/bitnami.yaml'
       - redis-ephemeral:
           fullnameOverride: redis-ephemeral-2
           auth:
@@ -254,14 +253,18 @@ releases:
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/rabbitmq'
+    chart: 'bitnami/rabbitmq'
+    version: '16.0.9'
     values:
+      - './helm_vars/bitnami.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/rabbitmq'
+    chart: 'bitnami/rabbitmq'
+    version: '16.0.9'
     values:
+      - './helm_vars/bitnami.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
   - name: 'ingress'

@@ -19,8 +19,7 @@ import Util.Logging
 import Util.Timeout (Timeout (..))
 import Wire.API.EnterpriseLogin
 import Wire.API.Team.Invitation
-import Wire.API.Team.Member
-import Wire.API.Team.Member qualified as Teams
+import Wire.API.Team.Member as Teams
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
@@ -172,7 +171,10 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
 
     let sendOp = case invitationFlow of
           InviteExistingUser -> sendTeamInvitationMailPersonalUser
-          InviteNewUser -> sendTeamInvitationMail
+          InviteNewUser ->
+            -- NB: this is not guarded by the `validateSAMLEmails` feature, so auto-activation
+            -- is not supported here.
+            sendTeamInvitationMail
 
     invitationUrl <- sendOp email tid inviterEmail code invRequest.locale
     inv <- toInvitation invitationUrl showInvitationUrl newInv

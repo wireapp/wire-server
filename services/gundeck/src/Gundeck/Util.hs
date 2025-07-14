@@ -18,24 +18,8 @@
 module Gundeck.Util where
 
 import Control.Monad.Catch
-import Control.Retry
-import Data.Id
-import Data.UUID.V1
 import Imports
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities
 import UnliftIO (async, waitCatch)
-import Wire.API.Internal.Notification
-
--- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
-mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
-mkNotificationId = do
-  ni <- fmap Id <$> retrying x10 fun (const (liftIO nextUUID))
-  maybe (throwM err) pure ni
-  where
-    x10 = limitRetries 10 <> exponentialBackoff 10
-    fun = const (pure . isNothing)
-    err = mkError status500 "internal-error" "unable to generate notification ID"
 
 mapAsync ::
   (MonadUnliftIO m, Traversable t) =>

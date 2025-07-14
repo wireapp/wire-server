@@ -318,7 +318,7 @@ services:
 
   rabbitmq:
     container_name: rabbitmq
-    image: rabbitmq:3.13.7-management-alpine
+    image: rabbitmq:4.1.1-management-alpine
     environment:
       - RABBITMQ_USERNAME
       - RABBITMQ_PASSWORD

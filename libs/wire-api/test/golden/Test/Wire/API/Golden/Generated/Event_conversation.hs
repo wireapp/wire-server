@@ -44,7 +44,8 @@ testObject_Event_conversation_1 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "n8nl6tp.h5"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdConvCodeDelete
+      evtData = EdConvCodeDelete,
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_2 :: Event
@@ -66,7 +67,8 @@ testObject_Event_conversation_2 =
                 misHiddenRef = Nothing,
                 misConvRoleName = Just roleNameWireAdmin
               }
-          )
+          ),
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_3 :: Event
@@ -86,7 +88,8 @@ testObject_Event_conversation_3 =
                   }
               )
               False
-          )
+          ),
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_4 :: Event
@@ -96,7 +99,8 @@ testObject_Event_conversation_4 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "97k-u0.b-5c"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdConvAccessUpdate (ConversationAccessData {cupAccess = fromList [PrivateAccess, CodeAccess], cupAccessRoles = fromList []})
+      evtData = EdConvAccessUpdate (ConversationAccessData {cupAccess = fromList [PrivateAccess, CodeAccess], cupAccessRoles = fromList []}),
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_5 :: Event
@@ -106,7 +110,8 @@ testObject_Event_conversation_5 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "7.m4f7p.ez4zs61"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdMLSWelcome ""
+      evtData = EdMLSWelcome "",
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_6 :: Event
@@ -116,7 +121,8 @@ testObject_Event_conversation_6 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "8.0-6.t7pxv"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId 1, otrRecipient = ClientId 1, otrCiphertext = "", otrData = Just "I\68655"})
+      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId 1, otrRecipient = ClientId 1, otrCiphertext = "", otrData = Just "I\68655"}),
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_7 :: Event
@@ -126,7 +132,8 @@ testObject_Event_conversation_7 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "64b3--h.u"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId 3, otrRecipient = ClientId 3, otrCiphertext = "%\SI", otrData = Nothing})
+      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId 3, otrRecipient = ClientId 3, otrCiphertext = "%\SI", otrData = Nothing}),
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_8 :: Event
@@ -136,7 +143,8 @@ testObject_Event_conversation_8 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "0--gy.705nsa8.j4m"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdTyping StartedTyping
+      evtData = EdTyping StartedTyping,
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_9 :: Event
@@ -171,7 +179,8 @@ testObject_Event_conversation_9 =
                     Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "ns.v2p"}}
                   ]
               }
-          )
+          ),
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_10 :: Event
@@ -181,7 +190,8 @@ testObject_Event_conversation_10 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "4-p.d7b8d3.6.c8--jds3-1acy"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdMLSMessage "s\b\138w\236\231P(\ESC\216\205"
+      evtData = EdMLSMessage "s\b\138w\236\231P(\ESC\216\205",
+      evtTeam = Nothing
     }
 
 testObject_Event_conversation_11 :: Event
@@ -191,5 +201,6 @@ testObject_Event_conversation_11 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "70-o.ncd"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdTyping StoppedTyping
+      evtData = EdTyping StoppedTyping,
+      evtTeam = Nothing
     }
