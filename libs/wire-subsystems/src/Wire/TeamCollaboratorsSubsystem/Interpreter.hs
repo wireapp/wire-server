@@ -49,7 +49,7 @@ createTeamCollaboratorImpl ::
   Set CollaboratorPermission ->
   Sem r ()
 createTeamCollaboratorImpl zUser user team perms = do
-  unlessM (isTeamAdmin (tUnqualified zUser) team) $
+  unlessM (hasPermission (tUnqualified zUser) team) $
     throw InsufficientRights
   Store.createTeamCollaborator user team perms
 
@@ -83,19 +83,19 @@ getAllTeamCollaboratorsImpl ::
   TeamId ->
   Sem r [GetTeamCollaborator]
 getAllTeamCollaboratorsImpl zUser team = do
-  unlessM (isTeamAdmin (tUnqualified zUser) team) $
+  unlessM (hasPermission (tUnqualified zUser) team) $
     throw InsufficientRights
   Store.getAllTeamCollaborators team
 
-isTeamAdmin ::
+hasPermission ::
   (Member GalleyAPIAccess r) =>
   UserId ->
   TeamId ->
   Sem r Bool
-isTeamAdmin user team =
+hasPermission user team =
   isJust <$> runMaybeT do
     member <- MaybeT $ getTeamMember user team
-    guard (TeamMember.isAdminOrOwner (member ^. TeamMember.permissions))
+    guard (member `TeamMember.hasPermission` TeamMember.AddTeamCollaborator)
 
 teamCollaboratorsSubsystemErrorToHttpError :: TeamCollaboratorsError -> HttpError
 teamCollaboratorsSubsystemErrorToHttpError =

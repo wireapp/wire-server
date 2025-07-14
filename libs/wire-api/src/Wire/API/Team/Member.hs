@@ -474,6 +474,7 @@ data HiddenPerm
     DownloadTeamMembersCsv
   | ChangeTeamMemberProfiles
   | SearchContacts
+  | AddTeamCollaborator
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -557,7 +558,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
-            DownloadTeamMembersCsv
+            DownloadTeamMembersCsv,
+            AddTeamCollaborator
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
