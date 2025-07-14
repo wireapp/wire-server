@@ -1057,16 +1057,19 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
-getUserGroups ::
-  (MakesValue user) =>
-  user ->
-  Maybe String ->
-  Maybe String ->
-  Maybe String ->
-  Maybe Int ->
-  Maybe Value ->
-  App Response
-getUserGroups user q sortByKeys sortOrder pSize pState = do
+data GetUserGroupsArgs = GetUserGroupsArgs
+  { q :: Maybe String,
+    sortByKeys :: Maybe String,
+    sortOrder :: Maybe String,
+    pSize :: Maybe Int,
+    pState :: Maybe Value
+  }
+
+instance Default GetUserGroupsArgs where
+  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing
+
+getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
+getUserGroups user GetUserGroupsArgs {..} = do
   req <- baseRequest user Brig Versioned "user-groups"
   submit "GET" $
     req
