@@ -24,7 +24,7 @@ import Data.Default
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
 import Data.Proxy
-import Data.Range
+import Data.Range as Range
 import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -73,9 +73,11 @@ instance Arbitrary SortBy where
   arbitrary = Arbitrary.elements [minBound ..]
 
 instance FromHttpApiData SortBy where
-  parseUrlPiece = parseUrlPieceViaSchema
+  parseUrlPiece "name" = pure SortByName
+  parseUrlPiece "created_at" = pure SortByCreatedAt
+  parseUrlPiece bad = Left $ "SortBy: could not parse " <> bad
 
-instance O.ToParamSchema SortBy
+instance O.ToParamSchema SortBy -- TODO: what does swagger look like here?
 
 ------------------------------
 
@@ -99,9 +101,11 @@ instance ToSchema SortOrder where
         ]
 
 instance FromHttpApiData SortOrder where
-  parseUrlPiece = parseUrlPieceViaSchema
+  parseUrlPiece "asc" = pure Asc
+  parseUrlPiece "desc" = pure Desc
+  parseUrlPiece bad = Left $ "SortOrder: could not parse " <> bad
 
-instance O.ToParamSchema SortOrder
+instance O.ToParamSchema SortOrder -- TODO: what does swagger look like here?
 
 ------------------------------
 
@@ -111,6 +115,9 @@ newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int}
 
 pageSizeToInt :: PageSize -> Int
 pageSizeToInt = fromRange . fromPageSize
+
+pageSizeFromInt :: Int -> Either Text PageSize
+pageSizeFromInt = fmap PageSize . first T.pack . (Range.checkedEither @Int @1 @500 :: Int -> Either String (Range 1 500 Int))
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
 pageSizeFromIntUnsafe :: Int -> PageSize
@@ -123,7 +130,7 @@ instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema
 
 instance FromHttpApiData PageSize where
-  parseUrlPiece = parseUrlPieceViaSchema
+  parseUrlPiece = parseUrlPiece @Int >=> pageSizeFromInt
 
 instance O.ToParamSchema PageSize
 
