@@ -168,15 +168,14 @@ spec = do
                    ]
         pure (ugs, res)
 
-      -- remove the `--` from the following line if you find the error of this test unhelpful.
+      -- remove the `--` from the following lines if you find the error of this test unhelpful.
       --
-      -- length (show (ugs, result)) `seq` traceShowM `mapM_` (fingerprint <$$> result)
-      --
-      -- fingerprint :: UserGroup -> (Text, Text)
-      -- fingerprint ug =
-      -- ( userGroupNameToText ug.name,
-      --   T.pack (formatTime defaultTimeLocale "%T" (fromUTCTimeMillis ug.createdAt))
-      -- )
+      -- let fingerprint :: UserGroup -> (Text, Text)
+      --     fingerprint ug =
+      --       ( userGroupNameToText ug.name,
+      --         T.pack (formatTime defaultTimeLocale "%T" (fromUTCTimeMillis ug.createdAt))
+      --       )
+      --  in length (show (ugs, result)) `seq` traceShowM `mapM_` (fingerprint <$$> result)
 
       result
         `shouldBe` [ (ugs !!) <$> [0, 1, 3, 2],
