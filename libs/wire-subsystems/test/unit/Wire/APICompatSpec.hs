@@ -19,7 +19,7 @@ import Wire.UserGroupSubsystem
 
 -- FUTUREWORK: extend this to cover all of the APIs?
 spec :: Spec
-spec = describe "api compatibility (compile-type unit tests, yeay!)" do
+spec = describe "api compatibility (compile-time unit tests, yeay!)" do
   it "user groups" $ do
     let _doesThisTypecheck :: Wai.Application
         _doesThisTypecheck =
