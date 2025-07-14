@@ -18,6 +18,7 @@ module Wire.MiniBackend
     miniLocale,
     defaultAuthenticationSubsystemConfig,
     defaultZAuthSettings,
+    userSubsystemErrorEitherUnsafe,
 
     -- * Mini events
     MiniEvent (..),
@@ -61,6 +62,7 @@ import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
@@ -87,6 +89,7 @@ import Wire.IndexedUserStore
 import Wire.InternalEvent hiding (DeleteUser)
 import Wire.InvitationStore
 import Wire.MockInterpreters
+import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.RateLimit
@@ -99,6 +102,9 @@ import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.StoredUser
+import Wire.TeamCollaboratorsStore
+import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -161,10 +167,11 @@ type AllErrors =
   [ Error UserSubsystemError,
     Error FederationError,
     Error AuthenticationSubsystemError,
-    Error RateLimitExceeded
+    Error RateLimitExceeded,
+    Error TeamCollaboratorsError
   ]
 
-type MiniBackendEffects = UserSubsystem ': MiniBackendLowerEffects
+type MiniBackendEffects = UserSubsystem ': TeamCollaboratorsSubsystem ': MiniBackendLowerEffects
 
 ----------------------------------------------------------------------
 -- lower effect interpreters (hierarchically)
@@ -189,6 +196,7 @@ data MiniBackendParams r = MiniBackendParams
 -- lists").
 type MiniBackendLowerEffects =
   '[ EmailSubsystem,
+     NotificationSubsystem,
      GalleyAPIAccess,
      SparAPIAccess,
      InvitationStore,
@@ -196,6 +204,7 @@ type MiniBackendLowerEffects =
      ActivationCodeStore,
      BlockListStore,
      UserStore,
+     TeamCollaboratorsStore,
      UserKeyStore,
      IndexedUserStore,
      FederationConfigStore,
@@ -244,6 +253,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . runFederationConfigStoreInMemory
     . inMemoryIndexedUserStoreInterpreter
     . inMemoryUserKeyStoreInterpreter
+    . inMemoryTeamCollaboratorsStoreInterpreter
     . inMemoryUserStoreInterpreter
     . inMemoryBlockListStoreInterpreter
     . inMemoryActivationCodeStoreInterpreter
@@ -251,10 +261,13 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryInvitationStoreInterpreter
     . miniSparAPIAccess
     . miniGalleyAPIAccess teams galleyConfigs
+    . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
 
 type StateEffects =
-  '[ State (Map (TeamId, InvitationId) StoredInvitation),
+  '[ State [Push],
+     State (Map (TeamId) [GetTeamCollaborator]),
+     State (Map (TeamId, InvitationId) StoredInvitation),
      State (Map InvitationCode StoredInvitation),
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
@@ -278,6 +291,8 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftActivationCodeStoreState
     . liftInvitationInfoStoreState
     . liftInvitationStoreState
+    . liftTeamCollaboratorsStoreState
+    . liftPushNotificationsState
 
 type InputEffects =
   '[ Input UserSubsystemConfig,
@@ -343,7 +358,9 @@ data MiniBackend = MkMiniBackend
     activationCodes :: Map EmailKey (Maybe UserId, ActivationCode),
     invitationInfos :: Map InvitationCode StoredInvitation,
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
-    teamIdps :: Map TeamId IdPList
+    teamIdps :: Map TeamId IdPList,
+    teamCollaborators :: Map TeamId [GetTeamCollaborator],
+    pushNotifications :: [Push]
   }
   deriving stock (Eq, Show, Generic)
 
@@ -357,7 +374,9 @@ instance Default MiniBackend where
         activationCodes = mempty,
         invitationInfos = mempty,
         invitations = mempty,
-        teamIdps = mempty
+        teamIdps = mempty,
+        teamCollaborators = mempty,
+        pushNotifications = mempty
       }
 
 -- | represents an entire federated, stateful world of backends
@@ -540,7 +559,7 @@ runNoFederationStackUserSubsystemErrorEither localBackend teams cfg =
   run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 userSubsystemErrorEitherUnsafe :: Sem AllErrors a -> Sem '[] (Either UserSubsystemError a)
-userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
+userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
@@ -578,12 +597,12 @@ interpretMaybeFederationStackState ::
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
 interpretMaybeFederationStackState mb =
-  let authSubsystemInterpreter :: InterpreterFor AuthenticationSubsystem (MiniBackendLowerEffects `Append` r)
+  let authSubsystemInterpreter :: InterpreterFor AuthenticationSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
       authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
 
-      userSubsystemInterpreter :: InterpreterFor UserSubsystem (MiniBackendLowerEffects `Append` r)
+      userSubsystemInterpreter :: InterpreterFor UserSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-   in miniBackendLowerEffectsInterpreters mb . userSubsystemInterpreter
+   in miniBackendLowerEffectsInterpreters mb . runTeamCollaboratorsSubsystem . userSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
@@ -594,6 +613,16 @@ liftInvitationStoreState :: (Member (State MiniBackend) r) => Sem (State (Map (T
 liftInvitationStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitations)
   Put newInvs -> modify $ \b -> b {invitations = newInvs}
+
+liftTeamCollaboratorsStoreState :: (Member (State MiniBackend) r) => Sem (State (Map TeamId [GetTeamCollaborator]) : r) a -> Sem r a
+liftTeamCollaboratorsStoreState = interpret \case
+  Polysemy.State.Get -> gets (.teamCollaborators)
+  Put collaborators -> modify $ \b -> b {teamCollaborators = collaborators}
+
+liftPushNotificationsState :: (Member (State MiniBackend) r) => Sem (State [Push] : r) a -> Sem r a
+liftPushNotificationsState = interpret \case
+  Polysemy.State.Get -> gets (.pushNotifications)
+  Put pushes -> modify $ \b -> b {pushNotifications = pushes}
 
 liftActivationCodeStoreState :: (Member (State MiniBackend) r) => Sem (State (Map EmailKey (Maybe UserId, ActivationCode)) : r) a -> Sem r a
 liftActivationCodeStoreState = interpret \case
@@ -616,7 +645,7 @@ liftUserStoreState = interpret $ \case
   Put newUsers -> modify $ \b -> (b :: MiniBackend) {users = newUsers}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

@@ -28,6 +28,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -100,6 +101,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @UserSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
+                . runErrorUnsafe @TeamCollaboratorsError
                 . runError @FederationError
                 . interpretFederationStack localBackend online mempty config
                 $ getUserProfiles
@@ -607,10 +609,7 @@ spec = describe "UserSubsystem.Interpreter" do
               localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
-                  . runErrorUnsafe
-                  . runErrorUnsafe @AuthenticationSubsystemError
-                  . runErrorUnsafe @RateLimitExceeded
-                  . runError
+                  . userSubsystemErrorEitherUnsafe
                   $ interpretNoFederationStack localBackend mempty def config do
                     updateUserProfile lusr Nothing UpdateOriginWireClient update {name = Nothing, locale = Nothing, supportedProtocols = Nothing}
                     getUserProfile lusr (tUntagged lusr)
@@ -623,10 +622,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
-                    . runErrorUnsafe
-                    . runErrorUnsafe @AuthenticationSubsystemError
-                    . runErrorUnsafe @RateLimitExceeded
-                    . runError
+                    . userSubsystemErrorEitherUnsafe
                     $ interpretNoFederationStack localBackend mempty def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {name = Just name}
                       getUserProfile lusr (tUntagged lusr)
@@ -639,10 +635,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
-                    . runErrorUnsafe
-                    . runErrorUnsafe @AuthenticationSubsystemError
-                    . runErrorUnsafe @RateLimitExceeded
-                    . runError
+                    . userSubsystemErrorEitherUnsafe
                     $ interpretNoFederationStack localBackend mempty def config do
                       updateUserProfile lusr Nothing UpdateOriginWireClient def {locale = Just locale}
                       getUserProfile lusr (tUntagged lusr)
@@ -656,10 +649,7 @@ spec = describe "UserSubsystem.Interpreter" do
               localBackend = def {users = [alice]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
-                  . runErrorUnsafe
-                  . runErrorUnsafe @AuthenticationSubsystemError
-                  . runErrorUnsafe @RateLimitExceeded
-                  . runError
+                  . userSubsystemErrorEitherUnsafe
                   $ interpretNoFederationStack
                     localBackend
                     mempty
@@ -720,10 +710,7 @@ spec = describe "UserSubsystem.Interpreter" do
           not (isBlacklistedHandle newHandle) ==>
             let res :: Either UserSubsystemError ()
                 res = run
-                  . runErrorUnsafe
-                  . runErrorUnsafe @AuthenticationSubsystemError
-                  . runErrorUnsafe @RateLimitExceeded
-                  . runError
+                  . userSubsystemErrorEitherUnsafe
                   $ interpretNoFederationStack localBackend mempty def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
 
@@ -735,10 +722,7 @@ spec = describe "UserSubsystem.Interpreter" do
         \(alice, ssoId, email :: Maybe EmailAddress, fromHandle -> newHandle, domain, config) ->
           not (isBlacklistedHandle (fromJust (parseHandle newHandle))) ==>
             let res :: Either UserSubsystemError () = run
-                  . runErrorUnsafe
-                  . runErrorUnsafe @AuthenticationSubsystemError
-                  . runErrorUnsafe @RateLimitExceeded
-                  . runError
+                  . userSubsystemErrorEitherUnsafe
                   $ interpretNoFederationStack localBackend mempty def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginScim newHandle
                 localBackend =
@@ -759,10 +743,7 @@ spec = describe "UserSubsystem.Interpreter" do
       \(storedUser :: StoredUser, newHandle@(fromHandle -> rawNewHandle), config) ->
         (isJust storedUser.identity && not (isBlacklistedHandle newHandle)) ==>
           let updateResult :: Either UserSubsystemError () = run
-                . runErrorUnsafe
-                . runErrorUnsafe @AuthenticationSubsystemError
-                . runErrorUnsafe @RateLimitExceeded
-                . runError
+                . userSubsystemErrorEitherUnsafe
                 $ interpretNoFederationStack (def {users = [storedUser]}) mempty def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
@@ -774,10 +755,7 @@ spec = describe "UserSubsystem.Interpreter" do
       \(storedUser :: StoredUser, BadHandle badHandle, config) ->
         isJust storedUser.identity ==>
           let updateResult :: Either UserSubsystemError () = run
-                . runErrorUnsafe
-                . runErrorUnsafe @AuthenticationSubsystemError
-                . runErrorUnsafe @RateLimitExceeded
-                . runError
+                . userSubsystemErrorEitherUnsafe
                 $ interpretNoFederationStack localBackend mempty def config do
                   let luid = toLocalUnsafe dom storedUser.id
                       dom = Domain "localdomain"
@@ -950,10 +928,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     DomainRegistration
                 else preDomreg
             outcome = run
-              . runErrorUnsafe
-              . runErrorUnsafe @AuthenticationSubsystemError
-              . runErrorUnsafe @RateLimitExceeded
-              . runError
+              . userSubsystemErrorEitherUnsafe
               $ interpretNoFederationStack localBackend mempty def config do
                 DRS.upsert domreg
                 void $ requestEmailChange lusr email UpdateOriginWireClient
@@ -979,10 +954,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 d :: Text = domainText domreg.domain
 
             outcome = run
-              . runErrorUnsafe
-              . runErrorUnsafe @AuthenticationSubsystemError
-              . runErrorUnsafe @RateLimitExceeded
-              . runError
+              . userSubsystemErrorEitherUnsafe
               $ interpretNoFederationStack def mempty def config do
                 DRS.upsert domreg
                 guardRegisterActivateUserEmailDomain email
@@ -1006,10 +978,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 d :: Text = domainText domreg.domain
 
             outcome = run
-              . runErrorUnsafe
-              . runErrorUnsafe @AuthenticationSubsystemError
-              . runErrorUnsafe @RateLimitExceeded
-              . runError
+              . userSubsystemErrorEitherUnsafe
               $ interpretNoFederationStack def mempty def config do
                 DRS.upsert domreg
                 guardUpgradePersonalUserToTeamEmailDomain email
@@ -1047,10 +1016,7 @@ spec = describe "UserSubsystem.Interpreter" do
             storedInv = InvitationStore.insertInvToStoredInv inv
 
             outcome = run
-              . runErrorUnsafe
-              . runErrorUnsafe @AuthenticationSubsystemError
-              . runErrorUnsafe @RateLimitExceeded
-              . runError
+              . userSubsystemErrorEitherUnsafe
               $ interpretNoFederationStack def mempty def config {maxTeamSize = 100} do
                 void $ InvitationStore.insertInvitation inv timeout
                 DRS.upsert domreg

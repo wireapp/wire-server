@@ -27,11 +27,10 @@ import Wire.MockInterpreters.Random as MockInterpreters
 import Wire.MockInterpreters.RateLimit as MockInterpreters
 import Wire.MockInterpreters.SessionStore as MockInterpreters
 import Wire.MockInterpreters.SparAPIAccess as MockInterpreters
+import Wire.MockInterpreters.TeamCollaboratorsStore as MockInterpreters
 import Wire.MockInterpreters.TinyLog as MockInterpreters
 import Wire.MockInterpreters.UserGroupStore as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters
 import Wire.MockInterpreters.UserStore as MockInterpreters
 import Wire.MockInterpreters.UserSubsystem as MockInterpreters
 import Wire.MockInterpreters.VerificationCodeStore as MockInterpreters
-
--- TODO: Implement mock interpreter for CollaboratorStore

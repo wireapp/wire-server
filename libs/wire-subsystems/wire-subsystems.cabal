@@ -400,6 +400,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.RateLimit
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.SparAPIAccess
+    Wire.MockInterpreters.TeamCollaboratorsStore
     Wire.MockInterpreters.TinyLog
     Wire.MockInterpreters.UserGroupStore
     Wire.MockInterpreters.UserKeyStore
