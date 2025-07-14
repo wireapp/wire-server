@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wwarn #-}
 
 module Network.AMQP.Extended
   ( RabbitMqHooks (..),
@@ -196,6 +197,29 @@ mkConnectionOpts AmqpEndpoint {..} = do
         Q.coAuth = [Q.plain username password],
         Q.coTLSSettings = fmap Q.TLSCustom mTlsSettings
       }
+
+testRetries :: IO ()
+testRetries = do
+  logger <- Log.new Log.defSettings
+  let endpoint =
+        AmqpEndpoint
+          { host = "127.0.0.1",
+            port = 5671,
+            vHost = "/",
+            tls =
+              Just
+                RabbitMqTlsOpts
+                  { caCert = Nothing,
+                    insecureSkipVerifyTls = True
+                  }
+          }
+      hooks =
+        RabbitMqHooks
+          { onNewChannel = \_chan -> error "some error",
+            onConnectionClose = putStrLn "-------> connection closed",
+            onChannelException = const $ putStrLn "--------> channel exception"
+          }
+  openConnectionWithRetries logger endpoint hooks
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some
