@@ -44,6 +44,7 @@ import Servant.Client qualified as Servant
 import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Async
+import UnliftIO.Concurrent (myThreadId)
 
 data RabbitMqHooks m = RabbitMqHooks
   { -- | Called whenever there is a new channel. At any time there should be at
@@ -215,9 +216,17 @@ testRetries = do
           }
       hooks =
         RabbitMqHooks
-          { onNewChannel = \_chan -> error "some error",
-            onConnectionClose = putStrLn "-------> connection closed",
-            onChannelException = const $ putStrLn "--------> channel exception"
+          { onNewChannel = \_chan -> do
+              tid <- myThreadId
+              Log.err logger $ Log.msg (Log.val "Got channel") . Log.field "thread" (show tid)
+              threadDelay 1_000_000
+              error "some error",
+            onConnectionClose = do
+              tid <- myThreadId
+              Log.err logger $ Log.msg (Log.val "connection closed") . Log.field "thread" (show tid),
+            onChannelException = \_ -> do
+              tid <- myThreadId
+              Log.err logger $ Log.msg (Log.val "channel exception") . Log.field "thread" (show tid)
           }
   openConnectionWithRetries logger endpoint hooks
 
