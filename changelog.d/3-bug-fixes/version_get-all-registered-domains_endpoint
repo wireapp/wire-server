@@ -1,5 +1,0 @@
-Generated Swagger docs differed from the ratified ones for versions up to V9
-regarding the `get-all-registered-domains`
-(`/teams/{teamId}/registered-domains`) endpoint: The `backend_url` became part
-of the `backend` object which should be introduced with V10. As teams do not
-set backend redirects this should not be seen in practice.
