@@ -9,9 +9,6 @@ metrics:
   serviceMonitor:
     enabled: false
 images:
-  nginzDisco:
-    repository: quay.io/wire/nginz_disco
-    tag: do-not-use
   nginz:
     repository: quay.io/wire/nginz
     tag: do-not-use
@@ -124,8 +121,7 @@ nginx_conf:
   ignored_upstreams: []
 
   # If an upstream runs in a different namespace than nginz, its namespace must
-  # be specified here otherwise nginz_disco will fail to find the upstream and
-  # nginx will think that the upstream is down.
+  # be specified here otherwise nginz will think that the upstream is down.
   upstream_namespace: {
     # galeb: integrations
   }
