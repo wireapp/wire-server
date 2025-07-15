@@ -6,6 +6,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -53,7 +54,7 @@ createTeamCollaboratorImpl zUser user team perms = do
   Store.createTeamCollaborator user team perms
 
   now <- get
-  let event = newEvent team now (EdCollaboratorAdd user)
+  let event = newEvent team now (EdCollaboratorAdd user (Set.toList perms))
   teamMembersList <- getTeamMembers team
   let teamMembers :: [UserId] = view Team.userId <$> (teamMembersList ^. Team.teamMembers)
   -- TODO: Review the event's values
@@ -69,7 +70,7 @@ createTeamCollaboratorImpl zUser user team perms = do
                   }
             )
               <$> teamMembers,
-          transient = True
+          transient = False
         }
     ]
 

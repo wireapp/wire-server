@@ -7,9 +7,12 @@ import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
+import Wire.Arbitrary
 
 data CollaboratorPermission = CreateTeamConversation | ImplicitConnection
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema CollaboratorPermission)
+  deriving (Arbitrary) via GenericUniform CollaboratorPermission
 
 instance ToSchema CollaboratorPermission where
   schema =

@@ -21,8 +21,15 @@ testCreateTeamCollaborator = do
       ]
       >>= assertSuccess
 
-    void $ awaitMatch isTeamCollaboratorAddedNotif wsOwner
-    void $ awaitMatch isTeamCollaboratorAddedNotif wsAlice
+    let checkEvent :: (MakesValue a) => a -> App ()
+        checkEvent evt = do
+          evt %. "payload.0.data.permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
+          evt %. "payload.0.data.user" `shouldMatch` userId
+          evt %. "payload.0.team" `shouldMatch` team
+          evt %. "transient" `shouldMatch` False
+
+    awaitMatch isTeamCollaboratorAddedNotif wsOwner >>= checkEvent
+    awaitMatch isTeamCollaboratorAddedNotif wsAlice >>= checkEvent
 
   bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
     resp.status `shouldMatchInt` 200
