@@ -46,6 +46,7 @@ type PaginationQuery =
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
     :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
     :> QueryParam' '[Optional, Strict] "page_size" PageSize
+    :> QueryParam' '[Optional, Strict] "offset" Natural -- use offset query param if you want to jump right to page 10 million.
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
          "pagination_state"

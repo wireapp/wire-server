@@ -41,7 +41,8 @@ spec = describe "api compatibility (compile-time unit tests, yeay!)" do
 fakeRun :: forall m a. Sem ('[UserGroupSubsystem] `Append` UserGroupStoreInMemEffectStackTest) a -> m a
 fakeRun = error "undefined, but that's fine, we don't need to run this."
 
--- | `PolyRun` may be absolute overkill, but it was fun to reinvent it!  :)
+-- | `PolyRun` lets you call a number of functions with varying number of arguments.  It may
+-- be absolute overkill, but it was fun to reinvent it!  :)
 class PolyRun (m :: Type -> Type) f where
   type NT m f
   type InFun m f
@@ -83,3 +84,9 @@ instance PolyRun m (a -> b -> c -> d -> e -> f -> Sem eff z) where
   type InFun m (a -> b -> c -> d -> e -> f -> Sem eff z) = a -> b -> c -> d -> e -> f -> m z
 
   polyRun nt infun a b c d e f = nt (infun a b c d e f)
+
+instance PolyRun m (a -> b -> c -> d -> e -> f -> g -> Sem eff z) where
+  type NT m (a -> b -> c -> d -> e -> f -> g -> Sem eff z) = Sem eff z -> m z
+  type InFun m (a -> b -> c -> d -> e -> f -> g -> Sem eff z) = a -> b -> c -> d -> e -> f -> g -> m z
+
+  polyRun nt infun a b c d e f g = nt (infun a b c d e f g)

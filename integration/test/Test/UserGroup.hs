@@ -79,9 +79,6 @@ testUserGroupSmoke = do
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
--- TODO: do we also want to expose offset as a separate parameter?  makes everything simpler
--- iff we can drop PaginationState from the API altogether.
-
 testUserGroupGetGroups :: (HasCallStack) => App ()
 testUserGroupGetGroups = do
   (owner, _team, []) <- createTeam OwnDomain 1

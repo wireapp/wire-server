@@ -92,6 +92,7 @@ import Language.Haskell.TH (unTypeCode)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input)
@@ -1678,10 +1679,11 @@ getUserGroups ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
+  Maybe Natural ->
   Maybe PaginationState ->
   Handler r PaginationResult
-getUserGroups lusr q sortByKeys sortOrder pSize pState =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize pState
+getUserGroups lusr q sortByKeys sortOrder pSize pOffset pState =
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize pOffset pState
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
