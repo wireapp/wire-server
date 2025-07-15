@@ -9,7 +9,7 @@ testCreateTeamCollaborator :: (HasCallStack) => App ()
 testCreateTeamCollaborator = do
   (owner, team, [alice]) <- createTeam OwnDomain 2
 
-  -- TODO: Just creating any user might be wrong. Should this be a bot?
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
   userId <- randomUser OwnDomain def >>= asString . (%. "id")
   withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
     addTeamCollaborator
