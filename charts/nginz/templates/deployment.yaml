@@ -37,19 +37,6 @@ spec:
             matchLabels:
               app: nginz
       containers:
-      - name: nginz-disco
-        image: "{{ .Values.images.nginzDisco.repository }}:{{ .Values.images.nginzDisco.tag }}"
-        {{- if eq (include "includeSecurityContext" .) "true" }}
-        securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 10 }}
-        {{- end }}
-        volumeMounts:
-        - name: config
-          mountPath: /etc/wire/nginz/conf
-          readOnly: true
-        - name: upstreams
-          mountPath: /etc/wire/nginz/upstreams
-          readOnly: false
       - name: nginz
         image: "{{ .Values.images.nginz.repository }}:{{ .Values.images.nginz.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
