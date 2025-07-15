@@ -88,6 +88,38 @@ spec = do
                       catchExpectedError @TeamCollaboratorsError $ getAllTeamCollaborators nonEligibleAuthUser tid
                 pure $ res === InsufficientRights
 
+    prop "creation fails if team does not exist" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (tid :: TeamId)
+       config
+       ownDomain -> do
+          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+              authUser = toLocalUnsafe ownDomain owner.id
+              teamMap = mempty
+           in do
+                res <-
+                  runNoFederationStack localBackend teamMap config $
+                    catchExpectedError @TeamCollaboratorsError $
+                      createTeamCollaborator authUser collaborator.id tid mempty
+                pure $ res === InsufficientRights
+
+    prop "getting fails if team does not exist" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (tid :: TeamId)
+       config
+       ownDomain -> do
+          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+              authUser = toLocalUnsafe ownDomain owner.id
+              teamMap = mempty
+           in do
+                res <-
+                  runNoFederationStack localBackend teamMap config $
+                    catchExpectedError @TeamCollaboratorsError $
+                      getAllTeamCollaborators authUser tid
+                pure $ res === InsufficientRights
+
 eligibleRoles :: [Role]
 eligibleRoles = [RoleAdmin, RoleOwner]
 
