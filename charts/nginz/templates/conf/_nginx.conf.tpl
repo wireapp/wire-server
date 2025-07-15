@@ -190,7 +190,25 @@ http {
   #  Proxied Upstream Services
   #
 
-  include {{ .Values.nginx_conf.upstream_config }};
+  resolver kube-dns.kube-system.svc.cluster.local valid=30s ipv6=off;
+  resolver_timeout 5s;
+
+{{- $valid := include "valid_upstreams" . | fromJson }}
+{{- range $name, $_ := $valid }}
+  upstream {{ $name }} {
+      zone {{ $name }} 64k;          # needed for dynamic DNS updates
+      least_conn;
+      keepalive 32;
+
+      {{- /* if namespace override exists → use it, else use release namespace */ -}}
+      {{- if hasKey $.Values.nginx_conf.upstream_namespace $name }}
+      server {{ $name }}.{{ index $.Values.nginx_conf.upstream_namespace $name }}.svc.cluster.local:8080 max_fails=3 resolve;
+      {{- else }}
+      server {{ $name }}.{{ $.Release.Namespace }}.svc.cluster.local:8080 resolve;
+      {{- end }}
+  }
+{{- end }}
+{{- end }}
 
   #
   # Mapping for websocket connections
