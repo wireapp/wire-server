@@ -130,7 +130,6 @@ nginx_conf:
     # galeb: integrations
   }
 
-  # TODO: Add upstream for collaborators endpoint
   upstreams:
     cargohold:
     - path: /conversations/([^/]*)/assets
@@ -424,6 +423,9 @@ nginx_conf:
       max_body_size: 5m
       body_buffer_size: 1m
     - path: /search
+      envs:
+      - all
+    - path: /teams/([^/]*)/collaborators$
       envs:
       - all
     - path: /teams/([^/]*)/invitations(.*)
