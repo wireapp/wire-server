@@ -13,6 +13,7 @@ import Wire.API.Team.Collaborator
 import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.MiniBackend
+import Wire.MockInterpreters.Error
 import Wire.StoredUser
 import Wire.TeamCollaboratorsSubsystem
 
@@ -37,8 +38,67 @@ spec = do
                   collaborators <- getAllTeamCollaborators authUser tid
                   pure $ collaborators === [GetTeamCollaborator collaborator.id tid mempty]
 
+    prop "creation fails if the caller has isufficient permissions" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (tid :: TeamId)
+       config
+       ownDomain
+       ((NonEligibleRole role) :: NonEligibleRole) ->
+          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+              authUser = toLocalUnsafe ownDomain owner.id
+              perms = rolePermissions role
+              ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+              teamMap = Map.singleton tid [ownerTeamMember]
+           in do
+                res <-
+                  runNoFederationStack
+                    localBackend
+                    teamMap
+                    config
+                    $ do
+                      catchExpectedError @TeamCollaboratorsError $ createTeamCollaborator authUser collaborator.id tid mempty
+                pure $ res === InsufficientRights
+
+    prop "getting fails if the caller has insufficient permissions" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (teamMember :: StoredUser)
+       (tid :: TeamId)
+       config
+       ownDomain
+       ((EligibleRole eligibleRole) :: EligibleRole)
+       ((NonEligibleRole nonEligibleRole) :: NonEligibleRole) ->
+          let localBackend :: MiniBackend = def {users = [collaborator, owner, teamMember]}
+              eligibleAuthUser = toLocalUnsafe ownDomain owner.id
+              nonEligibleAuthUser = toLocalUnsafe ownDomain teamMember.id
+              elPerms = rolePermissions eligibleRole
+              nonElPerms = rolePermissions nonEligibleRole
+              ownerTeamMember :: TeamMember = mkTeamMember owner.id elPerms Nothing UserLegalHoldDisabled
+              otherTeamMember :: TeamMember = mkTeamMember teamMember.id nonElPerms Nothing UserLegalHoldDisabled
+              teamMap = Map.singleton tid [ownerTeamMember, otherTeamMember]
+           in do
+                res <-
+                  runNoFederationStack
+                    localBackend
+                    teamMap
+                    config
+                    $ do
+                      createTeamCollaborator eligibleAuthUser collaborator.id tid mempty
+                      catchExpectedError @TeamCollaboratorsError $ getAllTeamCollaborators nonEligibleAuthUser tid
+                pure $ res === InsufficientRights
+
+eligibleRoles :: [Role]
+eligibleRoles = [RoleAdmin, RoleOwner]
+
 newtype EligibleRole = EligibleRole Role
   deriving (Eq, Show)
 
 instance Arbitrary EligibleRole where
-  arbitrary = EligibleRole <$> elements [RoleAdmin, RoleOwner]
+  arbitrary = EligibleRole <$> elements eligibleRoles
+
+newtype NonEligibleRole = NonEligibleRole Role
+  deriving (Eq, Show)
+
+instance Arbitrary NonEligibleRole where
+  arbitrary = NonEligibleRole <$> arbitrary `suchThat` (not . flip elem eligibleRoles)
