@@ -81,17 +81,17 @@ repositories:
     url: https://charts.bitnami.com/bitnami
 
 releases:
-  - name: 'fake-aws'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/fake-aws'
-    values:
-      - './helm_vars/fake-aws/values.yaml'
+  # - name: 'fake-aws'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/fake-aws'
+  #   values:
+  #     - './helm_vars/fake-aws/values.yaml'
 
-  - name: 'fake-aws'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/fake-aws'
-    values:
-      - './helm_vars/fake-aws/values.yaml'
+  # - name: 'fake-aws'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/fake-aws'
+  #   values:
+  #     - './helm_vars/fake-aws/values.yaml'
 
   - name: 'certs'
     namespace: '{{ .Values.namespace1 }}'
@@ -99,73 +99,73 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
-  - name: 'redis-ephemeral'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/redis-ephemeral'
-    values:
-      - './helm_vars/bitnami.yaml'
-      - redis-ephemeral:
-          fullnameOverride: databases-ephemeral-redis-ephemeral
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password
-          tls:
-            enabled: true
-            certificatesSecret: redis-certificate
-            certFilename: "tls.crt"
-            certKeyFilename: "tls.key"
-            certCAFilename: "ca.crt"
-            authClients: false
-    needs:
-      - certs
+  # - name: 'redis-ephemeral'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/redis-ephemeral'
+  #   values:
+  #     - './helm_vars/bitnami.yaml'
+  #     - redis-ephemeral:
+  #         fullnameOverride: databases-ephemeral-redis-ephemeral
+  #         auth:
+  #           enabled: true
+  #           password: very-secure-redis-master-password
+  #         tls:
+  #           enabled: true
+  #           certificatesSecret: redis-certificate
+  #           certFilename: "tls.crt"
+  #           certKeyFilename: "tls.key"
+  #           certCAFilename: "ca.crt"
+  #           authClients: false
+  #   needs:
+  #     - certs
 
-  - name: 'cassandra-ephemeral'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/cassandra-ephemeral'
+  # - name: 'cassandra-ephemeral'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/cassandra-ephemeral'
 
-  - name: 'elasticsearch-ephemeral'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
-    values:
-      - tls:
-          enabled: true
-          issuerRef:
-            name: elasticsearch
-            kind: Issuer
+  # - name: 'elasticsearch-ephemeral'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/elasticsearch-ephemeral'
+  #   values:
+  #     - tls:
+  #         enabled: true
+  #         issuerRef:
+  #           name: elasticsearch
+  #           kind: Issuer
 
-  - name: 'elasticsearch-ephemeral'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/elasticsearch-ephemeral'
-    values:
-      - tls:
-          enabled: true
-          issuerRef:
-            name: elasticsearch
-            kind: Issuer
+  # - name: 'elasticsearch-ephemeral'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/elasticsearch-ephemeral'
+  #   values:
+  #     - tls:
+  #         enabled: true
+  #         issuerRef:
+  #           name: elasticsearch
+  #           kind: Issuer
 
-  - name: 'redis-ephemeral'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/redis-ephemeral'
-    values:
-      - './helm_vars/bitnami.yaml'
-      - redis-ephemeral:
-          fullnameOverride: databases-ephemeral-redis-ephemeral
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password
-          tls:
-            enabled: true
-            certificatesSecret: redis-certificate
-            certFilename: "tls.crt"
-            certKeyFilename: "tls.key"
-            certCAFilename: "ca.crt"
-            authClients: false
-    needs:
-      - certs
+  # - name: 'redis-ephemeral'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/redis-ephemeral'
+  #   values:
+  #     - './helm_vars/bitnami.yaml'
+  #     - redis-ephemeral:
+  #         fullnameOverride: databases-ephemeral-redis-ephemeral
+  #         auth:
+  #           enabled: true
+  #           password: very-secure-redis-master-password
+  #         tls:
+  #           enabled: true
+  #           certificatesSecret: redis-certificate
+  #           certFilename: "tls.crt"
+  #           certKeyFilename: "tls.key"
+  #           certCAFilename: "ca.crt"
+  #           authClients: false
+  #   needs:
+  #     - certs
 
-  - name: 'cassandra-ephemeral'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/cassandra-ephemeral'
+  # - name: 'cassandra-ephemeral'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/cassandra-ephemeral'
 
   - name: "postgresql"
     namespace: "{{ .Values.namespace1 }}"
@@ -219,17 +219,17 @@ releases:
     values:
       - './helm_vars/opensearch/values.yaml.gotmpl'
 
-  # Required for testing redis migration
-  - name: 'redis-ephemeral-2'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/redis-ephemeral'
-    values:
-      - './helm_vars/bitnami.yaml'
-      - redis-ephemeral:
-          fullnameOverride: redis-ephemeral-2
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password-2
+  # # Required for testing redis migration
+  # - name: 'redis-ephemeral-2'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/redis-ephemeral'
+  #   values:
+  #     - './helm_vars/bitnami.yaml'
+  #     - redis-ephemeral:
+  #         fullnameOverride: redis-ephemeral-2
+  #         auth:
+  #           enabled: true
+  #           password: very-secure-redis-master-password-2
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
@@ -237,19 +237,19 @@ releases:
     values:
       - './helm_vars/certs/values.yaml.gotmpl'
 
-  - name: k8ssandra-test-cluster
-    chart: '../.local/charts/k8ssandra-test-cluster'
-    namespace: '{{ .Values.namespace1 }}'
-    values:
-      - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
-    condition: useK8ssandraSSL.enabled
+  # - name: k8ssandra-test-cluster
+  #   chart: '../.local/charts/k8ssandra-test-cluster'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   values:
+  #     - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
+  #   condition: useK8ssandraSSL.enabled
 
-  - name: k8ssandra-test-cluster
-    chart: '../.local/charts/k8ssandra-test-cluster'
-    namespace: '{{ .Values.namespace2 }}'
-    values:
-      - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
-    condition: useK8ssandraSSL.enabled
+  # - name: k8ssandra-test-cluster
+  #   chart: '../.local/charts/k8ssandra-test-cluster'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   values:
+  #     - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
+  #   condition: useK8ssandraSSL.enabled
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'
@@ -267,104 +267,104 @@ releases:
       - './helm_vars/bitnami.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
-  - name: 'ingress'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/{{ .Values.ingressChart }}'
-    values:
-      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
+  # - name: 'ingress'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/{{ .Values.ingressChart }}'
+  #   values:
+  #     - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: 'ingress'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/{{ .Values.ingressChart }}'
-    values:
-      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
+  # - name: 'ingress'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/{{ .Values.ingressChart }}'
+  #   values:
+  #     - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: 'ingress-svc'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/nginx-ingress-services'
-    values:
-      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
-    set:
-      # Federation domain is also the SRV record created by the
-      # federation-test-helper service. Maybe we can find a way to make these
-      # differ, so we don't make any silly assumptions in the code.
-      - name: config.dns.federator
-        value: '{{ .Values.federationDomain1 }}'
-      - name: config.dns.certificateDomain
-        value: '*.{{ .Values.federationDomainBase1 }}'
-    needs:
-      - 'ingress'
+  # - name: 'ingress-svc'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/nginx-ingress-services'
+  #   values:
+  #     - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+  #   set:
+  #     # Federation domain is also the SRV record created by the
+  #     # federation-test-helper service. Maybe we can find a way to make these
+  #     # differ, so we don't make any silly assumptions in the code.
+  #     - name: config.dns.federator
+  #       value: '{{ .Values.federationDomain1 }}'
+  #     - name: config.dns.certificateDomain
+  #       value: '*.{{ .Values.federationDomainBase1 }}'
+  #   needs:
+  #     - 'ingress'
 
-  - name: 'ingress-svc'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/nginx-ingress-services'
-    values:
-      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
-    set:
-      # Federation domain is also the SRV record created by the
-      # federation-test-helper service. Maybe we can find a way to make these
-      # differ, so we don't make any silly assumptions in the code.
-      - name: config.dns.federator
-        value: '{{ .Values.federationDomain2 }}'
-      - name: config.dns.certificateDomain
-        value: '*.{{ .Values.federationDomainBase2 }}'
-    needs:
-      - 'ingress'
+  # - name: 'ingress-svc'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/nginx-ingress-services'
+  #   values:
+  #     - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+  #   set:
+  #     # Federation domain is also the SRV record created by the
+  #     # federation-test-helper service. Maybe we can find a way to make these
+  #     # differ, so we don't make any silly assumptions in the code.
+  #     - name: config.dns.federator
+  #       value: '{{ .Values.federationDomain2 }}'
+  #     - name: config.dns.certificateDomain
+  #       value: '*.{{ .Values.federationDomainBase2 }}'
+  #   needs:
+  #     - 'ingress'
 
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a
   # parallel way, it's expected to see some wire-server pods (namely the
   # cassandra-migration one) fail and get restarted a few times)
 
-  - name: 'wire-server'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/wire-server'
-    values:
-      - './helm_vars/wire-server/values.yaml.gotmpl'
-      - './helm_vars/wire-server/values-domain1.yaml.gotmpl'
-    set:
-      - name: brig.config.optSettings.setFederationDomain
-        value: {{ .Values.federationDomain1 }}
-      - name: galley.config.settings.federationDomain
-        value: {{ .Values.federationDomain1 }}
-      - name: cargohold.config.settings.federationDomain
-        value: {{ .Values.federationDomain1 }}
-      - name: brig.config.wireServerEnterprise.enabled
-        value: true
-    needs:
-      - 'cassandra-ephemeral'
-      - 'redis-ephemeral'
-      - 'postgresql'
+  # - name: 'wire-server'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/wire-server'
+  #   values:
+  #     - './helm_vars/wire-server/values.yaml.gotmpl'
+  #     - './helm_vars/wire-server/values-domain1.yaml.gotmpl'
+  #   set:
+  #     - name: brig.config.optSettings.setFederationDomain
+  #       value: {{ .Values.federationDomain1 }}
+  #     - name: galley.config.settings.federationDomain
+  #       value: {{ .Values.federationDomain1 }}
+  #     - name: cargohold.config.settings.federationDomain
+  #       value: {{ .Values.federationDomain1 }}
+  #     - name: brig.config.wireServerEnterprise.enabled
+  #       value: true
+  #   needs:
+  #     - 'cassandra-ephemeral'
+  #     - 'redis-ephemeral'
+  #     - 'postgresql'
 
-  - name: 'wire-server'
-    namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/wire-server'
-    values:
-      - './helm_vars/wire-server/values.yaml.gotmpl'
-      - './helm_vars/wire-server/values-domain2.yaml.gotmpl'
-    set:
-      - name: brig.config.optSettings.setFederationDomain
-        value: {{ .Values.federationDomain2 }}
-      - name: galley.config.settings.federationDomain
-        value: {{ .Values.federationDomain2 }}
-      - name: cargohold.config.settings.federationDomain
-        value: {{ .Values.federationDomain2 }}
-    needs:
-      - 'cassandra-ephemeral'
-      - 'redis-ephemeral'
-      - 'postgresql'
+  # - name: 'wire-server'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/wire-server'
+  #   values:
+  #     - './helm_vars/wire-server/values.yaml.gotmpl'
+  #     - './helm_vars/wire-server/values-domain2.yaml.gotmpl'
+  #   set:
+  #     - name: brig.config.optSettings.setFederationDomain
+  #       value: {{ .Values.federationDomain2 }}
+  #     - name: galley.config.settings.federationDomain
+  #       value: {{ .Values.federationDomain2 }}
+  #     - name: cargohold.config.settings.federationDomain
+  #       value: {{ .Values.federationDomain2 }}
+  #   needs:
+  #     - 'cassandra-ephemeral'
+  #     - 'redis-ephemeral'
+  #     - 'postgresql'
 
-  - name: wire-server-enterprise
-    namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/wire-server-enterprise'
-    values:
-      - secrets:
-          configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
-    needs:
-      - technitium-dnsserver
-    set:
-      - name: config.dnsOverHttpsUrl
-        value: 'http://technitium-dnsserver:5381/dns-query'
+  # - name: wire-server-enterprise
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/wire-server-enterprise'
+  #   values:
+  #     - secrets:
+  #         configJson: {{ requiredEnv "ENTERPRISE_IMAGE_PULL_SECRET" }}
+  #   needs:
+  #     - technitium-dnsserver
+  #   set:
+  #     - name: config.dnsOverHttpsUrl
+  #       value: 'http://technitium-dnsserver:5381/dns-query'
 
   - name: technitium-dnsserver
     namespace: '{{ .Values.namespace1 }}'
