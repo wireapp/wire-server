@@ -203,10 +203,8 @@ http {
 
       {{- $ns := index $.Values.nginx_conf.upstream_namespace $name | default $.Release.Namespace }}
       server {{ $name }}.{{ $ns }}.svc.{{ $clusterDomain }}:8080 max_fails=3 resolve;
-      {{- end }}
   }
 {{ end }}
-{{- end }}
 
   #
   # Mapping for websocket connections
