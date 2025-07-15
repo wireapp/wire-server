@@ -53,9 +53,7 @@ spec = do
               ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
               teamMap = Map.singleton tid [ownerTeamMember]
            in runNoFederationStack localBackend teamMap config $
-                do
-                  collaborators <- getAllTeamCollaborators authUser tid
-                  pure $ collaborators === mempty
+                (mempty ===) <$> getAllTeamCollaborators authUser tid
 
     prop "creation fails if the caller has isufficient permissions" $
       \(collaborator :: StoredUser)
@@ -76,8 +74,8 @@ spec = do
                     localBackend
                     teamMap
                     config
-                    $ do
-                      catchExpectedError @TeamCollaboratorsError $ createTeamCollaborator authUser collaborator.id tid collabPerms
+                    $ catchExpectedError @TeamCollaboratorsError
+                      (createTeamCollaborator authUser collaborator.id tid collabPerms)
                 pure $ res === InsufficientRights
 
     prop "getting fails if the caller has insufficient permissions" $
@@ -122,8 +120,8 @@ spec = do
            in do
                 res <-
                   runNoFederationStack localBackend teamMap config $
-                    catchExpectedError @TeamCollaboratorsError $
-                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                    catchExpectedError @TeamCollaboratorsError
+                      (createTeamCollaborator authUser collaborator.id tid collabPerms)
                 pure $ res === InsufficientRights
 
     prop "getting fails if team does not exist" $
@@ -138,8 +136,8 @@ spec = do
            in do
                 res <-
                   runNoFederationStack localBackend teamMap config $
-                    catchExpectedError @TeamCollaboratorsError $
-                      getAllTeamCollaborators authUser tid
+                    catchExpectedError @TeamCollaboratorsError
+                      (getAllTeamCollaborators authUser tid)
                 pure $ res === InsufficientRights
 
 eligibleRoles :: [Role]
