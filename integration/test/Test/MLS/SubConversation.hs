@@ -344,11 +344,16 @@ testResendingProposals = do
   void $ createExternalCommit subConvId bob2 Nothing >>= sendAndConsumeCommitBundle
   void $ createExternalCommit subConvId bob3 Nothing >>= sendAndConsumeCommitBundle
 
-  leaveConv subConvId bob1
-  leaveConv subConvId bob2
-  leaveConv subConvId bob3
+  withWebSockets [alice1, alice2, charlie1] \wss -> do
+    leaveConv subConvId bob1
+    leaveConv subConvId bob2
+    leaveConv subConvId bob3
+    for_ wss $ \ws ->
+      when (ws.client /= Just charlie1) $ do
+        replicateM_ 3 do
+          msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
+          msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-  withWebSockets [alice1, alice2, charlie1] \[wsAlice1, wsAlice2, wsCharlie1] -> do
     void
       $ createExternalCommit subConvId charlie1 Nothing
       >>= (postMLSCommitBundle charlie1 . mkBundle)
@@ -371,15 +376,11 @@ testResendingProposals = do
         }
 
     -- consume proposals after backend resends them
-    for_ [wsAlice1, wsAlice2] $ \ws -> do
-      commitMsg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
-      commitMsg %. "message.content.sender" `shouldMatch` "NewMemberCommit"
-      replicateM 3 do
-        msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
-        msg %. "message.content.sender.External" `shouldMatchInt` 0
-    void $ do
-      let ws = wsCharlie1
-      replicateM 3 do
+    for_ wss $ \ws -> do
+      when (ws.client /= Just charlie1) $ do
+        commitMsg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
+        commitMsg %. "message.content.sender" `shouldMatch` "NewMemberCommit"
+      replicateM_ 3 do
         msg <- consumeMessage subConvId def (fromJust ws.client) Nothing ws
         msg %. "message.content.sender.External" `shouldMatchInt` 0
 
