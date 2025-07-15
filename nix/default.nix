@@ -22,7 +22,6 @@ let
 
   wireServer = import ./wire-server.nix pkgs;
   nginz = pkgs.callPackage ./nginz.nix { };
-  nginz-disco = pkgs.callPackage ./nginz-disco.nix { };
 
   # packages necessary to build wire-server docs
   docsPkgs = [
@@ -80,4 +79,4 @@ let
     };
   inherit (pkgs) mls-test-cli;
 in
-{ inherit pkgs profileEnv wireServer docs docsEnv mls-test-cli nginz nginz-disco; }
+{ inherit pkgs profileEnv wireServer docs docsEnv mls-test-cli nginz; }
