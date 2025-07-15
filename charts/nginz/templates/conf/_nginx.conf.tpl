@@ -189,7 +189,7 @@ http {
   #
   #  Proxied Upstream Services
   #
-{{- $clusterDomain := .Values.nginx_config.cluster_domain }}
+{{- $clusterDomain := .Values.nginx_conf.cluster_domain }}
 
   resolver kube-dns.kube-system.svc.{{ $clusterDomain }} valid=30s ipv6=off;
   resolver_timeout 5s;
