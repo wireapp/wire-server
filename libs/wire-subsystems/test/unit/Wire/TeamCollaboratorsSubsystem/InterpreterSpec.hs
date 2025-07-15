@@ -40,6 +40,23 @@ spec = do
                   collaborators <- getAllTeamCollaborators authUser tid
                   pure $ collaborators === [GetTeamCollaborator collaborator.id tid (Set.toAscList collabPerms)]
 
+    prop "can get empty team collaborators" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (tid :: TeamId)
+       config
+       ownDomain
+       ((EligibleRole role) :: EligibleRole) -> do
+          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+              authUser = toLocalUnsafe ownDomain owner.id
+              perms = rolePermissions role
+              ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+              teamMap = Map.singleton tid [ownerTeamMember]
+           in runNoFederationStack localBackend teamMap config $
+                do
+                  collaborators <- getAllTeamCollaborators authUser tid
+                  pure $ collaborators === mempty
+
     prop "creation fails if the caller has isufficient permissions" $
       \(collaborator :: StoredUser)
        (owner :: StoredUser)
