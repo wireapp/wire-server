@@ -75,6 +75,12 @@ spec:
             path: /status
             port: {{ .Values.config.http.httpPort }}
             scheme: HTTP
+        lifecycle:
+          preStop:
+            exec:
+              # kubernetes by default sends a SIGTERM to the container,
+              # we can be more graceful with in-flight requests using quit
+              command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep 25"]
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       dnsPolicy: ClusterFirst

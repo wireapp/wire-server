@@ -19,7 +19,7 @@ config:
   ws:
     wsPort: 8081
     useProxyProtocol: true
-terminationGracePeriodSeconds: 30
+terminationGracePeriodSeconds: 90
 nginx_conf:
   cluster_domain: cluster.local
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
