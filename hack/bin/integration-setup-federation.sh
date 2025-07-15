@@ -69,19 +69,19 @@ if (( EXIT_CODE > 0)); then
     "${DIR}/kubectl-get-debug-info.sh" "$NAMESPACE_2"
     exit $EXIT_CODE
 fi
-set -e
+# set -e
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
-resourcesReady() {
-    SNS_POD=$(kubectl -n "${NAMESPACE_1}" get pods | grep fake-aws-sns | grep Running | awk '{print $1}')
-    kubectl -n "${NAMESPACE_1}" logs "$SNS_POD" -c initiate-fake-aws-sns | grep created
+# resourcesReady() {
+#     SNS_POD=$(kubectl -n "${NAMESPACE_1}" get pods | grep fake-aws-sns | grep Running | awk '{print $1}')
+#     kubectl -n "${NAMESPACE_1}" logs "$SNS_POD" -c initiate-fake-aws-sns | grep created
 
-    SNS_POD=$(kubectl -n "${NAMESPACE_2}" get pods | grep fake-aws-sns | grep Running | awk '{print $1}')
-    kubectl -n "${NAMESPACE_2}" logs "$SNS_POD" -c initiate-fake-aws-sns | grep created
-}
-until resourcesReady; do
-    echo 'waiting for SNS resources'
-    sleep 1
-done
+#     SNS_POD=$(kubectl -n "${NAMESPACE_2}" get pods | grep fake-aws-sns | grep Running | awk '{print $1}')
+#     kubectl -n "${NAMESPACE_2}" logs "$SNS_POD" -c initiate-fake-aws-sns | grep created
+# }
+# until resourcesReady; do
+#     echo 'waiting for SNS resources'
+#     sleep 1
+# done
 
 echo "done"
