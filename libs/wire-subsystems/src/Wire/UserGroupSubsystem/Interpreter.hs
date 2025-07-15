@@ -64,7 +64,7 @@ userGroupSubsystemErrorToHttpError =
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
-    Member (Error UserGroupSubsystemError) r, -- TODO: use ErrorS everywhere!
+    Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
@@ -169,7 +169,7 @@ getUserGroupsImpl ::
   Maybe PaginationState ->
   Sem r PaginationResult
 getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
-  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin -- TODO: really this exception?  about admin?
+  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
   checkPaginationState `mapM_` pState
