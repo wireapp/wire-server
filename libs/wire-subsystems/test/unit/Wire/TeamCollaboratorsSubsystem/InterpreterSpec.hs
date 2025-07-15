@@ -19,15 +19,26 @@ import Wire.TeamCollaboratorsSubsystem
 spec :: Spec
 spec = do
   describe "AddTeamCollaborator" $ do
-    prop "needs AddTeamCollaborator permission (admin and owner)" $
-      \(collaborator :: StoredUser) (owner :: StoredUser) (tid :: TeamId) config ownDomain -> do
-        let localBackend :: MiniBackend = def {users = [collaborator, owner]}
-            authUser = toLocalUnsafe ownDomain owner.id
-            perms = rolePermissions RoleAdmin -- TODO: Test RoleOwner as well
-            ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
-            teamMap = Map.singleton tid [ownerTeamMember]
-         in runNoFederationStack localBackend teamMap config $
-              do
-                createTeamCollaborator authUser collaborator.id tid mempty
-                collaborators <- getAllTeamCollaborators authUser tid
-                pure $ collaborators === [GetTeamCollaborator collaborator.id tid mempty]
+    prop "can create and get team collaborators if the caller has sufficient permissions (admin and owner)" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (tid :: TeamId)
+       config
+       ownDomain
+       ((EligibleRole role) :: EligibleRole) -> do
+          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+              authUser = toLocalUnsafe ownDomain owner.id
+              perms = rolePermissions role
+              ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+              teamMap = Map.singleton tid [ownerTeamMember]
+           in runNoFederationStack localBackend teamMap config $
+                do
+                  createTeamCollaborator authUser collaborator.id tid mempty
+                  collaborators <- getAllTeamCollaborators authUser tid
+                  pure $ collaborators === [GetTeamCollaborator collaborator.id tid mempty]
+
+newtype EligibleRole = EligibleRole Role
+  deriving (Eq, Show)
+
+instance Arbitrary EligibleRole where
+  arbitrary = EligibleRole <$> elements [RoleAdmin, RoleOwner]
