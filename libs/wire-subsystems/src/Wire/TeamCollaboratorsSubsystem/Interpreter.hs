@@ -101,3 +101,4 @@ teamCollaboratorsSubsystemErrorToHttpError :: TeamCollaboratorsError -> HttpErro
 teamCollaboratorsSubsystemErrorToHttpError =
   StdError . \case
     InsufficientRights -> errorToWai @E.InsufficientTeamPermissions
+    AlreadyExists -> errorToWai @E.DuplicateEntry

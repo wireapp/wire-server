@@ -323,6 +323,7 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postgresql-error-codes
     , prometheus-client
     , QuickCheck
     , resource-pool

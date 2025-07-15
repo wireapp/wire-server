@@ -1883,6 +1883,7 @@ type TeamsAPI =
            "get-team-invitation"
            ( Summary "Get a pending team invitation by ID."
                :> CanThrow 'InsufficientTeamPermissions
+               :> CanThrow 'DuplicateEntry
                :> ZUser
                :> "teams"
                :> Capture "tid" TeamId

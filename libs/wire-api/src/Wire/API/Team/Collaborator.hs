@@ -22,7 +22,9 @@ instance ToSchema CollaboratorPermission where
           element "implicit_connection" ImplicitConnection
         ]
 
-data TeamCollaboratorsError = InsufficientRights
+data TeamCollaboratorsError
+  = InsufficientRights
+  | AlreadyExists
   deriving (Eq, Show)
 
 instance Exception TeamCollaboratorsError

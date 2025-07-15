@@ -66,6 +66,7 @@
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postgresql-error-codes
 , profunctors
 , prometheus-client
 , QuickCheck
@@ -170,6 +171,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-error-codes
     profunctors
     prometheus-client
     QuickCheck
