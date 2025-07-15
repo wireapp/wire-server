@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
@@ -41,7 +43,7 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
-  GetGroups getter q sortByKeys sortOrder pSize pState -> getUserGroupsImpl getter q sortByKeys sortOrder pSize pState
+  GetGroups getter q sortByKeys sortOrder pSize pOffset pState -> getUserGroupsImpl getter q sortByKeys sortOrder pSize pOffset pState
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -166,9 +168,10 @@ getUserGroupsImpl ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
+  Maybe Natural ->
   Maybe PaginationState ->
   Sem r PaginationResult
-getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
+getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pOffset pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
@@ -181,14 +184,15 @@ getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
 
     checkPaginationState :: PaginationState -> Sem r ()
     checkPaginationState st = do
-      let badState = throw . UserGroupInvalidQueryParams . (<> " mismatch")
-      forM_ q $ (\x -> forM_ st.searchString $ \y -> unless (y == x) (badState "searchString"))
-      forM_ sortBy' $ \x -> unless (st.sortBy == x) (badState "sortBy")
+      let badState = throw . UserGroupInvalidQueryParams
+      forM_ searchString $ (\x -> forM_ st.searchString $ \y -> unless (y == x) (badState "q mismatch."))
+      forM_ sortBy' $ \x -> unless (st.sortBy == x) (badState "sort_by mismatch.")
       forM_ sortOrder' $ \x ->
         case fromMaybe def sortBy' of
-          SortByName -> unless (st.sortOrderName == x) (badState "sortOrderName")
-          SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sortOrderCreatedAt")
-      forM_ pSize $ \x -> unless (st.pageSize == x) (badState "pageSize")
+          SortByName -> unless (st.sortOrderName == x) (badState "sort_order mismatch (name).")
+          SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sort_order mismatch (created_at).")
+      forM_ pSize $ \x -> unless (st.pageSize == x) (badState "page_size mismatch.")
+      when (isJust pOffset && isJust pState) (badState "offset, pagination_state: you can only set one in your call.")
 
     currentPaginationState :: PaginationState
     currentPaginationState = case pState of
@@ -205,12 +209,12 @@ getUserGroupsImpl getter q sortBy' sortOrder' pSize pState = do
               SortByName -> Nothing
               SortByCreatedAt -> sortOrder'
          in PaginationState
-              { searchString = q,
+              { searchString,
                 sortBy = sb,
                 sortOrderName = son,
                 sortOrderCreatedAt = soc,
                 pageSize = fromMaybe def pSize,
-                offset = Just 0
+                offset = Just $ fromMaybe 0 pOffset
               }
 
     nextPaginationState :: Natural -> PaginationState
