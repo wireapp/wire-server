@@ -137,6 +137,7 @@ library
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation
     Wire.API.MLS.Validation
+    Wire.API.MLS.Validation.Error
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth

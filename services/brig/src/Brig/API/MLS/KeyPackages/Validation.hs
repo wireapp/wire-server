@@ -36,19 +36,21 @@ import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.Error
 import Wire.API.Error.Brig
+import Wire.API.Error.Brig qualified as E
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Lifetime
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
+import Wire.API.MLS.Validation.Error (toText)
 
 validateUploadedKeyPackage ::
   ClientIdentity ->
   RawMLS KeyPackage ->
   Handler r (KeyPackageRef, CipherSuiteTag, KeyPackageData)
 validateUploadedKeyPackage identity kp = do
-  (cs, lt) <- either mlsProtocolError pure $ validateKeyPackage (Just identity) kp.value
+  (cs, lt) <- either mlsProtocolErrorFromValidationError pure $ validateKeyPackage (Just identity) kp.value
 
   validateLifetime lt
 
@@ -94,6 +96,10 @@ validateLifetime' now mMaxLifetime lt = do
   for_ mMaxLifetime $ \maxLifetime ->
     when (tsPOSIX (ltNotAfter lt) > now + maxLifetime) $
       Left "Key package expiration time is too far in the future"
+
+mlsProtocolErrorFromValidationError :: ValidationError -> Handler r a
+mlsProtocolErrorFromValidationError InvalidLeafNodeSignature = throwStd (errorToWai @E.MLSInvalidLeafNodeSignature)
+mlsProtocolErrorFromValidationError err = mlsProtocolError (toText err)
 
 mlsProtocolError :: Text -> Handler r a
 mlsProtocolError msg =

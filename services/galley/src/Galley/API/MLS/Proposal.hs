@@ -68,6 +68,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
+import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
 import Wire.NotificationSubsystem
 
@@ -146,7 +147,8 @@ derefOrCheckProposal ::
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ProposalStore r,
     Member (State IndexMap) r,
-    Member (ErrorS 'MLSProposalNotFound) r
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   Epoch ->
   CipherSuiteTag ->
@@ -164,7 +166,8 @@ derefOrCheckProposal _epoch ciphersuite _ (Inline p) = do
 checkProposal ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   CipherSuiteTag ->
   IndexMap ->
@@ -193,7 +196,8 @@ applyProposals ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   CipherSuiteTag ->
   [Proposal] ->
@@ -207,7 +211,8 @@ applyProposal ::
   ( Member (State IndexMap) r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   CipherSuiteTag ->
   Proposal ->
@@ -215,7 +220,10 @@ applyProposal ::
 applyProposal ciphersuite (AddProposal kp) = do
   (cs, _lifetime) <-
     either
-      (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
+      ( \case
+          InvalidLeafNodeSignature -> throwS @'MLSInvalidLeafNodeSignature
+          validationError -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> (toText validationError)))
+      )
       pure
       $ validateKeyPackage Nothing kp.value
   unless (ciphersuite == cs) $
@@ -232,7 +240,8 @@ applyProposal _activeData _ = pure mempty
 processProposal ::
   (HasProposalEffects r) =>
   ( Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->

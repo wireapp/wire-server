@@ -119,6 +119,7 @@ data BrigError
   | UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | DuplicateEntry
+  | MLSInvalidLeafNodeSignature
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -355,3 +356,5 @@ type instance MapError 'UserGroupNotATeamAdmin = 'StaticError 403 "user-group-wr
 type instance MapError 'UserGroupMemberIsNotInTheSameTeam = 'StaticError 400 "user-group-invalid" "Only team members of the same team can be added to a user group."
 
 type instance MapError 'DuplicateEntry = 'StaticError 409 "duplicate-entry" "Entry already exists"
+
+type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature in key package"

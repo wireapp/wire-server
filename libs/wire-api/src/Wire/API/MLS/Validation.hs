@@ -19,16 +19,13 @@ module Wire.API.MLS.Validation
   ( -- * Main key package validation function
     validateKeyPackage,
     validateLeafNode,
+    ValidationError (..),
   )
 where
 
 import Control.Applicative
 import Control.Error.Util
 import Data.ByteArray qualified as BA
-import Data.Text qualified as T
-import Data.Text.Lazy qualified as LT
-import Data.Text.Lazy.Builder qualified as LT
-import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.X509 qualified as X509
 import Imports
 import Wire.API.MLS.Capabilities
@@ -39,20 +36,17 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Lifetime
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Validation.Error
 
 validateKeyPackage ::
   Maybe ClientIdentity ->
   KeyPackage ->
-  Either Text (CipherSuiteTag, Lifetime)
+  Either ValidationError (CipherSuiteTag, Lifetime)
 validateKeyPackage mIdentity kp = do
   -- get ciphersuite
   cs <-
     maybe
-      ( Left
-          ( "Unsupported ciphersuite 0x"
-              <> LT.toStrict (LT.toLazyText (LT.hexadecimal kp.cipherSuite.cipherSuiteNumber))
-          )
-      )
+      (Left (UnsupportedCipherSuite kp.cipherSuite.cipherSuiteNumber))
       pure
       $ cipherSuiteTag kp.cipherSuite
 
@@ -65,11 +59,11 @@ validateKeyPackage mIdentity kp = do
         kp.tbs
         kp.signature_
     )
-    $ Left "Invalid KeyPackage signature"
+    $ Left InvalidKeyPackageSignature
 
   -- validate protocol version
   maybe
-    (Left "Unsupported protocol version")
+    (Left UnsupportedProtocolVersion)
     pure
     (pvTag (kp.protocolVersion) >>= guard . (== ProtocolMLS10))
 
@@ -79,7 +73,7 @@ validateKeyPackage mIdentity kp = do
   lt <- case kp.leafNode.source of
     LeafNodeSourceKeyPackage lt -> pure lt
     -- unreachable
-    _ -> Left "Unexpected leaf node source"
+    _ -> Left UnexpectedLeafNodeSource
 
   pure (cs, lt)
 
@@ -88,7 +82,7 @@ validateLeafNode ::
   Maybe ClientIdentity ->
   LeafNodeTBSExtra ->
   LeafNode ->
-  Either Text ()
+  Either ValidationError ()
 validateLeafNode cs mIdentity extra leafNode = do
   let tbs = LeafNodeTBS leafNode.core extra
   unless
@@ -99,13 +93,13 @@ validateLeafNode cs mIdentity extra leafNode = do
         (mkRawMLS tbs)
         leafNode.signature_
     )
-    $ Left "Invalid LeafNode signature"
+    $ Left InvalidLeafNodeSignature
 
   validateCredential cs leafNode.signatureKey mIdentity leafNode.credential
   validateSource extra.tag leafNode.source
   validateCapabilities (credentialTag leafNode.credential) leafNode.capabilities
 
-validateCredential :: CipherSuiteTag -> ByteString -> Maybe ClientIdentity -> Credential -> Either Text ()
+validateCredential :: CipherSuiteTag -> ByteString -> Maybe ClientIdentity -> Credential -> Either ValidationError ()
 validateCredential cs pkey mIdentity cred = do
   -- FUTUREWORK: check signature in the case of an x509 credential
   (identity, mkey) <-
@@ -113,13 +107,11 @@ validateCredential cs pkey mIdentity cred = do
       credentialIdentityAndKey cred
   traverse_ (validateCredentialKey (csSignatureScheme cs) pkey) mkey
   unless (maybe True (identity ==) mIdentity) $
-    Left "client identity does not match credential identity"
+    Left IdentityMismatch
   where
-    credentialError e =
-      Left $
-        "Failed to parse identity: " <> e
+    credentialError e = Left $ FailedToParseIdentity e
 
-validateCredentialKey :: SignatureSchemeTag -> ByteString -> X509.PubKey -> Either Text ()
+validateCredentialKey :: SignatureSchemeTag -> ByteString -> X509.PubKey -> Either ValidationError ()
 validateCredentialKey Ed25519 pk1 (X509.PubKeyEd25519 pk2) = validateCredentialKeyBS pk1 (BA.convert pk2)
 validateCredentialKey Ecdsa_secp256r1_sha256 pk1 (X509.PubKeyEC pk2) =
   case pk2.pubkeyEC_pub of
@@ -131,28 +123,28 @@ validateCredentialKey Ecdsa_secp521r1_sha512 pk1 (X509.PubKeyEC pk2) =
   case pk2.pubkeyEC_pub of
     X509.SerializedPoint bs -> validateCredentialKeyBS pk1 bs
 validateCredentialKey ss _ _ =
-  Left $
-    "Certificate signature scheme " <> T.pack (show ss) <> " does not match client's public key"
+  Left $ SchemeMismatch ss
 
-validateCredentialKeyBS :: ByteString -> ByteString -> Either Text ()
+validateCredentialKeyBS :: ByteString -> ByteString -> Either ValidationError ()
 validateCredentialKeyBS pk1 pk2 =
-  note "Certificate public key does not match client's" $
+  note PublicKeyMismatch $
     guard (pk1 == pk2)
 
-validateSource :: LeafNodeSourceTag -> LeafNodeSource -> Either Text ()
+validateSource :: LeafNodeSourceTag -> LeafNodeSource -> Either ValidationError ()
 validateSource t s = do
   let t' = leafNodeSourceTag s
   if t == t'
     then pure ()
     else
       Left $
-        "Expected '"
-          <> t.name
-          <> "' source, got '"
-          <> t'.name
-          <> "'"
+        LeafNodeSourceTagMisMatch $
+          "Expected '"
+            <> t.name
+            <> "' source, got '"
+            <> t'.name
+            <> "'"
 
-validateCapabilities :: CredentialTag -> Capabilities -> Either Text ()
+validateCapabilities :: CredentialTag -> Capabilities -> Either ValidationError ()
 validateCapabilities ctag caps =
   unless (fromMLSEnum ctag `elem` caps.credentials) $
-    Left "missing BasicCredential capability"
+    Left BasicCredentialCapabilityMissing

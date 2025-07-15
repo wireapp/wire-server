@@ -118,7 +118,8 @@ type MLSBundleStaticErrors =
     MLSMessageStaticErrors
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
-       ErrorS 'GroupIdVersionNotSupported
+       ErrorS 'GroupIdVersionNotSupported,
+       ErrorS 'MLSInvalidLeafNodeSignature
      ]
 
 postMLSMessageFromLocalUser ::
@@ -136,7 +137,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -370,7 +372,8 @@ postMLSMessage ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -414,7 +417,8 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Qualified UserId ->
   ClientId ->

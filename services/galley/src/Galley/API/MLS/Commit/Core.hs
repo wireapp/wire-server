@@ -67,6 +67,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Validation
+import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
 
@@ -102,7 +103,8 @@ type HasProposalActionEffects r =
 
 getCommitData ::
   ( HasProposalEffects r,
-    Member (ErrorS 'MLSProposalNotFound) r
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Local ConvOrSubConv ->
@@ -246,7 +248,8 @@ checkUpdatePath ::
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BrigAccess r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local ConvOrSubConv ->
   SenderIdentity ->
@@ -257,9 +260,10 @@ checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity
   let groupId = cnvmlsGroupId (tUnqualified lConvOrSub).mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId index
   case validateLeafNode ciphersuite (Just senderIdentity.client) extra path.leaf.value of
+    Left InvalidLeafNodeSignature -> throwS @'MLSInvalidLeafNodeSignature
     Left errMsg ->
       throw $
-        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+        mlsProtocolError ("Tried to add invalid LeafNode: " <> toText errMsg)
     Right _ -> pure ()
   clientInfo <-
     getSingleClientInfo
