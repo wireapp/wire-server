@@ -96,7 +96,7 @@ unexpected =
 timeoutHook :: Spec -> Spec
 timeoutHook =
   describe "[timeout wrapper]"
-    . (around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000)
+    . around_ (maybe (fail "exceeded timeout") pure <=< timeout 1_000_000)
     . modifyMaxShrinks (const 0)
 
 spec :: Spec
