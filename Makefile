@@ -444,7 +444,7 @@ libzauth:
 kube-integration:  kube-integration-setup kube-integration-test
 
 .PHONY: kube-integration-setup
-kube-integration-setup: charts-integration helm-oci-login
+kube-integration-setup: charts-integration
 	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test
@@ -467,9 +467,6 @@ kube-integration-e2e-telepresence:
 kube-restart-%:
 	kubectl delete pod -n $(NAMESPACE) -l app=$(*)
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
-
-helm-oci-login:
-	./hack/bin/helm-oci-login.sh
 
 .PHONY: latest-tag
 latest-tag:
