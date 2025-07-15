@@ -24,7 +24,7 @@ config:
     useProxyProtocol: true
 terminationGracePeriodSeconds: 30
 nginx_conf:
-  upstream_config: /etc/wire/nginz/upstreams/upstreams.conf
+  cluster_domain: cluster.local
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
   zauth_acl: /etc/wire/nginz/conf/zauth.acl
   basic_auth_file: /etc/wire/nginz/secrets/basic_auth.txt
