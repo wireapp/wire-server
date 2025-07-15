@@ -5,6 +5,7 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -26,6 +27,7 @@ spec = do
        (tid :: TeamId)
        config
        ownDomain
+       collabPerms
        ((EligibleRole role) :: EligibleRole) -> do
           let localBackend :: MiniBackend = def {users = [collaborator, owner]}
               authUser = toLocalUnsafe ownDomain owner.id
@@ -34,9 +36,9 @@ spec = do
               teamMap = Map.singleton tid [ownerTeamMember]
            in runNoFederationStack localBackend teamMap config $
                 do
-                  createTeamCollaborator authUser collaborator.id tid mempty
+                  createTeamCollaborator authUser collaborator.id tid collabPerms
                   collaborators <- getAllTeamCollaborators authUser tid
-                  pure $ collaborators === [GetTeamCollaborator collaborator.id tid mempty]
+                  pure $ collaborators === [GetTeamCollaborator collaborator.id tid (Set.toAscList collabPerms)]
 
     prop "creation fails if the caller has isufficient permissions" $
       \(collaborator :: StoredUser)
@@ -44,6 +46,7 @@ spec = do
        (tid :: TeamId)
        config
        ownDomain
+       collabPerms
        ((NonEligibleRole role) :: NonEligibleRole) ->
           let localBackend :: MiniBackend = def {users = [collaborator, owner]}
               authUser = toLocalUnsafe ownDomain owner.id
@@ -57,7 +60,7 @@ spec = do
                     teamMap
                     config
                     $ do
-                      catchExpectedError @TeamCollaboratorsError $ createTeamCollaborator authUser collaborator.id tid mempty
+                      catchExpectedError @TeamCollaboratorsError $ createTeamCollaborator authUser collaborator.id tid collabPerms
                 pure $ res === InsufficientRights
 
     prop "getting fails if the caller has insufficient permissions" $
@@ -67,6 +70,7 @@ spec = do
        (tid :: TeamId)
        config
        ownDomain
+       collabPerms
        ((EligibleRole eligibleRole) :: EligibleRole)
        ((NonEligibleRole nonEligibleRole) :: NonEligibleRole) ->
           let localBackend :: MiniBackend = def {users = [collaborator, owner, teamMember]}
@@ -84,7 +88,7 @@ spec = do
                     teamMap
                     config
                     $ do
-                      createTeamCollaborator eligibleAuthUser collaborator.id tid mempty
+                      createTeamCollaborator eligibleAuthUser collaborator.id tid collabPerms
                       catchExpectedError @TeamCollaboratorsError $ getAllTeamCollaborators nonEligibleAuthUser tid
                 pure $ res === InsufficientRights
 
@@ -93,7 +97,8 @@ spec = do
        (owner :: StoredUser)
        (tid :: TeamId)
        config
-       ownDomain -> do
+       ownDomain
+       collabPerms -> do
           let localBackend :: MiniBackend = def {users = [collaborator, owner]}
               authUser = toLocalUnsafe ownDomain owner.id
               teamMap = mempty
@@ -101,7 +106,7 @@ spec = do
                 res <-
                   runNoFederationStack localBackend teamMap config $
                     catchExpectedError @TeamCollaboratorsError $
-                      createTeamCollaborator authUser collaborator.id tid mempty
+                      createTeamCollaborator authUser collaborator.id tid collabPerms
                 pure $ res === InsufficientRights
 
     prop "getting fails if team does not exist" $
