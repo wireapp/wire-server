@@ -51,13 +51,7 @@ export FEDERATION_CA_CERTIFICATE
 echo "Installing charts..."
 
 set +e
-# This exists because we need to run `helmfile` with `--skip-deps`, without that it doesn't work.
-helm repo add bedag https://bedag.github.io/helm-charts/
-helm repo add obeone https://charts.obeone.cloud
-helm repo add opensearch https://opensearch-project.github.io/helm-charts/
-helm repo add bitnami https://charts.bitnami.com/bitnami
-
-helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml.gotmpl" sync --skip-deps --concurrency 0
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml.gotmpl" sync --concurrency 0
 EXIT_CODE=$?
 
 if (( EXIT_CODE > 0)); then
