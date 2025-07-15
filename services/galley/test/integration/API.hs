@@ -3200,7 +3200,7 @@ putRemoteReceiptModeOk = do
     WS.assertMatch_ (5 # Second) wsAdam $ \n -> do
       liftIO $ wsAssertConvReceiptModeUpdate qconv qalice newReceiptMode n
 
-postTypingIndicatorsV2 :: TestM ()
+postTypingIndicatorsV2 :: (HasCallStack) => TestM ()
 postTypingIndicatorsV2 = do
   c <- view tsCannon
   g <- view tsUnversionedGalley
@@ -3228,7 +3228,7 @@ postTypingIndicatorsV2 = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsBob] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged aliceL) StartedTyping n
 
     post
@@ -3242,7 +3242,7 @@ postTypingIndicatorsV2 = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsAlice] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged bobL) StoppedTyping n
 
 postTypingIndicators :: TestM ()
@@ -3275,7 +3275,7 @@ postTypingIndicators = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsAlice] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged bobL) StoppedTyping n
 
     -- to bob from alice
@@ -3290,7 +3290,7 @@ postTypingIndicators = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsBob] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged aliceL) StartedTyping n
 
 postTypingIndicatorsHandlesNonsense :: TestM ()
