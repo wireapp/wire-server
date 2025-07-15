@@ -4,6 +4,8 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
+import Data.Bits
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
@@ -941,3 +943,24 @@ testRemoteAddLegacy domain = do
     void $ uploadNewKeyPackage suite bob1
     convId <- createNewGroup suite alice1
     void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
+
+testInvalidLeadNodeSignature :: (HasCallStack) => App ()
+testInvalidLeadNodeSignature = do
+  alice <- randomUser OwnDomain def
+  [creator, other] <- traverse (createMLSClient def) (replicate 2 alice)
+  (_, conv) <- createSelfGroup def creator
+  convId <- objConvId conv
+  void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle
+
+  void $ uploadNewKeyPackage def other
+
+  mp <- createExternalCommit convId other Nothing
+  bindResponse (postMLSCommitBundle other (mkBundle mp {message = makeSignatureCorrupt mp.message})) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-signature"
+  where
+    makeSignatureCorrupt :: ByteString -> ByteString
+    makeSignatureCorrupt bs = case B.splitAt 0x80 bs of
+      (left, right) -> case B.uncons right of
+        Just (h, t) -> left <> B.singleton (h `xor` 0x01) <> t
+        Nothing -> bs
