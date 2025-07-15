@@ -78,7 +78,10 @@ repositories:
     url: 'https://opensearch-project.github.io/helm-charts/'
 
   - name: bitnami
-    url: https://charts.bitnami.com/bitnami
+    url: registry-1.docker.io/bitnamicharts
+    oci: true
+    username: '{{ env "DOCKER_HUB_USERNAME" }}'
+    password: '{{ env "DOCKER_HUB_USERNAME" }}'
 
 releases:
   # - name: 'fake-aws'
