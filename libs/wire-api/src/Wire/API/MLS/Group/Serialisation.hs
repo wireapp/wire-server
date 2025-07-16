@@ -40,7 +40,7 @@ import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Imports
 import Web.HttpApiData (FromHttpApiData (parseHeader))
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (newGroupId)
 import Wire.API.MLS.Group
 import Wire.API.MLS.SubConversation
 import Wire.Arbitrary

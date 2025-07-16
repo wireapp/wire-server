@@ -61,6 +61,7 @@ module Wire.API.Event.Conversation
     Connect (..),
     MemberUpdateData (..),
     OtrMessage (..),
+    ConversationReset (..),
 
     -- * re-exports
     ConversationReceiptModeUpdate (..),
@@ -188,7 +189,7 @@ data EventData
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
   | EdConvDelete
-  | EdConvReset GroupId
+  | EdConvReset ConversationReset
   | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
   | EdConvCodeUpdate ConversationCodeInfo
@@ -421,6 +422,21 @@ otrMessageObjectSchema =
       "Extra (symmetric) data (i.e. ciphertext, Base64 in JSON) \
       \that is common with all other recipients."
 
+data ConversationReset = ConversationReset
+  { groupId :: GroupId,
+    newGroupId :: Maybe GroupId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationReset)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationReset
+
+instance ToSchema ConversationReset where
+  schema =
+    object "ConversationReset" $
+      ConversationReset
+        <$> (.groupId) .= field "group_id" schema
+        <*> (.newGroupId) .= maybe_ (optField "new_group_id" schema)
+
 makePrisms ''EventData
 
 taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
@@ -452,7 +468,7 @@ taggedEventDataSchema =
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
-      ConvReset -> tag _EdConvReset (unnamed (object "ConvResetData" (field "group_id" schema)))
+      ConvReset -> tag _EdConvReset (unnamed schema)
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)
 

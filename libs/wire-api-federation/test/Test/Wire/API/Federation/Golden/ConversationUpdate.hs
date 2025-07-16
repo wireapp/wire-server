@@ -88,7 +88,8 @@ testObject_ConversationUpdate1 =
       convId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       alreadyPresentUsers = [],
-      action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin InternalAdd)
+      action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin InternalAdd),
+      extraConversationData = Nothing
     }
 
 testObject_ConversationUpdate2 :: ConversationUpdate
@@ -102,5 +103,6 @@ testObject_ConversationUpdate2 =
       convId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       alreadyPresentUsers = [chad, dee],
-      action = SomeConversationAction (sing @'ConversationLeaveTag) ()
+      action = SomeConversationAction (sing @'ConversationLeaveTag) (),
+      extraConversationData = Just (ExtraConversationData $ Just $ GroupId "group")
     }

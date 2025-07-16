@@ -197,7 +197,8 @@ spec = do
               origUserId = user,
               convId = convId,
               alreadyPresentUsers = [],
-              action = SomeConversationAction SConversationLeaveTag ()
+              action = SomeConversationAction SConversationLeaveTag (),
+              extraConversationData = Nothing
             }
       let update0 = conversationUpdateToV0 update
       let bundle =

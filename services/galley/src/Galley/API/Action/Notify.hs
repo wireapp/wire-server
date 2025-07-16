@@ -13,7 +13,7 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Conversation (ConversationMetadata (..))
+import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -42,20 +42,22 @@ notifyConversationAction ::
   Local Conversation ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
+  ExtraConversationData ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv targets action extraData = do
   now <- input
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
       tid = conv.convMetadata.cnvmTeam
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing tid action
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) extraData Nothing tid action
       mkUpdate uids =
         ConversationUpdate
           { time = now,
             origUserId = quid,
             convId = tUnqualified lcnv,
             alreadyPresentUsers = uids,
-            action = SomeConversationAction tag action
+            action = SomeConversationAction tag action,
+            extraConversationData = Just extraData
           }
   update <-
     fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified) $

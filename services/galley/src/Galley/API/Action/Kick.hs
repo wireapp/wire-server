@@ -4,6 +4,7 @@ import Data.Id
 import Data.Qualified
 import Data.Singletons
 import Data.Time.Clock
+import Data.Default
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Util
@@ -54,3 +55,4 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     lconv
     targets
     (ConversationRemoveMembers (pure victim) EdReasonRemoved)
+    def

@@ -8,6 +8,9 @@
         "00000fff-0000-aaaa-0000-000100005007"
     ],
     "convId": "00000000-0000-0000-0000-000100000006",
+    "extraConversationData": {
+        "group_id": "Z3JvdXA="
+    },
     "origUserId": {
         "domain": "golden.example.com",
         "id": "00000000-0000-0000-0000-000100000007"

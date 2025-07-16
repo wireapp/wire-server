@@ -33,6 +33,7 @@ module Wire.API.Conversation.Protocol
     optionalActiveMLSConversationDataSchema,
     cnvmlsEpoch,
     ProtocolUpdate (..),
+    getGroupId,
   )
 where
 
@@ -251,3 +252,8 @@ deriving via (Schema ProtocolUpdate) instance FromJSON ProtocolUpdate
 deriving via (Schema ProtocolUpdate) instance ToJSON ProtocolUpdate
 
 deriving via (Schema ProtocolUpdate) instance S.ToSchema ProtocolUpdate
+
+getGroupId :: Protocol -> Maybe GroupId
+getGroupId (ProtocolMLS mlsData) = Just $ cnvmlsGroupId mlsData
+getGroupId (ProtocolMixed mlsData) = Just $ cnvmlsGroupId mlsData
+getGroupId _ = Nothing

@@ -23,6 +23,7 @@ module Galley.API.Query
     getUnqualifiedConversationV9,
     getConversationV9,
     getConversation,
+    getRemoteConversation,
     getLocalConversationInternal,
     getConversationRoles,
     conversationIdsPageFromUnqualified,

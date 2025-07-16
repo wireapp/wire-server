@@ -86,6 +86,7 @@ module Wire.API.Conversation
     ConversationMemberUpdate (..),
     ConversationRemoveMembers (..),
     AddPermissionUpdate (..),
+    ExtraConversationData (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -1163,6 +1164,24 @@ instance ToSchema AddPermissionUpdate where
       (description ?~ "The action of changing the permission to add members to a channel")
       $ AddPermissionUpdate
         <$> addPermission .= field "add_permission" schema
+
+newtype ExtraConversationData = ExtraConversationData
+  { newGroupId :: Maybe GroupId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ExtraConversationData)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ExtraConversationData
+
+instance Default ExtraConversationData where
+  def = ExtraConversationData Nothing
+
+instance ToSchema ExtraConversationData where
+  schema =
+    objectWithDocModifier
+      "ExtraConversationData"
+      (description ?~ "Extra conversation data, used for group conversations")
+      $ ExtraConversationData
+        <$> newGroupId .= optField "group_id" (maybeWithDefault A.Null schema)
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

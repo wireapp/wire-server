@@ -18,6 +18,7 @@
     },
     "alreadyPresentUsers": [],
     "convId": "00000000-0000-0000-0000-000100000006",
+    "extraConversationData": null,
     "origUserId": {
         "domain": "golden.example.com",
         "id": "00000000-0000-0000-0000-000100000007"

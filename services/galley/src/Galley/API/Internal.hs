@@ -396,13 +396,14 @@ rmUser lusr conn = do
               E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
               let e =
                     Event
-                      (tUntagged (qualifyAs lusr (Data.convId c)))
-                      Nothing
-                      (tUntagged lusr)
-                      now
-                      Nothing
-                      (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
-              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+                      { evtConv = tUntagged (qualifyAs lusr (Data.convId c)),
+                        evtSubConv = Nothing,
+                        evtFrom = tUntagged lusr,
+                        evtTime = now,
+                        evtTeam = Nothing,
+                        evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
+                      }
+              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser c
               pure . Just $
                 def
                   { origin = Just (tUnqualified lusr),
@@ -420,15 +421,17 @@ rmUser lusr conn = do
     -- made. When a team is deleted the burst of RPCs created here could
     -- lead to performance issues. We should cover this in a performance
     -- test.
-    notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Sem r ()
-    notifyRemoteMembers now qUser cid remotes = do
-      let convUpdate =
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> Data.Conversation -> Remote [UserId] -> Sem r ()
+    notifyRemoteMembers now qUser c remotes = do
+      let cid = Data.convId c
+          convUpdate =
             ConversationUpdate
               { time = now,
                 origUserId = qUser,
                 convId = cid,
                 alreadyPresentUsers = tUnqualified remotes,
-                action = SomeConversationAction (sing @'ConversationLeaveTag) ()
+                action = SomeConversationAction (sing @'ConversationLeaveTag) (),
+                extraConversationData = def
               }
       enqueueNotification Q.Persistent remotes $ do
         makeConversationUpdateBundle convUpdate

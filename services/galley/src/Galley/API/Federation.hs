@@ -24,6 +24,7 @@ import Control.Error hiding (note)
 import Control.Lens
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
@@ -324,6 +325,7 @@ leaveConversation requestingDomain lc = do
               (qualifyAs lcnv conv)
               botsAndMembers
               ()
+              def
         case outcome of
           Left e -> do
             logFederationError lcnv e
@@ -464,6 +466,7 @@ onUserDeleted origDomain udcn = do
                     (qualifyAs lc conv)
                     botsAndMembers
                     ()
+                    def
               case outcome of
                 Left e -> logFederationError lc e
                 Right _ -> pure ()
