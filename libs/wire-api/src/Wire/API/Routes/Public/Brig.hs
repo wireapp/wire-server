@@ -1867,6 +1867,7 @@ type TeamsAPI =
     :<|> Named
            "get-team-invitations"
            ( Summary "List the sent team invitations"
+               :> From 'V10
                :> CanThrow 'InsufficientTeamPermissions
                :> ZUser
                :> "teams"
@@ -1882,6 +1883,7 @@ type TeamsAPI =
     :<|> Named
            "get-team-invitation"
            ( Summary "Get a pending team invitation by ID."
+               :> From 'V10
                :> CanThrow 'InsufficientTeamPermissions
                :> CanThrow 'DuplicateEntry
                :> ZUser
