@@ -79,7 +79,7 @@ getAllTeamCollaboratorsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r [GetTeamCollaborator]
+  Sem r [TeamCollaborator]
 getAllTeamCollaboratorsImpl zUser team = do
   guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team

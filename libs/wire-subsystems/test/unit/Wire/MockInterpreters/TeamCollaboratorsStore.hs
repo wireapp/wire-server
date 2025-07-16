@@ -12,12 +12,12 @@ import Wire.TeamCollaboratorsStore
 
 inMemoryTeamCollaboratorsStoreInterpreter ::
   forall r.
-  (Member (State (Map TeamId [GetTeamCollaborator])) r) =>
+  (Member (State (Map TeamId [TeamCollaborator])) r) =>
   InterpreterFor TeamCollaboratorsStore r
 inMemoryTeamCollaboratorsStoreInterpreter =
   interpret $ \case
     CreateTeamCollaborator userId teamId permissions ->
-      let teamCollaborator = GetTeamCollaborator userId teamId (Set.toList permissions)
+      let teamCollaborator = TeamCollaborator userId teamId (Set.toList permissions)
        in modify $ Map.alter (Just . maybe [teamCollaborator] (teamCollaborator :)) teamId
     GetAllTeamCollaborators teamId ->
-      gets $ \(s :: Map TeamId [GetTeamCollaborator]) -> (maybe [] id) (Map.lookup teamId s)
+      gets $ \(s :: Map TeamId [TeamCollaborator]) -> (maybe [] id) (Map.lookup teamId s)

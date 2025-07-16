@@ -42,18 +42,18 @@ instance ToSchema NewTeamCollaborator where
         <$> (aUser .= field "user" schema)
         <*> (aPermissions .= field "permissions" (array schema))
 
-data GetTeamCollaborator = GetTeamCollaborator
+data TeamCollaborator = TeamCollaborator
   { gUser :: UserId,
     gTeam :: TeamId,
     gPermissions :: [CollaboratorPermission]
   }
   deriving (Eq, Show)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema GetTeamCollaborator)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema TeamCollaborator)
 
-instance ToSchema GetTeamCollaborator where
+instance ToSchema TeamCollaborator where
   schema =
-    object "GetTeamCollaborator" $
-      GetTeamCollaborator
+    object "TeamCollaborator" $
+      TeamCollaborator
         <$> (gUser .= field "user" schema)
         <*> (gTeam .= field "team" schema)
         <*> (gPermissions .= field "permissions" (array schema))

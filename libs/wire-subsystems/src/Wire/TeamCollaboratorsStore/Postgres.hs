@@ -79,25 +79,25 @@ getAllTeamCollaboratorsImpl ::
     Member (Error UsageError) r
   ) =>
   TeamId ->
-  Sem r [GetTeamCollaborator]
+  Sem r [TeamCollaborator]
 getAllTeamCollaboratorsImpl teamId = do
   pool <- input
   eitherTeamCollaborators <- liftIO $ use pool session
   either throw pure eitherTeamCollaborators
   where
-    session :: Session [GetTeamCollaborator]
+    session :: Session [TeamCollaborator]
     session = statement teamId getAllTeamCollaboratorsStatement
 
-    getAllTeamCollaboratorsStatement :: Statement TeamId [GetTeamCollaborator]
+    getAllTeamCollaboratorsStatement :: Statement TeamId [TeamCollaborator]
     getAllTeamCollaboratorsStatement =
-      dimap toUUID (Data.Vector.toList . (toGetTeamCollaborator <$>)) $
+      dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
         [vectorStatement|
           select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where team_id = ($1 :: uuid)
           |]
 
-    toGetTeamCollaborator :: (UUID, UUID, Vector Int16) -> GetTeamCollaborator
-    toGetTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
-      GetTeamCollaborator {..}
+    toTeamCollaborator :: (UUID, UUID, Vector Int16) -> TeamCollaborator
+    toTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
+      TeamCollaborator {..}
 
     toPermissions :: Vector Int16 -> [CollaboratorPermission]
     toPermissions = (Data.Vector.toList . Data.Vector.map postgreslRepToCollaboratorPermission)

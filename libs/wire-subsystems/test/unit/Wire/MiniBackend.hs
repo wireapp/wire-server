@@ -266,7 +266,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
 
 type StateEffects =
   '[ State [Push],
-     State (Map (TeamId) [GetTeamCollaborator]),
+     State (Map (TeamId) [TeamCollaborator]),
      State (Map (TeamId, InvitationId) StoredInvitation),
      State (Map InvitationCode StoredInvitation),
      State (Map EmailKey (Maybe UserId, ActivationCode)),
@@ -359,7 +359,7 @@ data MiniBackend = MkMiniBackend
     invitationInfos :: Map InvitationCode StoredInvitation,
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
     teamIdps :: Map TeamId IdPList,
-    teamCollaborators :: Map TeamId [GetTeamCollaborator],
+    teamCollaborators :: Map TeamId [TeamCollaborator],
     pushNotifications :: [Push]
   }
   deriving stock (Eq, Show, Generic)
@@ -614,7 +614,7 @@ liftInvitationStoreState = interpret \case
   Polysemy.State.Get -> gets (.invitations)
   Put newInvs -> modify $ \b -> b {invitations = newInvs}
 
-liftTeamCollaboratorsStoreState :: (Member (State MiniBackend) r) => Sem (State (Map TeamId [GetTeamCollaborator]) : r) a -> Sem r a
+liftTeamCollaboratorsStoreState :: (Member (State MiniBackend) r) => Sem (State (Map TeamId [TeamCollaborator]) : r) a -> Sem r a
 liftTeamCollaboratorsStoreState = interpret \case
   Polysemy.State.Get -> gets (.teamCollaborators)
   Put collaborators -> modify $ \b -> b {teamCollaborators = collaborators}

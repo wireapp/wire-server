@@ -38,7 +38,7 @@ spec = do
                 do
                   createTeamCollaborator authUser collaborator.id tid collabPerms
                   collaborators <- getAllTeamCollaborators authUser tid
-                  pure $ collaborators === [GetTeamCollaborator collaborator.id tid (Set.toAscList collabPerms)]
+                  pure $ collaborators === [TeamCollaborator collaborator.id tid (Set.toAscList collabPerms)]
 
     prop "can get empty team collaborator list" $
       \(collaborator :: StoredUser)
