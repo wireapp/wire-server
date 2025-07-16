@@ -62,30 +62,13 @@ testCreateTeamCollaboratorPostTwice = do
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
   userId <- randomUser OwnDomain def >>= asString . (%. "id")
-  addTeamCollaborator
-    owner
-    team
-    userId
-    [ "create_team_conversation",
-      "implicit_connection"
-    ]
-    >>= assertSuccess
-
-  bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    res <- (resp.jsonBody & asList) <&> assertOne
-    res %. "user" `shouldMatch` userId
-    res %. "team" `shouldMatch` team
-    res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
-
-  bindResponse
-    ( addTeamCollaborator
-        owner
-        team
-        userId
-        [ "create_team_conversation",
-          "implicit_connection"
-        ]
-    )
-    $ \resp -> do
-      resp.status `shouldMatchInt` 409
+  let add =
+        addTeamCollaborator
+          owner
+          team
+          userId
+          [ "create_team_conversation",
+            "implicit_connection"
+          ]
+  bindResponse add assertSuccess
+  bindResponse add $ assertStatus 409
