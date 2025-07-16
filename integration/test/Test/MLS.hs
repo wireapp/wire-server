@@ -959,6 +959,12 @@ testInvalidLeafNodeSignature = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-signature"
   where
+    -- This is a hack to make the signature invalid.
+    -- It works as long as the format of the MLS message does not change
+    -- in any way that changes the offset of the signature.
+    -- If this test ever starts flaking, we should consider
+    -- factoring the MLS code out of wire-api into a separate shared package
+    -- and use it in this test ti invalidate the signature.
     makeSignatureCorrupt :: ByteString -> ByteString
     makeSignatureCorrupt bs = case B.splitAt 0xb0 bs of
       (left, right) -> case B.uncons right of
