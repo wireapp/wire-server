@@ -222,6 +222,10 @@ parseEventData TeamCreate Nothing = fail "missing event data for type 'team.crea
 parseEventData TeamCreate (Just j) = EdTeamCreate <$> parseJSON j
 parseEventData TeamUpdate Nothing = fail "missing event data for type 'team.update'"
 parseEventData TeamUpdate (Just j) = EdTeamUpdate <$> parseJSON j
+parseEventData CollaboratorAdd Nothing = fail "missing event data for type 'team.collaborator-add"
+parseEventData CollaboratorAdd (Just j) = do
+  let f o = EdCollaboratorAdd <$> o .: "user" <*> o .: "permissions"
+  withObject "collaborator add data" f j
 parseEventData _ Nothing = pure EdTeamDelete
 parseEventData t (Just _) = fail $ "unexpected event data for type " <> show t
 
