@@ -960,7 +960,7 @@ testInvalidLeafNodeSignature = do
     resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-signature"
   where
     makeSignatureCorrupt :: ByteString -> ByteString
-    makeSignatureCorrupt bs = case B.splitAt 0x80 bs of
+    makeSignatureCorrupt bs = case B.splitAt 0xb0 bs of
       (left, right) -> case B.uncons right of
         Just (h, t) -> left <> B.singleton (h `xor` 0x01) <> t
         Nothing -> bs
