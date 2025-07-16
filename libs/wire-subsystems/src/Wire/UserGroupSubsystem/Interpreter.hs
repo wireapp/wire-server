@@ -214,14 +214,13 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pOffset pState = 
                 sortOrderName = son,
                 sortOrderCreatedAt = soc,
                 pageSize = fromMaybe def pSize,
-                offset = Just $ fromMaybe 0 pOffset
-                -- TODO: hasMore :: Bool, then make offset :: Natural, without the Maybe.
+                offset = fromMaybe 0 pOffset
               }
 
     nextPaginationState :: Natural -> PaginationState
     nextPaginationState newOffset =
       currentPaginationState
-        { offset = Just $ maybe newOffset (+ newOffset) currentPaginationState.offset
+        { offset = currentPaginationState.offset + newOffset
         }
 
 updateGroupImpl ::
