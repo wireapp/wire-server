@@ -15,7 +15,6 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Push.V2 qualified as Push
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.Error
 import Wire.GalleyAPIAccess
@@ -49,14 +48,13 @@ createTeamCollaboratorImpl ::
   Set CollaboratorPermission ->
   Sem r ()
 createTeamCollaboratorImpl zUser user team perms = do
-  unlessM (hasPermission (tUnqualified zUser) team) $
-    throw InsufficientRights
+  guardPermission (tUnqualified zUser) team TeamMember.AddTeamCollaborator InsufficientRights
   Store.createTeamCollaborator user team perms
 
   now <- get
   let event = newEvent team now (EdCollaboratorAdd user (Set.toList perms))
   teamMembersList <- getTeamMembers team
-  let teamMembers :: [UserId] = view Team.userId <$> (teamMembersList ^. Team.teamMembers)
+  let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
   -- TODO: Review the event's values
   pushNotifications
     [ def
@@ -83,19 +81,28 @@ getAllTeamCollaboratorsImpl ::
   TeamId ->
   Sem r [GetTeamCollaborator]
 getAllTeamCollaboratorsImpl zUser team = do
-  unlessM (hasPermission (tUnqualified zUser) team) $
-    throw InsufficientRights
+  guardPermission (tUnqualified zUser) team TeamMember.AddTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team
 
-hasPermission ::
-  (Member GalleyAPIAccess r) =>
+-- This is of general usefulness. However, we cannot move this to wire-api as
+-- this would lead to a cyclic dependency.
+guardPermission ::
+  ( Member GalleyAPIAccess r,
+    Member (Error ex) r,
+    TeamMember.IsPerm perm
+  ) =>
   UserId ->
   TeamId ->
-  Sem r Bool
-hasPermission user team =
-  isJust <$> runMaybeT do
-    member <- MaybeT $ getTeamMember user team
-    guard (member `TeamMember.hasPermission` TeamMember.AddTeamCollaborator)
+  perm ->
+  ex ->
+  Sem r ()
+guardPermission user team perm ex = do
+  res <-
+    isJust <$> runMaybeT do
+      member <- MaybeT $ getTeamMember user team
+      guard (member `TeamMember.hasPermission` perm)
+  unless res $
+    throw ex
 
 teamCollaboratorsSubsystemErrorToHttpError :: TeamCollaboratorsError -> HttpError
 teamCollaboratorsSubsystemErrorToHttpError =
