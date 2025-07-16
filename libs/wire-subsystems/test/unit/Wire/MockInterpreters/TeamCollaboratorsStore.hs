@@ -20,4 +20,4 @@ inMemoryTeamCollaboratorsStoreInterpreter =
       let teamCollaborator = TeamCollaborator userId teamId (Set.toList permissions)
        in modify $ Map.alter (Just . maybe [teamCollaborator] (teamCollaborator :)) teamId
     GetAllTeamCollaborators teamId ->
-      gets $ \(s :: Map TeamId [TeamCollaborator]) -> (maybe [] id) (Map.lookup teamId s)
+      gets $ \(s :: Map TeamId [TeamCollaborator]) -> (fromMaybe []) (Map.lookup teamId s)
