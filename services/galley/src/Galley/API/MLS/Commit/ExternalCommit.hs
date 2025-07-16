@@ -17,7 +17,6 @@
 
 module Galley.API.MLS.Commit.ExternalCommit
   ( ExternalCommitAction (..),
-    externalCommitActionApply,
     getExternalCommitData,
     processExternalCommit,
   )
@@ -61,11 +60,6 @@ data ExternalCommitAction = ExternalCommitAction
     remove :: Maybe LeafIndex
   }
 
-externalCommitActionApply :: ExternalCommitAction -> a -> Map LeafIndex a -> Map LeafIndex a
-externalCommitActionApply action x =
-  Map.insert action.add x
-    . maybe id Map.delete action.remove
-
 getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
@@ -78,7 +72,7 @@ getExternalCommitData ::
   Local ConvOrSubConv ->
   Epoch ->
   Commit ->
-  Sem r ExternalCommitAction
+  Sem r (IndexMap, ExternalCommitAction)
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
   activeData <-
@@ -106,7 +100,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
-  evalState convOrSub.indexMap $ do
+  runState convOrSub.indexMap $ do
     -- process optional removal
     propAction <- applyProposals activeData.ciphersuite proposals
     removedIndex <- case cmAssocs (paRemove propAction) of

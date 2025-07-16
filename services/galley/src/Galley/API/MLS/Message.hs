@@ -34,12 +34,12 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
-import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
+import Debug.Trace
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.LegalHold.Get (getUserStatus)
@@ -274,15 +274,11 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     (events, newClients) <- case senderIdentity.index of
       Just _ -> do
         -- extract added/removed clients from bundle
-        action <- lift $ getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+        (newIndexMap, action) <-
+          lift $
+            getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
-        lift $
-          checkGroupState
-            ( paApply
-                action
-                (cmToMap (tUnqualified lConvOrSub).members)
-            )
-            bundle.groupInfo.value
+        lift $ checkGroupState newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
         events <-
@@ -300,13 +296,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         let newClients = filter ((/=) senderIdentity.client) (cmIdentities (paAdd action))
         pure (events, newClients)
       Nothing -> do
-        action <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
-        let groupState =
-              externalCommitActionApply
-                action
-                senderIdentity.client
-                (cmToMap convOrSub.members)
-        lift $ checkGroupState groupState bundle.groupInfo.value
+        (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
+        lift $ checkGroupState newIndexMap bundle.groupInfo.value
         let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
           senderIdentity'
@@ -329,7 +320,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 checkGroupState ::
   forall r.
   (Member (Error MLSProtocolError) r) =>
-  Map LeafIndex ClientIdentity ->
+  IndexMap ->
   GroupInfo ->
   Sem r ()
 checkGroupState leaves groupInfo = do
@@ -341,9 +332,9 @@ checkGroupState leaves groupInfo = do
   tree :: RatchetTree <- case trees of
     (tree : _) -> pure tree
     _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
-  giLeaves :: Map LeafIndex ClientIdentity <-
-    Map.fromList . zip [0 ..]
-      <$> traverse getIdentity (ratchetTreeLeaves tree)
+  giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
+  traceM $ "leaves: " <> show leaves
+  traceM $ "giLeaves: " <> show giLeaves
   when (leaves /= giLeaves) $ do
     -- TODO: use specific error
     throw $ mlsProtocolError "GroupInfo mismatch"

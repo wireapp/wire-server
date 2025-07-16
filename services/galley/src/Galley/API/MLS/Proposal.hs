@@ -29,7 +29,6 @@ module Galley.API.MLS.Proposal
     -- * Proposal actions
     paAddClient,
     paRemoveClient,
-    paApply,
 
     -- * Types
     ProposalAction (..),
@@ -95,12 +94,6 @@ paAddClient cid idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
 
 paRemoveClient :: ClientIdentity -> LeafIndex -> ProposalAction
 paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
-
-paApply :: ProposalAction -> Map LeafIndex ClientIdentity -> Map LeafIndex ClientIdentity
-paApply action =
-  let toInsert = Map.fromList $ map (\(cid, (idx, _)) -> (idx, cid)) (cmAssocs action.paAdd)
-      toDelete = Set.fromList $ map snd (cmAssocs action.paRemove)
-   in flip Map.withoutKeys toDelete . Map.union toInsert
 
 -- | This is used to sort proposals into the correct processing order, as defined by the spec
 data ProposalProcessingStage
