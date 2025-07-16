@@ -153,4 +153,4 @@ newtype NonEligibleRole = NonEligibleRole Role
   deriving (Eq, Show)
 
 instance Arbitrary NonEligibleRole where
-  arbitrary = NonEligibleRole <$> arbitrary `suchThat` (not . flip elem eligibleRoles)
+  arbitrary = NonEligibleRole <$> elements ([minBound ..] \\ eligibleRoles)
