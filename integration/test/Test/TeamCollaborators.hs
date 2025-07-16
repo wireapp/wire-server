@@ -38,9 +38,27 @@ testCreateTeamCollaborator = do
     res %. "team" `shouldMatch` team
     res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]
 
+testTeamCollaboratorEndpointsForbiddenForOtherTeams :: (HasCallStack) => App ()
+testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
+  (owner, _team, _members) <- createTeam OwnDomain 2
+  (_owner2, team2, _members2) <- createTeam OwnDomain 0
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  userId <- randomUser OwnDomain def >>= asString . (%. "id")
+  addTeamCollaborator
+    owner
+    team2
+    userId
+    [ "create_team_conversation",
+      "implicit_connection"
+    ]
+    >>= assertStatus 403
+
+  getAllTeamCollaborators owner team2 >>= assertStatus 403
+
 testCreateTeamCollaboratorPostTwice :: (HasCallStack) => App ()
 testCreateTeamCollaboratorPostTwice = do
-  (owner, team, [alice]) <- createTeam OwnDomain 2
+  (owner, team, _members) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
   userId <- randomUser OwnDomain def >>= asString . (%. "id")
