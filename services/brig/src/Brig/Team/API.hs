@@ -40,6 +40,7 @@ import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
 import Imports hiding (head)
@@ -60,6 +61,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
@@ -78,6 +80,7 @@ import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredI
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
 import Wire.SessionStore (SessionStore)
+import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.UserKeyStore
@@ -93,7 +96,8 @@ servantAPI ::
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -106,6 +110,8 @@ servantAPI =
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
+    :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid (Set.fromList -> perms)) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
+    :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
 
 teamSizePublic ::
   ( Member GalleyAPIAccess r,

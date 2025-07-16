@@ -192,6 +192,9 @@ isTeamMemberJoinNotif = notifTypeIsEqual "team.member-join"
 isTeamMemberLeaveNotif :: (MakesValue a) => a -> App Bool
 isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
+isTeamCollaboratorAddedNotif :: (MakesValue a) => a -> App Bool
+isTeamCollaboratorAddedNotif = notifTypeIsEqual "team.collaborator-add"
+
 isUserActivateNotif :: (MakesValue a) => a -> App Bool
 isUserActivateNotif = notifTypeIsEqual "user.activate"
 

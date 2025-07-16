@@ -15,6 +15,7 @@
 , base16-bytestring
 , base64-bytestring
 , bilge
+, bimap
 , bloodhound
 , bytestring
 , bytestring-conversion
@@ -65,6 +66,7 @@
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
+, postgresql-error-codes
 , profunctors
 , prometheus-client
 , QuickCheck
@@ -121,6 +123,7 @@ mkDerivation {
     base16-bytestring
     base64-bytestring
     bilge
+    bimap
     bloodhound
     bytestring
     bytestring-conversion
@@ -168,6 +171,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
+    postgresql-error-codes
     profunctors
     prometheus-client
     QuickCheck

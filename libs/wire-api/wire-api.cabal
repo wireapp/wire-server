@@ -218,6 +218,7 @@ library
     Wire.API.SwaggerServant
     Wire.API.SystemSettings
     Wire.API.Team
+    Wire.API.Team.Collaborator
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature

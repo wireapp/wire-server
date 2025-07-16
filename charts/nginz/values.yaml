@@ -425,6 +425,9 @@ nginx_conf:
     - path: /search
       envs:
       - all
+    - path: /teams/([^/]*)/collaborators$
+      envs:
+      - all
     - path: /teams/([^/]*)/invitations(.*)
       envs:
       - all

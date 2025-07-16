@@ -27,7 +27,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
-  GetTeamMembers _ -> error "GetTeamMembers not implemented in miniGalleyAPIAccess"
+  GetTeamMembers tid -> pure $ getTeamMembersImpl teams tid
   GetTeamId _ -> error "GetTeamId not implemented in miniGalleyAPIAccess"
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
@@ -60,3 +60,10 @@ getTeamMemberImpl :: Map TeamId [TeamMember] -> UserId -> TeamId -> Maybe TeamMe
 getTeamMemberImpl teams uid tid = do
   allMembers <- Map.lookup tid teams
   find (\m -> m ^. userId == uid) allMembers
+
+getTeamMembersImpl :: Map TeamId [TeamMember] -> TeamId -> TeamMemberList
+getTeamMembersImpl teams tid =
+  maybe
+    (error "GetTeamMembers not-found case not implemented")
+    (flip newTeamMemberList ListComplete)
+    $ Map.lookup tid teams

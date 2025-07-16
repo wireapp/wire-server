@@ -1081,3 +1081,18 @@ removeUserFromGroup :: (MakesValue user) => user -> String -> String -> App Resp
 removeUserFromGroup user gid uid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users", uid]
   submit "DELETE" req
+
+addTeamCollaborator :: (MakesValue owner) => owner -> String -> String -> [String] -> App Response
+addTeamCollaborator owner tid userId permissions = do
+  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "user" .= userId,
+          "permissions" .= permissions
+        ]
+
+getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
+getAllTeamCollaborators owner tid = do
+  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
+  submit "GET" req

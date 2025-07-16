@@ -235,6 +235,10 @@ library
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
     Wire.StoredUser
+    Wire.TeamCollaboratorsStore
+    Wire.TeamCollaboratorsStore.Postgres
+    Wire.TeamCollaboratorsSubsystem
+    Wire.TeamCollaboratorsSubsystem.Interpreter
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
@@ -277,6 +281,7 @@ library
     , base16-bytestring
     , base64-bytestring
     , bilge
+    , bimap
     , bloodhound
     , bytestring
     , bytestring-conversion
@@ -318,6 +323,7 @@ library
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
+    , postgresql-error-codes
     , prometheus-client
     , QuickCheck
     , resource-pool
@@ -395,6 +401,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.RateLimit
     Wire.MockInterpreters.SessionStore
     Wire.MockInterpreters.SparAPIAccess
+    Wire.MockInterpreters.TeamCollaboratorsStore
     Wire.MockInterpreters.TinyLog
     Wire.MockInterpreters.UserGroupStore
     Wire.MockInterpreters.UserKeyStore
@@ -404,6 +411,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec
     Wire.UserSearch.TypesSpec

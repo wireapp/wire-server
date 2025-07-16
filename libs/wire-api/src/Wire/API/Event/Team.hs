@@ -48,6 +48,7 @@ import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck qualified as QC
 import Wire.API.Team (Team, TeamUpdateData)
+import Wire.API.Team.Collaborator (CollaboratorPermission)
 import Wire.API.Team.Permission (Permissions)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -122,6 +123,7 @@ data EventType
   | MemberUpdate
   | ConvCreate
   | ConvDelete
+  | CollaboratorAdd
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -137,7 +139,8 @@ instance ToSchema EventType where
           element "team.member-leave" MemberLeave,
           element "team.member-update" MemberUpdate,
           element "team.conversation-create" ConvCreate,
-          element "team.conversation-delete" ConvDelete
+          element "team.conversation-delete" ConvDelete,
+          element "team.collaborator-add" CollaboratorAdd
         ]
 
 --------------------------------------------------------------------------------
@@ -152,6 +155,7 @@ data EventData
   | EdMemberUpdate UserId (Maybe Permissions)
   | EdConvCreate ConvId
   | EdConvDelete ConvId
+  | EdCollaboratorAdd UserId [CollaboratorPermission]
   deriving stock (Eq, Show, Generic)
 
 -- FUTUREWORK: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
@@ -176,6 +180,11 @@ instance ToJSON EventData where
   toJSON (EdConvCreate cnv) = A.object ["conv" A..= cnv]
   toJSON (EdConvDelete cnv) = A.object ["conv" A..= cnv]
   toJSON (EdTeamUpdate upd) = toJSON upd
+  toJSON (EdCollaboratorAdd usr perms) =
+    A.object
+      [ "user" A..= usr,
+        "permissions" A..= perms
+      ]
 
 eventDataType :: EventData -> EventType
 eventDataType (EdTeamCreate _) = TeamCreate
@@ -186,6 +195,7 @@ eventDataType (EdMemberLeave _) = MemberLeave
 eventDataType (EdMemberUpdate _ _) = MemberUpdate
 eventDataType (EdConvCreate _) = ConvCreate
 eventDataType (EdConvDelete _) = ConvDelete
+eventDataType (EdCollaboratorAdd _ _) = CollaboratorAdd
 
 parseEventData :: EventType -> Maybe Value -> Parser EventData
 parseEventData MemberJoin Nothing = fail "missing event data for type 'team.member-join'"
@@ -212,6 +222,10 @@ parseEventData TeamCreate Nothing = fail "missing event data for type 'team.crea
 parseEventData TeamCreate (Just j) = EdTeamCreate <$> parseJSON j
 parseEventData TeamUpdate Nothing = fail "missing event data for type 'team.update'"
 parseEventData TeamUpdate (Just j) = EdTeamUpdate <$> parseJSON j
+parseEventData CollaboratorAdd Nothing = fail "missing event data for type 'team.collaborator-add"
+parseEventData CollaboratorAdd (Just j) = do
+  let f o = EdCollaboratorAdd <$> o .: "user" <*> o .: "permissions"
+  withObject "collaborator add data" f j
 parseEventData _ Nothing = pure EdTeamDelete
 parseEventData t (Just _) = fail $ "unexpected event data for type " <> show t
 
@@ -225,5 +239,6 @@ genEventData = \case
   MemberUpdate -> EdMemberUpdate <$> arbitrary <*> arbitrary
   ConvCreate -> EdConvCreate <$> arbitrary
   ConvDelete -> EdConvDelete <$> arbitrary
+  CollaboratorAdd -> EdCollaboratorAdd <$> arbitrary <*> arbitrary
 
 makeLenses ''Event

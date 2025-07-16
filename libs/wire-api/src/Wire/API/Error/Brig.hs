@@ -118,6 +118,7 @@ data BrigError
   | UserGroupNotFound
   | UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
+  | DuplicateEntry
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -352,3 +353,5 @@ type instance MapError 'UserGroupNotFound = 'StaticError 404 "user-group-not-fou
 type instance MapError 'UserGroupNotATeamAdmin = 'StaticError 403 "user-group-write-forbidden" "Only team admins can create, update, or delete user groups."
 
 type instance MapError 'UserGroupMemberIsNotInTheSameTeam = 'StaticError 400 "user-group-invalid" "Only team members of the same team can be added to a user group."
+
+type instance MapError 'DuplicateEntry = 'StaticError 409 "duplicate-entry" "Entry already exists"
