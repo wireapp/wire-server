@@ -602,7 +602,7 @@ interpretMaybeFederationStackState mb =
 
       userSubsystemInterpreter :: InterpreterFor UserSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-   in miniBackendLowerEffectsInterpreters mb . runTeamCollaboratorsSubsystem . userSubsystemInterpreter
+   in miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . userSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case

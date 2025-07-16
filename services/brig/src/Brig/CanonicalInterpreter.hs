@@ -346,7 +346,7 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
               . interpretTeamCollaboratorsStoreToPostgres
-              . runTeamCollaboratorsSubsystem
+              . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem
               . maybe

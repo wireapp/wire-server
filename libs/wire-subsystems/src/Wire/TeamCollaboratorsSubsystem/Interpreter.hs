@@ -24,7 +24,7 @@ import Wire.Sem.Now
 import Wire.TeamCollaboratorsStore qualified as Store
 import Wire.TeamCollaboratorsSubsystem
 
-runTeamCollaboratorsSubsystem ::
+interpretTeamCollaboratorsSubsystem ::
   ( Member GalleyAPIAccess r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
@@ -32,7 +32,7 @@ runTeamCollaboratorsSubsystem ::
     Member NotificationSubsystem r
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
-runTeamCollaboratorsSubsystem = interpret $ \case
+interpretTeamCollaboratorsSubsystem = interpret $ \case
   CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
 
