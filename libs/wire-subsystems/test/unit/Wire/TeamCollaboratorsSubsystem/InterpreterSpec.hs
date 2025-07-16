@@ -20,7 +20,7 @@ import Wire.TeamCollaboratorsSubsystem
 
 spec :: Spec
 spec = do
-  describe "AddTeamCollaborator" $ do
+  describe "NewTeamCollaborator" $ do
     prop "can create and get team collaborators if the caller has sufficient permissions (admin and owner)" $
       \(collaborator :: StoredUser)
        (owner :: StoredUser)

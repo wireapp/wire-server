@@ -29,16 +29,16 @@ data TeamCollaboratorsError
 
 instance Exception TeamCollaboratorsError
 
-data AddTeamCollaborator = AddTeamCollaborator
+data NewTeamCollaborator = NewTeamCollaborator
   { aUser :: UserId,
     aPermissions :: [CollaboratorPermission]
   }
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema AddTeamCollaborator)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NewTeamCollaborator)
 
-instance ToSchema AddTeamCollaborator where
+instance ToSchema NewTeamCollaborator where
   schema =
-    object "AddTeamCollaborator" $
-      AddTeamCollaborator
+    object "NewTeamCollaborator" $
+      NewTeamCollaborator
         <$> (aUser .= field "user" schema)
         <*> (aPermissions .= field "permissions" (array schema))
 

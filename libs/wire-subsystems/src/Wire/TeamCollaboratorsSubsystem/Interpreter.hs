@@ -48,7 +48,7 @@ createTeamCollaboratorImpl ::
   Set CollaboratorPermission ->
   Sem r ()
 createTeamCollaboratorImpl zUser user team perms = do
-  guardPermission (tUnqualified zUser) team TeamMember.AddTeamCollaborator InsufficientRights
+  guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.createTeamCollaborator user team perms
 
   now <- get
@@ -81,7 +81,7 @@ getAllTeamCollaboratorsImpl ::
   TeamId ->
   Sem r [GetTeamCollaborator]
 getAllTeamCollaboratorsImpl zUser team = do
-  guardPermission (tUnqualified zUser) team TeamMember.AddTeamCollaborator InsufficientRights
+  guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team
 
 -- This is of general usefulness. However, we cannot move this to wire-api as

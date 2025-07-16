@@ -110,7 +110,7 @@ servantAPI =
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
-    :<|> Named @"add-team-collaborator" (\zuid tid (AddTeamCollaborator uid (Set.fromList -> perms)) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
+    :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid (Set.fromList -> perms)) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
     :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
 
 teamSizePublic ::

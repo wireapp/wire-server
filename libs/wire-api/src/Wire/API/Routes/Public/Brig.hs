@@ -1975,7 +1975,7 @@ type TeamsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "collaborators"
-               :> ReqBody '[JSON] AddTeamCollaborator
+               :> ReqBody '[JSON] NewTeamCollaborator
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
