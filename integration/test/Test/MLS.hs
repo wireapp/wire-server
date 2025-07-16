@@ -944,8 +944,8 @@ testRemoteAddLegacy domain = do
     convId <- createNewGroup suite alice1
     void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
 
-testInvalidLeadNodeSignature :: (HasCallStack) => App ()
-testInvalidLeadNodeSignature = do
+testInvalidLeafNodeSignature :: (HasCallStack) => App ()
+testInvalidLeafNodeSignature = do
   alice <- randomUser OwnDomain def
   [creator, other] <- traverse (createMLSClient def) (replicate 2 alice)
   (_, conv) <- createSelfGroup def creator
