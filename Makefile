@@ -151,7 +151,7 @@ devtest:
 # find . -name '*.hs' | entr -s 'make -C ~/src/wire-server c package=wire-subsystems test=1'
 .PHONY: devtest-package
 devtest-package:
-	@ghcid --command 'cabal repl $(package):tests lib:$(package)' --test='main' \
+	@ghcid --command 'cabal repl $(package):${package}-tests lib:$(package)' --test='Main.main' \
 	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
 
 .PHONY: sanitize-pr
