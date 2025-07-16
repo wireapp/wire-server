@@ -2,6 +2,7 @@ module Test.MLS.Reset where
 
 import API.Galley
 import MLS.Util
+import Notifications (isConvResetNotif)
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
@@ -18,9 +19,17 @@ testResetGroupConversation domain = do
   resetConversation alice mlsConv.groupId 0 >>= assertStatus 409
   resetConversation bob mlsConv.groupId 0 >>= assertStatus 409
   resetConversation charlie mlsConv.groupId mlsConv.epoch >>= assertStatus 404
-  resetConversation bob mlsConv.groupId mlsConv.epoch >>= assertStatus 200
 
-  conv' <- getConversation alice conv >>= getJSON 200
+  conv' <- withWebSocket alice $ \ws -> do
+    resetConversation bob mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+    conv' <- getConversation alice conv >>= getJSON 200
+
+    e <- awaitMatch isConvResetNotif ws
+    e %. "payload.0.data.group_id" `shouldMatch` mlsConv.groupId
+    e %. "payload.0.data.new_group_id" `shouldMatch` (conv' %. "group_id")
+
+    pure conv'
+
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   otherMember <- assertOne =<< asList (conv' %. "members.others")

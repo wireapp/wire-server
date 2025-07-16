@@ -230,6 +230,10 @@ isConnectionNotif status n =
 isUserGroupCreatedNotif :: (MakesValue a) => a -> App Bool
 isUserGroupCreatedNotif = notifTypeIsEqual "user-group.created"
 
+isConvResetNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvResetNotif n =
+  fieldEquals n "payload.0.type" "conversation.mls-reset"
+
 assertLeaveNotification ::
   ( HasCallStack,
     MakesValue fromUser,
