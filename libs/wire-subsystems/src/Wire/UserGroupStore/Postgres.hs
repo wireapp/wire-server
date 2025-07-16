@@ -158,7 +158,7 @@ paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
           SortByCreatedAt -> reverse
         orderN = unwords ["name", toLower <$> show pstate.sortOrderName]
         orderC = unwords ["created_at", toLower <$> show pstate.sortOrderCreatedAt]
-    p = ["offset " <> show off | off <- maybeToList pstate.offset]
+    p = ["offset " <> show pstate.offset]
     q = ["limit", show $ pageSizeToInt pstate.pageSize]
 
 createUserGroupImpl ::

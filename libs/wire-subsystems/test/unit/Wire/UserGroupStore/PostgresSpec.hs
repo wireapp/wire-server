@@ -59,7 +59,7 @@ spec = do
           sortOrderName = Asc,
           sortOrderCreatedAt = Desc,
           pageSize = pageSizeFromIntUnsafe 200,
-          offset = Just 4
+          offset = 4
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -76,7 +76,7 @@ spec = do
           sortOrderName = Desc,
           sortOrderCreatedAt = Asc,
           pageSize = pageSizeFromIntUnsafe 100,
-          offset = Just 104
+          offset = 104
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -114,7 +114,7 @@ spec = do
               sortOrderName = Asc,
               sortOrderCreatedAt = Asc,
               pageSize = pageSizeFromIntUnsafe 500,
-              offset = Just 0
+              offset = 0
             }
 
     it "searches for substrings" $ do
@@ -189,28 +189,24 @@ spec = do
                    ]
 
     it "paginates" $ do
-      let search :: (_) => TeamId -> (Int, Maybe Int) -> Sem r [Text]
+      let search :: (_) => TeamId -> (Int, Int) -> Sem r [Text]
           search tid (size, off) =
             (userGroupNameToText . (.name))
-              <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral <$> off})
+              <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral off})
       tid <- randomId
       inMemInt
         def
         ( do
             new tid `mapM_` ["01", "02", "10", "12"]
             search tid
-              `mapM` [ (0, Nothing),
-                       (1, Nothing),
-                       (0, Just 0),
-                       (1, Just 0),
-                       (2, Just 0),
-                       (2, Just 1),
-                       (2, Just 3)
+              `mapM` [ (0, 0),
+                       (1, 0),
+                       (2, 0),
+                       (2, 1),
+                       (2, 3)
                      ]
         )
-        `shouldReturn` [ [],
-                         [],
-                         ["01", "02", "10", "12"],
+        `shouldReturn` [ ["01", "02", "10", "12"],
                          ["01"],
                          ["01", "02"],
                          ["02", "10"],
@@ -329,7 +325,7 @@ instance Arbitrary TestPaginationState where
     sortOrderName <- arbitrary
     sortOrderCreatedAt <- arbitrary
     pageSize <- arbitrary
-    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, offset = Just 0, ..})
+    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, offset = 0, ..})
 
 testPaginationNewUserGroups :: [NewUserGroup]
 testPaginationNewUserGroups =

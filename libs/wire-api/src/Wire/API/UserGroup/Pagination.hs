@@ -17,6 +17,7 @@
 
 module Wire.API.UserGroup.Pagination where
 
+import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as LB
@@ -153,9 +154,8 @@ data PaginationState = PaginationState
     sortOrderName :: SortOrder,
     sortOrderCreatedAt :: SortOrder,
     pageSize :: PageSize,
-    -- | Next page starts at the `offset`th row.  An offset of `Nothing` means no more data
-    -- available, pagination complete.
-    offset :: Maybe Natural
+    -- | Next page starts at the `offset`th row.
+    offset :: Natural
   }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
@@ -168,7 +168,7 @@ instance Default PaginationState where
         sortOrderName = defaultSortOrder SortByName,
         sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
         pageSize = def,
-        offset = Just 0
+        offset = 0
       }
 
 instance ToSchema PaginationState where
@@ -180,7 +180,7 @@ instance ToSchema PaginationState where
         <*> (.sortOrderName) .= field "sort_order_by_name" schema
         <*> (.sortOrderCreatedAt) .= field "sort_order_by_created_at" schema
         <*> (.pageSize) .= field "page_size" schema
-        <*> (.offset) .= maybe_ (optField "offset" schema)
+        <*> (.offset) .= field "offset" schema
 
 instance Arbitrary PaginationState where
   arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -204,10 +204,16 @@ data PaginationResult = PaginationResult
 
 instance ToSchema PaginationResult where
   schema =
-    object "PagintationResult" $
+    objectWithDocModifier "PagintationResult" docs $
       PaginationResult
         <$> page .= field "page" (array schema)
         <*> state .= field "state" schema
+    where
+      docs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      docs =
+        description
+          ?~ "This is the last page iff it contains fewer rows than requested. There \
+             \may return 0 rows on a page."
 
 instance Arbitrary PaginationResult where
   arbitrary = PaginationResult <$> arbitrary <*> arbitrary

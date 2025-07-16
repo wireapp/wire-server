@@ -66,7 +66,7 @@ testObject_PaginationResult_1 =
         sortOrderName = defaultSortOrder SortByName,
         sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
         pageSize = def,
-        offset = Nothing
+        offset = 0
       }
 
 testObject_PaginationResult_2 :: PaginationResult
@@ -79,7 +79,7 @@ testObject_PaginationResult_2 =
         sortOrderName = Asc,
         sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 500,
-        offset = Just 3
+        offset = 3
       }
 
 testObject_PaginationResult_3 :: PaginationResult
@@ -92,5 +92,5 @@ testObject_PaginationResult_3 =
         sortOrderName = Desc,
         sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
-        offset = Just 1911684
+        offset = 1911684
       }

@@ -161,10 +161,7 @@ getUserGroupsImpl tid pstate = do
             c = ug.createdAt
             c' = ug'.createdAt
 
-    dropBeforeStart = case pstate.offset of
-      Nothing -> const []
-      (Just off) -> drop (fromIntegral off)
-
+    dropBeforeStart = drop (fromIntegral pstate.offset)
     dropAfterPageSize = take (pageSizeToInt pstate.pageSize)
 
 updateUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
