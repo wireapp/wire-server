@@ -379,6 +379,21 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           ((.id_) <$> sortByNameDesc.page) `shouldBe` ((.id_) <$> expectSortByNameDesc)
           ((.id_) <$> sortByCreatedAtAsc.page) `shouldBe` ((.id_) <$> expectSortByCreatedAtAsc)
 
+    it "getGroups: offset and pagination state args are mutually exclusive" $ do
+      WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
+      runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
+        let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "3"]]
+        groups <- createGroup (ownerId team1) `mapM` newGroups
+
+        get0 <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just 0) Nothing
+        get1 <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just 1) Nothing
+        get2 <- try $ getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just 1) (Just get1.state)
+
+        pure do
+          get0.page `shouldBe` groups
+          get1.page `shouldBe` (tail groups)
+          isLeft get2 `shouldBe` True
+
   describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
     prop "updateGroup updates the name" $
       \(team :: ArbitraryTeam) (originalName :: UserGroupName) (userGroupUpdate :: UserGroupUpdate) ->

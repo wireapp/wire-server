@@ -192,7 +192,7 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pOffset pState = 
           SortByName -> unless (st.sortOrderName == x) (badState "sort_order mismatch (name).")
           SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sort_order mismatch (created_at).")
       forM_ pSize $ \x -> unless (st.pageSize == x) (badState "page_size mismatch.")
-      when (isJust pOffset && isJust pState) (badState "offset, pagination_state: you can only set one in your call.")
+      when (isJust pOffset && isJust pState) (badState "offset, pagination_state: you can only set one.")
 
     currentPaginationState :: PaginationState
     currentPaginationState = case pState of
@@ -215,6 +215,7 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pOffset pState = 
                 sortOrderCreatedAt = soc,
                 pageSize = fromMaybe def pSize,
                 offset = Just $ fromMaybe 0 pOffset
+                -- TODO: hasMore :: Bool, then make offset :: Natural, without the Maybe.
               }
 
     nextPaginationState :: Natural -> PaginationState
