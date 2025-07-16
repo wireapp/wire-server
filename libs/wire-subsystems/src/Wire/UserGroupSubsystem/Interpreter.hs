@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
