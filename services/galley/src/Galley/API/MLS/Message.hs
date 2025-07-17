@@ -123,7 +123,8 @@ type MLSBundleStaticErrors =
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature
+       ErrorS 'MLSInvalidLeafNodeSignature,
+       ErrorS 'MLSGroupInfoMismatch
      ]
 
 postMLSMessageFromLocalUser ::
@@ -162,6 +163,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 postMLSCommitBundle ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
@@ -187,6 +189,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 postMLSCommitBundleFromLocalUser ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
@@ -212,6 +215,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
@@ -318,7 +322,9 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
 checkGroupState ::
   forall r.
-  (Member (Error MLSProtocolError) r) =>
+  ( Member (ErrorS MLSGroupInfoMismatch) r,
+    Member (Error MLSProtocolError) r
+  ) =>
   IndexMap ->
   GroupInfo ->
   Sem r ()
@@ -333,8 +339,7 @@ checkGroupState leaves groupInfo = do
     _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
   giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
   when (leaves /= giLeaves) $ do
-    -- TODO: use specific error
-    throw $ mlsProtocolError "GroupInfo mismatch"
+    throwS @MLSGroupInfoMismatch
   pure ()
   where
     getIdentity :: LeafNode -> Sem r ClientIdentity

@@ -114,6 +114,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSLegalholdIncompatible
                :> CanThrow MLSProposalFailure
                :> CanThrow MLSIdentityMismatch
+               :> CanThrow MLSGroupInfoMismatch
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> CanThrow GroupIdVersionNotSupported
