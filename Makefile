@@ -137,22 +137,32 @@ crm: c db-migrate
 # Run integration from new test suite
 # Usage: make devtest
 # Usage: TEST_INCLUDE=test1,test2 make devtest
-.PHONY: devtest
-devtest:
-	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
-
-# Run unit tests for a package in a loop, re-loading and -running on
-# file change in the unit tests.
+#
+# Now also supports running unit tests for a package in a loop,
+# re-loading and -running on file change in the unit tests *and* the
+# library.  Just say `make devtest package=wire-subsystems`.  If this
+# doesn't work for some package, compare the cabal file with
+# wire-subsystems.cabal (eg., name of test suite needs to follow a
+# pattern).
 #
 # There some alternatives, but they are all either too slow or do not
 # watch / compile enough modules, or both.  Here is one just running
 # make c on a package in a loop for all package changes:
 #
 # find . -name '*.hs' | entr -s 'make -C ~/src/wire-server c package=wire-subsystems test=1'
-.PHONY: devtest-package
-devtest-package:
+.PHONY: devtest
+devtest:
+ifeq ("$(package)", "all")
+	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
+else
 	@ghcid --command 'cabal repl $(package):${package}-tests lib:$(package)' --test='Main.main' \
 	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
+endif
+
+.PHONY: devtest-package
+devtest-package:
+	@echo "deprecated: use 'make devtest package=<package>' instead."
+	@false
 
 .PHONY: sanitize-pr
 sanitize-pr: check-weed treefmt
