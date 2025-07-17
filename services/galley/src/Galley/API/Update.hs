@@ -908,6 +908,7 @@ joinConversation lusr zcon conv access = do
         (qualifyAs lusr conv)
         (convBotsAndMembers conv <> extraTargets)
         action
+        def
 
 addMembers ::
   forall r.

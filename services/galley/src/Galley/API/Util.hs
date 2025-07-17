@@ -1000,7 +1000,8 @@ registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable
               (sing @'ConversationJoinTag)
               -- FUTUREWORK(md): replace the member role with whatever is provided in
               -- the NewConv input
-              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember joinType)
+              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember joinType),
+          extraConversationData = def
         }
 
     deleteOnUnreachable ::

@@ -31,7 +31,7 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 
@@ -167,7 +167,7 @@ newSubConversationFromParent ::
   SubConversation
 newSubConversationFromParent lconv sconv =
   let qcs = flip SubConv sconv <$> tUntagged lconv
-      groupId = newGroupId RegularConv qcs
+      groupId = Group.newGroupId RegularConv qcs
    in newSubConversation (tUnqualified lconv) sconv groupId
 
 toPublicSubConv :: Qualified SubConversation -> PublicSubConversation

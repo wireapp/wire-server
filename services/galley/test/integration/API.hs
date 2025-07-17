@@ -1623,7 +1623,8 @@ paginateConvListIds = do
               origUserId = qChad,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1639,7 +1640,8 @@ paginateConvListIds = do
               origUserId = qDee,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -1684,7 +1686,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               origUserId = qChad,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1702,7 +1705,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               origUserId = qDee,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -3003,7 +3007,8 @@ putRemoteConvMemberOk update = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
@@ -3148,7 +3153,8 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
 
@@ -3163,7 +3169,8 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
 
@@ -3176,7 +3183,8 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [adam],
             action =
-              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
+              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action,
+            extraConversationData = def
           }
   let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
 

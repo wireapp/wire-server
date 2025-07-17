@@ -271,6 +271,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                           role = roleNameWireMember,
                           joinType = def
                         }
+                      def
                   pure [update]
             SubConv _ _ -> pure []
             Conv _ -> do

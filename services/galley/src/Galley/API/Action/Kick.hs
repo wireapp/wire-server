@@ -1,5 +1,6 @@
 module Galley.API.Action.Kick where
 
+import Data.Default
 import Data.Id
 import Data.Qualified
 import Data.Singletons
@@ -54,3 +55,4 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     lconv
     targets
     (ConversationRemoveMembers (pure victim) EdReasonRemoved)
+    def

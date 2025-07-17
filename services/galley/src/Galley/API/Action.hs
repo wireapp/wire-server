@@ -486,6 +486,21 @@ ensureAllowed tag loc action conv (ConvMember origUser) = do
         throwS @MLSReadReceiptsNotAllowed
     _ -> pure ()
 
+data PerformActionResult tag
+  = PerformActionResult
+  { extraTargets :: BotsAndMembers,
+    action :: ConversationAction tag,
+    extraConversationData :: ExtraConversationData
+  }
+
+mkPerformActionResult :: ConversationAction tag -> PerformActionResult tag
+mkPerformActionResult action =
+  PerformActionResult
+    { extraTargets = mempty,
+      action = action,
+      extraConversationData = def
+    }
+
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
 -- and also returns the (possible modified) action that was performed
 performAction ::
@@ -498,27 +513,33 @@ performAction ::
   Qualified UserId ->
   Local Conversation ->
   ConversationAction tag ->
-  Sem r (BotsAndMembers, ConversationAction tag)
+  Sem r (PerformActionResult tag)
 performAction tag origUser lconv action = do
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
-    SConversationJoinTag ->
-      performConversationJoin origUser lconv action
+    SConversationJoinTag -> do
+      (extraTargets, action') <- performConversationJoin origUser lconv action
+      pure
+        PerformActionResult
+          { extraTargets = extraTargets,
+            action = action',
+            extraConversationData = def
+          }
     SConversationLeaveTag -> do
       leaveConversation origUser lconv
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
       traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
-      pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
+      pure $ mkPerformActionResult action -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationDeleteTag -> do
       let deleteGroup groupId = do
             E.removeAllMLSClients groupId
@@ -539,29 +560,34 @@ performAction tag origUser lconv action = do
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
 
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationRenameTag -> do
       zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
       for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationMessageTimerUpdateTag -> do
       when (Data.convMessageTimer conv == cupMessageTimer action) noChanges
       E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationReceiptModeUpdateTag -> do
       when (Data.convReceiptMode conv == Just (cruReceiptMode action)) noChanges
       E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
-      pure (bm, act)
+      pure
+        PerformActionResult
+          { extraTargets = bm,
+            action = act,
+            extraConversationData = def
+          }
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
-          pure (mempty, action)
+          pure $ mkPerformActionResult action
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureForTeam @MlsMigrationConfig tid
           now <- input
@@ -570,7 +596,7 @@ performAction tag origUser lconv action = do
           unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
           removeExtraneousClients origUser lconv
           E.updateToMLSProtocol lcnv
-          pure (mempty, action)
+          pure $ mkPerformActionResult action
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges
         (ProtocolMixedTag, ProtocolMixedTag, _) ->
@@ -581,10 +607,15 @@ performAction tag origUser lconv action = do
     SConversationUpdateAddPermissionTag -> do
       when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
       E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationResetTag -> do
-      resetLocalMLSMainConversation origUser lconv action
-      pure (mempty, action)
+      newGroupId <- resetLocalMLSMainConversation origUser lconv action
+      pure
+        PerformActionResult
+          { extraTargets = mempty,
+            action = action,
+            extraConversationData = ExtraConversationData (Just newGroupId)
+          }
 
 performConversationJoin ::
   forall r.
@@ -871,15 +902,16 @@ updateLocalConversationUnchecked lconv qusr con action = do
       conv = tUnqualified lconv
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-  (extraTargets, action') <- performAction (sing @tag) qusr lconv action
+  par <- performAction (sing @tag) qusr lconv action
   notifyConversationAction
     (sing @tag)
     qusr
     False
     con
     lconv
-    (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
-    action'
+    (convBotsAndMembers (tUnqualified lconv) <> par.extraTargets)
+    par.action
+    par.extraConversationData
   where
     getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
     getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
@@ -1014,7 +1046,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing Nothing action
+    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId (fromMaybe def cu.extraConversationData) Nothing Nothing action
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 

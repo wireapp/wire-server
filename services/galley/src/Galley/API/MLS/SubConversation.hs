@@ -66,6 +66,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
@@ -419,7 +420,7 @@ resetLocalSubConversation qusr lcnvId scnvId reset = do
       -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId fails
       let newGid =
             fromRight
-              ( newGroupId
+              ( Group.newGroupId
                   cnv.convMetadata.cnvmType
                   (flip SubConv scnvId <$> tUntagged lcnvId)
               )

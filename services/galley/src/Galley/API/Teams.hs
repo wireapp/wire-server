@@ -976,6 +976,7 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
                   (pure . tUntagged . qualifyAs lusr $ remove)
                   EdReasonDeleted
               )
+              def
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
