@@ -116,7 +116,9 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
       _ -> throw (mlsProtocolError "External commits must contain at most one Remove proposal")
 
     -- add sender client
-    addedIndex <- gets imNextIndex
+    im <- get
+    let (addedIndex, im') = imAddClient im senderIdentity
+    put im'
 
     pure
       ExternalCommitAction
