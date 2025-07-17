@@ -463,6 +463,7 @@ kube-integration-teardown:
 kube-integration-e2e-telepresence:
 	./services/brig/federation-tests.sh $(NAMESPACE)
 
+.PHONY: helm-oci-login
 helm-oci-login:
 	./hack/bin/helm-oci-login.sh
 
