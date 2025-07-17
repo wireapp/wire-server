@@ -168,7 +168,7 @@ devtest-package:
 .PHONY: sanitize-pr
 sanitize-pr: check-weed treefmt
 	make lint-all-shallow
-	make git-add-cassandra-schema
+	make cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 	make list-flaky-tests
@@ -322,12 +322,16 @@ upload-hoogle-image:
 ## cassandra management
 
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-migrate git-add-cassandra-schema-impl
+git-add-cassandra-schema:
+	@echo "deprecated.  use 'make cassandra-schema' instead."
+	@false
 
-.PHONY: git-add-cassandra-schema-impl
-git-add-cassandra-schema-impl:
+.PHONY: cassandra-schema
+cassandra-schema: db-migrate git-add-cassandra-schema-impl
+
+.PHONY: cassandra-schema-impl
+cassandra-schema-impl:
 	./hack/bin/cassandra_dump_schema > ./cassandra-schema.cql
-	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
 cqlsh:

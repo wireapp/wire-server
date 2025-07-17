@@ -22,7 +22,7 @@ Don’t delete columns that are still used by versions that are deployed. If you
 
 If a cassandra schema migration has been added then add this to the checklist:
 
-- [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation
+- [ ] Run **`make cassandra-schema`** to update the cassandra schema documentation
 
 ### Incompatible schema migrations and data migrations
 
