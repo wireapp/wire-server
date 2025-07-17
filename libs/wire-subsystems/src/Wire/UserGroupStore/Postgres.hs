@@ -7,9 +7,13 @@ import Data.Bifunctor (second)
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
+import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time
-import Data.UUID
+import Data.UUID as UUID
 import Data.Vector (Vector)
+import Hasql.Decoders qualified as HD
+import Hasql.Encoders qualified as HE
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
@@ -23,28 +27,32 @@ import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.User.Profile
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.UserGroupStore
 
-interpretUserGroupStoreToPostgres ::
+type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
-  ) =>
+  )
+
+interpretUserGroupStoreToPostgres ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
+    GetUserGroups team listUserGroupsQuery -> getUserGroupsImpl team listUserGroupsQuery
     UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
     RemoveUser gid uid -> removeUserImpl gid uid
 
 getUserGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe UserGroup)
@@ -81,11 +89,81 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
+getUserGroupsImpl ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
+  TeamId ->
+  PaginationState ->
+  Sem r [UserGroup]
+getUserGroupsImpl tid pstate = do
+  pool <- input
+  eitherResult <- liftIO $ use pool session
+  either throw pure eitherResult
+  where
+    session :: Session [UserGroup]
+    session = do
+      let (encodeUtf8 -> sqlBS, searchStr) = paginationStateToSqlQuery tid pstate
+      case searchStr of
+        Just search -> do
+          statement search . refineResult (mapM parseRow) $
+            Statement
+              sqlBS
+              (HE.param $ HE.nonNullable HE.text)
+              decodeRow
+              True
+        Nothing -> do
+          statement () . refineResult (mapM parseRow) $
+            Statement
+              sqlBS
+              HE.noParams
+              decodeRow
+              True
+
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
+    decodeRow =
+      HD.rowList
+        ( (,,,)
+            <$> HD.column (HD.nonNullable HD.uuid)
+            <*> HD.column (HD.nonNullable HD.text)
+            <*> HD.column (HD.nonNullable HD.int4)
+            <*> HD.column (HD.nonNullable HD.timestamptz)
+        )
+
+    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroup
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
+      managedBy <- case managedByPre of
+        0 -> pure ManagedByWire
+        1 -> pure ManagedByScim
+        bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
+      name <- userGroupNameFromText namePre
+      let members = mempty -- TODO: do we want `data UserGroup (m :: * -> *) = UserGroup { members :: m (Vector ...), ... }`?
+      pure $ UserGroup {..}
+
+-- | Compile a pagination state into select query to return the next page.  Result is the
+-- query string and the search string (which needs escaping).
+paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, Maybe Text)
+paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
+  ( T.pack . unwords $ join [s, w, n, o, p, q],
+    (("%" <>) . (<> "%")) <$> pstate.searchString
+  )
+  where
+    s = ["select id, name, managed_by, created_at from user_group"]
+    w = ["where team_id='" <> tid <> "'"]
+    n = ["and name ilike ($1 :: text)" | isJust pstate.searchString]
+    o = ["order by", cols]
+      where
+        cols = mconcat (prio [orderN, ", ", orderC])
+        prio = case pstate.sortBy of
+          SortByName -> id
+          SortByCreatedAt -> reverse
+        orderN = unwords ["name", toLower <$> show pstate.sortOrderName]
+        orderC = unwords ["created_at", toLower <$> show pstate.sortOrderCreatedAt]
+    p = ["offset " <> show pstate.offset]
+    q = ["limit", show $ pageSizeToInt pstate.pageSize]
+
 createUserGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   NewUserGroup ->
   ManagedBy ->
@@ -126,10 +204,8 @@ createUserGroupImpl team newUserGroup managedBy = do
           |]
 
 updateGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   UserGroupUpdate ->
@@ -154,10 +230,8 @@ updateGroupImpl tid gid gup = do
           |]
 
 deleteGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe ())
@@ -181,10 +255,8 @@ deleteGroupImpl tid gid = do
           |]
 
 addUserImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
@@ -195,10 +267,8 @@ addUserImpl =
       |]
 
 removeUserImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
@@ -209,10 +279,8 @@ removeUserImpl =
       |]
 
 crudUser ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   Statement (UUID, UUID) () ->
   UserGroupId ->
   UserId ->

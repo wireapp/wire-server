@@ -79,6 +79,7 @@ import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
 import Wire.API.UserGroup qualified as UserGroup
+import Wire.API.UserGroup.Pagination qualified as Pagination
 import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
@@ -168,6 +169,7 @@ tests =
       testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,
       testRoundTrip @OAuth.OAuthApplication,
+      testRoundTrip @Pagination.PaginationResult,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
