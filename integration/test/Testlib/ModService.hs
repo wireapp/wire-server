@@ -512,7 +512,6 @@ startNginzK8s domain sm = do
     copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
   let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
-      upstreamsCfg = tmpDir </> "upstreams.conf"
   liftIO $ do
     conf <- Text.readFile nginxConfFile
     Text.writeFile nginxConfFile $
@@ -522,9 +521,7 @@ startNginzK8s domain sm = do
           & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
           & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
           & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
-          & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
       )
-  createUpstreamsCfg upstreamsCfg sm
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 

@@ -9,9 +9,6 @@ metrics:
   serviceMonitor:
     enabled: false
 images:
-  nginzDisco:
-    repository: quay.io/wire/nginz_disco
-    tag: do-not-use
   nginz:
     repository: quay.io/wire/nginz
     tag: do-not-use
@@ -22,9 +19,9 @@ config:
   ws:
     wsPort: 8081
     useProxyProtocol: true
-terminationGracePeriodSeconds: 30
+terminationGracePeriodSeconds: 90
 nginx_conf:
-  upstream_config: /etc/wire/nginz/upstreams/upstreams.conf
+  cluster_domain: cluster.local
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
   zauth_acl: /etc/wire/nginz/conf/zauth.acl
   basic_auth_file: /etc/wire/nginz/secrets/basic_auth.txt
@@ -124,8 +121,7 @@ nginx_conf:
   ignored_upstreams: []
 
   # If an upstream runs in a different namespace than nginz, its namespace must
-  # be specified here otherwise nginz_disco will fail to find the upstream and
-  # nginx will think that the upstream is down.
+  # be specified here otherwise nginz will think that the upstream is down.
   upstream_namespace: {
     # galeb: integrations
   }
