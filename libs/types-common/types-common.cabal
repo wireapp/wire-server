@@ -149,7 +149,7 @@ library
 
   default-language:   GHC2021
 
-test-suite tests
+test-suite types-common-tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
 

@@ -1,4 +1,4 @@
--- automatically generated with `make git-add-cassandra-schema`
+-- automatically generated with `make cassandra-schema`
 
 CREATE KEYSPACE brig_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
