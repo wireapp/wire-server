@@ -635,7 +635,7 @@ idpCreateV7 ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  IdPMetadataInfo ->
+  Tentatively IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
@@ -724,9 +724,6 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog 
 
   pure SAML.IdPConfig {..}
 
--- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
--- 'idpCreate', which is not a good reason.  make this one function and pass around
--- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
   ( Member Random r,
     Member (Logger String) r,
@@ -741,24 +738,7 @@ idpUpdate ::
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
-
-idpUpdateXML ::
-  ( Member Random r,
-    Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
-    Member IdPConfigStore r,
-    Member IdPRawMetadataStore r,
-    Member (Error SparError) r
-  ) =>
-  Maybe UserId ->
-  Text ->
-  SAML.IdPMetadata ->
-  SAML.IdPId ->
-  Maybe (Range 1 32 Text) ->
-  Sem r IdP
-idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
+idpUpdate zusr (IdPMetadataValue raw xml) idpid mHandle = withDebugLog "idpUpdateCore" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
