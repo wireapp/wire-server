@@ -18,7 +18,6 @@
 module Wire.API.MLS.RatchetTree where
 
 import Data.Functor
-import Debug.Trace
 import Imports
 import Wire.API.MLS.Extension
 import Wire.API.MLS.HPKEPublicKey
@@ -66,15 +65,13 @@ instance ParseMLS RatchetTreeParent where
       <*> parseMLSVector @VarInt parseMLS
 
 ratchetTreeLeaves :: RatchetTree -> [(LeafIndex, LeafNode)]
-ratchetTreeLeaves tree =
-  trace (show (map void tree.nodes)) $
-    foldMap (traverse toNode) . zip [0 ..] . odds . (.nodes) $
-      tree
+ratchetTreeLeaves =
+  foldMap (traverse toNode) . zip [0 ..] . evens . (.nodes)
   where
-    odds :: [a] -> [a]
-    odds [] = []
-    odds [x] = [x]
-    odds (x : _ : xs) = (x : odds xs)
+    evens :: [a] -> [a]
+    evens [] = []
+    evens [x] = [x]
+    evens (x : _ : xs) = (x : evens xs)
 
     toNode :: Maybe RatchetTreeNode -> [LeafNode]
     toNode (Just (RatchetTreeLeafNode n)) = [n]
