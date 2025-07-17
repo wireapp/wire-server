@@ -50,9 +50,6 @@ spec:
         - name: config
           mountPath: /etc/wire/nginz/conf
           readOnly: true
-        - name: upstreams
-          mountPath: /etc/wire/nginz/upstreams
-          readOnly: true
         - name: deeplink
           mountPath: /etc/wire/nginz/deeplink
           readOnly: true
@@ -92,8 +89,6 @@ spec:
       - name: secrets
         secret:
           secretName: nginz
-      - name: upstreams
-        emptyDir: {}
       - name: deeplink
         configMap:
           name: nginz-deeplink
