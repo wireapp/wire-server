@@ -64,6 +64,7 @@ full-clean: clean
 	make rabbit-clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
+	find . -name '*.hie' -type d -exec rm -rf {} \;
 	direnv reload
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
