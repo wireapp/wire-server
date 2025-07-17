@@ -39,7 +39,6 @@ import Data.Set qualified as Set
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
-import Debug.Trace
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.LegalHold.Get (getUserStatus)
@@ -333,8 +332,6 @@ checkGroupState leaves groupInfo = do
     (tree : _) -> pure tree
     _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
   giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-  traceM $ "leaves: " <> show leaves
-  traceM $ "giLeaves: " <> show giLeaves
   when (leaves /= giLeaves) $ do
     -- TODO: use specific error
     throw $ mlsProtocolError "GroupInfo mismatch"
