@@ -151,6 +151,7 @@ data GalleyError
   | ChannelsNotEnabled
   | NotAnMlsConversation
   | MLSReadReceiptsNotAllowed
+  | MLSInvalidLeafNodeSignature
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -346,6 +347,8 @@ type instance MapError 'ChannelsNotEnabled = 'StaticError 403 "channels-not-enab
 type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-conversation" "This operation requires an MLS conversation"
 
 type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
+
+type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
 
 --------------------------------------------------------------------------------
 -- Team Member errors

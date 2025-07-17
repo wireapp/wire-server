@@ -79,7 +79,8 @@ processInternalCommit ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member SubConversationStore r,
     Member Resource r,
-    Member Random r
+    Member Random r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->

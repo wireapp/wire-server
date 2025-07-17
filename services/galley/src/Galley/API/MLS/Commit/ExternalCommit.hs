@@ -65,7 +65,8 @@ getExternalCommitData ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
@@ -137,7 +138,8 @@ processExternalCommit ::
     Member (ErrorS MLSIdentityMismatch) r,
     Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
-    HasProposalActionEffects r
+    HasProposalActionEffects r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Local ConvOrSubConv ->
