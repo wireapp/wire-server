@@ -1,10 +1,10 @@
 module Galley.API.Action.Kick where
 
+import Data.Default
 import Data.Id
 import Data.Qualified
 import Data.Singletons
 import Data.Time.Clock
-import Data.Default
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Util
