@@ -206,7 +206,9 @@ data Opts = Opts
     --  <http://cr.yp.to/proto/netstrings.txt>
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _logFormat :: !(Maybe (Last LogFormat))
+    _logFormat :: !(Maybe (Last LogFormat)),
+    -- | Wether to check group info
+    _groupInfoCheck :: !(Maybe ())
   }
 
 deriveFromJSON toOptionFieldName ''Opts
