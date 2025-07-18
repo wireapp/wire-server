@@ -72,9 +72,7 @@ run :: Opts -> IO ()
 run opts = lowerCodensity do
   tracer <- withTracerC
   (app, env) <- mkApp opts
-  settings' <-
-    lift $
-      newSettings $
+  let settings' = newSettings $
         defaultServer
           (unpack $ opts._galley.host)
           (portNumber $ fromIntegral opts._galley.port)

@@ -51,7 +51,7 @@ combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 run :: Opts -> IO ()
 run o = do
   e <- createEnv o
-  s <- newSettings $ defaultServer (o ^. proxy . to (T.unpack . host)) (o ^. proxy . to port) (e ^. applog)
+  let s = newSettings $ defaultServer (o ^. proxy . to (T.unpack . host)) (o ^. proxy . to port) (e ^. applog)
 
   let metricsMW :: Middleware
       metricsMW = waiPrometheusMiddlewarePaths (routesToPaths @ProxyAPI <> routesToPaths @InternalAPI)
