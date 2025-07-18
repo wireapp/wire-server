@@ -37,12 +37,11 @@ import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
 startPushingNotifications ::
-  IORef (Map Domain (Q.ConsumerTag, MVar ())) ->
   MVar () ->
   Q.Channel ->
   Domain ->
   AppT IO Q.ConsumerTag
-startPushingNotifications consumers runningFlag chan domain = do
+startPushingNotifications runningFlag chan domain = do
   lift $ ensureQueue chan domain._domainText
   QL.consumeMsgs'
     chan
@@ -289,7 +288,7 @@ ensureConsumer consumers chan domain = do
     -- The cleanup code that runs when the service receives a SIGTERM or SIGINT will wait on these MVars
     -- to allow current messages to finish processing before we close AMQP connections.
     runningFlag <- newMVar ()
-    tag <- startPushingNotifications consumers runningFlag chan domain
+    tag <- startPushingNotifications runningFlag chan domain
     oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain (tag, runningFlag) c, Map.lookup domain c)
     -- This isn't strictly nessacary. `unless consumerExists` won't
     -- let us come down this path if there is an old consumer.
