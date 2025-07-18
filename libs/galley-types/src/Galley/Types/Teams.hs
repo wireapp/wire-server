@@ -285,6 +285,13 @@ newtype instance FeatureDefaults CellsConfig
   deriving (FromJSON) via Defaults (LockableFeature CellsConfig)
   deriving (ParseFeatureDefaults) via OptionalField CellsConfig
 
+newtype instance FeatureDefaults AllowedGlobalOperationsConfig
+  = AllowedGlobalOperationsConfigDefaults (Feature AllowedGlobalOperationsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, FromJSON)
+  deriving (ParseFeatureDefaults) via OptionalField AllowedGlobalOperationsConfig
+  deriving (GetFeatureDefaults) via Feature AllowedGlobalOperationsConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 

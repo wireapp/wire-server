@@ -86,6 +86,7 @@ module Wire.API.Team.Feature
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
     CellsConfig (..),
+    AllowedGlobalOperationsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -242,6 +243,7 @@ data FeatureSingleton cfg where
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
+  FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1431,6 +1433,40 @@ instance IsFeatureConfig CellsConfig where
   featureSingleton = FeatureSingletonCellsConfig
   objectSchema = pure CellsConfig
 
+--------------------------------------------------------------------------------
+-- Allowed Global Operations feature
+
+-- | This feature does not have a database state, see ClassifiedDomainsConfig.
+data AllowedGlobalOperationsConfig = AllowedGlobalOperationsConfig
+  { mlsConversationReset20250709 :: Bool
+  }
+  deriving (Show, Eq, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform AllowedGlobalOperationsConfig)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AllowedGlobalOperationsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName AllowedGlobalOperationsConfig)
+
+instance ParseDbFeature AllowedGlobalOperationsConfig where
+  parseDbConfig _ = fail "AllowedGlobalOperationsConfig cannot be parsed from the DB"
+  serialiseDbConfig = DbConfig . schemaToJSON
+
+instance Default AllowedGlobalOperationsConfig where
+  def = AllowedGlobalOperationsConfig {mlsConversationReset20250709 = False}
+
+instance ToSchema AllowedGlobalOperationsConfig where
+  schema =
+    object "AllowedGlobalOperationsConfig" $
+      AllowedGlobalOperationsConfig
+        <$> mlsConversationReset20250709 .= field "mlsConversationReset20250709" schema
+
+instance Default (LockableFeature AllowedGlobalOperationsConfig) where
+  def = defLockedFeature {status = FeatureStatusEnabled}
+
+instance IsFeatureConfig AllowedGlobalOperationsConfig where
+  type FeatureSymbol AllowedGlobalOperationsConfig = "allowedGlobalOperations"
+
+  featureSingleton = FeatureSingletonAllowedGlobalOperationsConfig
+  objectSchema = field "config" schema
+
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1516,7 +1552,8 @@ type Features =
     LimitedEventFanoutConfig,
     DomainRegistrationConfig,
     ChannelsConfig,
-    CellsConfig
+    CellsConfig,
+    AllowedGlobalOperationsConfig
   ]
 
 -- | list of available features as a record

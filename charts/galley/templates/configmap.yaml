@@ -175,5 +175,9 @@ data:
         cells:
           {{- toYaml .settings.featureFlags.cells | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.allowedGlobalOperations }}
+        allowedGlobalOperations:
+          {{- toYaml .settings.featureFlags.allowedGlobalOperations | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
