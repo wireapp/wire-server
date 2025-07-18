@@ -55,11 +55,6 @@ startPushingNotifications consumers runningFlag chan domain = do
               . Log.field "domain" (domainText domain)
               . Log.field "consumer" consumerTag
           )
-          >>
-          -- Cleanup the consumer's local state, it's now detached anyways. A
-          -- new consumer will be created if needed by the check loop in
-          -- `startPusher` (after some delay.)
-          (cancelConsumer consumers chan domain)
     )
     (QL.FieldTable M.empty)
 

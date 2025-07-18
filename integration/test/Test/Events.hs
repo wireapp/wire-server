@@ -886,6 +886,63 @@ testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
     -- Bob should not receive the typing indicator for himself
     assertNoEvent_ bobWs
 
+-- We only delete queues to clean up federated integration tests. So, we
+-- mostly want to ensure we don't get stuck there.
+testBackendPusherRecoversFromQueueDeletion :: (HasCallStack) => App ()
+testBackendPusherRecoversFromQueueDeletion = do
+  bob <- randomUser OwnDomain def
+
+  domain1 <- asks (.domain1)
+
+  startDynamicBackendsReturnResources [def] $ \[beResource] -> do
+    let domain = beResource.berDomain
+    (alice, team, [alex, alison]) <- createTeam domain 3
+
+    -- Create a federated conversion
+    connectTwoUsers alice bob
+    [alexId, alisonId, bobId] <-
+      forM [alex, alison, bob] (%. "qualified_id")
+    let nc = (defProteus {qualifiedUsers = [alexId, alisonId, bobId], team = Just team})
+    void $ postConversation alice nc >>= getJSON 201
+
+    withWebSockets [bob] $ \[wsBob] -> do
+      rabbitmqAdminClient <- mkRabbitMqAdminClientForResource beResource
+      let getActiveQueues :: App [String] =
+            Text.unpack . (.name)
+              <$$> ( (.items)
+                       <$> rabbitmqAdminClient.listQueuesByVHost
+                         (fromString beResource.berVHost)
+                         (fromString "")
+                         True
+                         100
+                         1
+                   )
+
+      void $ deleteTeamMember team alice alex >>= getBody 202
+
+      assertConvUserDeletedNotif wsBob alexId
+
+      -- Delete the queue
+      let backendNotificationQueueName = "backend-notifications." <> domain1
+      void
+        $ rabbitmqAdminClient.deleteQueue
+          (fromString beResource.berVHost)
+          (fromString backendNotificationQueueName)
+
+      -- Ensure the queue was deleted
+      eventually $ do
+        queueNames <- getActiveQueues
+        queueNames `shouldNotContain` [backendNotificationQueueName]
+
+      void $ deleteTeamMember team alice alison >>= getBody 202
+
+      -- Check that the queue was recreated
+      eventually $ do
+        queueNames <- getActiveQueues
+        queueNames `shouldContain` [backendNotificationQueueName]
+
+      assertConvUserDeletedNotif wsBob alisonId
+
 ----------------------------------------------------------------------
 -- helpers
 mkUserPlusClientWithDomain :: (HasCallStack, MakesValue domain) => domain -> App (Value, String, String)
