@@ -133,6 +133,7 @@ library
     Test.Events
     Test.ExternalPartner
     Test.FeatureFlags
+    Test.FeatureFlags.AllowedGlobalOperations
     Test.FeatureFlags.AppLock
     Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
