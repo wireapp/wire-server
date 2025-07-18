@@ -459,7 +459,7 @@ libzauth:
 kube-integration:  kube-integration-setup kube-integration-test
 
 .PHONY: kube-integration-setup
-kube-integration-setup: charts-integration
+kube-integration-setup: charts-integration helm-oci-login
 	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test
@@ -477,6 +477,10 @@ kube-integration-teardown:
 .PHONY: kube-integration-e2e-telepresence
 kube-integration-e2e-telepresence:
 	./services/brig/federation-tests.sh $(NAMESPACE)
+
+.PHONY: helm-oci-login
+helm-oci-login:
+	./hack/bin/helm-oci-login.sh
 
 .PHONY: kube-restart-%
 kube-restart-%:
