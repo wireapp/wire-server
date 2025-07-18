@@ -10,6 +10,7 @@ import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -17,6 +18,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
+import Network.AMQP.Types qualified as QL
 import Network.RabbitMqAdmin hiding (adminClient)
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import Network.Wai.Utilities.Error
@@ -41,7 +43,19 @@ startPushingNotifications ::
   AppT IO Q.ConsumerTag
 startPushingNotifications runningFlag chan domain = do
   lift $ ensureQueue chan domain._domainText
-  QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (void . pushNotification runningFlag domain)
+  QL.consumeMsgs'
+    chan
+    (routingKey domain._domainText)
+    Q.Ack
+    (void . pushNotification runningFlag domain)
+    ( \consumerTag ->
+        Log.err
+          ( Log.msg (Log.val "Got basic.cancel message for queue. Cancel queue consumer.")
+              . Log.field "domain" (domainText domain)
+              . Log.field "consumer" consumerTag
+          )
+    )
+    (QL.FieldTable M.empty)
 
 pushNotification :: (RabbitMQEnvelope e) => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
 pushNotification runningFlag targetDomain (msg, envelope) = do
