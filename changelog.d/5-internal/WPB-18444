@@ -1,0 +1,1 @@
+Do not log KilledByHttp2ThreadManager error thrown http2 client

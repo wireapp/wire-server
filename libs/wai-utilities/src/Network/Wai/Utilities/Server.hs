@@ -66,6 +66,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.HTTP.Types
+import Network.HTTP2.Internal
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
@@ -210,6 +211,8 @@ errorHandlers =
         _ ->
           pure . Left $
             Wai.mkError status500 "server-error" "Server Error",
+    -- similar to ThreadKilled, but this is thrown by the HTTP2 client
+    Handler $ \(x :: KilledByHttp2ThreadManager) -> throwIO x,
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",
