@@ -24,7 +24,7 @@ hself: hsuper: {
 
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql_1_9_1_2;
-  hasql-pool = hlib.dontCheck hsuper.hasql-pool_1_3_0_1;
+  hasql-pool = hlib.dontCheck hsuper.hasql-pool_1_3_0_2;
   hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
   hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_0_1;
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
@@ -73,7 +73,7 @@ hself: hsuper: {
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_14_2_0;
 
-  text-builder = hlib.doJailbreak (hsuper.text-builder_1_0_0_3);
+  text-builder = hlib.doJailbreak (hsuper.text-builder_1_0_0_4);
   postgresql-syntax = hsuper.postgresql-syntax_0_4_1_3;
 
   #  # 1.16 requires a too old template-haskell for GHC 9.10

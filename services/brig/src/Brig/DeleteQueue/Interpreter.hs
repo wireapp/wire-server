@@ -12,7 +12,7 @@ import Control.Lens
 import Data.Aeson
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Lazy qualified as BL
-import Data.Text as T
+import Data.Text as T hiding (show)
 import Data.Text.Encoding qualified as T
 import Imports
 import OpenSSL.EVP.Digest hiding (digest)

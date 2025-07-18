@@ -62,7 +62,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as L
 import Data.Proxy
-import Data.Text
+import Data.Text hiding (show)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import GHC.Stack

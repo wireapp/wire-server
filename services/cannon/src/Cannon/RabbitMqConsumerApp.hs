@@ -12,7 +12,7 @@ import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Id
-import Data.Text
+import Data.Text hiding (show)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE

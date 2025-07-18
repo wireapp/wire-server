@@ -3,7 +3,7 @@ module Test.Wire.API.Routes.Version.Wai where
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.String.Conversions
-import Data.Text as T
+import Data.Text as T hiding (show)
 import Imports
 import Network.HTTP.Types.Status (status200, status400)
 import Network.Wai
