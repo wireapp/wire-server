@@ -83,7 +83,7 @@ run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (app, e) <- mkApp opts
   runAllMigrations e.hasqlPool e.appLogger
-  s <- Server.newSettings (server e)
+  let s = Server.newSettings (server e)
   internalEventListener <-
     Async.async $
       runBrigToIO e $

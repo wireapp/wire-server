@@ -34,7 +34,7 @@ run opts = do
       cleanup = do
         concurrently_ cleanupDeadUserNotifWatcher cleanupBackendNotifPusher
   let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
-  settings <- newSettings server
+  let settings = newSettings server
   -- Additional cleanup when shutting down via signals.
   runSettingsWithCleanup cleanup settings (servantApp env) Nothing
 

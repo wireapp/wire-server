@@ -80,7 +80,7 @@ default (ByteString)
 start :: Opts -> IO ()
 start o = do
   e <- newEnv o
-  s <- Server.newSettings (server e)
+  let s = Server.newSettings (server e)
   Server.runSettingsWithShutdown s (requestIdMiddleware e.appLogger defaultRequestIdHeaderName $ servantApp e) Nothing
   where
     server :: Env -> Server.Server
