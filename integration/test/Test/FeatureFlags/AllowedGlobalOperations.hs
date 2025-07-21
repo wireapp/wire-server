@@ -11,12 +11,12 @@ testAllowedGlobalOperations (TaggedBool isSet) = do
   let setting =
         object
           [ "status" .= "disabled",
-            "config" .= object ["mlsConversationReset20250709" .= True]
+            "config" .= object ["mlsConversationReset" .= True]
           ]
       defSetting =
         object
           [ "status" .= "enabled",
-            "config" .= object ["mlsConversationReset20250709" .= False]
+            "config" .= object ["mlsConversationReset" .= False]
           ]
   let galleyConf =
         if isSet

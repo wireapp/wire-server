@@ -156,7 +156,7 @@ defAllFeatures =
             "ttl" .= "unlimited",
             "config"
               .= object
-                [ "mlsConversationReset20250709" .= False
+                [ "mlsConversationReset" .= False
                 ]
           ]
     ]

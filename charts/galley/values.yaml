@@ -188,7 +188,7 @@ config:
       allowedGlobalOperations:
         status: enabled
         config:
-          mlsConversationReset20250709: false
+          mlsConversationReset: false
 
   aws:
     region: "eu-west-1"

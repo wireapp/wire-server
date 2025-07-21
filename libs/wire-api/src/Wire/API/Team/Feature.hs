@@ -1438,7 +1438,7 @@ instance IsFeatureConfig CellsConfig where
 
 -- | This feature does not have a database state, see ClassifiedDomainsConfig.
 data AllowedGlobalOperationsConfig = AllowedGlobalOperationsConfig
-  { mlsConversationReset20250709 :: Bool
+  { mlsConversationReset :: Bool
   }
   deriving (Show, Eq, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform AllowedGlobalOperationsConfig)
@@ -1450,13 +1450,13 @@ instance ParseDbFeature AllowedGlobalOperationsConfig where
   serialiseDbConfig = DbConfig . schemaToJSON
 
 instance Default AllowedGlobalOperationsConfig where
-  def = AllowedGlobalOperationsConfig {mlsConversationReset20250709 = False}
+  def = AllowedGlobalOperationsConfig {mlsConversationReset = False}
 
 instance ToSchema AllowedGlobalOperationsConfig where
   schema =
     object "AllowedGlobalOperationsConfig" $
       AllowedGlobalOperationsConfig
-        <$> mlsConversationReset20250709 .= field "mlsConversationReset20250709" schema
+        <$> mlsConversationReset .= field "mlsConversationReset" schema
 
 instance Default (LockableFeature AllowedGlobalOperationsConfig) where
   def = defLockedFeature {status = FeatureStatusEnabled}

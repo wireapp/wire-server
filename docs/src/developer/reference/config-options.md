@@ -583,7 +583,7 @@ cells:
 
 ### Allowed Global Operations
 
-`allowedGlobalOperations` currently supports a single value `mlsConversationReset20250709` which determines if it is allowed to reset MLS conversations by the client.
+`allowedGlobalOperations` currently supports a single value `mlsConversationReset` which determines if it is allowed to reset MLS conversations by the client.
 
 This setting cannot be updated in the DB and therefore does not apply to any specific team but instead to the entire backend.
 
@@ -597,7 +597,7 @@ config:
       allowedGlobalOperations:
         status: enabled
         config:
-          mlsConversationReset20250709: true
+          mlsConversationReset: true
 ```
 
 ## Settings in brig
