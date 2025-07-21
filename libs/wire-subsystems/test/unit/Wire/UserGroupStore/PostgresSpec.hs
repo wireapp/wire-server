@@ -59,11 +59,11 @@ spec = do
           sortOrderName = Asc,
           sortOrderCreatedAt = Desc,
           pageSize = pageSizeFromIntUnsafe 200,
-          lastSeenId = Just $ parseIdFromTextUnsafe "230480aa-660a-11f0-9256-ab0506759530"
+          lastSeenName = Just (userGroupNameFromTextUnsafe "ug1")
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and id > 230480aa-660a-11f0-9256-ab0506759530 \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and name>'ug1' \
         \order by name asc, created_at desc \
         \limit 200",
         Nothing
@@ -75,12 +75,14 @@ spec = do
           sortOrderName = Desc,
           sortOrderCreatedAt = Asc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeenName = Just . userGroupNameFromTextUnsafe $ "ug1",
-          lastSeenCreatedAt = Just . fromJust . readUTCTimeMillis $ "2021-05-12T10:52:02Z"
+          lastSeenId = Just $ parseIdFromTextUnsafe "ab1363ba-663e-11f0-99cd-77aae8e6aadd",
+          lastSeenName = Just (userGroupNameFromTextUnsafe "ug1"),
+          lastSeenCreatedAt = Just (fromJust $ readUTCTimeMillis "2021-05-12T10:52:02Z")
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and name > ug1 and created_at > 2021-05-12T10:52:02Z \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
+        \and (name>'ug1' or (name='ug1' and created_at>'2021-05-12T10:52:02.000Z') or (name='ug1' and created_at='2021-05-12T10:52:02.000Z' and id>'ab1363ba-663e-11f0-99cd-77aae8e6aadd')) \
         \order by created_at asc, name desc \
         \limit 100",
         Nothing
@@ -185,21 +187,27 @@ spec = do
                    ]
 
     it "paginates" $ do
-      let search :: (_) => TeamId -> (Int, Int) -> Sem r [Text]
-          search tid (size, off) =
+      let search :: (_) => TeamId -> (Int, Maybe Text) -> Sem r [Text]
+          search tid (size, lseen) =
             (userGroupNameToText . (.name))
-              <$$> getUserGroups tid (pstate {pageSize = pageSizeFromIntUnsafe size, offset = fromIntegral off})
+              <$$> getUserGroups
+                tid
+                ( pstate
+                    { pageSize = pageSizeFromIntUnsafe size,
+                      lastSeenName = userGroupNameFromTextUnsafe <$> lseen
+                    }
+                )
       tid <- randomId
       inMemInt
         def
         ( do
             new tid `mapM_` ["01", "02", "10", "12"]
             search tid
-              `mapM` [ (0, 0),
-                       (1, 0),
-                       (2, 0),
-                       (2, 1),
-                       (2, 3)
+              `mapM` [ (0, Nothing),
+                       (1, Nothing),
+                       (2, Nothing),
+                       (2, Just "02"),
+                       (2, Just "12")
                      ]
         )
         `shouldReturn` [ ["01", "02", "10", "12"],
