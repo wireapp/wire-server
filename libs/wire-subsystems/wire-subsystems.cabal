@@ -373,7 +373,6 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
-    Wire.APICompatSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.HashPassword.InterpreterSpec
