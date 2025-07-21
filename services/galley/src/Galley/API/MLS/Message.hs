@@ -39,6 +39,7 @@ import Data.Set qualified as Set
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
+import Control.Lens (view)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.LegalHold.Get (getUserStatus)
@@ -62,6 +63,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.SubConversationStore
 import Galley.Effects.TeamStore qualified as TeamStore
+import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -323,24 +325,27 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 checkGroupState ::
   forall r.
   ( Member (ErrorS MLSGroupInfoMismatch) r,
+    Member (Input Opts) r,
     Member (Error MLSProtocolError) r
   ) =>
   IndexMap ->
   GroupInfo ->
   Sem r ()
 checkGroupState leaves groupInfo = do
-  trees <-
-    either
-      (\_ -> throw (mlsProtocolError "Could not parse ratchet tree extension in GroupInfo"))
-      pure
-      $ findExtension groupInfo.tbs.extensions
-  tree :: RatchetTree <- case trees of
-    (tree : _) -> pure tree
-    _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
-  giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-  when (leaves /= giLeaves) $ do
-    throwS @MLSGroupInfoMismatch
-  pure ()
+  check <- fromMaybe False <$> (inputs $ view $ settings . checkGroupInfo)
+  when check $ do
+    trees <-
+      either
+        (\_ -> throw (mlsProtocolError "Could not parse ratchet tree extension in GroupInfo"))
+        pure
+        $ findExtension groupInfo.tbs.extensions
+    tree :: RatchetTree <- case trees of
+      (tree : _) -> pure tree
+      _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
+    giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
+    when (leaves /= giLeaves) $ do
+      throwS @MLSGroupInfoMismatch
+    pure ()
   where
     getIdentity :: LeafNode -> Sem r ClientIdentity
     getIdentity leaf = case credentialIdentityAndKey leaf.credential of
