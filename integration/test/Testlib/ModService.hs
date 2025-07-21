@@ -613,22 +613,26 @@ removeBlock name =
    in Text.pack . flip (subRegex regex) "" . Text.unpack
 
 -- | Replace **all** matches of the regex pattern with the replacement text.
-subRegex :: Text.Text   -- ^ pattern (regular expression)
-         -> String   -- ^ replacement text
-         -> String   -- ^ source text
-         -> String
+subRegex ::
+  -- | pattern (regular expression)
+  Text.Text ->
+  -- | replacement text
+  String ->
+  -- | source text
+  String ->
+  String
 subRegex pat repl = go
   where
     regex :: R.Regex
-    regex = R.makeRegex (Text.unpack pat)     -- compile once, reuse
+    regex = R.makeRegex (Text.unpack pat)
 
     go :: String -> String
     go s =
-      case R.matchOnceText regex s of      -- locate next match
-        Nothing                              -- no more → done
-          -> s
-        Just (before, _matched, after)
-          -> before ++ repl ++ go after     -- splice + continue
+      case R.matchOnceText regex s of
+        Nothing ->
+          s
+        Just (before, _matched, after) ->
+          before ++ repl ++ go after
 
 -- Insert generated upstreams:
 -- Try to put them right after the opening 'http {'.
