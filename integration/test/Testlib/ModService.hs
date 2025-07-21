@@ -54,7 +54,7 @@ import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
-import Text.Regex.TDFA ((=~))
+import qualified Text.Regex.TDFA as R
 import qualified UnliftIO
 import Prelude
 
@@ -612,9 +612,23 @@ removeBlock name =
   let regex = Text.concat ["(?s)upstream[[:space:]]+", name, "[[:space:]]*\\{.*?\\}"]
    in Text.pack . flip (subRegex regex) "" . Text.unpack
 
--- simple regex-based 'replace-all'
-subRegex :: Text.Text -> String -> String -> String
-subRegex pat repl src = src =~ pat
+-- | Replace **all** matches of the regex pattern with the replacement text.
+subRegex :: Text.Text   -- ^ pattern (regular expression)
+         -> String   -- ^ replacement text
+         -> String   -- ^ source text
+         -> String
+subRegex pat repl = go
+  where
+    regex :: R.Regex
+    regex = R.makeRegex (Text.unpack pat)     -- compile once, reuse
+
+    go :: String -> String
+    go s =
+      case R.matchOnceText regex s of      -- locate next match
+        Nothing                              -- no more → done
+          -> s
+        Just (before, _matched, after)
+          -> before ++ repl ++ go after     -- splice + continue
 
 -- Insert generated upstreams:
 -- Try to put them right after the opening 'http {'.
