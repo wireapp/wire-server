@@ -161,7 +161,14 @@ getUserGroupsImpl tid pstate = do
             c = ug.createdAt
             c' = ug'.createdAt
 
-    dropBeforeStart = drop (fromIntegral pstate.offset)
+    dropBeforeStart = dropWhile sqlConds
+      where
+        sqlConds (snd -> row) =
+          foldl' (&&) True $
+            [row.id_ <= fromJust pstate.lastSeenId | isJust pstate.lastSeenId]
+              <> [row.name <= fromJust pstate.lastSeenName | isJust pstate.lastSeenName]
+              <> [row.createdAt <= fromJust pstate.lastSeenCreatedAt | isJust pstate.lastSeenCreatedAt]
+
     dropAfterPageSize = take (pageSizeToInt pstate.pageSize)
 
 updateUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())

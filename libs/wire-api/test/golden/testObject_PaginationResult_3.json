@@ -13,7 +13,9 @@
         }
     ],
     "state": {
-        "offset": 1911684,
+        "last_seen_id": "e5b57c16-6606-11f0-ab44-770b115161d3",
+        "last_seen_name": "ugn!",
+        "last_seen_created_at": "2021-12-12T00:00:00.000Z",
         "page_size": 1,
         "search_string": "rst",
         "sort_by": "created_at",

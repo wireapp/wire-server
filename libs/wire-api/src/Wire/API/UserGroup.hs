@@ -30,6 +30,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Vector (Vector)
 import Imports
+import Servant.API
 import Wire.API.User.Profile
 import Wire.Arbitrary
 
@@ -49,6 +50,12 @@ userGroupNameToText = fromRange . unUserGroupName
 
 instance ToSchema UserGroupName where
   schema = UserGroupName <$> unUserGroupName .= schema
+
+instance FromHttpApiData UserGroupName where
+  parseUrlPiece = userGroupNameFromText
+
+instance ToHttpApiData UserGroupName where
+  toUrlPiece = userGroupNameToText
 
 data NewUserGroup = NewUserGroup
   { name :: UserGroupName,

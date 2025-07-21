@@ -66,7 +66,9 @@ testObject_PaginationResult_1 =
         sortOrderName = defaultSortOrder SortByName,
         sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
         pageSize = def,
-        offset = 0
+        lastSeenId = Nothing,
+        lastSeenName = Nothing,
+        lastSeenCreatedAt = Nothing
       }
 
 testObject_PaginationResult_2 :: PaginationResult
@@ -79,7 +81,9 @@ testObject_PaginationResult_2 =
         sortOrderName = Asc,
         sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 500,
-        offset = 3
+        lastSeenId = Just (Id . fromJust . UUID.fromString $ "df888158-6606-11f0-8095-9353d5ffded9"),
+        lastSeenName = Nothing,
+        lastSeenCreatedAt = Nothing
       }
 
 testObject_PaginationResult_3 :: PaginationResult
@@ -92,5 +96,7 @@ testObject_PaginationResult_3 =
         sortOrderName = Desc,
         sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
-        offset = 1911684
+        lastSeenId = Just (Id . fromJust . UUID.fromString $ "e5b57c16-6606-11f0-ab44-770b115161d3"),
+        lastSeenName = Just (userGroupNameFromTextUnsafe "ugn!"),
+        lastSeenCreatedAt = Just someOtherUTCTime
       }

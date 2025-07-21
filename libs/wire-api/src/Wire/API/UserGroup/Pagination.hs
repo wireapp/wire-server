@@ -22,6 +22,7 @@ import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as LB
 import Data.Default
+import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
 import Data.Proxy
@@ -31,7 +32,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import GHC.Generics
 import Imports
-import Numeric.Natural
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.UserGroup
@@ -47,7 +47,8 @@ type PaginationQuery =
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
     :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
     :> QueryParam' '[Optional, Strict] "page_size" PageSize
-    :> QueryParam' '[Optional, Strict] "offset" Natural -- use offset query param if you want to jump right to page 10 million.
+    :> QueryParam' '[Optional, Strict] "last_seen_name" UserGroupName
+    :> QueryParam' '[Optional, Strict] "last_seen_created_at" UTCTimeMillis
     :> QueryParam'
          '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
          "pagination_state"
@@ -154,8 +155,11 @@ data PaginationState = PaginationState
     sortOrderName :: SortOrder,
     sortOrderCreatedAt :: SortOrder,
     pageSize :: PageSize,
-    -- | Next page starts at the `offset`th row.
-    offset :: Natural
+    -- | Next page starts after this.
+    lastSeenName :: Maybe UserGroupName,
+    lastSeenCreatedAt :: Maybe UTCTimeMillis,
+    -- | Tie breaker.
+    lastSeenId :: Maybe UserGroupId
   }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
@@ -168,7 +172,9 @@ instance Default PaginationState where
         sortOrderName = defaultSortOrder SortByName,
         sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
         pageSize = def,
-        offset = 0
+        lastSeenId = Nothing,
+        lastSeenName = Nothing,
+        lastSeenCreatedAt = Nothing
       }
 
 instance ToSchema PaginationState where
@@ -180,10 +186,21 @@ instance ToSchema PaginationState where
         <*> (.sortOrderName) .= field "sort_order_by_name" schema
         <*> (.sortOrderCreatedAt) .= field "sort_order_by_created_at" schema
         <*> (.pageSize) .= field "page_size" schema
-        <*> (.offset) .= field "offset" schema
+        <*> (.lastSeenName) .= maybe_ (optField "last_seen_name" schema)
+        <*> (.lastSeenCreatedAt) .= maybe_ (optField "last_seen_created_at" schema)
+        <*> (.lastSeenId) .= maybe_ (optField "last_seen_id" schema)
 
 instance Arbitrary PaginationState where
-  arbitrary = PaginationState <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary =
+    PaginationState
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
 instance FromHttpApiData PaginationState where
   parseUrlPiece = parseUrlPieceViaSchema

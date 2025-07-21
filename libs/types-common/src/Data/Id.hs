@@ -38,6 +38,7 @@ module Data.Id
     TeamId,
     ScimTokenId,
     parseIdFromText,
+    parseIdFromTextUnsafe,
     idToText,
     idObjectSchema,
     IdObject (..),
@@ -259,6 +260,9 @@ idFromText = either fail pure . parseIdFromText
 
 parseIdFromText :: Text -> Either String (Id a)
 parseIdFromText = maybe (Left "UUID.fromText failed") (Right . Id) . UUID.fromText
+
+parseIdFromTextUnsafe :: Text -> Id a
+parseIdFromTextUnsafe = maybe (error "UUID.fromText failed") Id . UUID.fromText
 
 idToText :: Id a -> Text
 idToText = UUID.toText . toUUID

@@ -6,6 +6,7 @@ module Wire.UserGroupStore.PostgresSpec (spec) where
 
 import Data.Default
 import Data.Id
+import Data.Json.Util
 import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -48,7 +49,6 @@ spec = do
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \order by created_at desc, name asc \
-        \offset 0 \
         \limit 15",
         Nothing
       )
@@ -59,13 +59,12 @@ spec = do
           sortOrderName = Asc,
           sortOrderCreatedAt = Desc,
           pageSize = pageSizeFromIntUnsafe 200,
-          offset = 4
+          lastSeenId = Just $ parseIdFromTextUnsafe "230480aa-660a-11f0-9256-ab0506759530"
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and id > 230480aa-660a-11f0-9256-ab0506759530 \
         \order by name asc, created_at desc \
-        \offset 4 \
         \limit 200",
         Nothing
       )
@@ -76,13 +75,13 @@ spec = do
           sortOrderName = Desc,
           sortOrderCreatedAt = Asc,
           pageSize = pageSizeFromIntUnsafe 100,
-          offset = 104
+          lastSeenName = Just . userGroupNameFromTextUnsafe $ "ug1",
+          lastSeenCreatedAt = Just . fromJust . readUTCTimeMillis $ "2021-05-12T10:52:02Z"
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and name > ug1 and created_at > 2021-05-12T10:52:02Z \
         \order by created_at asc, name desc \
-        \offset 104 \
         \limit 100",
         Nothing
       )
@@ -96,25 +95,22 @@ spec = do
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \and name ilike ($1 :: text) \
         \order by created_at desc, name asc \
-        \offset 0 \
         \limit 15",
         Just "%grou%"
       )
 
-  describe "in-mem (mock) interpreter" $ do
+  describe "getUserGroups: in-mem (mock) interpreter" $ do
     let new :: (_) => TeamId -> Text -> Sem r UserGroup
         new tid name = do
           moveClock 1
           createUserGroup tid (NewUserGroup (userGroupNameFromTextUnsafe name) mempty) ManagedByWire
 
         pstate =
-          PaginationState
-            { searchString = Nothing,
-              sortBy = SortByName,
+          def
+            { sortBy = SortByName,
               sortOrderName = Asc,
               sortOrderCreatedAt = Asc,
-              pageSize = pageSizeFromIntUnsafe 500,
-              offset = 0
+              pageSize = pageSizeFromIntUnsafe 500
             }
 
     it "searches for substrings" $ do
@@ -325,7 +321,10 @@ instance Arbitrary TestPaginationState where
     sortOrderName <- arbitrary
     sortOrderCreatedAt <- arbitrary
     pageSize <- arbitrary
-    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, offset = 0, ..})
+    lastSeenId <- arbitrary
+    lastSeenName <- arbitrary
+    lastSeenCreatedAt <- arbitrary
+    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, ..})
 
 testPaginationNewUserGroups :: [NewUserGroup]
 testPaginationNewUserGroups =
