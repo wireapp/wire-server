@@ -101,6 +101,9 @@ data:
       {{- end }}
       passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
       passwordHashingRateLimit: {{ toYaml .settings.passwordHashingRateLimit | nindent 8 }}
+      {{- if .settings.checkGroupInfo }}
+      checkGroupInfo: {{ .settings.checkGroupInfo }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}

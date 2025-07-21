@@ -91,6 +91,8 @@ config:
       ipAddressExceptions: []
       maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
 
+    checkGroupInfo: false
+
     # To disable proteus for new federated conversations:
     # federationProtocols: ["mls"]
 
