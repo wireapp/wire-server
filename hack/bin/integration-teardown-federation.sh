@@ -16,10 +16,6 @@ export FEDERATION_DOMAIN_BASE_1="."
 export FEDERATION_DOMAIN_BASE_2="."
 export FEDERATION_CA_CERTIFICATE="."
 export ENTERPRISE_IMAGE_PULL_SECRET="."
-
-KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
-KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
-KUBERNETES_VERSION_MINOR="${KUBERNETES_VERSION_MINOR//[!0-9]/}" # some clusters report minor versions as a string like '27+'. Strip any non-digit characters.
 export INGRESS_CHART="ingress-nginx-controller"
 
 # shellcheck disable=SC1091
