@@ -148,12 +148,13 @@ reAuthUser uid auth = do
         method GET
           . paths ["/i/users", toByteString' uid, "reauthenticate"]
           . json auth
-  resp <- call Brig (check [status200, status403] . req)
+  resp <- call Brig (check [status200, status403, status429] . req)
   pure $ case (statusCode . responseStatus $ resp, errorLabel resp) of
     (200, _) -> Right ()
     (403, Just "code-authentication-required") -> Left VerificationCodeRequired
     (403, Just "code-authentication-failed") -> Left VerificationCodeAuthFailed
     (403, _) -> Left ReAuthFailed
+    (429, _) -> Left RateLimitExceeded
     (_, _) -> Left ReAuthFailed
   where
     errorLabel :: ResponseLBS -> Maybe Lazy.Text
