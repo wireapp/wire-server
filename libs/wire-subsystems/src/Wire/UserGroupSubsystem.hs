@@ -6,7 +6,6 @@ module Wire.UserGroupSubsystem where
 import Data.Id
 import Data.Json.Util
 import Imports
-import Numeric.Natural
 import Polysemy
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -20,7 +19,6 @@ data UserGroupSubsystem m a where
     Maybe SortBy ->
     Maybe SortOrder ->
     Maybe PageSize ->
-    Maybe UserGroupId ->
     Maybe UserGroupName ->
     Maybe UTCTimeMillis ->
     Maybe PaginationState ->

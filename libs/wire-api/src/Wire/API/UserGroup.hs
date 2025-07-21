@@ -51,6 +51,8 @@ userGroupNameToText = fromRange . unUserGroupName
 instance ToSchema UserGroupName where
   schema = UserGroupName <$> unUserGroupName .= schema
 
+instance OpenApi.ToParamSchema UserGroupName
+
 instance FromHttpApiData UserGroupName where
   parseUrlPiece = userGroupNameFromText
 

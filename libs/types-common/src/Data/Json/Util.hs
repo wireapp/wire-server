@@ -101,6 +101,8 @@ newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
   deriving (Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UTCTimeMillis
 
+instance S.ToParamSchema UTCTimeMillis
+
 instance ToSchema UTCTimeMillis where
   schema =
     UTCTimeMillis

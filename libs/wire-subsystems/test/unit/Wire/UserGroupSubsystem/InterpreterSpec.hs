@@ -257,8 +257,8 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroupAdmin <- getGroup (ownerId team) group1.id_
           getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
 
-          getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing
-          getGroupsOutsider <- try $ getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing
+          getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing
+          getGroupsOutsider <- try $ getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing
 
           pure $
             getGroupAdmin === Just group1
@@ -291,8 +291,8 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
               getOwnGroup <- getGroup (ownerId team1) group1.id_
               getOtherGroup <- getGroup (ownerId team1) group2.id_
-              getOwnGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName1)) Nothing Nothing Nothing Nothing Nothing
-              getOtherGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName2)) Nothing Nothing Nothing Nothing Nothing
+              getOwnGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName1)) Nothing Nothing Nothing Nothing Nothing Nothing
+              getOtherGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName2)) Nothing Nothing Nothing Nothing Nothing Nothing
 
               pure $
                 getOwnGroup === Just group1
@@ -306,10 +306,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> moveClock 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
-        get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing
-        get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing
-        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing Nothing
-        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing Nothing
+        get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing Nothing
+        get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing Nothing
+        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing Nothing Nothing
+        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing Nothing Nothing
 
         pure do
           get0.page `shouldBe` []
@@ -337,7 +337,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
                   results :: [PaginationResult] <- do
                     let fetch mbState = do
-                          p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) Nothing mbState
+                          p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) Nothing Nothing mbState
                           if null p.page
                             then pure []
                             else (p :) <$> fetch (Just p.state)
@@ -367,9 +367,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         group1b <- mkGroup "1"
         group3b <- mkGroup "3"
 
-        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing Nothing
-        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing Nothing
-        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing Nothing
+        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing Nothing Nothing
+        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing Nothing Nothing
 
         let expectSortByDefaults = [group1b, group2b, group3b, group1a, group2a, group3a]
             expectSortByNameDesc = [group3b, group3a, group2b, group2a, group1b, group1a]
@@ -385,9 +385,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "3"]]
         groups <- createGroup (ownerId team1) `mapM` newGroups
 
-        get0 <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just 0) Nothing
-        get1 <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just 1) Nothing
-        get2 <- try $ getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just 1) (Just get1.state)
+        get0 <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just (head groups).name) Nothing Nothing
+        get1 <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just (groups !! 1).name) Nothing Nothing
+        get2 <- try $ getGroups (ownerId team1) Nothing Nothing Nothing Nothing (Just (groups !! 1).name) Nothing (Just get1.state)
 
         pure do
           get0.page `shouldBe` groups

@@ -75,6 +75,7 @@ import Data.Handle qualified as Handle
 import Data.HavePendingInvitations
 import Data.Id
 import Data.Id qualified as Id
+import Data.Json.Util
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
@@ -92,7 +93,6 @@ import Language.Haskell.TH (unTypeCode)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
 import Network.Wai.Utilities qualified as Utilities
-import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input)
@@ -1679,11 +1679,12 @@ getUserGroups ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe Natural ->
+  Maybe UserGroupName ->
+  Maybe UTCTimeMillis ->
   Maybe PaginationState ->
   Handler r PaginationResult
-getUserGroups lusr q sortByKeys sortOrder pSize pOffset pState =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize pOffset pState
+getUserGroups lusr q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState =
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd

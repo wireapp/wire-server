@@ -9,7 +9,6 @@ import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Imports
 import Network.Wai.Utilities qualified as Wai
-import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
@@ -41,8 +40,8 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
-  GetGroups getter q sortByKeys sortOrder pSize lseenId lseenName lseenCreatedAt pState ->
-    getUserGroupsImpl getter q sortByKeys sortOrder pSize lseenId lseenName lseenCreatedAt pState
+  GetGroups getter q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState ->
+    getUserGroupsImpl getter q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -167,12 +166,11 @@ getUserGroupsImpl ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe UserGroupId ->
   Maybe UserGroupName ->
   Maybe UTCTimeMillis ->
   Maybe PaginationState ->
   Sem r PaginationResult
-getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenId lastSeenName lastSeenCreatedAt pState = do
+getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenName lastSeenCreatedAt pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
@@ -193,7 +191,6 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenId lastSe
           SortByName -> unless (st.sortOrderName == x) (badState "sort_order mismatch (name).")
           SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sort_order mismatch (created_at).")
       forM_ pSize $ \x -> unless (st.pageSize == x) (badState "page_size mismatch.")
-      when (isJust lastSeenId && isJust pState) (badState "last_seen_*, pagination_state: you can only set one.")
       when (isJust lastSeenName && isJust pState) (badState "last_seen_*, pagination_state: you can only set one.")
       when (isJust lastSeenCreatedAt && isJust pState) (badState "last_seen_*, pagination_state: you can only set one.")
 
@@ -217,14 +214,14 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenId lastSe
                 sortOrderName = son,
                 sortOrderCreatedAt = soc,
                 pageSize = fromMaybe def pSize,
-                lastSeenId,
+                lastSeenId = Nothing,
                 lastSeenName,
                 lastSeenCreatedAt
               }
 
     nextPaginationState :: [UserGroup] -> PaginationState
     nextPaginationState [] = currentPaginationState
-    nextPaginationState (reverse -> (lseen : _)) =
+    nextPaginationState (last -> lseen) =
       currentPaginationState
         { lastSeenId = Just lseen.id_,
           lastSeenName = Just lseen.name,
