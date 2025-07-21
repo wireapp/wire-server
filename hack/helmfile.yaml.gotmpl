@@ -86,6 +86,12 @@ repositories:
     username: '{{ env "DOCKER_HUB_USERNAME" }}'
     password: '{{ env "DOCKER_HUB_PASSWORD" }}'
 
+  # Uses creds from DOCKER_HUB_USERNAME and DOCKER_HUB_PASSWORD automatically.
+  # https://helmfile.readthedocs.io/en/latest/#oci-registries
+  - name: docker_hub
+    url: registry-1.docker.io
+    oci: true
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
