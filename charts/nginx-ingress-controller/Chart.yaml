@@ -1,5 +1,0 @@
-apiVersion: v1
-description: ingress-controller. DEPRECATED. Use ingress-nginx-controller chart instead.
-name: nginx-ingress-controller
-version: 0.0.42
-deprecated: true
