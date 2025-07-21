@@ -54,6 +54,7 @@ import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import Text.Regex.TDFA ((=~))
 import qualified UnliftIO
 import Prelude
 
@@ -522,6 +523,7 @@ startNginzK8s domain sm = do
           & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
           & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
       )
+    inlineUpstreamsInConfig nginxConfFile sm
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
@@ -601,6 +603,71 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
 
   -- return handle and nginx tmp dir path
   pure $ ServiceInstance ph tmpDir
+
+-- Remove the first occurrence of
+--   upstream <name> { ... }
+-- (dot-all & non-greedy to stop at its *own* closing brace)
+removeBlock :: Text.Text -> Text.Text -> Text.Text
+removeBlock name =
+  let regex = Text.concat ["(?s)upstream[[:space:]]+", name, "[[:space:]]*\\{.*?\\}"]
+   in Text.pack . flip (subRegex regex) "" . Text.unpack
+
+-- simple regex-based 'replace-all'
+subRegex :: Text.Text -> String -> String -> String
+subRegex pat repl src = src =~ pat
+
+-- Insert generated upstreams:
+-- Try to put them right after the opening 'http {'.
+insertGeneratedUpstreams :: Text.Text -> Text.Text -> Text.Text
+insertGeneratedUpstreams conf ups =
+  case Text.breakOn "http {" conf of
+    (pre, rest) | not (Text.null rest) ->
+        let (httpOpen, postOpen) = Text.splitAt (Text.length "http {") rest
+         in Text.concat [pre, httpOpen, "\n\n", ups, postOpen]
+    _ -> Text.concat [ups, "\n", conf]        -- fallback: top of file
+
+generateUpstreamsText :: ServiceMap -> Text.Text
+generateUpstreamsText sm =
+    Text.concat $
+      [ (serviceName Brig   , sm.brig.port)
+      , (serviceName Cannon , sm.cannon.port)
+      , (serviceName Cargohold , sm.cargohold.port)
+      , (serviceName Galley , sm.galley.port)
+      , (serviceName Gundeck, sm.gundeck.port)
+      , (serviceName Nginz  , sm.nginz.port)
+      , (serviceName WireProxy , sm.proxy.port)
+      , (serviceName Spar   , sm.spar.port)
+      ] <&> \(srv,p) -> Text.replace "{name}" (cs srv)
+                     .  Text.replace "{port}" (cs $ show p)
+                     $  upstreamTemplate
+  where
+    upstreamTemplate =
+      [r|upstream {name} {
+least_conn;
+keepalive 32;
+server 127.0.0.1:{port} max_fails=3 weight=1;
+}
+
+|]
+
+inlineUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
+inlineUpstreamsInConfig nginxConf sm = do
+  original <- Text.readFile nginxConf
+  let names       = [ serviceName Brig
+                    , serviceName Cannon
+                    , serviceName Cargohold
+                    , serviceName Galley
+                    , serviceName Gundeck
+                    , serviceName Nginz
+                    , serviceName WireProxy
+                    , serviceName Spar
+                    ]
+      -- remove every existing matching upstream block
+      pruned      = foldl' (\t n -> removeBlock n t) original (cs <$> names)
+      -- splice freshly generated blocks
+      finalConf   = insertGeneratedUpstreams pruned (generateUpstreamsText sm)
+
+  Text.writeFile nginxConf finalConf
 
 createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
