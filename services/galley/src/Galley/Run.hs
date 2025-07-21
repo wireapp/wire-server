@@ -72,11 +72,12 @@ run :: Opts -> IO ()
 run opts = lowerCodensity do
   tracer <- withTracerC
   (app, env) <- mkApp opts
-  let settings' = newSettings $
-        defaultServer
-          (unpack $ opts._galley.host)
-          (portNumber $ fromIntegral opts._galley.port)
-          (env ^. App.applog)
+  let settings' =
+        newSettings $
+          defaultServer
+            (unpack $ opts._galley.host)
+            (portNumber $ fromIntegral opts._galley.port)
+            (env ^. App.applog)
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (aws ^. awsEnv)

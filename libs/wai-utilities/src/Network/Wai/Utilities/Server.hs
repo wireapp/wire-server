@@ -95,12 +95,12 @@ defaultServer h p l = Server h p l Nothing
 newSettings :: Server -> Settings
 newSettings (Server h p l t) =
   setHost (fromString h)
-  . setPort (fromIntegral p)
-  . setBeforeMainLoop logStart
-  . setOnOpen (const $ connStart >> pure True)
-  . setOnClose (const connEnd)
-  . setTimeout (fromMaybe 300 t)
-  $ defaultSettings
+    . setPort (fromIntegral p)
+    . setBeforeMainLoop logStart
+    . setOnOpen (const $ connStart >> pure True)
+    . setOnClose (const connEnd)
+    . setTimeout (fromMaybe 300 t)
+    $ defaultSettings
   where
     connStart = Prom.incGauge netConnections
     connEnd = Prom.decGauge netConnections
