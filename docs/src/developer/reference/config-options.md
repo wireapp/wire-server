@@ -873,6 +873,20 @@ The `ipAddressExceptions` have to be CIDR blocks which can be specified like
 by pass the rate limits. To limit one particular IP address, it can be specified
 as `127.0.0.1/32`.
 
+#### Group info consistency check
+
+To enable group info consistency checks on MLS commits:
+```
+# galley.yaml
+config:
+  settings:
+    checkGroupInfo: true
+```
+
+Enabling consistency checks makes Galley parse the ratchet tree
+extension in the group info of every commit and compare it to the
+group state after applying the commit.
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won’t be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
