@@ -17,7 +17,9 @@ import Wire.API.Routes.Public.Brig qualified as BrigRoutes
 import Wire.MockInterpreters as Mock
 import Wire.UserGroupSubsystem
 
--- FUTUREWORK: extend this to cover all of the APIs?
+-- | This is a silly (but fun!) trick to catch type mismatches between subsystem actions and
+-- associated servant routes early.  If it gets entirely removed, the only thing that goes
+-- wrong is longer compiler feedback cycles.
 spec :: Spec
 spec = describe "api compatibility (compile-time unit tests, yeay!)" do
   it "user groups" $ do
