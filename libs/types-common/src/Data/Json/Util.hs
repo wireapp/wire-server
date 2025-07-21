@@ -144,6 +144,16 @@ instance Show UTCTimeMillis where
 instance BS.ToByteString UTCTimeMillis where
   builder = BB.byteString . UTF8.fromString . show
 
+instance ToHttpApiData UTCTimeMillis where
+  toUrlPiece = showUTCTimeMillis
+
+instance FromHttpApiData UTCTimeMillis where
+  parseUrlPiece raw =
+    maybe (Left $ "Could not parse UTCTimeMillis: " <> raw) Right
+      . readUTCTimeMillis
+      . Text.unpack
+      $ raw
+
 instance BS.FromByteString UTCTimeMillis where
   parser = maybe (fail "UTCTimeMillis") pure . readUTCTimeMillis =<< BS.parser
 

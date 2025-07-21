@@ -143,12 +143,16 @@ getUserGroupsImpl tid pstate = do
 -- query string and the search string (which needs escaping).
 paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, Maybe Text)
 paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
-  ( T.pack . unwords $ join [s, w, n, o, p, q],
+  ( T.pack . unwords $ join [s, w, n, o, q],
     (("%" <>) . (<> "%")) <$> pstate.searchString
   )
   where
     s = ["select id, name, managed_by, created_at from user_group"]
-    w = ["where team_id='" <> tid <> "'"]
+    w =
+      ["where team_id='" <> tid <> "'"]
+        <> [" and id > '" <> (T.unpack . idToText . fromJust $ pstate.lastSeenId) <> "'" | isJust pstate.lastSeenId]
+        <> [" and name > '" <> (T.unpack . userGroupNameToText $ fromJust pstate.lastSeenName) <> "'" | isJust pstate.lastSeenName]
+        <> [" and created_at > '" <> (T.unpack . showUTCTimeMillis $ fromJust pstate.lastSeenCreatedAt) <> "'" | isJust pstate.lastSeenCreatedAt]
     n = ["and name ilike ($1 :: text)" | isJust pstate.searchString]
     o = ["order by", cols]
       where
@@ -158,7 +162,6 @@ paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
           SortByCreatedAt -> reverse
         orderN = unwords ["name", toLower <$> show pstate.sortOrderName]
         orderC = unwords ["created_at", toLower <$> show pstate.sortOrderCreatedAt]
-    p = ["offset " <> show pstate.offset]
     q = ["limit", show $ pageSizeToInt pstate.pageSize]
 
 createUserGroupImpl ::

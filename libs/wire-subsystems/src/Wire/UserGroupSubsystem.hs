@@ -4,6 +4,7 @@
 module Wire.UserGroupSubsystem where
 
 import Data.Id
+import Data.Json.Util
 import Imports
 import Numeric.Natural
 import Polysemy
@@ -19,7 +20,9 @@ data UserGroupSubsystem m a where
     Maybe SortBy ->
     Maybe SortOrder ->
     Maybe PageSize ->
-    Maybe Natural ->
+    Maybe UserGroupId ->
+    Maybe UserGroupName ->
+    Maybe UTCTimeMillis ->
     Maybe PaginationState ->
     UserGroupSubsystem m PaginationResult
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
