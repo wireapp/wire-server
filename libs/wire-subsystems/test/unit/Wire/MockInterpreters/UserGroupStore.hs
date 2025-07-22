@@ -144,25 +144,23 @@ getUserGroupsImpl tid pstate = do
     narrowToSearchString =
       filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) pstate.searchString)
 
-    orderByKeys = id -- TODO
-    {-
-        orderByKeys = Imports.sortBy cmp
+    orderByKeys = Imports.sortBy cmp
+      where
+        cmp (_, ug) (_, ug') = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
+          (SortByName, Asc, Asc) -> (n, c) `compare` (n', c')
+          (SortByName, Desc, Asc) -> (n', c) `compare` (n, c')
+          (SortByName, Asc, Desc) -> (n, c') `compare` (n', c)
+          (SortByName, Desc, Desc) -> (n', c') `compare` (n, c)
+          (SortByCreatedAt, Asc, Asc) -> (c, n) `compare` (c', n')
+          (SortByCreatedAt, Desc, Asc) -> (c, n) `compare` (c', n')
+          (SortByCreatedAt, Asc, Desc) -> (c', n) `compare` (c, n')
+          (SortByCreatedAt, Desc, Desc) -> (c', n') `compare` (c, n)
           where
-            cmp (_, ug) (_, ug') = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
-              (SortByName, Asc, Asc) -> (n, c) `compare` (n', c')
-              (SortByName, Desc, Asc) -> (n', c) `compare` (n, c')
-              (SortByName, Asc, Desc) -> (n, c') `compare` (n', c)
-              (SortByName, Desc, Desc) -> (n', c') `compare` (n, c)
-              (SortByCreatedAt, Asc, Asc) -> (c, n) `compare` (c', n')
-              (SortByCreatedAt, Desc, Asc) -> (c, n) `compare` (c', n')
-              (SortByCreatedAt, Asc, Desc) -> (c', n) `compare` (c, n')
-              (SortByCreatedAt, Desc, Desc) -> (c', n') `compare` (c, n)
-              where
-                n = ug.name
-                n' = ug'.name
-                c = ug.createdAt
-                c' = ug'.createdAt
-    -}
+            n = ug.name
+            n' = ug'.name
+            c = ug.createdAt
+            c' = ug'.createdAt
+
     dropBeforeStart = dropWhile sqlConds
       where
         sqlConds (snd -> row) =

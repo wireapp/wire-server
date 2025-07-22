@@ -181,13 +181,15 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenName last
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
 
-    -- TODO: remove this
     checkPaginationState :: PaginationState -> Sem r ()
     checkPaginationState st = do
       let badState = throw . UserGroupInvalidQueryParams
       forM_ searchString $ (\x -> forM_ st.searchString $ \y -> unless (y == x) (badState "q mismatch."))
       forM_ sortBy' $ \x -> unless (st.sortBy == x) (badState "sort_by mismatch.")
-      forM_ sortOrder' $ \x -> unless (st.sortOrder == x) (badState "sort_order mismatch.")
+      forM_ sortOrder' $ \x ->
+        case fromMaybe def sortBy' of
+          SortByName -> unless (st.sortOrderName == x) (badState "sort_order mismatch (name).")
+          SortByCreatedAt -> unless (st.sortOrderCreatedAt == x) (badState "sort_order mismatch (created_at).")
       forM_ pSize $ \x -> unless (st.pageSize == x) (badState "page_size mismatch.")
       when (isJust lastSeenName && isJust pState) (badState "last_seen_*, pagination_state: you can only set one.")
       when (isJust lastSeenCreatedAt && isJust pState) (badState "last_seen_*, pagination_state: you can only set one.")
@@ -203,14 +205,14 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenName last
             son = fromMaybe (defaultSortOrder SortByName) $ case sb of
               SortByName -> sortOrder'
               SortByCreatedAt -> Nothing
-            _soc = fromMaybe (defaultSortOrder SortByCreatedAt) $ case sb of
+            soc = fromMaybe (defaultSortOrder SortByCreatedAt) $ case sb of
               SortByName -> Nothing
               SortByCreatedAt -> sortOrder'
          in PaginationState
               { searchString,
                 sortBy = sb,
-                sortOrder = son,
-                -- sortOrderCreatedAt = soc, -- TODO: fix this.
+                sortOrderName = son,
+                sortOrderCreatedAt = soc,
                 pageSize = fromMaybe def pSize,
                 lastSeenId = Nothing,
                 lastSeenName,
