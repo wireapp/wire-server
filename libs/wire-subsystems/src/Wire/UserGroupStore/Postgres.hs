@@ -141,47 +141,28 @@ getUserGroupsImpl tid pstate = do
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
-paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, Maybe Text, Maybe Text)
+paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, Maybe Text)
 paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
   ( T.pack . unwords $ join [s, w, n, o, q],
     (("%" <>) . (<> "%")) <$> pstate.searchString
   )
   where
     s = ["select id, name, managed_by, created_at from user_group"]
-    w = ["where team_id='" <> tid <> "'"]
-    c = maybe [] mkConstraints pstate.lastSeen
+    w =
+      ["where team_id='" <> tid <> "'"]
+        <> [" and id > '" <> (T.unpack . idToText . fromJust $ pstate.lastSeenId) <> "'" | isJust pstate.lastSeenId]
+        <> [" and name > '" <> (T.unpack . userGroupNameToText $ fromJust pstate.lastSeenName) <> "'" | isJust pstate.lastSeenName]
+        <> [" and created_at > '" <> (T.unpack . showUTCTimeMillis $ fromJust pstate.lastSeenCreatedAt) <> "'" | isJust pstate.lastSeenCreatedAt]
     n = ["and name ilike ($1 :: text)" | isJust pstate.searchString]
     o = ["order by", cols]
       where
-        cols = mconcat [orderFirst, ", ", orderSecond]
-
-        orderFirst = case pstate.sortBy of
-          SortByName -> unwords ["name", toLower <$> show nameOrder]
-          SortByCreatedAt -> unwords ["created_at", toLower <$> show createdAtOrder]
-        orderSecond = case pstate.sortBy of
-          SortByName -> unwords ["created_at", toLower <$> show createdAtOrder]
-          SortByCreatedAt -> unwords ["name", toLower <$> show nameOrder]
-
-        nameOrder = case pstate.sortBy of
-          SortByName -> pstate.sortOrder
-          SortByCreatedAt -> defaultSortOrder SortByName
-        createdAtOrder = case pstate.sortBy of
-          SortByName -> defaultSortOrder SortByCreatedAt
-          SortByCreatedAt -> pstate.sortOrder
-
+        cols = mconcat (prio [orderN, ", ", orderC])
+        prio = case pstate.sortBy of
+          SortByName -> id
+          SortByCreatedAt -> reverse
+        orderN = unwords ["name", toLower <$> show pstate.sortOrderName]
+        orderC = unwords ["created_at", toLower <$> show pstate.sortOrderCreatedAt]
     q = ["limit", show $ pageSizeToInt pstate.pageSize]
-
-    mkConstraints :: (HasCallStack) => LastSeen -> [String]
-    mkConstraints (LastSeen lastNameOrCreatedAt lastId) = ["and", x, y, z]
-      where
-        x, y, z :: String
-        x = case pstate.sortBy of
-          SortByName -> "(name, id)"
-          SortByCreatedAt -> "(created_at, id)"
-        y = case pstate.sortOrder of
-          Asc -> ">"
-          Desc -> "<"
-        z = mconcat ["('", lastNameOrCreatedAt, "', '", lastId, "')"] -- TODO: escape this!!!
 
 createUserGroupImpl ::
   forall r.

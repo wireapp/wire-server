@@ -60,7 +60,16 @@ testObject_PaginationResult_1 :: PaginationResult
 testObject_PaginationResult_1 =
   PaginationResult
     []
-    def
+    PaginationState
+      { searchString = Nothing,
+        sortBy = def,
+        sortOrderName = defaultSortOrder SortByName,
+        sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
+        pageSize = def,
+        lastSeenId = Nothing,
+        lastSeenName = Nothing,
+        lastSeenCreatedAt = Nothing
+      }
 
 testObject_PaginationResult_2 :: PaginationResult
 testObject_PaginationResult_2 =
@@ -69,9 +78,12 @@ testObject_PaginationResult_2 =
     PaginationState
       { searchString = Just "q",
         sortBy = SortByName,
-        sortOrder = Desc,
+        sortOrderName = Asc,
+        sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 500,
-        lastSeen = Just (LastSeen "ugn!" (Id . fromJust . UUID.fromString $ "df888158-6606-11f0-8095-9353d5ffded9"))
+        lastSeenId = Just (Id . fromJust . UUID.fromString $ "df888158-6606-11f0-8095-9353d5ffded9"),
+        lastSeenName = Nothing,
+        lastSeenCreatedAt = Nothing
       }
 
 testObject_PaginationResult_3 :: PaginationResult
@@ -81,7 +93,10 @@ testObject_PaginationResult_3 =
     PaginationState
       { searchString = Just "rst",
         sortBy = SortByCreatedAt,
-        sortOrder = Asc,
+        sortOrderName = Desc,
+        sortOrderCreatedAt = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
-        lastSeen = Just (LastSeen "2021-12-12T00:00:00.000Z" (Id . fromJust . UUID.fromString $ "e5b57c16-6606-11f0-ab44-770b115161d3"))
+        lastSeenId = Just (Id . fromJust . UUID.fromString $ "e5b57c16-6606-11f0-ab44-770b115161d3"),
+        lastSeenName = Just (userGroupNameFromTextUnsafe "ugn!"),
+        lastSeenCreatedAt = Just someOtherUTCTime
       }
