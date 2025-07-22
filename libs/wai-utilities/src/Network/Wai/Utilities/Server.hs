@@ -93,15 +93,14 @@ data Server = Server
 defaultServer :: String -> Word16 -> Logger -> Server
 defaultServer h p l = Server h p l Nothing
 
-newSettings :: (MonadIO m) => Server -> m Settings
-newSettings (Server h p l t) = do
-  pure
-    $ setHost (fromString h)
-      . setPort (fromIntegral p)
-      . setBeforeMainLoop logStart
-      . setOnOpen (const $ connStart >> pure True)
-      . setOnClose (const connEnd)
-      . setTimeout (fromMaybe 300 t)
+newSettings :: Server -> Settings
+newSettings (Server h p l t) =
+  setHost (fromString h)
+    . setPort (fromIntegral p)
+    . setBeforeMainLoop logStart
+    . setOnOpen (const $ connStart >> pure True)
+    . setOnClose (const connEnd)
+    . setTimeout (fromMaybe 300 t)
     $ defaultSettings
   where
     connStart = Prom.incGauge netConnections

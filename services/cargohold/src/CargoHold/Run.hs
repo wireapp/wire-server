@@ -59,14 +59,13 @@ run :: Opts -> IO ()
 run o = lowerCodensity $ do
   (app, e) <- mkApp o
   void $ Codensity $ Async.withAsync (collectAuthMetrics e.aws.amazonkaEnv)
-  liftIO $ do
-    s <-
-      Server.newSettings $
-        defaultServer
-          (unpack . host $ o.cargohold)
-          (port o.cargohold)
-          e.appLogger
-    runSettingsWithShutdown s app Nothing
+  let s =
+        Server.newSettings $
+          defaultServer
+            (unpack . host $ o.cargohold)
+            (port o.cargohold)
+            e.appLogger
+  liftIO $ runSettingsWithShutdown s app Nothing
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp o = Codensity $ \k ->

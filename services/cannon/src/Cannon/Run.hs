@@ -92,7 +92,7 @@ run o = lowerCodensity $ do
     mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq)
 
   void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
-  s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
+  let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
   otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
