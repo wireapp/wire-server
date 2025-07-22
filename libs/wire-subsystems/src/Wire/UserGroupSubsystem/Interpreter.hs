@@ -174,7 +174,6 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenName last
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
-  checkPaginationState `mapM_` pState
   page :: [UserGroup] <- Store.getUserGroups team currentPaginationState
   pure (PaginationResult page (nextPaginationState page))
   where
@@ -186,34 +185,24 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenName last
       Just oldState -> oldState
       Nothing ->
         let sb = fromMaybe def sortBy'
-
-            -- Map the `sort_order` query parameter to `sortOrderName` and
-            -- `sortOrderCreatedAt`, depending on the value of `sort_order`.
-            son = fromMaybe (defaultSortOrder SortByName) $ case sb of
-              SortByName -> sortOrder'
-              SortByCreatedAt -> Nothing
-            _soc = fromMaybe (defaultSortOrder SortByCreatedAt) $ case sb of
-              SortByName -> Nothing
-              SortByCreatedAt -> sortOrder'
+            so = fromMaybe (defaultSortOrder sb) sortOrder'
          in PaginationState
               { searchString,
                 sortBy = sb,
-                sortOrder = son,
-                -- sortOrderCreatedAt = soc, -- TODO: fix this.
+                sortOrder = so,
                 pageSize = fromMaybe def pSize,
-                lastSeenId = Nothing,
-                lastSeenName,
-                lastSeenCreatedAt
+                lastSeen = Nothing
               }
 
     nextPaginationState :: [UserGroup] -> PaginationState
     nextPaginationState [] = currentPaginationState
     nextPaginationState (last -> lseen) =
-      currentPaginationState
-        { lastSeenId = Just lseen.id_,
-          lastSeenName = Just lseen.name,
-          lastSeenCreatedAt = Just lseen.createdAt
-        }
+      currentPaginationState {lastSeen = Just (LastSeen f i)}
+      where
+        f = case maybe def (.sortBy) pState of
+          SortByName -> userGroupNameToText lseen.name
+          SortByCreatedAt -> showUTCTimeMillis lseen.createdAt
+        i = lseen.id_
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
