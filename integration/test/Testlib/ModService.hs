@@ -608,13 +608,13 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
 --   upstream <name> { ... }
 removeBlock :: Text.Text -> Text.Text -> Text.Text
 removeBlock name =
-  let regex =
+  let pat =
         Text.concat
           [ "upstream[[:space:]]+",
             name,
-            "[[:space:]]*\\{([^\n}]|[\n])*?\\}" -- “anything incl. \\n” non-greedy
+            "[[:space:]]*\\{[^}]*\\}" -- body until first ‘}’
           ]
-   in Text.pack . subRegex regex "" . Text.unpack
+   in Text.pack . subRegex pat "" . Text.unpack
 
 -- | Replace **all** matches of the regex pattern with the replacement text.
 subRegex ::
