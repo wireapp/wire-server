@@ -54,7 +54,6 @@ import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
-import qualified Text.Regex.TDFA as R
 import qualified UnliftIO
 import Prelude
 
@@ -523,7 +522,7 @@ startNginzK8s domain sm = do
           & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
           & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
       )
-    inlineUpstreamsInConfig nginxConfFile sm
+    replaceUpstreamsInConfig nginxConfFile sm
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
@@ -604,39 +603,37 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
   -- return handle and nginx tmp dir path
   pure $ ServiceInstance ph tmpDir
 
--- Remove the first occurrence of
---   upstream <name> { ... }
-removeBlock :: Text.Text -> Text.Text -> Text.Text
-removeBlock name =
-  let pat =
-        Text.concat
-          [ "upstream[[:space:]]+",
-            name,
-            "[[:space:]]*\\{[^}]*\\}" -- body until first ‘}’
-          ]
-   in Text.pack . subRegex pat "" . Text.unpack
-
--- | Replace **all** matches of the regex pattern with the replacement text.
-subRegex ::
-  -- | pattern (regular expression)
-  Text.Text ->
-  -- | replacement text
-  String ->
-  -- | source text
-  String ->
-  String
-subRegex pat repl = go
+-- remove all existing 'upstream <name> { ... }' blocks
+removeUpstreams :: Text.Text -> Text.Text
+removeUpstreams txt = go txt Text.empty
   where
-    regex :: R.Regex
-    regex = R.makeRegex (Text.unpack pat)
-
-    go :: String -> String
-    go s =
-      case R.matchOnceText regex s of
-        Nothing ->
-          s
-        Just (before, _matched, after) ->
-          before ++ repl ++ go after
+    go t acc =
+      case Text.breakOn "upstream " t of
+        (before, rest)
+          | Text.null rest -> acc <> before -- no more “upstream”
+          | otherwise ->
+              let acc' = acc <> before
+                  okay = case Text.unsnoc acc' of
+                    Nothing -> True
+                    Just (_, prev) -> not (Char.isAlphaNum prev)
+               in if not okay
+                    then go (Text.drop 8 rest) (acc' <> "upstream")
+                    else case Text.findIndex (== '{') rest of
+                      Nothing -> acc' <> rest
+                      Just iOpen ->
+                        let afterOpen = Text.drop (iOpen + 1) rest
+                            (_, rest') = grab (1 :: Int) afterOpen
+                         in go rest' acc'
+    grab 0 rr = ("", rr)
+    grab n rr = case Text.uncons rr of
+      Nothing -> ("", "")
+      Just (c, r')
+        | c == '{' -> let (s, rs) = grab (n + 1) r' in (c : s, rs)
+        | c == '}' ->
+            if n == 1
+              then ("", Text.dropWhile Char.isSpace r')
+              else let (s, rs) = grab (n - 1) r' in (c : s, rs)
+        | otherwise -> let (s, rs) = grab n r' in (c : s, rs)
 
 -- Insert generated upstreams:
 -- Try to put them right after the opening 'http {'.
@@ -675,21 +672,11 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
 
 |]
 
-inlineUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
-inlineUpstreamsInConfig nginxConf sm = do
+replaceUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
+replaceUpstreamsInConfig nginxConf sm = do
   original <- Text.readFile nginxConf
-  let names =
-        [ serviceName Brig,
-          serviceName Cannon,
-          serviceName Cargohold,
-          serviceName Galley,
-          serviceName Gundeck,
-          serviceName Nginz,
-          serviceName WireProxy,
-          serviceName Spar
-        ]
-      -- remove every existing matching upstream block
-      pruned = foldl' (\t n -> removeBlock n t) original (cs <$> names)
+  let -- remove all existing upstream blocks
+      pruned = removeUpstreams original
       -- splice freshly generated blocks
       finalConf = insertGeneratedUpstreams pruned (generateUpstreamsText sm)
 
