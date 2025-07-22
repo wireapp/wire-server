@@ -10,6 +10,7 @@ module Testlib.ModService
   )
 where
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
@@ -560,11 +561,11 @@ startNginzLocal resource = do
   -- override port configuration
   let portConfigTemplate =
         [r|listen {localPort};
-listen {http2_port};
-listen {ssl_port} ssl;
-listen [::]:{ssl_port} ssl;
-http2 on;
-|]
+            listen {http2_port};
+            listen {ssl_port} ssl;
+            listen [::]:{ssl_port} ssl;
+            http2 on;
+        |]
   let portConfig =
         portConfigTemplate
           & Text.replace "{localPort}" (cs $ show (sm.nginz.port))
@@ -579,8 +580,9 @@ http2 on;
   liftIO $ createUpstreamsCfg upstreamsCfg sm
   let upstreamFederatorTemplate =
         [r|upstream {name} {
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}|]
+            server 127.0.0.1:{port} max_fails=3 weight=1;
+            }
+        |]
   liftIO $
     appendFile
       upstreamsCfg
@@ -603,95 +605,104 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
   -- return handle and nginx tmp dir path
   pure $ ServiceInstance ph tmpDir
 
--- remove all existing 'upstream <name> { ... }' blocks
-removeUpstreams :: Text.Text -> Text.Text
-removeUpstreams txt = go txt Text.empty
-  where
-    go t acc =
-      case Text.breakOn "upstream " t of
-        (before, rest)
-          | Text.null rest -> acc <> before -- no more “upstream”
-          | otherwise ->
-              let acc' = acc <> before
-                  okay = case Text.unsnoc acc' of
-                    Nothing -> True
-                    Just (_, prev) -> not (Char.isAlphaNum prev)
-               in if not okay
-                    then go (Text.drop 8 rest) (acc' <> "upstream")
-                    else case Text.findIndex (== '{') rest of
-                      Nothing -> acc' <> rest
-                      Just iOpen ->
-                        let afterOpen = Text.drop (iOpen + 1) rest
-                            (_, rest') = grab (1 :: Int) afterOpen
-                         in go rest' acc'
-    grab 0 rr = ("", rr)
-    grab n rr = case Text.uncons rr of
-      Nothing -> ("", "")
-      Just (c, r')
-        | c == '{' -> let (s, rs) = grab (n + 1) r' in (c : s, rs)
-        | c == '}' ->
-            if n == 1
-              then ("", Text.dropWhile Char.isSpace r')
-              else let (s, rs) = grab (n - 1) r' in (c : s, rs)
-        | otherwise -> let (s, rs) = grab n r' in (c : s, rs)
-
--- Insert generated upstreams:
--- Try to put them right after the opening 'http {'.
-insertGeneratedUpstreams :: Text.Text -> Text.Text -> Text.Text
-insertGeneratedUpstreams conf ups =
-  case Text.breakOn "http {" conf of
-    (pre, rest)
-      | not (Text.null rest) ->
-          let (httpOpen, postOpen) = Text.splitAt (Text.length "http {") rest
-           in Text.concat [pre, httpOpen, "\n\n", ups, postOpen]
-    _ -> Text.concat [ups, "\n", conf] -- fallback: top of file
-
-generateUpstreamsText :: ServiceMap -> Text.Text
-generateUpstreamsText sm =
-  Text.concat $
-    [ (serviceName Brig, sm.brig.port),
-      (serviceName Cannon, sm.cannon.port),
-      (serviceName Cargohold, sm.cargohold.port),
-      (serviceName Galley, sm.galley.port),
-      (serviceName Gundeck, sm.gundeck.port),
-      (serviceName Nginz, sm.nginz.port),
-      (serviceName WireProxy, sm.proxy.port),
-      (serviceName Spar, sm.spar.port)
-    ]
-      <&> \(srv, p) ->
-        Text.replace "{name}" (cs srv)
-          . Text.replace "{port}" (cs $ show p)
-          $ upstreamTemplate
-  where
-    upstreamTemplate =
-      [r|upstream {name} {
-least_conn;
-keepalive 32;
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}
-
-|]
-
 replaceUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
 replaceUpstreamsInConfig nginxConf sm = do
   original <- Text.readFile nginxConf
   let -- remove all existing upstream blocks
       pruned = removeUpstreams original
       -- splice freshly generated blocks
-      finalConf = insertGeneratedUpstreams pruned (generateUpstreamsText sm)
+      finalConf = insertGeneratedUpstreams pruned generateUpstreamsText
 
   Text.writeFile nginxConf finalConf
+  where
+    -- remove all existing 'upstream <name> { ... }' blocks
+    removeUpstreams :: Text.Text -> Text.Text
+    removeUpstreams txt =
+      either (\e -> error ("Parsing for upstreams failed" <> e)) id $
+        Parser.parseOnly configParser txt
+      where
+        -- Parser for everything except upstream blocks
+        configParser :: Parser.Parser Text.Text
+        configParser = fmap Text.concat $ Parser.many' (Parser.try upstreamBlockSkip <|> fmap Text.singleton Parser.anyChar)
+
+        -- Parser to match and skip an upstream block
+        upstreamBlockSkip :: Parser.Parser Text.Text
+        upstreamBlockSkip = do
+          void $ Parser.try (Parser.string "upstream")
+          void $ Parser.many1 Parser.space
+          void $ Parser.many1 (alphaNum <|> oneOf "_-") -- The name
+          void $ Parser.many' Parser.space
+          blockBracesSkip
+          return "" -- Remove the whole block
+
+        -- Skip a block with balanced braces
+        blockBracesSkip :: Parser.Parser ()
+        blockBracesSkip = do
+          _ <- Parser.char '{'
+          skipBraces 1
+          where
+            skipBraces :: Int -> Parser.Parser ()
+            skipBraces 0 = pure ()
+            skipBraces n = do
+              c <- Parser.anyChar
+              case c of
+                '{' -> skipBraces (n + 1)
+                '}' -> skipBraces (n - 1)
+                _ -> skipBraces n
+
+    alphaNum :: Parser.Parser Char
+    alphaNum = Parser.satisfy Char.isAlphaNum
+
+    oneOf :: [Char] -> Parser.Parser Char
+    oneOf chars = Parser.satisfy (`elem` chars)
+
+    -- Insert generated upstreams:
+    -- Try to put them right after the opening 'http {'.
+    insertGeneratedUpstreams :: Text.Text -> Text.Text -> Text.Text
+    insertGeneratedUpstreams conf ups =
+      case Text.breakOn "http {" conf of
+        (pre, rest)
+          | not (Text.null rest) ->
+              let (httpOpen, postOpen) = Text.splitAt (Text.length "http {") rest
+               in Text.concat [pre, httpOpen, "\n\n", ups, postOpen]
+        _ -> Text.concat [ups, "\n", conf]
+
+    -- fallback: top of file
+    generateUpstreamsText :: Text.Text
+    generateUpstreamsText =
+      Text.concat $
+        [ (serviceName Brig, sm.brig.port),
+          (serviceName Cannon, sm.cannon.port),
+          (serviceName Cargohold, sm.cargohold.port),
+          (serviceName Galley, sm.galley.port),
+          (serviceName Gundeck, sm.gundeck.port),
+          (serviceName Nginz, sm.nginz.port),
+          (serviceName WireProxy, sm.proxy.port),
+          (serviceName Spar, sm.spar.port)
+        ]
+          <&> \(srv, p) ->
+            Text.replace "{name}" (cs srv)
+              . Text.replace "{port}" (cs $ show p)
+              $ upstreamTemplate
+      where
+        upstreamTemplate =
+          [r|upstream {name} {
+              least_conn;
+              keepalive 32;
+              server 127.0.0.1:{port} max_fails=3 weight=1;
+              }
+          |]
 
 createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
   liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
   let upstreamTemplate =
         [r|upstream {name} {
-least_conn;
-keepalive 32;
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}
-|]
+            least_conn;
+            keepalive 32;
+            server 127.0.0.1:{port} max_fails=3 weight=1;
+            }
+        |]
 
   forM_
     [ (serviceName Brig, sm.brig.port),
