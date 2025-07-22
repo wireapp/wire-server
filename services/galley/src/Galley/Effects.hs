@@ -92,12 +92,14 @@ import Galley.Effects.TeamStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Teams
+import Hasql.Pool
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.Error
 import Wire.GundeckAPIAccess
@@ -107,6 +109,7 @@ import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
+import Wire.TeamCollaboratorsStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -128,6 +131,7 @@ type GalleyEffects1 =
      RateLimit,
      HashPassword,
      Random,
+     TeamCollaboratorsStore,
      CustomBackendStore,
      LegalHoldStore,
      MemberStore,
@@ -150,6 +154,8 @@ type GalleyEffects1 =
      Input UTCTime,
      Queue DeleteItem,
      TinyLog,
+     Error TeamCollaboratorsError,
+     Error UsageError,
      Error DynError,
      Error RateLimitExceeded,
      Error HttpError

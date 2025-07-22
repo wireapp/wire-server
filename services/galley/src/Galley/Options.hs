@@ -41,6 +41,8 @@ module Galley.Options
     Opts (..),
     galley,
     cassandra,
+    postgresqlPassword,
+    postgresql,
     brig,
     gundeck,
     spar,
@@ -182,6 +184,10 @@ data Opts = Opts
     _galley :: !Endpoint,
     -- | Cassandra settings
     _cassandra :: !CassandraOpts,
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    _postgresql :: !(Map Text Text),
+    _postgresqlPassword :: !(Maybe FilePathSecrets),
     -- | Brig endpoint
     _brig :: !Endpoint,
     -- | Gundeck endpoint

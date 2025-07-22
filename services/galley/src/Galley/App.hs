@@ -83,6 +83,8 @@ import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import Hasql.Pool qualified as HasqlPool
+import Hasql.Pool.Extended qualified as HasqlPool
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -106,6 +108,7 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
@@ -116,10 +119,13 @@ import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Random.IO
+import Wire.TeamCollaboratorsStore.Postgres
+import Wire.TeamCollaboratorsSubsystem.Interpreter
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
   '[ Input ClientState,
+     Input HasqlPool.Pool,
      Input Env,
      Error InvalidInput,
      Error InternalError,
@@ -167,10 +173,11 @@ validateOptions o = do
 createEnv :: Opts -> Logger -> IO Env
 createEnv o l = do
   cass <- initCassandra o l
+  hasqlPool <- HasqlPool.initPostgresPool (o ^. postgresql) (o ^. postgresqlPassword)
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass hasqlPool
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
@@ -256,10 +263,13 @@ evalGalley e =
     . mapError toResponse
     . mapError toResponse
     . runInputConst e
+    . runInputConst (e ^. hasqlPool)
     . runInputConst (e ^. cstate)
     . mapError httpErrorToJSONResponse
     . mapError rateLimitExceededToHttpError
     . mapError toResponse -- DynError
+    . mapError postgresUsageErrorToHttpError
+    . mapError teamCollaboratorsSubsystemErrorToHttpError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
@@ -282,6 +292,7 @@ evalGalley e =
     . interpretMemberStoreToCassandra
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
+    . interpretTeamCollaboratorsStoreToPostgres
     . randomToIO
     . runHashPassword e._options._settings._passwordHashingOptions
     . interpretRateLimit e._passwordHashingRateLimitEnv
