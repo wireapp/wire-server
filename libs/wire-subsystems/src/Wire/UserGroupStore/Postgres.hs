@@ -102,7 +102,7 @@ getUserGroupsImpl tid pstate = do
   where
     session :: Session [UserGroup]
     session = do
-      let (encodeUtf8 -> sqlBS, searchStr) = paginationStateToSqlQuery tid pstate
+      let (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
       case searchStr of
         Just search -> do
           statement search . refineResult (mapM parseRow) $
@@ -139,9 +139,17 @@ getUserGroupsImpl tid pstate = do
       let members = mempty -- TODO: do we want `data UserGroup (m :: * -> *) = UserGroup { members :: m (Vector ...), ... }`?
       pure $ UserGroup {..}
 
+data PaginationSqlParams = PaginationSqlParams
+  { searchString :: Maybe Text,
+    lastSeen :: Maybe LastSeen
+  }
+
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
-paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, Maybe Text, Maybe Text)
+paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, PaginationSqlParams)
+paginationStateToSqlQuery = undefined
+
+{-
 paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
   ( T.pack . unwords $ join [s, w, n, o, q],
     (("%" <>) . (<> "%")) <$> pstate.searchString
@@ -182,6 +190,7 @@ paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
           Asc -> ">"
           Desc -> "<"
         z = mconcat ["('", lastNameOrCreatedAt, "', '", lastId, "')"] -- TODO: escape this!!!
+-}
 
 createUserGroupImpl ::
   forall r.
