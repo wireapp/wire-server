@@ -69,6 +69,7 @@ module Wire.API.Team.Member
     rolePermissions,
     IsPerm (..),
     HiddenPerm (..),
+    HasPermError (..),
   )
 where
 
@@ -584,35 +585,47 @@ isAdminOrOwner perms =
     Just RoleExternalPartner -> False
     Nothing -> False
 
+class HasPermError perm where
+  type PermError (p :: perm) :: GalleyError
+
+instance HasPermError Perm where
+  type PermError p = 'MissingPermission ('Just p)
+
+instance HasPermError HiddenPerm where
+  type PermError p = OperationDenied
+
+-- type family PermError p where
+--   PermError (p :: Perm) = 'MissingPermission ('Just p)
+--   PermError (_ :: HiddenPerm) = OperationDenied
+
 -- | See Note [hidden team roles]
 class IsPerm teamAssociation perm where
-  type PermError (e :: perm) :: GalleyError
-
-  roleHasPerm :: Role -> perm -> Bool
-  roleGrantsPerm :: Role -> perm -> Bool
+  -- type PermError teamAssociation (p :: perm) :: GalleyError
   hasPermission :: teamAssociation -> perm -> Bool
   mayGrantPermission :: teamAssociation -> perm -> Bool
 
-instance IsPerm TeamMember Perm where
-  type PermError p = 'MissingPermission ('Just p)
+instance IsPerm Role Perm where
+  -- type PermError Role p = 'MissingPermission ('Just p)
+  hasPermission r p = p `Set.member` ((rolePermissions r).self)
+  mayGrantPermission r p = p `Set.member` ((rolePermissions r).copy)
 
-  roleHasPerm r p = p `Set.member` ((rolePermissions r).self)
-  roleGrantsPerm r p = p `Set.member` ((rolePermissions r).copy)
+instance IsPerm Role HiddenPerm where
+  -- type PermError Role p = OperationDenied
+  hasPermission r p = p `Set.member` _hself (roleHiddenPermissions r)
+  mayGrantPermission r p = p `Set.member` _hcopy (roleHiddenPermissions r)
+
+instance IsPerm TeamMember Perm where
+  -- type PermError TeamMember p = 'MissingPermission ('Just p)
   hasPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).self)
   mayGrantPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).copy)
 
 instance IsPerm TeamMember HiddenPerm where
-  type PermError p = OperationDenied
-
-  roleHasPerm r p = p `Set.member` _hself (roleHiddenPermissions r)
-  roleGrantsPerm r p = p `Set.member` _hcopy (roleHiddenPermissions r)
-  hasPermission tm perm = maybe False (flip (roleHasPerm @TeamMember) perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
-  mayGrantPermission tm perm = maybe False (flip (roleGrantsPerm @TeamMember) perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
+  -- type PermError TeamMember p = OperationDenied
+  hasPermission tm perm = maybe False (flip hasPermission perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
+  mayGrantPermission tm perm = maybe False (flip mayGrantPermission perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
 
 instance IsPerm TeamCollaborator Perm where
-  type PermError p = 'MissingPermission ('Just p)
-  roleHasPerm _ _ = False
-  roleGrantsPerm _ _ = False
+  -- type PermError TeamCollaborator p = 'MissingPermission ('Just p)
   hasPermission collaborator perm =
     perm `Set.member` collaboratorToTeamPermissions collaborator.gPermissions
   mayGrantPermission _ _ = False
