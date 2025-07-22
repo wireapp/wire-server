@@ -1,6 +1,7 @@
 module Test.TeamCollaborators where
 
 import API.Brig
+import API.Galley
 import Notifications (isTeamCollaboratorAddedNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -10,12 +11,13 @@ testCreateTeamCollaborator = do
   (owner, team, [alice]) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
-  userId <- randomUser OwnDomain def >>= asString . (%. "id")
+  user <- randomUser OwnDomain def
+  (_, userId) <- objQid user
   withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
     addTeamCollaborator
       owner
       team
-      userId
+      user
       [ "create_team_conversation",
         "implicit_connection"
       ]
@@ -44,11 +46,11 @@ testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
   (_owner2, team2, _members2) <- createTeam OwnDomain 0
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
-  userId <- randomUser OwnDomain def >>= asString . (%. "id")
+  user <- randomUser OwnDomain def
   addTeamCollaborator
     owner
     team2
-    userId
+    user
     [ "create_team_conversation",
       "implicit_connection"
     ]
@@ -61,14 +63,33 @@ testCreateTeamCollaboratorPostTwice = do
   (owner, team, _members) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
-  userId <- randomUser OwnDomain def >>= asString . (%. "id")
+  user <- randomUser OwnDomain def
   let add =
         addTeamCollaborator
           owner
           team
-          userId
+          user
           [ "create_team_conversation",
             "implicit_connection"
           ]
   bindResponse add assertSuccess
   bindResponse add $ assertStatus 409
+
+-- Question about channels: Do collaborators get to create them when all team members are allowed to create them?
+testCollaboratorCanCreateTeamConv :: (HasCallStack) => App ()
+testCollaboratorCanCreateTeamConv = do
+  (owner, team, _) <- createTeam OwnDomain 1
+  (_, nonCollaboratingTeam, _) <- createTeam OwnDomain 1
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  (_, _, [collaborator]) <- createTeam OwnDomain 2
+
+  addTeamCollaborator owner team collaborator ["create_team_conversation"]
+    >>= assertSuccess
+
+  postConversation collaborator (defMLS {team = Just nonCollaboratingTeam}) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "no-team-member"
+
+  postConversation collaborator (defMLS {team = Just team}) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "team" `shouldMatch` team

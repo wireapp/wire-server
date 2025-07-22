@@ -324,7 +324,7 @@ createEmailChangeToken lusr email updateOrigin = do
 ------------------------------------------
 
 ensurePermissions ::
-  ( IsPerm perm,
+  ( IsPerm TeamMember perm,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r
   ) =>

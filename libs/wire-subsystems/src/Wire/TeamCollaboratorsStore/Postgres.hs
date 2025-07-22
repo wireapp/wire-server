@@ -9,6 +9,7 @@ import Data.Bimap qualified as Bimap
 import Data.Id
 import Data.Profunctor
 import Data.Set
+import Data.Set qualified as Set
 import Data.UUID
 import Data.Vector
 import Hasql.Pool
@@ -99,8 +100,8 @@ getAllTeamCollaboratorsImpl teamId = do
     toTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
       TeamCollaborator {..}
 
-    toPermissions :: Vector Int16 -> [CollaboratorPermission]
-    toPermissions = (Data.Vector.toList . Data.Vector.map postgreslRepToCollaboratorPermission)
+    toPermissions :: Vector Int16 -> Set CollaboratorPermission
+    toPermissions = Data.Vector.foldr (Set.insert . postgreslRepToCollaboratorPermission) Set.empty
 
 -- We could rely on an `Ord` instance here. Howver, when the order is changed,
 -- this will mess up spectaculary at run time. So, this extra mapping is meant

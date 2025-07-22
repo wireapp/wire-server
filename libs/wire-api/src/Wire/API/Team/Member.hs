@@ -92,6 +92,8 @@ import Imports
 import Wire.API.Error.Galley
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
 import Wire.API.Routes.MultiTablePaging.State
+import Wire.API.Team.Collaborator (CollaboratorPermission, TeamCollaborator (..))
+import Wire.API.Team.Collaborator qualified as Collaborator
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
@@ -583,17 +585,15 @@ isAdminOrOwner perms =
     Nothing -> False
 
 -- | See Note [hidden team roles]
-class IsPerm perm where
+class IsPerm teamAssociation perm where
   type PermError (e :: perm) :: GalleyError
 
   roleHasPerm :: Role -> perm -> Bool
   roleGrantsPerm :: Role -> perm -> Bool
-  hasPermission :: TeamMember -> perm -> Bool
-  hasPermission tm perm = maybe False (`roleHasPerm` perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
-  mayGrantPermission :: TeamMember -> perm -> Bool
-  mayGrantPermission tm perm = maybe False (`roleGrantsPerm` perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
+  hasPermission :: teamAssociation -> perm -> Bool
+  mayGrantPermission :: teamAssociation -> perm -> Bool
 
-instance IsPerm Perm where
+instance IsPerm TeamMember Perm where
   type PermError p = 'MissingPermission ('Just p)
 
   roleHasPerm r p = p `Set.member` ((rolePermissions r).self)
@@ -601,11 +601,29 @@ instance IsPerm Perm where
   hasPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).self)
   mayGrantPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).copy)
 
-instance IsPerm HiddenPerm where
+instance IsPerm TeamMember HiddenPerm where
   type PermError p = OperationDenied
 
   roleHasPerm r p = p `Set.member` _hself (roleHiddenPermissions r)
   roleGrantsPerm r p = p `Set.member` _hcopy (roleHiddenPermissions r)
+  hasPermission tm perm = maybe False (flip (roleHasPerm @TeamMember) perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
+  mayGrantPermission tm perm = maybe False (flip (roleGrantsPerm @TeamMember) perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
+
+instance IsPerm TeamCollaborator Perm where
+  type PermError p = 'MissingPermission ('Just p)
+  roleHasPerm _ _ = False
+  roleGrantsPerm _ _ = False
+  hasPermission collaborator perm =
+    perm `Set.member` collaboratorToTeamPermissions collaborator.gPermissions
+  mayGrantPermission _ _ = False
+
+collaboratorToTeamPermissions :: Set CollaboratorPermission -> Set Perm
+collaboratorToTeamPermissions =
+  foldMap
+    ( \case
+        Collaborator.CreateTeamConversation -> Set.singleton CreateConversation
+        Collaborator.ImplicitConnection -> mempty
+    )
 
 ----------------------------------------------------------------------
 

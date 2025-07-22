@@ -294,16 +294,16 @@ getMLSData conv = case Data.convProtocol conv of
 
 -- | Same as 'permissionCheck', but for a statically known permission.
 permissionCheckS ::
-  forall perm (p :: perm) r.
+  forall teamAssociation perm (p :: perm) r.
   ( SingKind perm,
-    IsPerm (Demote perm),
+    IsPerm teamAssociation (Demote perm),
     ( Member (ErrorS (PermError p)) r,
       Member (ErrorS 'NotATeamMember) r
     )
   ) =>
   Sing p ->
-  Maybe TeamMember ->
-  Sem r TeamMember
+  Maybe teamAssociation ->
+  Sem r teamAssociation
 permissionCheckS p =
   \case
     Just m -> do
@@ -317,14 +317,14 @@ permissionCheckS p =
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return the team member.
 permissionCheck ::
-  ( IsPerm perm,
+  ( IsPerm teamAssociation perm,
     ( Member (ErrorS OperationDenied) r,
       Member (ErrorS 'NotATeamMember) r
     )
   ) =>
   perm ->
-  Maybe TeamMember ->
-  Sem r TeamMember
+  Maybe teamAssociation ->
+  Sem r teamAssociation
 -- FUTUREWORK: factor `noteS` out of this function.
 permissionCheck p = \case
   Just m -> do

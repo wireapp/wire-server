@@ -89,7 +89,7 @@ getAllTeamCollaboratorsImpl zUser team = do
 guardPermission ::
   ( Member GalleyAPIAccess r,
     Member (Error ex) r,
-    TeamMember.IsPerm perm
+    TeamMember.IsPerm TeamMember.TeamMember perm
   ) =>
   UserId ->
   TeamId ->

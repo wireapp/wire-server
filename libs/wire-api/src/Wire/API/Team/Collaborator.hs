@@ -31,7 +31,7 @@ instance Exception TeamCollaboratorsError
 
 data NewTeamCollaborator = NewTeamCollaborator
   { aUser :: UserId,
-    aPermissions :: [CollaboratorPermission]
+    aPermissions :: Set CollaboratorPermission
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NewTeamCollaborator)
 
@@ -40,12 +40,12 @@ instance ToSchema NewTeamCollaborator where
     object "NewTeamCollaborator" $
       NewTeamCollaborator
         <$> (aUser .= field "user" schema)
-        <*> (aPermissions .= field "permissions" (array schema))
+        <*> (aPermissions .= field "permissions" (set schema))
 
 data TeamCollaborator = TeamCollaborator
   { gUser :: UserId,
     gTeam :: TeamId,
-    gPermissions :: [CollaboratorPermission]
+    gPermissions :: Set CollaboratorPermission
   }
   deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema TeamCollaborator)
@@ -56,4 +56,4 @@ instance ToSchema TeamCollaborator where
       TeamCollaborator
         <$> (gUser .= field "user" schema)
         <*> (gTeam .= field "team" schema)
-        <*> (gPermissions .= field "permissions" (array schema))
+        <*> (gPermissions .= field "permissions" (set schema))

@@ -5,7 +5,6 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Set qualified as Set
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -38,7 +37,7 @@ spec = do
                 do
                   createTeamCollaborator authUser collaborator.id tid collabPerms
                   collaborators <- getAllTeamCollaborators authUser tid
-                  pure $ collaborators === [TeamCollaborator collaborator.id tid (Set.toAscList collabPerms)]
+                  pure $ collaborators === [TeamCollaborator collaborator.id tid collabPerms]
 
     prop "can get empty team collaborator list" $
       \(collaborator :: StoredUser)
