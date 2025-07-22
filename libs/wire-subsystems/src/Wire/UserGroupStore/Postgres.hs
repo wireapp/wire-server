@@ -3,7 +3,9 @@
 module Wire.UserGroupStore.Postgres where
 
 import Control.Error (MaybeT (..))
+import Control.Lens (view, _1, _2, _3)
 import Data.Bifunctor (second)
+import Data.Functor.Contravariant ((>$<))
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
@@ -101,23 +103,32 @@ getUserGroupsImpl tid pstate = do
   either throw pure eitherResult
   where
     session :: Session [UserGroup]
-    session = do
-      let (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
-      case searchStr of
-        Just search -> do
-          statement search . refineResult (mapM parseRow) $
-            Statement
-              sqlBS
-              (HE.param $ HE.nonNullable HE.text)
-              decodeRow
-              True
-        Nothing -> do
-          statement () . refineResult (mapM parseRow) $
-            Statement
-              sqlBS
-              HE.noParams
-              decodeRow
-              True
+    session = run
+      where
+        (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
+
+        -- turn sql params into a flat list of texts
+        collect :: PaginationSqlParams -> [Text]
+        collect params = catMaybes $ case params of
+          PaginationSqlParams s Nothing -> [s]
+          PaginationSqlParams s (Just (LastSeen n i)) -> [s, Just n, Just (idToText i)]
+
+        -- fill just the right number of holes in the statement using matching encoders
+        run = case collect sqlParams of
+          [] -> mkSession (statement ()) HE.noParams
+          [a] -> mkSession (statement a) encode1
+          [a, b] -> mkSession (statement (a, b)) encode2
+          [a, b, c] -> mkSession (statement (a, b, c)) encode3
+
+        encode1 = HE.param (HE.nonNullable HE.text)
+        encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
+        encode3 = (view _1 >$< encode1) <> (view _2 >$< encode1) <> (view _3 >$< encode1)
+
+        -- shared code from all cases in run above
+        mkSession :: (Statement params [UserGroup] -> Session [UserGroup]) -> HE.Params params -> Session [UserGroup]
+        mkSession mkStatement params =
+          mkStatement . refineResult (mapM parseRow) $
+            Statement sqlBS params decodeRow True
 
     decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
     decodeRow =
