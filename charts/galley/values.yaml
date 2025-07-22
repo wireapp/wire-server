@@ -185,6 +185,10 @@ config:
             allowed_to_create_channels: team-members
             allowed_to_open_channels: team-members
           lockStatus: locked
+      allowedGlobalOperations:
+        status: enabled
+        config:
+          mlsConversationReset: false
 
   aws:
     region: "eu-west-1"

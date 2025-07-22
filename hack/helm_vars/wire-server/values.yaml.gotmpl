@@ -359,6 +359,10 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
+        allowedGlobalOperations:
+          status: enabled
+          config:
+            mlsConversationReset: false
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo

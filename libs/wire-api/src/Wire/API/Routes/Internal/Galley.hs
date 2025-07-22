@@ -58,6 +58,7 @@ import Wire.API.User.Client
 type family IFeatureAPI1 cfg where
   -- special case for classified domains, since it cannot be set
   IFeatureAPI1 ClassifiedDomainsConfig = IFeatureStatusGet ClassifiedDomainsConfig
+  IFeatureAPI1 AllowedGlobalOperationsConfig = IFeatureStatusGet AllowedGlobalOperationsConfig
   IFeatureAPI1 cfg = IFeatureAPI1Full cfg
 
 type IFeatureAPI1Full cfg =

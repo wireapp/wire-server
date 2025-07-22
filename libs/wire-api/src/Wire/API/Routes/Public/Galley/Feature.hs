@@ -67,6 +67,7 @@ type FeatureAPI =
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
     :<|> FeatureAPIGetPut CellsConfig
+    :<|> FeatureAPIGet AllowedGlobalOperationsConfig
 
 type DeprecationNotice1 = "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022"
 

@@ -150,6 +150,10 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
+    allowedGlobalOperations:
+      status: enabled
+      config:
+        mlsConversationReset: false
 
 logLevel: Warn
 logNetStrings: false

@@ -148,7 +148,17 @@ defAllFeatures =
                   "allowed_to_open_channels" .= "team-members"
                 ]
           ],
-      "cells" .= enabled
+      "cells" .= enabled,
+      "allowedGlobalOperations"
+        .= object
+          [ "lockStatus" .= "locked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "mlsConversationReset" .= False
+                ]
+          ]
     ]
 
 hasExplicitLockStatus :: String -> Bool

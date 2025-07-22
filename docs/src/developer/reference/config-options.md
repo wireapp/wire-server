@@ -581,6 +581,25 @@ cells:
     lockStatus: locked
 ```
 
+### Allowed Global Operations
+
+`allowedGlobalOperations` currently supports a single value `mlsConversationReset` which determines if it is allowed to reset MLS conversations by the client.
+
+This setting cannot be updated in the DB and therefore does not apply to any specific team but instead to the entire backend.
+
+To configure this setting set or update it in the `values.yaml` of galley as follows:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      allowedGlobalOperations:
+        status: enabled
+        config:
+          mlsConversationReset: true
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only
