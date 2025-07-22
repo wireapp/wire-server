@@ -606,11 +606,15 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
 
 -- Remove the first occurrence of
 --   upstream <name> { ... }
--- (dot-all & non-greedy to stop at its *own* closing brace)
 removeBlock :: Text.Text -> Text.Text -> Text.Text
 removeBlock name =
-  let regex = Text.concat ["(?s)upstream[[:space:]]+", name, "[[:space:]]*\\{.*?\\}"]
-   in Text.pack . flip (subRegex regex) "" . Text.unpack
+  let regex =
+        Text.concat
+          [ "upstream[[:space:]]+",
+            name,
+            "[[:space:]]*\\{([^\n}]|[\n])*?\\}" -- “anything incl. \\n” non-greedy
+          ]
+   in Text.pack . subRegex regex "" . Text.unpack
 
 -- | Replace **all** matches of the regex pattern with the replacement text.
 subRegex ::
