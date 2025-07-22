@@ -32,11 +32,10 @@ import Wire.MockInterpreters.UserGroupStore
 import Wire.UserGroupStore
 import Wire.UserGroupStore.Postgres
 
-check :: (HasCallStack) => PaginationState -> (Text, Maybe Text) -> Spec
+check :: (HasCallStack) => PaginationState -> (Text, Maybe LastSeen) -> Spec
 check pstate result =
-  it
-    (T.unpack (fst result))
-    (paginationStateToSqlQuery tid pstate `shouldBe` result)
+  it (T.unpack (fst result)) do
+    paginationStateToSqlQuery tid pstate `shouldBe` result
   where
     tid = Id (fromJust $ UUID.fromText "d52017d2-578b-11f0-9699-9344acad2031")
 
@@ -68,11 +67,11 @@ spec = do
         { sortBy = SortByName,
           sortOrder = Asc,
           pageSize = pageSizeFromIntUnsafe 200,
-          lastSeenName = Just (userGroupNameFromTextUnsafe "ug1")
+          lastSeen = Just (LastSeen "ug1" (undefined "38fb011e-673a-11f0-86f3-eb55b8ac7296"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and name > 'ug1' \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and (name, id) > ('ug1', '38fb011e-673a-11f0-86f3-eb55b8ac7296') \
         \order by name asc, created_at desc \
         \limit 200",
         Nothing
@@ -83,14 +82,12 @@ spec = do
         { sortBy = SortByName,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeenId = Just $ parseIdFromTextUnsafe "ab1363ba-663e-11f0-99cd-77aae8e6aadd",
-          lastSeenName = Just (userGroupNameFromTextUnsafe "ug1"),
-          lastSeenCreatedAt = Just (fromJust $ readUTCTimeMillis "2021-05-12T10:52:02Z")
+          lastSeen = Just (LastSeen "ug2" (undefined "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \and (name, created_at, id) > ('ug1', '2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
+        \and (name, id) > ('ug1', '2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
         \order by created_at asc, name desc \
         \limit 100",
         Nothing
@@ -101,14 +98,12 @@ spec = do
         { sortBy = SortByCreatedAt,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeenId = Just $ parseIdFromTextUnsafe "ab1363ba-663e-11f0-99cd-77aae8e6aadd",
-          lastSeenName = Just (userGroupNameFromTextUnsafe "ug1"),
-          lastSeenCreatedAt = Just (fromJust $ readUTCTimeMillis "2021-05-12T10:52:02Z")
+          lastSeen = Just (LastSeen "2021-05-12T10:52:02.000Z" (undefined "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \and (created_at, name, id) > ('2021-05-12T10:52:02.000Z', 'ug1', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
+        \and (created_at, name, id) < ('2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
         \order by created_at asc, name desc \
         \limit 100",
         Nothing
@@ -212,14 +207,14 @@ spec = do
                    ]
 
     it "paginates" $ do
-      let search :: (_) => TeamId -> (Int, Maybe Text) -> Sem r [Text]
-          search tid (size, lseen) =
+      let search :: (_) => TeamId -> (Int, Maybe LastSeen) -> Sem r [Text]
+          search tid (size, mblseen) =
             (userGroupNameToText . (.name))
               <$$> getUserGroups
                 tid
                 ( pstate
                     { pageSize = pageSizeFromIntUnsafe size,
-                      lastSeenName = userGroupNameFromTextUnsafe <$> lseen
+                      lastSeen = mblseen
                     }
                 )
       tid <- randomId
