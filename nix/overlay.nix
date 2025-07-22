@@ -72,13 +72,7 @@ self: super: {
     };
   };
 
-  nginz = (super.nginx.overrideAttrs rec {
-    version = "1.28.0";
-    src = super.fetchurl {
-      url = "https://nginx.org/download/nginx-${version}.tar.gz";
-      hash = "sha256-xrXGsIbA3508o/9eCEwdDvkJ5gOCecccHD6YX1dv92o=";
-    };
-  }).override {
+  nginz = super.nginx.override {
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders
