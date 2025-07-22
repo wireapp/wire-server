@@ -38,19 +38,25 @@ import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
 -- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
--- also sorting (and possibly filtering, who knows?).  Please generalize when needed
--- elsewhere.
+-- also sorting and filtering.  Please generalize when needed elsewhere.
 --
 -- Prior art: https://github.com/chordify/haskell-servant-pagination/
+-- TODO: document how has_more works.
 type PaginationQuery =
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
     :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
     :> QueryParam' '[Optional, Strict] "page_size" PageSize
-    :> QueryParam' '[Optional, Strict] "last_seen_name" UserGroupName
-    :> QueryParam' '[Optional, Strict] "last_seen_created_at" UTCTimeMillis
+    :> QueryParam' '[Optional, Strict] "starting_at_name" UserGroupName -- TODO: remove this?  not in the RFC.
+    :> QueryParam' '[Optional, Strict] "starting_at_created_at" UTCTimeMillis -- TODO: remove this?  not in the RFC.
     :> QueryParam'
-         '[Optional, Strict, Description "Pagination state from last response (opaque to clients)"]
+         '[ Optional,
+            Strict,
+            Description
+              "Pagination state from last response (opaque to clients). \
+              \If you set pagination_state, you cannot set any of the other \
+              \query params for sorting, filtering, and pagination."
+          ]
          "pagination_state"
          PaginationState
     :> Get '[JSON] PaginationResult
@@ -140,6 +146,8 @@ instance O.ToParamSchema PageSize
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
 
+-- TODO: serialize paginationstate more efficiently.  protobuf?
+
 ------------------------------
 
 -- | Offset-based pagination.
@@ -152,51 +160,54 @@ data PaginationState = PaginationState
     -- means do not filter.
     searchString :: Maybe Text,
     sortBy :: SortBy,
-    sortOrderName :: SortOrder,
-    sortOrderCreatedAt :: SortOrder,
+    sortOrder :: SortOrder,
     pageSize :: PageSize,
-    -- | Next page starts after this.
-    lastSeenName :: Maybe UserGroupName,
-    lastSeenCreatedAt :: Maybe UTCTimeMillis,
-    -- | Tie breaker.
-    lastSeenId :: Maybe UserGroupId
+    -- | Next page starts after this (either name or created_at, depending on sortBy).  Id is
+    -- tie breaker.
+    lastSeen :: Maybe LastSeen
   }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
+
+data LastSeen = LastSeen {nameOrCreatedAt :: Text, tieBreaker :: UserGroupId}
+  deriving (Eq, Show, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema LastSeen
+
+instance ToSchema LastSeen where
+  schema =
+    object "LastSeen" $
+      LastSeen
+        <$> (.nameOrCreatedAt) .= field "name_or_created_at" schema
+        <*> (.tieBreaker) .= field "tie_breaker" schema
+
+instance Arbitrary LastSeen where
+  arbitrary = LastSeen <$> arbitrary <*> arbitrary
 
 instance Default PaginationState where
   def =
     PaginationState
       { searchString = Nothing,
         sortBy = def,
-        sortOrderName = defaultSortOrder SortByName,
-        sortOrderCreatedAt = defaultSortOrder SortByCreatedAt,
+        sortOrder = defaultSortOrder def,
         pageSize = def,
-        lastSeenId = Nothing,
-        lastSeenName = Nothing,
-        lastSeenCreatedAt = Nothing
+        lastSeen = Nothing
       }
 
+-- TODO: use caml case for everything
 instance ToSchema PaginationState where
   schema =
     object "PagintationStatePayload" $
       PaginationState
         <$> (.searchString) .= maybe_ (optField "search_string" schema)
         <*> (.sortBy) .= field "sort_by" schema
-        <*> (.sortOrderName) .= field "sort_order_by_name" schema
-        <*> (.sortOrderCreatedAt) .= field "sort_order_by_created_at" schema
+        <*> (.sortOrder) .= field "sort_order" schema
         <*> (.pageSize) .= field "page_size" schema
-        <*> (.lastSeenName) .= maybe_ (optField "last_seen_name" schema)
-        <*> (.lastSeenCreatedAt) .= maybe_ (optField "last_seen_created_at" schema)
-        <*> (.lastSeenId) .= maybe_ (optField "last_seen_id" schema)
+        <*> (.lastSeen) .= maybe_ (optField "last_seen" schema)
 
 instance Arbitrary PaginationState where
   arbitrary =
     PaginationState
       <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
