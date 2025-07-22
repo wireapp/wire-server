@@ -1989,6 +1989,16 @@ type TeamsAPI =
                :> "collaborators"
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Return collaborators" [TeamCollaborator])
            )
+    :<|> Named
+           "remove-team-collaborator"
+           ( Summary "Remove a collaborator from the team."
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> CaptureUserId "uid"
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from team")
+           )
 
 type SystemSettingsAPI =
   Named

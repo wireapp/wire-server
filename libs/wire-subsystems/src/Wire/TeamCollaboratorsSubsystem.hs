@@ -12,5 +12,6 @@ data TeamCollaboratorsSubsystem m a where
   CreateTeamCollaborator :: Local UserId -> UserId -> TeamId -> Set CollaboratorPermission -> TeamCollaboratorsSubsystem m ()
   GetAllTeamCollaborators :: Local UserId -> TeamId -> TeamCollaboratorsSubsystem m [TeamCollaborator]
   InternalGetTeamCollaborator :: TeamId -> UserId -> TeamCollaboratorsSubsystem m (Maybe TeamCollaborator)
+  RemoveTeamCollaborator :: Local UserId -> UserId -> TeamId -> TeamCollaboratorsSubsystem m ()
 
 makeSem ''TeamCollaboratorsSubsystem

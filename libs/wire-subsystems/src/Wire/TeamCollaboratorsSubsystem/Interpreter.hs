@@ -35,6 +35,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
+  RemoveTeamCollaborator zUser team user -> removeTeamCollaboratorImpl zUser team user
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -92,6 +93,19 @@ getAllTeamCollaboratorsImpl ::
 getAllTeamCollaboratorsImpl zUser team = do
   guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team
+
+removeTeamCollaboratorImpl ::
+  ( Member GalleyAPIAccess r,
+    Member (Error TeamCollaboratorsError) r,
+    Member Store.TeamCollaboratorsStore r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Sem r ()
+removeTeamCollaboratorImpl zUser user team = do
+  -- TODO: actual implementation here
+  return ()
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.
