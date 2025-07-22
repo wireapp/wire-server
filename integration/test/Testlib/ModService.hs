@@ -218,7 +218,8 @@ startDynamicBackend resource beOverrides = do
     setPgDb :: ServiceOverrides
     setPgDb =
       def
-        { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
+        { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
+          galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
         }
 
     setEsIndex :: ServiceOverrides

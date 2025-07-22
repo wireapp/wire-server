@@ -7,6 +7,7 @@ import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
+import Wire.API.Error
 import Wire.Arbitrary
 
 data CollaboratorPermission = CreateTeamConversation | ImplicitConnection
@@ -28,6 +29,9 @@ data TeamCollaboratorsError
   deriving (Eq, Show)
 
 instance Exception TeamCollaboratorsError
+
+instance APIError TeamCollaboratorsError where
+  toResponse = undefined
 
 data NewTeamCollaborator = NewTeamCollaborator
   { aUser :: UserId,

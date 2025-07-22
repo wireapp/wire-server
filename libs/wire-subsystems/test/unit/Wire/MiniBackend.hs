@@ -106,6 +106,8 @@ import Wire.StoredUser
 import Wire.TeamCollaboratorsStore
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -211,7 +213,8 @@ data MiniBackendParams r = MiniBackendParams
 -- organize along effect types ("all `State`s"), but the domain ("everything about block
 -- lists").
 type MiniBackendLowerEffects =
-  '[ EmailSubsystem,
+  '[ TeamSubsystem,
+     EmailSubsystem,
      NotificationSubsystem,
      GalleyAPIAccess,
      SparAPIAccess,
@@ -279,6 +282,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . miniGalleyAPIAccess teams galleyConfigs
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
+    . intepreterTeamSubsystemToGalleyAPI
 
 type StateEffects =
   '[ State [Push],

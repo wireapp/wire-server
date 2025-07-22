@@ -90,6 +90,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.NotificationSubsystem
+import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem, getTeamCollaborator)
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -121,7 +122,8 @@ createGroupConversationUpToV3 ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -165,7 +167,8 @@ createGroupConversationV9 ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -209,7 +212,8 @@ createGroupConversation ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -254,7 +258,8 @@ createGroupConvAndMkResponse ::
     Member NotificationSubsystem r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -294,7 +299,8 @@ createGroupConversationGeneric ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -358,7 +364,8 @@ checkCreateConvPermissions ::
     Member (ErrorS NotAnMlsConversation) r,
     Member TeamStore r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   NewConv ->
@@ -376,12 +383,19 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
+  mTeamMember <- getTeamMember (tUnqualified lusr) (Just convTeam)
+  teamAssociation <- do
+    mTeamCollaborator <- getTeamCollaborator lusr convTeam (tUnqualified lusr)
+    pure $ case (mTeamMember, mTeamCollaborator) of
+      (Just tm, _) -> Just (Left tm)
+      (Nothing, Just tc) -> Just (Right tc)
+      _ -> Nothing
+
   case newConv.newConvGroupConvType of
     Channel -> do
-      ensureCreateChannelPermissions tinfo.cnvTeamId zusrMembership
+      ensureCreateChannelPermissions tinfo.cnvTeamId mTeamMember
     GroupConversation -> do
-      void $ permissionCheck CreateConversation zusrMembership
+      void $ permissionCheck CreateConversation teamAssociation
       -- In teams we don't have 1:1 conversations, only regular conversations. We want
       -- users without the 'AddRemoveConvMember' permission to still be able to create
       -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -395,7 +409,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
       -- so we don't allow an external partner to create an MLS group conversation at all
       when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
-        void $ permissionCheck AddRemoveConvMember zusrMembership
+        void $ permissionCheck AddRemoveConvMember teamAssociation
 
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)

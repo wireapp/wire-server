@@ -610,25 +610,25 @@ instance IsPerm Role Perm where
   mayGrantPermission r p = p `Set.member` ((rolePermissions r).copy)
 
 instance IsPerm Role HiddenPerm where
-  -- type PermError Role p = OperationDenied
   hasPermission r p = p `Set.member` _hself (roleHiddenPermissions r)
   mayGrantPermission r p = p `Set.member` _hcopy (roleHiddenPermissions r)
 
 instance IsPerm TeamMember Perm where
-  -- type PermError TeamMember p = 'MissingPermission ('Just p)
   hasPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).self)
   mayGrantPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).copy)
 
 instance IsPerm TeamMember HiddenPerm where
-  -- type PermError TeamMember p = OperationDenied
   hasPermission tm perm = maybe False (flip hasPermission perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
   mayGrantPermission tm perm = maybe False (flip mayGrantPermission perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
 
 instance IsPerm TeamCollaborator Perm where
-  -- type PermError TeamCollaborator p = 'MissingPermission ('Just p)
   hasPermission collaborator perm =
     perm `Set.member` collaboratorToTeamPermissions collaborator.gPermissions
   mayGrantPermission _ _ = False
+
+instance IsPerm (Either TeamMember TeamCollaborator) Perm where
+  hasPermission = either hasPermission hasPermission
+  mayGrantPermission = either mayGrantPermission mayGrantPermission
 
 collaboratorToTeamPermissions :: Set CollaboratorPermission -> Set Perm
 collaboratorToTeamPermissions =

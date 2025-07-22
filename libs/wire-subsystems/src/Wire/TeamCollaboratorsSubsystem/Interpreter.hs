@@ -17,14 +17,14 @@ import Wire.API.Push.V2 qualified as Push
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.Error
-import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.TeamCollaboratorsStore qualified as Store
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem
 
 interpretTeamCollaboratorsSubsystem ::
-  ( Member GalleyAPIAccess r,
+  ( Member TeamSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
@@ -34,9 +34,23 @@ interpretTeamCollaboratorsSubsystem ::
 interpretTeamCollaboratorsSubsystem = interpret $ \case
   CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
+  GetTeamCollaborator zUser team user -> getTeamCollaboratorImpl zUser team user
+
+getTeamCollaboratorImpl ::
+  (Member Store.TeamCollaboratorsStore r, Member TeamSubsystem r, Member (Error TeamCollaboratorsError) r) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r (Maybe TeamCollaborator)
+getTeamCollaboratorImpl lusr teamId userId = do
+  let usr = tUnqualified lusr
+  -- collaborator should get themselves, too
+  mTm <- internalGetTeamMember usr teamId
+  unless (isJust mTm) $ throw InsufficientRights
+  Store.getTeamCollaborator teamId userId
 
 createTeamCollaboratorImpl ::
-  ( Member GalleyAPIAccess r,
+  ( Member TeamSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
@@ -53,7 +67,8 @@ createTeamCollaboratorImpl zUser user team perms = do
 
   now <- get
   let event = newEvent team now (EdCollaboratorAdd user (Set.toList perms))
-  teamMembersList <- getTeamMembers team
+  -- TODO: Why fanout to the whole team, it won't work for large teams
+  teamMembersList <- internalGetTeamMembers team
   let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
   -- TODO: Review the event's values
   pushNotifications
@@ -73,7 +88,7 @@ createTeamCollaboratorImpl zUser user team perms = do
     ]
 
 getAllTeamCollaboratorsImpl ::
-  ( Member GalleyAPIAccess r,
+  ( Member TeamSubsystem r,
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r
   ) =>
@@ -87,7 +102,7 @@ getAllTeamCollaboratorsImpl zUser team = do
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.
 guardPermission ::
-  ( Member GalleyAPIAccess r,
+  ( Member TeamSubsystem r,
     Member (Error ex) r,
     TeamMember.IsPerm TeamMember.TeamMember perm
   ) =>
@@ -99,7 +114,7 @@ guardPermission ::
 guardPermission user team perm ex = do
   res <-
     isJust <$> runMaybeT do
-      member <- MaybeT $ getTeamMember user team
+      member <- MaybeT $ internalGetTeamMember user team
       guard (member `TeamMember.hasPermission` perm)
   unless res $
     throw ex
