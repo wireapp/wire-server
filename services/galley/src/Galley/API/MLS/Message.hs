@@ -29,6 +29,7 @@ module Galley.API.MLS.Message
   )
 where
 
+import Control.Lens (view)
 import Control.Monad.Codensity
 import Data.Domain
 import Data.Id
@@ -39,7 +40,6 @@ import Data.Set qualified as Set
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
-import Control.Lens (view)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.LegalHold.Get (getUserStatus)
@@ -332,7 +332,7 @@ checkGroupState ::
   GroupInfo ->
   Sem r ()
 checkGroupState leaves groupInfo = do
-  check <- fromMaybe False <$> (inputs $ view $ settings . checkGroupInfo)
+  check <- fromMaybe False <$> inputs (view $ settings . checkGroupInfo)
   when check $ do
     trees <-
       either
@@ -345,7 +345,6 @@ checkGroupState leaves groupInfo = do
     giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
     when (leaves /= giLeaves) $ do
       throwS @MLSGroupInfoMismatch
-    pure ()
   where
     getIdentity :: LeafNode -> Sem r ClientIdentity
     getIdentity leaf = case credentialIdentityAndKey leaf.credential of

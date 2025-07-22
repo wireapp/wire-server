@@ -973,7 +973,8 @@ testInvalidLeafNodeSignature = do
 
 testGroupInfoMismatch :: (HasCallStack) => App ()
 testGroupInfoMismatch = withModifiedBackend
-  (def { galleyCfg = setField "settings.checkGroupInfo" True }) $ \domain -> do
+  (def {galleyCfg = setField "settings.checkGroupInfo" True})
+  $ \domain -> do
     [alice, bob, charlie] <- createAndConnectUsers [domain, domain, domain]
     [alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
@@ -1009,16 +1010,16 @@ testGroupInfoMismatch = withModifiedBackend
 
 testGroupInfoCheckDisabled :: (HasCallStack) => App ()
 testGroupInfoCheckDisabled = do
-    [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
-    [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
-    traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-    conv <- createNewGroup def alice1
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  conv <- createNewGroup def alice1
 
-    mp1 <- createAddCommit alice1 conv [bob]
-    void $ sendAndConsumeCommitBundle mp1
+  mp1 <- createAddCommit alice1 conv [bob]
+  void $ sendAndConsumeCommitBundle mp1
 
-    -- attempt a commit with an old group info
-    mp2 <- createAddCommit alice1 conv [charlie]
-    bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
-      $ \resp -> do
-        resp.status `shouldMatchInt` 201
+  -- attempt a commit with an old group info
+  mp2 <- createAddCommit alice1 conv [charlie]
+  bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
+    $ \resp -> do
+      resp.status `shouldMatchInt` 201
