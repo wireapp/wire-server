@@ -1,6 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns -Wno-partial-type-signatures #-}
 
 module Wire.UserGroupStore.PostgresSpec (spec) where
 
@@ -42,6 +42,16 @@ check pstate result =
 
 spec :: Spec
 spec = do
+  focus . it "mkConstraints" $ do
+    mkConstraints SortByName Asc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (name, id) > ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+    mkConstraints SortByName Desc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (name, id) < ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+    mkConstraints SortByCreatedAt Asc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (created_at, id) > ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+    mkConstraints SortByCreatedAt Desc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (created_at, id) < ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+
   describe "paginationStateToSqlQuery" $ do
     check
       def
@@ -56,14 +66,13 @@ spec = do
     check
       def
         { sortBy = SortByName,
-          sortOrderName = Asc,
-          sortOrderCreatedAt = Desc,
+          sortOrder = Asc,
           pageSize = pageSizeFromIntUnsafe 200,
           lastSeenName = Just (userGroupNameFromTextUnsafe "ug1")
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and name>'ug1' \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and name > 'ug1' \
         \order by name asc, created_at desc \
         \limit 200",
         Nothing
@@ -71,9 +80,8 @@ spec = do
 
     check
       def
-        { sortBy = SortByCreatedAt,
-          sortOrderName = Desc,
-          sortOrderCreatedAt = Asc,
+        { sortBy = SortByName,
+          sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
           lastSeenId = Just $ parseIdFromTextUnsafe "ab1363ba-663e-11f0-99cd-77aae8e6aadd",
           lastSeenName = Just (userGroupNameFromTextUnsafe "ug1"),
@@ -82,7 +90,25 @@ spec = do
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \and (name>'ug1' or (name='ug1' and created_at>'2021-05-12T10:52:02.000Z') or (name='ug1' and created_at='2021-05-12T10:52:02.000Z' and id>'ab1363ba-663e-11f0-99cd-77aae8e6aadd')) \
+        \and (name, created_at, id) > ('ug1', '2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
+        \order by created_at asc, name desc \
+        \limit 100",
+        Nothing
+      )
+
+    check
+      def
+        { sortBy = SortByCreatedAt,
+          sortOrder = Desc,
+          pageSize = pageSizeFromIntUnsafe 100,
+          lastSeenId = Just $ parseIdFromTextUnsafe "ab1363ba-663e-11f0-99cd-77aae8e6aadd",
+          lastSeenName = Just (userGroupNameFromTextUnsafe "ug1"),
+          lastSeenCreatedAt = Just (fromJust $ readUTCTimeMillis "2021-05-12T10:52:02Z")
+        }
+      ( "select id, name, managed_by, created_at \
+        \from user_group \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
+        \and (created_at, name, id) > ('2021-05-12T10:52:02.000Z', 'ug1', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
         \order by created_at asc, name desc \
         \limit 100",
         Nothing
@@ -110,8 +136,7 @@ spec = do
         pstate =
           def
             { sortBy = SortByName,
-              sortOrderName = Asc,
-              sortOrderCreatedAt = Asc,
+              sortOrder = Asc,
               pageSize = pageSizeFromIntUnsafe 500
             }
 
@@ -136,8 +161,8 @@ spec = do
 
     it "answer contains rows in correct order" $ do
       let search :: (_) => TeamId -> (SortBy, SortOrder, SortOrder) -> Sem r [UserGroup]
-          search tid (sBy, soName, soTime) =
-            getUserGroups tid (pstate {sortBy = sBy, sortOrderName = soName, sortOrderCreatedAt = soTime})
+          search tid (sBy, soName, _soTime) =
+            getUserGroups tid (pstate {sortBy = sBy, sortOrder = soName})
 
           x0 = {- time 1 -} "anarchy"
           x1 = {- time 2 -} "bubble"
@@ -217,8 +242,9 @@ spec = do
                          ["12"]
                        ]
 
-  -- TODO: currently this only works locally with /deploy/docker-ephemeral/run.sh running.
-  xdescribe "postgres vs. in-mem interpreters" $ do
+  -- This only works locally with /deploy/docker-ephemeral/run.sh running.  If it's in the
+  -- way, it's fine to delete it.  The only benefit bla minibackend sci-fi bla.
+  describe "postgres vs. in-mem interpreters" $ do
     runAndCompare "CreateUserGroup" $ \tid -> do
       (userGroupNameToText . (.name)) <$> createUserGroup tid someNewUserGroup ManagedByWire
 
@@ -326,8 +352,7 @@ instance Arbitrary TestPaginationState where
   arbitrary = do
     searchString <- elements $ Nothing : (Just <$> ["1", "15", "group"])
     sortByKey <- arbitrary
-    sortOrderName <- arbitrary
-    sortOrderCreatedAt <- arbitrary
+    sortOrder <- arbitrary
     pageSize <- arbitrary
     lastSeenId <- arbitrary
     lastSeenName <- arbitrary
