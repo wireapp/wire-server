@@ -12,14 +12,5 @@
             "name": "##name1##"
         }
     ],
-    "state": {
-        "last_seen": {
-            "created_at": "2021-12-12T00:00:00.000Z",
-            "tie_breaker": "e5b57c16-6606-11f0-ab44-770b115161d3"
-        },
-        "page_size": 1,
-        "search_string": "rst",
-        "sort_by": "created_at",
-        "sort_order": "asc"
-    }
+    "state": "eyJsYXN0X3NlZW4iOnsiY3JlYXRlZF9hdCI6IjIwMjEtMTItMTJUMDA6MDA6MDAuMDAwWiIsInRpZV9icmVha2VyIjoiZTViNTdjMTYtNjYwNi0xMWYwLWFiNDQtNzcwYjExNTE2MWQzIn0sInBhZ2Vfc2l6ZSI6MSwic2VhcmNoX3N0cmluZyI6InJzdCIsInNvcnRfYnkiOiJjcmVhdGVkX2F0Iiwic29ydF9vcmRlciI6ImFzYyJ9"
 }
