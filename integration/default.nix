@@ -45,6 +45,7 @@
 , HsOpenSSL
 , http-client
 , http-types
+, interpolate
 , kan-extensions
 , lens
 , lens-aeson
@@ -149,6 +150,7 @@ mkDerivation {
     HsOpenSSL
     http-client
     http-types
+    interpolate
     kan-extensions
     lens
     lens-aeson

@@ -31,6 +31,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.String.Conversions (cs)
+import Data.String.Interpolate
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
@@ -559,18 +560,14 @@ startNginzLocal resource = do
       )
 
   -- override port configuration
-  let portConfigTemplate =
-        [r|listen {localPort};
-            listen {http2_port};
-            listen {ssl_port} ssl;
-            listen [::]:{ssl_port} ssl;
+  let nginzPort = sm.nginz.port
+      portConfig =
+        [i|listen #{nginzPort};
+            listen #{http2Port};
+            listen #{sslPort} ssl;
+            listen [::]:#{sslPort} ssl;
             http2 on;
         |]
-  let portConfig =
-        portConfigTemplate
-          & Text.replace "{localPort}" (cs $ show (sm.nginz.port))
-          & Text.replace "{http2_port}" (cs $ show http2Port)
-          & Text.replace "{ssl_port}" (cs $ show sslPort)
 
   liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
   liftIO $ writeFile integrationConfFile (cs portConfig)
@@ -578,19 +575,14 @@ startNginzLocal resource = do
   -- override upstreams
   let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
   liftIO $ createUpstreamsCfg upstreamsCfg sm
-  let upstreamFederatorTemplate =
-        [r|upstream {name} {
-            server 127.0.0.1:{port} max_fails=3 weight=1;
+  let federatorExternalPort = sm.federatorExternal.port
+      upstreamFederatorTemplate =
+        [i|upstream federator_external {
+            server 127.0.0.1:#{federatorExternalPort} max_fails=3 weight=1;
             }
         |]
   liftIO $
-    appendFile
-      upstreamsCfg
-      ( cs $
-          upstreamFederatorTemplate
-            & Text.replace "{name}" "federator_external"
-            & Text.replace "{port}" (cs $ show sm.federatorExternal.port)
-      )
+    appendFile upstreamsCfg upstreamFederatorTemplate
 
   -- override pid configuration
   let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
@@ -680,27 +672,24 @@ replaceUpstreamsInConfig nginxConf sm = do
           (serviceName WireProxy, sm.proxy.port),
           (serviceName Spar, sm.spar.port)
         ]
-          <&> \(srv, p) ->
-            Text.replace "{name}" (cs srv)
-              . Text.replace "{port}" (cs $ show p)
-              $ upstreamTemplate
+          <&> uncurry upstreamTemplate
       where
-        upstreamTemplate =
-          [r|upstream {name} {
+        upstreamTemplate _name _port =
+          [r|upstream #{_name} {
               least_conn;
               keepalive 32;
-              server 127.0.0.1:{port} max_fails=3 weight=1;
+              server 127.0.0.1:#{_port} max_fails=3 weight=1;
               }
           |]
 
 createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
   liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
-  let upstreamTemplate =
-        [r|upstream {name} {
+  let upstreamTemplate _name _port =
+        [i|upstream #{_name} {
             least_conn;
             keepalive 32;
-            server 127.0.0.1:{port} max_fails=3 weight=1;
+            server 127.0.0.1:#{_port} max_fails=3 weight=1;
             }
         |]
 
@@ -716,11 +705,8 @@ createUpstreamsCfg upstreamsCfg sm = do
     ]
     \case
       (srv, p) -> do
-        let upstream =
-              upstreamTemplate
-                & Text.replace "{name}" (cs $ srv)
-                & Text.replace "{port}" (cs $ show p)
-        liftIO $ appendFile upstreamsCfg (cs upstream)
+        let upstream = upstreamTemplate srv p
+        liftIO $ appendFile upstreamsCfg upstream
 
 startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
 startNginz domain conf workingDir = do
