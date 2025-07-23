@@ -1,6 +1,7 @@
 module Test.TeamCollaborators where
 
 import API.Brig
+import API.Galley
 import Notifications (isTeamCollaboratorAddedNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -72,3 +73,19 @@ testCreateTeamCollaboratorPostTwice = do
           ]
   bindResponse add assertSuccess
   bindResponse add $ assertStatus 409
+
+testImplicitConnection :: (HasCallStack) => App ()
+testImplicitConnection = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  userId <- bob %. "id" >>= asString
+  addTeamCollaborator
+    owner
+    team
+    userId
+    ["implicit_connection"]
+    >>= assertSuccess
+
+  postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess

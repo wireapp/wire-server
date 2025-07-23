@@ -83,6 +83,7 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Conf
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -90,6 +91,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.NotificationSubsystem
+import Wire.TeamCollaboratorsStore
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -477,7 +479,8 @@ createOne2OneConversation ::
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -485,6 +488,7 @@ createOne2OneConversation ::
   Sem r (ConversationResponse Public.ConversationV9)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
+    traceM $ "XXX createOne2OneConversation"
     let allUsers = newOne2OneConvMembers lusr j
     other <- ensureOne (ulAll lusr allUsers)
     when (tUntagged lusr == other) $
@@ -520,21 +524,32 @@ createOne2OneConversation lusr zcon j =
         Member (ErrorS 'NotATeamMember) r,
         Member (ErrorS OperationDenied) r,
         Member (ErrorS 'TeamNotFound) r,
-        Member TeamStore r
+        Member TeamStore r,
+        Member TeamCollaboratorsStore r
       ) =>
       Local UserId ->
       TeamId ->
       Sem r (Maybe TeamId)
     checkBindingTeamPermissions lother tid = do
+      mbCollaborator <- getTeamCollaborator (tUnqualified lusr) tid
       zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
-      void $ permissionCheck CreateConversation zusrMembership
-      E.getTeamBinding tid >>= \case
-        Just Binding -> do
+      mbTeamBinding <- E.getTeamBinding tid
+      case (mbTeamBinding, mbCollaborator) of
+        (Just Binding, Nothing) -> do
+          void $ permissionCheck CreateConversation zusrMembership
           verifyMembership tid (tUnqualified lusr)
           verifyMembership tid (tUnqualified lother)
           pure (Just tid)
-        Just _ -> throwS @'NonBindingTeam
-        Nothing -> throwS @'TeamNotFound
+        (Just _, Nothing) -> throwS @'NonBindingTeam
+        (Just _, Just col) -> do
+          unless (implicitConnectionAllowed col) $
+            throwS @OperationDenied
+          verifyMembership tid (tUnqualified lother)
+          pure (Just tid)
+        (Nothing, _) -> throwS @'TeamNotFound
+
+    implicitConnectionAllowed :: TeamCollaborator -> Bool
+    implicitConnectionAllowed col = ImplicitConnection `elem` gPermissions col
 
 createLegacyOne2OneConversationUnchecked ::
   ( Member BackendNotificationQueueAccess r,

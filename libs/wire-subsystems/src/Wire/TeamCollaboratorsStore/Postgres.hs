@@ -34,6 +34,7 @@ interpretTeamCollaboratorsStoreToPostgres =
   interpret $ \case
     CreateTeamCollaborator userId teamId permissions -> createTeamCollaboratorImpl userId teamId permissions
     GetAllTeamCollaborators teamId -> getAllTeamCollaboratorsImpl teamId
+    GetTeamCollaborator userId teamId -> getTeamCollaboratorImpl userId teamId
 
 createTeamCollaboratorImpl ::
   ( Member (Input Pool) r,
@@ -116,3 +117,33 @@ collaboratorPermissionToPostgreslRep =
 postgreslRepToCollaboratorPermission :: Int16 -> CollaboratorPermission
 postgreslRepToCollaboratorPermission =
   (collaboratorPermissionMap Bimap.! {- `!` throws if the element isn't found -})
+
+getTeamCollaboratorImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Sem r (Maybe TeamCollaborator)
+getTeamCollaboratorImpl userId teamId = do
+  pool <- input
+  eitherTeamCollaborators <- liftIO $ use pool session
+  either throw pure eitherTeamCollaborators
+  where
+    session :: Session (Maybe TeamCollaborator)
+    session = statement (userId, teamId) getTeamCollaboratorsStatement
+
+    getTeamCollaboratorsStatement :: Statement (UserId, TeamId) (Maybe TeamCollaborator)
+    getTeamCollaboratorsStatement =
+      dimap (bimap toUUID toUUID) (toTeamCollaborator <$>) $
+        [maybeStatement|
+          select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where user_id = ($1 :: uuid) and team_id = ($2 :: uuid)
+          |]
+
+    toTeamCollaborator :: (UUID, UUID, Vector Int16) -> TeamCollaborator
+    toTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
+      TeamCollaborator {..}
+
+    toPermissions :: Vector Int16 -> [CollaboratorPermission]
+    toPermissions = (Data.Vector.toList . Data.Vector.map postgreslRepToCollaboratorPermission)
