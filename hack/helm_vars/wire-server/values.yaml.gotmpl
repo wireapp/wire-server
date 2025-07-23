@@ -278,6 +278,11 @@ galley:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
+    postgresql:
+      host: "postgresql"
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
     rabbitmq:
       port: 5671
       enableTls: true
@@ -400,6 +405,7 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+    pgPassword: "posty-the-gres"
   {{- if .Values.uploadXml }}
   tests:
     config:
