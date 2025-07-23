@@ -348,6 +348,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                           traceShowM (length p.page, pageSizeToInt pageSize)
 
                           if length p.page < pageSizeToInt pageSize
+                            -- for pagesize = 1, numgroups = 1, this keeps getting more
+                            -- groups, and keeps receiving the last one.  (is this also a
+                            -- problem of the postgres interpreter?)
                             then pure [p]
                             else (p :) <$> fetch (Just p.state)
                     fetch Nothing
