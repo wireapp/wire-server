@@ -582,7 +582,9 @@ startNginzLocal resource = do
       upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
 
   liftIO $ do
-    createUpstreamsCfg upstreamsCfg sm
+    whenM (doesFileExist upstreamsCfg) $
+      removeFile upstreamsCfg
+    appendFile upstreamsCfg (makeUpstreamsCfgs sm)
     appendFile upstreamsCfg upstreamFederatorTemplate
 
   -- override pid configuration
@@ -598,9 +600,8 @@ startNginzLocal resource = do
   -- return handle and nginx tmp dir path
   pure $ ServiceInstance ph tmpDir
 
-createUpstreamsCfg :: String -> ServiceMap -> IO ()
-createUpstreamsCfg upstreamsCfg sm = do
-  liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
+makeUpstreamsCfgs :: ServiceMap -> String
+makeUpstreamsCfgs sm =
   let upstreamTemplate _name _port =
         [i|upstream #{_name} {
             least_conn;
@@ -608,21 +609,18 @@ createUpstreamsCfg upstreamsCfg sm = do
             server 127.0.0.1:#{_port} max_fails=3 weight=1;
             }
         |]
-
-  forM_
-    [ (serviceName Brig, sm.brig.port),
-      (serviceName Cannon, sm.cannon.port),
-      (serviceName Cargohold, sm.cargohold.port),
-      (serviceName Galley, sm.galley.port),
-      (serviceName Gundeck, sm.gundeck.port),
-      (serviceName Nginz, sm.nginz.port),
-      (serviceName WireProxy, sm.proxy.port),
-      (serviceName Spar, sm.spar.port)
-    ]
-    \case
-      (srv, p) -> do
-        let upstream = upstreamTemplate srv p
-        liftIO $ appendFile upstreamsCfg upstream
+   in concat
+        $ (flip map)
+          [ (serviceName Brig, sm.brig.port),
+            (serviceName Cannon, sm.cannon.port),
+            (serviceName Cargohold, sm.cargohold.port),
+            (serviceName Galley, sm.galley.port),
+            (serviceName Gundeck, sm.gundeck.port),
+            (serviceName Nginz, sm.nginz.port),
+            (serviceName WireProxy, sm.proxy.port),
+            (serviceName Spar, sm.spar.port)
+          ]
+        $ uncurry upstreamTemplate
 
 replaceUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
 replaceUpstreamsInConfig nginxConf sm = do
