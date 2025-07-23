@@ -22,6 +22,7 @@ import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as LB
 import Data.Default
+import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
 import Data.Proxy
@@ -30,6 +31,7 @@ import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import GHC.Generics
+import GHC.Records (HasField (getField))
 import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
@@ -64,6 +66,10 @@ data SortBy = SortByName | SortByCreatedAt
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
 
+instance GHC.Records.HasField "toText" SortBy Text where
+  getField SortByName = "name"
+  getField SortByCreatedAt = "created_at"
+
 instance Default SortBy where
   def = SortByCreatedAt
 
@@ -90,6 +96,10 @@ instance O.ToParamSchema SortBy -- TODO: what does swagger look like here?
 data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortOrder
+
+instance GHC.Records.HasField "op" SortOrder Text where
+  getField Asc = ">"
+  getField Desc = "<"
 
 instance Arbitrary SortOrder where
   arbitrary = Arbitrary.elements [minBound ..]
@@ -156,6 +166,7 @@ data PaginationState = PaginationState
   { -- | `searchString` always applies to name, no matter what the sort order.  `Nothing`
     -- means do not filter.
     searchString :: Maybe Text,
+    -- TODO: check that this aligns with lastSeen
     sortBy :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
@@ -166,7 +177,11 @@ data PaginationState = PaginationState
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
 
-data LastSeen = LastSeen {nameOrCreatedAt :: Text, tieBreaker :: UserGroupId}
+data LastSeen = LastSeen
+  { name :: Maybe UserGroupName,
+    createdAt :: Maybe UTCTimeMillis,
+    tieBreaker :: UserGroupId
+  }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema LastSeen
 
@@ -174,11 +189,12 @@ instance ToSchema LastSeen where
   schema =
     object "LastSeen" $
       LastSeen
-        <$> (.nameOrCreatedAt) .= field "name_or_created_at" schema
+        <$> (.name) .= maybe_ (optField "name" schema)
+        <*> (.createdAt) .= maybe_ (optField "created_at" schema)
         <*> (.tieBreaker) .= field "tie_breaker" schema
 
 instance Arbitrary LastSeen where
-  arbitrary = LastSeen <$> arbitrary <*> arbitrary
+  arbitrary = LastSeen <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Default PaginationState where
   def =

@@ -6,6 +6,7 @@ module Wire.UserGroupStore.PostgresSpec (spec) where
 
 import Data.Default
 import Data.Id
+import Data.Json.Util (readUTCTimeMillis)
 import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -56,7 +57,14 @@ spec = do
         { sortBy = SortByName,
           sortOrder = Asc,
           pageSize = pageSizeFromIntUnsafe 200,
-          lastSeen = Just (LastSeen "ug1" (Id . fromJust . UUID.fromText $ "38fb011e-673a-11f0-86f3-eb55b8ac7296"))
+          lastSeen =
+            Just
+              ( LastSeen
+                  { name = (Just $ userGroupNameFromTextUnsafe "ug1"),
+                    createdAt = Nothing,
+                    tieBreaker = (Id . fromJust . UUID.fromText $ "38fb011e-673a-11f0-86f3-eb55b8ac7296")
+                  }
+              )
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -71,7 +79,14 @@ spec = do
         { sortBy = SortByName,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeen = Just (LastSeen "ug2" (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
+          lastSeen =
+            Just
+              ( LastSeen
+                  { name = (Just $ userGroupNameFromTextUnsafe "ug2"),
+                    createdAt = Nothing,
+                    tieBreaker = (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd")
+                  }
+              )
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -87,7 +102,7 @@ spec = do
         { sortBy = SortByCreatedAt,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeen = Just (LastSeen "2021-05-12T10:52:02.000Z" (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
+          lastSeen = Just (LastSeen Nothing (Just . fromJust . readUTCTimeMillis $ "2021-05-12T10:52:02.000Z") (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -215,8 +230,24 @@ spec = do
               `mapM` [ (0, Nothing),
                        (1, Nothing),
                        (2, Nothing),
-                       (2, Just (LastSeen "02" (groups !! 1).id_)),
-                       (2, Just (LastSeen "12" (groups !! 3).id_))
+                       ( 2,
+                         Just
+                           ( LastSeen
+                               { name = Just $ userGroupNameFromTextUnsafe "02",
+                                 createdAt = Nothing,
+                                 tieBreaker = (groups !! 1).id_
+                               }
+                           )
+                       ),
+                       ( 2,
+                         Just
+                           ( LastSeen
+                               { name = Just $ userGroupNameFromTextUnsafe "12",
+                                 createdAt = Nothing,
+                                 tieBreaker = (groups !! 3).id_
+                               }
+                           )
+                       )
                      ]
         )
         `shouldReturn` [ ["01", "02", "10", "12"],

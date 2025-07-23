@@ -14,7 +14,7 @@
     ],
     "state": {
         "last_seen": {
-            "name_or_created_at": "2021-12-12T00:00:00.000Z",
+            "created_at": "2021-12-12T00:00:00.000Z",
             "tie_breaker": "e5b57c16-6606-11f0-ab44-770b115161d3"
         },
         "page_size": 1,

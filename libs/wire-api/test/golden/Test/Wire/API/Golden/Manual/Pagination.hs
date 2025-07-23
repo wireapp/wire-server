@@ -71,7 +71,13 @@ testObject_PaginationResult_2 =
         sortBy = SortByName,
         sortOrder = Desc,
         pageSize = pageSizeFromIntUnsafe 500,
-        lastSeen = Just (LastSeen "ugn!" (Id . fromJust . UUID.fromString $ "df888158-6606-11f0-8095-9353d5ffded9"))
+        lastSeen =
+          Just
+            ( LastSeen
+                (Just $ userGroupNameFromTextUnsafe "ugn!")
+                Nothing
+                (Id . fromJust . UUID.fromString $ "df888158-6606-11f0-8095-9353d5ffded9")
+            )
       }
 
 testObject_PaginationResult_3 :: PaginationResult
@@ -83,5 +89,11 @@ testObject_PaginationResult_3 =
         sortBy = SortByCreatedAt,
         sortOrder = Asc,
         pageSize = pageSizeFromIntUnsafe 1,
-        lastSeen = Just (LastSeen "2021-12-12T00:00:00.000Z" (Id . fromJust . UUID.fromString $ "e5b57c16-6606-11f0-ab44-770b115161d3"))
+        lastSeen =
+          Just
+            ( LastSeen
+                Nothing
+                (Just . fromJust . readUTCTimeMillis $ "2021-12-12T00:00:00.000Z")
+                (Id . fromJust . UUID.fromString $ "e5b57c16-6606-11f0-ab44-770b115161d3")
+            )
       }

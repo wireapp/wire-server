@@ -75,7 +75,6 @@ import Data.Handle qualified as Handle
 import Data.HavePendingInvitations
 import Data.Id
 import Data.Id qualified as Id
-import Data.Json.Util
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
@@ -1679,12 +1678,10 @@ getUserGroups ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe UserGroupName ->
-  Maybe UTCTimeMillis ->
   Maybe PaginationState ->
   Handler r PaginationResult
-getUserGroups lusr q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState
+getUserGroups lusr q sortByKeys sortOrder pSize pState =
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize pState
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
