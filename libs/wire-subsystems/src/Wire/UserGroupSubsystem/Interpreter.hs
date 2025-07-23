@@ -195,11 +195,23 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
     nextPaginationState :: [UserGroup] -> PaginationState
     nextPaginationState [] = currentPaginationState
     nextPaginationState (last -> lseen) =
-      currentPaginationState {lastSeen = Just (LastSeen f i)}
+      currentPaginationState
+        { lastSeen =
+            Just
+              ( LastSeen
+                  { name = mName,
+                    createdAt = mCreatedAt,
+                    tieBreaker = i
+                  }
+              )
+        }
       where
-        f = case maybe def (.sortBy) pState of
-          SortByName -> userGroupNameToText lseen.name
-          SortByCreatedAt -> showUTCTimeMillis lseen.createdAt
+        mName = case currentPaginationState.sortBy of
+          SortByName -> Just lseen.name
+          SortByCreatedAt -> Nothing
+        mCreatedAt = case currentPaginationState.sortBy of
+          SortByName -> Nothing
+          SortByCreatedAt -> Just lseen.createdAt
         i = lseen.id_
 
 updateGroupImpl ::

@@ -121,9 +121,9 @@ getUserGroupsImpl tid pstate = do
 
         -- shared code from all cases in run above
         mkSession :: (Statement params [UserGroup] -> Session [UserGroup]) -> HE.Params params -> Session [UserGroup]
-        mkSession mkStatement params =
+        mkSession mkStatement encodeParams =
           mkStatement . refineResult (mapM parseRow) $
-            Statement sqlBS params decodeRow True
+            Statement sqlBS encodeParams decodeRow True
 
     decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
     decodeRow =
@@ -148,60 +148,38 @@ getUserGroupsImpl tid pstate = do
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
 paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, [Text])
-paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
-  ( T.pack . unwords $ join [sel, whr, n, o, q],
-    (("%" <>) . (<> "%")) <$> pstate.searchString
+paginationStateToSqlQuery (Id (UUID.toText -> tid)) pstate =
+  ( T.unwords $ filter (not . T.null) [sel, whr, cstr, like, orderBy, limit],
+    cstrParams <> searchParams
   )
   where
-    sel = ["select id, name, managed_by, created_at from user_group"]
-    whr = ["where team_id='" <> tid <> "'"]
-    (constraintsText, constraintsParams) = maybe [] mkConstraints pstate.lastSeen
-    n = ["and name ilike ($1 :: text)" | isJust pstate.searchString]
-    o = ["order by", cols]
+    sel = "select id, name, managed_by, created_at from user_group"
+    whr = "where team_id='" <> tid <> "'"
+    orderBy = T.unwords ["order by", pstate.sortBy.toText]
+    limit = T.unwords ["limit", T.pack $ show $ pageSizeToInt pstate.pageSize]
+
+    (cstr, cstrParams) = maybe ("", []) mkConstraints pstate.lastSeen
+    (like, searchParams) =
+      maybe
+        ("", [])
+        (\st -> ("and name ilike ($" <> T.pack (show (length cstrParams + 1)) <> " :: text)", [st]))
+        pstate.searchString
+
+    mkConstraints :: (HasCallStack) => LastSeen -> (Text, [Text])
+    mkConstraints (LastSeen mName mCreatedAt lastId) =
+      (T.unwords [lhs, pstate.sortOrder.op, rhs], params)
       where
-        cols = mconcat [orderFirst, ", ", orderSecond]
-
-        orderFirst = case pstate.sortBy of
-          SortByName -> unwords ["name", toLower <$> show nameOrder]
-          SortByCreatedAt -> unwords ["created_at", toLower <$> show createdAtOrder]
-        orderSecond = case pstate.sortBy of
-          SortByName -> unwords ["created_at", toLower <$> show createdAtOrder]
-          SortByCreatedAt -> unwords ["name", toLower <$> show nameOrder]
-
-        nameOrder = case pstate.sortBy of
-          SortByName -> pstate.sortOrder
-          SortByCreatedAt -> defaultSortOrder SortByName
-        createdAtOrder = case pstate.sortBy of
-          SortByName -> defaultSortOrder SortByCreatedAt
-          SortByCreatedAt -> pstate.sortOrder
-
-    q = ["limit", show $ pageSizeToInt pstate.pageSize]
-
-    mkConstraints :: (HasCallStack) => LastSeen -> [String]
-    mkConstraints (LastSeen lastNameOrCreatedAt lastId) = ["and", x, y, z]
-      where
-        x, y, z :: String
-        x = case pstate.sortBy of
-          SortByName -> "(name, id)"
-          SortByCreatedAt -> "(created_at, id)"
-        y = case pstate.sortOrder of
-          Asc -> ">"
-          Desc -> "<"
-        z = mconcat ["('", lastNameOrCreatedAt, "', '", lastId, "')"] -- TODO: escape this!!!
-
-{-
-
-  focus . it "mkConstraints" $ do
-    mkConstraints SortByName Asc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (name, id) > ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-    mkConstraints SortByName Desc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (name, id) < ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-    mkConstraints SortByCreatedAt Asc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (created_at, id) > ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-    mkConstraints SortByCreatedAt Desc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (created_at, id) < ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-
--}
+        lhs = "(" <> pstate.sortBy.toText <> ", id)"
+        (rhs, params) = case (mName, mCreatedAt) of
+          (Just ugn, Nothing) ->
+            ( "($1 :: text, '" <> UUID.toText (toUUID lastId) <> "')",
+              [userGroupNameToText ugn]
+            )
+          (Nothing, Just timeStamp) ->
+            ( "(" <> showUTCTimeMillis timeStamp <> ", '" <> UUID.toText (toUUID lastId) <> "')",
+              []
+            )
+          _ -> error "paginationStateToSqlQuery: LastSeen must have either name or createdAt"
 
 createUserGroupImpl ::
   forall r.
