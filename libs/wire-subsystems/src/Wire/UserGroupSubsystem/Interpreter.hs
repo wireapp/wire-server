@@ -40,8 +40,8 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
-  GetGroups getter q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState ->
-    getUserGroupsImpl getter q sortByKeys sortOrder pSize lseenName lseenCreatedAt pState
+  GetGroups getter q sortByKeys sortOrder pSize pState ->
+    getUserGroupsImpl getter q sortByKeys sortOrder pSize pState
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -166,11 +166,9 @@ getUserGroupsImpl ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe UserGroupName ->
-  Maybe UTCTimeMillis ->
   Maybe PaginationState ->
   Sem r PaginationResult
-getUserGroupsImpl getter searchString sortBy' sortOrder' pSize lastSeenName lastSeenCreatedAt pState = do
+getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)

@@ -6,7 +6,6 @@ module Wire.UserGroupStore.PostgresSpec (spec) where
 
 import Data.Default
 import Data.Id
-import Data.Json.Util
 import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -32,8 +31,8 @@ import Wire.MockInterpreters.UserGroupStore
 import Wire.UserGroupStore
 import Wire.UserGroupStore.Postgres
 
-check :: (HasCallStack) => PaginationState -> (Text, Maybe LastSeen) -> Spec
-check pstate result =
+checkPaginationState :: (HasCallStack) => PaginationState -> (Text, [Text]) -> Spec
+checkPaginationState pstate result =
   it (T.unpack (fst result)) do
     paginationStateToSqlQuery tid pstate `shouldBe` result
   where
@@ -41,48 +40,38 @@ check pstate result =
 
 spec :: Spec
 spec = do
-  focus . it "mkConstraints" $ do
-    mkConstraints SortByName Asc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (name, id) > ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-    mkConstraints SortByName Desc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (name, id) < ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-    mkConstraints SortByCreatedAt Asc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (created_at, id) > ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-    mkConstraints SortByCreatedAt Desc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
-      `shouldBe` "and (created_at, id) < ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
-
-  describe "paginationStateToSqlQuery" $ do
-    check
+  focus . describe "paginationStateToSqlQuery" $ do
+    checkPaginationState
       def
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \order by created_at desc, name asc \
         \limit 15",
-        Nothing
+        []
       )
 
-    check
+    checkPaginationState
       def
         { sortBy = SortByName,
           sortOrder = Asc,
           pageSize = pageSizeFromIntUnsafe 200,
-          lastSeen = Just (LastSeen "ug1" (undefined "38fb011e-673a-11f0-86f3-eb55b8ac7296"))
+          lastSeen = Just (LastSeen "ug1" (Id . fromJust . UUID.fromText $ "38fb011e-673a-11f0-86f3-eb55b8ac7296"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and (name, id) > ('ug1', '38fb011e-673a-11f0-86f3-eb55b8ac7296') \
         \order by name asc, created_at desc \
         \limit 200",
-        Nothing
+        []
       )
 
-    check
+    checkPaginationState
       def
         { sortBy = SortByName,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeen = Just (LastSeen "ug2" (undefined "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
+          lastSeen = Just (LastSeen "ug2" (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -90,15 +79,15 @@ spec = do
         \and (name, id) > ('ug1', '2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
         \order by created_at asc, name desc \
         \limit 100",
-        Nothing
+        []
       )
 
-    check
+    checkPaginationState
       def
         { sortBy = SortByCreatedAt,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeen = Just (LastSeen "2021-05-12T10:52:02.000Z" (undefined "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
+          lastSeen = Just (LastSeen "2021-05-12T10:52:02.000Z" (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
@@ -106,10 +95,10 @@ spec = do
         \and (created_at, name, id) < ('2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
         \order by created_at asc, name desc \
         \limit 100",
-        Nothing
+        []
       )
 
-    check
+    checkPaginationState
       def
         { searchString = Just "grou"
         }
@@ -119,7 +108,7 @@ spec = do
         \and name ilike ($1 :: text) \
         \order by created_at desc, name asc \
         \limit 15",
-        Just "%grou%"
+        ["%grou%"]
       )
 
   describe "getUserGroups: in-mem (mock) interpreter" $ do
@@ -221,13 +210,13 @@ spec = do
       inMemInt
         def
         ( do
-            new tid `mapM_` ["01", "02", "10", "12"]
+            groups <- new tid `mapM` ["01", "02", "10", "12"]
             search tid
               `mapM` [ (0, Nothing),
                        (1, Nothing),
                        (2, Nothing),
-                       (2, Just "02"),
-                       (2, Just "12")
+                       (2, Just (LastSeen "02" (groups !! 1).id_)),
+                       (2, Just (LastSeen "12" (groups !! 3).id_))
                      ]
         )
         `shouldReturn` [ ["01", "02", "10", "12"],
@@ -349,9 +338,7 @@ instance Arbitrary TestPaginationState where
     sortByKey <- arbitrary
     sortOrder <- arbitrary
     pageSize <- arbitrary
-    lastSeenId <- arbitrary
-    lastSeenName <- arbitrary
-    lastSeenCreatedAt <- arbitrary
+    lastSeen <- arbitrary
     pure $ TestPaginationState (PaginationState {sortBy = sortByKey, ..})
 
 testPaginationNewUserGroups :: [NewUserGroup]
