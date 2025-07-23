@@ -19,7 +19,9 @@ module Wire.API.UserGroup.Pagination where
 
 import Control.Lens ((?~))
 import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.Bifunctor (first)
+import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy qualified as LB
 import Data.Default
 import Data.Json.Util (UTCTimeMillis)
@@ -100,6 +102,10 @@ data SortOrder = Asc | Desc
 instance GHC.Records.HasField "op" SortOrder Text where
   getField Asc = ">"
   getField Desc = "<"
+
+instance GHC.Records.HasField "toText" SortOrder Text where
+  getField Asc = "asc"
+  getField Desc = "desc"
 
 instance Arbitrary SortOrder where
   arbitrary = Arbitrary.elements [minBound ..]
@@ -229,6 +235,9 @@ instance Arbitrary PaginationState where
 instance FromHttpApiData PaginationState where
   parseUrlPiece = parseUrlPieceViaSchema
 
+instance ToHttpApiData PaginationState where
+  toUrlPiece = toUrlPieceViaSchema
+
 instance O.ToParamSchema PaginationState where
   toParamSchema _ =
     -- PaginationState is supposed to be opaque for clients, no need to swagger docs.
@@ -248,8 +257,13 @@ instance ToSchema PaginationResult where
     objectWithDocModifier "PagintationResult" docs $
       PaginationResult
         <$> page .= field "page" (array schema)
-        <*> state .= field "state" schema
+        <*> (toUrlPieceViaSchema . state) .= field "state" (withParser schema p)
     where
+      p :: Text -> A.Parser PaginationState
+      p t =
+        case parseUrlPieceViaSchema t of
+          Left err -> fail $ "PaginationResult: could not parse state: " <> T.unpack err
+          Right ps -> pure ps
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
         description
@@ -262,4 +276,10 @@ instance Arbitrary PaginationResult where
 ------------------------------
 
 parseUrlPieceViaSchema :: (A.FromJSON a) => Text -> Either Text a
-parseUrlPieceViaSchema = first T.pack . A.eitherDecode . LB.fromStrict . T.encodeUtf8
+parseUrlPieceViaSchema t =
+  case Base64.decode (T.encodeUtf8 t) of
+    Left err -> Left $ "Base64 decode error: " <> T.pack err
+    Right bs -> first T.pack $ A.eitherDecode (LB.fromStrict bs)
+
+toUrlPieceViaSchema :: (A.ToJSON a) => a -> Text
+toUrlPieceViaSchema = T.decodeUtf8 . Base64.encode . LB.toStrict . A.encode
