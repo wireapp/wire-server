@@ -144,35 +144,33 @@ getUserGroupsImpl tid pstate = do
     narrowToSearchString =
       filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) pstate.searchString)
 
-    orderByKeys = id -- TODO
-    {-
-        orderByKeys = Imports.sortBy cmp
+    orderByKeys = Imports.sortBy cmp
+      where
+        cmp (_, ug) (_, ug') = case (pstate.sortBy, pstate.sortOrder) of
+          (SortByName, Asc) -> (n, i) `compare` (n', i')
+          (SortByName, Desc) -> (n', i') `compare` (n, i)
+          (SortByCreatedAt, Asc) -> (c, i) `compare` (c', i')
+          (SortByCreatedAt, Desc) -> (c', i') `compare` (c, i)
           where
-            cmp (_, ug) (_, ug') = case (pstate.sortBy, pstate.sortOrderName, pstate.sortOrderCreatedAt) of
-              (SortByName, Asc, Asc) -> (n, c) `compare` (n', c')
-              (SortByName, Desc, Asc) -> (n', c) `compare` (n, c')
-              (SortByName, Asc, Desc) -> (n, c') `compare` (n', c)
-              (SortByName, Desc, Desc) -> (n', c') `compare` (n, c)
-              (SortByCreatedAt, Asc, Asc) -> (c, n) `compare` (c', n')
-              (SortByCreatedAt, Desc, Asc) -> (c, n) `compare` (c', n')
-              (SortByCreatedAt, Asc, Desc) -> (c', n) `compare` (c, n')
-              (SortByCreatedAt, Desc, Desc) -> (c', n') `compare` (c, n)
-              where
-                n = ug.name
-                n' = ug'.name
-                c = ug.createdAt
-                c' = ug'.createdAt
-    -}
-    dropBeforeStart = id
-    {-
+            n = ug.name
+            n' = ug'.name
+            i = ug.id_
+            i' = ug'.id_
+            c = ug.createdAt
+            c' = ug'.createdAt
+
+    dropBeforeStart = do
       dropWhile sqlConds
       where
-        sqlConds (snd -> row) =
-          foldl' (&&) True $
-            [row.id_ <= fromJust pstate.lastSeenId | isJust pstate.lastSeenId]
-              <> [row.name <= fromJust pstate.lastSeenName | isJust pstate.lastSeenName]
-              <> [row.createdAt <= fromJust pstate.lastSeenCreatedAt | isJust pstate.lastSeenCreatedAt]
-    -}
+        sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
+        sqlConds ((_, _), row) =
+          case (pstate.lastSeen, pstate.sortOrder, pstate.sortBy) of
+            (Just (LastSeen (Just name) _ tieBreaker), Asc, SortByName) -> (name, tieBreaker) > (row.name, row.id_)
+            (Just (LastSeen (Just name) _ tieBreaker), Desc, SortByName) -> (name, tieBreaker) < (row.name, row.id_)
+            (Just (LastSeen _ (Just ts) tieBreaker), Asc, SortByCreatedAt) -> (ts, tieBreaker) > (row.createdAt, row.id_)
+            (Just (LastSeen _ (Just ts) tieBreaker), Desc, SortByCreatedAt) -> (ts, tieBreaker) < (row.createdAt, row.id_)
+            (Nothing, _, _) -> False
+            _ -> error $ "unexpected lastSeen: " <> show pstate.lastSeen
 
     dropAfterPageSize = take (pageSizeToInt pstate.pageSize)
 

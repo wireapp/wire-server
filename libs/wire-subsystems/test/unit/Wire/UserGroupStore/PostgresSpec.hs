@@ -40,14 +40,14 @@ checkPaginationState pstate result =
     tid = Id (fromJust $ UUID.fromText "d52017d2-578b-11f0-9699-9344acad2031")
 
 spec :: Spec
-spec = do
-  focus . describe "paginationStateToSqlQuery" $ do
+spec = focus do
+  describe "paginationStateToSqlQuery" $ do
     checkPaginationState
       def
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \order by created_at desc, name asc \
+        \order by created_at desc, id desc \
         \limit 15",
         []
       )
@@ -68,33 +68,10 @@ spec = do
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and (name, id) > ('ug1', '38fb011e-673a-11f0-86f3-eb55b8ac7296') \
-        \order by name asc, created_at desc \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' and (name, id) > ($1 :: text, '38fb011e-673a-11f0-86f3-eb55b8ac7296') \
+        \order by name asc, id asc \
         \limit 200",
-        []
-      )
-
-    checkPaginationState
-      def
-        { sortBy = SortByName,
-          sortOrder = Desc,
-          pageSize = pageSizeFromIntUnsafe 100,
-          lastSeen =
-            Just
-              ( LastSeen
-                  { name = (Just $ userGroupNameFromTextUnsafe "ug2"),
-                    createdAt = Nothing,
-                    tieBreaker = (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd")
-                  }
-              )
-        }
-      ( "select id, name, managed_by, created_at \
-        \from user_group \
-        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \and (name, id) > ('ug1', '2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
-        \order by created_at asc, name desc \
-        \limit 100",
-        []
+        ["ug1"]
       )
 
     checkPaginationState
@@ -102,13 +79,20 @@ spec = do
         { sortBy = SortByCreatedAt,
           sortOrder = Desc,
           pageSize = pageSizeFromIntUnsafe 100,
-          lastSeen = Just (LastSeen Nothing (Just . fromJust . readUTCTimeMillis $ "2021-05-12T10:52:02.000Z") (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd"))
+          lastSeen =
+            Just
+              ( LastSeen
+                  { name = Nothing,
+                    createdAt = (Just . fromJust . readUTCTimeMillis $ "2021-05-12T10:52:02.000Z"),
+                    tieBreaker = (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd")
+                  }
+              )
         }
       ( "select id, name, managed_by, created_at \
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
-        \and (created_at, name, id) < ('2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
-        \order by created_at asc, name desc \
+        \and (created_at, id) < ('2021-05-12T10:52:02.000Z', 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
+        \order by created_at desc, id desc \
         \limit 100",
         []
       )
@@ -121,9 +105,34 @@ spec = do
         \from user_group \
         \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
         \and name ilike ($1 :: text) \
-        \order by created_at desc, name asc \
+        \order by created_at desc, id desc \
         \limit 15",
         ["%grou%"]
+      )
+
+    checkPaginationState
+      def
+        { searchString = Just "grou",
+          sortBy = SortByName,
+          sortOrder = Desc,
+          pageSize = pageSizeFromIntUnsafe 100,
+          lastSeen =
+            Just
+              ( LastSeen
+                  { name = Just $ userGroupNameFromTextUnsafe "group therapy",
+                    createdAt = Nothing,
+                    tieBreaker = (Id . fromJust . UUID.fromText $ "ab1363ba-663e-11f0-99cd-77aae8e6aadd")
+                  }
+              )
+        }
+      ( "select id, name, managed_by, created_at \
+        \from user_group \
+        \where team_id='d52017d2-578b-11f0-9699-9344acad2031' \
+        \and (name, id) < ($1 :: text, 'ab1363ba-663e-11f0-99cd-77aae8e6aadd') \
+        \and name ilike ($2 :: text) \
+        \order by name desc, id desc \
+        \limit 100",
+        ["group therapy", "%grou%"]
       )
 
   describe "getUserGroups: in-mem (mock) interpreter" $ do
@@ -227,7 +236,7 @@ spec = do
         ( do
             groups <- new tid `mapM` ["01", "02", "10", "12"]
             search tid
-              `mapM` [ (0, Nothing),
+              `mapM` [ (0, Nothing), -- API does not allow page size=0
                        (1, Nothing),
                        (2, Nothing),
                        ( 2,
@@ -259,7 +268,7 @@ spec = do
 
   -- This only works locally with /deploy/docker-ephemeral/run.sh running.  If it's in the
   -- way, it's fine to delete it.  The only benefit bla minibackend sci-fi bla.
-  describe "postgres vs. in-mem interpreters" $ do
+  xdescribe "postgres vs. in-mem interpreters" $ do
     runAndCompare "CreateUserGroup" $ \tid -> do
       (userGroupNameToText . (.name)) <$> createUserGroup tid someNewUserGroup ManagedByWire
 
