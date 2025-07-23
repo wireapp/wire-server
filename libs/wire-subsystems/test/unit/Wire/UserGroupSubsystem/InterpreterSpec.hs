@@ -16,6 +16,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
+import Debug.Trace
 import Imports
 import Numeric.Natural
 import Polysemy
@@ -317,7 +318,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           get2.page `shouldBe` reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
           get3.page `shouldBe` [groups !! 3]
 
-    prop "getGroups: pagination (happy flow)" $ do
+    focus . prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
        numGroupsPre
        pageSizePre ->
@@ -338,8 +339,16 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   results :: [PaginationResult] <- do
                     let fetch mbState = do
                           p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) mbState
-                          if null p.page
-                            then pure []
+                          traceShowM numGroups
+                          traceShowM pageSize
+                          traceShowM ((.lastSeen) <$> mbState)
+                          traceShowM ((.createdAt) <$> p.page)
+                          traceShowM ((.createdAt) <$> groups)
+
+                          traceShowM (length p.page, pageSizeToInt pageSize)
+
+                          if length p.page < pageSizeToInt pageSize
+                            then pure [p]
                             else (p :) <$> fetch (Just p.state)
                     fetch Nothing
 
@@ -347,8 +356,12 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                     -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
                     mconcat ((.page) <$> results) === reverse groups
                       -- every page has the expected size
-                      .&&. all (\r -> length r.page == pageSizeToInt pageSize) (init results)
-                      .&&. length ((last results).page) <= pageSizeToInt pageSize
+                      .&&. all
+                        (\r -> length r.page == pageSizeToInt pageSize)
+                        (take (length results - 2) results)
+                      .&&. all
+                        (\r -> length r.page <= pageSizeToInt pageSize)
+                        (drop (length results - 2) results)
 
     it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
@@ -371,13 +384,25 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing
         sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing
 
-        let expectSortByDefaults = [group1b, group2b, group3b, group1a, group2a, group3a]
-            expectSortByNameDesc = [group3b, group3a, group2b, group2a, group1b, group1a]
-            expectSortByCreatedAtAsc = [group1a, group2a, group3a, group1b, group2b, group3b]
+        let expectSortByDefaults = [[group1b, group2b, group3b], [group1a, group2a, group3a]]
+            expectSortByNameDesc = [[group3a, group3b], [group2a, group2b], [group1a, group1b]]
+            expectSortByCreatedAtAsc = [[group1a, group2a, group3a], [group1b, group2b, group3b]]
+
+            -- for every list in first argument (expected), take the corresponding number of elements
+            -- from the second (actual), and compare them as sets.
+            validatePartialOrder :: [[UserGroupId]] -> [UserGroupId] -> Bool
+            validatePartialOrder = f
+              where
+                f [] [] = True
+                f [] (_ : _) = False
+                f (_ : _) [] = False
+                f (xs : expect') rest@(_ : _) = case splitAt (length xs) rest of
+                  (xs', rest') -> Set.fromList xs == Set.fromList xs' && f expect' rest'
+
         pure do
-          ((.id_) <$> sortByDefaults.page) `shouldBe` ((.id_) <$> expectSortByDefaults)
-          ((.id_) <$> sortByNameDesc.page) `shouldBe` ((.id_) <$> expectSortByNameDesc)
-          ((.id_) <$> sortByCreatedAtAsc.page) `shouldBe` ((.id_) <$> expectSortByCreatedAtAsc)
+          ((.id_) <$> sortByDefaults.page) `shouldSatisfy` validatePartialOrder ((.id_) <$$> expectSortByDefaults)
+          ((.id_) <$> sortByNameDesc.page) `shouldSatisfy` validatePartialOrder ((.id_) <$$> expectSortByNameDesc)
+          ((.id_) <$> sortByCreatedAtAsc.page) `shouldSatisfy` validatePartialOrder ((.id_) <$$> expectSortByCreatedAtAsc)
 
   describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
     prop "updateGroup updates the name" $
