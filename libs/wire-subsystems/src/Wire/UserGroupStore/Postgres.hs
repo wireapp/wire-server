@@ -112,12 +112,10 @@ getUserGroupsImpl tid pstate = do
           [] -> mkSession (statement ()) HE.noParams
           [a] -> mkSession (statement a) encode1
           [a, b] -> mkSession (statement (a, b)) encode2
-          [a, b, c] -> mkSession (statement (a, b, c)) encode3
           bad -> error $ "internal error in paginationStateToSqlQuery: " <> show bad
 
         encode1 = HE.param (HE.nonNullable HE.text)
         encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
-        encode3 = (view _1 >$< encode1) <> (view _2 >$< encode1) <> (view _3 >$< encode1)
 
         -- shared code from all cases in run above
         mkSession :: (Statement params [UserGroup] -> Session [UserGroup]) -> HE.Params params -> Session [UserGroup]
@@ -155,19 +153,19 @@ paginationStateToSqlQuery (Id (UUID.toText -> tid)) pstate =
   where
     sel = "select id, name, managed_by, created_at from user_group"
     whr = "where team_id='" <> tid <> "'"
-    orderBy = T.unwords ["order by", pstate.sortBy.toText]
+    orderBy = T.unwords ["order by", pstate.sortBy.toText, pstate.sortOrder.toText <> ", id", pstate.sortOrder.toText]
     limit = T.unwords ["limit", T.pack $ show $ pageSizeToInt pstate.pageSize]
 
     (cstr, cstrParams) = maybe ("", []) mkConstraints pstate.lastSeen
     (like, searchParams) =
       maybe
         ("", [])
-        (\st -> ("and name ilike ($" <> T.pack (show (length cstrParams + 1)) <> " :: text)", [st]))
+        (\st -> ("and name ilike ($" <> T.pack (show (length cstrParams + 1)) <> " :: text)", ["%" <> st <> "%"]))
         pstate.searchString
 
     mkConstraints :: (HasCallStack) => LastSeen -> (Text, [Text])
     mkConstraints (LastSeen mName mCreatedAt lastId) =
-      (T.unwords [lhs, pstate.sortOrder.op, rhs], params)
+      (T.unwords ["and", lhs, pstate.sortOrder.op, rhs], params)
       where
         lhs = "(" <> pstate.sortBy.toText <> ", id)"
         (rhs, params) = case (mName, mCreatedAt) of
@@ -176,7 +174,7 @@ paginationStateToSqlQuery (Id (UUID.toText -> tid)) pstate =
               [userGroupNameToText ugn]
             )
           (Nothing, Just timeStamp) ->
-            ( "(" <> showUTCTimeMillis timeStamp <> ", '" <> UUID.toText (toUUID lastId) <> "')",
+            ( "('" <> showUTCTimeMillis timeStamp <> "', '" <> UUID.toText (toUUID lastId) <> "')",
               []
             )
           _ -> error "paginationStateToSqlQuery: LastSeen must have either name or createdAt"
