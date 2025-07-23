@@ -548,8 +548,6 @@ startNginzLocal resource = do
     copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
     copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 
-  let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
-
   -- hide access log
   let nginxConfFile = tmpDir </> "conf" </> "nginz" </> "nginx.conf"
   liftIO $ do
@@ -568,20 +566,23 @@ startNginzLocal resource = do
             listen [::]:#{sslPort} ssl;
             http2 on;
         |]
+      integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
 
-  liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
-  liftIO $ writeFile integrationConfFile (cs portConfig)
+  liftIO $ do
+    whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
+    writeFile integrationConfFile portConfig
 
   -- override upstreams
-  let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
-  liftIO $ createUpstreamsCfg upstreamsCfg sm
   let federatorExternalPort = sm.federatorExternal.port
       upstreamFederatorTemplate =
         [i|upstream federator_external {
             server 127.0.0.1:#{federatorExternalPort} max_fails=3 weight=1;
             }
         |]
-  liftIO $
+      upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
+
+  liftIO $ do
+    createUpstreamsCfg upstreamsCfg sm
     appendFile upstreamsCfg upstreamFederatorTemplate
 
   -- override pid configuration
@@ -596,6 +597,32 @@ startNginzLocal resource = do
 
   -- return handle and nginx tmp dir path
   pure $ ServiceInstance ph tmpDir
+
+createUpstreamsCfg :: String -> ServiceMap -> IO ()
+createUpstreamsCfg upstreamsCfg sm = do
+  liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
+  let upstreamTemplate _name _port =
+        [i|upstream #{_name} {
+            least_conn;
+            keepalive 32;
+            server 127.0.0.1:#{_port} max_fails=3 weight=1;
+            }
+        |]
+
+  forM_
+    [ (serviceName Brig, sm.brig.port),
+      (serviceName Cannon, sm.cannon.port),
+      (serviceName Cargohold, sm.cargohold.port),
+      (serviceName Galley, sm.galley.port),
+      (serviceName Gundeck, sm.gundeck.port),
+      (serviceName Nginz, sm.nginz.port),
+      (serviceName WireProxy, sm.proxy.port),
+      (serviceName Spar, sm.spar.port)
+    ]
+    \case
+      (srv, p) -> do
+        let upstream = upstreamTemplate srv p
+        liftIO $ appendFile upstreamsCfg upstream
 
 replaceUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
 replaceUpstreamsInConfig nginxConf sm = do
@@ -615,7 +642,7 @@ replaceUpstreamsInConfig nginxConf sm = do
       where
         -- Parser for everything except upstream blocks
         configParser :: Parser.Parser Text.Text
-        configParser = fmap Text.concat $ Parser.many' (Parser.try upstreamBlockSkip <|> fmap Text.singleton Parser.anyChar)
+        configParser = Text.concat <$> Parser.many' (Parser.try upstreamBlockSkip <|> fmap Text.singleton Parser.anyChar)
 
         -- Parser to match and skip an upstream block
         upstreamBlockSkip :: Parser.Parser Text.Text
@@ -625,7 +652,7 @@ replaceUpstreamsInConfig nginxConf sm = do
           void $ Parser.many1 (alphaNum <|> oneOf "_-") -- The name
           void $ Parser.many' Parser.space
           blockBracesSkip
-          return "" -- Remove the whole block
+          pure "" -- Remove the whole block
 
         -- Skip a block with balanced braces
         blockBracesSkip :: Parser.Parser ()
@@ -681,32 +708,6 @@ replaceUpstreamsInConfig nginxConf sm = do
               server 127.0.0.1:#{_port} max_fails=3 weight=1;
               }
           |]
-
-createUpstreamsCfg :: String -> ServiceMap -> IO ()
-createUpstreamsCfg upstreamsCfg sm = do
-  liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
-  let upstreamTemplate _name _port =
-        [i|upstream #{_name} {
-            least_conn;
-            keepalive 32;
-            server 127.0.0.1:#{_port} max_fails=3 weight=1;
-            }
-        |]
-
-  forM_
-    [ (serviceName Brig, sm.brig.port),
-      (serviceName Cannon, sm.cannon.port),
-      (serviceName Cargohold, sm.cargohold.port),
-      (serviceName Galley, sm.galley.port),
-      (serviceName Gundeck, sm.gundeck.port),
-      (serviceName Nginz, sm.nginz.port),
-      (serviceName WireProxy, sm.proxy.port),
-      (serviceName Spar, sm.spar.port)
-    ]
-    \case
-      (srv, p) -> do
-        let upstream = upstreamTemplate srv p
-        liftIO $ appendFile upstreamsCfg upstream
 
 startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
 startNginz domain conf workingDir = do
