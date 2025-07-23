@@ -170,7 +170,7 @@ getUserGroupsImpl tid pstate = do
             (Just (LastSeen _ (Just ts) tieBreaker), Asc, SortByCreatedAt) -> (ts, tieBreaker) > (row.createdAt, row.id_)
             (Just (LastSeen _ (Just ts) tieBreaker), Desc, SortByCreatedAt) -> (ts, tieBreaker) < (row.createdAt, row.id_)
             (Nothing, _, _) -> False
-            _ -> error $ "unexpected lastSeen: " <> show pstate.lastSeen
+            _ -> error $ "unexpected lastSeen: " <> show (pstate.lastSeen, pstate.sortOrder, pstate.sortBy)
 
     dropAfterPageSize = take (pageSizeToInt pstate.pageSize)
 

@@ -3,7 +3,7 @@
 module Wire.UserGroupStore.Postgres where
 
 import Control.Error (MaybeT (..))
-import Control.Lens (view, _1, _2, _3)
+import Control.Lens (view, _1, _2)
 import Data.Bifunctor (second)
 import Data.Functor.Contravariant ((>$<))
 import Data.Id

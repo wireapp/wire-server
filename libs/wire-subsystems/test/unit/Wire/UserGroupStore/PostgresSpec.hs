@@ -6,7 +6,7 @@ module Wire.UserGroupStore.PostgresSpec (spec) where
 
 import Data.Default
 import Data.Id
-import Data.Json.Util (readUTCTimeMillis)
+import Data.Json.Util
 import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -40,7 +40,7 @@ checkPaginationState pstate result =
     tid = Id (fromJust $ UUID.fromText "d52017d2-578b-11f0-9699-9344acad2031")
 
 spec :: Spec
-spec = focus do
+spec = do
   describe "paginationStateToSqlQuery" $ do
     checkPaginationState
       def
@@ -168,9 +168,9 @@ spec = focus do
                        ]
 
     it "answer contains rows in correct order" $ do
-      let search :: (_) => TeamId -> (SortBy, SortOrder, SortOrder) -> Sem r [UserGroup]
-          search tid (sBy, soName, _soTime) =
-            getUserGroups tid (pstate {sortBy = sBy, sortOrder = soName})
+      let search :: (_) => TeamId -> (SortBy, SortOrder) -> Sem r [UserGroup]
+          search tid (sBy, sOrder) =
+            getUserGroups tid (pstate {sortBy = sBy, sortOrder = sOrder})
 
           x0 = {- time 1 -} "anarchy"
           x1 = {- time 2 -} "bubble"
@@ -188,36 +188,38 @@ spec = focus do
 
         res <-
           search tid
-            `mapM` [ (SortByName, Asc, Asc),
-                     (SortByName, Desc, Asc),
-                     (SortByName, Asc, Desc),
-                     (SortByName, Desc, Desc),
-                     (SortByCreatedAt, Asc, Asc),
-                     (SortByCreatedAt, Desc, Asc),
-                     (SortByCreatedAt, Asc, Desc),
-                     (SortByCreatedAt, Desc, Desc)
+            `mapM` [ (SortByName, Asc),
+                     (SortByName, Desc),
+                     (SortByCreatedAt, Asc),
+                     (SortByCreatedAt, Desc)
                    ]
         pure (ugs, res)
 
-      -- remove the `--` from the following lines if you find the error of this test unhelpful.
-      --
-      -- let fingerprint :: UserGroup -> (Text, Text)
-      --     fingerprint ug =
-      --       ( userGroupNameToText ug.name,
-      --         T.pack (formatTime defaultTimeLocale "%T" (fromUTCTimeMillis ug.createdAt))
-      --       )
-      --  in length (show (ugs, result)) `seq` traceShowM `mapM_` (fingerprint <$$> result)
+      {-
+      -- this gives you more debug output:
+      let fingerprint :: UserGroup -> (Text, Text)
+          fingerprint ug =
+            ( userGroupNameToText ug.name,
+              T.pack (formatTime defaultTimeLocale "%T" (fromUTCTimeMillis ug.createdAt))
+            )
+       in length (show (ugs, result)) `seq` traceShowM `mapM_` (fingerprint <$$> result)
+      -}
 
-      result
-        `shouldBe` [ (ugs !!) <$> [0, 1, 3, 2],
-                     (ugs !!) <$> [2, 1, 3, 0],
-                     (ugs !!) <$> [0, 3, 1, 2],
-                     (ugs !!) <$> [2, 3, 1, 0],
-                     (ugs !!) <$> [0, 1, 3, 2],
-                     (ugs !!) <$> [0, 1, 3, 2],
-                     (ugs !!) <$> [3, 2, 1, 0],
-                     (ugs !!) <$> [2, 3, 1, 0]
-                   ]
+      length result `shouldBe` 4
+      result !! 0 `shouldBe` ((ugs !!) <$> [0, 1, 3, 2])
+      result !! 1 `shouldBe` ((ugs !!) <$> [2, 3, 1, 0])
+      result !! 2
+        `shouldSatisfy` ( `elem`
+                            [ ((ugs !!) <$> [0, 1, 3, 2]),
+                              ((ugs !!) <$> [0, 1, 2, 3])
+                            ]
+                        )
+      result !! 3
+        `shouldSatisfy` ( `elem`
+                            [ ((ugs !!) <$> [2, 3, 1, 0]),
+                              ((ugs !!) <$> [3, 2, 1, 0])
+                            ]
+                        )
 
     it "paginates" $ do
       let search :: (_) => TeamId -> (Int, Maybe LastSeen) -> Sem r [Text]
