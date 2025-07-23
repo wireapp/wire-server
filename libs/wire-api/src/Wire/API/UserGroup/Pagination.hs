@@ -22,7 +22,6 @@ import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as LB
 import Data.Default
-import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema qualified as O
 import Data.Proxy
@@ -47,8 +46,6 @@ type PaginationQuery =
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
     :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
     :> QueryParam' '[Optional, Strict] "page_size" PageSize
-    :> QueryParam' '[Optional, Strict] "starting_at_name" UserGroupName -- TODO: remove this?  not in the RFC.
-    :> QueryParam' '[Optional, Strict] "starting_at_created_at" UTCTimeMillis -- TODO: remove this?  not in the RFC.
     :> QueryParam'
          '[ Optional,
             Strict,

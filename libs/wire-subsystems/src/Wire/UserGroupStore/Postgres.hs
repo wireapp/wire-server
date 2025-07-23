@@ -103,22 +103,17 @@ getUserGroupsImpl tid pstate = do
   either throw pure eitherResult
   where
     session :: Session [UserGroup]
-    session = run
+    session = sessionFromParams
       where
         (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
 
-        -- turn sql params into a flat list of texts
-        collect :: PaginationSqlParams -> [Text]
-        collect params = catMaybes $ case params of
-          PaginationSqlParams s Nothing -> [s]
-          PaginationSqlParams s (Just (LastSeen n i)) -> [s, Just n, Just (idToText i)]
-
         -- fill just the right number of holes in the statement using matching encoders
-        run = case collect sqlParams of
+        sessionFromParams = case sqlParams of
           [] -> mkSession (statement ()) HE.noParams
           [a] -> mkSession (statement a) encode1
           [a, b] -> mkSession (statement (a, b)) encode2
           [a, b, c] -> mkSession (statement (a, b, c)) encode3
+          bad -> error $ "internal error in paginationStateToSqlQuery: " <> show bad
 
         encode1 = HE.param (HE.nonNullable HE.text)
         encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
@@ -150,25 +145,17 @@ getUserGroupsImpl tid pstate = do
       let members = mempty -- TODO: do we want `data UserGroup (m :: * -> *) = UserGroup { members :: m (Vector ...), ... }`?
       pure $ UserGroup {..}
 
-data PaginationSqlParams = PaginationSqlParams
-  { searchString :: Maybe Text,
-    lastSeen :: Maybe LastSeen
-  }
-
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
-paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, PaginationSqlParams)
-paginationStateToSqlQuery = undefined
-
-{-
+paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, [Text])
 paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
-  ( T.pack . unwords $ join [s, w, n, o, q],
+  ( T.pack . unwords $ join [sel, whr, n, o, q],
     (("%" <>) . (<> "%")) <$> pstate.searchString
   )
   where
-    s = ["select id, name, managed_by, created_at from user_group"]
-    w = ["where team_id='" <> tid <> "'"]
-    c = maybe [] mkConstraints pstate.lastSeen
+    sel = ["select id, name, managed_by, created_at from user_group"]
+    whr = ["where team_id='" <> tid <> "'"]
+    (constraintsText, constraintsParams) = maybe [] mkConstraints pstate.lastSeen
     n = ["and name ilike ($1 :: text)" | isJust pstate.searchString]
     o = ["order by", cols]
       where
@@ -201,6 +188,19 @@ paginationStateToSqlQuery (Id (UUID.toString -> tid)) pstate =
           Asc -> ">"
           Desc -> "<"
         z = mconcat ["('", lastNameOrCreatedAt, "', '", lastId, "')"] -- TODO: escape this!!!
+
+{-
+
+  focus . it "mkConstraints" $ do
+    mkConstraints SortByName Asc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (name, id) > ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+    mkConstraints SortByName Desc "karl" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (name, id) < ('karl', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+    mkConstraints SortByCreatedAt Asc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (created_at, id) > ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+    mkConstraints SortByCreatedAt Desc "2021-05-12T10:52:02.000Z" "bfbbaf0c-66fc-11f0-aaee-7b4aaf050497"
+      `shouldBe` "and (created_at, id) < ('2021-05-12T10:52:02.000Z', 'bfbbaf0c-66fc-11f0-aaee-7b4aaf050497')"
+
 -}
 
 createUserGroupImpl ::
