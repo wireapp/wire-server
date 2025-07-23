@@ -514,17 +514,19 @@ startNginzK8s domain sm = do
     copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
   let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
-  liftIO $ do
-    conf <- Text.readFile nginxConfFile
-    Text.writeFile nginxConfFile $
-      ( conf
-          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
-          -- TODO: Get these ports out of config
-          & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
-          & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
-          & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
-      )
-    replaceUpstreamsInConfig nginxConfFile sm
+  conf <- Text.readFile nginxConfFile
+  Text.writeFile nginxConfFile $
+    ( conf
+        & Text.replace "access_log /dev/stdout" "access_log /dev/null"
+        -- TODO: Get these ports out of config
+        & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
+        & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
+        & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
+    )
+
+  conf' <- Text.readFile nginxConfFile
+  Text.writeFile nginxConfFile $ replaceUpstreamsInConfig conf' sm
+
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
@@ -616,50 +618,45 @@ makeUpstreamsCfgs sm =
           ]
         $ uncurry upstreamTemplate
 
-replaceUpstreamsInConfig :: FilePath -> ServiceMap -> IO ()
-replaceUpstreamsInConfig nginxConf sm = do
-  original <- Text.readFile nginxConf
-  let -- remove all existing upstream blocks
-      pruned = removeUpstreams original
-      -- splice freshly generated blocks
-      finalConf = insertGeneratedUpstreams pruned generateUpstreamsText
-
-  Text.writeFile nginxConf finalConf
+-- | remove all existing 'upstream <name> { ... }' blocks
+replaceUpstreamsInConfig :: Text.Text -> ServiceMap -> Text.Text
+replaceUpstreamsInConfig nginxConf sm = insertGeneratedUpstreams generateUpstreamsText $ removeUpstreamBlocks
   where
-    -- remove all existing 'upstream <name> { ... }' blocks
-    removeUpstreams :: Text.Text -> Text.Text
-    removeUpstreams txt =
-      either (\e -> error ("Parsing for upstreams failed" <> e)) id $
-        Parser.parseOnly configParser txt
+    removeUpstreamBlocks = either (\e -> error ("Parsing for upstreams failed" <> e)) id $ Parser.parseOnly configParser nginxConf
+
+    -- Parser for everything except upstream blocks
+    configParser :: Parser.Parser Text.Text
+    configParser =
+      Text.concat
+        <$> Parser.many'
+          ( Parser.try upstreamBlockSkip
+              <|> fmap Text.singleton Parser.anyChar
+          )
+
+    -- Parser to match and skip an upstream block
+    upstreamBlockSkip :: Parser.Parser Text.Text
+    upstreamBlockSkip = do
+      void $ Parser.try (Parser.string "upstream")
+      void $ Parser.many1 Parser.space
+      void $ Parser.many1 (alphaNum <|> oneOf "_-") -- The name
+      void $ Parser.many' Parser.space
+      blockBracesSkip
+      pure "" -- Remove the whole block
+
+    -- Skip a block with balanced braces
+    blockBracesSkip :: Parser.Parser ()
+    blockBracesSkip = do
+      _ <- Parser.char '{'
+      skipBraces 1
       where
-        -- Parser for everything except upstream blocks
-        configParser :: Parser.Parser Text.Text
-        configParser = Text.concat <$> Parser.many' (Parser.try upstreamBlockSkip <|> fmap Text.singleton Parser.anyChar)
-
-        -- Parser to match and skip an upstream block
-        upstreamBlockSkip :: Parser.Parser Text.Text
-        upstreamBlockSkip = do
-          void $ Parser.try (Parser.string "upstream")
-          void $ Parser.many1 Parser.space
-          void $ Parser.many1 (alphaNum <|> oneOf "_-") -- The name
-          void $ Parser.many' Parser.space
-          blockBracesSkip
-          pure "" -- Remove the whole block
-
-        -- Skip a block with balanced braces
-        blockBracesSkip :: Parser.Parser ()
-        blockBracesSkip = do
-          _ <- Parser.char '{'
-          skipBraces 1
-          where
-            skipBraces :: Int -> Parser.Parser ()
-            skipBraces 0 = pure ()
-            skipBraces n = do
-              c <- Parser.anyChar
-              case c of
-                '{' -> skipBraces (n + 1)
-                '}' -> skipBraces (n - 1)
-                _ -> skipBraces n
+        skipBraces :: Int -> Parser.Parser ()
+        skipBraces 0 = pure ()
+        skipBraces n = do
+          c <- Parser.anyChar
+          case c of
+            '{' -> skipBraces (n + 1)
+            '}' -> skipBraces (n - 1)
+            _ -> skipBraces n
 
     alphaNum :: Parser.Parser Char
     alphaNum = Parser.satisfy Char.isAlphaNum
@@ -670,7 +667,7 @@ replaceUpstreamsInConfig nginxConf sm = do
     -- Insert generated upstreams:
     -- Try to put them right after the opening 'http {'.
     insertGeneratedUpstreams :: Text.Text -> Text.Text -> Text.Text
-    insertGeneratedUpstreams conf ups =
+    insertGeneratedUpstreams ups conf =
       case Text.breakOn "http {" conf of
         (pre, rest)
           | not (Text.null rest) ->
@@ -678,7 +675,6 @@ replaceUpstreamsInConfig nginxConf sm = do
                in Text.concat [pre, httpOpen, "\n\n", ups, postOpen]
         _ -> Text.concat [ups, "\n", conf]
 
-    -- fallback: top of file
     generateUpstreamsText :: Text.Text
     generateUpstreamsText =
       Text.concat $
