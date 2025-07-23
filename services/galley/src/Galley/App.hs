@@ -122,7 +122,7 @@ import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
-import Wire.TeamCollaboratorsSubsystem.Interpreter (interpretTeamCollaboratorsSubsystem)
+import Wire.TeamCollaboratorsSubsystem.Interpreter
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -266,7 +266,7 @@ evalGalley e =
     . asyncToIOFinal
     . mapError httpErrorToJSONResponse
     . mapError postgresUsageErrorToHttpError
-    . mapError toResponse
+    . mapError teamCollaboratorsSubsystemErrorToHttpError
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse

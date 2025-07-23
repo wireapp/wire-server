@@ -90,7 +90,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.NotificationSubsystem
-import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem, getTeamCollaborator)
+import Wire.TeamCollaboratorsSubsystem
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -384,12 +384,10 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
   mTeamMember <- getTeamMember (tUnqualified lusr) (Just convTeam)
-  teamAssociation <- do
-    mTeamCollaborator <- getTeamCollaborator lusr convTeam (tUnqualified lusr)
-    pure $ case (mTeamMember, mTeamCollaborator) of
-      (Just tm, _) -> Just (Left tm)
-      (Nothing, Just tc) -> Just (Right tc)
-      _ -> Nothing
+  teamAssociation <- case mTeamMember of
+    Just tm -> pure (Just (Right tm))
+    Nothing -> do
+      Left <$$> internalGetTeamCollaborator convTeam (tUnqualified lusr)
 
   case newConv.newConvGroupConvType of
     Channel -> do

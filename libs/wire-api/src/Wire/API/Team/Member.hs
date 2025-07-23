@@ -626,7 +626,7 @@ instance IsPerm TeamCollaborator Perm where
     perm `Set.member` collaboratorToTeamPermissions collaborator.gPermissions
   mayGrantPermission _ _ = False
 
-instance IsPerm (Either TeamMember TeamCollaborator) Perm where
+instance (IsPerm a p, IsPerm b p) => IsPerm (Either a b) p where
   hasPermission = either hasPermission hasPermission
   mayGrantPermission = either mayGrantPermission mayGrantPermission
 
@@ -634,7 +634,7 @@ collaboratorToTeamPermissions :: Set CollaboratorPermission -> Set Perm
 collaboratorToTeamPermissions =
   foldMap
     ( \case
-        Collaborator.CreateTeamConversation -> Set.singleton CreateConversation
+        Collaborator.CreateTeamConversation -> Set.fromList [CreateConversation, AddRemoveConvMember]
         Collaborator.ImplicitConnection -> mempty
     )
 

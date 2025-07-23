@@ -2,6 +2,7 @@ module Test.TeamCollaborators where
 
 import API.Brig
 import API.Galley
+import Data.Tuple.Extra
 import Notifications (isTeamCollaboratorAddedNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -76,12 +77,14 @@ testCreateTeamCollaboratorPostTwice = do
   bindResponse add $ assertStatus 409
 
 -- Question about channels: Do collaborators get to create them when all team members are allowed to create them?
-testCollaboratorCanCreateTeamConv :: (HasCallStack) => App ()
-testCollaboratorCanCreateTeamConv = do
+testCollaboratorCanCreateTeamConv :: (HasCallStack) => TaggedBool "collaborator-has-team" -> App ()
+testCollaboratorCanCreateTeamConv (TaggedBool collaboratorHasTeam) = do
   (owner, team, _) <- createTeam OwnDomain 1
   (_, nonCollaboratingTeam, _) <- createTeam OwnDomain 1
-  -- At the time of writing, it wasn't clear if this should be a bot instead.
-  (_, _, [collaborator]) <- createTeam OwnDomain 2
+  collaborator <-
+    if collaboratorHasTeam
+      then head . thd3 <$> createTeam OwnDomain 2
+      else randomUser OwnDomain def
 
   addTeamCollaborator owner team collaborator ["create_team_conversation"]
     >>= assertSuccess

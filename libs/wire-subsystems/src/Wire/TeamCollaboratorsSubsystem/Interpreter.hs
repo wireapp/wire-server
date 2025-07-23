@@ -34,19 +34,14 @@ interpretTeamCollaboratorsSubsystem ::
 interpretTeamCollaboratorsSubsystem = interpret $ \case
   CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
-  GetTeamCollaborator zUser team user -> getTeamCollaboratorImpl zUser team user
+  InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
 
-getTeamCollaboratorImpl ::
-  (Member Store.TeamCollaboratorsStore r, Member TeamSubsystem r, Member (Error TeamCollaboratorsError) r) =>
-  Local UserId ->
+internalGetTeamCollaboratorImpl ::
+  (Member Store.TeamCollaboratorsStore r) =>
   TeamId ->
   UserId ->
   Sem r (Maybe TeamCollaborator)
-getTeamCollaboratorImpl lusr teamId userId = do
-  let usr = tUnqualified lusr
-  -- collaborator should get themselves, too
-  mTm <- internalGetTeamMember usr teamId
-  unless (isJust mTm) $ throw InsufficientRights
+internalGetTeamCollaboratorImpl teamId userId = do
   Store.getTeamCollaborator teamId userId
 
 createTeamCollaboratorImpl ::
