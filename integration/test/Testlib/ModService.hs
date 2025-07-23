@@ -573,19 +573,12 @@ startNginzLocal resource = do
     writeFile integrationConfFile portConfig
 
   -- override upstreams
-  let federatorExternalPort = sm.federatorExternal.port
-      upstreamFederatorTemplate =
-        [i|upstream federator_external {
-            server 127.0.0.1:#{federatorExternalPort} max_fails=3 weight=1;
-            }
-        |]
-      upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
+  let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
 
   liftIO $ do
     whenM (doesFileExist upstreamsCfg) $
       removeFile upstreamsCfg
     appendFile upstreamsCfg (makeUpstreamsCfgs sm)
-    appendFile upstreamsCfg upstreamFederatorTemplate
 
   -- override pid configuration
   let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
@@ -618,7 +611,8 @@ makeUpstreamsCfgs sm =
             (serviceName Gundeck, sm.gundeck.port),
             (serviceName Nginz, sm.nginz.port),
             (serviceName WireProxy, sm.proxy.port),
-            (serviceName Spar, sm.spar.port)
+            (serviceName Spar, sm.spar.port),
+            ("federator_external", sm.federatorExternal.port)
           ]
         $ uncurry upstreamTemplate
 
