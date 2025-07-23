@@ -527,6 +527,9 @@ startNginzK8s domain sm = do
   conf' <- Text.readFile nginxConfFile
   Text.writeFile nginxConfFile $ replaceUpstreamsInConfig conf' sm
 
+  -- TODO: Remove this debug trace
+  print $ "+++ Final NGINX conf\n" <> Text.unpack conf' <> "\n+++"
+
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
