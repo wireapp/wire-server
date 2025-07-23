@@ -362,6 +362,8 @@ data AuthenticationError
   = ReAuthFailed
   | VerificationCodeAuthFailed
   | VerificationCodeRequired
+  | RateLimitExceeded
+  deriving (Show)
 
 type instance MapError 'ReAuthFailed = 'StaticError 403 "access-denied" "This operation requires reauthentication"
 
@@ -369,11 +371,14 @@ type instance MapError 'VerificationCodeAuthFailed = 'StaticError 403 "code-auth
 
 type instance MapError 'VerificationCodeRequired = 'StaticError 403 "code-authentication-required" "Verification code required"
 
+type instance MapError 'RateLimitExceeded = 'StaticError 429 "too-many-requests" "Please try again later."
+
 instance IsSwaggerError AuthenticationError where
   addToOpenApi =
     addStaticErrorToSwagger @(MapError 'ReAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeRequired)
+      . addStaticErrorToSwagger @(MapError 'RateLimitExceeded)
 
 type instance ErrorEffect AuthenticationError = Error AuthenticationError
 
@@ -381,6 +386,7 @@ authenticationErrorToDyn :: AuthenticationError -> DynError
 authenticationErrorToDyn ReAuthFailed = dynError @(MapError 'ReAuthFailed)
 authenticationErrorToDyn VerificationCodeAuthFailed = dynError @(MapError 'VerificationCodeAuthFailed)
 authenticationErrorToDyn VerificationCodeRequired = dynError @(MapError 'VerificationCodeRequired)
+authenticationErrorToDyn RateLimitExceeded = dynError @(MapError 'RateLimitExceeded)
 
 instance (Member (Error DynError) r) => ServerEffect (Error AuthenticationError) r where
   interpretServerEffect = mapError authenticationErrorToDyn
