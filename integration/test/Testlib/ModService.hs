@@ -698,7 +698,6 @@ replaceUpstreamsInConfig nginxConf sm = insertGeneratedUpstreams generateUpstrea
 
 startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
 startNginz domain conf workingDir = do
-  testNginzConfig domain conf workingDir
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     createProcess
       (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
@@ -713,41 +712,3 @@ startNginz domain conf workingDir = do
   void $ forkIO $ logToConsole colorize prefix stderrHdl
 
   pure ph
-
--- TODO: This validation run is only required during development
-testNginzConfig :: String -> FilePath -> FilePath -> IO ()
-testNginzConfig domain conf workingDir = do
-  (_, Just stdoutHdl, Just stderrHdl, ph) <-
-    createProcess
-      (proc "nginx" ["-t", "-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
-        { cwd = Just workingDir,
-          std_out = CreatePipe,
-          std_err = CreatePipe
-        }
-
-  let prefix = "[" <> "nginz" <> "@" <> domain <> "] "
-  let colorize = fromMaybe id (lookup "nginx" processColors)
-  void $ forkIO $ logToConsole colorize prefix stdoutHdl
-  void $ forkIO $ logToConsole colorize prefix stderrHdl
-
-  exitCode <- waitForProcess ph
-
-  print $ "nginx check existed with: " <> show exitCode
-
-  unless (exitCode == ExitSuccess) $ do
-    (_, Just stdoutHdl', Just stderrHdl', ph') <-
-      createProcess
-        (proc "nginx" ["-T", "-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
-          { cwd = Just workingDir,
-            std_out = CreatePipe,
-            std_err = CreatePipe
-          }
-
-    let prefix' = "[" <> "nginz-T" <> "@" <> domain <> "] "
-    let colorize' = fromMaybe id (lookup "nginx" processColors)
-    void $ forkIO $ logToConsole colorize' prefix' stdoutHdl'
-    void $ forkIO $ logToConsole colorize' prefix' stderrHdl'
-    exitCode' <- waitForProcess ph'
-
-    unless (exitCode' == ExitSuccess) $
-      error "Failed to parse nginx config"
