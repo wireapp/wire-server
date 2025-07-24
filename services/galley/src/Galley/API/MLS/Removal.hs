@@ -31,7 +31,6 @@ import Data.Map qualified as Map
 import Data.Proxy
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Time
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
@@ -61,13 +60,14 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 import Wire.Sem.Random
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
   forall r t.
   ( Member (Error FederationError) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -124,7 +124,7 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> 
 
 removeClientsWithClientMapRecursively ::
   ( Member (Error FederationError) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -157,7 +157,7 @@ removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
 
 removeClientsFromSubConvs ::
   ( Member (Error FederationError) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -201,7 +201,7 @@ removeClient ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -238,7 +238,7 @@ removeUser ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -285,7 +285,7 @@ removeExtraneousClients ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,

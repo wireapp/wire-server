@@ -36,7 +36,6 @@ import Control.Monad.Codensity hiding (reset)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Time.Clock
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
@@ -71,6 +70,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 type MLSGetSubConvStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -274,7 +274,7 @@ type HasLeaveSubConversationEffects r =
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,

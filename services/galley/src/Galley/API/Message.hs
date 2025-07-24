@@ -87,6 +87,8 @@ import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 import Wire.NotificationSubsystem (NotificationSubsystem)
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 data UserType = User | Bot
 
@@ -256,7 +258,7 @@ postBroadcast ::
     Member (ErrorS 'BroadcastLimitExceeded) r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r
@@ -275,7 +277,7 @@ postBroadcast lusr con msg = runError $ do
           . qualifiedOtrRecipientsMap
           . qualifiedNewOtrRecipients
           $ msg
-  now <- input
+  now <- Now.get
 
   tid <- lookupBindingTeam senderUser
   limit <- fromIntegral . fromRange <$> fanoutLimit
@@ -365,7 +367,7 @@ postQualifiedOtrMessage ::
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r
@@ -382,7 +384,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
     . mapToRuntimeError @'InvalidOperation @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
     $ do
       let localDomain = tDomain lcnv
-      now <- input
+      now <- Now.get
       let nowMillis = toUTCTimeMillis now
       let senderDomain = qDomain sender
           senderUser = qUnqualified sender

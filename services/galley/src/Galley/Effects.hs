@@ -65,7 +65,6 @@ where
 
 import Data.Id
 import Data.Qualified
-import Data.Time.Clock
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
@@ -153,7 +152,6 @@ type GalleyEffects1 =
      Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
-     Input UTCTime, -- TODO: Use 'Now' instead of this
      Now,
      Queue DeleteItem,
      TinyLog,
