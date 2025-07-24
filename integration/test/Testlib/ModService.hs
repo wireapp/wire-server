@@ -517,7 +517,7 @@ startNginzK8s domain sm = do
   Text.writeFile nginxConfFile $
     ( conf
         & Text.replace "access_log /dev/stdout" "access_log /dev/null"
-        -- TODO: Get these ports out of config
+        -- FUTUREWORK: Get these ports out of config
         & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
         & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
         & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
