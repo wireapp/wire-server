@@ -31,7 +31,6 @@ where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
-import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
@@ -70,6 +69,7 @@ import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 type HasProposalActionEffects r =
   ( Member BackendNotificationQueueAccess r,
@@ -90,7 +90,7 @@ type HasProposalActionEffects r =
     Member FederatorAccess r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,

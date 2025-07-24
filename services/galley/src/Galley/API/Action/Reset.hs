@@ -5,7 +5,6 @@ import Data.Aeson qualified as A
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Qualified
-import Data.Time.Clock
 import Galley.API.Action.Kick
 import Galley.API.MLS.Util
 import Galley.API.Util
@@ -36,10 +35,11 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 resetLocalMLSMainConversation ::
   ( Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,

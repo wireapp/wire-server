@@ -42,7 +42,6 @@ import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
-import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
@@ -82,6 +81,7 @@ import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -161,7 +161,7 @@ removeSettingsInternalPaging ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -207,7 +207,7 @@ removeSettings ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -259,7 +259,7 @@ removeSettings' ::
     Member FederatorAccess r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member LegalHoldStore r,
@@ -312,7 +312,7 @@ grantConsent ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -361,7 +361,7 @@ requestDevice ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -455,7 +455,7 @@ approveDevice ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -533,7 +533,7 @@ disableForUser ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -598,7 +598,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
@@ -715,7 +715,7 @@ handleGroupConvPolicyConflicts ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
     Member ProposalStore r,

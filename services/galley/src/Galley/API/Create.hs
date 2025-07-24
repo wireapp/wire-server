@@ -41,7 +41,6 @@ import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
-import Data.Time
 import Data.UUID.Tagged qualified as U
 import Galley.API.Action
 import Galley.API.Cells
@@ -90,6 +89,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.TeamCollaboratorsSubsystem
 
 ----------------------------------------------------------------------------
@@ -118,7 +119,7 @@ createGroupConversationUpToV3 ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -163,7 +164,7 @@ createGroupConversationV9 ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -208,7 +209,7 @@ createGroupConversation ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -235,7 +236,7 @@ createGroupConversation lusr conn newConv = do
 createGroupConvAndMkResponse ::
   ( Member (Input Opts) r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS NotATeamMember) r,
@@ -295,7 +296,7 @@ createGroupConversationGeneric ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -326,7 +327,7 @@ createGroupConversationGeneric lusr conn newConv joinType = do
   where
     sendCellsNotification :: Data.Conversation -> Sem r ()
     sendCellsNotification conv = do
-      now <- input
+      now <- Now.get
       let lconv = qualifyAs lusr (Data.convId conv)
           event = CellsEvent (tUntagged lconv) (tUntagged lusr) now CellsConvCreateNoData
       when (conv.convMetadata.cnvmCellsState /= CellsDisabled) $ do
@@ -487,7 +488,7 @@ createOne2OneConversation ::
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -556,7 +557,7 @@ createLegacyOne2OneConversationUnchecked ::
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -599,7 +600,7 @@ createOne2OneConversationUnchecked ::
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -624,7 +625,7 @@ createOne2OneConversationLocally ::
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member P.TinyLog r
   ) =>
   Local ConvId ->
@@ -678,7 +679,7 @@ createConnectConversation ::
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member P.TinyLog r
   ) =>
@@ -708,7 +709,7 @@ createConnectConversation lusr conn j = do
   where
     create lcnv nc = do
       c <- E.createConversation lcnv nc
-      now <- input
+      now <- Now.get
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConnect j)
       notifyCreatedConversation lusr conn c def
       pushNotifications
@@ -753,7 +754,7 @@ createConnectConversation lusr conn j = do
               E.setConversationName (Data.convId conv) x
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
-          t <- input
+          t <- Now.get
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t Nothing (EdConnect j)
           pushNotifications
             [ def
@@ -843,7 +844,7 @@ notifyCreatedConversation ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -852,7 +853,7 @@ notifyCreatedConversation ::
   JoinType ->
   Sem r ()
 notifyCreatedConversation lusr conn c joinType = do
-  now <- input
+  now <- Now.get
   -- Ask remote servers to store conversation membership and notify remote users
   -- of being added to a conversation
   registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType

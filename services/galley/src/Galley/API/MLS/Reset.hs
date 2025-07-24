@@ -19,7 +19,6 @@ module Galley.API.MLS.Reset (resetMLSConversation) where
 
 import Data.Id
 import Data.Qualified
-import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Enabled
@@ -40,10 +39,11 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 resetMLSConversation ::
   ( Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input (Local ())) r,
     Member (ErrorS MLSNotEnabled) r,
     Member (ErrorS MLSStaleMessage) r,

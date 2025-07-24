@@ -24,7 +24,6 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
 import Galley.Data.Services
@@ -35,7 +34,6 @@ import Imports
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -49,6 +47,8 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 -- | Propagate a message.
 -- The message will not be propagated to the sender client if provided. This is
@@ -57,7 +57,7 @@ propagateMessage ::
   ( Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TinyLog r,
     Member NotificationSubsystem r
   ) =>
@@ -69,7 +69,7 @@ propagateMessage ::
   ClientMap LeafIndex ->
   Sem r ()
 propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
-  now <- input @UTCTime
+  now <- Now.get
   let mlsConv = (.conv) <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
       rmems = mcRemoteMembers . tUnqualified $ mlsConv

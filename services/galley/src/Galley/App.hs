@@ -52,7 +52,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock
 import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
@@ -278,7 +277,6 @@ evalGalley e =
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . nowToIO
-    . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretTeamFeatureSpecialContext e

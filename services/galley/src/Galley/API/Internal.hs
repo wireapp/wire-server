@@ -98,6 +98,8 @@ import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -317,7 +319,7 @@ rmUser ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ListItems p1 ConvId) r,
     Member (ListItems p1 (Remote ConvId)) r,
     Member (ListItems p2 TeamId) r,
@@ -385,7 +387,7 @@ rmUser lusr conn = do
     leaveLocalConversations ids = do
       let qUser = tUntagged lusr
       cc <- getConversations ids
-      now <- input
+      now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
         One2OneConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing

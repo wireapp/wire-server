@@ -144,6 +144,7 @@ import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPass
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
+import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
 import Wire.SessionStore (SessionStore)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -264,7 +265,7 @@ upgradePersonalToTeam ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ConnectionStore InternalPaging) r,
     Member EmailSending r
   ) =>

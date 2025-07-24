@@ -3,7 +3,6 @@ module Galley.API.Action.Leave (leaveConversation) where
 import Control.Lens
 import Data.Id
 import Data.Qualified
-import Data.Time.Clock
 import Galley.API.MLS.Removal
 import Galley.API.Util
 import Galley.Data.Conversation
@@ -17,6 +16,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Federation.Error
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 leaveConversation ::
   ( Member TinyLog r,
@@ -29,7 +29,7 @@ leaveConversation ::
     Member Random r,
     Member SubConversationStore r,
     Member (Input Env) r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   Qualified UserId ->
   Local Conversation ->

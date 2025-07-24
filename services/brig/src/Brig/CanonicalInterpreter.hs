@@ -29,10 +29,9 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
-import Polysemy.Input (Input, runInputConst, runInputSem)
+import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
-import Util.Timeout
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
@@ -180,7 +179,6 @@ type BrigLowerLevelEffects =
      Input Hasql.Pool,
      Input UserSubsystemConfig,
      Input VerificationCodeThrottleTTL,
-     Input UTCTime,
      Input (Local ()),
      Input (AuthenticationSubsystemConfig),
      Input TeamTemplates,
@@ -308,7 +306,6 @@ runBrigToIO e (AppT ma) = do
               . runInputConst (teamTemplatesNoLocale e)
               . runInputConst authenticationSubsystemConfig
               . runInputConst localUnit
-              . runInputSem (embed getCurrentTime)
               . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
               . runInputConst userSubsystemConfig
               . runInputConst e.hasqlPool
