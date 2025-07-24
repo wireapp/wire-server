@@ -25,8 +25,7 @@ import Data.Qualified (Qualified (Qualified))
 import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
-  ( ConvMembersV9 (..),
-    Member
+  ( Member
       ( Member,
         memConvRoleName,
         memHidden,
@@ -39,6 +38,7 @@ import Wire.API.Conversation
         memService
       ),
     OtherMember (..),
+    OwnConvMembers (..),
   )
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
@@ -46,9 +46,9 @@ import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _servic
 domain :: Domain
 domain = Domain "golden.example.com"
 
-testObject_ConvMembersV9_user_1 :: ConvMembersV9
-testObject_ConvMembersV9_user_1 =
-  ConvMembersV9
+testObject_OwnConvMembers_user_1 :: OwnConvMembers
+testObject_OwnConvMembers_user_1 =
+  OwnConvMembers
     { cmSelf =
         Member
           { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
@@ -88,9 +88,9 @@ testObject_ConvMembersV9_user_1 =
         ]
     }
 
-testObject_ConvMembersV9_user_2 :: ConvMembersV9
-testObject_ConvMembersV9_user_2 =
-  ConvMembersV9
+testObject_OwnConvMembers_user_2 :: OwnConvMembers
+testObject_OwnConvMembers_user_2 =
+  OwnConvMembers
     { cmSelf =
         Member
           { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) domain,

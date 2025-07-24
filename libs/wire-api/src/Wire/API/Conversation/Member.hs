@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Conversation.Member
-  ( ConvMembersV9 (..),
+  ( OwnConvMembers (..),
     ConvMembers (..),
 
     -- * Member
@@ -50,18 +50,20 @@ import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
-data ConvMembersV9 = ConvMembersV9
+-- | This type means that the requestor is a member of the conversation,
+--   which is conveyed by the `Own` prefix.
+data OwnConvMembers = OwnConvMembers
   { cmSelf :: Member,
     cmOthers :: [OtherMember]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConvMembersV9)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembersV9
+  deriving (Arbitrary) via (GenericUniform OwnConvMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema OwnConvMembers
 
-instance ToSchema ConvMembersV9 where
+instance ToSchema OwnConvMembers where
   schema =
-    objectWithDocModifier "ConvMembersV9" (description ?~ "Users of a conversation") $
-      ConvMembersV9
+    objectWithDocModifier "OwnConvMembers" (description ?~ "Users of a conversation") $
+      OwnConvMembers
         <$> cmSelf
           .= fieldWithDocModifier
             "self"
@@ -73,6 +75,9 @@ instance ToSchema ConvMembersV9 where
             (description ?~ "All other current users of this conversation")
             (array schema)
 
+-- | This type represents the members of a conversation, without the
+--   requirement of the requestor being a member.
+--   See 'OwnConvMembers' as reference for the type that includes the requestor.
 data ConvMembers = ConvMembers
   { self :: Maybe Member,
     others :: [OtherMember]
