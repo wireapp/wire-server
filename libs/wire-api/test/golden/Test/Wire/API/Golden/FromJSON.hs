@@ -30,7 +30,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Runner
-import Wire.API.Conversation (OwnConversation, MemberUpdate, OtherMemberUpdate)
+import Wire.API.Conversation (MemberUpdate, OtherMemberUpdate, OwnConversation)
 import Wire.API.User (NewUser, NewUserPublic)
 import Wire.API.User.Client (RmClient)
 
