@@ -25,6 +25,11 @@ data:
       tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    {{- if hasKey $.Values.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/galley/secrets/pgPassword
+    {{- end }}
+
     brig:
       host: brig
       port: 8080

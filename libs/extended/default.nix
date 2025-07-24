@@ -15,6 +15,8 @@
 , errors
 , exceptions
 , gitignoreSource
+, hasql
+, hasql-pool
 , hspec
 , hspec-discover
 , http-client
@@ -37,6 +39,7 @@
 , tinylog
 , tls
 , transformers
+, types-common
 , unliftio
 , wai
 }:
@@ -56,6 +59,8 @@ mkDerivation {
     data-default
     errors
     exceptions
+    hasql
+    hasql-pool
     http-client
     http-client-tls
     http-types
@@ -73,6 +78,7 @@ mkDerivation {
     tinylog
     tls
     transformers
+    types-common
     unliftio
     wai
   ];

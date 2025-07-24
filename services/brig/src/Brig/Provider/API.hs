@@ -137,6 +137,7 @@ import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.Sem.Now (Now)
 import Wire.SessionStore (SessionStore)
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -175,7 +176,8 @@ servicesAPI ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
@@ -685,6 +687,7 @@ getServiceTagList _ = do
 
 updateServiceWhitelist ::
   ( Member GalleyAPIAccess r,
+    Member TeamSubsystem r,
     Member (Error UserSubsystemError) r
   ) =>
   UserId ->

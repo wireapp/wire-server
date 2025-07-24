@@ -37,7 +37,7 @@ import Wire.API.Team.Role
 data GalleyAccess m a where
   GetTeamMembers :: TeamId -> GalleyAccess m [TeamMember]
   GetTeamMember :: TeamId -> UserId -> GalleyAccess m (Maybe TeamMember)
-  AssertHasPermission :: (Show perm, IsPerm perm) => TeamId -> perm -> UserId -> GalleyAccess m ()
+  AssertHasPermission :: (Show perm, IsPerm TeamMember perm) => TeamId -> perm -> UserId -> GalleyAccess m ()
   AssertSSOEnabled :: TeamId -> GalleyAccess m ()
   IsEmailValidationEnabledTeam :: TeamId -> GalleyAccess m Bool
   UpdateTeamMember :: UserId -> TeamId -> Role -> GalleyAccess m ()

@@ -109,6 +109,8 @@ import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
+import Wire.TeamSubsystem
+import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupStore
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 import Wire.UserGroupSubsystem
@@ -137,7 +139,8 @@ type BrigCanonicalEffects =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ TeamCollaboratorsStore,
+  '[ TeamSubsystem,
+     TeamCollaboratorsStore,
      EmailSubsystem,
      VerificationCodeSubsystem,
      PropertySubsystem,
@@ -346,6 +349,7 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
               . interpretTeamCollaboratorsStoreToPostgres
+              . intepreterTeamSubsystemToGalleyAPI
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem

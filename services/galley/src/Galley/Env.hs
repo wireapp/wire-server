@@ -32,6 +32,7 @@ import Galley.Options
 import Galley.Options qualified as O
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
+import Hasql.Pool
 import Imports
 import Network.AMQP qualified as Q
 import Network.HTTP.Client
@@ -59,6 +60,7 @@ data Env = Env
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
+    _hasqlPool :: Pool,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,

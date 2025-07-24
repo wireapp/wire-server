@@ -22,6 +22,7 @@ import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
+import Data.Range
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
@@ -82,6 +83,7 @@ data GalleyAPIAccess m a where
     GalleyAPIAccess m (Maybe Team.TeamMember)
   GetTeamMembers ::
     TeamId ->
+    Maybe (Range 1 Team.HardTruncationLimit Int32) ->
     GalleyAPIAccess m Team.TeamMemberList
   GetTeamId ::
     UserId ->
