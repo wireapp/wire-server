@@ -617,9 +617,13 @@ makeUpstreamsCfgs sm =
 
 -- | replace 'upstream <name> { ... }' blocks
 replaceUpstreamsInConfig :: Text.Text -> ServiceMap -> Text.Text
-replaceUpstreamsInConfig nginxConf sm = insertGeneratedUpstreams generateUpstreamsText $ removeUpstreamBlocks
+replaceUpstreamsInConfig nginxConf sm =
+  insertGeneratedUpstreams generateUpstreamsText $ removeUpstreamBlocks
   where
-    removeUpstreamBlocks = either (\e -> error ("Parsing for upstreams failed" <> e)) id $ Parser.parseOnly configParser nginxConf
+    removeUpstreamBlocks :: Text.Text
+    removeUpstreamBlocks =
+      either (\e -> error ("Parsing for upstreams failed" <> e)) id $
+        Parser.parseOnly configParser nginxConf
 
     -- Parser for everything except upstream blocks
     configParser :: Parser.Parser Text.Text
