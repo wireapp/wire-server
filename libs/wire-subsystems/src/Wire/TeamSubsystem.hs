@@ -11,5 +11,6 @@ import Wire.API.Team.Member
 data TeamSubsystem m a where
   InternalGetTeamMember :: UserId -> TeamId -> TeamSubsystem m (Maybe TeamMember)
   InternalGetTeamMembers :: TeamId -> Maybe (Range 1 HardTruncationLimit Int32) -> TeamSubsystem m TeamMemberList
+  InternalGetTeamAdmins :: TeamId -> TeamSubsystem m TeamMemberList
 
 makeSem ''TeamSubsystem

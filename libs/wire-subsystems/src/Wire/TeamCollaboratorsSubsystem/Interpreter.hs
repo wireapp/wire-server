@@ -62,7 +62,6 @@ createTeamCollaboratorImpl zUser user team perms = do
 
   now <- get
   let event = newEvent team now (EdCollaboratorAdd user (Set.toList perms))
-  -- TODO: Why fanout to the whole team, it won't work for large teams
   teamMembersList <- internalGetTeamMembers team Nothing
   let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
   -- TODO: Review the event's values

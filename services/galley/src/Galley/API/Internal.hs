@@ -216,7 +216,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
               <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
-              <@> mkNamedAPI @"unchecked-get-team-admins" (Teams.uncheckedGetTeamAdmins tid)
+              <@> mkNamedAPI @"unchecked-get-team-admins" (TeamSubsystem.internalGetTeamAdmins tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
