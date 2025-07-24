@@ -530,8 +530,6 @@ startNginzK8s domain sm = do
 startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
   let domain = berDomain resource
-      http2Port = berNginzHttp2Port resource
-      sslPort = berNginzSslPort resource
   sm <- getServiceMap domain
 
   -- Create a whole temporary directory and copy all nginx's config files.
@@ -558,6 +556,8 @@ startNginzLocal resource = do
 
   -- override port configuration
   let nginzPort = sm.nginz.port
+      http2Port = berNginzHttp2Port resource
+      sslPort = berNginzSslPort resource
       portConfig =
         [i|listen #{nginzPort};
             listen #{http2Port};
