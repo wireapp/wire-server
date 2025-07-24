@@ -165,10 +165,10 @@ getUserGroupsImpl tid pstate = do
         sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
         sqlConds ((_, _), row) =
           case (pstate.lastSeen, pstate.sortOrder, pstate.sortBy) of
-            (Just (LastSeen (Just name) _ tieBreaker), Asc, SortByName) -> (name, tieBreaker) > (row.name, row.id_)
-            (Just (LastSeen (Just name) _ tieBreaker), Desc, SortByName) -> (name, tieBreaker) < (row.name, row.id_)
-            (Just (LastSeen _ (Just ts) tieBreaker), Asc, SortByCreatedAt) -> (ts, tieBreaker) > (row.createdAt, row.id_)
-            (Just (LastSeen _ (Just ts) tieBreaker), Desc, SortByCreatedAt) -> (ts, tieBreaker) < (row.createdAt, row.id_)
+            (Just (LastSeen (Just name) _ tieBreaker), Asc, SortByName) -> (name, tieBreaker) >= (row.name, row.id_)
+            (Just (LastSeen (Just name) _ tieBreaker), Desc, SortByName) -> (name, tieBreaker) <= (row.name, row.id_)
+            (Just (LastSeen _ (Just ts) tieBreaker), Asc, SortByCreatedAt) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
+            (Just (LastSeen _ (Just ts) tieBreaker), Desc, SortByCreatedAt) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
             (Nothing, _, _) -> False
             _ -> error $ "unexpected lastSeen: " <> show (pstate.lastSeen, pstate.sortOrder, pstate.sortBy)
 

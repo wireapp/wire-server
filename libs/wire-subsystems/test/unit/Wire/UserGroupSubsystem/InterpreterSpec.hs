@@ -16,7 +16,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
-import Debug.Trace
 import Imports
 import Numeric.Natural
 import Polysemy
@@ -318,7 +317,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           get2.page `shouldBe` reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
           get3.page `shouldBe` [groups !! 3]
 
-    focus . prop "getGroups: pagination (happy flow)" $ do
+    prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
        numGroupsPre
        pageSizePre ->
@@ -339,18 +338,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   results :: [PaginationResult] <- do
                     let fetch mbState = do
                           p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) mbState
-                          traceShowM numGroups
-                          traceShowM pageSize
-                          traceShowM ((.lastSeen) <$> mbState)
-                          traceShowM ((.createdAt) <$> p.page)
-                          traceShowM ((.createdAt) <$> groups)
-
-                          traceShowM (length p.page, pageSizeToInt pageSize)
-
                           if length p.page < pageSizeToInt pageSize
-                            -- for pagesize = 1, numgroups = 1, this keeps getting more
-                            -- groups, and keeps receiving the last one.  (is this also a
-                            -- problem of the postgres interpreter?)
                             then pure [p]
                             else (p :) <$> fetch (Just p.state)
                     fetch Nothing
