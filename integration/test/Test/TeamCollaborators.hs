@@ -76,7 +76,6 @@ testCreateTeamCollaboratorPostTwice = do
   bindResponse add assertSuccess
   bindResponse add $ assertStatus 409
 
--- Question about channels: Do collaborators get to create them when all team members are allowed to create them?
 testCollaboratorCanCreateTeamConv :: (HasCallStack) => TaggedBool "collaborator-has-team" -> App ()
 testCollaboratorCanCreateTeamConv (TaggedBool collaboratorHasTeam) = do
   (owner, team, _) <- createTeam OwnDomain 1
