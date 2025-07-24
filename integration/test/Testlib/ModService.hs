@@ -514,16 +514,14 @@ startNginzK8s domain sm = do
 
   let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
   conf <- Text.readFile nginxConfFile
-  Text.writeFile nginxConfFile $
-    ( conf
-        & Text.replace "access_log /dev/stdout" "access_log /dev/null"
-        -- FUTUREWORK: Get these ports out of config
-        & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
-        & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
-        & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
-    )
+  let conf' =
+        conf
+          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
+          -- FUTUREWORK: Get these ports out of config
+          & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
+          & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
+          & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
 
-  conf' <- Text.readFile nginxConfFile
   Text.writeFile nginxConfFile $ replaceUpstreamsInConfig conf' sm
 
   ph <- startNginz domain nginxConfFile "/"
