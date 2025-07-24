@@ -133,14 +133,14 @@ type BrigCanonicalEffects =
      EnterpriseLoginSubsystem,
      UserGroupSubsystem,
      UserSubsystem,
-     TeamCollaboratorsSubsystem,
-     TeamSubsystem
+     TeamCollaboratorsSubsystem
    ]
     `Append` BrigLowerLevelEffects
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ TeamCollaboratorsStore,
+  '[ TeamSubsystem,
+     TeamCollaboratorsStore,
      EmailSubsystem,
      VerificationCodeSubsystem,
      PropertySubsystem,

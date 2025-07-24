@@ -98,7 +98,8 @@ servantAPI ::
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -115,9 +116,9 @@ servantAPI =
     :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
 
 teamSizePublic ::
-  ( Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r
+  ( Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -201,9 +202,9 @@ logInvitationRequest context action =
         pure (Right result)
 
 deleteInvitation ::
-  ( Member GalleyAPIAccess r,
-    Member InvitationStore r,
-    Member (Error UserSubsystemError) r
+  ( Member InvitationStore r,
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -221,7 +222,8 @@ listInvitations ::
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -285,7 +287,8 @@ getInvitation ::
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->

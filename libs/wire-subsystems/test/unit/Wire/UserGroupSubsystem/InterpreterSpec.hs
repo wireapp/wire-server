@@ -37,6 +37,8 @@ import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Rnd
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
@@ -47,6 +49,7 @@ runDependencies ::
   Map TeamId [TeamMember] ->
   Sem
     '[ UserSubsystem,
+       TeamSubsystem,
        GalleyAPIAccess,
        UserGroupStore,
        State UserGroupInMemState,
@@ -67,6 +70,7 @@ runDependencies initialUsers initialTeams =
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
+    . intepreterTeamSubsystemToGalleyAPI
     . userSubsystemTestInterpreter initialUsers
 
 runDependenciesWithReturnState ::
@@ -74,6 +78,7 @@ runDependenciesWithReturnState ::
   Map TeamId [TeamMember] ->
   Sem
     ( '[ UserSubsystem,
+         TeamSubsystem,
          GalleyAPIAccess
        ]
         `Append` EffectStack
@@ -93,6 +98,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
+    . intepreterTeamSubsystemToGalleyAPI
     . userSubsystemTestInterpreter initialUsers
 
 expectRight :: (Show err) => Either err Property -> Property

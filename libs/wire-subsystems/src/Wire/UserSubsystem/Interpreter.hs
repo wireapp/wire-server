@@ -69,6 +69,7 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
+import Wire.TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
@@ -101,7 +102,8 @@ runUserSubsystem ::
     Member Metrics r,
     Member InvitationStore r,
     Member TinyLog r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TeamSubsystem r
   ) =>
   InterpreterFor AuthenticationSubsystem r ->
   Sem (UserSubsystem ': r) a ->
@@ -288,8 +290,7 @@ lookupLocaleOrDefaultImpl luid = do
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
 getUserProfilesImpl ::
-  ( Member GalleyAPIAccess r,
-    Member (Input UserSubsystemConfig) r,
+  ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
@@ -298,7 +299,8 @@ getUserProfilesImpl ::
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member TeamSubsystem r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
@@ -318,16 +320,15 @@ getLocalUserProfilesImpl ::
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
-    Member GalleyAPIAccess r,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member TeamSubsystem r
   ) =>
   Local [UserId] ->
   Sem r [UserProfile]
 getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
 
 getUserProfilesFromDomain ::
-  ( Member GalleyAPIAccess r,
-    Member (Error FederationError) r,
+  ( Member (Error FederationError) r,
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
@@ -336,7 +337,8 @@ getUserProfilesFromDomain ::
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified [UserId] ->
@@ -365,8 +367,8 @@ getUserProfilesLocalPart ::
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
-    Member GalleyAPIAccess r,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member TeamSubsystem r
   ) =>
   Maybe (Local UserId) ->
   Local [UserId] ->
@@ -396,15 +398,15 @@ getUserProfilesLocalPart requestingUser luids = do
             pure user
       case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> getTeamMember (tUnqualified self) tid
+        Just tid -> (tid,) <$$> internalGetTeamMember (tUnqualified self) tid
 
 getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
-    Member GalleyAPIAccess r,
     Member DeleteQueue r,
     Member Now r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TeamSubsystem r
   ) =>
   EmailVisibilityConfigWithViewer ->
   Local UserId ->
@@ -416,7 +418,7 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
     lhs :: UserLegalHoldStatus <- do
-      teamMember <- lift $ join <$> (getTeamMember storedUser.id `mapM` storedUser.teamId)
+      teamMember <- lift $ join <$> (internalGetTeamMember storedUser.id `mapM` storedUser.teamId)
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
@@ -468,12 +470,12 @@ getUserProfilesWithErrorsImpl ::
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
-    Member GalleyAPIAccess r,
     Member DeleteQueue r,
     Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
-    Typeable fedM
+    Typeable fedM,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -714,7 +716,8 @@ searchUsersImpl ::
     Typeable fedM,
     Member TinyLog r,
     Member (Error FederationError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Text ->
@@ -873,9 +876,9 @@ searchRemotely rDom mTid searchTerm = do
       }
 
 browseTeamImpl ::
-  ( Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r
+  ( Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   BrowseTeamFilters ->
