@@ -26,7 +26,6 @@ import Data.ByteString.Lazy qualified as LB
 import Data.Default
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
-import Data.OpenApi.ParamSchema qualified as O
 import Data.Proxy
 import Data.Range as Range
 import Data.Schema
@@ -43,8 +42,11 @@ import Wire.Arbitrary as Arbitrary
 -- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
 -- also sorting and filtering.  Please generalize when needed elsewhere.
 --
+-- The response does not contain a `has_more` field.  The rule for terminating is: if the page
+-- in the response contains fewer (and possibly 0) entries than requested, it's the last page
+-- and all upcoming pages will be empty.
+--
 -- Prior art: https://github.com/chordify/haskell-servant-pagination/
--- TODO: document how has_more works.
 type PaginationQuery =
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
@@ -91,7 +93,11 @@ instance FromHttpApiData SortBy where
   parseUrlPiece "created_at" = pure SortByCreatedAt
   parseUrlPiece bad = Left $ "SortBy: could not parse " <> bad
 
-instance O.ToParamSchema SortBy -- TODO: what does swagger look like here?
+instance S.ToParamSchema SortBy where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_ ?~ ["name", "created_at"]
 
 ------------------------------
 
@@ -127,7 +133,11 @@ instance FromHttpApiData SortOrder where
   parseUrlPiece "desc" = pure Desc
   parseUrlPiece bad = Left $ "SortOrder: could not parse " <> bad
 
-instance O.ToParamSchema SortOrder -- TODO: what does swagger look like here?
+instance S.ToParamSchema SortOrder where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_ ?~ ["asc", "desc"]
 
 ------------------------------
 
@@ -154,7 +164,11 @@ instance ToSchema PageSize where
 instance FromHttpApiData PageSize where
   parseUrlPiece = parseUrlPiece @Int >=> pageSizeFromInt
 
-instance O.ToParamSchema PageSize
+instance S.ToParamSchema PageSize where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiNumber
+      & S.description ?~ "integer from [1..500]"
 
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
@@ -238,10 +252,10 @@ instance FromHttpApiData PaginationState where
 instance ToHttpApiData PaginationState where
   toUrlPiece = toUrlPieceViaSchema
 
-instance O.ToParamSchema PaginationState where
+instance S.ToParamSchema PaginationState where
   toParamSchema _ =
-    -- PaginationState is supposed to be opaque for clients, no need to swagger docs.
-    O.toParamSchema (Proxy @Text)
+    -- PaginationState is opaque for clients, no need for swagger docs.
+    S.toParamSchema (Proxy @Text)
 
 ------------------------------
 
@@ -264,6 +278,7 @@ instance ToSchema PaginationResult where
         case parseUrlPieceViaSchema t of
           Left err -> fail $ "PaginationResult: could not parse state: " <> T.unpack err
           Right ps -> pure ps
+
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
         description
