@@ -55,7 +55,6 @@ import Testlib.Ports (PortNamespace (..))
 import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
-import Text.RawString.QQ
 import qualified UnliftIO
 import Prelude
 
@@ -687,10 +686,10 @@ replaceUpstreamsInConfig nginxConf sm = insertGeneratedUpstreams generateUpstrea
           (serviceName WireProxy, sm.proxy.port),
           (serviceName Spar, sm.spar.port)
         ]
-          <&> uncurry upstreamTemplate
+          <&> Text.pack . uncurry upstreamTemplate
       where
         upstreamTemplate _name _port =
-          [r|upstream #{_name} {
+          [i|upstream #{_name} {
               least_conn;
               keepalive 32;
               server 127.0.0.1:#{_port} max_fails=3 weight=1;
