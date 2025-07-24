@@ -82,6 +82,8 @@ import Wire.SessionStore (SessionStore)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -361,6 +363,7 @@ suspendTeam ::
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member Events r,
     Member TinyLog r,
     Member InvitationStore r,
@@ -383,6 +386,7 @@ unsuspendTeam ::
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member Events r,
     Member SessionStore r
   ) =>
@@ -400,6 +404,7 @@ changeTeamAccountStatuses ::
   ( Member (Embed HttpClientIO) r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
+    Member TeamSubsystem r,
     Member UserSubsystem r,
     Member Events r,
     Member SessionStore r
@@ -411,7 +416,7 @@ changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (liftSem $ GalleyAPIAccess.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyAPIAccess.getTeamMembers tid Nothing))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (TeamSubsystem.internalGetTeamMembers tid Nothing))
   API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

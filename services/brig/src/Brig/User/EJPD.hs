@@ -49,6 +49,8 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserStore (UserStore)
 
 -- FUTUREWORK(mangoiv): this uses 'UserStore' and should hence go to 'UserSubSystem'
@@ -57,7 +59,8 @@ ejpdRequest ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserStore r,
-    Member Rpc r
+    Member Rpc r,
+    Member TeamSubsystem r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
@@ -101,7 +104,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (reallyIncludeContacts, userTeam target) of
           (True, Just tid) -> do
-            memberList <- liftSem $ GalleyAPIAccess.getTeamMembers tid Nothing
+            memberList <- liftSem $ TeamSubsystem.internalGetTeamMembers tid Nothing
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull <-
