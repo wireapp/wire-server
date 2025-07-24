@@ -594,7 +594,6 @@ instance HasPermError Perm where
 instance HasPermError HiddenPerm where
   type PermError p = OperationDenied
 
-
 -- | See Note [hidden team roles]
 class IsPerm teamAssociation perm where
   -- type PermError teamAssociation (p :: perm) :: GalleyError
