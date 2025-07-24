@@ -133,6 +133,7 @@ library
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
+    Wire.API.MLS.RatchetTree
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation

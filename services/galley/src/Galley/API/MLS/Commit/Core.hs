@@ -111,12 +111,12 @@ getCommitData ::
   Epoch ->
   CipherSuiteTag ->
   IncomingBundle ->
-  Sem r ProposalAction
+  Sem r (IndexMap, ProposalAction)
 getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   let convOrSub = tUnqualified lConvOrSub
       groupId = cnvmlsGroupId convOrSub.mlsMeta
 
-  evalState convOrSub.indexMap $ do
+  runState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
         then addProposedClient (Left senderIdentity.client)

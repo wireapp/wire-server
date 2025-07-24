@@ -56,6 +56,7 @@ module Galley.Options
     defGuestLinkTTLSeconds,
     passwordHashingOptions,
     passwordHashingRateLimit,
+    checkGroupInfo,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -150,7 +151,9 @@ data Settings = Settings
     _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
     _passwordHashingOptions :: !(PasswordHashingOptions),
     -- | Rate limiting options for hashing passwords (used for conversation codes)
-    _passwordHashingRateLimit :: RateLimitConfig
+    _passwordHashingRateLimit :: RateLimitConfig,
+    -- | Check group info
+    _checkGroupInfo :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 

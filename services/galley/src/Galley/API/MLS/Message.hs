@@ -29,6 +29,7 @@ module Galley.API.MLS.Message
   )
 where
 
+import Control.Lens (view)
 import Control.Monad.Codensity
 import Data.Domain
 import Data.Id
@@ -62,6 +63,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.SubConversationStore
 import Galley.Effects.TeamStore qualified as TeamStore
+import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -81,8 +83,12 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Extension
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
+import Wire.API.MLS.RatchetTree
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
@@ -119,7 +125,8 @@ type MLSBundleStaticErrors =
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature
+       ErrorS 'MLSInvalidLeafNodeSignature,
+       ErrorS 'MLSGroupInfoMismatch
      ]
 
 postMLSMessageFromLocalUser ::
@@ -158,6 +165,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 postMLSCommitBundle ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
@@ -183,6 +191,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 postMLSCommitBundleFromLocalUser ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
@@ -208,6 +217,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
+    Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
@@ -269,7 +279,12 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     (events, newClients) <- case senderIdentity.index of
       Just _ -> do
         -- extract added/removed clients from bundle
-        action <- lift $ getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+        (newIndexMap, action) <-
+          lift $
+            getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+
+        lift $ checkGroupState newIndexMap bundle.groupInfo.value
+
         -- process additions and removals
         events <-
           processInternalCommit
@@ -286,7 +301,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         let newClients = filter ((/=) senderIdentity.client) (cmIdentities (paAdd action))
         pure (events, newClients)
       Nothing -> do
-        action <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
+        (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
+        lift $ checkGroupState newIndexMap bundle.groupInfo.value
         let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
           senderIdentity'
@@ -298,13 +314,42 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.commit.value.path
         pure ([], [])
     lift $ do
-      storeGroupInfo (tUnqualified lConvOrSub).id (GroupInfoData bundle.groupInfo.raw)
-      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+      storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
+      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage convOrSub.members
     pure (events, newClients)
 
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
   pure events
+
+checkGroupState ::
+  forall r.
+  ( Member (ErrorS MLSGroupInfoMismatch) r,
+    Member (Input Opts) r,
+    Member (Error MLSProtocolError) r
+  ) =>
+  IndexMap ->
+  GroupInfo ->
+  Sem r ()
+checkGroupState leaves groupInfo = do
+  check <- fromMaybe False <$> inputs (view $ settings . checkGroupInfo)
+  when check $ do
+    trees <-
+      either
+        (\_ -> throw (mlsProtocolError "Could not parse ratchet tree extension in GroupInfo"))
+        pure
+        $ findExtension groupInfo.tbs.extensions
+    tree :: RatchetTree <- case trees of
+      (tree : _) -> pure tree
+      _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
+    giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
+    when (leaves /= giLeaves) $ do
+      throwS @MLSGroupInfoMismatch
+  where
+    getIdentity :: LeafNode -> Sem r ClientIdentity
+    getIdentity leaf = case credentialIdentityAndKey leaf.credential of
+      Left e -> throw (mlsProtocolError e)
+      Right (cid, _) -> pure cid
 
 postMLSCommitBundleToRemoteConv ::
   ( Member BrigAccess r,

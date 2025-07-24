@@ -970,3 +970,56 @@ testInvalidLeafNodeSignature = do
       (left, right) -> case B.uncons right of
         Just (h, t) -> left <> B.singleton (h `xor` 0x01) <> t
         Nothing -> bs
+
+testGroupInfoMismatch :: (HasCallStack) => App ()
+testGroupInfoMismatch = withModifiedBackend
+  (def {galleyCfg = setField "settings.checkGroupInfo" True})
+  $ \domain -> do
+    [alice, bob, charlie] <- createAndConnectUsers [domain, domain, domain]
+    [alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
+    traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+    conv <- createNewGroup def alice1
+
+    mp1 <- createAddCommit alice1 conv [bob]
+    void $ sendAndConsumeCommitBundle mp1
+
+    -- attempt a commit with an old group info
+    mp2 <- createAddCommit alice1 conv [charlie]
+    bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
+      $ \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
+
+    -- check that epoch is still 1
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "epoch" `shouldMatchInt` 1
+
+    -- attempt an external commit with an old group info
+    void $ uploadNewKeyPackage def bob2
+    mp3 <- createExternalCommit conv bob2 Nothing
+    bindResponse (postMLSCommitBundle bob2 (mkBundle mp3 {groupInfo = mp1.groupInfo}))
+      $ \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
+
+    -- check that epoch is still 1
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "epoch" `shouldMatchInt` 1
+
+testGroupInfoCheckDisabled :: (HasCallStack) => App ()
+testGroupInfoCheckDisabled = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  conv <- createNewGroup def alice1
+
+  mp1 <- createAddCommit alice1 conv [bob]
+  void $ sendAndConsumeCommitBundle mp1
+
+  -- attempt a commit with an old group info
+  mp2 <- createAddCommit alice1 conv [charlie]
+  bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
+    $ \resp -> do
+      resp.status `shouldMatchInt` 201
