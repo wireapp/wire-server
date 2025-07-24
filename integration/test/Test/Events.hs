@@ -936,6 +936,8 @@ testBackendPusherRecoversFromQueueDeletion = do
 
       void $ deleteTeamMember team alice alison >>= getBody 202
 
+      Timeout.threadDelay 1500000
+
       -- Check that the queue was recreated
       eventually $ do
         queueNames <- getActiveQueues
