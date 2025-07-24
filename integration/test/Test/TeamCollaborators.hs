@@ -32,7 +32,7 @@ testCreateTeamCollaborator = do
           evt %. "transient" `shouldMatch` False
 
     awaitMatch isTeamCollaboratorAddedNotif wsOwner >>= checkEvent
-    awaitMatch isTeamCollaboratorAddedNotif wsAlice >>= checkEvent
+    assertNoEvent 1 wsAlice
 
   bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
     resp.status `shouldMatchInt` 200

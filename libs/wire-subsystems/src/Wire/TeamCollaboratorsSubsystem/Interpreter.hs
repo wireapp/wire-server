@@ -62,7 +62,7 @@ createTeamCollaboratorImpl zUser user team perms = do
 
   now <- get
   let event = newEvent team now (EdCollaboratorAdd user (Set.toList perms))
-  teamMembersList <- internalGetTeamMembers team Nothing
+  teamMembersList <- internalGetTeamAdmins team
   let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
   -- TODO: Review the event's values
   pushNotifications
