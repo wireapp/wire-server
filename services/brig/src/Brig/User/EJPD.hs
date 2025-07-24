@@ -101,7 +101,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (reallyIncludeContacts, userTeam target) of
           (True, Just tid) -> do
-            memberList <- liftSem $ GalleyAPIAccess.getTeamMembers tid
+            memberList <- liftSem $ GalleyAPIAccess.getTeamMembers tid Nothing
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull <-

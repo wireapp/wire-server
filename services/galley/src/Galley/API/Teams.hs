@@ -45,7 +45,6 @@ module Galley.API.Teams
     setSearchVisibilityInternal,
     uncheckedAddTeamMember,
     uncheckedGetTeamMember,
-    uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
     uncheckedUpdateTeamMember,
     uncheckedGetTeamAdmins,
@@ -137,6 +136,8 @@ import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 getTeamH ::
   forall r.
@@ -536,28 +537,13 @@ getTeamMember lzusr tid uid = do
 
 uncheckedGetTeamMember ::
   ( Member (ErrorS 'TeamMemberNotFound) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   UserId ->
   Sem r TeamMember
 uncheckedGetTeamMember tid uid =
-  E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
-
-uncheckedGetTeamMembersH ::
-  (Member TeamStore r) =>
-  TeamId ->
-  Maybe (Range 1 HardTruncationLimit Int32) ->
-  Sem r TeamMemberList
-uncheckedGetTeamMembersH tid mMaxResults =
-  uncheckedGetTeamMembers tid (fromMaybe (unsafeRange hardTruncationLimit) mMaxResults)
-
-uncheckedGetTeamMembers ::
-  (Member TeamStore r) =>
-  TeamId ->
-  Range 1 HardTruncationLimit Int32 ->
-  Sem r TeamMemberList
-uncheckedGetTeamMembers = E.getTeamMembersWithLimit
+  TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'TeamMemberNotFound
 
 addTeamMember ::
   forall r.

@@ -411,7 +411,7 @@ changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (liftSem $ GalleyAPIAccess.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyAPIAccess.getTeamMembers tid))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyAPIAccess.getTeamMembers tid Nothing))
   API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

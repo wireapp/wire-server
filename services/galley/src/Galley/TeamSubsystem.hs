@@ -4,6 +4,7 @@ import Galley.Effects.TeamStore (TeamStore)
 import Galley.Effects.TeamStore qualified as E
 import Imports
 import Polysemy
+import Wire.API.Team.HardTruncationLimit
 import Wire.TeamSubsystem
 
 -- This interpreter exists so galley code doesn't end up depending on
@@ -17,4 +18,5 @@ import Wire.TeamSubsystem
 interpretTeamSubsystem :: (Member TeamStore r) => InterpreterFor TeamSubsystem r
 interpretTeamSubsystem = interpret $ \case
   InternalGetTeamMember userId teamId -> E.getTeamMember teamId userId
-  InternalGetTeamMembers teamId -> E.getTeamMembersWithLimit teamId =<< E.fanoutLimit
+  InternalGetTeamMembers teamId maxResults ->
+    E.getTeamMembersWithLimit teamId $ fromMaybe hardTruncationLimitRange maxResults
