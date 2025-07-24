@@ -286,13 +286,13 @@ cnvReceiptMode :: ConversationV9 -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
 instance ToSchema ConversationV9 where
-  schema = conversationSchema Nothing
+  schema = conversationSchema (Just V9)
 
 instance (SingI v) => ToSchema (Versioned v ConversationV9) where
   schema = Versioned <$> unVersioned .= conversationSchema (Just (demote @v))
 
-conversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc ConversationV9
-conversationObjectSchema v =
+conversationV9ObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc ConversationV9
+conversationV9ObjectSchema v =
   ConversationV9
     <$> cnvQualifiedId .= field "qualified_id" schema
     <* (qUnqualified . cnvQualifiedId)
@@ -307,8 +307,8 @@ conversationSchema ::
 conversationSchema v =
   objectWithDocModifier
     ("Conversation" <> foldMap (Text.toUpper . versionText) v)
-    (description ?~ "A conversation object as returned from the server")
-    (conversationObjectSchema v)
+    (description ?~ "A conversation object as returned from the server, version " <> maybe "" versionText v)
+    (conversationV9ObjectSchema v)
 
 fromConversationV9 :: ConversationV9 -> Conversation
 fromConversationV9 conv =
@@ -338,10 +338,10 @@ instance ToSchema Conversation where
     objectWithDocModifier
       "Conversation"
       (description ?~ "A conversation object as returned from the server")
-      $ conversationV9ObjectSchema
+      $ conversationObjectSchema
 
-conversationV9ObjectSchema :: ObjectSchema SwaggerDoc Conversation
-conversationV9ObjectSchema =
+conversationObjectSchema :: ObjectSchema SwaggerDoc Conversation
+conversationObjectSchema =
   Conversation
     <$> qualifiedId .= field "qualified_id" schema
     <*> metadata .= conversationMetadataObjectSchema accessRolesSchema
@@ -386,7 +386,7 @@ createGroupConversationSchema v =
     "CreateGroupConversationV9"
     (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
     $ CreateGroupConversationV9
-      <$> cgcConversation .= conversationObjectSchema v
+      <$> cgcConversation .= conversationV9ObjectSchema v
       <*> (toFlatList . cgcFailedToAdd)
         .= field "failed_to_add" (fromFlatList <$> array schema)
 
@@ -411,7 +411,7 @@ instance ToSchema CreateGroupConversation where
       "CreateGroupConversation"
       (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
       $ CreateGroupConversation
-        <$> (.conversation) .= conversationV9ObjectSchema
+        <$> (.conversation) .= conversationObjectSchema
         <*> (toFlatList . failedToAdd) .= field "failed_to_add" (fromFlatList <$> array schema)
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
