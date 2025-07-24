@@ -224,7 +224,6 @@ instance Default PaginationState where
         lastSeen = Nothing
       }
 
--- TODO: use caml case for everything
 instance ToSchema PaginationState where
   schema =
     object "PagintationStatePayload" $
