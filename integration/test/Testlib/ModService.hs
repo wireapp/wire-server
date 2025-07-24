@@ -577,7 +577,7 @@ startNginzLocal resource = do
   liftIO $ do
     whenM (doesFileExist upstreamsCfg) $
       removeFile upstreamsCfg
-    appendFile upstreamsCfg (makeUpstreamsCfgs sm)
+    writeFile upstreamsCfg (makeUpstreamsCfgs sm)
 
   -- override pid configuration
   let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
