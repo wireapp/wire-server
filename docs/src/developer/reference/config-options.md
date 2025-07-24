@@ -1509,13 +1509,13 @@ server, verification can be turned off by settings `insecureSkipVerifyTls` to
 
 ## Configure PostgreSQL
 
-`brig` requires a PostgreSQL database. The configured user needs to be able to
-write data and change the schema (e.g. create and alter tables.)
+`brig` and `galley` require a PostgreSQL database. The configured user needs to
+be able to write data and change the schema (e.g. create and alter tables.)
 
-`brig`'s internal configuration YAML file format and the Helm chart differ a
-bit.
+The internal configuration YAML file format and the Helm charts for `brig` and
+`galley` differ a bit.
 
-Helm chart `values.yaml`:
+Helm chart `values.yaml` for both:
 
 ```yaml
 config:
@@ -1539,8 +1539,8 @@ postgresql:
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
 
-The `brig` Helm chart also offers an option to mount files (e.g. certificates)
-into the container by defining `additionalVolumeMounts` and
+The `brig` and `galley` helm charts also offers an option to mount files (e.g.
+certificates) into the container by defining `additionalVolumeMounts` and
 `additionalVolumes`. This way does not work for password files (parameter
 `passfile`), because `libpq-connect` requires access rights (mask `0600`) for
 them that we cannot provide for random uids (brig is executed as user `brig`
@@ -1553,8 +1553,8 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-`postgresqlPassword` is read by `brig`. Its content is used as `password`
-field.
+The `postgresqlPassword` file is read by `brig` and `galley`. Its content is
+used as `password` field.
 
 ## Configure Cells
 
