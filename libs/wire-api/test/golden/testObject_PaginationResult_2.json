@@ -19,5 +19,5 @@
             "name": "##name1##"
         }
     ],
-    "state": "eyJsYXN0X3NlZW4iOnsibmFtZSI6InVnbiEiLCJ0aWVfYnJlYWtlciI6ImRmODg4MTU4LTY2MDYtMTFmMC04MDk1LTkzNTNkNWZmZGVkOSJ9LCJwYWdlX3NpemUiOjUwMCwic2VhcmNoX3N0cmluZyI6InEiLCJzb3J0X2J5IjoibmFtZSIsInNvcnRfb3JkZXIiOiJkZXNjIn0="
+    "state": "%7B%22last_seen%22%3A%7B%22name%22%3A%22ugn%21%22%2C%22tie_breaker%22%3A%22df888158-6606-11f0-8095-9353d5ffded9%22%7D%2C%22page_size%22%3A500%2C%22search_string%22%3A%22q%22%2C%22sort_by%22%3A%22name%22%2C%22sort_order%22%3A%22desc%22%7D"
 }

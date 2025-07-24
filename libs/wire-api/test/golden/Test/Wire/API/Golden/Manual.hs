@@ -69,7 +69,12 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "PaginationResult" $
+    [ testGroup "PaginationState" $
+        testObjects
+          [ (testObject_PaginationState_1, "testObject_PaginationState_1.json"),
+            (testObject_PaginationState_2, "testObject_PaginationState_2.json")
+          ],
+      testGroup "PaginationResult" $
         testObjects
           [ (testObject_PaginationResult_1, "testObject_PaginationResult_1.json"),
             (testObject_PaginationResult_2, "testObject_PaginationResult_2.json"),

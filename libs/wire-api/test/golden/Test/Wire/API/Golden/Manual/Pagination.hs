@@ -56,11 +56,26 @@ ug3 =
       createdAt = someOtherUTCTime
     }
 
+testObject_PaginationState_1 :: PaginationState
+testObject_PaginationState_1 = def
+
+testObject_PaginationState_2 :: PaginationState
+testObject_PaginationState_2 =
+  PaginationState
+    { searchString = Just "***",
+      sortBy = SortByName,
+      sortOrder = Asc,
+      pageSize = pageSizeFromIntUnsafe 39,
+      lastSeen =
+        Just $
+          LastSeen
+            (Just . userGroupNameFromTextUnsafe $ "boring group")
+            (Just someOtherUTCTime)
+            (Id . fromJust . UUID.fromString $ "4d41b282-6887-11f0-b0dc-1f902c75fe84")
+    }
+
 testObject_PaginationResult_1 :: PaginationResult
-testObject_PaginationResult_1 =
-  PaginationResult
-    []
-    def
+testObject_PaginationResult_1 = PaginationResult [] def
 
 testObject_PaginationResult_2 :: PaginationResult
 testObject_PaginationResult_2 =

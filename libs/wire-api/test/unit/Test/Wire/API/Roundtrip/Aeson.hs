@@ -82,8 +82,6 @@ import Wire.API.UserGroup qualified as UserGroup
 import Wire.API.UserGroup.Pagination qualified as Pagination
 import Wire.API.Wrapped qualified as Wrapped
 
--- FUTUREWORK(#1446): fix tests marked as failing
--- (either fixing Arbitrary or serialization instance)
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $

@@ -21,7 +21,6 @@ import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor (first)
-import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy qualified as LB
 import Data.Default
 import Data.Json.Util (UTCTimeMillis)
@@ -34,6 +33,7 @@ import Data.Text.Encoding qualified as T
 import GHC.Generics
 import GHC.Records (HasField (getField))
 import Imports
+import Network.HTTP.Types qualified as Http
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.UserGroup
@@ -288,10 +288,9 @@ instance Arbitrary PaginationResult where
 ------------------------------
 
 parseUrlPieceViaSchema :: (A.FromJSON a) => Text -> Either Text a
-parseUrlPieceViaSchema t =
-  case Base64.decode (T.encodeUtf8 t) of
-    Left err -> Left $ "Base64 decode error: " <> T.pack err
-    Right bs -> first T.pack $ A.eitherDecode (LB.fromStrict bs)
+parseUrlPieceViaSchema =
+  first T.pack . A.eitherDecode . LB.fromStrict . Http.urlDecode True . T.encodeUtf8
 
 toUrlPieceViaSchema :: (A.ToJSON a) => a -> Text
-toUrlPieceViaSchema = T.decodeUtf8 . Base64.encode . LB.toStrict . A.encode
+toUrlPieceViaSchema =
+  T.decodeUtf8 . Http.urlEncode True . LB.toStrict . A.encode
