@@ -594,9 +594,6 @@ instance HasPermError Perm where
 instance HasPermError HiddenPerm where
   type PermError p = OperationDenied
 
--- type family PermError p where
---   PermError (p :: Perm) = 'MissingPermission ('Just p)
---   PermError (_ :: HiddenPerm) = OperationDenied
 
 -- | See Note [hidden team roles]
 class IsPerm teamAssociation perm where
