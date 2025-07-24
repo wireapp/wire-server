@@ -206,7 +206,7 @@ spec = do
       -}
 
       length result `shouldBe` 4
-      result !! 0 `shouldBe` ((ugs !!) <$> [0, 1, 3, 2])
+      head result `shouldBe` ((ugs !!) <$> [0, 1, 3, 2])
       result !! 1 `shouldBe` ((ugs !!) <$> [2, 3, 1, 0])
       result !! 2
         `shouldSatisfy` ( `elem`
