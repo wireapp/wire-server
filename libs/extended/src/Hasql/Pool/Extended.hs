@@ -21,7 +21,7 @@ initPostgresPool :: Map Text Text -> Maybe FilePathSecrets -> IO HasqlPool.Pool
 initPostgresPool pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   let pgConfigWithPw = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
-  let pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfigWithPw
+      pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfigWithPw
   HasqlPool.acquire $
     HasqlPool.settings
       [ HasqlPool.staticConnectionSettings $

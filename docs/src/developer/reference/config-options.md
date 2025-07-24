@@ -1539,7 +1539,7 @@ postgresql:
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
 
-The `brig` and `galley` helm charts also offers an option to mount files (e.g.
+The `brig` and `galley` helm charts also offer an option to mount files (e.g.
 certificates) into the container by defining `additionalVolumeMounts` and
 `additionalVolumes`. This way does not work for password files (parameter
 `passfile`), because `libpq-connect` requires access rights (mask `0600`) for

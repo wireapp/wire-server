@@ -279,7 +279,7 @@ galley:
           key: "ca.crt"
     {{- end }}
     postgresql:
-      host: "postgresql"
+      host: postgresql
       port: "5432"
       user: wire-server
       dbname: wire-server
@@ -405,7 +405,7 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
-    pgPassword: "posty-the-gres"
+    pgPassword: posty-the-gres
   {{- if .Values.uploadXml }}
   tests:
     config:
