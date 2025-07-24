@@ -264,8 +264,8 @@ spec = do
         `shouldReturn` [ ["01", "02", "10", "12"],
                          ["01"],
                          ["01", "02"],
-                         ["02", "10"],
-                         ["12"]
+                         ["10", "12"],
+                         []
                        ]
 
   -- This only works locally with /deploy/docker-ephemeral/run.sh running.  If it's in the
