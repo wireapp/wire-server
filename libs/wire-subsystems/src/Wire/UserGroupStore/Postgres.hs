@@ -66,8 +66,8 @@ getUserGroupImpl team id_ = do
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
-      members <- lift $ statement id_ getGroupMembersStatement
-      pure $ UserGroup {..}
+      members <- lift $ Identity <$> statement id_ getGroupMembersStatement
+      pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (name, managedByInt, utcTime) =
@@ -96,13 +96,13 @@ getUserGroupsImpl ::
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   PaginationState ->
-  Sem r [UserGroup]
+  Sem r [UserGroupMeta]
 getUserGroupsImpl tid pstate = do
   pool <- input
   eitherResult <- liftIO $ use pool session
   either throw pure eitherResult
   where
-    session :: Session [UserGroup]
+    session :: Session [UserGroupMeta]
     session = sessionFromParams
       where
         (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
@@ -118,7 +118,7 @@ getUserGroupsImpl tid pstate = do
         encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
 
         -- shared code from all cases in run above
-        mkSession :: (Statement params [UserGroup] -> Session [UserGroup]) -> HE.Params params -> Session [UserGroup]
+        mkSession :: (Statement params [UserGroupMeta] -> Session [UserGroupMeta]) -> HE.Params params -> Session [UserGroupMeta]
         mkSession mkStatement encodeParams =
           mkStatement . refineResult (mapM parseRow) $
             Statement sqlBS encodeParams decodeRow True
@@ -133,15 +133,15 @@ getUserGroupsImpl tid pstate = do
             <*> HD.column (HD.nonNullable HD.timestamptz)
         )
 
-    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroup
+    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroupMeta
     parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
       managedBy <- case managedByPre of
         0 -> pure ManagedByWire
         1 -> pure ManagedByScim
         bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
       name <- userGroupNameFromText namePre
-      let members = mempty -- TODO: do we want `data UserGroup (m :: * -> *) = UserGroup { members :: m (Vector ...), ... }`?
-      pure $ UserGroup {..}
+      let members = Const ()
+      pure $ UserGroup_ {..}
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
@@ -195,7 +195,7 @@ createUserGroupImpl team newUserGroup managedBy = do
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
       (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
-      pure UserGroup {members = newUserGroup.members, managedBy = managedBy_, ..}
+      pure UserGroup_ {members = Identity newUserGroup.members, managedBy = managedBy_, ..}
 
     decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =

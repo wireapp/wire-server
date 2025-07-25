@@ -87,8 +87,11 @@ tests =
           ],
       testGroup "UserGroup" $
         testObjects
-          [ (testObject_UserGroup_1, "testObject_UserGroup_1.json"),
-            (testObject_UserGroup_2, "testObject_UserGroup_2.json")
+          [ (testObject_UserGroup_1, "testObject_UserGroup_1.json")
+          ],
+      testGroup "UserGroupMeta" $
+        testObjects
+          [ (testObject_UserGroup_2, "testObject_UserGroup_2.json")
           ],
       testGroup "UserGroupUpdate" $
         testObjects

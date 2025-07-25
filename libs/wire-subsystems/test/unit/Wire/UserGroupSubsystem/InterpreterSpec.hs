@@ -120,7 +120,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 now <- (.now) <$> get
                 let assert =
                       createdGroup.name === newUserGroupName
-                        .&&. createdGroup.members === newUserGroup.members
+                        .&&. createdGroup.members === Identity newUserGroup.members
                         .&&. createdGroup.managedBy === ManagedByWire
                         .&&. createdGroup.createdAt === now
                         .&&. Just createdGroup === retrievedGroup
@@ -261,7 +261,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
           pure $
             getGroupAdmin === Just group1
-              .&&. getGroupsAdmin.page === [group1]
+              .&&. getGroupsAdmin.page === [userGroupToMeta group1]
               .&&. getGroupOutsider === Nothing
               .&&. getGroupsOutsider === Left UserGroupNotATeamAdmin
 
@@ -295,7 +295,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
               pure $
                 getOwnGroup === Just group1
-                  .&&. getOwnGroups.page === [group1]
+                  .&&. getOwnGroups.page === [userGroupToMeta group1]
                   .&&. getOtherGroup === Nothing
                   .&&. getOtherGroups.page === []
 
@@ -312,9 +312,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
         pure do
           get0.page `shouldBe` []
-          get1.page `shouldBe` [head groups]
-          get2.page `shouldBe` reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
-          get3.page `shouldBe` [groups !! 3]
+          get1.page `shouldBe` userGroupToMeta <$> [head groups]
+          get2.page `shouldBe` userGroupToMeta <$> reverse [groups !! 1, groups !! 2] -- (default sort order is descending!)
+          get3.page `shouldBe` userGroupToMeta <$> [groups !! 3]
 
     prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
@@ -344,7 +344,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
                   pure $
                     -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
-                    mconcat ((.page) <$> results) === reverse groups
+                    mconcat ((.page) <$> results) === (userGroupToMeta <$> reverse groups)
                       -- every page has the expected size
                       .&&. all
                         (\r -> length r.page == pageSizeToInt pageSize)
@@ -549,10 +549,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   ugWithoutFirst <- getGroup (ownerId team) ug.id_
                   removeUser (ownerId team) ug.id_ (User.userId mbr1) -- idemp
                   let propertyCheck =
-                        ((.members) <$> ugWithFirst) === Just (V.fromList [User.userId mbr1])
-                          .&&. ((.members) <$> ugWithIdemP) === Just (V.fromList [User.userId mbr1])
-                          .&&. ((sort . V.toList . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
-                          .&&. ((.members) <$> ugWithoutFirst) === Just (V.fromList [User.userId mbr2])
+                        ((.members) <$> ugWithFirst) === Just (Identity $ V.fromList [User.userId mbr1])
+                          .&&. ((.members) <$> ugWithIdemP) === Just (Identity $ V.fromList [User.userId mbr1])
+                          .&&. ((sort . V.toList . runIdentity . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
+                          .&&. ((.members) <$> ugWithoutFirst) === Just (Identity $ V.fromList [User.userId mbr2])
                   pure (ug, propertyCheck)
 
             assertAddEvent :: UserGroup -> UserId -> Push -> Property
