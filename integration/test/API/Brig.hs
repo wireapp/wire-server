@@ -6,7 +6,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import Data.Foldable
 import Data.Function
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
@@ -1062,7 +1061,7 @@ data GetUserGroupsArgs = GetUserGroupsArgs
     sortByKeys :: Maybe String,
     sortOrder :: Maybe String,
     pSize :: Maybe Int,
-    pState :: Maybe Value
+    pState :: Maybe String
   }
 
 instance Default GetUserGroupsArgs where
@@ -1079,7 +1078,7 @@ getUserGroups user GetUserGroupsArgs {..} = do
               ("sort_by",) <$> sortByKeys,
               ("sort_order",) <$> sortOrder,
               (("page_size",) . show) <$> pSize,
-              (("pagination_state",) . cs . Aeson.encode) <$> pState
+              ("pagination_state",) <$> pState
             ]
         )
 
