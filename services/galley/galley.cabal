@@ -286,6 +286,7 @@ library
     Galley.Schema.V96_GroupConversationType
     Galley.Schema.V97_CellsConversation
     Galley.Schema.V98_ChannelAddPermission
+    Galley.TeamSubsystem
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
@@ -324,6 +325,7 @@ library
     , extended
     , extra                                 >=1.3
     , galley-types                          >=0.65.0
+    , hasql-pool
     , hex
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk

@@ -37,6 +37,7 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
+import Wire.TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfProfile, isBlocked)
 
@@ -56,7 +57,8 @@ runTeamInvitationSubsystem ::
     Member InvitationStore r,
     Member Now r,
     Member EmailSubsystem r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member TeamSubsystem r
   ) =>
   TeamInvitationSubsystemConfig ->
   InterpreterFor TeamInvitationSubsystem r
@@ -75,7 +77,8 @@ inviteUserImpl ::
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
     Member EmailSubsystem r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -243,15 +246,15 @@ logInvitationRequest context action =
 --
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
 ensurePermissionToAddUser ::
-  ( Member GalleyAPIAccess r,
-    Member (Error TeamInvitationSubsystemError) r
+  ( Member (Error TeamInvitationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Permissions ->
   Sem r ()
 ensurePermissionToAddUser u t inviteePerms = do
-  minviter <- GalleyAPIAccess.getTeamMember u t
+  minviter <- internalGetTeamMember u t
   unless (check minviter) $
     throw TeamInvitationInsufficientTeamPermissions
   where

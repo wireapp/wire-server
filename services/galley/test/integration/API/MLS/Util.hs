@@ -464,7 +464,7 @@ setupMLSSelfGroup :: (HasCallStack) => ClientIdentity -> MLSTest (GroupId, Quali
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
   where
     action =
-      fmap fromConversationV9
+      fmap fromOwnConversation
         . responseJsonError
         =<< liftTest
           (getSelfConv (ciUser creator))

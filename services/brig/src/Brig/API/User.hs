@@ -146,6 +146,8 @@ import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra
 import Wire.SessionStore (SessionStore)
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem as User
@@ -1110,7 +1112,7 @@ enqueueMultiDeleteCallsCounter =
         }
 
 getLegalHoldStatus ::
-  ( Member GalleyAPIAccess r,
+  ( Member TeamSubsystem r,
     Member UserSubsystem r
   ) =>
   Local UserId ->
@@ -1121,14 +1123,14 @@ getLegalHoldStatus uid =
       =<< User.getLocalAccountBy NoPendingInvitations uid
 
 getLegalHoldStatus' ::
-  (Member GalleyAPIAccess r) =>
+  (Member TeamSubsystem r) =>
   User ->
   Sem r UserLegalHoldStatus
 getLegalHoldStatus' user =
   case userTeam user of
     Nothing -> pure defUserLegalHoldStatus
     Just tid -> do
-      teamMember <- GalleyAPIAccess.getTeamMember (userId user) tid
+      teamMember <- TeamSubsystem.internalGetTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
 
 isBlacklisted :: (Member BlockListStore r) => EmailAddress -> AppT r Bool

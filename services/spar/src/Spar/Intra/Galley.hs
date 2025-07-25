@@ -74,7 +74,7 @@ getTeamMember tid uid = do
 
 -- | user is member of a given team and has a given permission there.
 assertHasPermission ::
-  (HasCallStack, MonadSparToGalley m, MonadError SparError m, IsPerm perm, Show perm) =>
+  (HasCallStack, MonadSparToGalley m, MonadError SparError m, IsPerm TeamMember perm, Show perm) =>
   TeamId ->
   perm ->
   UserId ->

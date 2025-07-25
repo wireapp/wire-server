@@ -41,6 +41,7 @@
 , filepath
 , galley-types
 , gitignoreSource
+, hasql-pool
 , hex
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -159,6 +160,7 @@ mkDerivation {
     extended
     extra
     galley-types
+    hasql-pool
     hex
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk

@@ -50,7 +50,6 @@
 , galley-types
 , gitignoreSource
 , hashable
-, hasql
 , hasql-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -202,7 +201,6 @@ mkDerivation {
     fsnotify
     galley-types
     hashable
-    hasql
     hasql-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk

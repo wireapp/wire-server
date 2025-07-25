@@ -99,20 +99,25 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
-import Wire.Error
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Rpc
+import Wire.Sem.Now
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
+import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamSubsystem (TeamSubsystem)
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
   '[ BrigAccess,
      SparAccess,
+     TeamCollaboratorsSubsystem,
      NotificationSubsystem,
+     TeamSubsystem,
      GundeckAPIAccess,
      Rpc,
      ExternalAccess,
@@ -120,6 +125,7 @@ type GalleyEffects1 =
      BackendNotificationQueueAccess,
      BotAccess,
      FireAndForget,
+     TeamCollaboratorsStore,
      ClientStore,
      CodeStore,
      ProposalStore,
@@ -147,10 +153,10 @@ type GalleyEffects1 =
      Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
-     Input UTCTime,
+     Input UTCTime, -- TODO: Use 'Now' instead of this
+     Now,
      Queue DeleteItem,
      TinyLog,
      Error DynError,
-     Error RateLimitExceeded,
-     Error HttpError
+     Error RateLimitExceeded
    ]

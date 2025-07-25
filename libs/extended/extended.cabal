@@ -20,6 +20,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Data.Time.Clock.DiffTime
+    Hasql.Pool.Extended
     Network.AMQP.Extended
     Network.RabbitMqAdmin
     Servant.API.Extended
@@ -88,6 +89,8 @@ library
     , data-default
     , errors
     , exceptions
+    , hasql
+    , hasql-pool
     , http-client
     , http-client-tls
     , http-types
@@ -105,6 +108,7 @@ library
     , tinylog
     , tls
     , transformers
+    , types-common
     , unliftio
     , wai
 

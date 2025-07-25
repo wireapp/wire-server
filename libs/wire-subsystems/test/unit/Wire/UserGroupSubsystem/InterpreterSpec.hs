@@ -37,6 +37,10 @@ import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.Sem.Random qualified as Rnd
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
 
@@ -56,6 +60,7 @@ runDependencies initialUsers initialTeams =
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
+    . intepreterTeamSubsystemToGalleyAPI
     . userSubsystemTestInterpreter initialUsers
 
 runDependenciesWithReturnState ::
@@ -71,6 +76,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
+    . intepreterTeamSubsystemToGalleyAPI
     . userSubsystemTestInterpreter initialUsers
 
 expectRight :: (Show err) => Either err Property -> Property

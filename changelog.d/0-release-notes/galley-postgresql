@@ -1,0 +1,1 @@
+Galley now requires a connection to PostgreSQL. This can be configured similar to brig using configs `galley.config.postgresql` and `galley.secrets.pgPassword`. Galley must use the same PostgreSQL instance as brig.

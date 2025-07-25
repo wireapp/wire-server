@@ -73,6 +73,7 @@ type UserGroupStoreInMemEffectStack =
 
 type UserGroupStoreInMemEffectStackTest =
   '[ UserSubsystem,
+     TeamSubsystem,
      GalleyAPIAccess
    ]
     `Append` UserGroupStoreInMemEffectStack

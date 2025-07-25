@@ -40,7 +40,6 @@ import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified
 import Data.Range
-import Data.Set qualified as Set
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
 import Imports hiding (head)
@@ -83,6 +82,8 @@ import Wire.SessionStore (SessionStore)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -97,7 +98,8 @@ servantAPI ::
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
@@ -110,13 +112,13 @@ servantAPI =
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
-    :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid (Set.fromList -> perms)) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
+    :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid perms) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
     :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
 
 teamSizePublic ::
-  ( Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r,
-    Member IndexedUserStore r
+  ( Member (Error UserSubsystemError) r,
+    Member IndexedUserStore r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -200,9 +202,9 @@ logInvitationRequest context action =
         pure (Right result)
 
 deleteInvitation ::
-  ( Member GalleyAPIAccess r,
-    Member InvitationStore r,
-    Member (Error UserSubsystemError) r
+  ( Member InvitationStore r,
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -220,7 +222,8 @@ listInvitations ::
     Member (Input TeamTemplates) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -284,7 +287,8 @@ getInvitation ::
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input TeamTemplates) r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -362,6 +366,7 @@ suspendTeam ::
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member Events r,
     Member TinyLog r,
     Member InvitationStore r,
@@ -384,6 +389,7 @@ unsuspendTeam ::
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member Events r,
     Member SessionStore r
   ) =>
@@ -401,6 +407,7 @@ changeTeamAccountStatuses ::
   ( Member (Embed HttpClientIO) r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
+    Member TeamSubsystem r,
     Member UserSubsystem r,
     Member Events r,
     Member SessionStore r
@@ -412,7 +419,7 @@ changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (liftSem $ GalleyAPIAccess.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyAPIAccess.getTeamMembers tid))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (TeamSubsystem.internalGetTeamMembers tid Nothing))
   API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

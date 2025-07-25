@@ -34,12 +34,15 @@ import Wire.Sem.Random
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
+import Wire.TeamSubsystem
+import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserSubsystem
 
 type AllEffects =
   [ Error TeamInvitationSubsystemError,
     EnterpriseLoginSubsystem,
     TinyLog,
+    TeamSubsystem,
     GalleyAPIAccess,
     Random,
     State StdGen,
@@ -74,6 +77,7 @@ runAllEffects args =
     . evalState (mkStdGen 3)
     . randomToStatefulStdGen
     . miniGalleyAPIAccess args.teams def
+    . intepreterTeamSubsystemToGalleyAPI
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
     . runError

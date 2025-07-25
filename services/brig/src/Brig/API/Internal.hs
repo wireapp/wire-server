@@ -127,6 +127,7 @@ import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
@@ -148,6 +149,7 @@ servantSitemap ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
     Member InvitationStore r,
@@ -202,7 +204,8 @@ ejpdAPI ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserStore r,
-    Member Rpc r
+    Member Rpc r,
+    Member TeamSubsystem r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
@@ -291,6 +294,7 @@ teamsAPI ::
     Member InvitationStore r,
     Member TeamInvitationSubsystem r,
     Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,

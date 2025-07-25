@@ -24,7 +24,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
   ( createGroupConversationUpToV3,
-    createGroupConversationV9,
+    createGroupOwnConversation,
     createProteusSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
@@ -90,6 +90,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.NotificationSubsystem
+import Wire.TeamCollaboratorsSubsystem
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -121,12 +122,13 @@ createGroupConversationUpToV3 ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $
   do
     conv <-
@@ -139,7 +141,7 @@ createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLe
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in from version 4 to 8
-createGroupConversationV9 ::
+createGroupOwnConversation ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -165,20 +167,21 @@ createGroupConversationV9 ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
   Sem r CreateGroupConversationResponseV9
-createGroupConversationV9 lusr conn newConv = do
+createGroupOwnConversation lusr conn newConv = do
   createGroupConvAndMkResponse
     lusr
     conn
     newConv
     ( \dbConv -> do
         conv <- conversationViewV9 lusr dbConv
-        pure . GroupConversationCreatedV9 $ CreateGroupConversationV9 conv mempty
+        pure . GroupConversationCreatedV9 $ CreateGroupOwnConversation conv mempty
     )
 
 -- | The public-facing endpoint for creating group conversations in the client
@@ -209,7 +212,8 @@ createGroupConversation ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -254,7 +258,8 @@ createGroupConvAndMkResponse ::
     Member NotificationSubsystem r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -294,7 +299,8 @@ createGroupConversationGeneric ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -358,7 +364,8 @@ checkCreateConvPermissions ::
     Member (ErrorS NotAnMlsConversation) r,
     Member TeamStore r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   NewConv ->
@@ -376,12 +383,17 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
+  mTeamMember <- getTeamMember (tUnqualified lusr) (Just convTeam)
+  teamAssociation <- case mTeamMember of
+    Just tm -> pure (Just (Right tm))
+    Nothing -> do
+      Left <$$> internalGetTeamCollaborator convTeam (tUnqualified lusr)
+
   case newConv.newConvGroupConvType of
     Channel -> do
-      ensureCreateChannelPermissions tinfo.cnvTeamId zusrMembership
+      ensureCreateChannelPermissions tinfo.cnvTeamId mTeamMember
     GroupConversation -> do
-      void $ permissionCheck CreateConversation zusrMembership
+      void $ permissionCheck CreateConversation teamAssociation
       -- In teams we don't have 1:1 conversations, only regular conversations. We want
       -- users without the 'AddRemoveConvMember' permission to still be able to create
       -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -395,7 +407,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
       -- so we don't allow an external partner to create an MLS group conversation at all
       when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
-        void $ permissionCheck AddRemoveConvMember zusrMembership
+        void $ permissionCheck AddRemoveConvMember teamAssociation
 
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
@@ -441,13 +453,13 @@ createProteusSelfConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createProteusSelfConversation lusr = do
   let lcnv = fmap Data.selfConv lusr
   c <- E.getConversation (tUnqualified lcnv)
   maybe (create lcnv) (conversationExisted lusr) c
   where
-    create :: Local ConvId -> Sem r (ConversationResponse Public.ConversationV9)
+    create :: Local ConvId -> Sem r (ConversationResponse Public.OwnConversation)
     create lcnv = do
       let nc =
             NewConversation
@@ -482,7 +494,7 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewOne2OneConv ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
     let allUsers = newOne2OneConvMembers lusr j
@@ -552,7 +564,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Local UserId ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
@@ -595,7 +607,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -621,7 +633,7 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -651,7 +663,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
@@ -673,7 +685,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
@@ -816,7 +828,7 @@ conversationCreated ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r (ConversationResponse Public.ConversationV9)
+  Sem r (ConversationResponse Public.OwnConversation)
 conversationCreated lusr cnv = Created <$> conversationViewV9 lusr cnv
 
 -- | The return set contains all the remote users that could not be contacted.

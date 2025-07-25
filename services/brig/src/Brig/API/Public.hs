@@ -188,6 +188,8 @@ import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
@@ -402,7 +404,8 @@ servantSitemap ::
     Member CryptoSign r,
     Member Random r,
     Member UserGroupSubsystem r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -1272,7 +1275,8 @@ createConnectionUnqualified ::
     Member TinyLog r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -1290,7 +1294,8 @@ createConnection ::
     Member UserStore r,
     Member UserSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -1435,7 +1440,6 @@ updateUserEmail ::
   forall r.
   ( Member BlockListStore r,
     Member UserKeyStore r,
-    Member GalleyAPIAccess r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
@@ -1444,7 +1448,8 @@ updateUserEmail ::
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
     Member TinyLog r,
-    Member SparAPIAccess r
+    Member SparAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1469,7 +1474,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ liftSem $ GalleyAPIAccess.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ liftSem $ TeamSubsystem.internalGetTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation

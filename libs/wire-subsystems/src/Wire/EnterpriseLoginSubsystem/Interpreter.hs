@@ -56,6 +56,7 @@ import Wire.ParseException
 import Wire.Rpc
 import Wire.Sem.Random as Random
 import Wire.SparAPIAccess
+import Wire.TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserSubsystem
 
@@ -82,7 +83,8 @@ runEnterpriseLoginSubsystemWithConfig ::
     Member Rpc r,
     Member UserKeyStore r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamSubsystem r
   ) =>
   EnterpriseLoginSubsystemConfig ->
   Sem (EnterpriseLoginSubsystem ': r) a ->
@@ -106,7 +108,8 @@ runEnterpriseLoginSubsystem ::
     Member Rpc r,
     Member UserKeyStore r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamSubsystem r
   ) =>
   Sem (EnterpriseLoginSubsystem ': r) a ->
   Sem r a
@@ -146,7 +149,8 @@ deleteTeamDomainImpl ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member GalleyAPIAccess r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -164,7 +168,8 @@ getRegisteredDomainsImpl ::
     Member UserSubsystem r,
     Member GalleyAPIAccess r,
     Member (Log.Logger (Log.Msg -> Log.Msg)) r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -179,7 +184,8 @@ authorizeTeamImpl ::
     Member (Error EnterpriseLoginSubsystemError) r,
     Member UserSubsystem r,
     Member GalleyAPIAccess r,
-    Member DomainRegistrationStore r
+    Member DomainRegistrationStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Domain ->
@@ -239,7 +245,8 @@ verifyChallengeImpl ::
     Member Rpc r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   Maybe (Local UserId) ->
   Domain ->
@@ -595,7 +602,8 @@ updateTeamInviteImpl ::
     Member GalleyAPIAccess r,
     Member SparAPIAccess r,
     Member TinyLog r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Domain ->
@@ -639,7 +647,8 @@ guardTeamAdminAccess ::
   forall r.
   ( Member (Error EnterpriseLoginSubsystemError) r,
     Member UserSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Sem r TeamId
@@ -649,7 +658,8 @@ guardTeamAdminAccessWithTeamIdCheck ::
   forall r.
   ( Member (Error EnterpriseLoginSubsystemError) r,
     Member UserSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   Maybe TeamId ->
   Local UserId ->
@@ -660,7 +670,7 @@ guardTeamAdminAccessWithTeamIdCheck mExpectedTeam luid = do
   when (any (/= tid) mExpectedTeam) $
     throw EnterpriseLoginSubsystemOperationForbidden
   teamMember <-
-    getTeamMember (tUnqualified luid) tid
+    internalGetTeamMember (tUnqualified luid) tid
       >>= note EnterpriseLoginSubsystemOperationForbidden
   validatePaymentStatus tid
   unless (isAdminOrOwner (teamMember ^. permissions)) $

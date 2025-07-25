@@ -153,7 +153,7 @@ testObject_Event_user_8 =
     (read "1864-05-29 19:31:31.226 UTC")
     Nothing
     ( EdConversation
-        ( ConversationV9
+        ( OwnConversation
             { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvMetadata =
                 ConversationMetadata
@@ -172,7 +172,7 @@ testObject_Event_user_8 =
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =
-                ConvMembersV9
+                OwnConvMembers
                   { cmSelf =
                       Member
                         { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),

@@ -49,7 +49,7 @@ conversationViewV9 ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r ConversationV9
+  Sem r OwnConversation
 conversationViewV9 luid conv = do
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers conv
       localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
@@ -84,7 +84,7 @@ conversationViewWithCachedOthers ::
   [OtherMember] ->
   Data.Conversation ->
   Local UserId ->
-  Sem r ConversationV9
+  Sem r OwnConversation
 conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
   let mbConv = conversationViewMaybe luid remoteOthers localOthers conv
   maybe memberNotFound pure mbConv
@@ -100,16 +100,16 @@ conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe ConversationV9
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe OwnConversation
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
   self <- localMemberToSelf luid <$> listToMaybe selfs
   let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
   pure $
-    ConversationV9
+    OwnConversation
       (tUntagged . qualifyAs luid . Data.convId $ conv)
       (Data.convMetadata conv)
-      (ConvMembersV9 self others)
+      (OwnConvMembers self others)
       (Data.convProtocol conv)
 
 -- | View for a local user of a remote conversation.
@@ -117,7 +117,7 @@ remoteConversationView ::
   Local UserId ->
   MemberStatus ->
   Remote RemoteConversationV2 ->
-  ConversationV9
+  OwnConversation
 remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
       others = mems.others
@@ -130,10 +130,10 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
               lmStatus = status,
               lmConvRoleName = mems.selfRole
             }
-   in ConversationV9
+   in OwnConversation
         (Qualified rconv.id rDomain)
         rconv.metadata
-        (ConvMembersV9 self others)
+        (OwnConvMembers self others)
         rconv.protocol
 
 -- | Convert a local conversation to a structure to be returned to a remote

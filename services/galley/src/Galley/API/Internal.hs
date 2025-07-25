@@ -100,6 +100,7 @@ import Wire.API.User.Client
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -211,11 +212,11 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
-              <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
+              <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembers tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
               <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
-              <@> mkNamedAPI @"unchecked-get-team-admins" (Teams.uncheckedGetTeamAdmins tid)
+              <@> mkNamedAPI @"unchecked-get-team-admins" (TeamSubsystem.internalGetTeamAdmins tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment

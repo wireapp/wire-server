@@ -100,7 +100,7 @@ tests =
               `notElem` map omQualifiedId rcnv.members.others
     ]
 
-cnvUids :: ConversationV9 -> [Qualified UserId]
+cnvUids :: OwnConversation -> [Qualified UserId]
 cnvUids c =
   let mems = cnvMembers c
    in memId (cmSelf mems)

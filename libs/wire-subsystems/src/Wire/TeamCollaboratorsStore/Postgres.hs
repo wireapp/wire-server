@@ -9,8 +9,9 @@ import Data.Bimap qualified as Bimap
 import Data.Id
 import Data.Profunctor
 import Data.Set
+import Data.Set qualified as Set
 import Data.UUID
-import Data.Vector
+import Data.Vector hiding (mapM)
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
@@ -34,6 +35,32 @@ interpretTeamCollaboratorsStoreToPostgres =
   interpret $ \case
     CreateTeamCollaborator userId teamId permissions -> createTeamCollaboratorImpl userId teamId permissions
     GetAllTeamCollaborators teamId -> getAllTeamCollaboratorsImpl teamId
+    GetTeamCollaborator teamId userId -> getTeamCollaboratorImpl teamId userId
+
+getTeamCollaboratorImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r (Maybe TeamCollaborator)
+getTeamCollaboratorImpl teamId userId = do
+  pool <- input
+  eitherTeamCollaborator <- liftIO $ use pool session
+  either throw pure eitherTeamCollaborator
+  where
+    session :: Session (Maybe TeamCollaborator)
+    session = statement (teamId, userId) getTeamCollaboratorStatement
+
+    getTeamCollaboratorStatement :: Statement (TeamId, UserId) (Maybe TeamCollaborator)
+    getTeamCollaboratorStatement =
+      dimap
+        (bimap toUUID toUUID)
+        (fmap toTeamCollaborator)
+        $ [maybeStatement|
+          select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where team_id = ($1 :: uuid) and user_id = ($2 :: uuid)
+          |]
 
 createTeamCollaboratorImpl ::
   ( Member (Input Pool) r,
@@ -95,12 +122,12 @@ getAllTeamCollaboratorsImpl teamId = do
           select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where team_id = ($1 :: uuid)
           |]
 
-    toTeamCollaborator :: (UUID, UUID, Vector Int16) -> TeamCollaborator
-    toTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
-      TeamCollaborator {..}
+toTeamCollaborator :: (UUID, UUID, Vector Int16) -> TeamCollaborator
+toTeamCollaborator ((Id -> gUser), (Id -> gTeam), (toPermissions -> gPermissions)) =
+  TeamCollaborator {..}
 
-    toPermissions :: Vector Int16 -> [CollaboratorPermission]
-    toPermissions = (Data.Vector.toList . Data.Vector.map postgreslRepToCollaboratorPermission)
+toPermissions :: Vector Int16 -> Set CollaboratorPermission
+toPermissions = Data.Vector.foldr (Set.insert . postgreslRepToCollaboratorPermission) Set.empty
 
 -- We could rely on an `Ord` instance here. Howver, when the order is changed,
 -- this will mess up spectaculary at run time. So, this extra mapping is meant
