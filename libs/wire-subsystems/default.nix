@@ -34,6 +34,7 @@
 , extended
 , extra
 , file-embed
+, filepath
 , gitignoreSource
 , hashable
 , HaskellNet
@@ -60,6 +61,7 @@
 , memory
 , mime
 , mime-mail
+, mustache
 , network
 , network-conduit-tls
 , polysemy
@@ -238,6 +240,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    filepath
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -261,6 +264,7 @@ mkDerivation {
     memory
     mime
     mime-mail
+    mustache
     network
     network-conduit-tls
     polysemy

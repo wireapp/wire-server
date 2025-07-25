@@ -189,6 +189,8 @@ library
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EmailSubsystem.Templates.Team
+    Wire.EmailSubsystem.Templates.User
     Wire.EnterpriseLoginSubsystem
     Wire.EnterpriseLoginSubsystem.Error
     Wire.EnterpriseLoginSubsystem.Interpreter
@@ -375,6 +377,7 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.EmailSubsystem.TemplateSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend
@@ -423,7 +426,9 @@ test-suite wire-subsystems-tests
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
+    , filepath
     , hspec
+    , mustache
     , QuickCheck
     , quickcheck-instances
     , random

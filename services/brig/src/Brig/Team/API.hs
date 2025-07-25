@@ -249,11 +249,11 @@ listInvitations uid tid startingId mSize = do
       toInvitation "" HideInvitationUrl si -- isPersonalUserMigration is always ignored here
     toInvitationHack ShowInvitationUrl si = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
-      template <-
+      tpl <-
         if isPersonalUserMigration
           then invitationEmailUrl . existingUserInvitationEmail <$> input
           else invitationEmailUrl . invitationEmail <$> input
-      let url = renderInvitationUrl template tid si.code id
+      let url = renderInvitationUrl tpl tid si.code
       toInvitation url ShowInvitationUrl si
 
 mkInviteUrl ::
@@ -267,8 +267,8 @@ mkInviteUrl ::
   Sem r (Maybe (URIRef Absolute))
 mkInviteUrl HideInvitationUrl _ _ = pure Nothing
 mkInviteUrl ShowInvitationUrl team c = do
-  template <- invitationEmailUrl . invitationEmail <$> input
-  let url = renderInvitationUrl template team c id
+  tpl <- invitationEmailUrl . invitationEmail <$> input
+  let url = renderInvitationUrl tpl team c
   parseHttpsUrl url
   where
     parseHttpsUrl :: Text -> Sem r (Maybe (URIRef Absolute))

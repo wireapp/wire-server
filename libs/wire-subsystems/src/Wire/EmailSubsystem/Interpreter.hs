@@ -1,11 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.EmailSubsystem.Interpreter
-  ( emailSubsystemInterpreter,
-    mkMimeAddress,
-    renderInvitationUrl,
-  )
-where
+module Wire.EmailSubsystem.Interpreter where
 
 import Data.Code qualified as Code
 import Data.Id
@@ -414,9 +409,9 @@ sendTeamInvitationMailPersonalUserImpl :: (Member EmailSending r) => Localised T
 sendTeamInvitationMailPersonalUserImpl teamTemplates branding to tid from code loc = do
   let tpl = existingUserInvitationEmail . snd $ forLocale loc teamTemplates
       mail = InvitationEmail to tid code from
-      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+      (renderedMail, renderedInvitationUrl) = renderInvitationEmail mail tpl branding
   sendMail renderedMail
-  pure renderedInvitaitonUrl
+  pure renderedInvitationUrl
 
 data InvitationEmail = InvitationEmail
   { invTo :: !EmailAddress,
@@ -442,17 +437,17 @@ renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding
     (InvitationCode code) = invInvCode
     from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
     to = Address Nothing (fromEmail invTo)
-    txt = renderTextWithBranding invitationEmailBodyText replace branding
-    html = renderHtmlWithBranding invitationEmailBodyHtml replace branding
-    subj = renderTextWithBranding invitationEmailSubject replace branding
-    invitationUrl = renderInvitationUrl invitationEmailUrl invTeamId invInvCode branding
+    txt = renderTextWithBranding (template invitationEmailBodyText) replace branding
+    html = renderHtmlWithBranding (template invitationEmailBodyHtml) replace branding
+    subj = renderTextWithBranding (template invitationEmailSubject) replace branding
+    invitationUrl = renderInvitationUrl invitationEmailUrl invTeamId invInvCode
     replace "url" = invitationUrl
     replace "inviter" = fromEmail invInviter
     replace x = x
 
-renderInvitationUrl :: Template -> TeamId -> InvitationCode -> TemplateBranding -> Text
-renderInvitationUrl t tid (InvitationCode c) branding =
-  toStrict $ renderTextWithBranding t replace branding
+renderInvitationUrl :: Text -> TeamId -> InvitationCode -> Text
+renderInvitationUrl t tid (InvitationCode c) =
+  toStrict $ renderText (template t) replace
   where
     replace "team" = idToText tid
     replace "code" = Ascii.toText c

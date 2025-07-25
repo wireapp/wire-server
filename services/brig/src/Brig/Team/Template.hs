@@ -30,51 +30,16 @@ where
 import Brig.Options
 import Brig.Template
 import Imports
-import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Template hiding (loadTeamTemplates)
+import Wire.EmailSubsystem.Template qualified as Emails
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
-loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
-  TeamTemplates
-    <$> ( InvitationEmailTemplate tUrl
-            <$> readTemplate fp "email/invitation-subject.txt"
-            <*> readTemplate fp "email/invitation.txt"
-            <*> readTemplate fp "email/invitation.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( InvitationEmailTemplate tExistingUrl
-            <$> readTemplate fp "email/migration-subject.txt"
-            <*> readTemplate fp "email/migration.txt"
-            <*> readTemplate fp "email/migration.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
-            <$> readTemplate fp "email/new-creator-welcome-subject.txt"
-            <*> readTemplate fp "email/new-creator-welcome.txt"
-            <*> readTemplate fp "email/new-creator-welcome.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
-            <$> readTemplate fp "email/new-member-welcome-subject.txt"
-            <*> readTemplate fp "email/new-member-welcome.txt"
-            <*> readTemplate fp "email/new-member-welcome.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( NewTeamOwnerWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
-            <$> readTemplate fp "email/new-team-owner-welcome-subject.txt"
-            <*> readTemplate fp "email/new-team-owner-welcome.txt"
-            <*> readTemplate fp "email/new-team-owner-welcome.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-  where
-    gOptions = o.emailSMS.general
-    tOptions = o.emailSMS.team
-    tUrl = template tOptions.tInvitationUrl
-    tExistingUrl = template tOptions.tExistingUserInvitationUrl
-    defLocale = defaultTemplateLocale o.settings
-    readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
-    readText = readTextWithDefault (templateDir gOptions) defLocale "team"
+loadTeamTemplates o =
+  Emails.loadTeamTemplates
+    (defaultTemplateLocale o.settings)
+    (templateDir o.emailSMS.general)
+    (o.emailSMS.general.emailSender)
+    (o.emailSMS.team.tInvitationUrl)
+    (o.emailSMS.team.tExistingUserInvitationUrl)
+    (o.emailSMS.team.tCreatorWelcomeUrl)
+    (o.emailSMS.team.tMemberWelcomeUrl)

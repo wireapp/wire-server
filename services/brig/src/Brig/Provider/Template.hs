@@ -36,7 +36,7 @@ import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.API.User.Identity
-import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,
@@ -64,15 +64,6 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
     approvalConfirmEmailSenderName :: !Text,
     approvalConfirmEmailHomeUrl :: !HttpsUrl
   }
-
--- TODO
--- data NewServiceEmailTemplate = NewServiceEmailTemplate
---     { newServiceEmailSubject    :: !Template
---     , newServiceEmailBodyText   :: !Template
---     , newServiceEmailBodyHtml   :: !Template
---     , newServiceEmailSender     :: !Email
---     , newServiceEmailSenderName :: !Text
---     }
 
 loadProviderTemplates :: Opts -> IO (Localised ProviderTemplates)
 loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provider" $ \fp ->
