@@ -104,7 +104,7 @@ testUserGroupGetGroups = do
   _ <- runSearch def {q = Just "CC", sortByKeys = Just "name"} ["CC", "CCC"]
   _ <-
     runSearch
-      def {sortByKeys = Just "name"}
+      def {sortByKeys = Just "name", sortOrder = Just "asc"}
       [ "A",
         "B",
         "C",
@@ -118,6 +118,22 @@ testUserGroupGetGroups = do
       ]
   _ <-
     runSearch
+      def {sortByKeys = Just "name", sortOrder = Just "desc"}
+      ( reverse
+          [ "A",
+            "B",
+            "C",
+            "CC",
+            "CCC",
+            "D",
+            "E",
+            "F",
+            "First group",
+            "G"
+          ]
+      )
+  _ <-
+    runSearch
       def {sortByKeys = Just "created_at", sortOrder = Just "asc"}
       [ "First group",
         "CC",
@@ -129,6 +145,28 @@ testUserGroupGetGroups = do
         "E",
         "F",
         "G"
+      ]
+  _ <-
+    runSearch
+      def {sortByKeys = Just "created_at", sortOrder = Just "desc"}
+      ( reverse
+          [ "First group",
+            "CC",
+            "CCC",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G"
+          ]
+      )
+  _ <-
+    runSearch
+      def {sortByKeys = Just "name", q = Just "CC"}
+      [ "CC",
+        "CCC"
       ]
 
   -- paginate
