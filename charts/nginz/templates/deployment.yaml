@@ -37,19 +37,6 @@ spec:
             matchLabels:
               app: nginz
       containers:
-      - name: nginz-disco
-        image: "{{ .Values.images.nginzDisco.repository }}:{{ .Values.images.nginzDisco.tag }}"
-        {{- if eq (include "includeSecurityContext" .) "true" }}
-        securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 10 }}
-        {{- end }}
-        volumeMounts:
-        - name: config
-          mountPath: /etc/wire/nginz/conf
-          readOnly: true
-        - name: upstreams
-          mountPath: /etc/wire/nginz/upstreams
-          readOnly: false
       - name: nginz
         image: "{{ .Values.images.nginz.repository }}:{{ .Values.images.nginz.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
@@ -62,9 +49,6 @@ spec:
           readOnly: true
         - name: config
           mountPath: /etc/wire/nginz/conf
-          readOnly: true
-        - name: upstreams
-          mountPath: /etc/wire/nginz/upstreams
           readOnly: true
         - name: deeplink
           mountPath: /etc/wire/nginz/deeplink
@@ -88,6 +72,12 @@ spec:
             path: /status
             port: {{ .Values.config.http.httpPort }}
             scheme: HTTP
+        lifecycle:
+          preStop:
+            exec:
+              # kubernetes by default sends a SIGTERM to the container,
+              # we can be more graceful with in-flight requests using quit
+              command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep 25"]
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       dnsPolicy: ClusterFirst
@@ -99,8 +89,6 @@ spec:
       - name: secrets
         secret:
           secretName: nginz
-      - name: upstreams
-        emptyDir: {}
       - name: deeplink
         configMap:
           name: nginz-deeplink

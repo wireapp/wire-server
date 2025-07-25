@@ -261,6 +261,7 @@ library
     , HsOpenSSL
     , http-client
     , http-types
+    , interpolate
     , kan-extensions
     , lens
     , lens-aeson
@@ -276,6 +277,7 @@ library
     , proto-lens
     , random
     , raw-strings-qq
+    , regex
     , regex-base
     , regex-tdfa
     , retry

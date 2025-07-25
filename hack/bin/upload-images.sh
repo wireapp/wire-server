@@ -30,7 +30,5 @@ nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-l
 
 xargs -I {} -P 10 "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.{}" < "$image_list_file"
 
-for image_name in nginz nginz-disco; do
-    printf '*** Uploading image %s\n' "$image_name"
-    "$SCRIPT_DIR/upload-image.sh" "$image_name"
-done
+printf '*** Uploading image %s\n' nginz
+"$SCRIPT_DIR/upload-image.sh" nginz
