@@ -894,7 +894,7 @@ testBackendPusherRecoversFromQueueDeletion = do
 
   domain1 <- asks (.domain1)
 
-  startDynamicBackendsReturnResources [def] $ \[beResource] -> do
+  startDynamicBackendsReturnResources [def {backgroundWorkerCfg = setField "logLevel" ("Debug" :: String)}] $ \[beResource] -> do
     let domain = beResource.berDomain
     (alice, team, [alex, alison]) <- createTeam domain 3
 
@@ -934,7 +934,11 @@ testBackendPusherRecoversFromQueueDeletion = do
         queueNames <- getActiveQueues
         queueNames `shouldNotContain` [backendNotificationQueueName]
 
+      print "XXX: Before deleteTeamMember"
+      hFlush stdout
       void $ deleteTeamMember team alice alison >>= getBody 202
+      print "XXX: After deleteTeamMember"
+      hFlush stdout
 
       Timeout.threadDelay 1500000
 
@@ -943,6 +947,8 @@ testBackendPusherRecoversFromQueueDeletion = do
         queueNames <- getActiveQueues
         queueNames `shouldContain` [backendNotificationQueueName]
 
+      print "XXX: Before assertConvUserDeletedNotif"
+      hFlush stdout
       assertConvUserDeletedNotif wsBob alisonId
 
 ----------------------------------------------------------------------
