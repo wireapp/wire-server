@@ -91,13 +91,13 @@ testUserGroupGetGroups = do
       resp.json %. "name" `shouldMatch` gname
       resp.json %. "members" `shouldMatch` ([] :: [()])
 
-  let runSearch :: (HasCallStack) => GetUserGroupsArgs -> [String] -> App Value
+  let runSearch :: (HasCallStack) => GetUserGroupsArgs -> [String] -> App String
       runSearch args expected =
         bindResponse (getUserGroups owner args) $ \resp -> do
           resp.status `shouldMatchInt` 200
           found <- ((%. "name") `mapM`) =<< asList =<< resp.json %. "page"
           found `shouldMatch` expected
-          resp.json %. "state"
+          resp.json %. "state" & asString
 
   -- filter & sort
   _ <- runSearch def {q = Just "C"} ["C", "CCC", "CC"]
