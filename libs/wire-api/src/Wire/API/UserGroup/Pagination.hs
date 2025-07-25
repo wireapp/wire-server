@@ -186,7 +186,6 @@ data PaginationState = PaginationState
   { -- | `searchString` always applies to name, no matter what the sort order.  `Nothing`
     -- means do not filter.
     searchString :: Maybe Text,
-    -- TODO: check that this aligns with lastSeen
     sortBy :: SortBy,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
@@ -216,6 +215,13 @@ instance ToSchema LastSeen where
 instance Arbitrary LastSeen where
   arbitrary = LastSeen <$> arbitrary <*> arbitrary <*> arbitrary
 
+validPaginationState :: PaginationState -> Bool
+validPaginationState ps = case ps.lastSeen of
+  Just ls -> case ps.sortBy of
+    SortByName -> and [isJust ls.name, isNothing ls.createdAt]
+    SortByCreatedAt -> and [isNothing ls.name, isJust ls.createdAt]
+  Nothing -> True
+
 instance Default PaginationState where
   def =
     PaginationState
@@ -228,22 +234,29 @@ instance Default PaginationState where
 
 instance ToSchema PaginationState where
   schema =
-    object "PagintationStatePayload" $
-      PaginationState
-        <$> (.searchString) .= maybe_ (optField "search_string" schema)
-        <*> (.sortBy) .= field "sort_by" schema
-        <*> (.sortOrder) .= field "sort_order" schema
-        <*> (.pageSize) .= field "page_size" schema
-        <*> (.lastSeen) .= maybe_ (optField "last_seen" schema)
+    ( object "PagintationStatePayload" $
+        PaginationState
+          <$> (.searchString) .= maybe_ (optField "search_string" schema)
+          <*> (.sortBy) .= field "sort_by" schema
+          <*> (.sortOrder) .= field "sort_order" schema
+          <*> (.pageSize) .= field "page_size" schema
+          <*> (.lastSeen) .= maybe_ (optField "last_seen" schema)
+    )
+      `withParser` \ps ->
+        if validPaginationState ps
+          then pure ps
+          else fail ("invalid pagination state: " <> show (ps.sortBy, ps.lastSeen))
 
 instance Arbitrary PaginationState where
   arbitrary =
-    PaginationState
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+    ( PaginationState
+        <$> arbitrary
+        <*> arbitrary
+        <*> arbitrary
+        <*> arbitrary
+        <*> arbitrary
+    )
+      `suchThat` validPaginationState
 
 instance FromHttpApiData PaginationState where
   parseUrlPiece =

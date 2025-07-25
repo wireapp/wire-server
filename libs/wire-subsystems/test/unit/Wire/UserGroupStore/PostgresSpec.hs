@@ -376,12 +376,9 @@ newtype TestPaginationState = TestPaginationState PaginationState
 
 instance Arbitrary TestPaginationState where
   arbitrary = do
-    searchString <- elements $ Nothing : (Just <$> ["1", "15", "group"])
-    sortByKey <- arbitrary
-    sortOrder <- arbitrary
-    pageSize <- arbitrary
-    lastSeen <- arbitrary
-    pure $ TestPaginationState (PaginationState {sortBy = sortByKey, ..})
+    arbitrary @PaginationState >>= \ps -> do
+      searchString <- elements $ Nothing : (Just <$> ["1", "15", "group"])
+      pure $ TestPaginationState ps {searchString}
 
 testPaginationNewUserGroups :: [NewUserGroup]
 testPaginationNewUserGroups =
