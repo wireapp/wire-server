@@ -37,7 +37,6 @@ import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
-import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
