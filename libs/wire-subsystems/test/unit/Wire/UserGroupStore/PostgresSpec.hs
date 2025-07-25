@@ -4,6 +4,7 @@
 
 module Wire.UserGroupStore.PostgresSpec (spec) where
 
+import Control.Exception
 import Data.Default
 import Data.Id
 import Data.Json.Util
@@ -342,18 +343,19 @@ type UserGroupStorePostgresEffectStack =
    ]
 
 postgresInt :: Sem UserGroupStorePostgresEffectStack a -> IO (Either HasqlPool.UsageError a)
-postgresInt action = do
-  pool <- initPostgresPool
-  runM
-    . runError
-    . runInputConst pool
-    . interpretUserGroupStoreToPostgres
-    $ action
+postgresInt action =
+  bracket
+    initPostgresPool
+    destroyPostgresPool
+    ( \pool ->
+        runM
+          . runError
+          . runInputConst pool
+          . interpretUserGroupStoreToPostgres
+          $ action
+    )
 
--- TODO: copied & cloned from Brig.App.  where should we move & consolidate both?
--- Postgres.Extended?
--- TODO: when running this test suite in a "make devtest-package" loop, postgres clients will
--- not be cleaned up, and eventually there will be too many.
+-- | This is cloned from Brig.App.  Move to Postgres.Extended or postgres-util?
 initPostgresPool :: IO HasqlPool.Pool
 initPostgresPool = do
   let pgParams =
@@ -368,6 +370,9 @@ initPostgresPool = do
       [ HasqlPool.staticConnectionSettings $
           [HasqlSetting.connection $ HasqlConn.params pgParams]
       ]
+
+destroyPostgresPool :: HasqlPool.Pool -> IO ()
+destroyPostgresPool = HasqlPool.release
 
 -- * data for runAndCompare
 
