@@ -947,8 +947,6 @@ testBackendPusherRecoversFromQueueDeletion = do
         print "XXX: After deleteTeamMember"
         hFlush stdout
 
-        Timeout.threadDelay 1500000
-
         -- Check that the queue was recreated
         eventually $ do
           queueNames <- getActiveQueues
