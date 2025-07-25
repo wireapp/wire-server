@@ -244,10 +244,12 @@ instance Arbitrary PaginationState where
       <*> arbitrary
 
 instance FromHttpApiData PaginationState where
-  parseUrlPiece = parseUrlPieceViaSchema
+  parseUrlPiece =
+    first T.pack . A.eitherDecode . LB.fromStrict . Http.urlDecode True . T.encodeUtf8
 
 instance ToHttpApiData PaginationState where
-  toUrlPiece = toUrlPieceViaSchema
+  toUrlPiece =
+    T.decodeUtf8 . Http.urlEncode True . LB.toStrict . A.encode
 
 instance S.ToParamSchema PaginationState where
   toParamSchema _ =
@@ -268,11 +270,11 @@ instance ToSchema PaginationResult where
     objectWithDocModifier "PagintationResult" docs $
       PaginationResult
         <$> page .= field "page" (array schema)
-        <*> (toUrlPieceViaSchema . state) .= field "state" (withParser schema p)
+        <*> (toUrlPiece . state) .= field "state" (withParser schema p)
     where
       p :: Text -> A.Parser PaginationState
       p t =
-        case parseUrlPieceViaSchema t of
+        case parseUrlPiece t of
           Left err -> fail $ "PaginationResult: could not parse state: " <> T.unpack err
           Right ps -> pure ps
 
@@ -284,13 +286,3 @@ instance ToSchema PaginationResult where
 
 instance Arbitrary PaginationResult where
   arbitrary = PaginationResult <$> arbitrary <*> arbitrary
-
-------------------------------
-
-parseUrlPieceViaSchema :: (A.FromJSON a) => Text -> Either Text a
-parseUrlPieceViaSchema =
-  first T.pack . A.eitherDecode . LB.fromStrict . Http.urlDecode True . T.encodeUtf8
-
-toUrlPieceViaSchema :: (A.ToJSON a) => a -> Text
-toUrlPieceViaSchema =
-  T.decodeUtf8 . Http.urlEncode True . LB.toStrict . A.encode
