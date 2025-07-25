@@ -270,6 +270,17 @@ super `shouldContain` sub = do
   unless (sub `isInfixOf` super) $ do
     assertFailure $ "String or List:\n" <> show super <> "\nDoes not contain:\n" <> show sub
 
+shouldNotContain ::
+  (Eq a, Show a, HasCallStack) =>
+  -- | The actual value
+  [a] ->
+  -- | The expected value
+  [a] ->
+  App ()
+super `shouldNotContain` sub = do
+  when (sub `isInfixOf` super) $ do
+    assertFailure $ "String or List:\n" <> show super <> "\nDoes contain:\n" <> show sub
+
 printFailureDetails :: AssertionFailure -> IO String
 printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
   s <- prettierCallStack stack
