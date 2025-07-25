@@ -270,7 +270,12 @@ spec = do
                        ]
 
   -- This only works locally with /deploy/docker-ephemeral/run.sh running.  If it's in the
-  -- way, it's fine to delete it.  The only benefit bla minibackend sci-fi bla.
+  -- way, it's fine to delete it.
+  --
+  -- The reason it's here is @fisx's long-term dream of generating arbitrary programs
+  -- (sequences of actions of one or more effects), and run them against both minibackend and
+  -- real backend, and compare the results.  (In a way, this would make each interpreter the
+  -- property generator for the other one.)
   xdescribe "postgres vs. in-mem interpreters" $ do
     runAndCompare "CreateUserGroup" $ \tid -> do
       (userGroupNameToText . (.name)) <$> createUserGroup tid someNewUserGroup ManagedByWire
