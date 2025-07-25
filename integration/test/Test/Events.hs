@@ -894,11 +894,13 @@ testBackendPusherRecoversFromQueueDeletion = do
 
   domain1 <- asks (.domain1)
 
+  let remotesRefreshInterval = 10000 :: Int
   startDynamicBackendsReturnResources
     [ def
         { backgroundWorkerCfg =
-            setField "logLevel" ("Debug" :: String)
-              >=> setField "backendNotificationPusher.remotesRefreshInterval" (10000 :: Int)
+            setField
+              "backendNotificationPusher.remotesRefreshInterval"
+              remotesRefreshInterval
         }
     ]
     $ \[beResource] -> do
@@ -941,19 +943,15 @@ testBackendPusherRecoversFromQueueDeletion = do
           queueNames <- getActiveQueues
           queueNames `shouldNotContain` [backendNotificationQueueName]
 
-        print "XXX: Before deleteTeamMember"
-        hFlush stdout
         void $ deleteTeamMember team alice alison >>= getBody 202
-        print "XXX: After deleteTeamMember"
-        hFlush stdout
+
+        Timeout.threadDelay . fromIntegral $ remotesRefreshInterval * 2
 
         -- Check that the queue was recreated
         eventually $ do
           queueNames <- getActiveQueues
           queueNames `shouldContain` [backendNotificationQueueName]
 
-        print "XXX: Before assertConvUserDeletedNotif"
-        hFlush stdout
         assertConvUserDeletedNotif wsBob alisonId
 
 ----------------------------------------------------------------------
