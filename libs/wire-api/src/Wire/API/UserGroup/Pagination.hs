@@ -261,7 +261,7 @@ instance S.ToParamSchema PaginationState where
 ------------------------------
 
 data PaginationResult = PaginationResult
-  { page :: [UserGroup],
+  { page :: [UserGroupMeta],
     state :: PaginationState
   }
   deriving (Eq, Show, Generic)

@@ -168,7 +168,7 @@ spec = do
                        ]
 
     it "answer contains rows in correct order" $ do
-      let search :: (_) => TeamId -> (SortBy, SortOrder) -> Sem r [UserGroup]
+      let search :: (_) => TeamId -> (SortBy, SortOrder) -> Sem r [UserGroupMeta]
           search tid (sBy, sOrder) =
             getUserGroups tid (pstate {sortBy = sBy, sortOrder = sOrder})
 
@@ -178,7 +178,7 @@ spec = do
           x3 = {- time 3 -} "bubble"
 
       tid <- randomId
-      (ugs, result) :: ([UserGroup], [[UserGroup]]) <- inMemInt def $ do
+      (ugs, result) :: ([UserGroupMeta], [[UserGroupMeta]]) <- inMemInt def $ do
         setClock (posixSecondsToUTCTime 0)
         ugs <- do
           u012 <- new tid `mapM` [x0, x1, x2]
@@ -186,14 +186,14 @@ spec = do
           u3 <- new tid x3
           pure (u012 <> [u3])
 
-        res <-
+        res :: [[UserGroupMeta]] <-
           search tid
             `mapM` [ (SortByName, Asc),
                      (SortByName, Desc),
                      (SortByCreatedAt, Asc),
                      (SortByCreatedAt, Desc)
                    ]
-        pure (ugs, res)
+        pure (userGroupToMeta <$> ugs, res)
 
       {-
       -- this gives you more debug output:

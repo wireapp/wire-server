@@ -5,6 +5,7 @@
 
 module Wire.MockInterpreters.UserGroupStore where
 
+import Control.Lens ((%~), _2)
 import Data.Default
 import Data.Id
 import Data.Json.Util
@@ -107,10 +108,10 @@ createUserGroupImpl tid nug managedBy = do
   now <- (.now) <$> get
   gid <- Id <$> Rnd.uuid
   let ug =
-        UserGroup
+        UserGroup_
           { id_ = gid,
             name = nug.name,
-            members = nug.members,
+            members = Identity nug.members,
             managedBy = managedBy,
             createdAt = now
           }
@@ -121,9 +122,9 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> PaginationState -> Sem r [UserGroup]
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> PaginationState -> Sem r [UserGroupMeta]
 getUserGroupsImpl tid pstate = do
-  ((snd <$>) . sieve . Map.toList . (.userGroups)) <$> get
+  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList . (.userGroups)) <$> get
   where
     sieve,
       dropAfterPageSize,
@@ -131,7 +132,7 @@ getUserGroupsImpl tid pstate = do
       orderByKeys,
       narrowToSearchString,
       narrowToTeam ::
-        [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
+        [((TeamId, UserGroupId), UserGroupMeta)] -> [((TeamId, UserGroupId), UserGroupMeta)]
 
     sieve =
       dropAfterPageSize
@@ -163,7 +164,7 @@ getUserGroupsImpl tid pstate = do
     dropBeforeStart = do
       dropWhile sqlConds
       where
-        sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
+        sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
         sqlConds ((_, _), row) =
           case (pstate.lastSeen, pstate.sortOrder, pstate.sortBy) of
             (Just (LastSeen (Just name) _ tieBreaker), Asc, SortByName) -> (name, tieBreaker) >= (row.name, row.id_)
@@ -195,7 +196,7 @@ addUserImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> UserId
 addUserImpl gid uid = do
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
-      f (Just g) = Just (g {members = fromList . nub $ uid : toList g.members} :: UserGroup)
+      f (Just g) = Just (g {members = Identity . fromList . nub $ uid : toList (runIdentity g.members)} :: UserGroup)
 
   modifyUserGroupsGidOnly gid (Map.alter f)
 
@@ -203,7 +204,7 @@ removeUserImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Use
 removeUserImpl gid uid = do
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
-      f (Just g) = Just (g {members = fromList $ toList g.members \\ [uid]} :: UserGroup)
+      f (Just g) = Just (g {members = Identity . fromList $ toList (runIdentity g.members) \\ [uid]} :: UserGroup)
 
   modifyUserGroupsGidOnly gid (Map.alter f)
 

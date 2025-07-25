@@ -4,18 +4,12 @@
             "createdAt": "2025-04-16T16:22:21.703Z",
             "id": "00000000-0000-0000-0000-000000000000",
             "managedBy": "wire",
-            "members": [],
             "name": "*"
         },
         {
             "createdAt": "2025-04-16T16:22:21.703Z",
             "id": "63dd98c0-552d-11f0-8df7-b3e03cd56036",
             "managedBy": "wire",
-            "members": [
-                "1f815fa2-552f-11f0-8642-77f29e68cbc9",
-                "28a9c560-552f-11f0-9082-97e15e952720",
-                "3ec5afe4-552f-11f0-afbb-9b038a8edbd2"
-            ],
             "name": "##name1##"
         }
     ],

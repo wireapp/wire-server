@@ -140,7 +140,7 @@ getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid
-  if getterCanSeeAll || getter `elem` (toList userGroup.members)
+  if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
 
@@ -172,7 +172,7 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
-  page :: [UserGroup] <- Store.getUserGroups team currentPaginationState
+  page :: [UserGroupMeta] <- Store.getUserGroups team currentPaginationState
   pure (PaginationResult page (nextPaginationState page))
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
@@ -192,7 +192,7 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
                 lastSeen = Nothing
               }
 
-    nextPaginationState :: [UserGroup] -> PaginationState
+    nextPaginationState :: [UserGroupMeta] -> PaginationState
     nextPaginationState [] = currentPaginationState
     nextPaginationState (last -> lseen) =
       currentPaginationState
@@ -275,7 +275,7 @@ addUserImpl adder groupId addeeId = do
   ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  unless (addeeId `elem` ug.members) $ do
+  unless (addeeId `elem` runIdentity ug.members) $ do
     Store.addUser groupId addeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
@@ -298,7 +298,7 @@ removeUserImpl remover groupId removeeId = do
   ug <- getUserGroupImpl remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  when (removeeId `elem` ug.members) $ do
+  when (removeeId `elem` runIdentity ug.members) $ do
     Store.removeUser groupId removeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
