@@ -146,7 +146,7 @@ getUserGroupImpl getter gid = runMaybeT $ do
 
 mkGetterCanSeeAll ::
   forall r.
-  (Member GalleyAPIAccess r) =>
+  (Member TeamSubsystem r) =>
   UserId ->
   TeamId ->
   MaybeT (Sem r) Bool
@@ -157,8 +157,8 @@ mkGetterCanSeeAll getter team = do
 getUserGroupsImpl ::
   forall r.
   ( Member UserSubsystem r,
+    Member TeamSubsystem r,
     Member Store.UserGroupStore r,
-    Member GalleyAPIAccess r,
     Member (Error UserGroupSubsystemError) r
   ) =>
   UserId ->
