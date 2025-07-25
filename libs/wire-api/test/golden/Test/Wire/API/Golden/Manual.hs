@@ -85,12 +85,12 @@ tests =
           [ (testObject_NewUserGroup_1, "testObject_NewUserGroup_1.json"),
             (testObject_NewUserGroup_2, "testObject_NewUserGroup_2.json")
           ],
-      testGroup "NewUserGroup" $
+      testGroup "UserGroup" $
         testObjects
           [ (testObject_UserGroup_1, "testObject_UserGroup_1.json"),
             (testObject_UserGroup_2, "testObject_UserGroup_2.json")
           ],
-      testGroup "UserGrouppUpdate" $
+      testGroup "UserGroupUpdate" $
         testObjects
           [ (testObject_UserGroupUpdate_1, "testObject_UserGroupUpdate_1.json"),
             (testObject_UserGroupUpdate_2, "testObject_UserGroupUpdate_2.json")

@@ -48,10 +48,12 @@ import Wire.Arbitrary as Arbitrary
 --
 -- Prior art: https://github.com/chordify/haskell-servant-pagination/
 type PaginationQuery =
+  -- provide these params for initial page
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
     :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
     :> QueryParam' '[Optional, Strict] "page_size" PageSize
+    -- provide the state param *only* for all subsequent pages
     :> QueryParam'
          '[ Optional,
             Strict,
