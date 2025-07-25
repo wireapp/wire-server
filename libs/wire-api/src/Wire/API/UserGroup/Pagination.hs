@@ -218,8 +218,8 @@ instance Arbitrary LastSeen where
 validPaginationState :: PaginationState -> Bool
 validPaginationState ps = case ps.lastSeen of
   Just ls -> case ps.sortBy of
-    SortByName -> and [isJust ls.name, isNothing ls.createdAt]
-    SortByCreatedAt -> and [isNothing ls.name, isJust ls.createdAt]
+    SortByName -> isJust ls.name && isNothing ls.createdAt
+    SortByCreatedAt -> isNothing ls.name && isJust ls.createdAt
   Nothing -> True
 
 instance Default PaginationState where
@@ -234,14 +234,15 @@ instance Default PaginationState where
 
 instance ToSchema PaginationState where
   schema =
-    ( object "PagintationStatePayload" $
-        PaginationState
+    object
+      "PagintationStatePayload"
+      ( PaginationState
           <$> (.searchString) .= maybe_ (optField "search_string" schema)
           <*> (.sortBy) .= field "sort_by" schema
           <*> (.sortOrder) .= field "sort_order" schema
           <*> (.pageSize) .= field "page_size" schema
           <*> (.lastSeen) .= maybe_ (optField "last_seen" schema)
-    )
+      )
       `withParser` \ps ->
         if validPaginationState ps
           then pure ps
