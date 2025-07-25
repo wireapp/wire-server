@@ -894,62 +894,69 @@ testBackendPusherRecoversFromQueueDeletion = do
 
   domain1 <- asks (.domain1)
 
-  startDynamicBackendsReturnResources [def {backgroundWorkerCfg = setField "logLevel" ("Debug" :: String)}] $ \[beResource] -> do
-    let domain = beResource.berDomain
-    (alice, team, [alex, alison]) <- createTeam domain 3
+  startDynamicBackendsReturnResources
+    [ def
+        { backgroundWorkerCfg =
+            setField "logLevel" ("Debug" :: String)
+              >=> setField "backendNotificationPusher.remotesRefreshInterval" (10000 :: Int)
+        }
+    ]
+    $ \[beResource] -> do
+      let domain = beResource.berDomain
+      (alice, team, [alex, alison]) <- createTeam domain 3
 
-    -- Create a federated conversion
-    connectTwoUsers alice bob
-    [alexId, alisonId, bobId] <-
-      forM [alex, alison, bob] (%. "qualified_id")
-    let nc = (defProteus {qualifiedUsers = [alexId, alisonId, bobId], team = Just team})
-    void $ postConversation alice nc >>= getJSON 201
+      -- Create a federated conversion
+      connectTwoUsers alice bob
+      [alexId, alisonId, bobId] <-
+        forM [alex, alison, bob] (%. "qualified_id")
+      let nc = (defProteus {qualifiedUsers = [alexId, alisonId, bobId], team = Just team})
+      void $ postConversation alice nc >>= getJSON 201
 
-    withWebSockets [bob] $ \[wsBob] -> do
-      rabbitmqAdminClient <- mkRabbitMqAdminClientForResource beResource
-      let getActiveQueues :: App [String] =
-            Text.unpack . (.name)
-              <$$> ( (.items)
-                       <$> rabbitmqAdminClient.listQueuesByVHost
-                         (fromString beResource.berVHost)
-                         (fromString "")
-                         True
-                         100
-                         1
-                   )
+      withWebSockets [bob] $ \[wsBob] -> do
+        rabbitmqAdminClient <- mkRabbitMqAdminClientForResource beResource
+        let getActiveQueues :: App [String] =
+              Text.unpack . (.name)
+                <$$> ( (.items)
+                         <$> rabbitmqAdminClient.listQueuesByVHost
+                           (fromString beResource.berVHost)
+                           (fromString "")
+                           True
+                           100
+                           1
+                     )
 
-      void $ deleteTeamMember team alice alex >>= getBody 202
+        void $ deleteTeamMember team alice alex >>= getBody 202
 
-      assertConvUserDeletedNotif wsBob alexId
+        assertConvUserDeletedNotif wsBob alexId
 
-      -- Delete the queue
-      let backendNotificationQueueName = "backend-notifications." <> domain1
-      void
-        $ rabbitmqAdminClient.deleteQueue
-          (fromString beResource.berVHost)
-          (fromString backendNotificationQueueName)
+        -- Delete the queue
+        let backendNotificationQueueName = "backend-notifications." <> domain1
+        void
+          $ rabbitmqAdminClient.deleteQueue
+            (fromString beResource.berVHost)
+            (fromString backendNotificationQueueName)
 
-      -- Ensure the queue was deleted
-      eventually $ do
-        queueNames <- getActiveQueues
-        queueNames `shouldNotContain` [backendNotificationQueueName]
+        -- Ensure the queue was deleted
+        eventually $ do
+          queueNames <- getActiveQueues
+          queueNames `shouldNotContain` [backendNotificationQueueName]
 
-      print "XXX: Before deleteTeamMember"
-      hFlush stdout
-      void $ deleteTeamMember team alice alison >>= getBody 202
-      print "XXX: After deleteTeamMember"
-      hFlush stdout
+        print "XXX: Before deleteTeamMember"
+        hFlush stdout
+        void $ deleteTeamMember team alice alison >>= getBody 202
+        print "XXX: After deleteTeamMember"
+        hFlush stdout
 
-      Timeout.threadDelay 1500000
+        Timeout.threadDelay 1500000
 
-      -- Check that the queue was recreated
-      eventually $ do
-        queueNames <- getActiveQueues
-        queueNames `shouldContain` [backendNotificationQueueName]
+        -- Check that the queue was recreated
+        eventually $ do
+          queueNames <- getActiveQueues
+          queueNames `shouldContain` [backendNotificationQueueName]
 
-      print "XXX: Before assertConvUserDeletedNotif"
-      hFlush stdout
-      assertConvUserDeletedNotif wsBob alisonId
+        print "XXX: Before assertConvUserDeletedNotif"
+        hFlush stdout
+        assertConvUserDeletedNotif wsBob alisonId
 
 ----------------------------------------------------------------------
 -- helpers
