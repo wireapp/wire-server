@@ -1867,7 +1867,6 @@ type TeamsAPI =
     :<|> Named
            "get-team-invitations"
            ( Summary "List the sent team invitations"
-               :> From 'V10
                :> CanThrow 'InsufficientTeamPermissions
                :> ZUser
                :> "teams"
@@ -1883,7 +1882,6 @@ type TeamsAPI =
     :<|> Named
            "get-team-invitation"
            ( Summary "Get a pending team invitation by ID."
-               :> From 'V10
                :> CanThrow 'InsufficientTeamPermissions
                :> CanThrow 'DuplicateEntry
                :> ZUser
@@ -1973,6 +1971,7 @@ type TeamsAPI =
     :<|> Named
            "add-team-collaborator"
            ( Summary "Add a collaborator to the team."
+               :> From 'V10
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -1983,6 +1982,7 @@ type TeamsAPI =
     :<|> Named
            "get-team-collaborators"
            ( Summary "Get all collaborators of the team."
+               :> From 'V10
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

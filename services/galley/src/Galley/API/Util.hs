@@ -851,7 +851,7 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
 fromConversationCreated ::
   Local x ->
   ConversationCreated (Remote ConvId) ->
-  [(Public.Member, Public.ConversationV9)]
+  [(Public.Member, Public.OwnConversation)]
 fromConversationCreated loc rc@ConversationCreated {..} =
   let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
@@ -884,9 +884,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           memHiddenRef = Nothing,
           memConvRoleName = Public.omConvRoleName m
         }
-    conv :: Public.Member -> [OtherMember] -> Public.ConversationV9
+    conv :: Public.Member -> [OtherMember] -> Public.OwnConversation
     conv this others =
-      Public.ConversationV9
+      Public.OwnConversation
         (tUntagged cnvId)
         ConversationMetadata
           { cnvmType = cnvType,
@@ -905,7 +905,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def
           }
-        (ConvMembersV9 this others)
+        (OwnConvMembers this others)
         ProtocolProteus
 
 ensureNoUnreachableBackends ::
@@ -1143,7 +1143,7 @@ conversationExisted ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r (ConversationResponse ConversationV9)
+  Sem r (ConversationResponse OwnConversation)
 conversationExisted lusr cnv = Existed <$> conversationViewV9 lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]

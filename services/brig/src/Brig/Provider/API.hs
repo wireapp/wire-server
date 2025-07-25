@@ -866,7 +866,7 @@ removeBot zusr zcon cid bid = do
     Just _ -> do
       lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
 
-guardConvAdmin :: ConversationV9 -> ExceptT HttpError (AppT r) ()
+guardConvAdmin :: OwnConversation -> ExceptT HttpError (AppT r) ()
 guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))

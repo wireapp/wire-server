@@ -34,11 +34,11 @@ import Wire.API.Conversation.Role (parseRoleName)
 domain :: Domain
 domain = Domain "golden.example.com"
 
-testObject_ConversationList_20Conversation_user_1 :: ConversationList ConversationV9
+testObject_ConversationList_20Conversation_user_1 :: ConversationList OwnConversation
 testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
-        [ ConversationV9
+        [ OwnConversation
             { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvMetadata =
                 ConversationMetadata
@@ -56,7 +56,7 @@ testObject_ConversationList_20Conversation_user_1 =
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =
-                ConvMembersV9
+                OwnConvMembers
                   { cmSelf =
                       Member
                         { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
@@ -77,7 +77,7 @@ testObject_ConversationList_20Conversation_user_1 =
       convHasMore = False
     }
 
-testObject_ConversationList_20Conversation_user_2 :: ConversationList ConversationV9
+testObject_ConversationList_20Conversation_user_2 :: ConversationList OwnConversation
 testObject_ConversationList_20Conversation_user_2 =
   ConversationList
     { convList = [],
