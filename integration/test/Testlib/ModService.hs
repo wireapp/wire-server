@@ -55,6 +55,8 @@ import Testlib.Ports (PortNamespace (..))
 import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
+import Text.RE.Replace
+import Text.RE.TDFA
 import qualified UnliftIO
 import Prelude
 
@@ -620,50 +622,18 @@ replaceUpstreamsInConfig :: Text.Text -> ServiceMap -> Text.Text
 replaceUpstreamsInConfig nginxConf sm =
   insertGeneratedUpstreams generateUpstreamsText $ removeUpstreamBlocks
   where
+    -- remove blocks like:
+    --
+    -- upstream <name> {
+    --   ...
+    --   <config>
+    --   ...
+    -- }
     removeUpstreamBlocks :: Text.Text
     removeUpstreamBlocks =
-      either (\e -> error ("Parsing for upstreams failed" <> e)) id $
-        Parser.parseOnly configParser nginxConf
-
-    -- Parser for everything except upstream blocks
-    configParser :: Parser.Parser Text.Text
-    configParser =
-      Text.concat
-        <$> Parser.many'
-          ( Parser.try upstreamBlockSkip
-              <|> fmap Text.singleton Parser.anyChar
-          )
-
-    -- Parser to match and skip an upstream block
-    upstreamBlockSkip :: Parser.Parser Text.Text
-    upstreamBlockSkip = do
-      void $ Parser.try (Parser.string "upstream")
-      void $ Parser.many1 Parser.space
-      void $ Parser.many1 (alphaNum <|> oneOf "_-") -- The name
-      void $ Parser.many' Parser.space
-      blockBracesSkip
-      pure "" -- Remove the whole block
-
-    -- Skip a block with balanced braces
-    blockBracesSkip :: Parser.Parser ()
-    blockBracesSkip = do
-      _ <- Parser.char '{'
-      skipBraces 1
-      where
-        skipBraces :: Int -> Parser.Parser ()
-        skipBraces 0 = pure ()
-        skipBraces n = do
-          c <- Parser.anyChar
-          case c of
-            '{' -> skipBraces (n + 1)
-            '}' -> skipBraces (n - 1)
-            _ -> skipBraces n
-
-    alphaNum :: Parser.Parser Char
-    alphaNum = Parser.satisfy Char.isAlphaNum
-
-    oneOf :: [Char] -> Parser.Parser Char
-    oneOf chars = Parser.satisfy (`elem` chars)
+      replaceAll "" $
+        -- regex-tdfa does unfortunately not support shorthands for character classes.
+        nginxConf *=~ [re|upstream[[:blank:]]+[[:word:]]+([[:blank:]]|[[:cntrl:]])+{(.|[[:cntrl:]])+}|]
 
     -- Insert generated upstreams:
     -- Try to put them right after the opening 'http {'.

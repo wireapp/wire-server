@@ -62,6 +62,7 @@
 , proto-lens
 , random
 , raw-strings-qq
+, regex
 , regex-base
 , regex-tdfa
 , retry
@@ -166,6 +167,7 @@ mkDerivation {
     proto-lens
     random
     raw-strings-qq
+    regex
     regex-base
     regex-tdfa
     retry
