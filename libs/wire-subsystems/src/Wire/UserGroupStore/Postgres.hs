@@ -3,13 +3,19 @@
 module Wire.UserGroupStore.Postgres where
 
 import Control.Error (MaybeT (..))
+import Control.Lens (view, _1, _2)
 import Data.Bifunctor (second)
+import Data.Functor.Contravariant ((>$<))
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
+import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time
-import Data.UUID
+import Data.UUID as UUID
 import Data.Vector (Vector)
+import Hasql.Decoders qualified as HD
+import Hasql.Encoders qualified as HE
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
@@ -23,28 +29,32 @@ import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.User.Profile
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.UserGroupStore
 
-interpretUserGroupStoreToPostgres ::
+type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
-  ) =>
+  )
+
+interpretUserGroupStoreToPostgres ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
+    GetUserGroups team listUserGroupsQuery -> getUserGroupsImpl team listUserGroupsQuery
     UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
     RemoveUser gid uid -> removeUserImpl gid uid
 
 getUserGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe UserGroup)
@@ -56,8 +66,8 @@ getUserGroupImpl team id_ = do
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
-      members <- lift $ statement id_ getGroupMembersStatement
-      pure $ UserGroup {..}
+      members <- lift $ Identity <$> statement id_ getGroupMembersStatement
+      pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (name, managedByInt, utcTime) =
@@ -81,11 +91,97 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
+getUserGroupsImpl ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
+  TeamId ->
+  PaginationState ->
+  Sem r [UserGroupMeta]
+getUserGroupsImpl tid pstate = do
+  pool <- input
+  eitherResult <- liftIO $ use pool session
+  either throw pure eitherResult
+  where
+    session :: Session [UserGroupMeta]
+    session = sessionFromParams
+      where
+        (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
+
+        -- fill just the right number of holes in the statement using matching encoders
+        sessionFromParams = case sqlParams of
+          [] -> mkSession (statement ()) HE.noParams
+          [a] -> mkSession (statement a) encode1
+          [a, b] -> mkSession (statement (a, b)) encode2
+          bad -> error $ "internal error in paginationStateToSqlQuery: " <> show bad
+
+        encode1 = HE.param (HE.nonNullable HE.text)
+        encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
+
+        -- shared code from all cases in run above
+        mkSession :: (Statement params [UserGroupMeta] -> Session [UserGroupMeta]) -> HE.Params params -> Session [UserGroupMeta]
+        mkSession mkStatement encodeParams =
+          mkStatement . refineResult (mapM parseRow) $
+            Statement sqlBS encodeParams decodeRow True
+
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
+    decodeRow =
+      HD.rowList
+        ( (,,,)
+            <$> HD.column (HD.nonNullable HD.uuid)
+            <*> HD.column (HD.nonNullable HD.text)
+            <*> HD.column (HD.nonNullable HD.int4)
+            <*> HD.column (HD.nonNullable HD.timestamptz)
+        )
+
+    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroupMeta
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
+      managedBy <- case managedByPre of
+        0 -> pure ManagedByWire
+        1 -> pure ManagedByScim
+        bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
+      name <- userGroupNameFromText namePre
+      let members = Const ()
+      pure $ UserGroup_ {..}
+
+-- | Compile a pagination state into select query to return the next page.  Result is the
+-- query string and the search string (which needs escaping).
+paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, [Text])
+paginationStateToSqlQuery (Id (UUID.toText -> tid)) pstate =
+  ( T.unwords $ filter (not . T.null) [sel, whr, cstr, like, orderBy, limit],
+    cstrParams <> searchParams
+  )
+  where
+    sel = "select id, name, managed_by, created_at from user_group"
+    whr = "where team_id='" <> tid <> "'"
+    orderBy = T.unwords ["order by", pstate.sortBy.toText, pstate.sortOrder.toText <> ", id", pstate.sortOrder.toText]
+    limit = T.unwords ["limit", T.pack $ show $ pageSizeToInt pstate.pageSize]
+
+    (cstr, cstrParams) = maybe ("", []) mkConstraints pstate.lastSeen
+    (like, searchParams) =
+      maybe
+        ("", [])
+        (\st -> ("and name ilike ($" <> T.pack (show (length cstrParams + 1)) <> " :: text)", ["%" <> st <> "%"]))
+        pstate.searchString
+
+    mkConstraints :: (HasCallStack) => LastSeen -> (Text, [Text])
+    mkConstraints (LastSeen mName mCreatedAt lastId) =
+      (T.unwords ["and", lhs, pstate.sortOrder.op, rhs], params)
+      where
+        lhs = "(" <> pstate.sortBy.toText <> ", id)"
+        (rhs, params) = case (mName, mCreatedAt) of
+          (Just ugn, Nothing) ->
+            ( "($1 :: text, '" <> UUID.toText (toUUID lastId) <> "')",
+              [userGroupNameToText ugn]
+            )
+          (Nothing, Just timeStamp) ->
+            ( "('" <> showUTCTimeMillis timeStamp <> "', '" <> UUID.toText (toUUID lastId) <> "')",
+              []
+            )
+          _ -> error "paginationStateToSqlQuery: LastSeen must have either name or createdAt"
+
 createUserGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   NewUserGroup ->
   ManagedBy ->
@@ -99,7 +195,7 @@ createUserGroupImpl team newUserGroup managedBy = do
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
       (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
-      pure UserGroup {members = newUserGroup.members, managedBy = managedBy_, ..}
+      pure UserGroup_ {members = Identity newUserGroup.members, managedBy = managedBy_, ..}
 
     decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =
@@ -126,10 +222,8 @@ createUserGroupImpl team newUserGroup managedBy = do
           |]
 
 updateGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   UserGroupUpdate ->
@@ -154,10 +248,8 @@ updateGroupImpl tid gid gup = do
           |]
 
 deleteGroupImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe ())
@@ -181,10 +273,8 @@ deleteGroupImpl tid gid = do
           |]
 
 addUserImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
@@ -195,10 +285,8 @@ addUserImpl =
       |]
 
 removeUserImpl ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
@@ -209,10 +297,8 @@ removeUserImpl =
       |]
 
 crudUser ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
   Statement (UUID, UUID) () ->
   UserGroupId ->
   UserId ->

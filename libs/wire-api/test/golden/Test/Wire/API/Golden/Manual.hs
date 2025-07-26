@@ -47,6 +47,7 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.Pagination
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
 import Test.Wire.API.Golden.Manual.PushRemove
@@ -68,17 +69,31 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "NewUserGroup" $
+    [ testGroup "PaginationState" $
+        testObjects
+          [ (testObject_PaginationState_1, "testObject_PaginationState_1.json"),
+            (testObject_PaginationState_2, "testObject_PaginationState_2.json")
+          ],
+      testGroup "PaginationResult" $
+        testObjects
+          [ (testObject_PaginationResult_1, "testObject_PaginationResult_1.json"),
+            (testObject_PaginationResult_2, "testObject_PaginationResult_2.json"),
+            (testObject_PaginationResult_3, "testObject_PaginationResult_3.json")
+          ],
+      testGroup "NewUserGroup" $
         testObjects
           [ (testObject_NewUserGroup_1, "testObject_NewUserGroup_1.json"),
             (testObject_NewUserGroup_2, "testObject_NewUserGroup_2.json")
           ],
-      testGroup "NewUserGroup" $
+      testGroup "UserGroup" $
         testObjects
-          [ (testObject_UserGroup_1, "testObject_UserGroup_1.json"),
-            (testObject_UserGroup_2, "testObject_UserGroup_2.json")
+          [ (testObject_UserGroup_1, "testObject_UserGroup_1.json")
           ],
-      testGroup "UserGrouppUpdate" $
+      testGroup "UserGroupMeta" $
+        testObjects
+          [ (testObject_UserGroup_2, "testObject_UserGroup_2.json")
+          ],
+      testGroup "UserGroupUpdate" $
         testObjects
           [ (testObject_UserGroupUpdate_1, "testObject_UserGroupUpdate_1.json"),
             (testObject_UserGroupUpdate_2, "testObject_UserGroupUpdate_2.json")

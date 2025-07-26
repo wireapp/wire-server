@@ -1,0 +1,11 @@
+{
+    "last_seen": {
+        "created_at": "2021-12-12T00:00:00.000Z",
+        "name": "boring group",
+        "tie_breaker": "4d41b282-6887-11f0-b0dc-1f902c75fe84"
+    },
+    "page_size": 39,
+    "search_string": "***",
+    "sort_by": "name",
+    "sort_order": "asc"
+}

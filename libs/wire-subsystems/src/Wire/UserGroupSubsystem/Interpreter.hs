@@ -4,10 +4,11 @@ import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
 import Data.Default
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Imports
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
@@ -19,6 +20,7 @@ import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
@@ -38,6 +40,8 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
+  GetGroups getter q sortByKeys sortOrder pSize pState ->
+    getUserGroupsImpl getter q sortByKeys sortOrder pSize pState
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -47,6 +51,7 @@ data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
+  | UserGroupInvalidQueryParams LText
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -55,6 +60,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
+    UserGroupInvalidQueryParams msg -> (errorToWai @E.UserGroupInvalidQueryParams) {Wai.message = msg}
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
@@ -132,13 +138,81 @@ getUserGroupImpl ::
   Sem r (Maybe UserGroup)
 getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
-  getterCanSeeAll <- do
-    creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
-    pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+  getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid
-  if getterCanSeeAll || getter `elem` (toList userGroup.members)
+  if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
+
+mkGetterCanSeeAll ::
+  forall r.
+  (Member TeamSubsystem r) =>
+  UserId ->
+  TeamId ->
+  MaybeT (Sem r) Bool
+mkGetterCanSeeAll getter team = do
+  creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
+  pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+
+getUserGroupsImpl ::
+  forall r.
+  ( Member UserSubsystem r,
+    Member TeamSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r
+  ) =>
+  UserId ->
+  Maybe Text ->
+  Maybe SortBy ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe PaginationState ->
+  Sem r PaginationResult
+getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
+  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
+  getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
+  unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
+  page :: [UserGroupMeta] <- Store.getUserGroups team currentPaginationState
+  pure (PaginationResult page (nextPaginationState page))
+  where
+    ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
+    ifNothing e = maybe (throw e) pure
+
+    currentPaginationState :: PaginationState
+    currentPaginationState = case pState of
+      Just oldState -> oldState
+      Nothing ->
+        let sb = fromMaybe def sortBy'
+            so = fromMaybe (defaultSortOrder sb) sortOrder'
+         in PaginationState
+              { searchString,
+                sortBy = sb,
+                sortOrder = so,
+                pageSize = fromMaybe def pSize,
+                lastSeen = Nothing
+              }
+
+    nextPaginationState :: [UserGroupMeta] -> PaginationState
+    nextPaginationState [] = currentPaginationState
+    nextPaginationState (last -> lseen) =
+      currentPaginationState
+        { lastSeen =
+            Just
+              ( LastSeen
+                  { name = mName,
+                    createdAt = mCreatedAt,
+                    tieBreaker = i
+                  }
+              )
+        }
+      where
+        mName = case currentPaginationState.sortBy of
+          SortByName -> Just lseen.name
+          SortByCreatedAt -> Nothing
+        mCreatedAt = case currentPaginationState.sortBy of
+          SortByName -> Nothing
+          SortByCreatedAt -> Just lseen.createdAt
+        i = lseen.id_
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
@@ -201,7 +275,7 @@ addUserImpl adder groupId addeeId = do
   ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  unless (addeeId `elem` ug.members) $ do
+  unless (addeeId `elem` runIdentity ug.members) $ do
     Store.addUser groupId addeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
@@ -224,7 +298,7 @@ removeUserImpl remover groupId removeeId = do
   ug <- getUserGroupImpl remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  when (removeeId `elem` ug.members) $ do
+  when (removeeId `elem` runIdentity ug.members) $ do
     Store.removeUser groupId removeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
