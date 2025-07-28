@@ -193,6 +193,7 @@ config:
 
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
+    xoauth2ClientCredentialFile: /etc/wire/brig/secrets/smtp-xoauth2-client-credential.txt
   proxy: {}
   wireServerEnterprise:
     enabled: false
