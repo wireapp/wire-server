@@ -1,1 +1,0 @@
-background-worker: Set metric gauge `wire_background_worker_running_workers` to 1 when a worker is running instead of 0.

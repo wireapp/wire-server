@@ -1,3 +1,58 @@
+# [2025-07-28] (Chart Release 5.19.0)
+
+## Release notes
+
+
+* Galley now requires a connection to PostgreSQL. This can be configured similar to brig using configs `galley.config.postgresql` and `galley.secrets.pgPassword`. Galley must use the same PostgreSQL instance as brig. (#4677)
+
+
+## API changes
+
+
+* Create new API version V11 and finalize V10 (#4510, #4684)
+
+
+## Features
+
+
+* New immutable feature config `allowedGlobalOperations` with MLS conversation reset option (#4671)
+
+* Add endpoints to add team collaborators ("bots") and query all for a team. (#4659)
+
+* Add option to check group info consistency on every MLS commit (#4670)
+
+* Allow team collaborators to create team conversations. (#4677)
+
+
+## Bug fixes and other updates
+
+
+* Prevent typing indicator notification being send to own clients (#4658)
+
+* background-worker: Set metric gauge `wire_background_worker_running_workers` to 1 when a worker is running instead of 0. (#4662)
+
+
+## Internal changes
+
+
+* The chart for `nginx-ingress-controller` has been removed (#4675)
+
+* Do not log KilledByHttp2ThreadManager error thrown by http2 client (#4672)
+
+* A rate limit error from an internal call to `i/users/:uid/reauthenticate` will now be propagated to the external caller (#4673)
+
+* Dedicated error label for MLS leaf node signature validation failure (#4665)
+
+* Include the new group ID in the MLS conversation reset event (#4669)
+
+* Log AMQP consumer cancellations in backend notification pusher. (#4634)
+
+* Decrease `backendNotificationPusher.remotesRefreshInterval` for local
+  integration tests to give it a better chance to run between test executions. (#4634)
+
+* Make `make devtest` make rule work for other packages. (#4667)
+
+
 # [2025-07-11] (Chart Release 5.18.0)
 
 ## Release notes

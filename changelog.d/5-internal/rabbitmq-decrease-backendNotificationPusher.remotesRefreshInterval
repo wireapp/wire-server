@@ -1,2 +1,0 @@
-Decrease `backendNotificationPusher.remotesRefreshInterval` for local
-integration tests to give it a better chance to run between test executions.
