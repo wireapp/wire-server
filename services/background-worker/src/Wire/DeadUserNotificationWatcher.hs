@@ -36,7 +36,15 @@ startConsumer chan = do
 
   cassandra <- asks (.cassandra)
 
-  void . lift $ Q.declareQueue chan Q.newQueue {Q.queueName = userNotificationDlqName}
+  void . lift $
+    Q.declareQueue
+      chan
+      Q.newQueue
+        { Q.queueName = userNotificationDlqName,
+          Q.queueHeaders =
+            FieldTable $
+              Map.fromList [("x-queue-type", FVString "quorum")]
+        }
   QL.consumeMsgs chan userNotificationDlqName Q.Ack $ \(msg, envelope) ->
     if (msg.msgDeliveryMode == Just Q.NonPersistent)
       then do
