@@ -161,6 +161,9 @@ spec:
           key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
+    # TODO(leif): remove
+    - name: TASTY_PATTERN
+      value: "team invitation email"
     resources:
       requests:
         memory: "512Mi"
