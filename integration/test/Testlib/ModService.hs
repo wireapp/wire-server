@@ -629,11 +629,14 @@ replaceUpstreamsInConfig nginxConf sm =
     --   <config>
     --   ...
     -- }
+    --
+    -- Prerequisite is that the upstream  block itself does not contain block
+    -- delimitiers. AFAIK this usually holds.
     removeUpstreamBlocks :: Text.Text
     removeUpstreamBlocks =
       replaceAll "" $
         -- regex-tdfa does unfortunately not support shorthands for character classes.
-        nginxConf *=~ [re|upstream[[:blank:]]+[[:word:]]+([[:blank:]]|[[:cntrl:]])+{(.|[[:cntrl:]])+}|]
+        nginxConf *=~ [re|upstream[[:blank:]]+[[:word:]]+([[:blank:]]|[[:cntrl:]])+{([^}]|[[:cntrl:]])+}|]
 
     -- Insert generated upstreams:
     -- Try to put them right after the opening 'http {'.
