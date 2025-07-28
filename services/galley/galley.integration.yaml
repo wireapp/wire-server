@@ -161,6 +161,10 @@ settings:
       status: enabled
       config:
         mlsConversationReset: false
+    consumableNotifications:
+      defaults:
+        status: disabled
+        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false

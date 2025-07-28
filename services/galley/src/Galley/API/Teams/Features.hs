@@ -448,3 +448,5 @@ instance SetFeatureConfig LimitedEventFanoutConfig
 instance SetFeatureConfig DomainRegistrationConfig
 
 instance SetFeatureConfig CellsConfig
+
+instance SetFeatureConfig ConsumableNotificationsConfig
