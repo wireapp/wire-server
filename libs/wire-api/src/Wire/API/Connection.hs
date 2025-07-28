@@ -50,7 +50,7 @@ import Data.OpenApi qualified as S
 import Data.Qualified (Qualified (qUnqualified), Remote, deprecatedSchema)
 import Data.Range
 import Data.Schema
-import Data.Text as Text
+import Data.Text as Text hiding (show)
 import Imports
 import Servant.API
 import Wire.API.Routes.MultiTablePaging

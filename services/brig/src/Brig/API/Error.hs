@@ -22,7 +22,7 @@ import Control.Monad.Error.Class
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
-import Data.Text.Lazy as LT
+import Data.Text.Lazy as LT hiding (show)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai

@@ -67,6 +67,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
+import Network.Wai.Utilities.Exception
 import Polysemy
 import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
 import Polysemy.Input (Input)
@@ -157,7 +158,7 @@ apiScim =
           -- We caught an exception that's not a Spar exception at all. It is wrapped into
           -- Scim.serverError.
           throw . SAML.CustomError . SparScimError $
-            Scim.serverError (T.pack (displayException someException))
+            Scim.serverError (T.pack (displayExceptionNoBacktrace someException))
         Right (Left err@(SAML.CustomError (SparScimError _))) ->
           -- We caught a 'SparScimError' exception. It is left as-is.
           throw err

@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE ImplicitParams #-}
 
 -- | Map federation errors to client-facing errors.
 --
@@ -95,6 +96,7 @@ import Network.HTTP.Types.Status
 import Network.HTTP.Types.Status qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.Exception
 import OpenSSL.Session (SomeSSLException)
 import Servant.Client
 import Wire.API.Error
@@ -227,21 +229,21 @@ federationRemoteHTTP2Error target path = \case
     ( Wai.mkError
         unexpectedFederationResponseStatus
         "federation-http2-error"
-        (LT.pack (displayException e))
+        (LT.pack (displayExceptionNoBacktrace e))
     )
       & addErrData
   (FederatorClientTLSException e) ->
     ( Wai.mkError
         (HTTP.mkStatus 525 "SSL Handshake Failure")
         "federation-tls-error"
-        (LT.pack (displayException e))
+        (LT.pack (displayExceptionNoBacktrace e))
     )
       & addErrData
   (FederatorClientConnectionError e) ->
     ( Wai.mkError
         federatorConnectionRefusedStatus
         "federation-connection-refused"
-        (LT.pack (displayException e))
+        (LT.pack (displayExceptionNoBacktrace e))
     )
       & addErrData
   where
@@ -259,12 +261,12 @@ federationClientHTTP2Error (FederatorClientConnectionError e) =
   Wai.mkError
     HTTP.status500
     "federation-not-available"
-    (LT.pack (displayException e))
+    (LT.pack (displayExceptionNoBacktrace e))
 federationClientHTTP2Error e =
   Wai.mkError
     HTTP.status500
     "federation-local-error"
-    (LT.pack (displayException e))
+    (LT.pack (displayExceptionNoBacktrace e))
 
 federationRemoteResponseError :: SrvTarget -> Text -> HTTP.Status -> LByteString -> Wai.Error
 federationRemoteResponseError target path status body =
@@ -310,7 +312,7 @@ federationServantErrorToWai (UnsupportedContentType mediaType res) =
         <> LT.pack (show mediaType)
     )
 federationServantErrorToWai (ConnectionError e) =
-  federationUnavailable . T.pack . displayException $ e
+  federationUnavailable . T.pack . displayExceptionNoBacktrace $ e
 
 federationErrorContentType :: ResponseF a -> LT.Text
 federationErrorContentType =

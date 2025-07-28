@@ -65,6 +65,7 @@ library
   exposed-modules:
     Network.Wai.Utilities
     Network.Wai.Utilities.Error
+    Network.Wai.Utilities.Exception
     Network.Wai.Utilities.Headers
     Network.Wai.Utilities.JSONResponse
     Network.Wai.Utilities.MockServer
