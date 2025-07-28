@@ -80,6 +80,7 @@
 , mmorph
 , MonadRandom
 , mtl
+, mustache
 , network
 , network-conduit-tls
 , network-uri
@@ -317,6 +318,7 @@ mkDerivation {
     mime-mail
     MonadRandom
     mtl
+    mustache
     network
     network-uri
     optparse-applicative

@@ -167,6 +167,7 @@ mkDerivation {
     memory
     mime
     mime-mail
+    mustache
     network
     network-conduit-tls
     polysemy
