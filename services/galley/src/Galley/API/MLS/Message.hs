@@ -93,6 +93,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
 import Wire.NotificationSubsystem
+import Wire.Sem.Now qualified as Now
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -159,7 +160,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
   events <-
     map lcuEvent
       <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) imsg
-  t <- toUTCTimeMillis <$> input
+  t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
@@ -211,7 +212,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   events <-
     map lcuEvent
       <$> postMLSCommitBundle lusr (tUntagged lusr) c ctype qConvOrSub (Just conn) ibundle
-  t <- toUTCTimeMillis <$> input
+  t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::

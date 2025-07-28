@@ -3,7 +3,6 @@ module Galley.API.Action.Notify where
 import Data.Id
 import Data.Qualified
 import Data.Singletons
-import Data.Time.Clock
 import Galley.API.Util
 import Galley.Data.Conversation
 import Galley.Effects
@@ -12,7 +11,6 @@ import Imports hiding ((\\))
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
@@ -20,6 +18,8 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 data LocalConversationUpdate = LocalConversationUpdate
   { lcuEvent :: Event,
@@ -33,7 +33,7 @@ notifyConversationAction ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -45,7 +45,7 @@ notifyConversationAction ::
   ExtraConversationData ->
   Sem r LocalConversationUpdate
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action extraData = do
-  now <- input
+  now <- Now.get
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
       tid = conv.convMetadata.cnvmTeam

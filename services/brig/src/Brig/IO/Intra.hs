@@ -76,7 +76,6 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -102,6 +101,8 @@ import Wire.Events
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging qualified as P
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
@@ -113,7 +114,7 @@ sendUserEvent ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
@@ -129,7 +130,7 @@ runEvents ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   InterpreterFor Events r
@@ -222,7 +223,7 @@ dispatchNotifications ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
@@ -256,7 +257,7 @@ notifyUserDeletionLocals ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -280,7 +281,7 @@ notifyUserDeletionLocals deleted conn event = do
       forM_
         (filter ((==) Sent . ucStatus) connections)
         ( \uc -> do
-            now <- toUTCTimeMillis <$> input
+            now <- toUTCTimeMillis <$> Now.get
             -- because the connections are going to be removed from the database anyway when a user gets deleted
             -- we don't need to save the updated connection state in the database
             -- note that we switch from and to users so that the "other" user becomes the recipient of the event

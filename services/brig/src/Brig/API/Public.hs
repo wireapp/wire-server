@@ -84,7 +84,6 @@ import Data.Qualified
 import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
-import Data.Time.Clock
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
@@ -361,7 +360,6 @@ servantSitemap ::
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
@@ -866,7 +864,7 @@ upgradePersonalToTeam ::
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserSubsystem r,

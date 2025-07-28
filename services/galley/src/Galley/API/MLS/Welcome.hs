@@ -36,7 +36,6 @@ import Galley.Effects.FederatorAccess
 import Imports
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
-import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Logger
 import Wire.API.Error
@@ -53,12 +52,14 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 sendWelcomes ::
   ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member P.TinyLog r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member NotificationSubsystem r
   ) =>
   Local ConvOrSubConvId ->
@@ -68,7 +69,7 @@ sendWelcomes ::
   RawMLS Welcome ->
   Sem r ()
 sendWelcomes loc qusr con cids welcome = do
-  now <- input
+  now <- Now.get
   let qcnv = convFrom <$> tUntagged loc
       (locals, remotes) = partitionQualified loc (map cidQualifiedClient cids)
       msg = mkRawMLS $ mkMessage (MessageWelcome welcome)

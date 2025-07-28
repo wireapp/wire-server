@@ -128,6 +128,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
@@ -151,7 +153,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member LegalHoldStore r,
       Member MemberStore r,
       Member ProposalStore r,
@@ -169,7 +171,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member NotificationSubsystem r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member (Input Env) r,
       Member ProposalStore r,
       Member SubConversationStore r,
@@ -182,7 +184,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member SubConversationStore r,
       Member ProposalStore r,
       Member (Input Env) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member NotificationSubsystem r,
@@ -231,7 +233,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ProposalStore r,
       Member TeamStore r,
       Member TinyLog r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member ConversationStore r,
       Member SubConversationStore r,
       Member Random r
@@ -256,7 +258,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member MemberStore r,
       Member ProposalStore r,
       Member Random r,
@@ -271,7 +273,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationResetTag r =
     ( Member (Input Env) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member (ErrorS ConvNotFound) r,
       Member (ErrorS InvalidOperation) r,
       Member ConversationStore r,
@@ -590,7 +592,7 @@ performAction tag origUser lconv action = do
           pure $ mkPerformActionResult action
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureForTeam @MlsMigrationConfig tid
-          now <- input
+          now <- Now.get
           mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
           ok <- checkMigrationCriteria now mlsConv mig
           unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
@@ -852,7 +854,7 @@ updateLocalConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     HasConversationActionEffects tag r,
     SingI tag,
     Member TeamStore r
@@ -888,7 +890,7 @@ updateLocalConversationUnchecked ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     HasConversationActionEffects tag r,
     Member TeamStore r
   ) =>
@@ -1088,7 +1090,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   pure connected
 
 notifyTypingIndicator ::
-  ( Member (Input UTCTime) r,
+  ( Member Now r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
     Member FederatorAccess r
@@ -1099,7 +1101,7 @@ notifyTypingIndicator ::
   TypingStatus ->
   Sem r TypingDataUpdated
 notifyTypingIndicator conv qusr mcon ts = do
-  now <- input
+  now <- Now.get
   lconv <- qualifyLocal (Data.convId conv)
   let origDomain = qDomain qusr
       (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)

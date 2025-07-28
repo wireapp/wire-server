@@ -38,7 +38,6 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Types
@@ -71,6 +70,7 @@ import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
@@ -132,7 +132,7 @@ type HasProposalEffects r =
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,

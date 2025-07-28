@@ -97,6 +97,8 @@ import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 data NoChanges = NoChanges
 
@@ -364,7 +366,7 @@ acceptOne2One ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member NotificationSubsystem r
   ) =>
@@ -388,7 +390,7 @@ acceptOne2One lusr conv conn = do
         when (length mems > 2) $
           throw . BadConvState $
             cid
-        now <- input
+        now <- Now.get
         mm <- createMember lcid lusr
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
