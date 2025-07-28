@@ -29,6 +29,7 @@ module Wire.EmailSubsystem.Template
 where
 
 import Control.Exception (catchJust)
+import Data.Aeson (FromJSON)
 import Data.ByteString qualified as BS
 import Data.Map.Strict qualified as Map
 import Data.Text (pack, unpack)
@@ -38,10 +39,58 @@ import Data.Text.Template
 import HTMLEntities.Text qualified as HTML
 import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
+import Text.Mustache (compileTemplate)
+import Text.Mustache qualified as Mustache
 import Wire.API.Locale
 import Wire.API.User
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
+
+data BrandingOpts = BrandingOpts
+  { brand :: !Text,
+    brandUrl :: !Text,
+    brandLabelUrl :: !Text,
+    brandLogoUrl :: !Text,
+    brandService :: !Text,
+    copyright :: !Text,
+    misuse :: !Text,
+    legal :: !Text,
+    forgot :: !Text,
+    support :: !Text
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BrandingOpts
+
+-- | Function to be applied everywhere where email/sms/call
+-- templating is used (ensures that placeholders are replaced
+-- by the appropriate branding, typically Wire)
+genTemplateBranding :: BrandingOpts -> TemplateBranding
+genTemplateBranding
+  BrandingOpts
+    { brand,
+      brandUrl,
+      brandLabelUrl,
+      brandLogoUrl,
+      brandService,
+      copyright,
+      misuse,
+      legal,
+      forgot,
+      support
+    } = fn
+    where
+      fn "brand" = brand
+      fn "brand_url" = brandUrl
+      fn "brand_label_url" = brandLabelUrl
+      fn "brand_logo" = brandLogoUrl
+      fn "brand_service" = brandService
+      fn "copyright" = copyright
+      fn "misuse" = misuse
+      fn "legal" = legal
+      fn "forgot" = forgot
+      fn "support" = support
+      fn other = other
 
 -- | Lookup a localised item from a 'Localised' structure.
 forLocale ::
@@ -171,6 +220,34 @@ readWithDefault readFn baseDir defLoc typ prefix name = do
         <> "/"
         <> name
 
+mustacheFromText :: String -> Text -> IO Mustache.Template
+mustacheFromText tplName textTemplate = do
+  let eTpl = compileTemplate tplName (setDelimiter textTemplate)
+  case eTpl of
+    Left err -> error $ "Invalid Mustache template: " ++ show err
+    Right tpl -> pure tpl
+  where
+    setDelimiter :: Text -> Text
+    setDelimiter t =
+      "{{= ${ } =}}" <> t
+
+readMustacheTemplateWithDefault ::
+  String ->
+  FilePath ->
+  Locale ->
+  FilePath ->
+  String ->
+  FilePath ->
+  IO Mustache.Template
+readMustacheTemplateWithDefault tplName baseDir defLoc typ prefix name = do
+  readTextWithDefault
+    baseDir
+    defLoc
+    typ
+    prefix
+    name
+    >>= mustacheFromText tplName
+
 loadTeamTemplates ::
   Locale ->
   FilePath ->
@@ -190,17 +267,19 @@ loadTeamTemplates
   memberWelcomeEmailUrl =
     readLocalesDir defLocale templateDir "team" $ \fp ->
       TeamTemplates
-        <$> ( InvitationEmailTemplate invitationEmailUrl
-                <$> readTxt fp "email/invitation-subject.txt"
-                <*> readTxt fp "email/invitation.txt"
-                <*> readTxt fp "email/invitation.html"
+        <$> ( InvitationEmailTemplate
+                <$> mustacheFromText "invitationEmailUrl" invitationEmailUrl
+                <*> readMTpl "invitation-subject" fp "email/invitation-subject.txt"
+                <*> readMTpl "invitation-txt" fp "email/invitation.txt"
+                <*> readMTpl "invitation-html" fp "email/invitation.html"
                 <*> pure emailSender
                 <*> readTxt fp "email/sender.txt"
             )
-        <*> ( InvitationEmailTemplate invitationEmailExistingUserUrl
-                <$> readTxt fp "email/migration-subject.txt"
-                <*> readTxt fp "email/migration.txt"
-                <*> readTxt fp "email/migration.html"
+        <*> ( InvitationEmailTemplate
+                <$> mustacheFromText "invitationEmailExistingUserUrl" invitationEmailExistingUserUrl
+                <*> readMTpl "migration-subject" fp "email/migration-subject.txt"
+                <*> readMTpl "migration-txt" fp "email/migration.txt"
+                <*> readMTpl "migration-html" fp "email/migration.html"
                 <*> pure emailSender
                 <*> readTxt fp "email/sender.txt"
             )
@@ -228,3 +307,4 @@ loadTeamTemplates
     where
       readTpl = readTemplateWithDefault templateDir defLocale "team"
       readTxt = readTextWithDefault templateDir defLocale "team"
+      readMTpl tplName = readMustacheTemplateWithDefault tplName templateDir defLocale "team"

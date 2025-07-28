@@ -9,6 +9,7 @@ import Data.UUID as UUID
 import Imports
 import Network.Mail.Mime
 import Test.Tasty
+import Text.Mustache
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Locale
@@ -25,21 +26,14 @@ tests templateDir manager = do
       [ test manager "team invitation email" $ testTeamInvitation templateDir
       ]
 
-testTeamInvitation :: FilePath -> Http ()
+testTeamInvitation :: (HasCallStack) => FilePath -> Http ()
 testTeamInvitation templateDir = do
   let locale = defaultLocale
-      emailSender = fromJust $ emailAddressText "test@example.com"
-      invitationEmailUrl = "https://example.com/invite"
+      emailSender = fromJust $ emailAddressText "inviter@example.com"
+      invitationEmailUrl = "https://example.com/invite?teamId=${team}&code=${code}"
       invitationEmailExistingUserUrl = "https://example.com/invite/existing"
       creatorWelcomeEmailUrl = "https://example.com/welcome/creator"
       memberWelcomeEmailUrl = "https://example.com/welcome/member"
-      invitationEmailData =
-        InvitationEmail
-          { invTo = fromJust $ emailAddressText "test@example.com",
-            invTeamId = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000"),
-            invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
-            invInviter = fromJust $ emailAddressText "inviter@example.com"
-          }
   result <-
     liftIO $
       loadTeamTemplates
@@ -52,12 +46,58 @@ testTeamInvitation templateDir = do
         memberWelcomeEmailUrl
   let allTemplates = uncurry Map.insert result.locDefault result.locOther
   for_ (Map.assocs allTemplates) $ \(_, templates) -> do
-    let (mail, _) = renderInvitationEmail invitationEmailData templates.invitationEmail id
-    liftIO $ mail.mailFrom.addressEmail @?= (fromEmail emailSender)
+    let tpl = templates.invitationEmail
+        input =
+          InvitationEmailInput
+            { branding = brandingOpts,
+              invUrlTemplate = tpl.invitationEmailUrl,
+              invTo = fromJust $ emailAddressText "test@example.com",
+              invTeamId = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000"),
+              invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
+              invInviter = emailSender
+            }
+        (mail, url) = renderInvitationEmail input tpl
+    checkInvitationEmailTemplate input tpl
+    liftIO $ do
+      mail.mailFrom.addressEmail @?= (fromEmail emailSender)
+      url @?= "https://example.com/invite?teamId=123e4567-e89b-12d3-a456-426614174000&code=ZoMX0xs="
+
+
+checkInvitationEmailTemplate :: InvitationEmailInput -> InvitationEmailTemplate -> Http ()
+checkInvitationEmailTemplate input tpl = do
+  let (textErrs, _) = checkedSubstitute tpl.invitationEmailBodyText input
+      (htmlErrs, _) = checkedSubstitute tpl.invitationEmailBodyHtml input
+      (subjErrs, _) = checkedSubstitute tpl.invitationEmailSubject input
+  liftIO $ do
+      case textErrs of
+        [] -> pure ()
+        errs -> assertFailure $ "Text substitution errors: " <> show errs
+      case htmlErrs of
+        [] -> pure ()
+        errs -> assertFailure $ "HTML substitution errors: " <> show errs
+      case subjErrs of
+        [] -> pure ()
+        errs -> assertFailure $ "Subject substitution errors: " <> show errs
+
 
 defaultLocale :: Locale
 defaultLocale =
   Locale
     { lLanguage = Language EN,
       lCountry = Nothing
+    }
+
+brandingOpts :: BrandingOpts
+brandingOpts =
+  BrandingOpts
+    { brand = "Wire",
+      brandUrl = "https://wire.com",
+      brandLabelUrl = "wire.com",
+      brandLogoUrl = "https://wire.com/p/img/email/logo-email-black.png",
+      brandService = "Wire Service Provider",
+      copyright = "© WIRE SWISS GmbH",
+      misuse = "misuse@wire.com",
+      legal = "https://wire.com/legal/",
+      forgot = "https://wire.com/forgot/",
+      support = "https://support.wire.com/"
     }

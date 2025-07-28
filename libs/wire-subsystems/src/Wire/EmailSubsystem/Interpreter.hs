@@ -9,9 +9,12 @@ import Data.Range (fromRange)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
+import Data.Text.Lazy qualified as TL
 import Imports
 import Network.Mail.Mime
 import Polysemy
+import Text.Mustache hiding (Template)
+import Text.Mustache qualified as Mustache
 import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation
@@ -21,8 +24,8 @@ import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
 
-emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> Localised TeamTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
+emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> Localised TeamTemplates -> BrandingOpts -> InterpreterFor EmailSubsystem r
+emailSubsystemInterpreter userTpls teamTpls brandingOpts = interpret \case
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
@@ -33,8 +36,10 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
-  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
-  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
+  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls brandingOpts email tid from code loc
+  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls brandingOpts email tid from code loc
+  where
+    branding = genTemplateBranding brandingOpts
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -397,61 +402,108 @@ renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendTeamInvitationMailImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailImpl :: (Member EmailSending r) => Localised TeamTemplates -> BrandingOpts -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
 sendTeamInvitationMailImpl teamTemplates branding to tid from code loc = do
   let tpl = invitationEmail . snd $ forLocale loc teamTemplates
-      mail = InvitationEmail to tid code from
-      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+      mail =
+        InvitationEmailInput
+          { branding = branding,
+            invTo = to,
+            invTeamId = tid,
+            invInvCode = code,
+            invInviter = from,
+            invUrlTemplate = tpl.invitationEmailUrl
+          }
+      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl
   sendMail renderedMail
   pure renderedInvitaitonUrl
 
-sendTeamInvitationMailPersonalUserImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailPersonalUserImpl :: (Member EmailSending r) => Localised TeamTemplates -> BrandingOpts -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
 sendTeamInvitationMailPersonalUserImpl teamTemplates branding to tid from code loc = do
   let tpl = existingUserInvitationEmail . snd $ forLocale loc teamTemplates
-      mail = InvitationEmail to tid code from
-      (renderedMail, renderedInvitationUrl) = renderInvitationEmail mail tpl branding
+      mail =
+        InvitationEmailInput
+          { branding = branding,
+            invTo = to,
+            invTeamId = tid,
+            invInvCode = code,
+            invInviter = from,
+            invUrlTemplate = tpl.invitationEmailUrl
+          }
+      (renderedMail, renderedInvitationUrl) = renderInvitationEmail mail tpl
   sendMail renderedMail
   pure renderedInvitationUrl
 
-data InvitationEmail = InvitationEmail
-  { invTo :: !EmailAddress,
+data InvitationEmailInput = InvitationEmailInput
+  { branding :: !BrandingOpts,
+    invTo :: !EmailAddress,
     invTeamId :: !TeamId,
     invInvCode :: !InvitationCode,
-    invInviter :: !EmailAddress
+    invInviter :: !EmailAddress,
+    invUrlTemplate :: !Mustache.Template
   }
 
-renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> (Mail, Text)
-renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding =
+instance ToMustache InvitationEmailInput where
+  toMustache InvitationEmailInput {..} =
+    object
+      [ "inviter" ~> fromEmail invInviter,
+        "team" ~> idToText invTeamId,
+        "code" ~> Ascii.toText (fromInvitationCode invInvCode),
+        "url" ~> renderInvitationUrl invUrlTemplate invTeamId invInvCode,
+        "brand" ~> branding.brand,
+        "brand_url" ~> branding.brandUrl,
+        "brand_label_url" ~> branding.brandLabelUrl,
+        "brand_logo" ~> branding.brandLogoUrl,
+        "brand_service" ~> branding.brandService,
+        "copyright" ~> branding.copyright,
+        "misuse" ~> branding.misuse,
+        "legal" ~> branding.legal,
+        "forgot" ~> branding.forgot,
+        "support" ~> branding.support
+      ]
+
+renderInvitationEmail :: InvitationEmailInput -> InvitationEmailTemplate -> (Mail, Text)
+renderInvitationEmail inputs templates =
   ( (emptyMail from)
       { mailTo = [to],
         mailHeaders =
           [ ("Subject", toStrict subj),
             ("X-Zeta-Purpose", "TeamInvitation"),
-            ("X-Zeta-Code", Ascii.toText code)
+            ("X-Zeta-Code", Ascii.toText (fromInvitationCode inputs.invInvCode))
           ],
         mailParts = [[plainPart txt, htmlPart html]]
       },
-    invitationUrl
+    renderInvitationUrl templates.invitationEmailUrl inputs.invTeamId inputs.invInvCode
   )
   where
-    (InvitationCode code) = invInvCode
-    from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
-    to = Address Nothing (fromEmail invTo)
-    txt = renderTextWithBranding (template invitationEmailBodyText) replace branding
-    html = renderHtmlWithBranding (template invitationEmailBodyHtml) replace branding
-    subj = renderTextWithBranding (template invitationEmailSubject) replace branding
-    invitationUrl = renderInvitationUrl invitationEmailUrl invTeamId invInvCode
-    replace "url" = invitationUrl
-    replace "inviter" = fromEmail invInviter
-    replace x = x
+    from =
+      Address
+        { addressName = Just templates.invitationEmailSenderName,
+          addressEmail = fromEmail templates.invitationEmailSender
+        }
+    to =
+      Address
+        { addressName = Nothing,
+          addressEmail = fromEmail inputs.invTo
+        }
+    txt = TL.fromStrict $ substitute templates.invitationEmailBodyText inputs
+    html = TL.fromStrict $ substitute templates.invitationEmailBodyHtml inputs
+    subj = TL.fromStrict $ substitute templates.invitationEmailSubject inputs
 
-renderInvitationUrl :: Text -> TeamId -> InvitationCode -> Text
-renderInvitationUrl t tid (InvitationCode c) =
-  toStrict $ renderText (template t) replace
-  where
-    replace "team" = idToText tid
-    replace "code" = Ascii.toText c
-    replace x = x
+data InvitationUrlInput = InvitationUrlInput
+  { team :: !TeamId,
+    code :: !InvitationCode
+  }
+
+instance ToMustache InvitationUrlInput where
+  toMustache InvitationUrlInput {..} =
+    object
+      [ "team" ~> idToText team,
+        "code" ~> Ascii.toText (fromInvitationCode code)
+      ]
+
+renderInvitationUrl :: Mustache.Template -> TeamId -> InvitationCode -> Text
+renderInvitationUrl tpl teamId code = substitute tpl (InvitationUrlInput teamId code)
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

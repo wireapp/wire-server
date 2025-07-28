@@ -21,13 +21,14 @@ module Wire.EmailSubsystem.Templates.Team where
 
 import Data.Text.Template
 import Imports hiding (readFile)
+import Text.Mustache qualified as Mustache
 import Wire.API.User
 
 data InvitationEmailTemplate = InvitationEmailTemplate
-  { invitationEmailUrl :: !Text,
-    invitationEmailSubject :: !Text,
-    invitationEmailBodyText :: !Text,
-    invitationEmailBodyHtml :: !Text,
+  { invitationEmailUrl :: !Mustache.Template,
+    invitationEmailSubject :: !Mustache.Template,
+    invitationEmailBodyText :: !Mustache.Template,
+    invitationEmailBodyHtml :: !Mustache.Template,
     invitationEmailSender :: !EmailAddress,
     invitationEmailSenderName :: !Text
   }

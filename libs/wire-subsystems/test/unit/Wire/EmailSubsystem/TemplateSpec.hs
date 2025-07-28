@@ -41,7 +41,7 @@ spec = do
                 renderedUnescaped `shouldBe` "Hello, <b>World</b>!"
                 case errs1 of
                   [VariableNotFound ["boo"]] -> pure ()
-                  _ -> expectationFailure $ "Unexpected errors: " <> show errs2
+                  _ -> expectationFailure $ "Unexpected errors: " <> show errs1
                 case errs2 of
                   [VariableNotFound ["boo"]] -> pure ()
-                  _ -> expectationFailure $ "Unexpected errors: " <> show errs1
+                  _ -> expectationFailure $ "Unexpected errors: " <> show errs2

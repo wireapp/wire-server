@@ -31,35 +31,4 @@ module Brig.Template
   )
 where
 
-import Brig.Options
 import Wire.EmailSubsystem.Template
-
--- | Function to be applied everywhere where email/sms/call
--- templating is used (ensures that placeholders are replaced
--- by the appropriate branding, typically Wire)
-genTemplateBranding :: BrandingOpts -> TemplateBranding
-genTemplateBranding
-  BrandingOpts
-    { brand,
-      brandUrl,
-      brandLabelUrl,
-      brandLogoUrl,
-      brandService,
-      copyright,
-      misuse,
-      legal,
-      forgot,
-      support
-    } = fn
-    where
-      fn "brand" = brand
-      fn "brand_url" = brandUrl
-      fn "brand_label_url" = brandLabelUrl
-      fn "brand_logo" = brandLogoUrl
-      fn "brand_service" = brandService
-      fn "copyright" = copyright
-      fn "misuse" = misuse
-      fn "legal" = legal
-      fn "forgot" = forgot
-      fn "support" = support
-      fn other = other

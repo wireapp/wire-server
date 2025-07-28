@@ -430,6 +430,7 @@ executable brig-integration
     , mime-mail
     , MonadRandom            >=0.5
     , mtl
+    , mustache
     , network
     , network-uri
     , optparse-applicative

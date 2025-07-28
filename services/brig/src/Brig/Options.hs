@@ -57,6 +57,7 @@ import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.EmailSending.SMTP (SMTPConnType (..))
+import Wire.EmailSubsystem.Template
 import Wire.RateLimit.Interpreter
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -173,22 +174,6 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
   deriving (Show, Generic)
 
 instance FromJSON EmailSMSGeneralOpts
-
-data BrandingOpts = BrandingOpts
-  { brand :: !Text,
-    brandUrl :: !Text,
-    brandLabelUrl :: !Text,
-    brandLogoUrl :: !Text,
-    brandService :: !Text,
-    copyright :: !Text,
-    misuse :: !Text,
-    legal :: !Text,
-    forgot :: !Text,
-    support :: !Text
-  }
-  deriving (Show, Generic)
-
-instance FromJSON BrandingOpts
 
 data EmailUserOpts = EmailUserOpts
   { -- | Activation URL template

@@ -53,6 +53,7 @@ module Brig.App
     providerTemplatesLens,
     teamTemplatesLens,
     templateBrandingLens,
+    brandingOptsLens,
     httpManagerLens,
     http2ManagerLens,
     extGetManagerLens,
@@ -165,7 +166,7 @@ import Wire.API.User.Identity
 import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
-import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.EmailSubsystem.Template (BrandingOpts, TemplateBranding, forLocale)
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
@@ -201,6 +202,7 @@ data Env = Env
     providerTemplates :: Localised ProviderTemplates,
     teamTemplates :: Localised TeamTemplates,
     templateBranding :: TemplateBranding,
+    brandingOpts :: BrandingOpts,
     httpManager :: Manager,
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
@@ -302,6 +304,7 @@ newEnv opts = do
         providerTemplates = ptp,
         teamTemplates = ttp,
         templateBranding = branding,
+        brandingOpts = opts.emailSMS.general.templateBranding,
         httpManager = mgr,
         http2Manager = h2Mgr,
         extGetManager = ext,
