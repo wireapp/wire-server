@@ -123,7 +123,6 @@
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
-, template
 , template-haskell
 , temporary
 , text
@@ -250,7 +249,6 @@ mkDerivation {
     split
     ssl-util
     stomp-queue
-    template
     template-haskell
     text
     time
@@ -310,6 +308,7 @@ mkDerivation {
     http-reverse-proxy
     http-types
     imports
+    iso639
     jose
     lens
     lens-aeson

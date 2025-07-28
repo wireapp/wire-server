@@ -37,7 +37,7 @@ loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o =
   Emails.loadTeamTemplates
     (defaultTemplateLocale o.settings)
-    (templateDir o.emailSMS.general)
+    (o.emailSMS.general.templateDir)
     (o.emailSMS.general.emailSender)
     (o.emailSMS.team.tInvitationUrl)
     (o.emailSMS.team.tExistingUserInvitationUrl)

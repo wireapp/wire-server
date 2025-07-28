@@ -298,7 +298,6 @@ library
     , split                                 >=0.2
     , ssl-util
     , stomp-queue                           >=0.3
-    , template                              >=0.2
     , template-haskell
     , text                                  >=0.11
     , time                                  >=1.1
@@ -366,6 +365,7 @@ executable brig-integration
     API.Team
     API.Team.Util
     API.TeamUserSearch
+    API.Template
     API.User
     API.User.Account
     API.User.Auth
@@ -421,6 +421,7 @@ executable brig-integration
     , http-reverse-proxy
     , http-types
     , imports
+    , iso639
     , jose
     , lens                   >=3.9
     , lens-aeson
