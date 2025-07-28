@@ -9,8 +9,8 @@ import Data.UUID as UUID
 import Imports
 import Network.Mail.Mime
 import Test.Tasty
-import Text.Mustache
 import Test.Tasty.HUnit
+import Text.Mustache
 import Util
 import Wire.API.Locale
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
@@ -62,23 +62,21 @@ testTeamInvitation templateDir = do
       mail.mailFrom.addressEmail @?= (fromEmail emailSender)
       url @?= "https://example.com/invite?teamId=123e4567-e89b-12d3-a456-426614174000&code=ZoMX0xs="
 
-
 checkInvitationEmailTemplate :: InvitationEmailInput -> InvitationEmailTemplate -> Http ()
 checkInvitationEmailTemplate input tpl = do
   let (textErrs, _) = checkedSubstitute tpl.invitationEmailBodyText input
       (htmlErrs, _) = checkedSubstitute tpl.invitationEmailBodyHtml input
       (subjErrs, _) = checkedSubstitute tpl.invitationEmailSubject input
   liftIO $ do
-      case textErrs of
-        [] -> pure ()
-        errs -> assertFailure $ "Text substitution errors: " <> show errs
-      case htmlErrs of
-        [] -> pure ()
-        errs -> assertFailure $ "HTML substitution errors: " <> show errs
-      case subjErrs of
-        [] -> pure ()
-        errs -> assertFailure $ "Subject substitution errors: " <> show errs
-
+    case textErrs of
+      [] -> pure ()
+      errs -> assertFailure $ "Text substitution errors: " <> show errs
+    case htmlErrs of
+      [] -> pure ()
+      errs -> assertFailure $ "HTML substitution errors: " <> show errs
+    case subjErrs of
+      [] -> pure ()
+      errs -> assertFailure $ "Subject substitution errors: " <> show errs
 
 defaultLocale :: Locale
 defaultLocale =
