@@ -96,8 +96,8 @@ testCollaboratorCanCreateTeamConv (TaggedBool collaboratorHasTeam) = do
     resp.status `shouldMatchInt` 201
     resp.json %. "team" `shouldMatch` team
 
-testImplicitConnection :: (HasCallStack) => App ()
-testImplicitConnection = do
+testImplicitConnectionAllowed :: (HasCallStack) => App ()
+testImplicitConnectionAllowed = do
   (owner, team, [alice]) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
@@ -110,3 +110,18 @@ testImplicitConnection = do
     >>= assertSuccess
 
   postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess
+
+testImplicitConnectionNotConfigured :: (HasCallStack) => App ()
+testImplicitConnectionNotConfigured = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator
+    owner
+    team
+    bob
+    []
+    >>= assertSuccess
+
+  postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "operation-denied"

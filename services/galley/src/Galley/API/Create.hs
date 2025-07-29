@@ -490,7 +490,8 @@ createOne2OneConversation ::
     Member NotificationSubsystem r,
     Member Now r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -533,17 +534,20 @@ createOne2OneConversation lusr zcon j =
         Member (ErrorS 'NotATeamMember) r,
         Member (ErrorS OperationDenied) r,
         Member (ErrorS 'TeamNotFound) r,
+        Member TeamCollaboratorsSubsystem r,
         Member TeamStore r
       ) =>
       Local UserId ->
       TeamId ->
       Sem r (Maybe TeamId)
     checkBindingTeamPermissions lother tid = do
+      mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
       zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
-      void $ permissionCheck CreateConversation zusrMembership
+      void $ permissionCheck CreateConversation $ (Left <$> zusrMembership) <|> (Right <$> mTeamCollaborator)
       E.getTeamBinding tid >>= \case
         Just Binding -> do
-          verifyMembership tid (tUnqualified lusr)
+          when (isJust zusrMembership) $
+            verifyMembership tid (tUnqualified lusr)
           verifyMembership tid (tUnqualified lother)
           pure (Just tid)
         Just _ -> throwS @'NonBindingTeam
