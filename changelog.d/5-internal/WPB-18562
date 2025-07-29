@@ -1,1 +1,0 @@
-A rate limit error from an internal call to `i/users/:uid/reauthenticate` will now be propagated to the external caller
