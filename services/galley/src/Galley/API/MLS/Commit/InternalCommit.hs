@@ -66,7 +66,6 @@ import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
-import Wire.TeamCollaboratorsSubsystem
 
 processInternalCommit ::
   forall r.
@@ -81,8 +80,7 @@ processInternalCommit ::
     Member SubConversationStore r,
     Member Resource r,
     Member Random r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member TeamCollaboratorsSubsystem r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->

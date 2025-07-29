@@ -50,6 +50,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
+import Wire.TeamCollaboratorsSubsystem
 
 getClients ::
   ( Member BrigAccess r,
@@ -81,7 +82,8 @@ rmClient ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   UserId ->
   ClientId ->

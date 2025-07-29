@@ -279,7 +279,8 @@ leaveConversation ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -500,7 +501,8 @@ updateConversation ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
   ConversationUpdateRequest ->

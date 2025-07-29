@@ -84,6 +84,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamCollaboratorsSubsystem
 
 createSettings ::
   forall r.
@@ -172,7 +173,8 @@ removeSettingsInternalPaging ::
     Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -215,7 +217,8 @@ removeSettings ::
     Member P.TinyLog r,
     Member Random r,
     Member SubConversationStore r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -271,7 +274,8 @@ removeSettings' ::
     Member Random r,
     Member P.TinyLog r,
     Member SubConversationStore r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   TeamId ->
   Sem r ()
@@ -320,7 +324,8 @@ grantConsent ::
     Member P.TinyLog r,
     Member Random r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -371,7 +376,8 @@ requestDevice ::
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -465,7 +471,8 @@ approveDevice ::
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -542,7 +549,8 @@ disableForUser ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -606,7 +614,8 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   TeamId ->
   Local UserId ->
@@ -722,7 +731,8 @@ handleGroupConvPolicyConflicts ::
     Member P.TinyLog r,
     Member Random r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

@@ -103,6 +103,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.TeamCollaboratorsSubsystem
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -137,7 +138,8 @@ ejpdGetConvInfo ::
     Member (Input Env) r,
     Member (ListItems p ConvId) r,
     Member (ListItems p (Remote ConvId)) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   UserId ->
   Sem r [EJPDConvInfo]
@@ -331,7 +333,8 @@ rmUser ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->

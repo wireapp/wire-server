@@ -144,6 +144,7 @@ import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.TeamCollaboratorsSubsystem
 
 acceptConv ::
   ( Member ConversationStore r,
@@ -291,7 +292,8 @@ type UpdateConversationAccessEffects =
 
 updateConversationAccess ::
   ( Members UpdateConversationAccessEffects r,
-    Member Now r
+    Member Now r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -305,7 +307,8 @@ updateConversationAccess lusr con qcnv update = do
 
 updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,
-    Member Now r
+    Member Now r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -337,7 +340,8 @@ updateConversationReceiptMode ::
     Member Now r,
     Member MemberStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -417,7 +421,8 @@ updateConversationReceiptModeUnqualified ::
     Member Now r,
     Member MemberStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+      Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -436,7 +441,8 @@ updateConversationMessageTimer ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -469,7 +475,8 @@ updateConversationMessageTimerUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -495,7 +502,8 @@ deleteLocalConversation ::
     Member MemberStore r,
     Member ProposalStore r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -738,7 +746,8 @@ updateConversationProtocolWithLocalUser ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -783,7 +792,8 @@ updateChannelAddPermission ::
     Member BrigAccess r,
     Member FederatorAccess r,
     Member MemberStore r,
-    Member (ErrorS 'InvalidTargetAccess) r
+    Member (ErrorS 'InvalidTargetAccess) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -943,7 +953,8 @@ addMembers ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -988,7 +999,8 @@ addMembersUnqualifiedV2 ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+      Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1031,7 +1043,8 @@ addMembersUnqualified ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1119,7 +1132,8 @@ updateOtherMemberLocalConv ::
     Member NotificationSubsystem r,
     Member Now r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+      Member TeamCollaboratorsSubsystem r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1146,7 +1160,8 @@ updateOtherMemberUnqualified ::
     Member NotificationSubsystem r,
     Member Now r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1172,7 +1187,8 @@ updateOtherMember ::
     Member NotificationSubsystem r,
     Member Now r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1212,7 +1228,8 @@ removeMemberUnqualified ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1242,7 +1259,8 @@ removeMemberQualified ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1319,7 +1337,8 @@ removeMemberFromLocalConv ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1550,7 +1569,8 @@ updateConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1576,7 +1596,8 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1598,7 +1619,8 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
