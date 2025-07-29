@@ -59,7 +59,7 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
+import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm, TeamMember)
 import Wire.API.User
 import Wire.API.User.Scim (ValidScimId (..))
 
@@ -136,7 +136,7 @@ getZUsrCheckPerm ::
       Member GalleyAccess r,
       Member (Error SparError) r
     ),
-    IsPerm perm,
+    IsPerm TeamMember perm,
     Show perm
   ) =>
   Maybe UserId ->

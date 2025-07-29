@@ -18,10 +18,12 @@
 
 module Galley.API.MLS.Types where
 
+import Data.Bifunctor
 import Data.Domain
 import Data.Id
 import Data.IntMap (IntMap)
 import Data.IntMap qualified as IntMap
+import Data.IntSet qualified as IntSet
 import Data.Map qualified as Map
 import Data.Qualified
 import GHC.Records (HasField (..))
@@ -31,7 +33,7 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 
@@ -57,6 +59,9 @@ mkIndexMap = IndexMap . foldr addEntry mempty
 imLookup :: IndexMap -> LeafIndex -> Maybe ClientIdentity
 imLookup m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
 
+imFromList :: [(LeafIndex, ClientIdentity)] -> IndexMap
+imFromList = IndexMap . IntMap.fromList . map (first fromIntegral)
+
 imNextIndex :: IndexMap -> LeafIndex
 imNextIndex im =
   fromIntegral . fromJust $
@@ -69,6 +74,12 @@ imRemoveClient :: IndexMap -> LeafIndex -> Maybe (ClientIdentity, IndexMap)
 imRemoveClient im idx = do
   cid <- imLookup im idx
   pure (cid, IndexMap . IntMap.delete (fromIntegral idx) $ unIndexMap im)
+
+imRemoveIndices :: [LeafIndex] -> IndexMap -> IndexMap
+imRemoveIndices keys =
+  IndexMap
+    . flip IntMap.withoutKeys (IntSet.fromList (map fromIntegral keys))
+    . unIndexMap
 
 -- | A two-level map of users to clients to leaf indices.
 --
@@ -87,6 +98,9 @@ mkClientMap = foldr addEntry mempty
     addEntry (dom, usr, c, leafidx, pending_removal)
       | pending_removal = id -- treat as removed, don't add to ClientMap
       | otherwise = Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral leafidx))
+
+cmToMap :: (Ord a) => ClientMap a -> Map a ClientIdentity
+cmToMap = Map.fromList . map swap . cmAssocs
 
 cmLookupIndex :: ClientIdentity -> ClientMap LeafIndex -> Maybe LeafIndex
 cmLookupIndex cid cm = do
@@ -167,7 +181,7 @@ newSubConversationFromParent ::
   SubConversation
 newSubConversationFromParent lconv sconv =
   let qcs = flip SubConv sconv <$> tUntagged lconv
-      groupId = newGroupId RegularConv qcs
+      groupId = Group.newGroupId RegularConv qcs
    in newSubConversation (tUnqualified lconv) sconv groupId
 
 toPublicSubConv :: Qualified SubConversation -> PublicSubConversation

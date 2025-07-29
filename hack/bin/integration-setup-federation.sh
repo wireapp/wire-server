@@ -22,7 +22,7 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 # script beforehand on all relevant charts to download the nested dependencies
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral redis-cluster rabbitmq wire-server ingress-nginx-controller nginx-ingress-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral redis-cluster rabbitmq wire-server ingress-nginx-controller nginx-ingress-services)
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
@@ -30,11 +30,8 @@ KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
 KUBERNETES_VERSION_MINOR="${KUBERNETES_VERSION_MINOR//[!0-9]/}" # some clusters report minor versions as a string like '27+'. Strip any non-digit characters.
 export KUBERNETES_VERSION="$KUBERNETES_VERSION_MAJOR.$KUBERNETES_VERSION_MINOR"
-if (( KUBERNETES_VERSION_MAJOR > 1 || KUBERNETES_VERSION_MAJOR == 1 && KUBERNETES_VERSION_MINOR >= 23 )); then
-    export INGRESS_CHART="ingress-nginx-controller"
-else
-    export INGRESS_CHART="nginx-ingress-controller"
-fi
+export INGRESS_CHART="ingress-nginx-controller"
+
 echo "kubeVersion: $KUBERNETES_VERSION and ingress controller=$INGRESS_CHART"
 export NAMESPACE_1="$NAMESPACE"
 export FEDERATION_DOMAIN_BASE_1="$NAMESPACE_1.svc.cluster.local"
@@ -51,13 +48,7 @@ export FEDERATION_CA_CERTIFICATE
 echo "Installing charts..."
 
 set +e
-# This exists because we need to run `helmfile` with `--skip-deps`, without that it doesn't work.
-helm repo add bedag https://bedag.github.io/helm-charts/
-helm repo add obeone https://charts.obeone.cloud
-helm repo add opensearch https://opensearch-project.github.io/helm-charts/
-helm repo add bitnami https://charts.bitnami.com/bitnami
-
-helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml.gotmpl" sync --skip-deps --concurrency 0
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml.gotmpl" sync --concurrency 0
 EXIT_CODE=$?
 
 if (( EXIT_CODE > 0)); then

@@ -36,7 +36,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
 import Wire.API.User
@@ -46,15 +46,15 @@ import Wire.API.User
 localMLSOne2OneConversation ::
   Local UserId ->
   Local ConvId ->
-  ConversationV9
+  OwnConversation
 localMLSOne2OneConversation lself (tUntagged -> convId) =
   let members =
-        ConvMembersV9
+        OwnConvMembers
           { cmSelf = defMember (tUntagged lself),
             cmOthers = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata convId
-   in ConversationV9
+   in OwnConversation
         { cnvQualifiedId = convId,
           cnvMetadata = metadata,
           cnvMembers = members,
@@ -88,7 +88,7 @@ localMLSOne2OneConversationMetadata convId =
         (defConversationMetadata Nothing)
           { cnvmType = One2OneConv
           }
-      groupId = newGroupId One2OneConv (fmap Conv convId)
+      groupId = Group.newGroupId One2OneConv (fmap Conv convId)
       mlsData =
         ConversationMLSData
           { cnvmlsGroupId = groupId,
@@ -105,12 +105,12 @@ remoteMLSOne2OneConversation ::
   (MLSOne2OneConversation MLSPublicKey)
 remoteMLSOne2OneConversation lself rother rc =
   let members =
-        ConvMembersV9
+        OwnConvMembers
           { cmSelf = defMember (tUntagged lself),
             cmOthers = rc.conversation.members.others
           }
       conv =
-        ConversationV9
+        OwnConversation
           { cnvQualifiedId = tUntagged (qualifyAs rother rc.conversation.id),
             cnvMetadata = rc.conversation.metadata,
             cnvMembers = members,

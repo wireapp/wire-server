@@ -4,6 +4,7 @@ import Control.Lens (to, (^.))
 import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
+import Data.Range
 import Imports
 import Polysemy
 import Wire.API.Team.Feature
@@ -27,7 +28,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
-  GetTeamMembers _ -> error "GetTeamMembers not implemented in miniGalleyAPIAccess"
+  GetTeamMembers tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
   GetTeamId _ -> error "GetTeamId not implemented in miniGalleyAPIAccess"
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
@@ -60,3 +61,16 @@ getTeamMemberImpl :: Map TeamId [TeamMember] -> UserId -> TeamId -> Maybe TeamMe
 getTeamMemberImpl teams uid tid = do
   allMembers <- Map.lookup tid teams
   find (\m -> m ^. userId == uid) allMembers
+
+getTeamMembersImpl :: Map TeamId [TeamMember] -> TeamId -> Maybe (Range 1 HardTruncationLimit Int32) -> TeamMemberList
+getTeamMembersImpl teams tid maxResults =
+  maybe
+    (error "GetTeamMembers not-found case not implemented")
+    (newTeamMemberListWithMaxResults (maybe hardTruncationLimit (fromIntegral . fromRange) maxResults))
+    $ Map.lookup tid teams
+
+newTeamMemberListWithMaxResults :: Int -> [TeamMember] -> TeamMemberList
+newTeamMemberListWithMaxResults maxResults members =
+  if length members > maxResults
+    then newTeamMemberList (take maxResults members) ListTruncated
+    else newTeamMemberList members ListComplete

@@ -41,6 +41,8 @@ module Galley.Options
     Opts (..),
     galley,
     cassandra,
+    postgresqlPassword,
+    postgresql,
     brig,
     gundeck,
     spar,
@@ -56,6 +58,7 @@ module Galley.Options
     defGuestLinkTTLSeconds,
     passwordHashingOptions,
     passwordHashingRateLimit,
+    checkGroupInfo,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -150,7 +153,9 @@ data Settings = Settings
     _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
     _passwordHashingOptions :: !(PasswordHashingOptions),
     -- | Rate limiting options for hashing passwords (used for conversation codes)
-    _passwordHashingRateLimit :: RateLimitConfig
+    _passwordHashingRateLimit :: RateLimitConfig,
+    -- | Check group info
+    _checkGroupInfo :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 
@@ -182,6 +187,10 @@ data Opts = Opts
     _galley :: !Endpoint,
     -- | Cassandra settings
     _cassandra :: !CassandraOpts,
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    _postgresql :: !(Map Text Text),
+    _postgresqlPassword :: !(Maybe FilePathSecrets),
     -- | Brig endpoint
     _brig :: !Endpoint,
     -- | Gundeck endpoint

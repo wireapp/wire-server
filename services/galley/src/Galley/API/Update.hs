@@ -86,7 +86,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
-import Data.Time
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
 import Galley.API.Cells
@@ -143,6 +142,8 @@ import Wire.API.User.Client
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 acceptConv ::
   ( Member ConversationStore r,
@@ -150,14 +151,14 @@ acceptConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r ConversationV9
+  Sem r OwnConversation
 acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
@@ -214,7 +215,7 @@ unblockConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TinyLog r
   ) =>
@@ -234,14 +235,14 @@ unblockConvUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  Sem r ConversationV9
+  Sem r OwnConversation
 unblockConvUnqualified lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
@@ -280,7 +281,6 @@ type UpdateConversationAccessEffects =
      FireAndForget,
      NotificationSubsystem,
      Input Env,
-     Input UTCTime,
      MemberStore,
      ProposalStore,
      Random,
@@ -290,7 +290,8 @@ type UpdateConversationAccessEffects =
    ]
 
 updateConversationAccess ::
-  ( Members UpdateConversationAccessEffects r
+  ( Members UpdateConversationAccessEffects r,
+    Member Now r
   ) =>
   Local UserId ->
   ConnId ->
@@ -303,7 +304,8 @@ updateConversationAccess lusr con qcnv update = do
     updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
-  ( Members UpdateConversationAccessEffects r
+  ( Members UpdateConversationAccessEffects r,
+    Member Now r
   ) =>
   Local UserId ->
   ConnId ->
@@ -332,7 +334,7 @@ updateConversationReceiptMode ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TinyLog r,
     Member TeamStore r
@@ -412,7 +414,7 @@ updateConversationReceiptModeUnqualified ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TinyLog r,
     Member TeamStore r
@@ -433,7 +435,7 @@ updateConversationMessageTimer ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -466,7 +468,7 @@ updateConversationMessageTimerUnqualified ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -492,7 +494,7 @@ deleteLocalConversation ::
     Member SubConversationStore r,
     Member MemberStore r,
     Member ProposalStore r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -514,7 +516,7 @@ addCodeUnqualifiedWithReqBody ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member HashPassword r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
@@ -540,7 +542,7 @@ addCodeUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input Opts) r,
     Member HashPassword r,
     Member TeamFeatureStore r,
@@ -569,7 +571,7 @@ addCode ::
     Member ExternalAccess r,
     Member HashPassword r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member RateLimit r,
@@ -596,7 +598,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
       mPw <- for (mReq >>= (.password)) $ HashPassword.hashPassword8 (RateLimitUser (tUnqualified lusr))
       E.createCode code mPw
-      now <- input
+      now <- Now.get
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
       let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
       pushConversationEvent mZcon conv event (qualifyAs lusr (map lmId users)) bots
@@ -622,7 +624,7 @@ rmCodeUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -640,7 +642,7 @@ rmCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -656,7 +658,7 @@ rmCode lusr zcon lcnv = do
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
-  now <- input
+  now <- Now.get
   let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing EdConvCodeDelete
   pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map lmId users)) bots
   pure event
@@ -720,7 +722,7 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Error InternalError) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
@@ -769,7 +771,7 @@ updateChannelAddPermission ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member (Input (Local ())) r,
     Member TinyLog r,
@@ -822,7 +824,7 @@ joinConversationByReusableCode ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
@@ -853,7 +855,7 @@ joinConversationById ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -877,7 +879,7 @@ joinConversation ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -908,6 +910,7 @@ joinConversation lusr zcon conv access = do
         (qualifyAs lusr conv)
         (convBotsAndMembers conv <> extraTargets)
         action
+        def
 
 addMembers ::
   forall r.
@@ -933,7 +936,7 @@ addMembers ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -978,7 +981,7 @@ addMembersUnqualifiedV2 ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -1021,7 +1024,7 @@ addMembersUnqualified ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -1044,7 +1047,7 @@ updateSelfMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r
   ) =>
   Local UserId ->
@@ -1056,7 +1059,7 @@ updateSelfMember lusr zcon qcnv update = do
   exists <- foldQualified lusr checkLocalMembership checkRemoteMembership qcnv
   unless exists $ throwS @'ConvNotFound
   E.setSelfMember qcnv lusr update
-  now <- input
+  now <- Now.get
   let e = Event qcnv Nothing (tUntagged lusr) now Nothing (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) () e (fmap pure lusr) []
   where
@@ -1091,7 +1094,7 @@ updateUnqualifiedSelfMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r
   ) =>
   Local UserId ->
@@ -1114,7 +1117,7 @@ updateOtherMemberLocalConv ::
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -1141,7 +1144,7 @@ updateOtherMemberUnqualified ::
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -1167,7 +1170,7 @@ updateOtherMember ::
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -1203,7 +1206,7 @@ removeMemberUnqualified ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -1233,7 +1236,7 @@ removeMemberQualified ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -1264,7 +1267,7 @@ removeMemberFromRemoteConv ::
   ( Member FederatorAccess r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   Remote ConvId ->
   Local UserId ->
@@ -1289,9 +1292,9 @@ removeMemberFromRemoteConv cnv lusr victim
     handleError RemoveFromConversationErrorNotFound = throwS @'ConvNotFound
     handleError RemoveFromConversationErrorUnchanged = pure Nothing
 
-    handleSuccess :: (Member (Input UTCTime) r) => () -> Sem r (Maybe Event)
+    handleSuccess :: (Member Now r) => () -> Sem r (Maybe Event)
     handleSuccess _ = do
-      t <- input
+      t <- Now.get
       pure . Just $
         Event (tUntagged cnv) Nothing (tUntagged lusr) t Nothing $
           EdMembersLeaveRemoved (QualifiedUserIdList [victim])
@@ -1310,7 +1313,7 @@ removeMemberFromLocalConv ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -1353,7 +1356,7 @@ removeMemberFromChannel ::
     Member (Error NoChanges) r,
     Member SubConversationStore r,
     Member ProposalStore r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -1390,7 +1393,7 @@ postProteusMessage ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1415,7 +1418,7 @@ postProteusBroadcast ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1468,7 +1471,7 @@ postBotMessageUnqualified ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member TinyLog r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   BotId ->
   ConvId ->
@@ -1495,7 +1498,7 @@ postOtrBroadcastUnqualified ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1519,7 +1522,7 @@ postOtrMessageUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1546,7 +1549,7 @@ updateConversationName ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -1572,7 +1575,7 @@ updateUnqualifiedConversationName ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -1594,7 +1597,7 @@ updateLocalConversationName ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -1610,7 +1613,7 @@ memberTyping ::
   ( Member NotificationSubsystem r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member ConversationStore r,
     Member MemberStore r,
     Member FederatorAccess r,
@@ -1649,7 +1652,7 @@ memberTypingUnqualified ::
   ( Member NotificationSubsystem r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
@@ -1675,7 +1678,7 @@ addBot ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r
   ) =>
   Local UserId ->
@@ -1687,7 +1690,7 @@ addBot lusr zcon b = do
     E.getConversation (b ^. addBotConv) >>= noteS @'ConvNotFound
   -- Check some preconditions on adding bots to a conversation
   (bots, users) <- regularConvChecks c
-  t <- input
+  t <- Now.get
   E.createClient (botUserId (b ^. addBotId)) (b ^. addBotClient)
   bm <- E.createBotMember (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv)
   let e =
@@ -1739,7 +1742,7 @@ rmBot ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
   ) =>
@@ -1765,7 +1768,7 @@ rmBot lusr zcon b = do
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
     else do
-      t <- input
+      t <- Now.get
       do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t Nothing evd

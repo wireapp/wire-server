@@ -30,16 +30,16 @@ import Data.Id
 import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.Text (pack)
-import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Galley.Effects.TeamStore
 import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
 import Polysemy
-import Polysemy.Input
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import Proto.TeamEvents_Fields qualified as T
+import Wire.Sem.Now
+import Wire.Sem.Now qualified as Now
 
 -- Note [journaling]
 -- ~~~~~~~~~~~~~~~~~
@@ -47,7 +47,7 @@ import Proto.TeamEvents_Fields qualified as T
 -- is started without journaling arguments
 
 teamActivate ::
-  ( Member (Input UTCTime) r,
+  ( Member Now r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -61,7 +61,7 @@ teamActivate tid teamSize cur time = do
 
 teamUpdate ::
   ( Member TeamStore r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   TeamId ->
   Natural ->
@@ -72,7 +72,7 @@ teamUpdate tid teamSize billingUserIds =
 
 teamDelete ::
   ( Member TeamStore r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   TeamId ->
   Sem r ()
@@ -80,7 +80,7 @@ teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
   ( Member TeamStore r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   TeamId ->
   Sem r ()
@@ -88,7 +88,7 @@ teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
   ( Member TeamStore r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   TeamEvent'EventType ->
   TeamId ->
@@ -97,7 +97,7 @@ journalEvent ::
   Sem r ()
 journalEvent typ tid dat tim = do
   -- writetime is in microseconds in cassandra 3.11
-  now <- round . utcTimeToPOSIXSeconds <$> input
+  now <- round . utcTimeToPOSIXSeconds <$> Now.get
   let ts = maybe now ((`div` 1000000) . view tcTime) tim
       ev =
         defMessage

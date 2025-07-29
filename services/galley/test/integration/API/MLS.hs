@@ -29,6 +29,7 @@ import Control.Lens (view)
 import Control.Lens.Extras
 import Control.Monad.State qualified as State
 import Data.Aeson qualified as Aeson
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
@@ -894,7 +895,8 @@ testRemoteToRemoteInSub = do
             convId = conv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 

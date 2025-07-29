@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster wire-server-enterprise
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster wire-server-enterprise
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -17,7 +17,7 @@ CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-ex
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper restund \
+ingress-nginx-controller nginx-ingress-services reaper restund \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
@@ -64,6 +64,7 @@ full-clean: clean
 	make rabbit-clean
 	rm -rf ~/.cache/hie-bios
 	rm -rf ./dist-newstyle ./.env
+	find . -name '*.hie' -type d -exec rm -rf {} \;
 	direnv reload
 	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
@@ -137,27 +138,37 @@ crm: c db-migrate
 # Run integration from new test suite
 # Usage: make devtest
 # Usage: TEST_INCLUDE=test1,test2 make devtest
-.PHONY: devtest
-devtest:
-	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
-
-# Run unit tests for a package in a loop, re-loading and -running on
-# file change in the unit tests.
+#
+# Now also supports running unit tests for a package in a loop,
+# re-loading and -running on file change in the unit tests *and* the
+# library.  Just say `make devtest package=wire-subsystems`.  If this
+# doesn't work for some package, compare the cabal file with
+# wire-subsystems.cabal (eg., name of test suite needs to follow a
+# pattern).
 #
 # There some alternatives, but they are all either too slow or do not
 # watch / compile enough modules, or both.  Here is one just running
 # make c on a package in a loop for all package changes:
 #
 # find . -name '*.hs' | entr -s 'make -C ~/src/wire-server c package=wire-subsystems test=1'
+.PHONY: devtest
+devtest:
+ifeq ("$(package)", "all")
+	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
+else
+	@ghcid --command 'cabal repl $(package):${package}-tests lib:$(package)' --test='Main.main' \
+	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
+endif
+
 .PHONY: devtest-package
 devtest-package:
-	@ghcid --command 'cabal repl $(package):tests lib:$(package)' --test='main' \
-	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
+	@echo "deprecated: use 'make devtest package=<package>' instead."
+	@false
 
 .PHONY: sanitize-pr
 sanitize-pr: check-weed treefmt
 	make lint-all-shallow
-	make git-add-cassandra-schema
+	make cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 	make list-flaky-tests
@@ -311,12 +322,16 @@ upload-hoogle-image:
 ## cassandra management
 
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-migrate git-add-cassandra-schema-impl
+git-add-cassandra-schema:
+	@echo "deprecated.  use 'make cassandra-schema' instead."
+	@false
 
-.PHONY: git-add-cassandra-schema-impl
-git-add-cassandra-schema-impl:
+.PHONY: cassandra-schema
+cassandra-schema: db-migrate git-add-cassandra-schema-impl
+
+.PHONY: cassandra-schema-impl
+cassandra-schema-impl:
 	./hack/bin/cassandra_dump_schema > ./cassandra-schema.cql
-	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
 cqlsh:
@@ -463,13 +478,14 @@ kube-integration-teardown:
 kube-integration-e2e-telepresence:
 	./services/brig/federation-tests.sh $(NAMESPACE)
 
+.PHONY: helm-oci-login
+helm-oci-login:
+	./hack/bin/helm-oci-login.sh
+
 .PHONY: kube-restart-%
 kube-restart-%:
 	kubectl delete pod -n $(NAMESPACE) -l app=$(*)
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
-
-helm-oci-login:
-	./hack/bin/helm-oci-login.sh
 
 .PHONY: latest-tag
 latest-tag:

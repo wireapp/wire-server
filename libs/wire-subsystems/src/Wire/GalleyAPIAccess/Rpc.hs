@@ -26,6 +26,7 @@ import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
+import Data.Range
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -75,7 +76,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
-          GetTeamMembers id' -> getTeamMembers id'
+          GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -146,7 +147,7 @@ getConv ::
   Version ->
   UserId ->
   Local ConvId ->
-  Sem r (Maybe ConversationV9)
+  Sem r (Maybe OwnConversation)
 getConv v usr lcnv = do
   debug $
     remote "galley"
@@ -339,14 +340,16 @@ getTeamMembers ::
     Member TinyLog r
   ) =>
   TeamId ->
+  Maybe (Range 1 HardTruncationLimit Int32) ->
   Sem r TeamMemberList
-getTeamMembers tid = do
+getTeamMembers tid maxResults = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
+        . maybe id (queryItem "maxResults" . toByteString') maxResults
         . expect2xx
 
 getTeamAdmins ::
@@ -610,7 +613,7 @@ unblockConversation ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  Sem r ConversationV9
+  Sem r OwnConversation
 unblockConversation v lusr mconn (Qualified cnv cdom) = do
   debug $
     remote "galley"
@@ -618,7 +621,7 @@ unblockConversation v lusr mconn (Qualified cnv cdom) = do
       . field "domain" (toByteString cdom)
       . msg (val "Unblocking conversation")
   void $ galleyRequest putReq
-  galleyRequest getReq >>= decodeBodyOrThrow @ConversationV9 "galley"
+  galleyRequest getReq >>= decodeBodyOrThrow @OwnConversation "galley"
   where
     putReq =
       method PUT

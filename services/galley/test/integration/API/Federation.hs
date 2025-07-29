@@ -24,6 +24,7 @@ import Bilge.Assert
 import Control.Exception
 import Control.Lens hiding ((#))
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
@@ -244,7 +245,8 @@ addLocalUser = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [charlie],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember InternalAdd),
+            FedGalley.extraConversationData = def
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -298,7 +300,8 @@ addUnconnectedUsersOnly = do
               FedGalley.convId = conv,
               FedGalley.alreadyPresentUsers = [alice],
               FedGalley.action =
-                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember InternalAdd)
+                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember InternalAdd),
+              FedGalley.extraConversationData = def
             }
     -- Alice receives no notifications from this
     void $ runFedClient @("on-conversation-updated") fedGalleyClient remoteDomain cu
@@ -332,7 +335,8 @@ removeLocalUser = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+            FedGalley.extraConversationData = def
           }
       cuRemove =
         FedGalley.ConversationUpdate
@@ -341,7 +345,8 @@ removeLocalUser = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [alice],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationLeaveTag) ()
+              SomeConversationAction (sing @'ConversationLeaveTag) (),
+            FedGalley.extraConversationData = def
           }
 
   connectWithRemoteUser alice qBob
@@ -407,7 +412,8 @@ removeRemoteUser = do
             FedGalley.action =
               SomeConversationAction
                 (sing @'ConversationRemoveMembersTag)
-                (ConversationRemoveMembers (pure user) EdReasonRemoved)
+                (ConversationRemoveMembers (pure user) EdReasonRemoved),
+            FedGalley.extraConversationData = def
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -459,7 +465,8 @@ notifyUpdate extras action etype edata = do
             FedGalley.origUserId = qbob,
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [alice, charlie],
-            FedGalley.action = action
+            FedGalley.action = action,
+            FedGalley.extraConversationData = def
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -501,7 +508,8 @@ notifyUpdateUnavailable extras action etype edata = do
             FedGalley.origUserId = qbob,
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [alice, charlie],
-            FedGalley.action = action
+            FedGalley.action = action,
+            FedGalley.extraConversationData = def
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     ((), _fedRequests) <-
@@ -637,7 +645,8 @@ notifyDeletedConversation = do
               FedGalley.origUserId = qbob,
               FedGalley.convId = qUnqualified qconv,
               FedGalley.alreadyPresentUsers = [alice],
-              FedGalley.action = SomeConversationAction (sing @'ConversationDeleteTag) ()
+              FedGalley.action = SomeConversationAction (sing @'ConversationDeleteTag) (),
+              FedGalley.extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
 
@@ -694,7 +703,8 @@ addRemoteUser = do
             FedGalley.convId = qUnqualified qconv,
             FedGalley.alreadyPresentUsers = map qUnqualified [qalice, qcharlie],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember InternalAdd),
+            FedGalley.extraConversationData = def
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -777,7 +787,8 @@ onMessageSent = do
             FedGalley.convId = conv,
             FedGalley.alreadyPresentUsers = [],
             FedGalley.action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd),
+            FedGalley.extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 

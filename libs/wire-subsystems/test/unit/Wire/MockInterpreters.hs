@@ -27,6 +27,7 @@ import Wire.MockInterpreters.Random as MockInterpreters
 import Wire.MockInterpreters.RateLimit as MockInterpreters
 import Wire.MockInterpreters.SessionStore as MockInterpreters
 import Wire.MockInterpreters.SparAPIAccess as MockInterpreters
+import Wire.MockInterpreters.TeamCollaboratorsStore as MockInterpreters
 import Wire.MockInterpreters.TinyLog as MockInterpreters
 import Wire.MockInterpreters.UserGroupStore as MockInterpreters
 import Wire.MockInterpreters.UserKeyStore as MockInterpreters

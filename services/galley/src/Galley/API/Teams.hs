@@ -45,10 +45,8 @@ module Galley.API.Teams
     setSearchVisibilityInternal,
     uncheckedAddTeamMember,
     uncheckedGetTeamMember,
-    uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
     uncheckedUpdateTeamMember,
-    uncheckedGetTeamAdmins,
     userIsTeamOwner,
     canUserJoinTeam,
     ensureNotTooLargeForLegalHold,
@@ -136,7 +134,11 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
 import Wire.NotificationSubsystem
+import Wire.Sem.Now
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 getTeamH ::
   forall r.
@@ -222,7 +224,7 @@ createNonBindingTeamH _ _ _ = do
 
 createBindingTeam ::
   ( Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -235,7 +237,7 @@ createBindingTeam tid zusr body = do
     E.createTeam (Just tid) zusr body.newTeamName body.newTeamIcon body.newTeamIconKey Binding
 
   E.createTeamMember tid owner
-  now <- input
+  now <- Now.get
   let e = newEvent tid now (EdTeamCreate team)
   pushNotifications
     [ def
@@ -250,7 +252,7 @@ updateTeamStatus ::
   ( Member BrigAccess r,
     Member (ErrorS 'InvalidTeamStatusUpdate) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -289,7 +291,7 @@ updateTeamH ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('MissingPermission ('Just 'SetTeamData))) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamStore r
   ) =>
   UserId ->
@@ -301,7 +303,7 @@ updateTeamH zusr zcon tid updateData = do
   zusrMembership <- E.getTeamMember tid zusr
   void $ permissionCheckS SSetTeamData zusrMembership
   E.setTeamData tid updateData
-  now <- input
+  now <- Now.get
   admins <- E.getTeamAdmins tid
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = userRecipient zusr : map userRecipient (filter (/= zusr) admins)
@@ -378,7 +380,7 @@ uncheckedDeleteTeam ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member SparAccess r,
@@ -392,7 +394,7 @@ uncheckedDeleteTeam lusr zcon tid = do
   team <- E.getTeam tid
   when (isJust team) $ do
     Spar.deleteTeam tid
-    now <- input
+    now <- Now.get
     convs <- E.getTeamConversations tid
     -- Even for LARGE TEAMS, we _DO_ want to fetch all team members here because we
     -- want to generate conversation deletion events for non-team users. This should
@@ -536,28 +538,13 @@ getTeamMember lzusr tid uid = do
 
 uncheckedGetTeamMember ::
   ( Member (ErrorS 'TeamMemberNotFound) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   UserId ->
   Sem r TeamMember
 uncheckedGetTeamMember tid uid =
-  E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
-
-uncheckedGetTeamMembersH ::
-  (Member TeamStore r) =>
-  TeamId ->
-  Maybe (Range 1 HardTruncationLimit Int32) ->
-  Sem r TeamMemberList
-uncheckedGetTeamMembersH tid mMaxResults =
-  uncheckedGetTeamMembers tid (fromMaybe (unsafeRange hardTruncationLimit) mMaxResults)
-
-uncheckedGetTeamMembers ::
-  (Member TeamStore r) =>
-  TeamId ->
-  Range 1 HardTruncationLimit Int32 ->
-  Sem r TeamMemberList
-uncheckedGetTeamMembers = E.getTeamMembersWithLimit
+  TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'TeamMemberNotFound
 
 addTeamMember ::
   forall r.
@@ -574,7 +561,7 @@ addTeamMember ::
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamNotificationStore r,
@@ -614,7 +601,7 @@ uncheckedAddTeamMember ::
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
@@ -631,12 +618,6 @@ uncheckedAddTeamMember tid nmem = do
   owners <- E.getBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) owners
 
-uncheckedGetTeamAdmins :: forall r. (Member TeamStore r) => TeamId -> Sem r TeamMemberList
-uncheckedGetTeamAdmins tid = do
-  admins <- E.getTeamAdmins tid
-  membs <- E.selectTeamMembers tid admins
-  pure $ newTeamMemberList membs ListComplete
-
 uncheckedUpdateTeamMember ::
   forall r.
   ( Member BrigAccess r,
@@ -644,7 +625,7 @@ uncheckedUpdateTeamMember ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member P.TinyLog r,
     Member TeamStore r
   ) =>
@@ -679,7 +660,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
     owners <- E.getBillingTeamMembers tid
     Journal.teamUpdate tid size owners
 
-  now <- input
+  now <- Now.get
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
   pushNotifications
     [ def
@@ -702,7 +683,7 @@ updateTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member P.TinyLog r,
     Member TeamStore r
   ) =>
@@ -758,7 +739,7 @@ deleteTeamMember ::
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member NotificationSubsystem r,
     Member MemberStore r,
     Member TeamFeatureStore r,
@@ -787,7 +768,7 @@ deleteNonBindingTeamMember ::
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member NotificationSubsystem r,
     Member MemberStore r,
     Member TeamFeatureStore r,
@@ -816,7 +797,7 @@ deleteTeamMember' ::
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member NotificationSubsystem r,
     Member MemberStore r,
     Member TeamFeatureStore r,
@@ -878,7 +859,7 @@ uncheckedDeleteTeamMember ::
     Member NotificationSubsystem r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -889,7 +870,7 @@ uncheckedDeleteTeamMember ::
   Either [UserId] TeamMemberList ->
   Sem r ()
 uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
-  now <- input
+  now <- Now.get
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
@@ -912,7 +893,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
             }
         ]
 uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
-  now <- input
+  now <- Now.get
   pushMemberLeaveEventToAll now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
@@ -942,7 +923,7 @@ removeFromConvsAndPushConvLeaveEvent ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -976,6 +957,7 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
                   (pure . tUntagged . qualifyAs lusr $ remove)
                   EdReasonDeleted
               )
+              def
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
@@ -1027,7 +1009,7 @@ deleteTeamConversation ::
     Member ProposalStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member SubConversationStore r,
     Member TeamStore r
   ) =>
@@ -1185,7 +1167,7 @@ addTeamMemberInternal ::
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -1207,7 +1189,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   E.createTeamMember tid new
 
-  now <- input
+  now <- Now.get
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   let recipients = case origin of
         Just o -> userRecipient <$> o : filter (/= o) ((new ^. userId) : admins')

@@ -133,10 +133,12 @@ library
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
+    Wire.API.MLS.RatchetTree
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation
     Wire.API.MLS.Validation
+    Wire.API.MLS.Validation.Error
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
@@ -218,6 +220,7 @@ library
     Wire.API.SwaggerServant
     Wire.API.SystemSettings
     Wire.API.Team
+    Wire.API.Team.Collaborator
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature

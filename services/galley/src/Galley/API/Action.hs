@@ -128,6 +128,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
@@ -151,7 +153,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member LegalHoldStore r,
       Member MemberStore r,
       Member ProposalStore r,
@@ -169,7 +171,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member NotificationSubsystem r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member (Input Env) r,
       Member ProposalStore r,
       Member SubConversationStore r,
@@ -182,7 +184,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member SubConversationStore r,
       Member ProposalStore r,
       Member (Input Env) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member NotificationSubsystem r,
@@ -231,7 +233,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ProposalStore r,
       Member TeamStore r,
       Member TinyLog r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member ConversationStore r,
       Member SubConversationStore r,
       Member Random r
@@ -256,7 +258,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member MemberStore r,
       Member ProposalStore r,
       Member Random r,
@@ -271,7 +273,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationResetTag r =
     ( Member (Input Env) r,
-      Member (Input UTCTime) r,
+      Member Now r,
       Member (ErrorS ConvNotFound) r,
       Member (ErrorS InvalidOperation) r,
       Member ConversationStore r,
@@ -486,6 +488,21 @@ ensureAllowed tag loc action conv (ConvMember origUser) = do
         throwS @MLSReadReceiptsNotAllowed
     _ -> pure ()
 
+data PerformActionResult tag
+  = PerformActionResult
+  { extraTargets :: BotsAndMembers,
+    action :: ConversationAction tag,
+    extraConversationData :: ExtraConversationData
+  }
+
+mkPerformActionResult :: ConversationAction tag -> PerformActionResult tag
+mkPerformActionResult action =
+  PerformActionResult
+    { extraTargets = mempty,
+      action = action,
+      extraConversationData = def
+    }
+
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
 -- and also returns the (possible modified) action that was performed
 performAction ::
@@ -498,27 +515,33 @@ performAction ::
   Qualified UserId ->
   Local Conversation ->
   ConversationAction tag ->
-  Sem r (BotsAndMembers, ConversationAction tag)
+  Sem r (PerformActionResult tag)
 performAction tag origUser lconv action = do
   let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
-    SConversationJoinTag ->
-      performConversationJoin origUser lconv action
+    SConversationJoinTag -> do
+      (extraTargets, action') <- performConversationJoin origUser lconv action
+      pure
+        PerformActionResult
+          { extraTargets = extraTargets,
+            action = action',
+            extraConversationData = def
+          }
     SConversationLeaveTag -> do
       leaveConversation origUser lconv
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
       traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
-      pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
+      pure $ mkPerformActionResult action -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationDeleteTag -> do
       let deleteGroup groupId = do
             E.removeAllMLSClients groupId
@@ -539,38 +562,43 @@ performAction tag origUser lconv action = do
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
 
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationRenameTag -> do
       zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
       for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationMessageTimerUpdateTag -> do
       when (Data.convMessageTimer conv == cupMessageTimer action) noChanges
       E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationReceiptModeUpdateTag -> do
       when (Data.convReceiptMode conv == Just (cruReceiptMode action)) noChanges
       E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
-      pure (bm, act)
+      pure
+        PerformActionResult
+          { extraTargets = bm,
+            action = act,
+            extraConversationData = def
+          }
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
-          pure (mempty, action)
+          pure $ mkPerformActionResult action
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureForTeam @MlsMigrationConfig tid
-          now <- input
+          now <- Now.get
           mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
           ok <- checkMigrationCriteria now mlsConv mig
           unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
           removeExtraneousClients origUser lconv
           E.updateToMLSProtocol lcnv
-          pure (mempty, action)
+          pure $ mkPerformActionResult action
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges
         (ProtocolMixedTag, ProtocolMixedTag, _) ->
@@ -581,10 +609,15 @@ performAction tag origUser lconv action = do
     SConversationUpdateAddPermissionTag -> do
       when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
       E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
-      pure (mempty, action)
+      pure $ mkPerformActionResult action
     SConversationResetTag -> do
-      resetLocalMLSMainConversation origUser lconv action
-      pure (mempty, action)
+      newGroupId <- resetLocalMLSMainConversation origUser lconv action
+      pure
+        PerformActionResult
+          { extraTargets = mempty,
+            action = action,
+            extraConversationData = ExtraConversationData (Just newGroupId)
+          }
 
 performConversationJoin ::
   forall r.
@@ -821,7 +854,7 @@ updateLocalConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     HasConversationActionEffects tag r,
     SingI tag,
     Member TeamStore r
@@ -857,7 +890,7 @@ updateLocalConversationUnchecked ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
+    Member Now r,
     HasConversationActionEffects tag r,
     Member TeamStore r
   ) =>
@@ -871,15 +904,16 @@ updateLocalConversationUnchecked lconv qusr con action = do
       conv = tUnqualified lconv
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-  (extraTargets, action') <- performAction (sing @tag) qusr lconv action
+  par <- performAction (sing @tag) qusr lconv action
   notifyConversationAction
     (sing @tag)
     qusr
     False
     con
     lconv
-    (convBotsAndMembers (tUnqualified lconv) <> extraTargets)
-    action'
+    (convBotsAndMembers (tUnqualified lconv) <> par.extraTargets)
+    par.action
+    par.extraConversationData
   where
     getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
     getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
@@ -1014,7 +1048,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing Nothing action
+    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId (fromMaybe def cu.extraConversationData) Nothing Nothing action
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
@@ -1056,7 +1090,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   pure connected
 
 notifyTypingIndicator ::
-  ( Member (Input UTCTime) r,
+  ( Member Now r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
     Member FederatorAccess r
@@ -1067,13 +1101,13 @@ notifyTypingIndicator ::
   TypingStatus ->
   Sem r TypingDataUpdated
 notifyTypingIndicator conv qusr mcon ts = do
-  let origDomain = qDomain qusr
-  now <- input
+  now <- Now.get
   lconv <- qualifyLocal (Data.convId conv)
-
-  pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
-
-  let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+  let origDomain = qDomain qusr
+      (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+      localMembers = fmap lmId (tryRemoveSelfFromLocalUsers lconv $ Data.convLocalMembers conv)
+      remoteMembersFromOriginDomain = fmap (tUnqualified . rmId) (tryRemoveSelfFromRemoteUsers lconv remoteMemsOrig)
+      remoteMembersFromOtherDomains = fmap rmId remoteMemsOther
       tdu users =
         TypingDataUpdated
           { time = now,
@@ -1083,10 +1117,18 @@ notifyTypingIndicator conv qusr mcon ts = do
             typingStatus = ts
           }
 
-  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
+  pushTypingIndicatorEvents qusr now localMembers mcon (tUntagged lconv) ts
+
+  void $ E.runFederatedConcurrentlyEither remoteMembersFromOtherDomains $ \rmems -> do
     fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
 
-  pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
+  pure (tdu remoteMembersFromOriginDomain)
+  where
+    tryRemoveSelfFromLocalUsers :: Local x -> [LocalMember] -> [LocalMember]
+    tryRemoveSelfFromLocalUsers l ms = foldQualified l (\usr -> filter (\m -> lmId m /= tUnqualified usr) ms) (const ms) qusr
+
+    tryRemoveSelfFromRemoteUsers :: Local x -> [RemoteMember] -> [RemoteMember]
+    tryRemoveSelfFromRemoteUsers l rms = foldQualified l (const rms) (\rusr -> filter (\rm -> rmId rm /= rusr) rms) qusr
 
 pushTypingIndicatorEvents ::
   (Member NotificationSubsystem r) =>

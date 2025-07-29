@@ -192,6 +192,9 @@ isTeamMemberJoinNotif = notifTypeIsEqual "team.member-join"
 isTeamMemberLeaveNotif :: (MakesValue a) => a -> App Bool
 isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
+isTeamCollaboratorAddedNotif :: (MakesValue a) => a -> App Bool
+isTeamCollaboratorAddedNotif = notifTypeIsEqual "team.collaborator-add"
+
 isUserActivateNotif :: (MakesValue a) => a -> App Bool
 isUserActivateNotif = notifTypeIsEqual "user.activate"
 
@@ -226,6 +229,10 @@ isConnectionNotif status n =
 
 isUserGroupCreatedNotif :: (MakesValue a) => a -> App Bool
 isUserGroupCreatedNotif = notifTypeIsEqual "user-group.created"
+
+isConvResetNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvResetNotif n =
+  fieldEquals n "payload.0.type" "conversation.mls-reset"
 
 assertLeaveNotification ::
   ( HasCallStack,

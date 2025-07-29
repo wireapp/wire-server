@@ -84,7 +84,6 @@ import Data.Qualified
 import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
-import Data.Time.Clock
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
@@ -185,7 +184,10 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
+import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
@@ -228,22 +230,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V10)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V11)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V10
-        <> serviceSwagger @BrigAPITag @'V10
-        <> serviceSwagger @GalleyAPITag @'V10
-        <> serviceSwagger @SparAPITag @'V10
-        <> serviceSwagger @CargoholdAPITag @'V10
-        <> serviceSwagger @CannonAPITag @'V10
-        <> serviceSwagger @GundeckAPITag @'V10
-        <> serviceSwagger @ProxyAPITag @'V10
-        <> serviceSwagger @OAuthAPITag @'V10
+    ( serviceSwagger @VersionAPITag @'V11
+        <> serviceSwagger @BrigAPITag @'V11
+        <> serviceSwagger @GalleyAPITag @'V11
+        <> serviceSwagger @SparAPITag @'V11
+        <> serviceSwagger @CargoholdAPITag @'V11
+        <> serviceSwagger @CannonAPITag @'V11
+        <> serviceSwagger @GundeckAPITag @'V11
+        <> serviceSwagger @ProxyAPITag @'V11
+        <> serviceSwagger @OAuthAPITag @'V11
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V10) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V11) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V10)) = swaggerPregenUIServer $(pregenSwagger V10)
 versionedSwaggerDocsAPI (Just (VersionNumber V9)) = swaggerPregenUIServer $(pregenSwagger V9)
 versionedSwaggerDocsAPI (Just (VersionNumber V8)) = swaggerPregenUIServer $(pregenSwagger V8)
 versionedSwaggerDocsAPI (Just (VersionNumber V7)) = swaggerPregenUIServer $(pregenSwagger V7)
@@ -357,7 +360,6 @@ servantSitemap ::
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
@@ -399,7 +401,9 @@ servantSitemap ::
     Member Metrics r,
     Member CryptoSign r,
     Member Random r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -860,7 +864,7 @@ upgradePersonalToTeam ::
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserSubsystem r,
@@ -1268,7 +1272,8 @@ createConnectionUnqualified ::
     Member TinyLog r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -1286,7 +1291,8 @@ createConnection ::
     Member UserStore r,
     Member UserSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -1431,7 +1437,6 @@ updateUserEmail ::
   forall r.
   ( Member BlockListStore r,
     Member UserKeyStore r,
-    Member GalleyAPIAccess r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
@@ -1440,7 +1445,8 @@ updateUserEmail ::
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
     Member TinyLog r,
-    Member SparAPIAccess r
+    Member SparAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -1465,7 +1471,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ liftSem $ GalleyAPIAccess.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ liftSem $ TeamSubsystem.internalGetTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation

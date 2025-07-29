@@ -79,7 +79,8 @@ processInternalCommit ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member SubConversationStore r,
     Member Resource r,
-    Member Random r
+    Member Random r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->
@@ -270,6 +271,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                           role = roleNameWireMember,
                           joinType = def
                         }
+                      def
                   pure [update]
             SubConv _ _ -> pure []
             Conv _ -> do

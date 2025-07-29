@@ -25,6 +25,11 @@ data:
       tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    {{- if hasKey $.Values.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/galley/secrets/pgPassword
+    {{- end }}
+
     brig:
       host: brig
       port: 8080
@@ -101,6 +106,9 @@ data:
       {{- end }}
       passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
       passwordHashingRateLimit: {{ toYaml .settings.passwordHashingRateLimit | nindent 8 }}
+      {{- if .settings.checkGroupInfo }}
+      checkGroupInfo: {{ .settings.checkGroupInfo }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
@@ -174,6 +182,10 @@ data:
         {{- if .settings.featureFlags.cells }}
         cells:
           {{- toYaml .settings.featureFlags.cells | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.allowedGlobalOperations }}
+        allowedGlobalOperations:
+          {{- toYaml .settings.featureFlags.allowedGlobalOperations | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

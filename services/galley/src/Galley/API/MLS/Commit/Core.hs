@@ -31,7 +31,6 @@ where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
-import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
@@ -67,8 +66,10 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Validation
+import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 type HasProposalActionEffects r =
   ( Member BackendNotificationQueueAccess r,
@@ -89,7 +90,7 @@ type HasProposalActionEffects r =
     Member FederatorAccess r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -102,19 +103,20 @@ type HasProposalActionEffects r =
 
 getCommitData ::
   ( HasProposalEffects r,
-    Member (ErrorS 'MLSProposalNotFound) r
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
   CipherSuiteTag ->
   IncomingBundle ->
-  Sem r ProposalAction
+  Sem r (IndexMap, ProposalAction)
 getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   let convOrSub = tUnqualified lConvOrSub
       groupId = cnvmlsGroupId convOrSub.mlsMeta
 
-  evalState convOrSub.indexMap $ do
+  runState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
         then addProposedClient (Left senderIdentity.client)
@@ -246,7 +248,8 @@ checkUpdatePath ::
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BrigAccess r,
-    Member FederatorAccess r
+    Member FederatorAccess r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local ConvOrSubConv ->
   SenderIdentity ->
@@ -257,9 +260,10 @@ checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity
   let groupId = cnvmlsGroupId (tUnqualified lConvOrSub).mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId index
   case validateLeafNode ciphersuite (Just senderIdentity.client) extra path.leaf.value of
+    Left InvalidLeafNodeSignature -> throwS @'MLSInvalidLeafNodeSignature
     Left errMsg ->
       throw $
-        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+        mlsProtocolError ("Tried to add invalid LeafNode: " <> toText errMsg)
     Right _ -> pure ()
   clientInfo <-
     getSingleClientInfo

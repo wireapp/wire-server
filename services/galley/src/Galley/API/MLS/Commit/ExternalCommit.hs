@@ -65,13 +65,14 @@ getExternalCommitData ::
   ( Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (ErrorS 'MLSInvalidLeafNodeSignature) r
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
   Commit ->
-  Sem r ExternalCommitAction
+  Sem r (IndexMap, ExternalCommitAction)
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
   activeData <-
@@ -99,7 +100,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
-  evalState convOrSub.indexMap $ do
+  runState convOrSub.indexMap $ do
     -- process optional removal
     propAction <- applyProposals activeData.ciphersuite proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
@@ -115,7 +116,9 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
       _ -> throw (mlsProtocolError "External commits must contain at most one Remove proposal")
 
     -- add sender client
-    addedIndex <- gets imNextIndex
+    im <- get
+    let (addedIndex, im') = imAddClient im senderIdentity
+    put im'
 
     pure
       ExternalCommitAction
@@ -137,7 +140,8 @@ processExternalCommit ::
     Member (ErrorS MLSIdentityMismatch) r,
     Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
-    HasProposalActionEffects r
+    HasProposalActionEffects r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   SenderIdentity ->
   Local ConvOrSubConv ->

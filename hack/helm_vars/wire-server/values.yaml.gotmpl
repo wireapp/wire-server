@@ -278,6 +278,11 @@ galley:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
     {{- end }}
+    postgresql:
+      host: postgresql
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
     rabbitmq:
       port: 5671
       enableTls: true
@@ -359,6 +364,10 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
+        allowedGlobalOperations:
+          status: enabled
+          config:
+            mlsConversationReset: false
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -396,6 +405,7 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+    pgPassword: posty-the-gres
   {{- if .Values.uploadXml }}
   tests:
     config:

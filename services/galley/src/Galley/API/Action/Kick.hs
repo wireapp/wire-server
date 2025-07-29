@@ -1,9 +1,9 @@
 module Galley.API.Action.Kick where
 
+import Data.Default
 import Data.Id
 import Data.Qualified
 import Data.Singletons
-import Data.Time.Clock
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Util
@@ -20,6 +20,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 -- | Kick a user from a conversation and send notifications.
 --
@@ -32,7 +33,7 @@ kickMember ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input Env) r,
     Member MemberStore r,
     Member SubConversationStore r,
@@ -54,3 +55,4 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     lconv
     targets
     (ConversationRemoveMembers (pure victim) EdReasonRemoved)
+    def

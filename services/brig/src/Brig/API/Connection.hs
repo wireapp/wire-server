@@ -70,6 +70,7 @@ import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserStore
 import Wire.UserSubsystem
 
@@ -87,7 +88,8 @@ createConnection ::
     Member TinyLog r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -108,7 +110,8 @@ createConnectionToLocalUser ::
     Member TinyLog r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -196,7 +199,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  (Member GalleyAPIAccess r, Member UserSubsystem r) =>
+  (Member TeamSubsystem r, Member UserSubsystem r) =>
   Local UserId ->
   Local UserId ->
   ExceptT ConnectionError (AppT r) ()

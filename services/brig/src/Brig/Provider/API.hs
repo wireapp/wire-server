@@ -137,6 +137,7 @@ import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.Sem.Now (Now)
 import Wire.SessionStore (SessionStore)
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
@@ -175,7 +176,8 @@ servicesAPI ::
   ( Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
@@ -685,6 +687,7 @@ getServiceTagList _ = do
 
 updateServiceWhitelist ::
   ( Member GalleyAPIAccess r,
+    Member TeamSubsystem r,
     Member (Error UserSubsystemError) r
   ) =>
   UserId ->
@@ -863,7 +866,7 @@ removeBot zusr zcon cid bid = do
     Just _ -> do
       lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
 
-guardConvAdmin :: ConversationV9 -> ExceptT HttpError (AppT r) ()
+guardConvAdmin :: OwnConversation -> ExceptT HttpError (AppT r) ()
 guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))

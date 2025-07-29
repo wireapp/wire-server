@@ -43,6 +43,7 @@ import Galley.App
 import Galley.App qualified as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
+import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Galley.Queue qualified as Q
@@ -67,18 +68,19 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry (withTracerC)
+import Wire.PostgresMigrations (runAllMigrations)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity do
   tracer <- withTracerC
   (app, env) <- mkApp opts
-  settings' <-
-    lift $
-      newSettings $
-        defaultServer
-          (unpack $ opts._galley.host)
-          (portNumber $ fromIntegral opts._galley.port)
-          (env ^. App.applog)
+  lift $ runAllMigrations env._hasqlPool env._applog
+  let settings' =
+        newSettings $
+          defaultServer
+            (unpack $ opts._galley.host)
+            (portNumber $ fromIntegral opts._galley.port)
+            (env ^. App.applog)
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (aws ^. awsEnv)

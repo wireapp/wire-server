@@ -148,7 +148,7 @@ updateWorkingStatus :: (MonadIO m, MonadMonitor m) => Bool -> Worker -> AppT m (
 updateWorkingStatus isWorking worker = do
   env <- ask
   modifyIORef env.statuses (Map.insert worker isWorking)
-  withLabel env.workerRunningGauge (workerName worker) (flip setGauge (if isWorking then 0 else 1))
+  withLabel env.workerRunningGauge (workerName worker) (flip setGauge (if isWorking then 1 else 0))
 
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do

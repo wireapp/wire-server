@@ -21,7 +21,7 @@ module Test.Teams where
 import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
-import API.Galley (getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
+import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
@@ -30,6 +30,7 @@ import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Time.Format
 import Notifications
@@ -464,3 +465,12 @@ testUpgradeGuestToTeamShouldFail = do
 
   upgradePersonalToTeam guest "wonderland" `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 404
+
+testDeleteTeamUserRatelimitingIsPropagated :: (HasCallStack) => App ()
+testDeleteTeamUserRatelimitingIsPropagated = do
+  (owner, tid, mems) <- createTeam OwnDomain 10
+  -- this is eventually going to run into rate limiting of internal request `/i/users/:uid/reauthenticate`
+  statusCodes <- for mems $ \m -> do
+    bindResponse (deleteTeamMember tid owner m) $ \resp -> do
+      pure resp.status
+  Set.fromList statusCodes `shouldMatchSet` ([202, 429] :: [Int])

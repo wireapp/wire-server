@@ -106,6 +106,7 @@ data GalleyError
   | MLSMigrationCriteriaNotSatisfied
   | MLSFederatedOne2OneNotSupported
   | MLSFederatedResetNotSupported
+  | MLSGroupInfoMismatch
   | GroupIdVersionNotSupported
   | -- | MLS and federation are incompatible with legalhold - this error is thrown if a user
     -- tries to create an MLS group while being under legalhold
@@ -151,6 +152,7 @@ data GalleyError
   | ChannelsNotEnabled
   | NotAnMlsConversation
   | MLSReadReceiptsNotAllowed
+  | MLSInvalidLeafNodeSignature
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -267,6 +269,8 @@ type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-
 
 type instance MapError 'MLSFederatedResetNotSupported = 'StaticError 400 "mls-federated-reset-not-supported" "Reset is not supported by the owning backend of the conversation"
 
+type instance MapError 'MLSGroupInfoMismatch = 'StaticError 400 "mls-group-info-mismatch" "Ratchet tree mismatch in GroupInfo"
+
 type instance MapError 'GroupIdVersionNotSupported = 'StaticError 400 "mls-group-id-not-supported" "The group ID version of the conversation is not supported by one of the federated backends"
 
 type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
@@ -347,6 +351,8 @@ type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-convers
 
 type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
 
+type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
+
 --------------------------------------------------------------------------------
 -- Team Member errors
 
@@ -359,6 +365,8 @@ data AuthenticationError
   = ReAuthFailed
   | VerificationCodeAuthFailed
   | VerificationCodeRequired
+  | RateLimitExceeded
+  deriving (Show)
 
 type instance MapError 'ReAuthFailed = 'StaticError 403 "access-denied" "This operation requires reauthentication"
 
@@ -366,11 +374,14 @@ type instance MapError 'VerificationCodeAuthFailed = 'StaticError 403 "code-auth
 
 type instance MapError 'VerificationCodeRequired = 'StaticError 403 "code-authentication-required" "Verification code required"
 
+type instance MapError 'RateLimitExceeded = 'StaticError 429 "too-many-requests" "Please try again later."
+
 instance IsSwaggerError AuthenticationError where
   addToOpenApi =
     addStaticErrorToSwagger @(MapError 'ReAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeRequired)
+      . addStaticErrorToSwagger @(MapError 'RateLimitExceeded)
 
 type instance ErrorEffect AuthenticationError = Error AuthenticationError
 
@@ -378,6 +389,7 @@ authenticationErrorToDyn :: AuthenticationError -> DynError
 authenticationErrorToDyn ReAuthFailed = dynError @(MapError 'ReAuthFailed)
 authenticationErrorToDyn VerificationCodeAuthFailed = dynError @(MapError 'VerificationCodeAuthFailed)
 authenticationErrorToDyn VerificationCodeRequired = dynError @(MapError 'VerificationCodeRequired)
+authenticationErrorToDyn RateLimitExceeded = dynError @(MapError 'RateLimitExceeded)
 
 instance (Member (Error DynError) r) => ServerEffect (Error AuthenticationError) r where
   interpretServerEffect = mapError authenticationErrorToDyn

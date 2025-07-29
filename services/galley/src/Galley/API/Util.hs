@@ -97,6 +97,8 @@ import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 data NoChanges = NoChanges
 
@@ -294,16 +296,16 @@ getMLSData conv = case Data.convProtocol conv of
 
 -- | Same as 'permissionCheck', but for a statically known permission.
 permissionCheckS ::
-  forall perm (p :: perm) r.
+  forall teamAssociation perm (p :: perm) r.
   ( SingKind perm,
-    IsPerm (Demote perm),
+    IsPerm teamAssociation (Demote perm),
     ( Member (ErrorS (PermError p)) r,
       Member (ErrorS 'NotATeamMember) r
     )
   ) =>
   Sing p ->
-  Maybe TeamMember ->
-  Sem r TeamMember
+  Maybe teamAssociation ->
+  Sem r teamAssociation
 permissionCheckS p =
   \case
     Just m -> do
@@ -317,14 +319,14 @@ permissionCheckS p =
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return the team member.
 permissionCheck ::
-  ( IsPerm perm,
+  ( IsPerm teamAssociation perm,
     ( Member (ErrorS OperationDenied) r,
       Member (ErrorS 'NotATeamMember) r
     )
   ) =>
   perm ->
-  Maybe TeamMember ->
-  Sem r TeamMember
+  Maybe teamAssociation ->
+  Sem r teamAssociation
 -- FUTUREWORK: factor `noteS` out of this function.
 permissionCheck p = \case
   Just m -> do
@@ -364,7 +366,7 @@ acceptOne2One ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member NotificationSubsystem r
   ) =>
@@ -388,7 +390,7 @@ acceptOne2One lusr conv conn = do
         when (length mems > 2) $
           throw . BadConvState $
             cid
-        now <- input
+        now <- Now.get
         mm <- createMember lcid lusr
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
@@ -851,7 +853,7 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
 fromConversationCreated ::
   Local x ->
   ConversationCreated (Remote ConvId) ->
-  [(Public.Member, Public.ConversationV9)]
+  [(Public.Member, Public.OwnConversation)]
 fromConversationCreated loc rc@ConversationCreated {..} =
   let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
@@ -884,9 +886,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           memHiddenRef = Nothing,
           memConvRoleName = Public.omConvRoleName m
         }
-    conv :: Public.Member -> [OtherMember] -> Public.ConversationV9
+    conv :: Public.Member -> [OtherMember] -> Public.OwnConversation
     conv this others =
-      Public.ConversationV9
+      Public.OwnConversation
         (tUntagged cnvId)
         ConversationMetadata
           { cnvmType = cnvType,
@@ -905,7 +907,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def
           }
-        (ConvMembersV9 this others)
+        (OwnConvMembers this others)
         ProtocolProteus
 
 ensureNoUnreachableBackends ::
@@ -1000,7 +1002,8 @@ registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable
               (sing @'ConversationJoinTag)
               -- FUTUREWORK(md): replace the member role with whatever is provided in
               -- the NewConv input
-              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember joinType)
+              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember joinType),
+          extraConversationData = def
         }
 
     deleteOnUnreachable ::
@@ -1142,7 +1145,7 @@ conversationExisted ::
   ) =>
   Local UserId ->
   Data.Conversation ->
-  Sem r (ConversationResponse ConversationV9)
+  Sem r (ConversationResponse OwnConversation)
 conversationExisted lusr cnv = Existed <$> conversationViewV9 lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]

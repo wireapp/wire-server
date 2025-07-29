@@ -52,7 +52,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock
 import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
@@ -81,8 +80,11 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
+import Galley.TeamSubsystem (interpretTeamSubsystem)
 import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended (initPostgresPool)
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -106,6 +108,7 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
@@ -115,17 +118,24 @@ import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
 import Wire.Sem.Delay
+import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
+import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
+import Wire.TeamCollaboratorsSubsystem.Interpreter
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
   '[ Input ClientState,
+     Input Hasql.Pool,
      Input Env,
      Error InvalidInput,
      Error InternalError,
      -- federation errors can be thrown by almost every endpoint, so we avoid
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
+     Error TeamCollaboratorsError,
+     Error Hasql.UsageError,
+     Error HttpError,
      Async,
      Delay,
      Fail,
@@ -170,7 +180,8 @@ createEnv o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  postgres <- initPostgresPool o._postgresql o._postgresqlPassword
+  Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
@@ -252,17 +263,20 @@ evalGalley e =
     . failToEmbed @IO
     . runDelay
     . asyncToIOFinal
+    . mapError httpErrorToJSONResponse
+    . mapError postgresUsageErrorToHttpError
+    . mapError teamCollaboratorsSubsystemErrorToHttpError
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
     . runInputConst e
+    . runInputConst (e ^. hasqlPool)
     . runInputConst (e ^. cstate)
-    . mapError httpErrorToJSONResponse
     . mapError rateLimitExceededToHttpError
     . mapError toResponse -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
-    . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
+    . nowToIO
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretTeamFeatureSpecialContext e
@@ -290,6 +304,7 @@ evalGalley e =
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra
+    . interpretTeamCollaboratorsStoreToPostgres
     . interpretFireAndForget
     . interpretBotAccess
     . interpretBackendNotificationQueueAccess
@@ -297,7 +312,9 @@ evalGalley e =
     . interpretExternalAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
+    . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+    . interpretTeamCollaboratorsSubsystem
     . interpretSparAccess
     . interpretBrigAccess
   where

@@ -290,7 +290,7 @@ testGetConvQualifiedV2 = do
     fmap (unVersioned @'V2) . responseJsonError
       =<< getConvQualifiedV2 alice qcnv
         <!! const 200 === statusCode
-  liftIO $ conv @=? fromConversationV9 conv'
+  liftIO $ conv @=? fromOwnConversation conv'
 
 postProteusConvOk :: TestM ()
 postProteusConvOk = do
@@ -1510,7 +1510,7 @@ getConvsOk2 = do
   convs <- getAllConvs alice
   let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) convs
   let c2 = find ((== cnv2.qualifiedId) . cnvQualifiedId) convs
-  liftIO . forM_ [(fromConversationV9 cnv1, c1), (cnv2, c2)] $ \(expected, mActual) ->
+  liftIO . forM_ [(fromOwnConversation cnv1, c1), (cnv2, c2)] $ \(expected, mActual) ->
     case mActual of
       Nothing -> assertFailure $ "Did not find expected conversation: " <> show expected
       Just actual -> do
@@ -1623,7 +1623,8 @@ paginateConvListIds = do
               origUserId = qChad,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1639,7 +1640,8 @@ paginateConvListIds = do
               origUserId = qDee,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -1684,7 +1686,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               origUserId = qChad,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1702,7 +1705,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               origUserId = qDee,
               convId = conv,
               alreadyPresentUsers = [],
-              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd)
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember InternalAdd),
+              extraConversationData = def
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -2242,7 +2246,7 @@ testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
   alice <- randomUser
   convId <- decodeQualifiedConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  conv :: ConversationV9 <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
+  conv :: OwnConversation <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
   liftIO $ do
     assertEqual "conversation id" convId (C.cnvQualifiedId conv)
     assertEqual "conversation name" (Just "gossip") (C.cnvName conv)
@@ -2385,10 +2389,10 @@ testBulkGetQualifiedConvs = do
     let expectedFound =
           sortOn
             (.qualifiedId)
-            $ fromConversationV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
-              : fromConversationV9 (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
+            $ fromOwnConversation (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainA mockConversationA))
+              : fromOwnConversation (remoteConversationView lAlice defMemberStatus (toRemoteUnsafe remoteDomainB mockConversationB))
               : [localConv]
-        actualFound = sortOn (.qualifiedId) . map fromConversationV9 $ crFound convs
+        actualFound = sortOn (.qualifiedId) . map fromOwnConversation $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 
     -- Assumes only one request is made
@@ -3003,7 +3007,8 @@ putRemoteConvMemberOk update = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
@@ -3148,7 +3153,8 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
 
@@ -3163,7 +3169,8 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [],
             action =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember InternalAdd)
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember InternalAdd),
+            extraConversationData = def
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
 
@@ -3176,7 +3183,8 @@ putRemoteReceiptModeOk = do
             convId = qUnqualified qconv,
             alreadyPresentUsers = [adam],
             action =
-              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
+              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action,
+            extraConversationData = def
           }
   let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
 
@@ -3200,7 +3208,7 @@ putRemoteReceiptModeOk = do
     WS.assertMatch_ (5 # Second) wsAdam $ \n -> do
       liftIO $ wsAssertConvReceiptModeUpdate qconv qalice newReceiptMode n
 
-postTypingIndicatorsV2 :: TestM ()
+postTypingIndicatorsV2 :: (HasCallStack) => TestM ()
 postTypingIndicatorsV2 = do
   c <- view tsCannon
   g <- view tsUnversionedGalley
@@ -3228,7 +3236,7 @@ postTypingIndicatorsV2 = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsBob] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged aliceL) StartedTyping n
 
     post
@@ -3242,7 +3250,7 @@ postTypingIndicatorsV2 = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsAlice] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged bobL) StoppedTyping n
 
 postTypingIndicators :: TestM ()
@@ -3275,7 +3283,7 @@ postTypingIndicators = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsAlice] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged bobL) StoppedTyping n
 
     -- to bob from alice
@@ -3290,7 +3298,7 @@ postTypingIndicators = do
       !!! const 200 === statusCode
 
     void . liftIO $
-      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+      WS.assertMatchN (5 # Second) [wsBob] $ \n ->
         wsAssertTyping (tUntagged lcnv) (tUntagged aliceL) StartedTyping n
 
 postTypingIndicatorsHandlesNonsense :: TestM ()

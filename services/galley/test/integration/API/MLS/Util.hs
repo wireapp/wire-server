@@ -41,6 +41,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
@@ -77,7 +78,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite (SignatureSchemeTag (Ed25519))
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.LeafNode
@@ -463,7 +464,7 @@ setupMLSSelfGroup :: (HasCallStack) => ClientIdentity -> MLSTest (GroupId, Quali
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
   where
     action =
-      fmap fromConversationV9
+      fmap fromOwnConversation
         . responseJsonError
         =<< liftTest
           (getSelfConv (ciUser creator))
@@ -535,7 +536,7 @@ setupFakeMLSGroup ::
 setupFakeMLSGroup creator mSubId = do
   qcnv <- randomQualifiedId (ciDomain creator)
   let groupId =
-        newGroupId RegularConv $
+        Group.newGroupId RegularConv $
           maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
@@ -954,7 +955,8 @@ receiveOnConvUpdated conv origUser joiner = do
                   { users = pure joiner,
                     role = roleNameWireMember,
                     joinType = InternalAdd
-                  }
+                  },
+            extraConversationData = def
           }
   void $
     runFedClient

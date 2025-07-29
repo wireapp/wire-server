@@ -98,8 +98,11 @@ import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -211,11 +214,11 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
-              <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
+              <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembers tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
               <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
-              <@> mkNamedAPI @"unchecked-get-team-admins" (Teams.uncheckedGetTeamAdmins tid)
+              <@> mkNamedAPI @"unchecked-get-team-admins" (TeamSubsystem.internalGetTeamAdmins tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
@@ -277,6 +280,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Get
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -315,7 +319,7 @@ rmUser ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ListItems p1 ConvId) r,
     Member (ListItems p1 (Remote ConvId)) r,
     Member (ListItems p2 TeamId) r,
@@ -383,7 +387,7 @@ rmUser lusr conn = do
     leaveLocalConversations ids = do
       let qUser = tUntagged lusr
       cc <- getConversations ids
-      now <- input
+      now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
         One2OneConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
@@ -396,13 +400,14 @@ rmUser lusr conn = do
               E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
               let e =
                     Event
-                      (tUntagged (qualifyAs lusr (Data.convId c)))
-                      Nothing
-                      (tUntagged lusr)
-                      now
-                      Nothing
-                      (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
-              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+                      { evtConv = tUntagged (qualifyAs lusr (Data.convId c)),
+                        evtSubConv = Nothing,
+                        evtFrom = tUntagged lusr,
+                        evtTime = now,
+                        evtTeam = Nothing,
+                        evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
+                      }
+              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser c
               pure . Just $
                 def
                   { origin = Just (tUnqualified lusr),
@@ -420,15 +425,17 @@ rmUser lusr conn = do
     -- made. When a team is deleted the burst of RPCs created here could
     -- lead to performance issues. We should cover this in a performance
     -- test.
-    notifyRemoteMembers :: UTCTime -> Qualified UserId -> ConvId -> Remote [UserId] -> Sem r ()
-    notifyRemoteMembers now qUser cid remotes = do
-      let convUpdate =
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> Data.Conversation -> Remote [UserId] -> Sem r ()
+    notifyRemoteMembers now qUser c remotes = do
+      let cid = Data.convId c
+          convUpdate =
             ConversationUpdate
               { time = now,
                 origUserId = qUser,
                 convId = cid,
                 alreadyPresentUsers = tUnqualified remotes,
-                action = SomeConversationAction (sing @'ConversationLeaveTag) ()
+                action = SomeConversationAction (sing @'ConversationLeaveTag) (),
+                extraConversationData = def
               }
       enqueueNotification Q.Persistent remotes $ do
         makeConversationUpdateBundle convUpdate

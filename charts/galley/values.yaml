@@ -33,6 +33,25 @@ config:
   #   tlsCaSecretRef:
   #     name: <secret-name>
   #     key: <ca-attribute>
+
+  # Postgres connection settings
+  #
+  # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+  # To set the password via a brig secret see `secrets.pgPassword`.
+  #
+  # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+  # additional files (e.g. certificates) into the galley container. This way
+  # does not work for password files (parameter `passfile`), because
+  # libpq-connect requires access rights (mask 0600) for them that we cannot
+  # provide for random uids.
+  #
+  # Below is an example configuration we're using for our CI tests.
+  postgresql:
+    host: postgresql # DNS name without protocol
+    port: "5432"
+    user: wire-server
+    dbname: wire-server
+
   enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
@@ -90,6 +109,8 @@ config:
       ipv6CidrBlock: 64 # Block /64 range at a time.
       ipAddressExceptions: []
       maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+
+    checkGroupInfo: false
 
     # To disable proteus for new federated conversations:
     # federationProtocols: ["mls"]
@@ -185,6 +206,10 @@ config:
             allowed_to_create_channels: team-members
             allowed_to_open_channels: team-members
           lockStatus: locked
+      allowedGlobalOperations:
+        status: enabled
+        config:
+          mlsConversationReset: false
 
   aws:
     region: "eu-west-1"

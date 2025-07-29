@@ -66,6 +66,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.HTTP.Types
+import Network.HTTP2.Internal
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
@@ -92,15 +93,14 @@ data Server = Server
 defaultServer :: String -> Word16 -> Logger -> Server
 defaultServer h p l = Server h p l Nothing
 
-newSettings :: (MonadIO m) => Server -> m Settings
-newSettings (Server h p l t) = do
-  pure
-    $ setHost (fromString h)
-      . setPort (fromIntegral p)
-      . setBeforeMainLoop logStart
-      . setOnOpen (const $ connStart >> pure True)
-      . setOnClose (const connEnd)
-      . setTimeout (fromMaybe 300 t)
+newSettings :: Server -> Settings
+newSettings (Server h p l t) =
+  setHost (fromString h)
+    . setPort (fromIntegral p)
+    . setBeforeMainLoop logStart
+    . setOnOpen (const $ connStart >> pure True)
+    . setOnClose (const connEnd)
+    . setTimeout (fromMaybe 300 t)
     $ defaultSettings
   where
     connStart = Prom.incGauge netConnections
@@ -210,6 +210,8 @@ errorHandlers =
         _ ->
           pure . Left $
             Wai.mkError status500 "server-error" "Server Error",
+    -- similar to ThreadKilled, but this is thrown by the HTTP2 client
+    Handler $ \(x :: KilledByHttp2ThreadManager) -> throwIO x,
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",

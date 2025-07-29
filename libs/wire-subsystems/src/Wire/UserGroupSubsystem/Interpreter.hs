@@ -20,8 +20,8 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.Error
-import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
+import Wire.TeamSubsystem
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
@@ -30,9 +30,9 @@ interpretUserGroupSubsystem ::
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
-    Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -60,9 +60,9 @@ createUserGroupImpl ::
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
-    Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   NewUserGroup ->
@@ -79,7 +79,7 @@ createUserGroupImpl creator newGroup = do
     throw $
       UserGroupMemberIsNotInTheSameTeam
   ug <- Store.createUserGroup team newGroup managedBy
-  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
   pushNotifications
     [ mkEvent creator (UserGroupCreated ug.id_) admins,
       mkEvent creator (UserGroupMemberAdded ug.id_) (tUnqualified luids)
@@ -88,7 +88,7 @@ createUserGroupImpl creator newGroup = do
 
 getTeamAsAdmin ::
   ( Member UserSubsystem r,
-    Member GalleyAPIAccess r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r (Maybe TeamId)
@@ -99,13 +99,13 @@ getTeamAsAdmin user = runMaybeT do
 
 getTeamAsMember ::
   ( Member UserSubsystem r,
-    Member GalleyAPIAccess r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r (Maybe (TeamId, TeamMember))
 getTeamAsMember memberId = runMaybeT do
   team <- MaybeT $ getUserTeam memberId
-  mbr <- MaybeT $ getTeamMember memberId team
+  mbr <- MaybeT $ internalGetTeamMember memberId team
   pure (team, mbr)
 
 mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
@@ -125,7 +125,7 @@ qualifyLocal a = do
 getUserGroupImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
-    Member GalleyAPIAccess r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
@@ -133,7 +133,7 @@ getUserGroupImpl ::
 getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- do
-    creatorTeamMember <- MaybeT $ getTeamMember getter team
+    creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
     pure . isAdminOrOwner $ creatorTeamMember ^. permissions
   userGroup <- MaybeT $ Store.getUserGroup team gid
   if getterCanSeeAll || getter `elem` (toList userGroup.members)
@@ -145,7 +145,7 @@ updateGroupImpl ::
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member GalleyAPIAccess r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
@@ -156,7 +156,7 @@ updateGroupImpl updater groupId groupUpdate = do
   found <- isJust <$> Store.updateUserGroup team groupId groupUpdate
   if found
     then do
-      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
       pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
     else throw UserGroupNotFound
 
@@ -165,7 +165,7 @@ deleteGroupImpl ::
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member GalleyAPIAccess r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
@@ -179,7 +179,7 @@ deleteGroupImpl deleter groupId =
           found <- isJust <$> Store.deleteUserGroup team groupId
           if found
             then do
-              admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+              admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
               pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
             else
               throw UserGroupNotFound
@@ -190,8 +190,8 @@ addUserImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
-    Member GalleyAPIAccess r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
@@ -200,10 +200,10 @@ addUserImpl ::
 addUserImpl adder groupId addeeId = do
   ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
-  void $ getTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
+  void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   unless (addeeId `elem` ug.members) $ do
     Store.addUser groupId addeeId
-    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
       [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId],
         mkEvent adder (UserGroupUpdated groupId) admins
@@ -213,8 +213,8 @@ removeUserImpl ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
-    Member GalleyAPIAccess r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
@@ -223,10 +223,10 @@ removeUserImpl ::
 removeUserImpl remover groupId removeeId = do
   ug <- getUserGroupImpl remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
-  void $ getTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
+  void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   when (removeeId `elem` ug.members) $ do
     Store.removeUser groupId removeeId
-    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> getTeamAdmins team
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
       [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId],
         mkEvent remover (UserGroupUpdated groupId) admins

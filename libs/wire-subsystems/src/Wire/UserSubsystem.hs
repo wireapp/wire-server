@@ -40,11 +40,10 @@ import Wire.BlockListStore qualified as BlockListStore
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.DomainRegistrationStore qualified as DomainRegistrationStore
 import Wire.EmailSubsystem
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.InvitationStore
 import Wire.SparAPIAccess (SparAPIAccess, getIdentityProviders)
 import Wire.StoredUser qualified as SU
+import Wire.TeamSubsystem
 import Wire.UserKeyStore
 import Wire.UserSearch.Types
 import Wire.UserStore
@@ -324,16 +323,16 @@ createEmailChangeToken lusr email updateOrigin = do
 ------------------------------------------
 
 ensurePermissions ::
-  ( IsPerm perm,
-    Member GalleyAPIAccess r,
-    Member (Error UserSubsystemError) r
+  ( IsPerm TeamMember perm,
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   [perm] ->
   Sem r ()
 ensurePermissions u t perms = do
-  m <- GalleyAPIAccess.getTeamMember u t
+  m <- internalGetTeamMember u t
   unless (check m) $
     throw UserSubsystemInsufficientPermissions
   where

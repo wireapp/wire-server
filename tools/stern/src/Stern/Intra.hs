@@ -782,12 +782,12 @@ getUserCookies uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserConversations :: UserId -> Int -> Handler [ConversationV9]
+getUserConversations :: UserId -> Int -> Handler [OwnConversation]
 getUserConversations uid maxConvs = do
   info $ msg "Getting user conversations"
   fetchAll [] Nothing maxConvs
   where
-    fetchAll :: [ConversationV9] -> Maybe ConvId -> Int -> Handler [ConversationV9]
+    fetchAll :: [OwnConversation] -> Maybe ConvId -> Int -> Handler [OwnConversation]
     fetchAll xs start remaining = do
       userConversationList <- fetchBatch start (min 100 remaining)
       let batch = convList userConversationList
@@ -795,7 +795,7 @@ getUserConversations uid maxConvs = do
       if (not . null) batch && convHasMore userConversationList && remaining' > 0
         then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList ConversationV9)
+    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList OwnConversation)
     fetchBatch start batchSize = do
       baseReq <- asks (.galley)
       r <-

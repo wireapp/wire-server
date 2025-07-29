@@ -243,11 +243,12 @@ nginz:
 By default, incoming network traffic for websockets comes through these network
 hops:
 
-Internet -> LoadBalancer -> kube-proxy -> nginx-ingress-controller -> nginz -> cannon
+Internet -> LoadBalancer -> kube-proxy -> ingress-nginx-controller -> nginz -> cannon
 
-In order to have graceful draining of websockets when something gets restarted, as it is not easily
-possible to implement the graceful draining on nginx-ingress-controller or nginz by itself, there is
-a configuration option to get the following network hops:
+In order to have graceful draining of websockets when something gets restarted,
+as it is not easily possible to implement the graceful draining on
+ingress-nginx-controller (`nginx-ingress` controller) or nginz by itself, there
+is a configuration option to get the following network hops:
 
 Internet -> separate LoadBalancer for cannon only -> kube-proxy -> [nginz->cannon (2 containers in the same pod)]
 
@@ -391,10 +392,11 @@ helm upgrade --install --namespace metallb-system metallb wire/metallb \
     --wait --timeout 1800
 ```
 
-Install `nginx-ingress-[controller,services]`:
+Install `ingress-nginx-controller` (`nginx-ingress` controller) and
+`nginx-ingress-services`:
 
 ::
-: helm upgrade –install –namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller
+: helm upgrade –install –namespace demo demo-ingress-nginx-controller wire/ingress-nginx-controller
 
 : –wait
 

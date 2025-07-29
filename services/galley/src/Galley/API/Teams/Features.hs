@@ -40,7 +40,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Qualified (Local)
-import Data.Time (UTCTime)
 import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
@@ -68,6 +67,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -327,7 +327,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member NotificationSubsystem r,
         Member (Input (Local ())) r,
         Member (Input Env) r,
-        Member (Input UTCTime) r,
+        Member Now r,
         Member LegalHoldStore r,
         Member (ListItems LegacyPaging ConvId) r,
         Member MemberStore r,

@@ -69,6 +69,7 @@ module Wire.API.Team.Member
     rolePermissions,
     IsPerm (..),
     HiddenPerm (..),
+    HasPermError (..),
   )
 where
 
@@ -92,6 +93,8 @@ import Imports
 import Wire.API.Error.Galley
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
 import Wire.API.Routes.MultiTablePaging.State
+import Wire.API.Team.Collaborator (CollaboratorPermission, TeamCollaborator (..))
+import Wire.API.Team.Collaborator qualified as Collaborator
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
@@ -474,6 +477,7 @@ data HiddenPerm
     DownloadTeamMembersCsv
   | ChangeTeamMemberProfiles
   | SearchContacts
+  | NewTeamCollaborator
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -557,7 +561,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
-            DownloadTeamMembersCsv
+            DownloadTeamMembersCsv,
+            NewTeamCollaborator
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
@@ -580,30 +585,54 @@ isAdminOrOwner perms =
     Just RoleExternalPartner -> False
     Nothing -> False
 
--- | See Note [hidden team roles]
-class IsPerm perm where
-  type PermError (e :: perm) :: GalleyError
+class HasPermError perm where
+  type PermError (p :: perm) :: GalleyError
 
-  roleHasPerm :: Role -> perm -> Bool
-  roleGrantsPerm :: Role -> perm -> Bool
-  hasPermission :: TeamMember -> perm -> Bool
-  hasPermission tm perm = maybe False (`roleHasPerm` perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
-  mayGrantPermission :: TeamMember -> perm -> Bool
-  mayGrantPermission tm perm = maybe False (`roleGrantsPerm` perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
-
-instance IsPerm Perm where
+instance HasPermError Perm where
   type PermError p = 'MissingPermission ('Just p)
 
-  roleHasPerm r p = p `Set.member` ((rolePermissions r).self)
-  roleGrantsPerm r p = p `Set.member` ((rolePermissions r).copy)
+instance HasPermError HiddenPerm where
+  type PermError p = OperationDenied
+
+-- | See Note [hidden team roles]
+class IsPerm teamAssociation perm where
+  -- type PermError teamAssociation (p :: perm) :: GalleyError
+  hasPermission :: teamAssociation -> perm -> Bool
+  mayGrantPermission :: teamAssociation -> perm -> Bool
+
+instance IsPerm Role Perm where
+  -- type PermError Role p = 'MissingPermission ('Just p)
+  hasPermission r p = p `Set.member` ((rolePermissions r).self)
+  mayGrantPermission r p = p `Set.member` ((rolePermissions r).copy)
+
+instance IsPerm Role HiddenPerm where
+  hasPermission r p = p `Set.member` _hself (roleHiddenPermissions r)
+  mayGrantPermission r p = p `Set.member` _hcopy (roleHiddenPermissions r)
+
+instance IsPerm TeamMember Perm where
   hasPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).self)
   mayGrantPermission tm p = p `Set.member` ((Wire.API.Team.Member.getPermissions tm).copy)
 
-instance IsPerm HiddenPerm where
-  type PermError p = OperationDenied
+instance IsPerm TeamMember HiddenPerm where
+  hasPermission tm perm = maybe False (flip hasPermission perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
+  mayGrantPermission tm perm = maybe False (flip mayGrantPermission perm) . permissionsRole $ Wire.API.Team.Member.getPermissions tm
 
-  roleHasPerm r p = p `Set.member` _hself (roleHiddenPermissions r)
-  roleGrantsPerm r p = p `Set.member` _hcopy (roleHiddenPermissions r)
+instance IsPerm TeamCollaborator Perm where
+  hasPermission collaborator perm =
+    perm `Set.member` collaboratorToTeamPermissions collaborator.gPermissions
+  mayGrantPermission _ _ = False
+
+instance (IsPerm a p, IsPerm b p) => IsPerm (Either a b) p where
+  hasPermission = either hasPermission hasPermission
+  mayGrantPermission = either mayGrantPermission mayGrantPermission
+
+collaboratorToTeamPermissions :: Set CollaboratorPermission -> Set Perm
+collaboratorToTeamPermissions =
+  foldMap
+    ( \case
+        Collaborator.CreateTeamConversation -> Set.fromList [CreateConversation, AddRemoveConvMember]
+        Collaborator.ImplicitConnection -> mempty
+    )
 
 ----------------------------------------------------------------------
 

@@ -5,7 +5,6 @@ import Data.Aeson qualified as A
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Qualified
-import Data.Time.Clock
 import Galley.API.Action.Kick
 import Galley.API.MLS.Util
 import Galley.API.Util
@@ -30,15 +29,17 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
-import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation as GroupId
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 resetLocalMLSMainConversation ::
   ( Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,
@@ -57,7 +58,7 @@ resetLocalMLSMainConversation ::
   Qualified UserId ->
   Local Data.Conversation ->
   MLSReset ->
-  Sem r ()
+  Sem r GroupId
 resetLocalMLSMainConversation qusr lcnv reset = do
   let cnv = tUnqualified lcnv
       cnvId = cnv.convId
@@ -80,7 +81,7 @@ resetLocalMLSMainConversation qusr lcnv reset = do
       removeAllMLSClients gid
 
       let newGid = case nextGenGroupId gid of
-            Left _ -> newGroupId ctype (tUntagged lcnvOrSub)
+            Left _ -> Group.newGroupId ctype (tUntagged lcnvOrSub)
             Right gid' -> gid'
 
       resetConversation cnvId newGid
@@ -109,3 +110,4 @@ resetLocalMLSMainConversation qusr lcnv reset = do
         results >>= \case
           Left (ruids, _) -> sequenceA (tUntagged ruids)
           Right _ -> []
+      pure newGid

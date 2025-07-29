@@ -36,7 +36,7 @@ def main():
     s = run_cqlsh(container, "DESCRIBE keyspaces;")
 
     keyspaces = transpose(re.split(r"\s+", line.rstrip()) for line in s.splitlines())
-    print("-- automatically generated with `make git-add-cassandra-schema`\n")
+    print("-- automatically generated with `make cassandra-schema`\n")
     for keyspace in keyspaces:
         if keyspace.endswith("_test"):
             s = run_cqlsh(container, f"DESCRIBE keyspace {keyspace}")

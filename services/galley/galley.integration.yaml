@@ -9,6 +9,13 @@ cassandra:
   keyspace: galley_test
   # filterNodesByDatacentre: datacenter1
 
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
 brig:
   host: 0.0.0.0
   port: 8082
@@ -150,6 +157,10 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
+    allowedGlobalOperations:
+      status: enabled
+      config:
+        mlsConversationReset: false
 
 logLevel: Warn
 logNetStrings: false

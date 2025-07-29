@@ -4,6 +4,8 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
+import Data.Bits
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
@@ -941,3 +943,83 @@ testRemoteAddLegacy domain = do
     void $ uploadNewKeyPackage suite bob1
     convId <- createNewGroup suite alice1
     void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
+
+testInvalidLeafNodeSignature :: (HasCallStack) => App ()
+testInvalidLeafNodeSignature = do
+  alice <- randomUser OwnDomain def
+  [creator, other] <- traverse (createMLSClient def) (replicate 2 alice)
+  (_, conv) <- createSelfGroup def creator
+  convId <- objConvId conv
+  void $ createAddCommit creator convId [alice] >>= sendAndConsumeCommitBundle
+
+  void $ uploadNewKeyPackage def other
+
+  mp <- createExternalCommit convId other Nothing
+  bindResponse (postMLSCommitBundle other (mkBundle mp {message = makeSignatureCorrupt mp.message})) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-invalid-leaf-node-signature"
+  where
+    -- This is a hack to make the signature invalid.
+    -- It works as long as the format of the MLS message does not change
+    -- in any way that changes the offset of the signature.
+    -- If this test ever starts flaking, we should consider
+    -- factoring the MLS code out of wire-api into a separate shared package
+    -- and use it in this test to invalidate the signature.
+    makeSignatureCorrupt :: ByteString -> ByteString
+    makeSignatureCorrupt bs = case B.splitAt 0xb0 bs of
+      (left, right) -> case B.uncons right of
+        Just (h, t) -> left <> B.singleton (h `xor` 0x01) <> t
+        Nothing -> bs
+
+testGroupInfoMismatch :: (HasCallStack) => App ()
+testGroupInfoMismatch = withModifiedBackend
+  (def {galleyCfg = setField "settings.checkGroupInfo" True})
+  $ \domain -> do
+    [alice, bob, charlie] <- createAndConnectUsers [domain, domain, domain]
+    [alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
+    traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+    conv <- createNewGroup def alice1
+
+    mp1 <- createAddCommit alice1 conv [bob]
+    void $ sendAndConsumeCommitBundle mp1
+
+    -- attempt a commit with an old group info
+    mp2 <- createAddCommit alice1 conv [charlie]
+    bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
+      $ \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
+
+    -- check that epoch is still 1
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "epoch" `shouldMatchInt` 1
+
+    -- attempt an external commit with an old group info
+    void $ uploadNewKeyPackage def bob2
+    mp3 <- createExternalCommit conv bob2 Nothing
+    bindResponse (postMLSCommitBundle bob2 (mkBundle mp3 {groupInfo = mp1.groupInfo}))
+      $ \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
+
+    -- check that epoch is still 1
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "epoch" `shouldMatchInt` 1
+
+testGroupInfoCheckDisabled :: (HasCallStack) => App ()
+testGroupInfoCheckDisabled = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  conv <- createNewGroup def alice1
+
+  mp1 <- createAddCommit alice1 conv [bob]
+  void $ sendAndConsumeCommitBundle mp1
+
+  -- attempt a commit with an old group info
+  mp2 <- createAddCommit alice1 conv [charlie]
+  bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
+    $ \resp -> do
+      resp.status `shouldMatchInt` 201

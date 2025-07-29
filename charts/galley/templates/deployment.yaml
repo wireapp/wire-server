@@ -53,6 +53,9 @@ spec:
           secret:
             secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
         {{- end }}
+        {{- if .Values.additionalVolumes }}
+        {{ toYaml .Values.additionalVolumes | nindent 8 }}
+        {{- end }}
       containers:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -73,6 +76,9 @@ spec:
           {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/galley/rabbitmq-ca/"
+          {{- end }}
+          {{- if .Values.additionalVolumeMounts }}
+          {{ toYaml .Values.additionalVolumeMounts | nindent 10 }}
           {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}

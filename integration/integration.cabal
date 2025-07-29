@@ -133,6 +133,7 @@ library
     Test.Events
     Test.ExternalPartner
     Test.FeatureFlags
+    Test.FeatureFlags.AllowedGlobalOperations
     Test.FeatureFlags.AppLock
     Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
@@ -189,6 +190,7 @@ library
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
     Test.Swagger
+    Test.TeamCollaborators
     Test.Teams
     Test.TeamSettings
     Test.User

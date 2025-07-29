@@ -191,11 +191,12 @@ conversationActionToEvent ::
   UTCTime ->
   Qualified UserId ->
   Qualified ConvId ->
+  ExtraConversationData ->
   Maybe SubConvId ->
   Maybe TeamId ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv subconv tid action =
+conversationActionToEvent tag now quid qcnv convData subconv tid action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role joinType = action
@@ -215,8 +216,15 @@ conversationActionToEvent tag now quid qcnv subconv tid action =
         SConversationAccessDataTag -> EdConvAccessUpdate action
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
         SConversationUpdateAddPermissionTag -> EdAddPermissionUpdate action
-        SConversationResetTag -> EdConvReset action.groupId
-   in Event qcnv subconv quid now tid edata
+        SConversationResetTag -> EdConvReset $ ConversationReset {groupId = action.groupId, newGroupId = convData.newGroupId}
+   in Event
+        { evtConv = qcnv,
+          evtSubConv = subconv,
+          evtFrom = quid,
+          evtTime = now,
+          evtTeam = tid,
+          evtData = edata
+        }
 
 -- | Certain actions need to be performed at the level of the underlying
 -- protocol (MLS, mostly) before being applied to conversations. This function

@@ -36,7 +36,6 @@ import Control.Monad.Codensity hiding (reset)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Time.Clock
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
@@ -66,10 +65,12 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 type MLSGetSubConvStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -273,7 +274,7 @@ type HasLeaveSubConversationEffects r =
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -419,7 +420,7 @@ resetLocalSubConversation qusr lcnvId scnvId reset = do
       -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId fails
       let newGid =
             fromRight
-              ( newGroupId
+              ( Group.newGroupId
                   cnv.convMetadata.cnvmType
                   (flip SubConv scnvId <$> tUntagged lcnvId)
               )

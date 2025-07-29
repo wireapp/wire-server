@@ -24,6 +24,7 @@ import Control.Error hiding (note)
 import Control.Lens
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
@@ -36,7 +37,6 @@ import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
-import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
@@ -99,6 +99,8 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -138,7 +140,7 @@ onClientRemoved ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -270,7 +272,7 @@ leaveConversation ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
@@ -324,6 +326,7 @@ leaveConversation requestingDomain lc = do
               (qualifyAs lcnv conv)
               botsAndMembers
               ()
+              def
         case outcome of
           Left e -> do
             logFederationError lcnv e
@@ -395,7 +398,7 @@ sendMessage ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member ExternalAccess r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -419,7 +422,7 @@ onUserDeleted ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input Env) r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -464,6 +467,7 @@ onUserDeleted origDomain udcn = do
                     (qualifyAs lc conv)
                     botsAndMembers
                     ()
+                    def
               case outcome of
                 Left e -> logFederationError lc e
                 Right _ -> pure ()
@@ -484,7 +488,7 @@ updateConversation ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -616,7 +620,7 @@ sendMLSCommitBundle ::
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member Resource r,
@@ -672,7 +676,7 @@ sendMLSMessage ::
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input Opts) r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member TeamStore r,
@@ -911,7 +915,7 @@ mlsSendWelcome ::
     Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input UTCTime) r
+    Member Now r
   ) =>
   Domain ->
   MLSWelcomeRequest ->
@@ -922,7 +926,7 @@ mlsSendWelcome origDomain req = do
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()
-      now <- input
+      now <- Now.get
       welcome <-
         either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
           decodeMLS' (fromBase64ByteString req.welcomeMessage)
@@ -961,7 +965,7 @@ updateTypingIndicator ::
   ( Member NotificationSubsystem r,
     Member FederatorAccess r,
     Member ConversationStore r,
-    Member (Input UTCTime) r,
+    Member Now r,
     Member (Input (Local ())) r,
     Member TeamStore r
   ) =>

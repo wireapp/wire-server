@@ -62,6 +62,9 @@ environments:
           caSecretName: elasticsearch-ephemeral-certificate
 ---
 repositories:
+  - name: incubator
+    url: https://charts.helm.sh/incubator
+
   - name: stable
     url: 'https://charts.helm.sh/stable'
 
@@ -78,7 +81,16 @@ repositories:
     url: 'https://opensearch-project.github.io/helm-charts/'
 
   - name: bitnami
-    url: https://charts.bitnami.com/bitnami
+    url: registry-1.docker.io/bitnamicharts
+    oci: true
+    username: '{{ env "DOCKER_HUB_USERNAME" }}'
+    password: '{{ env "DOCKER_HUB_PASSWORD" }}'
+
+  # Uses creds from DOCKER_HUB_USERNAME and DOCKER_HUB_PASSWORD automatically.
+  # https://helmfile.readthedocs.io/en/latest/#oci-registries
+  - name: docker_hub
+    url: registry-1.docker.io
+    oci: true
 
 releases:
   - name: 'fake-aws'

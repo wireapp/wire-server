@@ -30,6 +30,7 @@ import Data.Range
 import Data.Time.Clock
 import Imports
 import Servant.API
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
@@ -178,7 +179,8 @@ data ConversationUpdate = ConversationUpdate
     -- conversation to users.
     alreadyPresentUsers :: [UserId],
     -- | Information on the specific action that caused the update.
-    action :: SomeConversationAction
+    action :: SomeConversationAction,
+    extraConversationData :: Maybe ExtraConversationData
   }
   deriving (Eq, Show, Generic)
 
@@ -205,7 +207,8 @@ conversationUpdateFromV0 cu =
       origUserId = cu.cuOrigUserId,
       convId = cu.cuConvId,
       alreadyPresentUsers = cu.cuAlreadyPresentUsers,
-      action = cu.cuAction
+      action = cu.cuAction,
+      extraConversationData = Nothing
     }
 
 type UserDeletedNotificationMaxConvs = 1000
