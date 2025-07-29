@@ -130,6 +130,7 @@ import Wire.API.User as User
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.TeamCollaboratorsSubsystem
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
@@ -509,6 +510,7 @@ performAction ::
   forall tag r.
   ( HasConversationActionEffects tag r,
     Member BackendNotificationQueueAccess r,
+    Member TeamCollaboratorsSubsystem r,
     Member (Error FederationError) r
   ) =>
   Sing tag ->
@@ -622,7 +624,8 @@ performAction tag origUser lconv action = do
 performConversationJoin ::
   forall r.
   ( HasConversationActionEffects 'ConversationJoinTag r,
-    Member BackendNotificationQueueAccess r
+    Member BackendNotificationQueueAccess r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -857,7 +860,8 @@ updateLocalConversation ::
     Member Now r,
     HasConversationActionEffects tag r,
     SingI tag,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -892,7 +896,8 @@ updateLocalConversationUnchecked ::
     Member NotificationSubsystem r,
     Member Now r,
     HasConversationActionEffects tag r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local Conversation ->
   Qualified UserId ->

@@ -70,6 +70,7 @@ import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.TeamCollaboratorsSubsystem
 
 type HasProposalActionEffects r =
   ( Member BackendNotificationQueueAccess r,
@@ -98,7 +99,8 @@ type HasProposalActionEffects r =
     Member TeamStore r,
     Member TinyLog r,
     Member NotificationSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamCollaboratorsSubsystem r
   )
 
 getCommitData ::

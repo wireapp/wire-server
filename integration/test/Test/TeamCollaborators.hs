@@ -111,6 +111,8 @@ testImplicitConnectionAllowed = do
 
   postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess
 
+  getMLSOne2OneConversation bob alice >>= assertSuccess
+
 testImplicitConnectionNotConfigured :: (HasCallStack) => App ()
 testImplicitConnectionNotConfigured = do
   (owner, team, [alice]) <- createTeam OwnDomain 2

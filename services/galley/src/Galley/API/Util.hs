@@ -86,6 +86,7 @@ import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
@@ -99,6 +100,7 @@ import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.TeamCollaboratorsSubsystem
 
 data NoChanges = NoChanges
 
@@ -127,7 +129,8 @@ ensureAccessRole roles users = do
 ensureConnectedOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -145,7 +148,8 @@ ensureConnectedOrSameTeam lusr others = do
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   [UserId] ->
@@ -153,8 +157,11 @@ ensureConnectedToLocalsOrSameTeam ::
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
+  colls :: [TeamId] <-
+    gTeam
+      <$$> (filter (Set.member ImplicitConnection . gPermissions) <$> internalGetTeamCollaborations u)
   -- We collect all the relevant uids from same teams as the origin user
-  sameTeamUids <- forM uTeams $ \team ->
+  sameTeamUids <- forM (uTeams ++ colls) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u (uids \\ join sameTeamUids)
