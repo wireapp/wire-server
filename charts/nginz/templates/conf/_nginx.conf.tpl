@@ -189,8 +189,22 @@ http {
   #
   #  Proxied Upstream Services
   #
+{{- $clusterDomain := .Values.nginx_conf.cluster_domain }}
 
-  include {{ .Values.nginx_conf.upstream_config }};
+  resolver kube-dns.kube-system.svc.{{ $clusterDomain }} valid=30s ipv6=off;
+  resolver_timeout 5s;
+
+{{- $validUpstreams := include "valid_upstreams" . | fromJson }}
+{{- range $name, $_ := $validUpstreams }}
+  upstream {{ $name }} {
+      zone {{ $name }} 64k; # needed for dynamic DNS updates
+      least_conn;
+      keepalive 32;
+
+      {{- $ns := index $.Values.nginx_conf.upstream_namespace $name | default $.Release.Namespace }}
+      server {{ $name }}.{{ $ns }}.svc.{{ $clusterDomain }}:8080 max_fails=3 resolve;
+  }
+{{ end }}
 
   #
   # Mapping for websocket connections
