@@ -317,6 +317,8 @@ type SternAPI =
     :<|> Named "put-route-snd-factor-password-challenge" (MkFeatureStatusPutRoute SndFactorPasswordChallengeConfig)
     :<|> Named "get-route-limited-event-fanout" (MkFeatureGetRoute LimitedEventFanoutConfig)
     :<|> Named "put-route-limited-event-fanout" (MkFeatureStatusPutRoute LimitedEventFanoutConfig)
+    :<|> Named "get-route-consumable-notifications" (MkFeatureGetRoute ConsumableNotificationsConfig)
+    :<|> Named "put-route-consumable-notifications" (MkFeatureStatusPutRoute ConsumableNotificationsConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -465,6 +467,7 @@ type SternAPI =
     :<|> Named "lock-unlock-route-snd-factor-password-challenge-config" (MkFeatureLockUnlockRoute SndFactorPasswordChallengeConfig)
     :<|> Named "lock-unlock-route-limited-event-fanout-config" (MkFeatureLockUnlockRoute LimitedEventFanoutConfig)
     :<|> Named "lock-unlock-route-cells-config" (MkFeatureLockUnlockRoute CellsConfig)
+    :<|> Named "lock-unlock-route-consumable-notifications-config" (MkFeatureLockUnlockRoute ConsumableNotificationsConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger

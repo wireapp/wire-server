@@ -139,6 +139,7 @@ library
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ClassifiedDomains
     Test.FeatureFlags.ConferenceCalling
+    Test.FeatureFlags.ConsumableNotifications
     Test.FeatureFlags.DigitalSignatures
     Test.FeatureFlags.DomainRegistration
     Test.FeatureFlags.EnforceFileDownloadLocation

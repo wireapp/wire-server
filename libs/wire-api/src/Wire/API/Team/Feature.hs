@@ -87,6 +87,7 @@ module Wire.API.Team.Feature
     DomainRegistrationConfig (..),
     CellsConfig (..),
     AllowedGlobalOperationsConfig (..),
+    ConsumableNotificationsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -244,6 +245,7 @@ data FeatureSingleton cfg where
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
   FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
+  FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1467,6 +1469,27 @@ instance IsFeatureConfig AllowedGlobalOperationsConfig where
   featureSingleton = FeatureSingletonAllowedGlobalOperationsConfig
   objectSchema = field "config" schema
 
+--------------------------------------------------------------------------------
+-- ConsumableNotifications feature
+
+-- | This feature does not have a PUT endpoint. See Note [unsettable features].
+data ConsumableNotificationsConfig = ConsumableNotificationsConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform ConsumableNotificationsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ConsumableNotificationsConfig)
+  deriving (Default, ParseDbFeature) via (TrivialFeature ConsumableNotificationsConfig)
+
+instance ToSchema ConsumableNotificationsConfig where
+  schema = object "ConsumableNotificationsConfig" objectSchema
+
+instance Default (LockableFeature ConsumableNotificationsConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig ConsumableNotificationsConfig where
+  type FeatureSymbol ConsumableNotificationsConfig = "consumableNotifications"
+  featureSingleton = FeatureSingletonConsumableNotificationsConfig
+  objectSchema = pure ConsumableNotificationsConfig
+
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1553,7 +1576,8 @@ type Features =
     DomainRegistrationConfig,
     ChannelsConfig,
     CellsConfig,
-    AllowedGlobalOperationsConfig
+    AllowedGlobalOperationsConfig,
+    ConsumableNotificationsConfig
   ]
 
 -- | list of available features as a record

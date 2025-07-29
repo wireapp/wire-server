@@ -115,7 +115,8 @@ tests s =
       test s "PUT /teams/:tid/features/guestLinks{,'?lockOrUnlock'}" $ testLockStatus @GuestLinksConfig,
       test s "PUT /teams/:tid/features/sndFactorPasswordChallenge{,'?lockOrUnlock'}" $ testLockStatus @SndFactorPasswordChallengeConfig,
       test s "PUT /teams/:tid/features/limitedEventFanout{,'?lockOrUnlock'}" $ testLockStatus @LimitedEventFanoutConfig,
-      test s "PUT /teams/:tid/features/cells{,'?lockOrUnlock'}" $ testLockStatus @CellsConfig
+      test s "PUT /teams/:tid/features/cells{,'?lockOrUnlock'}" $ testLockStatus @CellsConfig,
+      test s "PUT /teams/:tid/features/consumableNotifications{,'?lockOrUnlock'}" $ testLockStatus @ConsumableNotificationsConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`

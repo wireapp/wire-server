@@ -69,6 +69,7 @@ featureAPI =
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", AllowedGlobalOperationsConfig) getFeature
+    <@> mkNamedAPI @'("get", ConsumableNotificationsConfig) getFeature
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

@@ -292,6 +292,13 @@ newtype instance FeatureDefaults AllowedGlobalOperationsConfig
   deriving (ParseFeatureDefaults) via OptionalField AllowedGlobalOperationsConfig
   deriving (GetFeatureDefaults) via Feature AllowedGlobalOperationsConfig
 
+newtype instance FeatureDefaults ConsumableNotificationsConfig
+  = ConsumableNotificationsDefaults (LockableFeature ConsumableNotificationsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature ConsumableNotificationsConfig)
+  deriving (ParseFeatureDefaults) via OptionalField ConsumableNotificationsConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
