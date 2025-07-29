@@ -631,7 +631,7 @@ replaceUpstreamsInConfig nginxConf sm =
     -- }
     --
     -- Prerequisite is that the upstream  block itself does not contain block
-    -- delimitiers. AFAIK this usually holds.
+    -- delimiters. AFAIK this usually holds.
     removeUpstreamBlocks :: Text.Text
     removeUpstreamBlocks =
       replaceAll "" $
