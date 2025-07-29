@@ -70,7 +70,7 @@ testObject_PaginationState_2 =
         Just $
           LastSeen
             (Just . userGroupNameFromTextUnsafe $ "boring group")
-            (Just someOtherUTCTime)
+            Nothing
             (Id . fromJust . UUID.fromString $ "4d41b282-6887-11f0-b0dc-1f902c75fe84")
     }
 
