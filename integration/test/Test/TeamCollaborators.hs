@@ -125,3 +125,19 @@ testImplicitConnectionNotConfigured = do
     >>= assertSuccess
 
   postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "operation-denied"
+
+testImplicitConnectionNoCollaborator :: (HasCallStack) => App ()
+testImplicitConnectionNoCollaborator = do
+  (_owner0, team0, [alice]) <- createTeam OwnDomain 2
+  (owner1, team1, _users1) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator
+    owner1
+    team1
+    bob
+    ["implicit_connection"]
+    >>= assertSuccess
+
+  postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
