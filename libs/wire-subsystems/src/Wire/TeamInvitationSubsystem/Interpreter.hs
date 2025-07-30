@@ -3,6 +3,7 @@ module Wire.TeamInvitationSubsystem.Interpreter where
 import Control.Arrow ((&&&))
 import Control.Error (MaybeT (..))
 import Data.ByteString.Conversion (toByteString')
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
@@ -43,7 +44,8 @@ import Wire.UserSubsystem (UserSubsystem, getLocalUserAccountByUserKey, getSelfP
 
 data TeamInvitationSubsystemConfig = TeamInvitationSubsystemConfig
   { maxTeamSize :: Word32,
-    teamInvitationTimeout :: Timeout
+    teamInvitationTimeout :: Timeout,
+    blockedDomains :: HashSet Domain
   }
   deriving (Show, Generic)
   deriving (Arbitrary) via GenericUniform TeamInvitationSubsystemConfig
@@ -135,6 +137,8 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
   when blacklistedEm $
     throw TeamInvitationBlacklistedEmail
 
+  guardBlockedDomainEmail email
+
   mEmailOwner <- getLocalUserAccountByUserKey uke
   invitationFlow <- case mEmailOwner of
     Nothing -> pure InviteNewUser
@@ -182,6 +186,18 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
     invitationUrl <- sendOp email tid inviterEmail code invRequest.locale
     inv <- toInvitation invitationUrl showInvitationUrl newInv
     pure (inv, code)
+  where
+    guardBlockedDomainEmail ::
+      ( Member (Input TeamInvitationSubsystemConfig) r,
+        Member (Error TeamInvitationSubsystemError) r
+      ) =>
+      EmailAddress ->
+      Sem r ()
+    guardBlockedDomainEmail email = do
+      domain <- either (const (throw TeamInvitationInvalidEmail)) pure $ emailDomain email
+      blocked <- blockedDomains <$> input
+      when (domain `elem` blocked) $
+        throw TeamInvitationBlockedDomain
 
 mkInvitationCode :: (Member Random r) => Sem r InvitationCode
 mkInvitationCode = InvitationCode . AsciiText.encodeBase64Url <$> Random.bytes 24
