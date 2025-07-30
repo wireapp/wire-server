@@ -140,28 +140,29 @@ spec = do
                       (getAllTeamCollaborators authUser tid)
                 pure $ res === InsufficientRights
   describe "InternalGetTeamCollaborations" $ do
-    prop "gets all collaborations for all teams" $
-      \(collaborator :: StoredUser)
-       (owner :: StoredUser)
-       (tids :: [TeamId])
+    prop "gets all collaborations for all teams for a collaborator" $
+      \(owner :: StoredUser)
+       (collaboratorTeams :: Map StoredUser [TeamId])
        config
        ownDomain
        collabPerms
        ((EligibleRole role) :: EligibleRole) -> do
-          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+          let localBackend :: MiniBackend = def {users = owner : (Map.keys collaboratorTeams)}
               authUser = toLocalUnsafe ownDomain owner.id
               perms = rolePermissions role
               ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
-              teamMap = Map.fromList $ map (,[ownerTeamMember]) tids
+              teamMap = Map.fromList $ concatMap (\(_, tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
            in runNoFederationStack localBackend teamMap config $
                 do
-                  forM_ tids $ \tid ->
-                    createTeamCollaborator authUser collaborator.id tid collabPerms
-                  collaborators <- internalGetTeamCollaborations collaborator.id
-                  let collaboratorTids = Set.fromList $ map gTeam collaborators
-                  pure $
-                    length collaborators === length tids
-                      .&&. collaboratorTids === (Set.fromList tids)
+                  forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) -> do
+                    forM_ (collaboratorTeams Map.! collaborator) \tid ->
+                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                    collaborators <- internalGetTeamCollaborations collaborator.id
+                    let collaboratorTids = Set.fromList $ map gTeam collaborators
+                        expectedCollaboratorTids = collaboratorTeams Map.! collaborator
+                    pure $
+                      length collaborators === length expectedCollaboratorTids
+                        .&&. collaboratorTids === (Set.fromList expectedCollaboratorTids)
 
 eligibleRoles :: [Role]
 eligibleRoles = [RoleAdmin, RoleOwner]
