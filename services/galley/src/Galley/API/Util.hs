@@ -90,6 +90,7 @@ import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
+import Wire.API.Team.Permission qualified as Perm
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
@@ -159,7 +160,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
   colls :: [TeamId] <-
     gTeam
-      <$$> (filter (Set.member ImplicitConnection . gPermissions) <$> internalGetTeamCollaborations u)
+      <$$> (filter (flip hasPermission Perm.CreateConversation) <$> internalGetTeamCollaborations u)
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM (uTeams `union` colls) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
