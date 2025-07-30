@@ -27,7 +27,7 @@ module Brig.API.User
     checkRestrictedUserCreation,
     CheckHandleResp (..),
     checkHandle,
-    lookupHandle,
+    UserStore.lookupHandle,
     changeAccountStatus,
     changeSingleAccountStatus,
     getLegalHoldStatus,
@@ -150,7 +150,8 @@ import Wire.SessionStore (SessionStore)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
-import Wire.UserStore
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem as User
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.VerificationCode qualified as VerificationCode
@@ -288,7 +289,7 @@ upgradePersonalToTeam luid bNewTeam = do
       pure $ CreateUserTeam tid (fromRange newTeam.newTeamName)
     liftSem $ GalleyAPIAccess.changeTeamStatus tid Team.Active bNewTeam.bnuCurrency
 
-    liftSem $ updateUserTeam uid tid
+    liftSem $ UserStore.updateUserTeam uid tid
     liftSem $ User.internalUpdateSearchIndex uid
     liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
     initAccountFeatureConfig uid
@@ -830,7 +831,7 @@ changePassword ::
   PasswordChange ->
   ExceptT ChangePasswordError (AppT r) ()
 changePassword uid cp = do
-  activated <- lift $ liftSem $ isActivated uid
+  activated <- lift $ liftSem $ UserStore.isActivated uid
   unless activated $
     throwE ChangePasswordNoIdentity
   currpw <- lift $ liftSem $ lookupHashedPassword uid
@@ -1040,7 +1041,7 @@ deleteAccount user = do
 
     PropertySubsystem.onUserDeleted uid
 
-    deleteUser user
+    UserStore.deleteUser user
 
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))

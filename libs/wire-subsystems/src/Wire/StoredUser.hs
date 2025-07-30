@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+{-# OPTIONS -Wno-ambiguous-fields #-}
+{-# OPTIONS -Wno-orphans #-}
+
 module Wire.StoredUser where
 
 import Data.Domain
@@ -12,6 +15,7 @@ import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import GHC.Records
 import Imports
 import Wire.API.Locale
+import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.User
 import Wire.Arbitrary
@@ -123,3 +127,61 @@ instance HasField "identity" StoredUser (Maybe UserIdentity) where
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country
+
+--------------------------------------------------------------------------------
+
+data NewStoredUser = NewStoredUser
+  { id :: UserId,
+    name :: Name,
+    textStatus :: Maybe TextStatus,
+    pict :: Maybe Pict,
+    assets :: Maybe [Asset],
+    email :: Maybe EmailAddress,
+    ssoId :: Maybe UserSSOId,
+    accentId :: ColourId,
+    password :: Maybe Password,
+    activated :: Bool,
+    status :: Maybe AccountStatus,
+    expires :: Maybe UTCTimeMillis,
+    language :: Maybe Language,
+    country :: Maybe Country,
+    providerId :: Maybe ProviderId,
+    serviceId :: Maybe ServiceId,
+    handle :: Maybe Handle,
+    teamId :: Maybe TeamId,
+    managedBy :: Maybe ManagedBy,
+    supportedProtocols :: Maybe (Set BaseProtocolTag)
+  }
+
+recordInstance ''NewStoredUser
+
+-- addPrepQuery requires a Show instance for the input tuple type, but Show
+-- instances are only defined up to 15 elements. Note that we can't use the
+-- TupleType type family because type families in instance declarations are not
+-- allowed.
+deriving instance
+  Show
+    ( UserId,
+      Name,
+      Maybe TextStatus,
+      Maybe Pict,
+      Maybe [Asset],
+      Maybe EmailAddress,
+      Maybe UserSSOId,
+      ColourId,
+      Maybe Password,
+      Bool,
+      Maybe AccountStatus,
+      Maybe UTCTimeMillis,
+      Maybe Language,
+      Maybe Country,
+      Maybe ProviderId,
+      Maybe ServiceId,
+      Maybe Handle,
+      Maybe TeamId,
+      Maybe ManagedBy,
+      Maybe (Set BaseProtocolTag)
+    )
+
+instance HasField "service" NewStoredUser (Maybe ServiceRef) where
+  getField user = ServiceRef <$> user.serviceId <*> user.providerId
