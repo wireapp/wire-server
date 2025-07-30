@@ -125,6 +125,7 @@ data EventType
   | ConvDelete
   | CollaboratorAdd
   | AppCreate
+  | CollaboratorRemove
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -143,6 +144,7 @@ instance ToSchema EventType where
           element "team.conversation-delete" ConvDelete,
           element "team.collaborator-add" CollaboratorAdd,
           element "team.app-create" AppCreate
+          element "team.collaborator-remove" CollaboratorRemove
         ]
 
 --------------------------------------------------------------------------------
@@ -159,6 +161,7 @@ data EventData
   | EdConvDelete ConvId
   | EdCollaboratorAdd UserId [CollaboratorPermission]
   | EdAppCreate UserId
+  | EdCollaboratorRemove UserId
   deriving stock (Eq, Show, Generic)
 
 -- FUTUREWORK: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
@@ -189,6 +192,7 @@ instance ToJSON EventData where
         "permissions" A..= perms
       ]
   toJSON (EdAppCreate usr) = A.object ["user" A..= usr]
+  toJSON (EdCollaboratorRemove usr) = A.object ["user" A..= usr]
 
 eventDataType :: EventData -> EventType
 eventDataType (EdTeamCreate _) = TeamCreate
@@ -201,6 +205,7 @@ eventDataType (EdConvCreate _) = ConvCreate
 eventDataType (EdConvDelete _) = ConvDelete
 eventDataType (EdCollaboratorAdd _ _) = CollaboratorAdd
 eventDataType (EdAppCreate _) = AppCreate
+eventDataType (EdCollaboratorRemove _) = CollaboratorRemove
 
 parseEventData :: EventType -> Maybe Value -> Parser EventData
 parseEventData MemberJoin Nothing = fail "missing event data for type 'team.member-join'"
@@ -235,6 +240,10 @@ parseEventData AppCreate Nothing = fail "missing event data for type 'team.app-c
 parseEventData AppCreate (Just j) = do
   let f o = EdAppCreate <$> o .: "user"
   withObject "app create data" f j
+parseEventData CollaboratorRemove Nothing = fail "missing event data for type 'team.collaborator-remove"
+parseEventData CollaboratorRemove (Just j) = do
+  let f o = EdCollaboratorRemove <$> o .: "user"
+  withObject "collaborator remove data" f j
 parseEventData _ Nothing = pure EdTeamDelete
 parseEventData t (Just _) = fail $ "unexpected event data for type " <> show t
 
@@ -250,5 +259,6 @@ genEventData = \case
   ConvDelete -> EdConvDelete <$> arbitrary
   CollaboratorAdd -> EdCollaboratorAdd <$> arbitrary <*> arbitrary
   AppCreate -> EdAppCreate <$> arbitrary
+  CollaboratorRemove -> EdCollaboratorRemove <$> arbitrary
 
 makeLenses ''Event

@@ -1183,3 +1183,9 @@ refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
 refreshAppCookie u tid appId = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
   submit "POST" req
+
+removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
+removeTeamCollaborator owner tid collaborator = do
+  (_, collabId) <- objQid collaborator
+  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  submit "DELETE" req

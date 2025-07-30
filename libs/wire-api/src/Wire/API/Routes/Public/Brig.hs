@@ -2062,6 +2062,17 @@ type TeamsAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
+           "remove-team-collaborator"
+           ( Summary "Remove a collaborator from the team."
+               :> From 'V11
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
            "get-team-collaborators"
            ( Summary "Get all collaborators of the team."
                :> From 'V10
