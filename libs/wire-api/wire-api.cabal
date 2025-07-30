@@ -659,7 +659,6 @@ test-suite wire-api-golden-tests
     , bytestring-conversion
     , containers               >=0.5
     , currency-codes
-    , data-default
     , imports
     , iso3166-country-codes
     , iso639

@@ -167,13 +167,13 @@ getUserGroupsImpl ::
   Maybe SortOrder ->
   Maybe PageSize ->
   Maybe PaginationState ->
-  Sem r PaginationResult
+  Sem r UserGroupPage
 getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
   page :: [UserGroupMeta] <- Store.getUserGroups team currentPaginationState
-  pure (PaginationResult page (nextPaginationState page))
+  pure (UserGroupPage page (nextPaginationState page))
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure

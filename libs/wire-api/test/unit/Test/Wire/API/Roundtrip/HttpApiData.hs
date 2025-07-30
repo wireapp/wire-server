@@ -25,7 +25,6 @@ import Type.Reflection (typeRep)
 import Wire.API.Routes.Version qualified
 import Wire.API.User qualified
 import Wire.API.User.Search qualified
-import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
@@ -35,8 +34,7 @@ tests =
       testRoundTrip @Wire.API.User.InvitationCode,
       testRoundTrip @Wire.API.User.Search.PagingState,
       testRoundTrip @Wire.API.Routes.Version.Version,
-      testRoundTrip @Wire.API.Routes.Version.VersionNumber,
-      testRoundTrip @Wire.API.UserGroup.Pagination.PaginationState
+      testRoundTrip @Wire.API.Routes.Version.VersionNumber
     ]
 
 testRoundTrip ::

@@ -19,7 +19,7 @@ data UserGroupSubsystem m a where
     Maybe SortOrder ->
     Maybe PageSize ->
     Maybe PaginationState ->
-    UserGroupSubsystem m PaginationResult
+    UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
   AddUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()

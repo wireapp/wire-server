@@ -1679,7 +1679,7 @@ getUserGroups ::
   Maybe SortOrder ->
   Maybe PageSize ->
   Maybe PaginationState ->
-  Handler r PaginationResult
+  Handler r UserGroupPage
 getUserGroups lusr q sortByKeys sortOrder pSize pState =
   lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize pState
 

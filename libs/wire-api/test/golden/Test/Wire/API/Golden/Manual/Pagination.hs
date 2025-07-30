@@ -2,7 +2,6 @@
 
 module Test.Wire.API.Golden.Manual.Pagination where
 
-import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.UUID qualified as UUID
@@ -56,59 +55,15 @@ ug3 =
       createdAt = someOtherUTCTime
     }
 
-testObject_PaginationState_1 :: PaginationState
-testObject_PaginationState_1 = def
+testObject_UserGroupPage_1 :: UserGroupPage
+testObject_UserGroupPage_1 = UserGroupPage []
 
-testObject_PaginationState_2 :: PaginationState
-testObject_PaginationState_2 =
-  PaginationState
-    { searchString = Just "***",
-      sortBy = SortByName,
-      sortOrder = Asc,
-      pageSize = pageSizeFromIntUnsafe 39,
-      lastSeen =
-        Just $
-          LastSeen
-            (Just . userGroupNameFromTextUnsafe $ "boring group")
-            Nothing
-            (Id . fromJust . UUID.fromString $ "4d41b282-6887-11f0-b0dc-1f902c75fe84")
-    }
-
-testObject_PaginationResult_1 :: PaginationResult
-testObject_PaginationResult_1 = PaginationResult [] def
-
-testObject_PaginationResult_2 :: PaginationResult
-testObject_PaginationResult_2 =
-  PaginationResult
+testObject_UserGroupPage_2 :: UserGroupPage
+testObject_UserGroupPage_2 =
+  UserGroupPage
     (userGroupToMeta <$> [ug1, ug2])
-    PaginationState
-      { searchString = Just "q",
-        sortBy = SortByName,
-        sortOrder = Desc,
-        pageSize = pageSizeFromIntUnsafe 500,
-        lastSeen =
-          Just
-            ( LastSeen
-                (Just $ userGroupNameFromTextUnsafe "ugn!")
-                Nothing
-                (Id . fromJust . UUID.fromString $ "df888158-6606-11f0-8095-9353d5ffded9")
-            )
-      }
 
-testObject_PaginationResult_3 :: PaginationResult
-testObject_PaginationResult_3 =
-  PaginationResult
+testObject_UserGroupPage_3 :: UserGroupPage
+testObject_UserGroupPage_3 =
+  UserGroupPage
     (userGroupToMeta <$> [ug2])
-    PaginationState
-      { searchString = Just "rst",
-        sortBy = SortByCreatedAt,
-        sortOrder = Asc,
-        pageSize = pageSizeFromIntUnsafe 1,
-        lastSeen =
-          Just
-            ( LastSeen
-                Nothing
-                (Just . fromJust . readUTCTimeMillis $ "2021-12-12T00:00:00.000Z")
-                (Id . fromJust . UUID.fromString $ "e5b57c16-6606-11f0-ab44-770b115161d3")
-            )
-      }

@@ -19,52 +19,36 @@ module Wire.API.UserGroup.Pagination where
 
 import Control.Lens ((?~))
 import Data.Aeson qualified as A
-import Data.Aeson.Types qualified as A
 import Data.Bifunctor (first)
-import Data.ByteString.Lazy qualified as LB
 import Data.Default
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
-import Data.Proxy
 import Data.Range as Range
 import Data.Schema
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
 import GHC.Generics
 import GHC.Records (HasField (getField))
 import Imports
-import Network.HTTP.Types qualified as Http
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
--- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
--- also sorting and filtering.  Please generalize when needed elsewhere.
---
--- The response does not contain a `has_more` field.  The rule for terminating is: if the page
--- in the response contains fewer (and possibly 0) entries than requested, it's the last page
--- and all upcoming pages will be empty.
---
--- Prior art: https://github.com/chordify/haskell-servant-pagination/
 type PaginationQuery =
-  -- provide these params for initial page
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
     :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
     :> QueryParam' '[Optional, Strict] "page_size" PageSize
-    -- provide the state param *only* for all subsequent pages
-    :> QueryParam'
-         '[ Optional,
-            Strict,
-            Description
-              "Pagination state from last response (opaque to clients). \
-              \If you set pagination_state, you cannot set any of the other \
-              \query params for sorting, filtering, and pagination."
-          ]
-         "pagination_state"
-         PaginationState
-    :> Get '[JSON] PaginationResult
+    :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
+    :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
+    :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
+    :> Get '[JSON] UserGroupPage
+
+type LastSeenNameDesc = Description ""
+
+type LastSeenCreatedAtDesc = Description ""
+
+type LastSeenIdDesc = Description ""
 
 ------------------------------
 
@@ -177,128 +161,31 @@ instance Default PageSize where
 
 ------------------------------
 
--- | Offset-based pagination.
+-- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
+-- also sorting and filtering.  Please generalize when needed elsewhere.
 --
--- FUTUREWORK: For cursor-based pagination, there is postgres machinery.  It requires
--- transaction handling, but this may not imply table locks, so it may be fine.  (Jumping to
--- the last page may not be that relevant in practice, refining the search is more common.)
-data PaginationState = PaginationState
-  { -- | `searchString` always applies to name, no matter what the sort order.  `Nothing`
-    -- means do not filter.
-    searchString :: Maybe Text,
-    sortBy :: SortBy,
-    sortOrder :: SortOrder,
-    pageSize :: PageSize,
-    -- | Next page starts after this (either name or created_at, depending on sortBy).  Id is
-    -- tie breaker.
-    lastSeen :: Maybe LastSeen
+-- The response does not contain a `has_more` field.  The rule for terminating is: if the page
+-- in the response contains fewer (and possibly 0) entries than requested, it's the last page
+-- and all upcoming pages will be empty.
+--
+-- Prior art: https://github.com/chordify/haskell-servant-pagination/
+newtype UserGroupPage = UserGroupPage
+  { page :: [UserGroupMeta]
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationState
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
 
-data LastSeen = LastSeen
-  { name :: Maybe UserGroupName,
-    createdAt :: Maybe UTCTimeMillis,
-    tieBreaker :: UserGroupId
-  }
-  deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema LastSeen
-
-instance ToSchema LastSeen where
+instance ToSchema UserGroupPage where
   schema =
-    object "LastSeen" $
-      LastSeen
-        <$> (.name) .= maybe_ (optField "name" schema)
-        <*> (.createdAt) .= maybe_ (optField "created_at" schema)
-        <*> (.tieBreaker) .= field "tie_breaker" schema
-
-instance Arbitrary LastSeen where
-  arbitrary = LastSeen <$> arbitrary <*> arbitrary <*> arbitrary
-
-validPaginationState :: PaginationState -> Bool
-validPaginationState ps = case ps.lastSeen of
-  Just ls -> case ps.sortBy of
-    SortByName -> isJust ls.name && isNothing ls.createdAt
-    SortByCreatedAt -> isNothing ls.name && isJust ls.createdAt
-  Nothing -> True
-
-instance Default PaginationState where
-  def =
-    PaginationState
-      { searchString = Nothing,
-        sortBy = def,
-        sortOrder = defaultSortOrder def,
-        pageSize = def,
-        lastSeen = Nothing
-      }
-
-instance ToSchema PaginationState where
-  schema =
-    object
-      "PagintationStatePayload"
-      ( PaginationState
-          <$> (.searchString) .= maybe_ (optField "search_string" schema)
-          <*> (.sortBy) .= field "sort_by" schema
-          <*> (.sortOrder) .= field "sort_order" schema
-          <*> (.pageSize) .= field "page_size" schema
-          <*> (.lastSeen) .= maybe_ (optField "last_seen" schema)
-      )
-      `withParser` \ps ->
-        if validPaginationState ps
-          then pure ps
-          else fail ("invalid pagination state: " <> show (ps.sortBy, ps.lastSeen))
-
-instance Arbitrary PaginationState where
-  arbitrary =
-    ( PaginationState
-        <$> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-    )
-      `suchThat` validPaginationState
-
-instance FromHttpApiData PaginationState where
-  parseUrlPiece =
-    first T.pack . A.eitherDecode . LB.fromStrict . Http.urlDecode True . T.encodeUtf8
-
-instance ToHttpApiData PaginationState where
-  toUrlPiece =
-    T.decodeUtf8 . Http.urlEncode True . LB.toStrict . A.encode
-
-instance S.ToParamSchema PaginationState where
-  toParamSchema _ =
-    -- PaginationState is opaque for clients, no need for swagger docs.
-    S.toParamSchema (Proxy @Text)
-
-------------------------------
-
-data PaginationResult = PaginationResult
-  { page :: [UserGroupMeta],
-    state :: PaginationState
-  }
-  deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationResult
-
-instance ToSchema PaginationResult where
-  schema =
-    objectWithDocModifier "PagintationResult" docs $
-      PaginationResult
+    objectWithDocModifier "UserGroupPage" docs $
+      UserGroupPage
         <$> page .= field "page" (array schema)
-        <*> (toUrlPiece . state) .= field "state" (withParser schema p)
     where
-      p :: Text -> A.Parser PaginationState
-      p t =
-        case parseUrlPiece t of
-          Left err -> fail $ "PaginationResult: could not parse state: " <> T.unpack err
-          Right ps -> pure ps
-
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
         description
           ?~ "This is the last page iff it contains fewer rows than requested. There \
              \may return 0 rows on a page."
 
-instance Arbitrary PaginationResult where
-  arbitrary = PaginationResult <$> arbitrary <*> arbitrary
+instance Arbitrary UserGroupPage where
+  arbitrary = UserGroupPage <$> arbitrary

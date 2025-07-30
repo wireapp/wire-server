@@ -334,7 +334,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   -- groups are only distinguished by creation date
                   groups <- replicateM numGroups mkGroup
 
-                  results :: [PaginationResult] <- do
+                  results :: [UserGroupPage] <- do
                     let fetch mbState = do
                           p <- getGroups (ownerId team1) Nothing Nothing Nothing (Just pageSize) mbState
                           if length p.page < pageSizeToInt pageSize
