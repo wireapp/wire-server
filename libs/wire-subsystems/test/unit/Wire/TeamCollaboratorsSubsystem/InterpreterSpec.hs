@@ -140,21 +140,23 @@ spec = do
                       (getAllTeamCollaborators authUser tid)
                 pure $ res === InsufficientRights
   describe "InternalGetTeamCollaborations" $ do
-    prop "gets all collaborations for all teams for a collaborator" $
-      \(owner :: StoredUser)
-       (collaboratorTeams :: Map StoredUser [TeamId])
-       config
-       ownDomain
-       collabPerms
-       ((EligibleRole role) :: EligibleRole) -> do
-          let localBackend :: MiniBackend = def {users = owner : (Map.keys collaboratorTeams)}
-              authUser = toLocalUnsafe ownDomain owner.id
-              perms = rolePermissions role
-              ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
-              teamMap = Map.fromList $ concatMap (\(_, tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
-           in runNoFederationStack localBackend teamMap config $
-                do
-                  forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) -> do
+    -- The collaboratorTeams parameter leads to quadratic complextity: Limit
+    -- the amount of elements as this test mostly checks our test code anyways.
+    modifyMaxSize (const 10) $
+      prop "gets all collaborations for all teams for a collaborator" $
+        \(owner :: StoredUser)
+         (collaboratorTeams :: Map StoredUser [TeamId])
+         config
+         ownDomain
+         collabPerms
+         ((EligibleRole role) :: EligibleRole) -> do
+            let localBackend :: MiniBackend = def {users = owner : (Map.keys collaboratorTeams)}
+                authUser = toLocalUnsafe ownDomain owner.id
+                perms = rolePermissions role
+                ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+                teamMap = Map.fromList $ concatMap (\(_, tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
+             in runNoFederationStack localBackend teamMap config $ do
+                  conjoin <$$> forM (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) -> do
                     forM_ (collaboratorTeams Map.! collaborator) \tid ->
                       createTeamCollaborator authUser collaborator.id tid collabPerms
                     collaborators <- internalGetTeamCollaborations collaborator.id
