@@ -24,3 +24,5 @@ inMemoryTeamCollaboratorsStoreInterpreter =
       gets $ \(s :: Map TeamId [TeamCollaborator]) -> find (\tc -> tc.gUser == userId) =<< Map.lookup teamId s
     GetTeamCollaborations userId ->
       gets $ \(s :: Map TeamId [TeamCollaborator]) -> concatMap (filter (\tc -> tc.gUser == userId)) (Map.elems s)
+    RemoveTeamCollaborator userId teamId ->
+      modify $ Map.alter (fmap $ filter $ (/= userId) . gUser) teamId
