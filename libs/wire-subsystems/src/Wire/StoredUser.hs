@@ -123,3 +123,28 @@ instance HasField "identity" StoredUser (Maybe UserIdentity) where
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country
+
+--------------------------------------------------------------------------------
+
+data NewStoredUser = NewStoredUser
+  { id :: UserId,
+    name :: Name,
+    textStatus :: Maybe TextStatus,
+    pict :: Maybe Pict,
+    email :: Maybe EmailAddress,
+    emailUnvalidated :: Maybe EmailAddress,
+    ssoId :: Maybe UserSSOId,
+    accentId :: ColourId,
+    assets :: Maybe [Asset],
+    activated :: Bool,
+    status :: Maybe AccountStatus,
+    expires :: Maybe UTCTimeMillis,
+    language :: Maybe Language,
+    country :: Maybe Country,
+    providerId :: Maybe ProviderId,
+    serviceId :: Maybe ServiceId,
+    handle :: Maybe Handle,
+    teamId :: Maybe TeamId,
+    managedBy :: Maybe ManagedBy,
+    supportedProtocols :: Maybe (Set BaseProtocolTag)
+  }
