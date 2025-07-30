@@ -3,17 +3,19 @@
 module Wire.UserGroupStore.Postgres where
 
 import Control.Error (MaybeT (..))
-import Control.Lens (view, _1, _2)
 import Data.Bifunctor (second)
-import Data.Functor.Contravariant ((>$<))
+import Data.Functor.Contravariant (Contravariant (..))
+import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
+import Data.Range
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import Data.UUID as UUID
 import Data.Vector (Vector)
+import Data.Vector qualified as Vector
 import Hasql.Decoders qualified as HD
 import Hasql.Encoders qualified as HE
 import Hasql.Pool
@@ -100,13 +102,113 @@ getUserGroupImpl team id_ = do
 -- uuid, time, uuid
 -- uuid, time, uuid, text
 
-data UserGroupQueryParams
+data UserGroupQueryParamsExpanded
   = BaseParams (HE.Params TeamId)
   | SearchParams (HE.Params (TeamId, Text))
   | LastSeenNameParams (HE.Params (TeamId, UserGroupName, UserGroupId))
   | LastSeenNameAndSearchParams (HE.Params (TeamId, UserGroupName, UserGroupId, Text))
   | LastSeenCreatedAtParams (HE.Params (TeamId, UTCTimeMillis, UserGroupId))
   | LastSeenCreatedAtAndSearchParams (HE.Params (TeamId, UTCTimeMillis, UserGroupId, Text))
+
+data UserGroupQueryParams = UserGroupQueryParams
+  { team :: TeamId,
+    searchString :: Maybe Text,
+    sortOrder :: SortOrder,
+    lastSeen :: Maybe (Either UserGroupName UTCTimeMillis, UserGroupId)
+  }
+
+-- TODO: This is unparseable by humans, refactor.
+divide3 :: (Divisible f) => (p -> (a, b, c)) -> f a -> f b -> f c -> f p
+divide3 f a b c = divide (\p -> let (x, y, z) = f p in (x, (y, z))) a (divide id b c)
+
+divide4 :: (Divisible f) => (p -> (a, b, c, d)) -> f a -> f b -> f c -> f d -> f p
+divide4 f a b c d = divide (\p -> let (w, x, y, z) = f p in (w, (x, y, z))) a (divide3 id b c d)
+
+expand :: UserGroupPageRequest -> Session [UserGroupMeta]
+expand UserGroupPageRequest {..} = case (searchString, sortByAndLastSeen, sortOrder) of
+  (Nothing, SortByNameLastSeen Nothing, Asc) -> do
+    let stmt =
+          [vectorStatement|select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
+                           from user_group
+                           where team_id = ($1 :: uuid)
+                           order by name, id ASC
+                           limit ($2 :: int)
+                           |]
+    statement (team, pageSize)
+      . lmap (.toUUID)
+      . refineResult (mapM parseRow . Vector.toList)
+      $ stmt
+  (Nothing, SortByNameLastSeen Nothing, Desc) -> do
+    let stmt =
+          [vectorStatement|select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
+                           from user_group
+                           where team_id = ($1 :: uuid)
+                           order by name, id DESC
+                           limit ($2 :: int)
+                           |]
+    statement (team, pageSize)
+      . lmap (.toUUID)
+      . refineResult (mapM parseRow . Vector.toList)
+      $ stmt
+  (Nothing, SortByNameLastSeen (Just (name, gid)), Asc) -> do
+    let stmt =
+          [vectorStatement|select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
+                           from user_group
+                           where team_id = ($1 :: uuid)
+                           order by name, id Asc
+                           limit ($2 :: int)
+                           |]
+    statement (team, pageSize)
+      . lmap (.toUUID)
+      . refineResult (mapM parseRow . Vector.toList)
+      $ stmt
+  _ -> _
+  where
+    encoder = case (qp.searchString, qp.lastSeen) of
+      (Nothing, Nothing) -> BaseParams encodeId
+      (Nothing, Just (Left _, _)) -> LastSeenNameParams $ divide3 id encodeId encodeGroupName encodeId
+      (Nothing, Just (Right _, _)) -> LastSeenCreatedAtParams $ divide3 id encodeId encodeTime encodeId
+      (Just _, Nothing) -> SearchParams (divide id encodeId encodeText)
+      (Just _, Just (Left _, _)) -> LastSeenNameAndSearchParams $ divide4 id encodeId encodeGroupName encodeId encodeText
+      (Just _, Just (Right _, _)) -> LastSeenCreatedAtAndSearchParams $ divide4 id encodeId encodeTime encodeId encodeText
+
+    encodeId :: HE.Params (Id a)
+    encodeId = contramap toUUID $ HE.param (HE.nonNullable HE.uuid)
+
+    -- encodeSearchStringAndLastSeen :: HE.Params (Maybe Text, Maybe (Either UserGroupName UTCTimeMillis, UserGroupId))
+    -- encodeSearchStringAndLastSeen =
+    --   divide id encodeSearchString encodeLastSeen
+
+    encodeText :: HE.Params Text
+    encodeText = HE.param $ HE.nonNullable HE.text
+
+    encodeGroupName :: HE.Params UserGroupName
+    encodeGroupName = contramap (fromRange . unUserGroupName) encodeText
+
+    encodeTime :: HE.Params UTCTimeMillis
+    encodeTime = contramap fromUTCTimeMillis $ HE.param $ HE.nonNullable HE.timestamptz
+
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
+    decodeRow =
+      HD.rowList
+        ( (,,,)
+            <$> HD.column (HD.nonNullable HD.uuid)
+            <*> HD.column (HD.nonNullable HD.text)
+            <*> HD.column (HD.nonNullable HD.int4)
+            <*> HD.column (HD.nonNullable HD.timestamptz)
+        )
+
+    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroupMeta
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
+      managedBy <- case managedByPre of
+        0 -> pure ManagedByWire
+        1 -> pure ManagedByScim
+        bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
+      name <- userGroupNameFromText namePre
+      let members = Const ()
+      pure $ UserGroup_ {..}
+
+-- enc
 
 getUserGroupsImpl ::
   forall r.
@@ -122,17 +224,19 @@ getUserGroupsImpl req = do
     session = sessionFromParams
       where
         (encodeUtf8 -> sqlBS, queryParams) = paginationStateToSqlQuery req
+        sessionFromParams = do
+          mkSession (statement queryParams) encodeUserGroupQueryParams
 
-        -- fill just the right number of holes in the statement using matching encoders
-        sessionFromParams = case queryParams of
-          BaseParams params -> mkSession (statement _) params
-          _ -> undefined
-        -- [] -> mkSession (statement ()) HE.noParams
-        -- [a] -> mkSession (statement a) encode1
-        -- [a, b] -> mkSession (statement (a, b)) encode2
+        -- -- fill just the right number of holes in the statement using matching encoders
+        -- sessionFromParams = case queryParams of
+        --   BaseParams params -> mkSession (statement _) params
+        --   _ -> undefined
+        -- -- [] -> mkSession (statement ()) HE.noParams
+        -- -- [a] -> mkSession (statement a) encode1
+        -- -- [a, b] -> mkSession (statement (a, b)) encode2
 
-        encode1 = HE.param (HE.nonNullable HE.text)
-        encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
+        -- encode1 = HE.param (HE.nonNullable HE.text)
+        -- encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
 
         -- shared code from all cases in run above
         mkSession :: (Statement params [UserGroupMeta] -> Session [UserGroupMeta]) -> HE.Params params -> Session [UserGroupMeta]
@@ -181,28 +285,29 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
   where
     sel = "select id, name, managed_by, created_at from user_group"
     whr = "where team_id = ($1 :: uuid)"
-    orderBy = T.unwords ["order by", sortBy.toText, sortOrder.toText <> ", id", sortOrder.toText]
+    sortColumn = toSortBy sortByAndLastSeen
+    orderBy = T.unwords ["order by", sortColumn.toText, sortOrder.toText <> ", id", sortOrder.toText]
     limit = T.unwords ["limit", T.pack $ show $ pageSizeToInt pageSize] -- TODO : Don't SQL Injection
     mConstraintClause = mkConstraints
     constraintClause = fromMaybe "" mConstraintClause
-    nameComparisonParamIndex = maybe 2 (const 4) mConstraintClause
+    nameComparisonParamIndex :: Int = maybe 2 (const 4) mConstraintClause
     (like, _) =
       maybe
         ("", [])
         (\st -> ("and name ilike ($" <> T.pack (show nameComparisonParamIndex) <> " :: text)", ["%" <> st <> "%"]))
         searchString
 
-    mkConstraints :: (HasCallStack) => Maybe Text
+    mkConstraints :: Maybe Text
     mkConstraints =
       case sortByAndLastSeen of
         SortByNameLastSeen Nothing -> Nothing
         SortByCreatedAtLastSeen Nothing -> Nothing
-        SortByNameLastSeen (Just (name, id)) ->
+        SortByNameLastSeen (Just _) ->
           Just $ mkQuery "($2 :: text, $3 :: uuid)"
-        SortByCreatedAtLastSeen (Just (createdAt, id)) ->
+        SortByCreatedAtLastSeen (Just _) ->
           Just $ mkQuery "($2 :: time, $3 :: uuid)"
       where
-        lhs = "(" <> sortBy.toText <> ", id)"
+        lhs = "(" <> sortColumn.toText <> ", id)"
         mkQuery rhs = T.unwords ["and", lhs, sortOrder.op, rhs]
 
 createUserGroupImpl ::

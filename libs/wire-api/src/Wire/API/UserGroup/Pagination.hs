@@ -43,19 +43,14 @@ import Wire.Arbitrary as Arbitrary
 -- and all upcoming pages will be empty.
 --
 -- Prior art: https://github.com/chordify/haskell-servant-pagination/
-data PaginationResult = PaginationResult
-  { page :: [UserGroupMeta],
-    state :: Maybe UserGroupPaginationState
-  }
+newtype UserGroupPage = UserGroupPage {page :: [UserGroupMeta]}
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationResult
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
 
-instance ToSchema PaginationResult where
+instance ToSchema UserGroupPage where
   schema =
-    objectWithDocModifier "PaginationResult" docs $
-      PaginationResult
-        <$> page .= field "page" (array schema)
-        <*> undefined
+    objectWithDocModifier "UserGroupPage" docs $
+      UserGroupPage <$> page .= field "page" (array schema)
     where
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
@@ -63,8 +58,8 @@ instance ToSchema PaginationResult where
           ?~ "This is the last page iff it contains fewer rows than requested. There \
              \may return 0 rows on a page."
 
-instance Arbitrary PaginationResult where
-  arbitrary = PaginationResult <$> arbitrary <*> arbitrary
+instance Arbitrary UserGroupPage where
+  arbitrary = UserGroupPage <$> arbitrary
 
 type PaginationQuery =
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
@@ -74,7 +69,7 @@ type PaginationQuery =
     :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
     :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
     :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
-    :> Get '[JSON] PaginationResult
+    :> Get '[JSON] UserGroupPage
 
 type LastSeenNameDesc = Description ""
 
@@ -195,23 +190,4 @@ instance S.ToParamSchema PageSize where
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
 
-------------------------------
-
--- | Offset-based pagination.
---
--- FUTUREWORK: For cursor-based pagination, there is postgres machinery.  It requires
--- transaction handling, but this may not imply table locks, so it may be fine.  (Jumping to
--- the last page may not be that relevant in practice, refining the search is more common.)
--- Next page starts after this (either name or created_at, depending on sortBy).  Id is
--- tie breaker.
-data UserGroupPaginationState
-  = LastSeenName UserGroupName UserGroupId
-  | LastSeenCreatedAt UTCTimeMillis UserGroupId
-  deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPaginationState
-  deriving (Arbitrary) via GenericUniform UserGroupPaginationState
-
-instance ToSchema UserGroupPaginationState where
-  schema = undefined
-
-makePrisms ''UserGroupPaginationState
+makePrisms ''UserGroupPage

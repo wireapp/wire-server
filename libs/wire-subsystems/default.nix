@@ -23,6 +23,7 @@
 , cassandra-util
 , conduit
 , containers
+, contravariant
 , cql
 , crypton
 , currency-codes
@@ -133,6 +134,7 @@ mkDerivation {
     cassandra-util
     conduit
     containers
+    contravariant
     cql
     crypton
     currency-codes
@@ -230,6 +232,7 @@ mkDerivation {
     cassandra-util
     conduit
     containers
+    contravariant
     cql
     crypton
     currency-codes

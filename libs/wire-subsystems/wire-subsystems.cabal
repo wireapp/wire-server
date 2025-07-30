@@ -84,6 +84,7 @@ common common-all
     , cassandra-util
     , conduit
     , containers
+    , contravariant
     , cql
     , crypton
     , currency-codes

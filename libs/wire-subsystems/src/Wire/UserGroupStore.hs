@@ -21,6 +21,11 @@ data UserGroupPageRequest = UserGroupPageRequest
 -- TODO: Find better names
 data SortByAndLastSeen = SortByNameLastSeen (Maybe (UserGroupName, UserGroupId)) | SortByCreatedAtLastSeen (Maybe (UTCTimeMillis, UserGroupId))
 
+toSortBy :: SortByAndLastSeen -> SortBy
+toSortBy = \case
+  SortByNameLastSeen _ -> SortByName
+  SortByCreatedAtLastSeen _ -> SortByCreatedAt
+
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe UserGroup)
