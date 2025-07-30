@@ -156,4 +156,18 @@ testImplicitConnectionNoCollaborator = do
   -- Alice and Bob aren't connected at all.
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
 
-  postOne2OneConversation alice bob team0 "chat-chit" >>= assertLabel 403 "non-binding-team-members"
+testRemoveMember :: (HasCallStack) => App ()
+testRemoveMember = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator
+    owner
+    team
+    bob
+    ["implicit_connection"]
+    >>= assertSuccess
+  removeTeamCollaborator owner team bob >>= assertSuccess
+
+  postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "no-team-member"
