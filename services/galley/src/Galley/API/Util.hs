@@ -161,7 +161,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
     gTeam
       <$$> (filter (Set.member ImplicitConnection . gPermissions) <$> internalGetTeamCollaborations u)
   -- We collect all the relevant uids from same teams as the origin user
-  sameTeamUids <- forM (uTeams ++ colls) $ \team ->
+  sameTeamUids <- forM (uTeams `union` colls) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u (uids \\ join sameTeamUids)
