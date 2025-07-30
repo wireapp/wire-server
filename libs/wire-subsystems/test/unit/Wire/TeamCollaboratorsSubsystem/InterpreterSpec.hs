@@ -5,6 +5,7 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -19,7 +20,7 @@ import Wire.TeamCollaboratorsSubsystem
 
 spec :: Spec
 spec = do
-  describe "NewTeamCollaborator" $ do
+  describe "CreateTeamCollaborator" $ do
     prop "can create and get team collaborators if the caller has sufficient permissions (admin and owner)" $
       \(collaborator :: StoredUser)
        (owner :: StoredUser)
@@ -138,6 +139,29 @@ spec = do
                     catchExpectedError @TeamCollaboratorsError
                       (getAllTeamCollaborators authUser tid)
                 pure $ res === InsufficientRights
+  describe "InternalGetTeamCollaborations" $ do
+    prop "gets all collaborations for all teams" $
+      \(collaborator :: StoredUser)
+       (owner :: StoredUser)
+       (tids :: [TeamId])
+       config
+       ownDomain
+       collabPerms
+       ((EligibleRole role) :: EligibleRole) -> do
+          let localBackend :: MiniBackend = def {users = [collaborator, owner]}
+              authUser = toLocalUnsafe ownDomain owner.id
+              perms = rolePermissions role
+              ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+              teamMap = Map.fromList $ map (,[ownerTeamMember]) tids
+           in runNoFederationStack localBackend teamMap config $
+                do
+                  forM_ tids $ \tid ->
+                    createTeamCollaborator authUser collaborator.id tid collabPerms
+                  collaborators <- internalGetTeamCollaborations collaborator.id
+                  let collaboratorTids = Set.fromList $ map gTeam collaborators
+                  pure $
+                    length collaborators === length tids
+                      .&&. collaboratorTids === (Set.fromList tids)
 
 eligibleRoles :: [Role]
 eligibleRoles = [RoleAdmin, RoleOwner]
