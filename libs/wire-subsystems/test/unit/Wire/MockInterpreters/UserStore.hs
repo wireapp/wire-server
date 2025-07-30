@@ -22,6 +22,7 @@ inMemoryUserStoreInterpreter ::
   (Member (State [StoredUser]) r) =>
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = interpret $ \case
+  CreateUser new _ -> modify $ (newStoredUserToStoredUser new :)
   GetUsers uids -> gets $ filter (\user -> user.id `elem` uids)
   UpdateUser uid update -> modify (map doUpdate)
     where
@@ -42,7 +43,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
       doUpdate :: StoredUser -> StoredUser
       doUpdate u =
         if u.id == uid
-          then u {emailUnvalidated = Just email}
+          then u {emailUnvalidated = Just email} :: StoredUser
           else u
   GetIndexUser uid ->
     gets $ fmap storedUserToIndexUser . find (\user -> user.id == uid)
@@ -136,3 +137,28 @@ lookupHandleImpl h = do
   gets $
     fmap (.id)
       . find ((== Just h) . (.handle))
+
+newStoredUserToStoredUser :: NewStoredUser -> StoredUser
+newStoredUserToStoredUser new =
+  StoredUser
+    { id = new.id,
+      name = new.name,
+      textStatus = new.textStatus,
+      pict = new.pict,
+      email = new.email,
+      emailUnvalidated = new.email,
+      ssoId = new.ssoId,
+      accentId = new.accentId,
+      assets = new.assets,
+      activated = new.activated,
+      status = new.status,
+      expires = new.expires,
+      language = new.language,
+      country = new.country,
+      providerId = new.providerId,
+      serviceId = new.serviceId,
+      handle = new.handle,
+      teamId = new.teamId,
+      managedBy = new.managedBy,
+      supportedProtocols = new.supportedProtocols
+    }

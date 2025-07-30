@@ -2,6 +2,7 @@ module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
 
 import Cassandra
 import Cassandra.Exec (prepared)
+import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
 import Data.Time.Clock
@@ -11,6 +12,7 @@ import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 import Wire.API.Password (Password)
+import Wire.API.Provider.Service
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.StoredUser
@@ -42,17 +44,17 @@ interpretUserStoreCassandra casClient =
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
 
-createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> m ()
+createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  addPrepQuery insertUser (asRecord new)
+  addPrepQuery insertUser (asTuple new)
   for_ ((,) <$> new.service <*> mbConv) $ \(sref, (cid, mbTid)) -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
-    addPrepQuery cqlServiceUser (pid, sid, BotId (userId u), cid, mbTid)
+    addPrepQuery insertServiceUser (pid, sid, BotId new.id, cid, mbTid)
     for_ mbTid $ \tid ->
-      addPrepQuery cqlServiceTeam (pid, sid, BotId (userId u), cid, tid)
+      addPrepQuery insertServiceTeam (pid, sid, BotId new.id, cid, tid)
 
 getUserAuthenticationInfoImpl :: UserId -> Client (Maybe (Maybe Password, AccountStatus))
 getUserAuthenticationInfoImpl uid = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
