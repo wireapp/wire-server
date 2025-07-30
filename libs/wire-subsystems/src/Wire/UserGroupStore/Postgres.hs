@@ -46,7 +46,7 @@ interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
     GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
-    GetUserGroups team listUserGroupsQuery -> getUserGroupsImpl team listUserGroupsQuery
+    GetUserGroups req -> getUserGroupsImpl req
     UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -91,13 +91,29 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
+-- uuid, opt (text, uuid | time, uuid), opt text
+
+-- uuid
+-- uuid, text
+-- uuid, text, uuid
+-- uuid, text, uuid, text
+-- uuid, time, uuid
+-- uuid, time, uuid, text
+
+data UserGroupQueryParams
+  = BaseParams (HE.Params TeamId)
+  | SearchParams (HE.Params (TeamId, Text))
+  | LastSeenNameParams (HE.Params (TeamId, UserGroupName, UserGroupId))
+  | LastSeenNameAndSearchParams (HE.Params (TeamId, UserGroupName, UserGroupId, Text))
+  | LastSeenCreatedAtParams (HE.Params (TeamId, UTCTimeMillis, UserGroupId))
+  | LastSeenCreatedAtAndSearchParams (HE.Params (TeamId, UTCTimeMillis, UserGroupId, Text))
+
 getUserGroupsImpl ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
-  TeamId ->
-  PaginationState ->
+  UserGroupPageRequest ->
   Sem r [UserGroupMeta]
-getUserGroupsImpl tid pstate = do
+getUserGroupsImpl req = do
   pool <- input
   eitherResult <- liftIO $ use pool session
   either throw pure eitherResult
@@ -105,14 +121,15 @@ getUserGroupsImpl tid pstate = do
     session :: Session [UserGroupMeta]
     session = sessionFromParams
       where
-        (encodeUtf8 -> sqlBS, sqlParams) = paginationStateToSqlQuery tid pstate
+        (encodeUtf8 -> sqlBS, queryParams) = paginationStateToSqlQuery req
 
         -- fill just the right number of holes in the statement using matching encoders
-        sessionFromParams = case sqlParams of
-          [] -> mkSession (statement ()) HE.noParams
-          [a] -> mkSession (statement a) encode1
-          [a, b] -> mkSession (statement (a, b)) encode2
-          bad -> error $ "internal error in paginationStateToSqlQuery: " <> show bad
+        sessionFromParams = case queryParams of
+          BaseParams params -> mkSession (statement _) params
+          _ -> undefined
+        -- [] -> mkSession (statement ()) HE.noParams
+        -- [a] -> mkSession (statement a) encode1
+        -- [a, b] -> mkSession (statement (a, b)) encode2
 
         encode1 = HE.param (HE.nonNullable HE.text)
         encode2 = (view _1 >$< encode1) <> (view _2 >$< encode1)
@@ -143,41 +160,50 @@ getUserGroupsImpl tid pstate = do
       let members = Const ()
       pure $ UserGroup_ {..}
 
+-- paginationStateToSqlQuery ::
+--   -- | there is a search query
+--   Bool ->
+--   SortBy ->
+--   SortOrder ->
+--   Text
+-- paginationStateToSqlQuery isThereSearchQuery sortBy sortOrder =
+--   let baseQuery = "select id, name, managed_by, created_at from user_group where team_id = ($1 :: uuid)"
+--       constraints = T.unwords ["and", "(", sortBy.toText, ",id)", sortOrder.op, "($2 ::", sortBy.pgType, ", $3 :: uuid)"]
+--       searchFilter = if isThereSearchQuery then "and name ilike ($4 :: text)" else ""
+--       sorting = T.unwords ["order by", sortBy.toText, sortOrder.toText <> ", id", sortOrder.toText]
+--    in undefined
+
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
-paginationStateToSqlQuery :: TeamId -> PaginationState -> (Text, [Text])
-paginationStateToSqlQuery (Id (UUID.toText -> tid)) pstate =
-  ( T.unwords $ filter (not . T.null) [sel, whr, cstr, like, orderBy, limit],
-    cstrParams <> searchParams
-  )
+paginationStateToSqlQuery :: UserGroupPageRequest -> (Text, UserGroupQueryParams)
+paginationStateToSqlQuery UserGroupPageRequest {..} =
+  (T.unwords $ filter (not . T.null) [sel, whr, constraintClause, like, orderBy, limit], todo)
   where
     sel = "select id, name, managed_by, created_at from user_group"
-    whr = "where team_id='" <> tid <> "'"
-    orderBy = T.unwords ["order by", pstate.sortBy.toText, pstate.sortOrder.toText <> ", id", pstate.sortOrder.toText]
-    limit = T.unwords ["limit", T.pack $ show $ pageSizeToInt pstate.pageSize]
-
-    (cstr, cstrParams) = maybe ("", []) mkConstraints pstate.lastSeen
-    (like, searchParams) =
+    whr = "where team_id = ($1 :: uuid)"
+    orderBy = T.unwords ["order by", sortBy.toText, sortOrder.toText <> ", id", sortOrder.toText]
+    limit = T.unwords ["limit", T.pack $ show $ pageSizeToInt pageSize] -- TODO : Don't SQL Injection
+    mConstraintClause = mkConstraints
+    constraintClause = fromMaybe "" mConstraintClause
+    nameComparisonParamIndex = maybe 2 (const 4) mConstraintClause
+    (like, _) =
       maybe
         ("", [])
-        (\st -> ("and name ilike ($" <> T.pack (show (length cstrParams + 1)) <> " :: text)", ["%" <> st <> "%"]))
-        pstate.searchString
+        (\st -> ("and name ilike ($" <> T.pack (show nameComparisonParamIndex) <> " :: text)", ["%" <> st <> "%"]))
+        searchString
 
-    mkConstraints :: (HasCallStack) => LastSeen -> (Text, [Text])
-    mkConstraints (LastSeen mName mCreatedAt lastId) =
-      (T.unwords ["and", lhs, pstate.sortOrder.op, rhs], params)
+    mkConstraints :: (HasCallStack) => Maybe Text
+    mkConstraints =
+      case sortByAndLastSeen of
+        SortByNameLastSeen Nothing -> Nothing
+        SortByCreatedAtLastSeen Nothing -> Nothing
+        SortByNameLastSeen (Just (name, id)) ->
+          Just $ mkQuery "($2 :: text, $3 :: uuid)"
+        SortByCreatedAtLastSeen (Just (createdAt, id)) ->
+          Just $ mkQuery "($2 :: time, $3 :: uuid)"
       where
-        lhs = "(" <> pstate.sortBy.toText <> ", id)"
-        (rhs, params) = case (mName, mCreatedAt) of
-          (Just ugn, Nothing) ->
-            ( "($1 :: text, '" <> UUID.toText (toUUID lastId) <> "')",
-              [userGroupNameToText ugn]
-            )
-          (Nothing, Just timeStamp) ->
-            ( "('" <> showUTCTimeMillis timeStamp <> "', '" <> UUID.toText (toUUID lastId) <> "')",
-              []
-            )
-          _ -> error "paginationStateToSqlQuery: LastSeen must have either name or createdAt"
+        lhs = "(" <> sortBy.toText <> ", id)"
+        mkQuery rhs = T.unwords ["and", lhs, sortOrder.op, rhs]
 
 createUserGroupImpl ::
   forall r.

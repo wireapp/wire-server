@@ -14,10 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.UserGroup.Pagination where
 
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.Default
@@ -34,6 +35,37 @@ import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
+-- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
+-- also sorting and filtering.  Please generalize when needed elsewhere.
+--
+-- The response does not contain a `has_more` field.  The rule for terminating is: if the page
+-- in the response contains fewer (and possibly 0) entries than requested, it's the last page
+-- and all upcoming pages will be empty.
+--
+-- Prior art: https://github.com/chordify/haskell-servant-pagination/
+data PaginationResult = PaginationResult
+  { page :: [UserGroupMeta],
+    state :: Maybe UserGroupPaginationState
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PaginationResult
+
+instance ToSchema PaginationResult where
+  schema =
+    objectWithDocModifier "PaginationResult" docs $
+      PaginationResult
+        <$> page .= field "page" (array schema)
+        <*> undefined
+    where
+      docs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      docs =
+        description
+          ?~ "This is the last page iff it contains fewer rows than requested. There \
+             \may return 0 rows on a page."
+
+instance Arbitrary PaginationResult where
+  arbitrary = PaginationResult <$> arbitrary <*> arbitrary
+
 type PaginationQuery =
   QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
     :> QueryParam' '[Optional, Strict] "sort_by" SortBy
@@ -42,7 +74,7 @@ type PaginationQuery =
     :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
     :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
     :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
-    :> Get '[JSON] UserGroupPage
+    :> Get '[JSON] PaginationResult
 
 type LastSeenNameDesc = Description ""
 
@@ -59,6 +91,10 @@ data SortBy = SortByName | SortByCreatedAt
 instance GHC.Records.HasField "toText" SortBy Text where
   getField SortByName = "name"
   getField SortByCreatedAt = "created_at"
+
+instance GHC.Records.HasField "pgType" SortBy Text where
+  getField SortByName = "text"
+  getField SortByCreatedAt = "time"
 
 instance Default SortBy where
   def = SortByCreatedAt
@@ -161,31 +197,21 @@ instance Default PageSize where
 
 ------------------------------
 
--- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
--- also sorting and filtering.  Please generalize when needed elsewhere.
+-- | Offset-based pagination.
 --
--- The response does not contain a `has_more` field.  The rule for terminating is: if the page
--- in the response contains fewer (and possibly 0) entries than requested, it's the last page
--- and all upcoming pages will be empty.
---
--- Prior art: https://github.com/chordify/haskell-servant-pagination/
-newtype UserGroupPage = UserGroupPage
-  { page :: [UserGroupMeta]
-  }
+-- FUTUREWORK: For cursor-based pagination, there is postgres machinery.  It requires
+-- transaction handling, but this may not imply table locks, so it may be fine.  (Jumping to
+-- the last page may not be that relevant in practice, refining the search is more common.)
+-- Next page starts after this (either name or created_at, depending on sortBy).  Id is
+-- tie breaker.
+data UserGroupPaginationState
+  = LastSeenName UserGroupName UserGroupId
+  | LastSeenCreatedAt UTCTimeMillis UserGroupId
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPaginationState
+  deriving (Arbitrary) via GenericUniform UserGroupPaginationState
 
-instance ToSchema UserGroupPage where
-  schema =
-    objectWithDocModifier "UserGroupPage" docs $
-      UserGroupPage
-        <$> page .= field "page" (array schema)
-    where
-      docs :: NamedSwaggerDoc -> NamedSwaggerDoc
-      docs =
-        description
-          ?~ "This is the last page iff it contains fewer rows than requested. There \
-             \may return 0 rows on a page."
+instance ToSchema UserGroupPaginationState where
+  schema = undefined
 
-instance Arbitrary UserGroupPage where
-  arbitrary = UserGroupPage <$> arbitrary
+makePrisms ''UserGroupPaginationState
