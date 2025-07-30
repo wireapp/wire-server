@@ -1097,3 +1097,9 @@ getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
 getAllTeamCollaborators owner tid = do
   req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
   submit "GET" req
+
+removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
+removeTeamCollaborator owner tid collaborator = do
+  (_, collabId) <- objQid collaborator
+  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  submit "DELETE" req

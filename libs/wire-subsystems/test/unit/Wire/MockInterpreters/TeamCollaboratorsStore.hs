@@ -22,3 +22,5 @@ inMemoryTeamCollaboratorsStoreInterpreter =
       gets $ \(s :: Map TeamId [TeamCollaborator]) -> (fromMaybe []) (Map.lookup teamId s)
     GetTeamCollaborator teamId userId ->
       gets $ \(s :: Map TeamId [TeamCollaborator]) -> find (\tc -> tc.gUser == userId) =<< Map.lookup teamId s
+    RemoveTeamCollaborator userId teamId ->
+      modify $ Map.alter (fmap $ filter $ (/= userId) . gUser) teamId
