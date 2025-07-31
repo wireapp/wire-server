@@ -125,10 +125,11 @@ deriving via Schema (UserGroup_ (Const ())) instance OpenApi.ToSchema (UserGroup
 
 instance ToSchema (UserGroup_ (Const ())) where
   schema =
-    object "UserGroup" $
-      (\i n m c -> UserGroup_ i n mempty m c)
+    object "UserGroupMeta" $
+      UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
+        <*> (.members) .= pure mempty
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
