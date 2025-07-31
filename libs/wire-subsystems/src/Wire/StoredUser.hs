@@ -134,24 +134,25 @@ data NewStoredUser = NewStoredUser
   { id :: UserId,
     name :: Name,
     textStatus :: Maybe TextStatus,
-    pict :: Maybe Pict,
-    assets :: Maybe [Asset],
+    pict :: Pict,
+    assets :: [Asset],
     email :: Maybe EmailAddress,
     ssoId :: Maybe UserSSOId,
     accentId :: ColourId,
     password :: Maybe Password,
     activated :: Bool,
-    status :: Maybe AccountStatus,
+    status :: AccountStatus,
     expires :: Maybe UTCTimeMillis,
-    language :: Maybe Language,
+    language :: Language,
     country :: Maybe Country,
     providerId :: Maybe ProviderId,
     serviceId :: Maybe ServiceId,
     handle :: Maybe Handle,
     teamId :: Maybe TeamId,
-    managedBy :: Maybe ManagedBy,
-    supportedProtocols :: Maybe (Set BaseProtocolTag)
+    managedBy :: ManagedBy,
+    supportedProtocols :: Set BaseProtocolTag
   }
+  deriving (Show)
 
 recordInstance ''NewStoredUser
 
@@ -164,24 +165,45 @@ deriving instance
     ( UserId,
       Name,
       Maybe TextStatus,
-      Maybe Pict,
-      Maybe [Asset],
+      Pict,
+      [Asset],
       Maybe EmailAddress,
       Maybe UserSSOId,
       ColourId,
       Maybe Password,
       Bool,
-      Maybe AccountStatus,
+      AccountStatus,
       Maybe UTCTimeMillis,
-      Maybe Language,
+      Language,
       Maybe Country,
       Maybe ProviderId,
       Maybe ServiceId,
       Maybe Handle,
       Maybe TeamId,
-      Maybe ManagedBy,
-      Maybe (Set BaseProtocolTag)
+      ManagedBy,
+      Set BaseProtocolTag
     )
 
 instance HasField "service" NewStoredUser (Maybe ServiceRef) where
   getField user = ServiceRef <$> user.serviceId <*> user.providerId
+
+newStoredUserToUser :: Qualified NewStoredUser -> User
+newStoredUserToUser (Qualified new domain) =
+  User
+    { userQualifiedId = Qualified new.id domain,
+      userIdentity = toIdentity True new.email new.ssoId,
+      userEmailUnvalidated = Nothing,
+      userDisplayName = new.name,
+      userTextStatus = new.textStatus,
+      userPict = new.pict,
+      userAssets = new.assets,
+      userAccentId = new.accentId,
+      userStatus = new.status,
+      userLocale = Locale new.language new.country,
+      userService = newServiceRef <$> new.serviceId <*> new.providerId,
+      userHandle = new.handle,
+      userExpire = new.expires,
+      userTeam = new.teamId,
+      userManagedBy = new.managedBy,
+      userSupportedProtocols = new.supportedProtocols
+    }

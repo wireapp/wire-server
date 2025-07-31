@@ -137,8 +137,11 @@ import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.Sem.Now (Now)
 import Wire.SessionStore (SessionStore)
+import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserKeyStore (mkEmailKey)
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.VerificationCode as VerificationCode
@@ -153,7 +156,8 @@ botAPI ::
     Member (Input AuthenticationSubsystemConfig) r,
     Member SessionStore r,
     Member Now r,
-    Member CryptoSign r
+    Member CryptoSign r,
+    Member UserStore r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -613,7 +617,7 @@ deleteAccount pid del = do
     throwStd (errorToWai @E.BadCredentials)
   svcs <- wrapClientE $ DB.listServices pid
   forM_ svcs $ \svc -> do
-    let sid = serviceId svc
+    let sid = svc.serviceId
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     lift $ wrapHttpClient $ RPC.removeServiceConn pid sid
@@ -745,7 +749,8 @@ addBot ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
-    Member CryptoSign r
+    Member CryptoSign r,
+    Member UserStore r
   ) =>
   UserId ->
   ConnId ->
@@ -807,13 +812,38 @@ addBot zuid zcon cid add = do
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
-  let sref = newServiceRef sid pid
-  let usr = User (Qualified (botUserId bid) domain) Nothing Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
+  -- let usr = User (Qualified (botUserId bid) domain) Nothing Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
+  let usr =
+        NewStoredUser
+          { id = botUserId bid,
+            name,
+            textStatus = Nothing,
+            email = Nothing,
+            ssoId = Nothing,
+            password = Nothing,
+            activated = True,
+            pict,
+            assets,
+            accentId = colour,
+            status = Active,
+            expires = Nothing,
+            language = locale.lLanguage,
+            country = locale.lCountry,
+            serviceId = Just sid,
+            providerId = Just pid,
+            handle = Nothing,
+            teamId = Nothing,
+            managedBy = ManagedByWire,
+            supportedProtocols = defSupportedProtocols
+          }
+
+  -- (Qualified (botUserId bid) domain) Nothing Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
+
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ wrapClient $ User.insertAccount usr (Just (cid, cnvTeam cnv)) Nothing True
+  lift $ liftSem $ UserStore.createUser usr (Just (cid, cnvTeam cnv))
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   (clt, _, _) <- do
     _ <- do

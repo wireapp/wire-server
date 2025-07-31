@@ -147,6 +147,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
 import Wire.SessionStore (SessionStore)
+import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
@@ -196,7 +197,8 @@ createUserSpar ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
@@ -207,33 +209,32 @@ createUserSpar new = do
       tid = newUserSparTeamId new
 
   -- Create account
-  account <- lift $ do
-    (account, pw) <- newAccount new' Nothing (Just tid) handle'
-
-    let uid = userId account
+  account <- lift $ newStoredUser new' Nothing (Just tid) handle'
+  domain <- viewFederationDomain
+  let u = newStoredUserToUser (Qualified account domain)
+  lift $ do
+    let uid = account.id
 
     -- FUTUREWORK: make this transactional if possible
-    wrapClient $ Data.insertAccount account Nothing pw False
+    liftSem $ UserStore.createUser account Nothing
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
     liftSem $ GalleyAPIAccess.createSelfConv uid
     liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Events.generateUserEvent uid Nothing (UserCreated account)
-
-    pure account
+    liftSem $ Events.generateUserEvent uid Nothing (UserCreated u)
 
   -- Add to team
-  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing) (newUserSparRole new)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO u tid (SSOIdentity ident Nothing) (newUserSparRole new)
 
   -- Set up feature flags
-  luid <- lift $ ensureLocal (userQualifiedId account)
+  luid <- lift $ ensureLocal (userQualifiedId u)
   lift $ initAccountFeatureConfig (tUnqualified luid)
 
   -- Set handle
   lift $ updateHandle' luid handle'
 
-  pure $! CreateUserResult account Nothing (Just userTeam)
+  pure $! CreateUserResult u Nothing (Just userTeam)
   where
     updateHandle' :: Local UserId -> Maybe Handle -> AppT r ()
     updateHandle' _ Nothing = pure ()
@@ -324,6 +325,7 @@ createUser ::
     Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member UserKeyStore r,
+    Member UserStore r,
     Member UserSubsystem r,
     Member TinyLog r,
     Member Events r,
@@ -387,23 +389,23 @@ createUser rateLimitKey new = do
               )
 
   -- Create account
-  account <- lift $ do
-    mHashedPassword <- traverse (liftSem . HashPassword.hashPassword8 rateLimitKey) new'.newUserPassword
-    let newWithHashedPassword = new' {newUserPassword = mHashedPassword}
-    (account, pw) <- newAccount newWithHashedPassword mbInv tid mbHandle
-
-    let uid = userId account
-    liftSem $ do
-      Log.debug $ field "user" (toByteString uid) . field "action" (val "User.createUser")
-      Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
-
-    wrapClient $ Data.insertAccount account Nothing pw False
-    liftSem $ GalleyAPIAccess.createSelfConv uid
-    liftSem $ Events.generateUserEvent uid Nothing (UserCreated account)
-
-    pure account
-
-  let uid = qUnqualified account.userQualifiedId
+  account <-
+    lift $ do
+      mHashedPassword <-
+        traverse
+          ( liftSem . HashPassword.hashPassword8 rateLimitKey
+          )
+          new'.newUserPassword
+      newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid mbHandle
+  domain <- viewFederationDomain
+  let u = newStoredUserToUser (Qualified account domain)
+  let uid = account.id
+  lift . liftSem $ do
+    Log.debug $ field "user" (toByteString uid) . field "action" (val "User.createUser")
+    Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
+    UserStore.createUser account Nothing
+    GalleyAPIAccess.createSelfConv uid
+    Events.generateUserEvent uid Nothing (UserCreated u)
 
   createUserTeam <- do
     activatedTeam <- lift $ do
@@ -420,13 +422,13 @@ createUser rateLimitKey new = do
 
     joinedTeamInvite <- case teamInvitation of
       Just inv -> do
-        acceptInvitationToTeam account inv (mkEmailKey inv.email) (EmailIdentity inv.email)
+        acceptInvitationToTeam u inv (mkEmailKey inv.email) (EmailIdentity inv.email)
         Team.TeamName nm <- lift $ liftSem $ GalleyAPIAccess.getTeamName inv.teamId
         pure (Just $ CreateUserTeam inv.teamId nm)
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident@(SSOIdentity (UserSSOId _) _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
+      (Just ident@(SSOIdentity (UserSSOId _) _), Just tid') -> Just <$> addUserToTeamSSO u tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
@@ -438,7 +440,7 @@ createUser rateLimitKey new = do
 
   lift $ initAccountFeatureConfig uid
 
-  pure $! CreateUserResult account edata createUserTeam
+  pure $! CreateUserResult u edata createUserTeam
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
@@ -531,6 +533,7 @@ initAccountFeatureConfig uid = do
 createUserInviteViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
+    Member UserStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r
   ) =>
@@ -539,8 +542,8 @@ createUserInviteViaScim ::
 createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) = do
   let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
-  account <- lift . wrapClient $ newAccountInviteViaScim uid extId tid loc name email
-  lift . liftSem . Log.debug $ field "user" (toByteString . userId $ account) . field "action" (val "User.createUserInviteViaScim")
+  account <- lift . wrapClient $ newStoredUserViaScim uid extId tid loc name email
+  lift . liftSem . Log.debug $ field "user" (toByteString account.id) . field "action" (val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
   -- creating the expiry table entry, gc will miss user data.)
@@ -550,13 +553,9 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
     pure $ addUTCTime (realToFrac ttl) now
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
-  let activated =
-        -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
-        -- would not produce an identity, and so we won't have the email address to construct
-        -- the SCIM user.
-        True
-  lift . wrapClient $ Data.insertAccount account Nothing Nothing activated
-  pure account
+  lift . liftSem $ UserStore.createUser account Nothing
+  domain <- viewFederationDomain
+  pure $ newStoredUserToUser $ Qualified account domain
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()
