@@ -34,14 +34,6 @@ import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
--- | Servant combinator for a pagination query.  Actually, it's not merely pagination, but
--- also sorting and filtering.  Please generalize when needed elsewhere.
---
--- The response does not contain a `has_more` field.  The rule for terminating is: if the page
--- in the response contains fewer (and possibly 0) entries than requested, it's the last page
--- and all upcoming pages will be empty.
---
--- Prior art: https://github.com/chordify/haskell-servant-pagination/
 newtype UserGroupPage = UserGroupPage {page :: [UserGroupMeta]}
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
