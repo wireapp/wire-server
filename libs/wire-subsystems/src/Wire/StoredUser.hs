@@ -185,3 +185,24 @@ deriving instance
 
 instance HasField "service" NewStoredUser (Maybe ServiceRef) where
   getField user = ServiceRef <$> user.serviceId <*> user.providerId
+
+newStoredUserToUser :: Qualified NewStoredUser -> User
+newStoredUserToUser (Qualified new domain) =
+  User
+    { userQualifiedId = Qualified new.id domain,
+      userIdentity = toIdentity new.activated new.email new.ssoId,
+      userEmailUnvalidated = Nothing,
+      userDisplayName = new.name,
+      userTextStatus = new.textStatus,
+      userPict = new.pict,
+      userAssets = new.assets,
+      userAccentId = new.accentId,
+      userStatus = new.status,
+      userLocale = Locale new.language new.country,
+      userService = newServiceRef <$> new.serviceId <*> new.providerId,
+      userHandle = new.handle,
+      userExpire = new.expires,
+      userTeam = new.teamId,
+      userManagedBy = new.managedBy,
+      userSupportedProtocols = new.supportedProtocols
+    }

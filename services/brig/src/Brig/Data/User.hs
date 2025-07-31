@@ -91,7 +91,6 @@ newStoredUser ::
   AppT r NewStoredUser
 newStoredUser u inv tid mbHandle = do
   defLoc <- defaultUserLocale <$> asks (.settings)
-  domain <- viewFederationDomain
   uid <-
     Id <$> do
       case (inv, newUserUUID u) of
@@ -107,7 +106,7 @@ newStoredUser u inv tid mbHandle = do
       now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> pure Nothing
-  pure (user uid domain (locale defLoc) expiry u.newUserPassword)
+  pure (user uid (locale defLoc) expiry u.newUserPassword)
   where
     ident = newUserIdentity u
     name = newUserDisplayName u
@@ -121,7 +120,7 @@ newStoredUser u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e mPassword =
+    user uid l e mPassword =
       NewStoredUser
         { id = uid,
           email = ident >>= emailIdentity,
@@ -149,7 +148,6 @@ newStoredUserViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe
 newStoredUserViaScim uid externalId tid locale name email = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   let loc = fromMaybe defLoc locale
-  domain <- viewFederationDomain
   pure $
     NewStoredUser
       { id = uid,

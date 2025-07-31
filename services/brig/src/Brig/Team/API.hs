@@ -85,6 +85,7 @@ import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserKeyStore
+import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 
@@ -148,6 +149,7 @@ data CreateInvitationInviter = CreateInvitationInviter
 createInvitationViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
+    Member UserStore r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member TeamInvitationSubsystem r,
