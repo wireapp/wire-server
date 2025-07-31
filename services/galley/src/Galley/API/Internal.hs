@@ -102,8 +102,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =

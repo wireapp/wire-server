@@ -422,7 +422,7 @@ updateConversationReceiptModeUnqualified ::
     Member MemberStore r,
     Member TinyLog r,
     Member TeamStore r,
-      Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1000,7 +1000,7 @@ addMembersUnqualifiedV2 ::
     Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
-      Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1133,7 +1133,7 @@ updateOtherMemberLocalConv ::
     Member Now r,
     Member MemberStore r,
     Member TeamStore r,
-      Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local ConvId ->
   Local UserId ->
