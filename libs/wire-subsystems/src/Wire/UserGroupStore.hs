@@ -13,18 +13,17 @@ import Wire.API.UserGroup.Pagination
 data UserGroupPageRequest = UserGroupPageRequest
   { team :: TeamId,
     searchString :: Maybe Text,
-    sortByAndLastSeen :: SortByAndLastSeen,
+    paginationState :: PaginationState,
     sortOrder :: SortOrder,
     pageSize :: PageSize
   }
 
--- TODO: Find better names
-data SortByAndLastSeen = SortByNameLastSeen (Maybe (UserGroupName, UserGroupId)) | SortByCreatedAtLastSeen (Maybe (UTCTimeMillis, UserGroupId))
+data PaginationState = PaginationSortByName (Maybe (UserGroupName, UserGroupId)) | PaginationSortByCreatedAt (Maybe (UTCTimeMillis, UserGroupId))
 
-toSortBy :: SortByAndLastSeen -> SortBy
+toSortBy :: PaginationState -> SortBy
 toSortBy = \case
-  SortByNameLastSeen _ -> SortByName
-  SortByCreatedAtLastSeen _ -> SortByCreatedAt
+  PaginationSortByName _ -> SortByName
+  PaginationSortByCreatedAt _ -> SortByCreatedAt
 
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup

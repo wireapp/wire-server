@@ -23,7 +23,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
-import Wire.UserGroupStore (SortByAndLastSeen (..), UserGroupPageRequest (..))
+import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
@@ -176,9 +176,9 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupNam
         UserGroupPageRequest
           { pageSize = fromMaybe def mPageSize,
             sortOrder = fromMaybe Desc sortOrder',
-            sortByAndLastSeen = case (fromMaybe def sortBy') of
-              SortByName -> SortByNameLastSeen $ (,) <$> mLastGroupName <*> mLastGroupId
-              SortByCreatedAt -> SortByCreatedAtLastSeen $ (,) <$> mLastCreatedAt <*> mLastGroupId,
+            paginationState = case (fromMaybe def sortBy') of
+              SortByName -> PaginationSortByName $ (,) <$> mLastGroupName <*> mLastGroupId
+              SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> mLastCreatedAt <*> mLastGroupId,
             team = team,
             searchString = searchString
           }

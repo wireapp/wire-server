@@ -111,36 +111,36 @@ getUserGroupsImpl req = do
   eitherResult <- liftIO $ use pool session
   either throw pure eitherResult
   where
-    session = case (req.searchString, req.sortByAndLastSeen) of
-      (Nothing, SortByNameLastSeen Nothing) -> do
+    session = case (req.searchString, req.paginationState) of
+      (Nothing, PaginationSortByName Nothing) -> do
         let encoder = divide id encodeId encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, pageSizeInt) stmt
-      (Nothing, SortByCreatedAtLastSeen Nothing) -> do
+      (Nothing, PaginationSortByCreatedAt Nothing) -> do
         let encoder = divide id encodeId encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, pageSizeInt) stmt
-      (Nothing, SortByNameLastSeen (Just (name, gid))) -> do
+      (Nothing, PaginationSortByName (Just (name, gid))) -> do
         let encoder = divide4 id encodeId encodeGroupName encodeId encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, name, gid, pageSizeInt) stmt
-      (Nothing, SortByCreatedAtLastSeen (Just (timestamp, gid))) -> do
+      (Nothing, PaginationSortByCreatedAt (Just (timestamp, gid))) -> do
         let encoder = divide4 id encodeId encodeTime encodeId encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, timestamp, gid, pageSizeInt) stmt
-      (Just searchString, SortByNameLastSeen Nothing) -> do
+      (Just searchString, PaginationSortByName Nothing) -> do
         let encoder = divide3 id encodeId encodeText encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, fuzzy searchString, pageSizeInt) stmt
-      (Just searchString, SortByCreatedAtLastSeen Nothing) -> do
+      (Just searchString, PaginationSortByCreatedAt Nothing) -> do
         let encoder = divide3 id encodeId encodeText encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, fuzzy searchString, pageSizeInt) stmt
-      (Just searchString, SortByNameLastSeen (Just (name, gid))) -> do
+      (Just searchString, PaginationSortByName (Just (name, gid))) -> do
         let encoder = divide5 id encodeId encodeGroupName encodeId encodeText encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, name, gid, fuzzy searchString, pageSizeInt) stmt
-      (Just searchString, SortByCreatedAtLastSeen (Just (timestamp, gid))) -> do
+      (Just searchString, PaginationSortByCreatedAt (Just (timestamp, gid))) -> do
         let encoder = divide5 id encodeId encodeTime encodeId encodeText encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, timestamp, gid, fuzzy searchString, pageSizeInt) stmt
@@ -196,7 +196,7 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
   where
     sel = "select id, name, managed_by, created_at from user_group"
     whr = "where team_id = ($1 :: uuid)"
-    sortColumn = toSortBy sortByAndLastSeen
+    sortColumn = toSortBy paginationState
     orderBy = T.unwords ["order by", sortColumnName sortColumn, sortOrderClause sortOrder <> ", id", sortOrderClause sortOrder]
     mConstraintClause = mkConstraints
     constraintClause = fromMaybe "" mConstraintClause
@@ -212,12 +212,12 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
     limit = "limit ($" <> T.pack (show limitParamIndex) <> " :: int)"
     mkConstraints :: Maybe Text
     mkConstraints =
-      case sortByAndLastSeen of
-        SortByNameLastSeen Nothing -> Nothing
-        SortByCreatedAtLastSeen Nothing -> Nothing
-        SortByNameLastSeen (Just _) ->
+      case paginationState of
+        PaginationSortByName Nothing -> Nothing
+        PaginationSortByCreatedAt Nothing -> Nothing
+        PaginationSortByName (Just _) ->
           Just $ mkQuery "($2 :: text, $3 :: uuid)"
-        SortByCreatedAtLastSeen (Just _) ->
+        PaginationSortByCreatedAt (Just _) ->
           Just $ mkQuery "($2 :: time, $3 :: uuid)"
       where
         lhs = "(" <> sortColumnName sortColumn <> ", id)"

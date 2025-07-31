@@ -149,11 +149,11 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
 
     orderByKeys = Imports.sortBy cmp
       where
-        cmp (_, ug) (_, ug') = case (sortByAndLastSeen, sortOrder) of
-          (SortByNameLastSeen _, Asc) -> (n, i) `compare` (n', i')
-          (SortByNameLastSeen _, Desc) -> (n', i') `compare` (n, i)
-          (SortByCreatedAtLastSeen _, Asc) -> (c, i) `compare` (c', i')
-          (SortByCreatedAtLastSeen _, Desc) -> (c', i') `compare` (c, i)
+        cmp (_, ug) (_, ug') = case (paginationState, sortOrder) of
+          (PaginationSortByName _, Asc) -> (n, i) `compare` (n', i')
+          (PaginationSortByName _, Desc) -> (n', i') `compare` (n, i)
+          (PaginationSortByCreatedAt _, Asc) -> (c, i) `compare` (c', i')
+          (PaginationSortByCreatedAt _, Desc) -> (c', i') `compare` (c, i)
           where
             n = ug.name
             n' = ug'.name
@@ -167,11 +167,11 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
       where
         sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
         sqlConds ((_, _), row) =
-          case (sortByAndLastSeen, sortOrder) of
-            (SortByNameLastSeen (Just (name, tieBreaker)), Asc) -> (name, tieBreaker) >= (row.name, row.id_)
-            (SortByNameLastSeen (Just (name, tieBreaker)), Desc) -> (name, tieBreaker) <= (row.name, row.id_)
-            (SortByCreatedAtLastSeen (Just (ts, tieBreaker)), Asc) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
-            (SortByCreatedAtLastSeen (Just (ts, tieBreaker)), Desc) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
+          case (paginationState, sortOrder) of
+            (PaginationSortByName (Just (name, tieBreaker)), Asc) -> (name, tieBreaker) >= (row.name, row.id_)
+            (PaginationSortByName (Just (name, tieBreaker)), Desc) -> (name, tieBreaker) <= (row.name, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
             (_, _) -> False
 
     dropAfterPageSize = take (pageSizeToInt pageSize)
