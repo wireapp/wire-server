@@ -92,31 +92,6 @@ getUserGroupImpl team id_ = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
--- uuid, opt (text, uuid | time, uuid), opt text
-
--- uuid
--- uuid, text
--- uuid, text, uuid
--- uuid, text, uuid, text
--- uuid, time, uuid
--- uuid, time, uuid, text
-
-data UserGroupQueryParamsExpanded
-  = BaseParams (HE.Params TeamId)
-  | SearchParams (HE.Params (TeamId, Text))
-  | LastSeenNameParams (HE.Params (TeamId, UserGroupName, UserGroupId))
-  | LastSeenNameAndSearchParams (HE.Params (TeamId, UserGroupName, UserGroupId, Text))
-  | LastSeenCreatedAtParams (HE.Params (TeamId, UTCTimeMillis, UserGroupId))
-  | LastSeenCreatedAtAndSearchParams (HE.Params (TeamId, UTCTimeMillis, UserGroupId, Text))
-
-data UserGroupQueryParams = UserGroupQueryParams
-  { team :: TeamId,
-    searchString :: Maybe Text,
-    sortOrder :: SortOrder,
-    lastSeen :: Maybe (Either UserGroupName UTCTimeMillis, UserGroupId)
-  }
-
--- TODO: This is unparseable by humans, refactor.
 divide3 :: (Divisible f) => (p -> (a, b, c)) -> f a -> f b -> f c -> f p
 divide3 f a b c = divide (\p -> let (x, y, z) = f p in (x, (y, z))) a (divide id b c)
 
@@ -125,60 +100,6 @@ divide4 f a b c d = divide (\p -> let (w, x, y, z) = f p in (w, (x, y, z))) a (d
 
 divide5 :: (Divisible f) => (p -> (a, b, c, d, e)) -> f a -> f b -> f c -> f d -> f e -> f p
 divide5 f a b c d e = divide (\p -> let (v, w, x, y, z) = f p in (v, (w, x, y, z))) a (divide4 id b c d e)
-
--- manuallyWrittenQueries :: UserGroupPageRequest -> Session [UserGroupMeta]
--- manuallyWrittenQueries UserGroupPageRequest {..} = case (searchString, sortByAndLastSeen, sortOrder) of
---   (Nothing, SortByNameLastSeen Nothing, Asc) -> do
---     let stmt =
---           [vectorStatement|select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
---                            from user_group
---                            where team_id = ($1 :: uuid)
---                            order by name, id ASC
---                            limit ($2 :: int)
---                            |]
---     statement (team, pageSize)
---       . lmap (.toUUID)
---       . refineResult (mapM parseRow . Vector.toList)
---       $ stmt
---   (Nothing, SortByNameLastSeen Nothing, Desc) -> do
---     let stmt =
---           [vectorStatement|select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
---                            from user_group
---                            where team_id = ($1 :: uuid)
---                            order by name, id DESC
---                            limit ($2 :: int)
---                            |]
---     statement (team, pageSize)
---       . lmap (.toUUID)
---       . refineResult (mapM parseRow . Vector.toList)
---       $ stmt
---   (Nothing, SortByNameLastSeen (Just (name, gid)), Asc) -> do
---     let stmt =
---           [vectorStatement|select (id :: uuid), (name :: text), (managed_by :: int), (created_at :: timestamptz)
---                            from user_group
---                            where team_id = ($1 :: uuid)
---                            and (name, id) > ($2 :: int, $3 :: uuid)
---                            order by name, id ASC
---                            limit ($2 :: int)
---                            |]
---     statement (team, name, gid, pageSize)
---       . lmap (.toUUID)
---       . refineResult (mapM parseRow . Vector.toList)
---       $ stmt
---   _ -> undefined
---   where
---     parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroupMeta
---     parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
---       managedBy <- case managedByPre of
---         0 -> pure ManagedByWire
---         1 -> pure ManagedByScim
---         bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
---       name <- userGroupNameFromText namePre
---       let members = Const ()
---       pure $ UserGroup_ {..}
-
--- TODO: Move this away from top level
--- enc
 
 getUserGroupsImpl ::
   forall r.
@@ -234,10 +155,6 @@ getUserGroupsImpl req = do
 
     fuzzy :: Text -> Text
     fuzzy x = "%" <> x <> "%"
-
-    -- encodeSearchStringAndLastSeen :: HE.Params (Maybe Text, Maybe (Either UserGroupName UTCTimeMillis, UserGroupId))
-    -- encodeSearchStringAndLastSeen =
-    --   divide id encodeSearchString encodeLastSeen
 
     encodeText :: HE.Params Text
     encodeText = HE.param $ HE.nonNullable HE.text
