@@ -1061,11 +1061,13 @@ data GetUserGroupsArgs = GetUserGroupsArgs
     sortByKeys :: Maybe String,
     sortOrder :: Maybe String,
     pSize :: Maybe Int,
-    pState :: Maybe String
+    lastName :: Maybe String,
+    lastCreatedAt :: Maybe String,
+    lastId :: Maybe String
   }
 
 instance Default GetUserGroupsArgs where
-  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing
+  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
 getUserGroups user GetUserGroupsArgs {..} = do
@@ -1078,7 +1080,9 @@ getUserGroups user GetUserGroupsArgs {..} = do
               ("sort_by",) <$> sortByKeys,
               ("sort_order",) <$> sortOrder,
               (("page_size",) . show) <$> pSize,
-              ("pagination_state",) <$> pState
+              ("last_seen_name",) <$> lastName,
+              ("last_seen_created_at",) <$> lastCreatedAt,
+              ("last_seen_id",) <$> lastId
             ]
         )
 

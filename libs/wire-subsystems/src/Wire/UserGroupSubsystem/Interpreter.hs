@@ -24,6 +24,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
+import Wire.UserGroupStore (SortByAndLastSeen (..), UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
@@ -40,8 +41,8 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
-  GetGroups getter q sortByKeys sortOrder pSize pState ->
-    getUserGroupsImpl getter q sortByKeys sortOrder pSize pState
+  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId ->
+    getUserGroupsImpl getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -166,53 +167,28 @@ getUserGroupsImpl ::
   Maybe SortBy ->
   Maybe SortOrder ->
   Maybe PageSize ->
-  Maybe PaginationState ->
+  Maybe UserGroupName ->
+  Maybe UTCTimeMillis ->
+  Maybe UserGroupId ->
   Sem r UserGroupPage
-getUserGroupsImpl getter searchString sortBy' sortOrder' pSize pState = do
+getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
-  page :: [UserGroupMeta] <- Store.getUserGroups team currentPaginationState
-  pure (UserGroupPage page (nextPaginationState page))
+  let pageReq =
+        UserGroupPageRequest
+          { pageSize = fromMaybe def mPageSize,
+            sortOrder = fromMaybe Desc sortOrder',
+            sortByAndLastSeen = case (fromMaybe def sortBy') of
+              SortByName -> SortByNameLastSeen $ (,) <$> mLastGroupName <*> mLastGroupId
+              SortByCreatedAt -> SortByCreatedAtLastSeen $ (,) <$> mLastCreatedAt <*> mLastGroupId,
+            team = team,
+            searchString = searchString
+          }
+  UserGroupPage <$> Store.getUserGroups pageReq
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
-
-    currentPaginationState :: PaginationState
-    currentPaginationState = case pState of
-      Just oldState -> oldState
-      Nothing ->
-        let sb = fromMaybe def sortBy'
-            so = fromMaybe (defaultSortOrder sb) sortOrder'
-         in PaginationState
-              { searchString,
-                sortBy = sb,
-                sortOrder = so,
-                pageSize = fromMaybe def pSize,
-                lastSeen = Nothing
-              }
-
-    nextPaginationState :: [UserGroupMeta] -> PaginationState
-    nextPaginationState [] = currentPaginationState
-    nextPaginationState (last -> lseen) =
-      currentPaginationState
-        { lastSeen =
-            Just
-              ( LastSeen
-                  { name = mName,
-                    createdAt = mCreatedAt,
-                    tieBreaker = i
-                  }
-              )
-        }
-      where
-        mName = case currentPaginationState.sortBy of
-          SortByName -> Just lseen.name
-          SortByCreatedAt -> Nothing
-        mCreatedAt = case currentPaginationState.sortBy of
-          SortByName -> Nothing
-          SortByCreatedAt -> Just lseen.createdAt
-        i = lseen.id_
 
 updateGroupImpl ::
   ( Member UserSubsystem r,

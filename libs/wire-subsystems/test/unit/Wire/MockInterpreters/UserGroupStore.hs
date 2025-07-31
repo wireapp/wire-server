@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- FUTUREWORK: move this next to Postgres interpreter; write integration tests that run random,
@@ -39,6 +40,8 @@ data UserGroupInMemState = UserGroupInMemState
   { userGroups :: Map (TeamId, UserGroupId) UserGroup,
     -- | current time.  we could use `Now` from polysemy-wire-zoo, but that doesn't allow
     -- moving the clock deliberately.
+    --
+    -- TODO: Use `Now` effect
     now :: UTCTimeMillis,
     -- | time passing before every action.  default is 0, so you can control time by setClock,
     -- moveClock (see below).
@@ -97,7 +100,7 @@ userGroupStoreTestInterpreter =
     (moveClockOneStep >>) . \case
       CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
       GetUserGroup tid gid -> getUserGroupImpl tid gid
-      GetUserGroups tid listUserGroupsQuery -> getUserGroupsImpl tid listUserGroupsQuery
+      GetUserGroups req -> getUserGroupsImpl req
       UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
       DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
       AddUser gid uid -> addUserImpl gid uid
@@ -122,8 +125,8 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> PaginationState -> Sem r [UserGroupMeta]
-getUserGroupsImpl tid pstate = do
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r [UserGroupMeta]
+getUserGroupsImpl UserGroupPageRequest {..} = do
   ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList . (.userGroups)) <$> get
   where
     sieve,
@@ -141,18 +144,18 @@ getUserGroupsImpl tid pstate = do
         . narrowToSearchString
         . narrowToTeam
 
-    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == tid)
+    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == team)
 
     narrowToSearchString =
-      filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) pstate.searchString)
+      filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) searchString)
 
     orderByKeys = Imports.sortBy cmp
       where
-        cmp (_, ug) (_, ug') = case (pstate.sortBy, pstate.sortOrder) of
-          (SortByName, Asc) -> (n, i) `compare` (n', i')
-          (SortByName, Desc) -> (n', i') `compare` (n, i)
-          (SortByCreatedAt, Asc) -> (c, i) `compare` (c', i')
-          (SortByCreatedAt, Desc) -> (c', i') `compare` (c, i)
+        cmp (_, ug) (_, ug') = case (sortByAndLastSeen, sortOrder) of
+          (SortByNameLastSeen _, Asc) -> (n, i) `compare` (n', i')
+          (SortByNameLastSeen _, Desc) -> (n', i') `compare` (n, i)
+          (SortByCreatedAtLastSeen _, Asc) -> (c, i) `compare` (c', i')
+          (SortByCreatedAtLastSeen _, Desc) -> (c', i') `compare` (c, i)
           where
             n = ug.name
             n' = ug'.name
@@ -166,15 +169,14 @@ getUserGroupsImpl tid pstate = do
       where
         sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
         sqlConds ((_, _), row) =
-          case (pstate.lastSeen, pstate.sortOrder, pstate.sortBy) of
-            (Just (LastSeen (Just name) _ tieBreaker), Asc, SortByName) -> (name, tieBreaker) >= (row.name, row.id_)
-            (Just (LastSeen (Just name) _ tieBreaker), Desc, SortByName) -> (name, tieBreaker) <= (row.name, row.id_)
-            (Just (LastSeen _ (Just ts) tieBreaker), Asc, SortByCreatedAt) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
-            (Just (LastSeen _ (Just ts) tieBreaker), Desc, SortByCreatedAt) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
-            (Nothing, _, _) -> False
-            _ -> error $ "unexpected lastSeen: " <> show (pstate.lastSeen, pstate.sortOrder, pstate.sortBy)
+          case (sortByAndLastSeen, sortOrder) of
+            (SortByNameLastSeen (Just (name, tieBreaker)), Asc) -> (name, tieBreaker) >= (row.name, row.id_)
+            (SortByNameLastSeen (Just (name, tieBreaker)), Desc) -> (name, tieBreaker) <= (row.name, row.id_)
+            (SortByCreatedAtLastSeen (Just (ts, tieBreaker)), Asc) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
+            (SortByCreatedAtLastSeen (Just (ts, tieBreaker)), Desc) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
+            (_, _) -> False
 
-    dropAfterPageSize = take (pageSizeToInt pstate.pageSize)
+    dropAfterPageSize = take (pageSizeToInt pageSize)
 
 updateUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do

@@ -4,6 +4,7 @@ module Test.UserGroup where
 
 import API.Brig
 import API.Galley
+import Control.Error (lastMay)
 import Notifications (isUserGroupCreatedNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -91,17 +92,26 @@ testUserGroupGetGroups = do
       resp.json %. "name" `shouldMatch` gname
       resp.json %. "members" `shouldMatch` ([] :: [()])
 
-  let runSearch :: (HasCallStack) => GetUserGroupsArgs -> [String] -> App String
+  let runSearch :: (HasCallStack) => GetUserGroupsArgs -> [String] -> App (Maybe (String, String, String))
       runSearch args expected =
         bindResponse (getUserGroups owner args) $ \resp -> do
           resp.status `shouldMatchInt` 200
           found <- ((%. "name") `mapM`) =<< asList =<< resp.json %. "page"
           found `shouldMatch` expected
-          resp.json %. "state" & asString
+          results <- asList $ resp.json %. "page"
+          for (lastMay results) $ \lastGroup ->
+            (,,)
+              <$> asString (lastGroup %. "name")
+              <*> asString (lastGroup %. "createdAt")
+              <*> asString (lastGroup %. "id")
 
-  -- filter & sort
+  -- Default sort by is createdAt, and sortOrder is DESC
   _ <- runSearch def {q = Just "C"} ["C", "CCC", "CC"]
-  _ <- runSearch def {q = Just "CC", sortByKeys = Just "name"} ["CC", "CCC"]
+
+  -- Default sortOrder is DESC, regardless of sortBy
+  _ <- runSearch def {q = Just "CC", sortByKeys = Just "name"} ["CCC", "CC"]
+
+  -- Test combinations of sortBy and sortOrder:
   _ <-
     runSearch
       def {sortByKeys = Just "name", sortOrder = Just "asc"}
@@ -162,31 +172,26 @@ testUserGroupGetGroups = do
             "G"
           ]
       )
-  _ <-
-    runSearch
-      def {sortByKeys = Just "name", q = Just "CC"}
-      [ "CC",
-        "CCC"
-      ]
 
-  -- paginate
-  pState1 <-
+  -- Test sorting and filtering works across pages
+  let firstPageParams = def {sortByKeys = Just "name", sortOrder = Just "desc", pSize = Just 3}
+  Just (name1, createdAt1, id1) <-
     runSearch
-      def {sortByKeys = Just "name", sortOrder = Just "desc", pSize = Just 3}
+      firstPageParams
       [ "G",
         "First group",
         "F"
       ]
-  pState2 <-
+  Just (name2, createdAt2, id2) <-
     runSearch
-      def {pState = Just pState1}
+      firstPageParams {lastName = Just name1, lastCreatedAt = Just createdAt1, lastId = Just id1}
       [ "E",
         "D",
         "CCC"
       ]
-  pState3 <-
+  Just (name3, createdAt3, id3) <-
     runSearch
-      def {pState = Just pState2}
+      firstPageParams {lastName = Just name2, lastCreatedAt = Just createdAt2, lastId = Just id2}
       [ "CC",
         "C",
         "B"
@@ -194,6 +199,5 @@ testUserGroupGetGroups = do
 
   void
     $ runSearch
-      def {pState = Just pState3}
-      [ "A"
-      ]
+      firstPageParams {lastName = Just name3, lastCreatedAt = Just createdAt3, lastId = Just id3}
+      ["A"]

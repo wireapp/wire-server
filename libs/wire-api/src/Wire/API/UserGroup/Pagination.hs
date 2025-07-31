@@ -158,19 +158,22 @@ instance S.ToParamSchema SortOrder where
 
 ------------------------------
 
-newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int}
+newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int32}
   deriving (Eq, Show, Ord, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
 
 pageSizeToInt :: PageSize -> Int
-pageSizeToInt = fromRange . fromPageSize
+pageSizeToInt = fromIntegral . pageSizeToInt32
 
-pageSizeFromInt :: Int -> Either Text PageSize
-pageSizeFromInt = fmap PageSize . first T.pack . (Range.checkedEither @Int @1 @500 :: Int -> Either String (Range 1 500 Int))
+pageSizeToInt32 :: PageSize -> Int32
+pageSizeToInt32 = fromRange . fromPageSize
+
+pageSizeFromInt :: Int32 -> Either Text PageSize
+pageSizeFromInt = fmap PageSize . first T.pack . Range.checkedEither
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
-pageSizeFromIntUnsafe :: Int -> PageSize
-pageSizeFromIntUnsafe = PageSize . (unsafeRange @Int @1 @500) . (+ 1) . (`mod` 500) . (+ (-1))
+pageSizeFromIntUnsafe :: Int32 -> PageSize
+pageSizeFromIntUnsafe = PageSize . unsafeRange . (+ 1) . (`mod` 500) . (+ (-1))
 
 instance Arbitrary PageSize where
   arbitrary = pageSizeFromIntUnsafe <$> arbitrary
@@ -179,7 +182,7 @@ instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema
 
 instance FromHttpApiData PageSize where
-  parseUrlPiece = parseUrlPiece @Int >=> pageSizeFromInt
+  parseUrlPiece = parseUrlPiece >=> pageSizeFromInt
 
 instance S.ToParamSchema PageSize where
   toParamSchema _ =
