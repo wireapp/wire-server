@@ -31,7 +31,7 @@ import Wire.GalleyAPIAccess
 import Wire.MockInterpreters.Random
 import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Rnd
-import Wire.TeamSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError)
 import Wire.UserSubsystem
@@ -76,6 +76,7 @@ type UserGroupStoreInMemEffectStack =
 
 type UserGroupStoreInMemEffectStackTest =
   '[ UserSubsystem,
+     TeamSubsystem,
      GalleyAPIAccess
    ]
     `Append` UserGroupStoreInMemEffectStack

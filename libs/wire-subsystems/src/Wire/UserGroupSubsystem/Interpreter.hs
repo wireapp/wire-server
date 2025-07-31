@@ -149,7 +149,7 @@ mkGetterCanSeeAll ::
   TeamId ->
   MaybeT (Sem r) Bool
 mkGetterCanSeeAll getter team = do
-  creatorTeamMember <- MaybeT $ getTeamMember getter team
+  creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
   pure . isAdminOrOwner $ creatorTeamMember ^. permissions
 
 getUserGroupsImpl ::

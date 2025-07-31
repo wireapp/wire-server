@@ -152,7 +152,6 @@ type GalleyEffects1 =
      Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
-     Input UTCTime,
      Now,
      Queue DeleteItem,
      TinyLog,
