@@ -271,19 +271,6 @@ getUserGroupsImpl req = do
       let members = Const ()
       pure $ UserGroup_ {..}
 
--- paginationStateToSqlQuery ::
---   -- | there is a search query
---   Bool ->
---   SortBy ->
---   SortOrder ->
---   Text
--- paginationStateToSqlQuery isThereSearchQuery sortBy sortOrder =
---   let baseQuery = "select id, name, managed_by, created_at from user_group where team_id = ($1 :: uuid)"
---       constraints = T.unwords ["and", "(", sortBy.toText, ",id)", sortOrder.op, "($2 ::", sortBy.pgType, ", $3 :: uuid)"]
---       searchFilter = if isThereSearchQuery then "and name ilike ($4 :: text)" else ""
---       sorting = T.unwords ["order by", sortBy.toText, sortOrder.toText <> ", id", sortOrder.toText]
---    in undefined
-
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
 paginationStateToSqlQuery :: UserGroupPageRequest -> Text
@@ -293,7 +280,7 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
     sel = "select id, name, managed_by, created_at from user_group"
     whr = "where team_id = ($1 :: uuid)"
     sortColumn = toSortBy sortByAndLastSeen
-    orderBy = T.unwords ["order by", sortColumn.toText, sortOrder.toText <> ", id", sortOrder.toText]
+    orderBy = T.unwords ["order by", sortColumnName sortColumn, sortOrderClause sortOrder <> ", id", sortOrderClause sortOrder]
     mConstraintClause = mkConstraints
     constraintClause = fromMaybe "" mConstraintClause
     nameComparisonParamIndex :: Int = maybe 2 (const 4) mConstraintClause
@@ -316,8 +303,8 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
         SortByCreatedAtLastSeen (Just _) ->
           Just $ mkQuery "($2 :: time, $3 :: uuid)"
       where
-        lhs = "(" <> sortColumn.toText <> ", id)"
-        mkQuery rhs = T.unwords ["and", lhs, sortOrder.op, rhs]
+        lhs = "(" <> sortColumnName sortColumn <> ", id)"
+        mkQuery rhs = T.unwords ["and", lhs, sortOrderOperator sortOrder, rhs]
 
 createUserGroupImpl ::
   forall r.

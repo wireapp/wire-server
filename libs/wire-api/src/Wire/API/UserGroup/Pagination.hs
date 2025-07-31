@@ -27,7 +27,6 @@ import Data.Range as Range
 import Data.Schema
 import Data.Text qualified as T
 import GHC.Generics
-import GHC.Records (HasField (getField))
 import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
@@ -64,13 +63,10 @@ data SortBy = SortByName | SortByCreatedAt
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
 
-instance GHC.Records.HasField "toText" SortBy Text where
-  getField SortByName = "name"
-  getField SortByCreatedAt = "created_at"
-
-instance GHC.Records.HasField "pgType" SortBy Text where
-  getField SortByName = "text"
-  getField SortByCreatedAt = "time"
+sortColumnName :: SortBy -> Text
+sortColumnName = \case
+  SortByName -> "name"
+  SortByCreatedAt -> "created_at"
 
 instance Default SortBy where
   def = SortByCreatedAt
@@ -103,13 +99,15 @@ data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortOrder
 
-instance GHC.Records.HasField "op" SortOrder Text where
-  getField Asc = ">"
-  getField Desc = "<"
+sortOrderClause :: SortOrder -> Text
+sortOrderClause = \case
+  Asc -> "asc"
+  Desc -> "desc"
 
-instance GHC.Records.HasField "toText" SortOrder Text where
-  getField Asc = "asc"
-  getField Desc = "desc"
+sortOrderOperator :: SortOrder -> Text
+sortOrderOperator = \case
+  Asc -> ">"
+  Desc -> "<"
 
 instance Arbitrary SortOrder where
   arbitrary = Arbitrary.elements [minBound ..]
