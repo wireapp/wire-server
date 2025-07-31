@@ -116,7 +116,6 @@ data BrigError
   | RateLimitExceeded
   | MlsRemovalNotAllowed
   | UserGroupNotFound
-  | UserGroupInvalidQueryParams
   | UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | DuplicateEntry
@@ -351,8 +350,6 @@ type instance MapError 'RateLimitExceeded = 'StaticError 429 "too-many-requests"
 type instance MapError 'MlsRemovalNotAllowed = 'StaticError 409 "mls-protocol-error" "MLS protocol cannot be removed"
 
 type instance MapError 'UserGroupNotFound = 'StaticError 404 "user-group-not-found" "User group not found"
-
-type instance MapError 'UserGroupInvalidQueryParams = 'StaticError 400 "user-group-invalid-query" "Query parameters for listing user groups are invalid"
 
 type instance MapError 'UserGroupNotATeamAdmin = 'StaticError 403 "user-group-write-forbidden" "Only team admins can create, update, or delete user groups."
 

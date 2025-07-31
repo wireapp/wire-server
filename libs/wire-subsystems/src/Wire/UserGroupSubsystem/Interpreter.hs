@@ -8,7 +8,6 @@ import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Imports
-import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
@@ -52,7 +51,6 @@ data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
-  | UserGroupInvalidQueryParams LText
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -61,7 +59,6 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
-    UserGroupInvalidQueryParams msg -> (errorToWai @E.UserGroupInvalidQueryParams) {Wai.message = msg}
 
 createUserGroupImpl ::
   ( Member UserSubsystem r,
