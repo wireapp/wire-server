@@ -1980,6 +1980,18 @@ type TeamsAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
+           "update-team-collaborator"
+           ( Summary "Update a collaborator permissions from the team."
+               :> From 'V11
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] (Set CollaboratorPermission)
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
            "remove-team-collaborator"
            ( Summary "Remove a collaborator from the team."
                :> From 'V11
