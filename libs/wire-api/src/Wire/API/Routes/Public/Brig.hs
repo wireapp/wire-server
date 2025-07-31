@@ -27,6 +27,7 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
+import Data.Json.Util
 import Data.Misc
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
@@ -322,7 +323,14 @@ type UserGroupAPI =
            ( From 'V10
                :> ZLocalUser
                :> "user-groups"
-               :> PaginationQuery
+               :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
+               :> QueryParam' '[Optional, Strict] "sort_by" SortBy
+               :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
+               :> QueryParam' '[Optional, Strict] "page_size" PageSize
+               :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
+               :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
+               :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
+               :> Get '[JSON] UserGroupPage
            )
     :<|> Named
            "update-user-group"

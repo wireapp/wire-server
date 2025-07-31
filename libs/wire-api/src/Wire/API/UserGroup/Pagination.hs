@@ -22,7 +22,6 @@ import Control.Lens (makePrisms, (?~))
 import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.Default
-import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi qualified as S
 import Data.Range as Range
 import Data.Schema
@@ -60,16 +59,6 @@ instance ToSchema UserGroupPage where
 
 instance Arbitrary UserGroupPage where
   arbitrary = UserGroupPage <$> arbitrary
-
-type PaginationQuery =
-  QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
-    :> QueryParam' '[Optional, Strict] "sort_by" SortBy
-    :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
-    :> QueryParam' '[Optional, Strict] "page_size" PageSize
-    :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
-    :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
-    :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
-    :> Get '[JSON] UserGroupPage
 
 type LastSeenNameDesc = Description ""
 
