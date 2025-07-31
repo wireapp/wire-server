@@ -159,3 +159,33 @@ testRemoveMember = do
   removeTeamCollaborator owner team bob >>= assertSuccess
 
   postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "no-team-member"
+
+testUpdateMember :: (HasCallStack) => App ()
+testUpdateMember = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator
+    owner
+    team
+    bob
+    ["implicit_connection"]
+    >>= assertSuccess
+  postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess
+
+  updateTeamCollaborator
+    owner
+    team
+    bob
+    ["create_team_conversation", "implicit_connection"]
+    >>= assertSuccess
+  postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess
+
+  updateTeamCollaborator
+    owner
+    team
+    bob
+    []
+    >>= assertSuccess
+  postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "operation-denied"
