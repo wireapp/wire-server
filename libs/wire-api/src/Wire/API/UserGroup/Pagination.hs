@@ -51,12 +51,6 @@ instance ToSchema UserGroupPage where
 instance Arbitrary UserGroupPage where
   arbitrary = UserGroupPage <$> arbitrary
 
-type LastSeenNameDesc = Description ""
-
-type LastSeenCreatedAtDesc = Description ""
-
-type LastSeenIdDesc = Description ""
-
 ------------------------------
 
 data SortBy = SortByName | SortByCreatedAt

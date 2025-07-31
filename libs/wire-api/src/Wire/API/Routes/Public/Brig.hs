@@ -292,6 +292,12 @@ type UserAPI =
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
            )
 
+type LastSeenNameDesc = Description "`name` of the last seen user group, used to get the next page when sorting by name."
+
+type LastSeenCreatedAtDesc = Description "`created_at` field of the last seen user group, used to get the next page when sorting by created_at."
+
+type LastSeenIdDesc = Description "`id` of the last seen group, used to get the next page. **Must** be sent to get the next page."
+
 type UserGroupAPI =
   Named
     "create-user-group"
