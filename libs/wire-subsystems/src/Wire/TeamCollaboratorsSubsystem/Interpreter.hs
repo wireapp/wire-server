@@ -38,6 +38,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
+  UpdateTeamCollaborator zUser user team perms -> updateTeamCollaboratorImpl zUser user team perms
   RemoveTeamCollaborator zUser user team -> removeTeamCollaboratorImpl zUser user team
 
 internalGetTeamCollaboratorImpl ::
@@ -103,6 +104,46 @@ getAllTeamCollaboratorsImpl ::
 getAllTeamCollaboratorsImpl zUser team = do
   guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team
+
+updateTeamCollaboratorImpl ::
+  ( Member TeamSubsystem r,
+    Member (Error TeamCollaboratorsError) r,
+    Member Store.TeamCollaboratorsStore r,
+    Member Now r,
+    Member NotificationSubsystem r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+updateTeamCollaboratorImpl zUser user team perms = do
+  guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
+  Store.updateTeamCollaborator user team perms
+  unless (Set.member ImplicitConnection perms) $
+    -- TODO gdf remove O2O conversations
+    pure ()
+
+  now <- get
+  let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
+  teamMembersList <- internalGetTeamAdmins team
+  let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
+  -- TODO: Review the event's values
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified zUser),
+          json = toJSONObject $ event,
+          recipients =
+            ( \uid ->
+                Recipient
+                  { recipientUserId = uid,
+                    recipientClients = Push.RecipientClientsAll
+                  }
+            )
+              <$> teamMembers,
+          transient = False
+        }
+    ]
 
 removeTeamCollaboratorImpl ::
   ( Member TeamSubsystem r,
