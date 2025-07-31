@@ -208,12 +208,11 @@ createUserSpar new = do
 
   -- Create account
   account <- lift $ do
-    (account, pw) <- newAccount new' Nothing (Just tid) handle'
-
-    let uid = userId account
+    account <- newStoredUser new' Nothing (Just tid) handle'
+    let uid = account.id
 
     -- FUTUREWORK: make this transactional if possible
-    wrapClient $ Data.insertAccount account Nothing pw False
+    liftSem $ UserStore.createUser account Nothing
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
@@ -390,14 +389,14 @@ createUser rateLimitKey new = do
   account <- lift $ do
     mHashedPassword <- traverse (liftSem . HashPassword.hashPassword8 rateLimitKey) new'.newUserPassword
     let newWithHashedPassword = new' {newUserPassword = mHashedPassword}
-    (account, pw) <- newAccount newWithHashedPassword mbInv tid mbHandle
+    account <- newAccount newWithHashedPassword mbInv tid mbHandle
 
-    let uid = userId account
+    let uid = account.id
     liftSem $ do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.createUser")
       Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
-    wrapClient $ Data.insertAccount account Nothing pw False
+    wrapClient $ UserStore.createUser account Nothing
     liftSem $ GalleyAPIAccess.createSelfConv uid
     liftSem $ Events.generateUserEvent uid Nothing (UserCreated account)
 
@@ -540,7 +539,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
   let emKey = mkEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid extId tid loc name email
-  lift . liftSem . Log.debug $ field "user" (toByteString . userId $ account) . field "action" (val "User.createUserInviteViaScim")
+  lift . liftSem . Log.debug $ field "user" (toByteString account.id) . field "action" (val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
   -- creating the expiry table entry, gc will miss user data.)
@@ -550,12 +549,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
     pure $ addUTCTime (realToFrac ttl) now
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
-  let activated =
-        -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
-        -- would not produce an identity, and so we won't have the email address to construct
-        -- the SCIM user.
-        True
-  lift . wrapClient $ Data.insertAccount account Nothing Nothing activated
+  lift . wrapClient $ UserStore.createUser account Nothing
   pure account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
