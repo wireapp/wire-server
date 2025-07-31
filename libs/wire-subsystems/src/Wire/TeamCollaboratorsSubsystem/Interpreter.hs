@@ -37,6 +37,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+  UpdateTeamCollaborator zUser user team perms -> updateTeamCollaboratorImpl zUser user team perms
   InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
@@ -94,8 +95,52 @@ internalGetTeamCollaboratorsWithIdsImpl ::
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
+updateTeamCollaboratorImpl ::
+  ( Member TeamSubsystem r,
+    Member (Error TeamCollaboratorsError) r,
+    Member Store.TeamCollaboratorsStore r,
+    Member Now r,
+    Member NotificationSubsystem r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+updateTeamCollaboratorImpl zUser user team perms = do
+  guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
+  Store.updateTeamCollaborator user team perms
+  unless (Set.member ImplicitConnection perms) $
+    -- TODO gdf remove O2O conversations
+    pure ()
+
+  now <- get
+  let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
+  teamMembersList <- internalGetTeamAdmins team
+  let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
+  -- TODO: Review the event's values
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified zUser),
+          json = toJSONObject $ event,
+          recipients =
+            ( \uid ->
+                Recipient
+                  { recipientUserId = uid,
+                    recipientClients = Push.RecipientClientsAll
+                  }
+            )
+              <$> teamMembers,
+          transient = False
+        }
+    ]
+
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r,
+    Member (Error TeamCollaboratorsError) r,
+    Member Store.TeamCollaboratorsStore r,
+    Member Now r,
+    Member NotificationSubsystem r,
     Member ConversationsSubsystem r
   ) =>
   UserId ->
