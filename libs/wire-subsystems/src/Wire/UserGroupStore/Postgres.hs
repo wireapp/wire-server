@@ -218,7 +218,7 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
         PaginationSortByName (Just _) ->
           Just $ mkQuery "($2 :: text, $3 :: uuid)"
         PaginationSortByCreatedAt (Just _) ->
-          Just $ mkQuery "($2 :: time, $3 :: uuid)"
+          Just $ mkQuery "($2 :: timestamptz, $3 :: uuid)"
       where
         lhs = "(" <> sortColumnName sortColumn <> ", id)"
         mkQuery rhs = T.unwords ["and", lhs, sortOrderOperator sortOrder, rhs]
