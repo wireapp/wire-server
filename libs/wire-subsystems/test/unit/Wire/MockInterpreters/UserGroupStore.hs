@@ -40,8 +40,6 @@ data UserGroupInMemState = UserGroupInMemState
   { userGroups :: Map (TeamId, UserGroupId) UserGroup,
     -- | current time.  we could use `Now` from polysemy-wire-zoo, but that doesn't allow
     -- moving the clock deliberately.
-    --
-    -- TODO: Use `Now` effect
     now :: UTCTimeMillis,
     -- | time passing before every action.  default is 0, so you can control time by setClock,
     -- moveClock (see below).
