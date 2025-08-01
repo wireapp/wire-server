@@ -1,15 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.EmailSubsystem.Interpreter
-  ( emailSubsystemInterpreter,
-    mkMimeAddress,
-    renderInvitationUrl,
-  )
-where
+module Wire.EmailSubsystem.Interpreter where
 
 import Data.Code qualified as Code
 import Data.Id
 import Data.Json.Util
+import Data.Map as Map
 import Data.Range (fromRange)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
@@ -17,6 +13,8 @@ import Data.Text.Lazy (toStrict)
 import Imports
 import Network.Mail.Mime
 import Polysemy
+import Polysemy.Output (Output)
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation
@@ -26,8 +24,13 @@ import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
 
-emailSubsystemInterpreter :: (Member EmailSending r) => Localised UserTemplates -> Localised TeamTemplates -> TemplateBranding -> InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
+emailSubsystemInterpreter ::
+  (Member EmailSending r, Member TinyLog r) =>
+  Localised UserTemplates ->
+  Localised TeamTemplates ->
+  Map Text Text ->
+  InterpreterFor EmailSubsystem r
+emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
@@ -38,8 +41,10 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
-  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
-  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
+  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls brandingMap email tid from code loc
+  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls brandingMap email tid from code loc
+  where
+    branding x = fromMaybe x (Map.lookup x brandingMap)
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -402,21 +407,39 @@ renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendTeamInvitationMailImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailImpl ::
+  (Member EmailSending r, Member TinyLog r) =>
+  Localised TeamTemplates ->
+  Map Text Text ->
+  EmailAddress ->
+  TeamId ->
+  EmailAddress ->
+  InvitationCode ->
+  Maybe Locale ->
+  Sem r Text
 sendTeamInvitationMailImpl teamTemplates branding to tid from code loc = do
   let tpl = invitationEmail . snd $ forLocale loc teamTemplates
       mail = InvitationEmail to tid code from
-      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+  (renderedMail, renderedInvitationUrl) <- logEmailRenderErrors "invitation" $ renderInvitationEmail mail tpl branding
   sendMail renderedMail
-  pure renderedInvitaitonUrl
+  pure renderedInvitationUrl
 
-sendTeamInvitationMailPersonalUserImpl :: (Member EmailSending r) => Localised TeamTemplates -> TemplateBranding -> EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> Sem r Text
+sendTeamInvitationMailPersonalUserImpl ::
+  (Member EmailSending r, Member TinyLog r) =>
+  Localised TeamTemplates ->
+  Map Text Text ->
+  EmailAddress ->
+  TeamId ->
+  EmailAddress ->
+  InvitationCode ->
+  Maybe Locale ->
+  Sem r Text
 sendTeamInvitationMailPersonalUserImpl teamTemplates branding to tid from code loc = do
   let tpl = existingUserInvitationEmail . snd $ forLocale loc teamTemplates
       mail = InvitationEmail to tid code from
-      (renderedMail, renderedInvitaitonUrl) = renderInvitationEmail mail tpl branding
+  (renderedMail, renderedInvitationUrl) <- logEmailRenderErrors "personal user invitation" $ renderInvitationEmail mail tpl branding
   sendMail renderedMail
-  pure renderedInvitaitonUrl
+  pure renderedInvitationUrl
 
 data InvitationEmail = InvitationEmail
   { invTo :: !EmailAddress,
@@ -425,38 +448,33 @@ data InvitationEmail = InvitationEmail
     invInviter :: !EmailAddress
   }
 
-renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> TemplateBranding -> (Mail, Text)
-renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding =
-  ( (emptyMail from)
-      { mailTo = [to],
-        mailHeaders =
-          [ ("Subject", toStrict subj),
-            ("X-Zeta-Purpose", "TeamInvitation"),
-            ("X-Zeta-Code", Ascii.toText code)
-          ],
-        mailParts = [[plainPart txt, htmlPart html]]
-      },
-    invitationUrl
-  )
+renderInvitationEmail :: (Member (Output Text) r) => InvitationEmail -> InvitationEmailTemplate -> Map Text Text -> Sem r (Mail, Text)
+renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding = do
+  invitationUrl <- renderInvitationUrl invitationEmailUrl invTeamId invInvCode
+  let replace = branding & Map.insert "inviter" (fromEmail invInviter) & Map.insert "url" invitationUrl
+  txt <- renderTextWithBrandingSem invitationEmailBodyText replace
+  html <- renderHtmlWithBrandingSem invitationEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem invitationEmailSubject replace
+  pure
+    ( (emptyMail from)
+        { mailTo = [to],
+          mailHeaders =
+            [ ("Subject", toStrict subj),
+              ("X-Zeta-Purpose", "TeamInvitation"),
+              ("X-Zeta-Code", Ascii.toText code)
+            ],
+          mailParts = [[plainPart txt, htmlPart html]]
+        },
+      invitationUrl
+    )
   where
     (InvitationCode code) = invInvCode
     from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
     to = Address Nothing (fromEmail invTo)
-    txt = renderTextWithBranding invitationEmailBodyText replace branding
-    html = renderHtmlWithBranding invitationEmailBodyHtml replace branding
-    subj = renderTextWithBranding invitationEmailSubject replace branding
-    invitationUrl = renderInvitationUrl invitationEmailUrl invTeamId invInvCode branding
-    replace "url" = invitationUrl
-    replace "inviter" = fromEmail invInviter
-    replace x = x
 
-renderInvitationUrl :: Template -> TeamId -> InvitationCode -> TemplateBranding -> Text
-renderInvitationUrl t tid (InvitationCode c) branding =
-  toStrict $ renderTextWithBranding t replace branding
-  where
-    replace "team" = idToText tid
-    replace "code" = Ascii.toText c
-    replace x = x
+renderInvitationUrl :: (Member (Output Text) r) => Template -> TeamId -> InvitationCode -> Sem r Text
+renderInvitationUrl t tid (InvitationCode c) =
+  toStrict <$> renderTextWithBrandingSem t (Map.fromList [("team", idToText tid), ("code", Ascii.toText c)])
 
 -------------------------------------------------------------------------------
 -- MIME Conversions
