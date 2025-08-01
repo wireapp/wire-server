@@ -1,6 +1,6 @@
 # PostgreSQL External Service Helm Chart
 
-This Helm chart creates headless Kubernetes Services with custom Endpoints to connect to external PostgreSQL instances in an HA configuration (one primary and multiple replicas).
+This Helm chart creates headless Kubernetes `Service`s with custom `Endpoint`s to connect to external PostgreSQL instances in an HA configuration (one primary and multiple replicas).
 
 ## Features
 
