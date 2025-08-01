@@ -19,6 +19,8 @@
 
 module Wire.EmailSubsystem.Template
   ( module Wire.EmailSubsystem.Template,
+    module Wire.EmailSubsystem.Templates.User,
+    module Wire.EmailSubsystem.Templates.Team,
 
     -- * Re-exports
     Template,
@@ -31,7 +33,8 @@ import Data.Text.Template
 import HTMLEntities.Text qualified as HTML
 import Imports
 import Wire.API.Locale
-import Wire.API.User
+import Wire.EmailSubsystem.Templates.Team
+import Wire.EmailSubsystem.Templates.User
 
 -- | Lookup a localised item from a 'Localised' structure.
 forLocale ::
@@ -71,158 +74,3 @@ renderTextWithBranding tpl replace branding = render tpl (replace . branding)
 -- given template to produce a Text. To be used on HTML templates
 renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
 renderHtmlWithBranding tpl replace branding = render tpl (HTML.text . replace . branding)
-
-data UserTemplates = UserTemplates
-  { activationSms :: ActivationSmsTemplate,
-    activationCall :: ActivationCallTemplate,
-    verificationEmail :: VerificationEmailTemplate,
-    activationEmail :: ActivationEmailTemplate,
-    activationEmailUpdate :: ActivationEmailTemplate,
-    teamActivationEmail :: TeamActivationEmailTemplate,
-    passwordResetSms :: PasswordResetSmsTemplate,
-    passwordResetEmail :: PasswordResetEmailTemplate,
-    loginSms :: LoginSmsTemplate,
-    loginCall :: LoginCallTemplate,
-    deletionSms :: DeletionSmsTemplate,
-    deletionEmail :: DeletionEmailTemplate,
-    newClientEmail :: NewClientEmailTemplate,
-    verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
-    verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
-    verificationTeamDeletionEmail :: SecondFactorVerificationEmailTemplate
-  }
-
-data ActivationSmsTemplate = ActivationSmsTemplate
-  { activationSmslUrl :: Template,
-    activationSmsText :: Template,
-    activationSmsSender :: Text
-  }
-
-data ActivationCallTemplate = ActivationCallTemplate
-  { activationCallText :: Template
-  }
-
-data VerificationEmailTemplate = VerificationEmailTemplate
-  { verificationEmailUrl :: Template,
-    verificationEmailSubject :: Template,
-    verificationEmailBodyText :: Template,
-    verificationEmailBodyHtml :: Template,
-    verificationEmailSender :: EmailAddress,
-    verificationEmailSenderName :: Text
-  }
-
-data ActivationEmailTemplate = ActivationEmailTemplate
-  { activationEmailUrl :: Template,
-    activationEmailSubject :: Template,
-    activationEmailBodyText :: Template,
-    activationEmailBodyHtml :: Template,
-    activationEmailSender :: EmailAddress,
-    activationEmailSenderName :: Text
-  }
-
-data TeamActivationEmailTemplate = TeamActivationEmailTemplate
-  { teamActivationEmailUrl :: Template,
-    teamActivationEmailSubject :: Template,
-    teamActivationEmailBodyText :: Template,
-    teamActivationEmailBodyHtml :: Template,
-    teamActivationEmailSender :: EmailAddress,
-    teamActivationEmailSenderName :: Text
-  }
-
-data DeletionEmailTemplate = DeletionEmailTemplate
-  { deletionEmailUrl :: Template,
-    deletionEmailSubject :: Template,
-    deletionEmailBodyText :: Template,
-    deletionEmailBodyHtml :: Template,
-    deletionEmailSender :: EmailAddress,
-    deletionEmailSenderName :: Text
-  }
-
-data PasswordResetEmailTemplate = PasswordResetEmailTemplate
-  { passwordResetEmailUrl :: Template,
-    passwordResetEmailSubject :: Template,
-    passwordResetEmailBodyText :: Template,
-    passwordResetEmailBodyHtml :: Template,
-    passwordResetEmailSender :: EmailAddress,
-    passwordResetEmailSenderName :: Text
-  }
-
-data PasswordResetSmsTemplate = PasswordResetSmsTemplate
-  { passwordResetSmsText :: Template,
-    passwordResetSmsSender :: Text
-  }
-
-data LoginSmsTemplate = LoginSmsTemplate
-  { loginSmsUrl :: Template,
-    loginSmsText :: Template,
-    loginSmsSender :: Text
-  }
-
-data LoginCallTemplate = LoginCallTemplate
-  { loginCallText :: Template
-  }
-
-data DeletionSmsTemplate = DeletionSmsTemplate
-  { deletionSmsUrl :: Template,
-    deletionSmsText :: Template,
-    deletionSmsSender :: Text
-  }
-
-data NewClientEmailTemplate = NewClientEmailTemplate
-  { newClientEmailSubject :: Template,
-    newClientEmailBodyText :: Template,
-    newClientEmailBodyHtml :: Template,
-    newClientEmailSender :: EmailAddress,
-    newClientEmailSenderName :: Text
-  }
-
-data SecondFactorVerificationEmailTemplate = SecondFactorVerificationEmailTemplate
-  { sndFactorVerificationEmailSubject :: Template,
-    sndFactorVerificationEmailBodyText :: Template,
-    sndFactorVerificationEmailBodyHtml :: Template,
-    sndFactorVerificationEmailSender :: EmailAddress,
-    sndFactorVerificationEmailSenderName :: Text
-  }
-
-data InvitationEmailTemplate = InvitationEmailTemplate
-  { invitationEmailUrl :: !Template,
-    invitationEmailSubject :: !Template,
-    invitationEmailBodyText :: !Template,
-    invitationEmailBodyHtml :: !Template,
-    invitationEmailSender :: !EmailAddress,
-    invitationEmailSenderName :: !Text
-  }
-
-data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
-  { creatorWelcomeEmailUrl :: !Text,
-    creatorWelcomeEmailSubject :: !Template,
-    creatorWelcomeEmailBodyText :: !Template,
-    creatorWelcomeEmailBodyHtml :: !Template,
-    creatorWelcomeEmailSender :: !EmailAddress,
-    creatorWelcomeEmailSenderName :: !Text
-  }
-
-data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
-  { memberWelcomeEmailUrl :: !Text,
-    memberWelcomeEmailSubject :: !Template,
-    memberWelcomeEmailBodyText :: !Template,
-    memberWelcomeEmailBodyHtml :: !Template,
-    memberWelcomeEmailSender :: !EmailAddress,
-    memberWelcomeEmailSenderName :: !Text
-  }
-
-data NewTeamOwnerWelcomeEmailTemplate = NewTeamOwnerWelcomeEmailTemplate
-  { newTeamOwnerWelcomeEmailUrl :: !Text,
-    newTeamOwnerWelcomeEmailSubject :: !Template,
-    newTeamOwnerWelcomeEmailBodyText :: !Template,
-    newTeamOwnerWelcomeEmailBodyHtml :: !Template,
-    newTeamOwnerWelcomeEmailSender :: !EmailAddress,
-    newTeamOwnerWelcomeEmailSenderName :: !Text
-  }
-
-data TeamTemplates = TeamTemplates
-  { invitationEmail :: !InvitationEmailTemplate,
-    existingUserInvitationEmail :: !InvitationEmailTemplate,
-    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
-    memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
-    newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate
-  }
