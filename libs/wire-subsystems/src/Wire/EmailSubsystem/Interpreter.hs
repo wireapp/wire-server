@@ -17,12 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.EmailSubsystem.Interpreter
-  ( emailSubsystemInterpreter,
-    mkMimeAddress,
-    renderInvitationUrl,
-  )
-where
+module Wire.EmailSubsystem.Interpreter where
 
 import Data.Code qualified as Code
 import Data.Id
