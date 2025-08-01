@@ -158,10 +158,10 @@ getTeamCollaborationsImpl teamId = do
   either throw pure eitherTeamCollaborators
   where
     session :: Session [TeamCollaborator]
-    session = statement teamId getAllUserCollaborationsStatement
+    session = statement teamId getAllCollaborationsByUserStatement
 
-    getAllUserCollaborationsStatement :: Statement UserId [TeamCollaborator]
-    getAllUserCollaborationsStatement =
+    getAllCollaborationsByUserStatement :: Statement UserId [TeamCollaborator]
+    getAllCollaborationsByUserStatement =
       dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
         [vectorStatement|
           select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where user_id = ($1 :: uuid)
