@@ -47,6 +47,7 @@ import Network.Wai.Utilities hiding (Error, code, message)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
+import Polysemy.Output (ignoreOutput)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Servant hiding (Handler, JSON, addHeader)
@@ -253,7 +254,7 @@ listInvitations uid tid startingId mSize = do
         if isPersonalUserMigration
           then invitationEmailUrl . existingUserInvitationEmail <$> input
           else invitationEmailUrl . invitationEmail <$> input
-      let url = renderInvitationUrl template tid si.code id
+      url <- ignoreOutput $ renderInvitationUrl template tid si.code
       toInvitation url ShowInvitationUrl si
 
 mkInviteUrl ::
@@ -268,7 +269,7 @@ mkInviteUrl ::
 mkInviteUrl HideInvitationUrl _ _ = pure Nothing
 mkInviteUrl ShowInvitationUrl team c = do
   template <- invitationEmailUrl . invitationEmail <$> input
-  let url = renderInvitationUrl template team c id
+  url <- ignoreOutput $ renderInvitationUrl template team c
   parseHttpsUrl url
   where
     parseHttpsUrl :: Text -> Sem r (Maybe (URIRef Absolute))

@@ -53,6 +53,7 @@ module Brig.App
     providerTemplatesLens,
     teamTemplatesLens,
     templateBrandingLens,
+    templateBrandingAsMapLens,
     httpManagerLens,
     http2ManagerLens,
     extGetManagerLens,
@@ -112,7 +113,7 @@ import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
-import Brig.Template (Localised, genTemplateBranding)
+import Brig.Template (Localised, genTemplateBranding, genTemplateBrandingMap)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Cassandra (runClient)
@@ -201,6 +202,7 @@ data Env = Env
     providerTemplates :: Localised ProviderTemplates,
     teamTemplates :: Localised TeamTemplates,
     templateBranding :: TemplateBranding,
+    templateBrandingAsMap :: Map Text Text,
     httpManager :: Manager,
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
@@ -245,6 +247,7 @@ newEnv opts = do
   ptp <- loadProviderTemplates opts
   ttp <- loadTeamTemplates opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
+      brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
   aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
   zau <- initZAuth opts
@@ -302,6 +305,7 @@ newEnv opts = do
         providerTemplates = ptp,
         teamTemplates = ttp,
         templateBranding = branding,
+        templateBrandingAsMap = brandingAsMap,
         httpManager = mgr,
         http2Manager = h2Mgr,
         extGetManager = ext,
