@@ -60,10 +60,10 @@ spec = describe "UserSubsystem.Interpreter" do
         \viewerTeam (localTargetUsersNotPending :: [NotPendingStoredUser]) targetUsers1 targetUsers2 visibility localDomain remoteDomain1 remoteDomain2 -> do
           let remoteBackend1 = def {users = targetUsers1}
               remoteBackend2 = def {users = targetUsers2}
-              viewer = viewerTeam {teamId = Nothing}
+              viewer = viewerTeam {teamId = Nothing} :: StoredUser
               -- Having teams adds complications in email visibility,
               -- all that stuff is tested in [without federation] tests
-              localTargetUsers = map (\user -> (coerce user) {teamId = Nothing}) localTargetUsersNotPending
+              localTargetUsers = map (\user -> (coerce user) {teamId = Nothing} :: StoredUser) localTargetUsersNotPending
               federation = [(remoteDomain1, remoteBackend1), (remoteDomain2, remoteBackend2)]
               mkUserIds domain = map (flip Qualified domain . (.id))
               localTargets = mkUserIds localDomain localTargetUsers
@@ -129,7 +129,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
         \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
-              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
+              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} :: StoredUser else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
               galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
               retrievedProfiles =
@@ -145,7 +145,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "gets a local user profile when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
         \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
-              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
+              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} :: StoredUser else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
               galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
               retrievedProfile =
@@ -260,7 +260,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "Update user" $
       \(NotPendingStoredUser alice) localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
-            localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+            localBackend = def {users = [alice {managedBy = Just ManagedByWire} :: StoredUser]}
             userBeforeUpdate = mkUserFromStored localDomain config.defaultLocale alice
             result = runNoFederationStackUserSubsystemErrorEither localBackend mempty config do
               updateUserProfile lusr Nothing UpdateOriginScim update
@@ -283,7 +283,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "Update user events" $
       \(NotPendingStoredUser alice) connId localDomain update config -> do
         let lusr = toLocalUnsafe localDomain alice.id
-            localBackend = def {users = [alice {managedBy = Just ManagedByWire}]}
+            localBackend = def {users = [alice {managedBy = Just ManagedByWire} :: StoredUser]}
             -- MLS must not be removed from supported protocols, if exists
             mProtocolUpdates =
               update.supportedProtocols <&> \protocols ->
@@ -319,7 +319,8 @@ spec = describe "UserSubsystem.Interpreter" do
                   { email = Just email,
                     teamId = Just teamId
                     -- For simplicity, so we don't have to match the email with invitation
-                  }
+                  } ::
+                  StoredUser
               getBy =
                 toLocalUnsafe localDomain $
                   def
@@ -354,7 +355,8 @@ spec = describe "UserSubsystem.Interpreter" do
                   { email = Just email,
                     teamId = Just teamId
                     -- For simplicity, so we don't have to match the email with invitation
-                  }
+                  } ::
+                  StoredUser
               getBy =
                 toLocalUnsafe localDomain $
                   def
@@ -389,7 +391,8 @@ spec = describe "UserSubsystem.Interpreter" do
                     teamId = Just teamId,
                     handle = Just handl
                     -- For simplicity, so we don't have to match the email with invitation
-                  }
+                  } ::
+                  StoredUser
               getBy =
                 toLocalUnsafe localDomain $
                   def
@@ -425,7 +428,8 @@ spec = describe "UserSubsystem.Interpreter" do
                     teamId = Just teamId,
                     handle = Just handl
                     -- For simplicity, so we don't have to match the email with invitation
-                  }
+                  } ::
+                  StoredUser
               getBy =
                 toLocalUnsafe localDomain $
                   def
@@ -455,7 +459,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "GetBy email does not filter by pending, missing identity or expired invitations" $
         \(alice' :: StoredUser) email localDomain visibility locale ->
           let config = UserSubsystemConfig visibility locale True 100 undefined
-              alice = alice' {email = Just email}
+              alice = alice' {email = Just email} :: StoredUser
               localBackend =
                 def
                   { users = [alice],
@@ -519,7 +523,7 @@ spec = describe "UserSubsystem.Interpreter" do
                             }
                         )
                   }
-              alice = alice' {email = Just email, teamId = Just teamId}
+              alice = alice' {email = Just email, teamId = Just teamId} :: StoredUser
               result =
                 runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
@@ -540,7 +544,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   { users = [alice],
                     userKeys = Map.singleton emailKey alice.id
                   }
-              alice = alice' {email = Just email, teamId = Just teamId}
+              alice = alice' {email = Just email, teamId = Just teamId} :: StoredUser
               result =
                 runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
@@ -574,7 +578,8 @@ spec = describe "UserSubsystem.Interpreter" do
                   { email = Just email,
                     teamId = Just teamId,
                     handle = Just handl
-                  }
+                  } ::
+                  StoredUser
               result =
                 runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
@@ -600,7 +605,8 @@ spec = describe "UserSubsystem.Interpreter" do
                   { email = Just email,
                     teamId = Just teamId,
                     handle = Just handl
-                  }
+                  } ::
+                  StoredUser
               result =
                 runNoFederationStack localBackend mempty config $
                   getAccountsBy getBy
@@ -610,7 +616,7 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "happy" $
         \(NotPendingStoredUser alice) localDomain update config ->
           let lusr = toLocalUnsafe localDomain alice.id
-              localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+              localBackend = def {users = [alice {managedBy = Just ManagedByScim} :: StoredUser]}
               profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                 run
                   . userSubsystemErrorEitherUnsafe
@@ -623,7 +629,7 @@ spec = describe "UserSubsystem.Interpreter" do
         \(NotPendingStoredUser alice) localDomain name config ->
           alice.name /= name ==>
             let lusr = toLocalUnsafe localDomain alice.id
-                localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+                localBackend = def {users = [alice {managedBy = Just ManagedByScim} :: StoredUser]}
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . userSubsystemErrorEitherUnsafe
@@ -636,7 +642,7 @@ spec = describe "UserSubsystem.Interpreter" do
         \(NotPendingStoredUser alice) localDomain locale config ->
           alice.locale /= Just locale ==>
             let lusr = toLocalUnsafe localDomain alice.id
-                localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+                localBackend = def {users = [alice {managedBy = Just ManagedByScim} :: StoredUser]}
                 profileErr :: Either UserSubsystemError (Maybe UserProfile) =
                   run
                     . userSubsystemErrorEitherUnsafe
@@ -675,7 +681,7 @@ spec = describe "UserSubsystem.Interpreter" do
       "CheckHandle succeeds if there is a user with that handle"
       \((NotPendingStoredUser alice, handle :: Handle), config) ->
         not (isBlacklistedHandle handle) ==>
-          let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle}]}
+          let localBackend = def {users = [alice {managedBy = Just ManagedByWire, handle = Just handle} :: StoredUser]}
               checkHandleResp =
                 runNoFederationStack localBackend mempty config $ checkHandle (fromHandle handle)
            in checkHandleResp === CheckHandleFound
@@ -693,7 +699,7 @@ spec = describe "UserSubsystem.Interpreter" do
       "CheckHandles returns available handles from a list of handles, up to X"
       \((storedUsersAndHandles :: [(StoredUser, Handle)], randomHandles :: Set Handle), maxCount :: Word, config) ->
         not (any isBlacklistedHandle ((snd <$> storedUsersAndHandles) <> (S.toList randomHandles))) ==>
-          let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire}) <$> storedUsersAndHandles
+          let users = (\(u, h) -> u {handle = Just h, managedBy = Just ManagedByWire} :: StoredUser) <$> storedUsersAndHandles
               localBackend = def {users = users}
 
               runCheckHandles :: [Handle] -> [Handle]
@@ -718,7 +724,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   $ interpretNoFederationStack localBackend mempty def config do
                     updateHandle (toLocalUnsafe domain alice.id) Nothing UpdateOriginWireClient (fromHandle newHandle)
 
-                localBackend = def {users = [alice {managedBy = Just ManagedByScim}]}
+                localBackend = def {users = [alice {managedBy = Just ManagedByScim} :: StoredUser]}
              in res === Left UserSubsystemHandleManagedByScim
 
       prop
@@ -737,7 +743,8 @@ spec = describe "UserSubsystem.Interpreter" do
                               email = email,
                               ssoId = Just ssoId,
                               activated = True
-                            }
+                            } ::
+                            StoredUser
                         ]
                     }
              in res === Right ()
@@ -814,7 +821,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 { users = [storedUser],
                   userKeys = mempty
                 }
-            storedUser = storedUserNoEmail {email = Just email}
+            storedUser = storedUserNoEmail {email = Just email} :: StoredUser
             retrievedUser =
               runAllErrorsUnsafe
                 . interpretNoFederationStack localBackend mempty def config
@@ -855,7 +862,8 @@ spec = describe "UserSubsystem.Interpreter" do
                 { activated = True,
                   email = email,
                   ssoId = if isNothing email then Just sso else Nothing
-                }
+                } ::
+                StoredUser
             localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
@@ -870,11 +878,11 @@ spec = describe "UserSubsystem.Interpreter" do
               runNoFederationStack localBackend mempty config $ do
                 remRes <- removeEmailEither lusr
                 (remRes,) <$> gets users
-         in result === (Right (), [user {email = Nothing}])
+         in result === (Right (), [user {email = Nothing} :: StoredUser])
   describe "Changing an email address" $ do
     prop "Idempotent email change" $
       \(locx :: Local ()) (NotPendingStoredUser user') email config ->
-        let user = user' {email = Just email}
+        let user = user' {email = Just email} :: StoredUser
             localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
@@ -886,7 +894,7 @@ spec = describe "UserSubsystem.Interpreter" do
       \(locx :: Local ()) (NotPendingStoredUser user') config ->
         let email = unsafeEmailAddress "me" "example.com"
             updatedEmail = unsafeEmailAddress "you" "example.com"
-            user = user' {email = Just email, managedBy = Nothing}
+            user = user' {email = Just email, managedBy = Nothing} :: StoredUser
             localBackend = def {users = [user]}
             lusr = qualifyAs locx user.id
             result =
@@ -895,7 +903,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 (c,) <$> gets users
          in result
               === ( ChangeEmailResponseNeedsActivation,
-                    [user {emailUnvalidated = Just updatedEmail}]
+                    [user {emailUnvalidated = Just updatedEmail} :: StoredUser]
                   )
     prop "Email change is not allowed if the email domain is taken by another backend or team" $
       \(preDomreg :: DomainRegistration) (locx :: Local ()) (NotPendingStoredUser user') (preEmail :: EmailAddress) (domainTakenBySameTeam :: Bool) preIdp config ->
@@ -904,7 +912,7 @@ spec = describe "UserSubsystem.Interpreter" do
               where
                 l :: ByteString = localPart preEmail
                 d :: Text = domainText domreg.domain
-            user = user' {managedBy = Nothing}
+            user = user' {managedBy = Nothing} :: StoredUser
             lusr = qualifyAs locx user.id
             localBackend =
               def
@@ -1037,7 +1045,7 @@ spec = describe "UserSubsystem.Interpreter" do
     prop "exact handle matches are not duplicate" $
       \(ActiveStoredUser searcheeNoHandle) (searcheeHandle :: Handle) (ActiveStoredUser searcher) localDomain configBase ->
         let teamMember = mkTeamMember searcher.id fullPermissions Nothing defUserLegalHoldStatus
-            searchee = searcheeNoHandle {handle = Just searcheeHandle}
+            searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
             localBackend =
               def
                 { users = [searchee, searcher],

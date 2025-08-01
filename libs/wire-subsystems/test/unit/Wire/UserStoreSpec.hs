@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Wire.UserStoreSpec (spec) where
 
 import Data.Default
@@ -40,7 +41,7 @@ spec = do
 
   describe "UserStore effect" $ do
     prop "user self email deleted" $ \user1 user2' email2 config ->
-      let user2 = user2' {email = Just email2}
+      let user2 = user2' {email = Just email2} :: StoredUser
           localBackend = def {users = [user1, user2]}
           result =
             runNoFederationStack localBackend mempty config $ do
@@ -48,7 +49,7 @@ spec = do
               gets users
        in result === [user1 {email = Nothing}, user2]
     prop "update unvalidated email" $ \user1 user2 email1 config ->
-      let updatedUser1 = user1 {emailUnvalidated = Just email1}
+      let updatedUser1 = user1 {emailUnvalidated = Just email1} :: StoredUser
           localBackend = def {users = [user1, user2]}
           result =
             runNoFederationStack localBackend mempty config $ do

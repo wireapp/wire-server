@@ -890,6 +890,7 @@ createUser ::
     Member (Input (Local ())) r,
     Member TinyLog r,
     Member UserKeyStore r,
+    Member UserStore r,
     Member EmailSubsystem r,
     Member Events r,
     Member UserSubsystem r,

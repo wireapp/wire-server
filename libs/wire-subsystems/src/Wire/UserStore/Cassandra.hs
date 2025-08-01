@@ -2,6 +2,7 @@ module Wire.UserStore.Cassandra (interpretUserStoreCassandra) where
 
 import Cassandra
 import Cassandra.Exec (prepared)
+import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
 import Data.Time.Clock
@@ -11,6 +12,7 @@ import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 import Wire.API.Password (Password)
+import Wire.API.Provider.Service
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.StoredUser
@@ -22,6 +24,7 @@ interpretUserStoreCassandra :: (Member (Embed IO) r) => ClientState -> Interpret
 interpretUserStoreCassandra casClient =
   interpret $
     runEmbedded (runClient casClient) . embed . \case
+      CreateUser new mbConv -> createUserImpl new mbConv
       GetUsers uids -> getUsersImpl uids
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
@@ -40,6 +43,18 @@ interpretUserStoreCassandra casClient =
       GetRichInfo uid -> getRichInfoImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
+
+createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
+createUserImpl new mbConv = retry x5 . batch $ do
+  setType BatchLogged
+  setConsistency LocalQuorum
+  addPrepQuery insertUser (asTuple new)
+  for_ ((,) <$> new.service <*> mbConv) $ \(sref, (cid, mbTid)) -> do
+    let pid = sref ^. serviceRefProvider
+        sid = sref ^. serviceRefId
+    addPrepQuery insertServiceUser (pid, sid, BotId new.id, cid, mbTid)
+    for_ mbTid $ \tid ->
+      addPrepQuery insertServiceTeam (pid, sid, BotId new.id, cid, tid)
 
 getUserAuthenticationInfoImpl :: UserId -> Client (Maybe (Maybe Password, AccountStatus))
 getUserAuthenticationInfoImpl uid = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
@@ -221,6 +236,23 @@ deleteEmailImpl u = retry x5 $ write userEmailDelete (params LocalQuorum (Identi
 
 --------------------------------------------------------------------------------
 -- Queries
+
+insertUser :: PrepQuery W (TupleType NewStoredUser) ()
+insertUser =
+  "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
+  \accent_id, password, activated, status, expires, language, \
+  \country, provider, service, handle, team, managed_by, supported_protocols) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+insertServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
+insertServiceUser =
+  "INSERT INTO service_user (provider, service, user, conv, team) \
+  \VALUES (?, ?, ?, ?, ?)"
+
+insertServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
+insertServiceTeam =
+  "INSERT INTO service_team (provider, service, user, conv, team) \
+  \VALUES (?, ?, ?, ?, ?)"
 
 selectUsers :: PrepQuery R (Identity [UserId]) (TupleType StoredUser)
 selectUsers =
