@@ -110,6 +110,8 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.ConversationsStore (ConversationsStore)
+import Wire.ConversationsStore.Cassandra (interpretConversationsStoreCassandra)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -314,7 +316,9 @@ evalGalley e =
     . runGundeckAPIAccess (e ^. options . gundeck)
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+    . interpretConversationsStoreCassandra e._cstate
     . interpretTeamCollaboratorsSubsystem
+    . raiseUnder @ConversationsStore
     . interpretSparAccess
     . interpretBrigAccess
   where
