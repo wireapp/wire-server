@@ -191,6 +191,8 @@ library
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EmailSubsystem.Templates.Team
+    Wire.EmailSubsystem.Templates.User
     Wire.EnterpriseLoginSubsystem
     Wire.EnterpriseLoginSubsystem.Error
     Wire.EnterpriseLoginSubsystem.Interpreter

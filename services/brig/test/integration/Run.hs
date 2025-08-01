@@ -23,7 +23,6 @@ where
 import API.Calling qualified as Calling
 import API.Federation qualified
 import API.Internal qualified
-import API.Template qualified
 import API.Metrics qualified as Metrics
 import API.OAuth qualified
 import API.Provider qualified as Provider
@@ -32,6 +31,7 @@ import API.Settings qualified as Settings
 import API.SystemSettings qualified as SystemSettings
 import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
+import API.Template qualified
 import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
