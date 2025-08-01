@@ -79,10 +79,9 @@ import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
 import Wire.API.UserGroup qualified as UserGroup
+import Wire.API.UserGroup.Pagination qualified as Pagination
 import Wire.API.Wrapped qualified as Wrapped
 
--- FUTUREWORK(#1446): fix tests marked as failing
--- (either fixing Arbitrary or serialization instance)
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
@@ -168,6 +167,7 @@ tests =
       testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,
       testRoundTrip @OAuth.OAuthApplication,
+      testRoundTrip @Pagination.UserGroupPage,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
@@ -344,7 +344,8 @@ tests =
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @UserGroup.NewUserGroup,
       testRoundTrip @UserGroup.UserGroupUpdate,
-      testRoundTrip @UserGroup.UserGroup,
+      testRoundTrip @(UserGroup.UserGroup),
+      testRoundTrip @(UserGroup.UserGroupMeta),
       testRoundTrip @EventWebSocketProtocol.MessageServerToClient,
       testRoundTrip @EventWebSocketProtocol.MessageClientToServer,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),

@@ -1056,10 +1056,35 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
-getUserGroups :: (MakesValue user) => user -> Maybe Int -> Maybe String -> App Response
-getUserGroups user mbLimit mbLastKey = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups"]
-  submit "GET" $ req & addQueryParams (catMaybes [(("limit",) . show) <$> mbLimit, ("last_key",) <$> mbLastKey])
+data GetUserGroupsArgs = GetUserGroupsArgs
+  { q :: Maybe String,
+    sortByKeys :: Maybe String,
+    sortOrder :: Maybe String,
+    pSize :: Maybe Int,
+    lastName :: Maybe String,
+    lastCreatedAt :: Maybe String,
+    lastId :: Maybe String
+  }
+
+instance Default GetUserGroupsArgs where
+  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+
+getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
+getUserGroups user GetUserGroupsArgs {..} = do
+  req <- baseRequest user Brig Versioned "user-groups"
+  submit "GET" $
+    req
+      & addQueryParams
+        ( catMaybes
+            [ ("q",) <$> q,
+              ("sort_by",) <$> sortByKeys,
+              ("sort_order",) <$> sortOrder,
+              (("page_size",) . show) <$> pSize,
+              ("last_seen_name",) <$> lastName,
+              ("last_seen_created_at",) <$> lastCreatedAt,
+              ("last_seen_id",) <$> lastId
+            ]
+        )
 
 updateUserGroup :: (MakesValue user, MakesValue userGroupUpdate) => user -> String -> userGroupUpdate -> App Response
 updateUserGroup user gid userGroupUpdate = do
