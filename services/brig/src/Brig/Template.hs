@@ -27,6 +27,7 @@ module Brig.Template
 
     -- * Rendering templates
     genTemplateBranding,
+    genTemplateBrandingMap,
 
     -- * Re-exports
     Template,
@@ -150,3 +151,18 @@ genTemplateBranding BrandingOpts {..} = fn
     fn "forgot" = forgot
     fn "support" = support
     fn other = other
+
+genTemplateBrandingMap :: BrandingOpts -> Map Text Text
+genTemplateBrandingMap opts =
+  Map.fromList
+    [ ("brand", opts.brand),
+      ("brand_url", opts.brandUrl),
+      ("brand_label_url", opts.brandLabelUrl),
+      ("brand_logo", opts.brandLogoUrl),
+      ("brand_service", opts.brandService),
+      ("copyright", opts.copyright),
+      ("misuse", opts.misuse),
+      ("legal", opts.legal),
+      ("forgot", opts.forgot),
+      ("support", opts.support)
+    ]
