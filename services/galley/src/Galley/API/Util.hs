@@ -141,11 +141,13 @@ ensureConnectedOrSameTeam lusr others = do
   ensureConnectedToLocalsOrSameTeam lusr locals
   ensureConnectedToRemotes lusr remotes
 
--- | Check that the given user is either part of the same team(s) as the other
--- users OR that there is a connection.
+-- | Check that the given user is part of the same team(s) as the other users
+-- OR that there is a connection (either direct or implicit via team
+-- collaborations.)
 --
--- Team members are always considered connected, so we only check 'ensureConnected'
--- for non-team-members of the _given_ user
+-- Team members are always considered connected, so we only check
+-- 'ensureConnected' for non-team-members of the _given_ user. Implicit
+-- connections are created per team, so we count them as team membership here.
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
@@ -158,14 +160,17 @@ ensureConnectedToLocalsOrSameTeam ::
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
-  colls :: [TeamId] <-
-    gTeam
-      <$$> (filter (flip hasPermission Perm.CreateConversation) <$> internalGetTeamCollaborations u)
+  icTeams <- implicitConnectionsTeams
   -- We collect all the relevant uids from same teams as the origin user
-  sameTeamUids <- forM (uTeams `union` colls) $ \team ->
+  sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u (uids \\ join sameTeamUids)
+  where
+    implicitConnectionsTeams :: (Member TeamCollaboratorsSubsystem r) => Sem r [TeamId]
+    implicitConnectionsTeams =
+      gTeam
+        <$$> (filter (flip hasPermission Perm.CreateConversation) <$> internalGetTeamCollaborations u)
 
 -- | Check that the user is connected to everybody else.
 --
