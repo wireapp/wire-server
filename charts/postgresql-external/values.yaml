@@ -1,0 +1,10 @@
+portPostgresql: 5432
+
+## Configure this helm chart with:
+# read write IPs of the postgresql servers that are used for read and write operations.
+# RWIPs:
+#   - 1.2.3.4
+# read only IPs of the postgresql servers that are used for read operations.
+# ROIPs:
+#   - 1.2.3.4
+#   - 5.6.7.8

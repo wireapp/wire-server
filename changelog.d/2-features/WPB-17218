@@ -1,0 +1,1 @@
+Add `postgresql-external` service Helm chart to allow connections to PostgreSQL instances outside the cluster.

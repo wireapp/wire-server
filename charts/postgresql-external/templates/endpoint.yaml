@@ -1,0 +1,75 @@
+# create a headless service (thus creating dns name "postgresql-external")
+# and a custom endpoint (thus forwarding traffic when resolving DNS to custom IPs)
+kind: Service
+apiVersion: v1
+metadata:
+  name: "{{ .Chart.Name }}-rw"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "postgresql-external.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  clusterIP: None # create a headless service, we want no extra load balancing for postgresql
+  ports:
+  - name: postgresql
+    port: {{ .Values.portPostgresql }}
+    targetPort: {{ .Values.portPostgresql }}
+---
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: "{{ .Chart.Name }}-rw"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "postgresql-external.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+subsets:
+  - addresses:
+      {{- range .Values.RWIPs }}
+      - ip: {{ . }}
+      {{- end }}
+    ports:
+      # port and name in the endpoint must match port and name in the service
+      # see also https://docs.openshift.com/enterprise/3.0/dev_guide/integrating_external_services.html
+      - name: postgresql
+        port: {{ .Values.portPostgresql }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: "{{ .Chart.Name }}-ro"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "postgresql-external.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  clusterIP: None # create a headless service, we want no extra load balancing for postgresql
+  ports:
+  - name: postgresql
+    port: {{ .Values.portPostgresql }}
+    targetPort: {{ .Values.portPostgresql }}
+---
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: "{{ .Chart.Name }}-ro"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "postgresql-external.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+subsets:
+  - addresses:
+      {{- range .Values.ROIPs }}
+      - ip: {{ . }}
+      {{- end }}
+    ports:
+      # port and name in the endpoint must match port and name in the service
+      # see also https://docs.openshift.com/enterprise/3.0/dev_guide/integrating_external_services.html
+      - name: postgresql
+        port: {{ .Values.portPostgresql }}
