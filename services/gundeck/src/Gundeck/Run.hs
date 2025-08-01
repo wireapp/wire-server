@@ -26,6 +26,7 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
+import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
@@ -43,6 +44,7 @@ import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
 import Imports
 import Network.AMQP
+import Network.AMQP.Types
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
@@ -108,14 +110,25 @@ run opts = withTracer \tracer -> do
       declareExchange chan newExchange {exchangeName = userNotificationDlxName, exchangeType = "direct"}
 
       let routingKey = userNotificationDlqName
-      void $ declareQueue chan newQueue {queueName = userNotificationDlqName}
+      void $
+        declareQueue
+          chan
+          newQueue
+            { queueName = userNotificationDlqName,
+              queueHeaders = FieldTable $ Map.fromList [("x-queue-type", FVString "quorum")]
+            }
       bindQueue chan userNotificationDlqName userNotificationDlxName routingKey
 
     createCellsNotificationsQueue :: Channel -> IO ()
     createCellsNotificationsQueue chan = for_
       (opts ^. (settings . cellsEventQueue))
       $ \name ->
-        declareQueue chan newQueue {queueName = name}
+        declareQueue
+          chan
+          newQueue
+            { queueName = name,
+              queueHeaders = FieldTable $ Map.fromList [("x-queue-type", FVString "quorum")]
+            }
 
     middleware :: Env -> IO Middleware
     middleware env = do
