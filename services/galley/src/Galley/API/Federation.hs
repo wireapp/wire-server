@@ -101,6 +101,7 @@ import Wire.API.User (BaseProtocolTag (..))
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.TeamCollaboratorsSubsystem
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -278,7 +279,8 @@ leaveConversation ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -499,7 +501,8 @@ updateConversation ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -628,7 +631,8 @@ sendMLSCommitBundle ::
     Member P.TinyLog r,
     Member Random r,
     Member SubConversationStore r,
-    Member ProposalStore r
+    Member ProposalStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -682,7 +686,8 @@ sendMLSMessage ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member ProposalStore r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
   MLSMessageSendRequest ->

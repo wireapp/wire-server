@@ -11,5 +11,6 @@ data TeamCollaboratorsStore m a where
   CreateTeamCollaborator :: UserId -> TeamId -> Set CollaboratorPermission -> TeamCollaboratorsStore m ()
   GetAllTeamCollaborators :: TeamId -> TeamCollaboratorsStore m [TeamCollaborator]
   GetTeamCollaborator :: TeamId -> UserId -> TeamCollaboratorsStore m (Maybe TeamCollaborator)
+  GetTeamCollaborations :: UserId -> TeamCollaboratorsStore m ([TeamCollaborator])
 
 makeSem ''TeamCollaboratorsStore

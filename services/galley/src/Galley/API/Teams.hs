@@ -137,6 +137,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
@@ -1011,7 +1012,8 @@ deleteTeamConversation ::
     Member NotificationSubsystem r,
     Member Now r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->

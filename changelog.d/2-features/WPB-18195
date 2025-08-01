@@ -1,1 +1,1 @@
-Allow team collaborators with `implicit_connection` permission to create a One2One conversation with a team member.
+Allow team collaborators with `implicit_connection` permission to create and query a One2One conversation with a team member.

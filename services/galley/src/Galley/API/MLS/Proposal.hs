@@ -71,6 +71,7 @@ import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.TeamCollaboratorsSubsystem
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
@@ -138,7 +139,8 @@ type HasProposalEffects r =
     Member ProposalStore r,
     Member TeamStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   )
 
 derefOrCheckProposal ::

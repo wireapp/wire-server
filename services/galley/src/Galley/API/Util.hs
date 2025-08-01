@@ -86,9 +86,11 @@ import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
+import Wire.API.Team.Permission qualified as Perm
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
@@ -99,6 +101,7 @@ import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.TeamCollaboratorsSubsystem
 
 data NoChanges = NoChanges
 
@@ -127,7 +130,8 @@ ensureAccessRole roles users = do
 ensureConnectedOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -137,15 +141,18 @@ ensureConnectedOrSameTeam lusr others = do
   ensureConnectedToLocalsOrSameTeam lusr locals
   ensureConnectedToRemotes lusr remotes
 
--- | Check that the given user is either part of the same team(s) as the other
--- users OR that there is a connection.
+-- | Check that the given user is part of the same team(s) as the other users
+-- OR that there is a connection (either direct or implicit via team
+-- collaborations.)
 --
--- Team members are always considered connected, so we only check 'ensureConnected'
--- for non-team-members of the _given_ user
+-- Team members are always considered connected, so we only check
+-- 'ensureConnected' for non-team-members of the _given_ user. Implicit
+-- connections are created per team, so we count them as team membership here.
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   [UserId] ->
@@ -153,11 +160,17 @@ ensureConnectedToLocalsOrSameTeam ::
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
+  icTeams <- implicitConnectionsTeams
   -- We collect all the relevant uids from same teams as the origin user
-  sameTeamUids <- forM uTeams $ \team ->
+  sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u (uids \\ join sameTeamUids)
+  where
+    implicitConnectionsTeams :: (Member TeamCollaboratorsSubsystem r) => Sem r [TeamId]
+    implicitConnectionsTeams =
+      gTeam
+        <$$> (filter (flip hasPermission Perm.CreateConversation) <$> internalGetTeamCollaborations u)
 
 -- | Check that the user is connected to everybody else.
 --

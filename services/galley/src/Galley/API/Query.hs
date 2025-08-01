@@ -117,6 +117,7 @@ import Wire.API.User
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamCollaboratorsSubsystem
 
 getBotConversation ::
   ( Member ConversationStore r,
@@ -403,7 +404,8 @@ conversationIdsPageFromV2 ::
       Member (Input Env) r,
       Member (ListItems p ConvId) r,
       Member (ListItems p (Remote ConvId)) r,
-      Member P.TinyLog r
+      Member P.TinyLog r,
+      Member TeamCollaboratorsSubsystem r
     )
   ) =>
   ListGlobalSelfConvs ->
@@ -500,7 +502,8 @@ conversationIdsPageFrom ::
       Member (Input Env) r,
       Member (ListItems p ConvId) r,
       Member (ListItems p (Remote ConvId)) r,
-      Member P.TinyLog r
+      Member P.TinyLog r,
+      Member TeamCollaboratorsSubsystem r
     )
   ) =>
   Local UserId ->
@@ -855,7 +858,8 @@ getMLSOne2OneConversationV5 ::
     Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
     Member FederatorAccess r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -875,7 +879,8 @@ getMLSOne2OneConversationInternal ::
     Member (ErrorS 'NotConnected) r,
     Member FederatorAccess r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -893,7 +898,8 @@ getMLSOne2OneConversationV6 ::
     Member (ErrorS 'NotConnected) r,
     Member FederatorAccess r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -918,7 +924,8 @@ getMLSOne2OneConversation ::
     Member (ErrorS 'NotConnected) r,
     Member FederatorAccess r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
