@@ -100,7 +100,8 @@ updateTeamCollaboratorImpl ::
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member ConversationsSubsystem r
   ) =>
   Local UserId ->
   UserId ->
@@ -110,9 +111,8 @@ updateTeamCollaboratorImpl ::
 updateTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
   Store.updateTeamCollaborator user team perms
-  unless (Set.member ImplicitConnection perms) $
-    -- TODO gdf remove O2O conversations
-    pure ()
+  when (Set.null $ Set.intersection (Set.fromList [CreateTeamConversation, ImplicitConnection]) perms) $
+    internalCloseConversationsFrom team user
 
   now <- get
   let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
