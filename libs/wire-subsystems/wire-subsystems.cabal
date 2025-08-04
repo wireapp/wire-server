@@ -191,6 +191,8 @@ library
     Wire.ConversationStore.Cassandra.Instances
     Wire.ConversationStore.Cassandra.Queries
     Wire.ConversationStore.MLS.Types
+    Wire.ConversationsSubsystem
+    Wire.ConversationsSubsystem.GalleyAPI
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore

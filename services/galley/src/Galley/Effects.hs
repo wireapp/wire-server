@@ -90,7 +90,7 @@ import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
-import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationsSubsystem (ConversationsSubsystem)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
@@ -112,6 +112,7 @@ type GalleyEffects1 =
      TeamCollaboratorsSubsystem,
      NotificationSubsystem,
      TeamSubsystem,
+     ConversationsSubsystem,
      GundeckAPIAccess,
      Rpc,
      FederatorAccess,

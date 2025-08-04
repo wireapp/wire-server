@@ -64,6 +64,7 @@ import Galley.Cassandra.Services
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
+import Galley.ConversationsSubsystem (interpretConversationsSubsystemCassandra)
 import Galley.Effects
 import Galley.Effects.FireAndForget
 import Galley.Env
@@ -107,8 +108,6 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess.Rpc
-import Wire.ConversationsStore (ConversationsStore)
-import Wire.ConversationsStore.Cassandra (interpretConversationsStoreCassandra)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -311,11 +310,10 @@ evalGalley e =
     . interpretFederatorAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
+    . interpretConversationsSubsystemCassandra
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
-    . interpretConversationsStoreCassandra
     . interpretTeamCollaboratorsSubsystem
-    . raiseUnder @ConversationsStore
     . interpretSparAccess
     . interpretBrigAccess (e ^. brig)
     . interpretExternalAccess
