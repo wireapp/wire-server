@@ -10,30 +10,22 @@ import Control.Lens ((%~), _2)
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
 import Polysemy
-import Polysemy.Error
-import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Wire.API.User
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-import Wire.GalleyAPIAccess
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
-import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Rnd
-import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
-import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError)
-import Wire.UserSubsystem
 
 type UserGroupInMemState = Map (TeamId, UserGroupId) UserGroup
 
@@ -50,19 +42,6 @@ type UserGroupStoreInMemEffectStack =
      Rnd.Random,
      State StdGen
    ]
-
-type UserGroupStoreInMemEffectStackTest =
-  '[ UserSubsystem,
-     TeamSubsystem,
-     GalleyAPIAccess
-   ]
-    `Append` UserGroupStoreInMemEffectStack
-    `Append` '[ Input (Local ()),
-                MockNow,
-                NotificationSubsystem,
-                State [Push],
-                Error UserGroupSubsystemError
-              ]
 
 runInMemoryUserGroupStore :: (Member MockNow r) => UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
 runInMemoryUserGroupStore state =

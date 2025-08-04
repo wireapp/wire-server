@@ -21,7 +21,8 @@ import Imports
 import Numeric.Natural
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input (runInputConst)
+import Polysemy.Input (Input, runInputConst)
+import Polysemy.Internal.Kind
 import Polysemy.State
 import System.Random qualified as Rand
 import System.Timeout (timeout)
@@ -36,19 +37,35 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
+import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
+import Wire.UserSubsystem
 
-runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem UserGroupStoreInMemEffectStackTest (IO ()) -> IO ()
+type AllDependencies =
+  '[ UserSubsystem,
+     TeamSubsystem,
+     GalleyAPIAccess
+   ]
+    `Append` UserGroupStoreInMemEffectStack
+    `Append` '[ Input (Local ()),
+                MockNow,
+                NotificationSubsystem,
+                State [Push],
+                Error UserGroupSubsystemError
+              ]
+
+runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
 runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) id . runDependencies usrs team
 
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem UserGroupStoreInMemEffectStackTest a ->
+  Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
   run
@@ -65,7 +82,7 @@ runDependencies initialUsers initialTeams =
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem UserGroupStoreInMemEffectStackTest a ->
+  Sem AllDependencies a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
