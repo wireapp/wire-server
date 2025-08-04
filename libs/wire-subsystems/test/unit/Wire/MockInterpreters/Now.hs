@@ -13,6 +13,8 @@ interpretNowConst ::
 interpretNowConst time = interpret \case
   Wire.Sem.Now.Get -> pure time
 
+type MockNow = State UTCTime
+
 interpretNowAsState :: (Member (State UTCTime) r) => InterpreterFor Now r
 interpretNowAsState =
   interpret $ \case
@@ -21,5 +23,5 @@ interpretNowAsState =
 defaultTime :: UTCTime
 defaultTime = UTCTime (ModifiedJulianDay 0) 0
 
-passTime :: (Member (State UTCTime) r) => NominalDiffTime -> Sem r ()
+passTime :: (Member MockNow r) => NominalDiffTime -> Sem r ()
 passTime t = modify (addUTCTime t)

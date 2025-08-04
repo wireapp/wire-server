@@ -14,7 +14,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
@@ -28,6 +27,7 @@ import Wire.API.User
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.GalleyAPIAccess
+import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
 import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Rnd
@@ -38,9 +38,6 @@ import Wire.UserSubsystem
 
 data UserGroupInMemState = UserGroupInMemState
   { userGroups :: Map (TeamId, UserGroupId) UserGroup,
-    -- | current time.  we could use `Now` from polysemy-wire-zoo, but that doesn't allow
-    -- moving the clock deliberately.
-    now :: UTCTimeMillis,
     -- | time passing before every action.  default is 0, so you can control time by setClock,
     -- moveClock (see below).
     clockStep :: NominalDiffTime
@@ -48,22 +45,17 @@ data UserGroupInMemState = UserGroupInMemState
   deriving (Eq, Show)
 
 instance Default UserGroupInMemState where
-  def = UserGroupInMemState mempty (toUTCTimeMillis $ posixSecondsToUTCTime 0) 0
+  def = UserGroupInMemState mempty 0
 
-setClock :: (Member (State UserGroupInMemState) r) => UTCTime -> Sem r ()
-setClock time = modify (\s -> s {now = toUTCTimeMillis time})
-
-moveClock :: (Member (State UserGroupInMemState) r) => NominalDiffTime -> Sem r ()
-moveClock diff = modify (\s -> s {now = toUTCTimeMillis (addUTCTime diff (fromUTCTimeMillis s.now))})
-
-moveClockOneStep :: (Member (State UserGroupInMemState) r) => Sem r ()
+moveClockOneStep :: (Member (State UserGroupInMemState) r, Member MockNow r) => Sem r ()
 moveClockOneStep = do
-  st <- get
-  moveClock st.clockStep
+  st <- get @UserGroupInMemState
+  passTime st.clockStep
 
 type UserGroupStoreInMemEffectConstraints r =
   ( Member (State UserGroupInMemState) r,
     Member Rnd.Random r,
+    Member MockNow r,
     HasCallStack
   )
 
@@ -81,12 +73,13 @@ type UserGroupStoreInMemEffectStackTest =
    ]
     `Append` UserGroupStoreInMemEffectStack
     `Append` '[ Input (Local ()),
+                MockNow,
                 NotificationSubsystem,
                 State [Push],
                 Error UserGroupSubsystemError
               ]
 
-runInMemoryUserGroupStore :: UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
+runInMemoryUserGroupStore :: (Member MockNow r) => UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
 runInMemoryUserGroupStore state =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
@@ -107,7 +100,7 @@ userGroupStoreTestInterpreter =
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
-  now <- (.now) <$> get
+  now <- get @UTCTime
   gid <- Id <$> Rnd.uuid
   let ug =
         UserGroup_
@@ -115,18 +108,18 @@ createUserGroupImpl tid nug managedBy = do
             name = nug.name,
             members = Identity nug.members,
             managedBy = managedBy,
-            createdAt = now
+            createdAt = toUTCTimeMillis now
           }
 
   modifyUserGroups (Map.insert (tid, gid) ug)
   pure ug
 
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
+getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get @UserGroupInMemState
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r [UserGroupMeta]
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList . (.userGroups)) <$> get
+  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList . (.userGroups)) <$> get @UserGroupInMemState
   where
     sieve,
       dropAfterPageSize,
