@@ -149,6 +149,9 @@ library
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
+    Galley.ConversationsSubsystem
+    Galley.Data.Conversation
+    Galley.Data.Conversation.Types
     Galley.Data.Scope
     Galley.Data.TeamNotifications
     Galley.Data.Types

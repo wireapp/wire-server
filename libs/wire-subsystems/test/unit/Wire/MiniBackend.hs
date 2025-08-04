@@ -77,7 +77,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
-import Wire.ConversationsStore (ConversationsStore (..))
+import Wire.ConversationsSubsystem (ConversationsSubsystem (..))
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -634,15 +634,15 @@ interpretMaybeFederationStackState mb =
 
       userSubsystemInterpreter :: InterpreterFor UserSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-      interpretConversationsStore :: forall r0. InterpreterFor ConversationsStore r0
-      interpretConversationsStore =
+      interpretConversationsSubsystem :: forall r0. InterpreterFor ConversationsSubsystem r0
+      interpretConversationsSubsystem =
         interpret $
           \case
-            CloseConversationsFrom _tid _uid -> pure ()
+            InternalCloseConversationsFrom _tid _uid -> pure ()
    in miniBackendLowerEffectsInterpreters mb
-        . interpretConversationsStore
+        . interpretConversationsSubsystem
         . interpretTeamCollaboratorsSubsystem
-        . raiseUnder @ConversationsStore
+        . raiseUnder @ConversationsSubsystem
         . userSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a

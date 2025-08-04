@@ -96,6 +96,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
+          CloseConversationsFrom tid uid -> closeConversationsFrom tid uid
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -680,3 +681,22 @@ getEJPDConvInfo uid = do
     getReq =
       method GET
         . paths ["i", "user", toByteString' uid, "all-conversations"]
+
+-- | Calls 'Galley.API.updateTeamStatusH'.
+closeConversationsFrom ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r ()
+closeConversationsFrom tid uid = do
+  debug $ remote "galley" . msg (val "Close all conversations of a user in a team")
+  void $ galleyRequest req
+  where
+    req =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "close-conversations-from", toByteString' uid]
+        . header "Content-Type" "application/json"
+        . expect2xx

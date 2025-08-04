@@ -315,6 +315,12 @@ type ITeamsAPIBase =
                         :> MultiVerb1 'PUT '[JSON] (RespondEmpty 204 "OK")
                     )
          )
+    :<|> Named
+           "close-conversations-from"
+           ( "close-conversations-from"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "OK")
+           )
 
 type IFeatureStatusGet cfg =
   Named
