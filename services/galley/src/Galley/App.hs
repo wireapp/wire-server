@@ -318,7 +318,7 @@ evalGalley e =
     . runGundeckAPIAccess (e ^. options . gundeck)
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
-    . interpretConversationsStoreCassandra e._cstate
+    . interpretConversationsStoreCassandra
     . interpretTeamCollaboratorsSubsystem
     . raiseUnder @ConversationsStore
     . interpretSparAccess
