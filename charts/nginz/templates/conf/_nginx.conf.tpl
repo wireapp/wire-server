@@ -196,7 +196,7 @@ http {
 
 {{- $validUpstreams := include "valid_upstreams" . | fromJson }}
 {{- range $name, $_ := $validUpstreams }}
-  upstream {{ $name }} {
+  upstream {{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}} { 
       zone {{ $name }} 64k; # needed for dynamic DNS updates
       least_conn;
       keepalive 32;

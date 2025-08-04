@@ -1,0 +1,1 @@
+Fixed 504 errors when trying to reach services in other namespaces.
