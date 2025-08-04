@@ -179,8 +179,8 @@ library
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
-    Wire.ConversationsStore
-    Wire.ConversationsStore.Cassandra
+    Wire.ConversationsSubsystem
+    Wire.ConversationsSubsystem.GalleyAPI
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore

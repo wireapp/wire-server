@@ -98,6 +98,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
+import Wire.ConversationsSubsystem (ConversationsSubsystem)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.NotificationSubsystem
@@ -117,6 +118,7 @@ type GalleyEffects1 =
      TeamCollaboratorsSubsystem,
      NotificationSubsystem,
      TeamSubsystem,
+     ConversationsSubsystem,
      GundeckAPIAccess,
      Rpc,
      ExternalAccess,
