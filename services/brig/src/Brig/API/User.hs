@@ -554,8 +554,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
   lift . liftSem $ UserStore.createUser account Nothing
-  domain <- viewFederationDomain
-  pure $ newStoredUserToUser $ Qualified account domain
+  newStoredUserToUser . Qualified account <$> viewFederationDomain
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()
