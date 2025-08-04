@@ -48,7 +48,7 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.ConversationsStore (ConversationsStore)
-import Wire.ConversationsStore.Cassandra (interpretConversationsStoreCassandra)
+import Wire.ConversationsStore.Cassandra (interpretConversationsStoreCassandraOn)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
@@ -344,7 +344,7 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
               . interpretIndexedUserStoreES indexedUserStoreConfig
-              . interpretConversationsStoreCassandra e.casClient
+              . interpretConversationsStoreCassandraOn e.casClient
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
               . runHashPassword e.settings.passwordHashingOptions
