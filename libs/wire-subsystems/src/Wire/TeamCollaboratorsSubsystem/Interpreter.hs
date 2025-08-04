@@ -16,7 +16,7 @@ import Wire.API.Event.Team
 import Wire.API.Push.V2 qualified as Push
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.ConversationsStore (ConversationsStore, closeConversationsFrom)
+import Wire.ConversationsSubsystem (ConversationsSubsystem, internalCloseConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -30,7 +30,7 @@ interpretTeamCollaboratorsSubsystem ::
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member ConversationsStore r
+    Member ConversationsSubsystem r
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
 interpretTeamCollaboratorsSubsystem = interpret $ \case
@@ -110,7 +110,7 @@ removeTeamCollaboratorImpl ::
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member ConversationsStore r
+    Member ConversationsSubsystem r
   ) =>
   Local UserId ->
   UserId ->
@@ -119,7 +119,7 @@ removeTeamCollaboratorImpl ::
 removeTeamCollaboratorImpl zUser user team = do
   guardPermission (tUnqualified zUser) team TeamMember.RemoveTeamCollaborator InsufficientRights
   Store.removeTeamCollaborator user team
-  closeConversationsFrom team user
+  internalCloseConversationsFrom team user
 
   now <- get
   let event = newEvent team now (EdCollaboratorRemove user)
