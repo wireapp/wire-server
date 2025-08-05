@@ -34,9 +34,9 @@ interpretTeamCollaboratorsSubsystem ::
 interpretTeamCollaboratorsSubsystem = interpret $ \case
   CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
-  InternalGetAllTeamCollaborators team -> internalGetAllTeamCollaboratorsImpl team
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
+  InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -102,13 +102,14 @@ getAllTeamCollaboratorsImpl zUser team = do
   guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team
 
-internalGetAllTeamCollaboratorsImpl ::
+internalGetTeamCollaboratorsWithIdsImpl ::
   ( Member Store.TeamCollaboratorsStore r
   ) =>
-  TeamId ->
+  [TeamId] ->
+  [UserId] ->
   Sem r [TeamCollaborator]
-internalGetAllTeamCollaboratorsImpl team = do
-  Store.getAllTeamCollaborators team
+internalGetTeamCollaboratorsWithIdsImpl = do
+  Store.getTeamCollaboratorsWithIds
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

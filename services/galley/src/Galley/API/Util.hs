@@ -180,7 +180,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
     -- this is that team collaborators have implicitly agreed to be
     -- collaborated with.
     getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
-    getTeamCollaborators teams = gUser <$$> (concat <$> mapM internalGetAllTeamCollaborators teams)
+    getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds teams uids
 
 -- | Check that the user is connected to everybody else.
 --
