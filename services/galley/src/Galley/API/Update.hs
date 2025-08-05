@@ -263,8 +263,7 @@ unblockRemoteConv lusr rcnv = do
 
 type UpdateConversationAccessEffects =
   '[ BackendNotificationQueueAccess,
-     BotAccess,
-     BrigAccess,
+     BrigAPIAccess,
      CodeStore,
      ConversationStore,
      Error FederationError,
@@ -323,7 +322,7 @@ updateConversationAccessUnqualified lusr con cnv update =
 
 updateConversationReceiptMode ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -365,7 +364,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
 
 updateRemoteConversation ::
   forall tag r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -404,7 +403,7 @@ updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
 
 updateConversationReceiptModeUnqualified ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -484,7 +483,7 @@ updateConversationMessageTimerUnqualified ::
 updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member BackendNotificationQueueAccess r,
     Member CodeStore r,
     Member ConversationStore r,
@@ -733,7 +732,7 @@ updateConversationProtocolWithLocalUser ::
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member MemberStore r,
     Member TinyLog r,
@@ -787,7 +786,7 @@ updateChannelAddPermission ::
     Member (ErrorS TeamNotFound) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member FederatorAccess r,
     Member MemberStore r,
     Member (ErrorS 'InvalidTargetAccess) r,
@@ -817,7 +816,7 @@ updateChannelAddPermission lusr zcon qcnv update =
 joinConversationByReusableCode ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -852,7 +851,7 @@ joinConversationByReusableCode lusr zcon req = do
 joinConversationById ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -878,7 +877,7 @@ joinConversationById lusr zcon cnv = do
 joinConversation ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -923,7 +922,7 @@ joinConversation lusr zcon conv access = do
 addMembers ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
@@ -969,7 +968,7 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
 
 addMembersUnqualifiedV2 ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -1013,7 +1012,7 @@ addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
 
 addMembersUnqualified ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -1402,7 +1401,7 @@ removeMemberFromChannel qusr lconv victim = do
 -- OTR
 
 postProteusMessage ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
@@ -1427,7 +1426,7 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
     conv
 
 postProteusBroadcast ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
@@ -1477,7 +1476,7 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
   unqualify (tDomain loc) <$> f qualifiedMessage
 
 postBotMessageUnqualified ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member ExternalAccess r,
@@ -1507,7 +1506,7 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
     message
 
 postOtrBroadcastUnqualified ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
@@ -1531,7 +1530,7 @@ postOtrBroadcastUnqualified sender zcon =
     (postBroadcast sender (Just zcon))
 
 postOtrMessageUnqualified ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,

@@ -13,7 +13,6 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore (listTeamMembers)
 import Galley.Effects.TeamStore
@@ -27,6 +26,7 @@ import Wire.API.Routes.LowLevelStream (LowLevelStreamingBody)
 import Wire.API.Team.Export
 import Wire.API.Team.Member
 import Wire.API.User (ScimUserInfo (suiCreatedOn), User (..))
+import Wire.BrigAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Paging qualified as E
@@ -39,7 +39,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 type InviterCache = IORef (Map UserId (MVar (Maybe Handle)))
 
 lookupInviter ::
-  (Member Resource r, Member BrigAccess r, Member (Final IO) r) =>
+  (Member Resource r, Member BrigAPIAccess r, Member (Final IO) r) =>
   InviterCache ->
   UserId ->
   Sem r (Maybe Handle)
@@ -66,7 +66,7 @@ lookupInviter cache uid = flip onException ensureCache $ do
         tryPutMVar var Nothing
 
 getUserRecord ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member Spar.SparAccess r,
     Member (ErrorS TeamMemberNotFound) r,
     Member (Final IO) r,
@@ -101,7 +101,7 @@ getUserRecord cache member = do
 -- stored in a cache so that they can be reused by subsequent requests.
 getTeamMembersCSV ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'AccessDenied) r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,

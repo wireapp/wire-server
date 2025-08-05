@@ -726,7 +726,7 @@ getConversationMeta cnv =
 
 getConversationByReusableCode ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
@@ -847,7 +847,7 @@ getMLSSelfConversation lusr = do
 -- group ID, however we /do/ assume that the two backends agree on which of the
 -- two is responsible for hosting the conversation.
 getMLSOne2OneConversationV5 ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
     Member (Error FederationError) r,
@@ -869,7 +869,7 @@ getMLSOne2OneConversationV5 lself qother = do
     else throwS @MLSFederatedOne2OneNotSupported
 
 getMLSOne2OneConversationInternal ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
     Member (Error FederationError) r,
@@ -888,7 +888,7 @@ getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
 getMLSOne2OneConversationV6 ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
     Member (Error FederationError) r,
@@ -914,7 +914,7 @@ getMLSOne2OneConversationV6 lself qother = do
     convId
 
 getMLSOne2OneConversation ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
     Member (Error FederationError) r,

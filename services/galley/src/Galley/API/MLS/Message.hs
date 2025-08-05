@@ -353,7 +353,7 @@ checkGroupState leaves groupInfo = do
       Right (cid, _) -> pure cid
 
 postMLSCommitBundleToRemoteConv ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Members MLSBundleStaticErrors r,
     Member (Error FederationError) r,
     Member (Error MLSProtocolError) r,

@@ -162,7 +162,7 @@ onClientRemoved domain req = do
   pure EmptyResponse
 
 onConversationCreated ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
@@ -234,7 +234,7 @@ getConversations domain (GetConversationsRequest uid cids) = do
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
@@ -250,7 +250,7 @@ onConversationUpdated requestingDomain cu = do
   pure EmptyResponse
 
 onConversationUpdatedV0 ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
@@ -391,7 +391,7 @@ onMessageSent domain rmUnqualified = do
   pure EmptyResponse
 
 sendMessage ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member (Error InvalidInput) r,
@@ -478,9 +478,8 @@ onUserDeleted origDomain udcn = do
 updateConversation ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member CodeStore r,
-    Member BotAccess r,
     Member FireAndForget r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
@@ -613,7 +612,7 @@ handleMLSMessageErrors =
 
 sendMLSCommitBundle ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
@@ -670,7 +669,7 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
 
 sendMLSMessage ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
@@ -777,7 +776,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
 
 getOne2OneConversationV1 ::
   ( Member (Input (Local ())) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member (Error InvalidInput) r
   ) =>
   Domain ->
@@ -800,7 +799,7 @@ getOne2OneConversation ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member (Error InternalError) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member (Input Env) r
   ) =>
   Domain ->
