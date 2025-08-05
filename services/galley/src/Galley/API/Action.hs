@@ -936,9 +936,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
           -- TeamMember is a special case, which will be handled in ensureAllowed
           TeamMember _ -> pure ()
 
-      -- check if it is a group conversation (except for rename actions)
-      when (fromSing tag /= ConversationRenameTag) $
-        ensureGroupConversation conv
+      checkConversationType (fromSing tag) conv
 
       -- extra action-specific checks
       ensureAllowed tag loc action conv self
