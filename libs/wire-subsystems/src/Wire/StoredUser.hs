@@ -105,12 +105,9 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _ = l
 
--- | If the user is not activated, 'toIdentity' will return 'Nothing' as a
--- precaution, because elsewhere we rely on the fact that a non-empty
--- 'UserIdentity' means that the user is activated.
---
--- The reason it's just a "precaution" is that we /also/ have an invariant that
--- having an email or phone in the database means the user has to be activated.
+-- | If the user is not activated, 'toIdentity' will return 'Nothing', because
+-- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the
+-- user is activated.
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
@@ -191,6 +188,7 @@ newStoredUserToUser :: Qualified NewStoredUser -> User
 newStoredUserToUser (Qualified new domain) =
   User
     { userQualifiedId = Qualified new.id domain,
+      -- save identity even if the user is not activated
       userIdentity = toIdentity True new.email new.ssoId,
       userEmailUnvalidated = Nothing,
       userDisplayName = new.name,
