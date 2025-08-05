@@ -17,8 +17,9 @@ import Brig.Team.Template (TeamTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
-import Control.Lens (to, (^.))
+import Control.Lens (to, (^.), _Just)
 import Control.Monad.Catch (throwM)
+import Data.Coerce (coerce)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
@@ -213,18 +214,30 @@ type BrigLowerLevelEffects =
 
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
-  let userSubsystemConfig =
+  let blockedDomains =
+        e
+          ^. ( App.settingsLens
+                 . Opt.customerExtensionsLens
+                 . _Just
+                 . to
+                   ( coerce {- safely drop newtype wrapper -}
+                       Opt.domainsBlockedForRegistration
+                   )
+             )
+      userSubsystemConfig =
         UserSubsystemConfig
           { emailVisibilityConfig = e.settings.emailVisibility,
             defaultLocale = Opt.defaultUserLocale e.settings,
             searchSameTeamOnly = fromMaybe False e.settings.searchSameTeamOnly,
             maxTeamSize = e.settings.maxTeamSize,
-            activationCodeTimeout = e.settings.activationTimeout
+            activationCodeTimeout = e.settings.activationTimeout,
+            blockedDomains = blockedDomains
           }
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig
           { maxTeamSize = e.settings.maxTeamSize,
-            teamInvitationTimeout = e.settings.teamInvitationTimeout
+            teamInvitationTimeout = e.settings.teamInvitationTimeout,
+            blockedDomains = blockedDomains
           }
       federationApiAccessConfig =
         FederationAPIAccessConfig
