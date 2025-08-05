@@ -487,10 +487,6 @@ nativeTargets psh rcps' dontPush =
       | not (whitelistedOrNoWhitelist a) = False
       -- Include client if not found in already served presences.
       | otherwise = not $ List.elem (a ^. addrUser, a ^. addrClient) dontPush --  (List.find (isOnline a) alreadySent)
-      -- isOnline a x =
-      --   a ^. addrUser == Presence.userId x
-      --     && (a ^. addrConn == Presence.connId x || equalClient a x)
-      -- equalClient a x = Just (a ^. addrClient) == Presence.clientId x
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
     whitelistedOrNoWhitelist a =
