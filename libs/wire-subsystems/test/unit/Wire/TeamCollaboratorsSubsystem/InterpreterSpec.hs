@@ -165,6 +165,29 @@ spec = do
                     pure $
                       length collaborators === length expectedCollaboratorTids
                         .&&. collaboratorTids === (Set.fromList expectedCollaboratorTids)
+  describe "InternalGetAllTeamCollaborators" $ do
+    prop "gets all collaborators of a team" $
+      \(owner :: StoredUser)
+       (team :: TeamId)
+       (collaborators :: [StoredUser])
+       config
+       ownDomain
+       collabPerms
+       ((EligibleRole role) :: EligibleRole) -> do
+          let localBackend :: MiniBackend = def {users = owner : collaborators}
+              authUser = toLocalUnsafe ownDomain owner.id
+              perms = rolePermissions role
+              ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+              teamMap = Map.singleton team [ownerTeamMember]
+           in runNoFederationStack localBackend teamMap config $ do
+                forM_ collaborators $ \(collaborator :: StoredUser) ->
+                  createTeamCollaborator authUser collaborator.id team collabPerms
+                foundCollaborators <- internalGetAllTeamCollaborators team
+                let collaboratorIds = Set.fromList $ map gUser foundCollaborators
+                    expectedCollaboratorIds = Set.fromList $ map (.id) collaborators
+                pure $
+                  length collaborators === length foundCollaborators
+                    .&&. collaboratorIds === expectedCollaboratorIds
 
 eligibleRoles :: [Role]
 eligibleRoles = [RoleAdmin, RoleOwner]
