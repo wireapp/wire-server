@@ -293,6 +293,7 @@ library
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
+    , conduit
     , constraints
     , containers                            >=0.5
     , crypton
