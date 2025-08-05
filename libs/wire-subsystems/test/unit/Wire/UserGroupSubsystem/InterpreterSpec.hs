@@ -9,6 +9,7 @@ import Data.Bifunctor (first)
 import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Qualified
@@ -20,7 +21,8 @@ import Imports
 import Numeric.Natural
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input (runInputConst)
+import Polysemy.Input (Input, runInputConst)
+import Polysemy.Internal.Kind
 import Polysemy.State
 import System.Random qualified as Rand
 import System.Timeout (timeout)
@@ -35,25 +37,42 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
+import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
+import Wire.UserSubsystem
 
-runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem UserGroupStoreInMemEffectStackTest (IO ()) -> IO ()
+type AllDependencies =
+  '[ UserSubsystem,
+     TeamSubsystem,
+     GalleyAPIAccess
+   ]
+    `Append` UserGroupStoreInMemEffectStack
+    `Append` '[ Input (Local ()),
+                MockNow,
+                NotificationSubsystem,
+                State [Push],
+                Error UserGroupSubsystemError
+              ]
+
+runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
 runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) id . runDependencies usrs team
 
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem UserGroupStoreInMemEffectStackTest a ->
+  Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
   run
     . runError
     . evalState mempty
     . inMemoryNotificationSubsystemInterpreter
+    . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
@@ -63,13 +82,14 @@ runDependencies initialUsers initialTeams =
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem UserGroupStoreInMemEffectStackTest a ->
+  Sem AllDependencies a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
     . runError
     . runState mempty
     . inMemoryNotificationSubsystemInterpreter
+    . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
@@ -117,7 +137,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         }
                 createdGroup <- createGroup (ownerId team) newUserGroup
                 retrievedGroup <- getGroup (ownerId team) createdGroup.id_
-                now <- (.now) <$> get
+                now <- toUTCTimeMillis <$> get
                 let assert =
                       createdGroup.name === newUserGroupName
                         .&&. createdGroup.members === Identity newUserGroup.members
@@ -303,7 +323,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
         let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
-        groups <- (\ng -> moveClock 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
+        groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
         get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing Nothing
         get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing Nothing
@@ -329,7 +349,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 . interpretUserGroupSubsystem
                 $ do
                   let mkNewGroup = NewUserGroup (either undefined id $ userGroupNameFromText "same name") mempty
-                      mkGroup = moveClock 1 >> createGroup (ownerId team1) mkNewGroup
+                      mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
 
                   -- groups are only distinguished by creation date
                   groups <- replicateM (fromIntegral numGroups) mkGroup
@@ -372,7 +392,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         group2a <- mkGroup "2"
         group1a <- mkGroup "1"
         group3a <- mkGroup "3"
-        moveClock 1
+        passTime 1
         group2b <- mkGroup "2"
         group1b <- mkGroup "1"
         group3b <- mkGroup "3"

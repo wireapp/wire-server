@@ -7,63 +7,32 @@
 module Wire.MockInterpreters.UserGroupStore where
 
 import Control.Lens ((%~), _2)
-import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Vector (fromList)
 import GHC.Stack
 import Imports
 import Polysemy
-import Polysemy.Error
-import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Wire.API.User
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-import Wire.GalleyAPIAccess
+import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
-import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Rnd
-import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
-import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError)
-import Wire.UserSubsystem
 
-data UserGroupInMemState = UserGroupInMemState
-  { userGroups :: Map (TeamId, UserGroupId) UserGroup,
-    -- | current time.  we could use `Now` from polysemy-wire-zoo, but that doesn't allow
-    -- moving the clock deliberately.
-    now :: UTCTimeMillis,
-    -- | time passing before every action.  default is 0, so you can control time by setClock,
-    -- moveClock (see below).
-    clockStep :: NominalDiffTime
-  }
-  deriving (Eq, Show)
-
-instance Default UserGroupInMemState where
-  def = UserGroupInMemState mempty (toUTCTimeMillis $ posixSecondsToUTCTime 0) 0
-
-setClock :: (Member (State UserGroupInMemState) r) => UTCTime -> Sem r ()
-setClock time = modify (\s -> s {now = toUTCTimeMillis time})
-
-moveClock :: (Member (State UserGroupInMemState) r) => NominalDiffTime -> Sem r ()
-moveClock diff = modify (\s -> s {now = toUTCTimeMillis (addUTCTime diff (fromUTCTimeMillis s.now))})
-
-moveClockOneStep :: (Member (State UserGroupInMemState) r) => Sem r ()
-moveClockOneStep = do
-  st <- get
-  moveClock st.clockStep
+type UserGroupInMemState = Map (TeamId, UserGroupId) UserGroup
 
 type UserGroupStoreInMemEffectConstraints r =
   ( Member (State UserGroupInMemState) r,
     Member Rnd.Random r,
+    Member MockNow r,
     HasCallStack
   )
 
@@ -74,19 +43,7 @@ type UserGroupStoreInMemEffectStack =
      State StdGen
    ]
 
-type UserGroupStoreInMemEffectStackTest =
-  '[ UserSubsystem,
-     TeamSubsystem,
-     GalleyAPIAccess
-   ]
-    `Append` UserGroupStoreInMemEffectStack
-    `Append` '[ Input (Local ()),
-                NotificationSubsystem,
-                State [Push],
-                Error UserGroupSubsystemError
-              ]
-
-runInMemoryUserGroupStore :: UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
+runInMemoryUserGroupStore :: (Member MockNow r) => UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
 runInMemoryUserGroupStore state =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
@@ -95,19 +52,18 @@ runInMemoryUserGroupStore state =
 
 userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r) => InterpreterFor UserGroupStore r
 userGroupStoreTestInterpreter =
-  interpret $
-    (moveClockOneStep >>) . \case
-      CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
-      GetUserGroup tid gid -> getUserGroupImpl tid gid
-      GetUserGroups req -> getUserGroupsImpl req
-      UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
-      DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
-      AddUser gid uid -> addUserImpl gid uid
-      RemoveUser gid uid -> removeUserImpl gid uid
+  interpret $ \case
+    CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
+    GetUserGroup tid gid -> getUserGroupImpl tid gid
+    GetUserGroups req -> getUserGroupsImpl req
+    UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
+    DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
+    AddUser gid uid -> addUserImpl gid uid
+    RemoveUser gid uid -> removeUserImpl gid uid
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
-  now <- (.now) <$> get
+  now <- get @UTCTime
   gid <- Id <$> Rnd.uuid
   let ug =
         UserGroup_
@@ -115,18 +71,18 @@ createUserGroupImpl tid nug managedBy = do
             name = nug.name,
             members = Identity nug.members,
             managedBy = managedBy,
-            createdAt = now
+            createdAt = toUTCTimeMillis now
           }
 
-  modifyUserGroups (Map.insert (tid, gid) ug)
+  modify (Map.insert (tid, gid) ug)
   pure ug
 
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid = (Map.lookup (tid, gid) . (.userGroups)) <$> get
+getUserGroupImpl tid gid = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r [UserGroupMeta]
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList . (.userGroups)) <$> get
+  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
   where
     sieve,
       dropAfterPageSize,
@@ -184,13 +140,13 @@ updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
       f Nothing = Nothing
       f (Just g) = Just (g {name = newName} :: UserGroup)
 
-  modifyUserGroups (Map.alter f (tid, gid))
+  modify (Map.alter f (tid, gid))
   pure $ exists $> ()
 
 deleteUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
 deleteUserGroupImpl tid gid = do
   exists <- getUserGroupImpl tid gid
-  modifyUserGroups (Map.delete (tid, gid))
+  modify (Map.delete (tid, gid))
   pure $ exists $> ()
 
 addUserImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> UserId -> Sem r ()
@@ -211,13 +167,6 @@ removeUserImpl gid uid = do
 
 ----------------------------------------------------------------------
 
-modifyUserGroups ::
-  forall r m.
-  (UserGroupStoreInMemEffectConstraints r, m ~ Map (TeamId, UserGroupId) UserGroup) =>
-  (m -> m) ->
-  Sem r ()
-modifyUserGroups u = modify (\ms -> ms {userGroups = u ms.userGroups})
-
 modifyUserGroupsGidOnly ::
   forall r m.
   (UserGroupStoreInMemEffectConstraints r, m ~ Map (TeamId, UserGroupId) UserGroup) =>
@@ -225,7 +174,7 @@ modifyUserGroupsGidOnly ::
   ((TeamId, UserGroupId) -> m -> m) ->
   Sem r ()
 modifyUserGroupsGidOnly gid u = do
-  modify $ \ms -> case filter (\(_, gid') -> gid' == gid) (Map.keys ms.userGroups) of
+  modify $ \ms -> case filter (\(_, gid') -> gid' == gid) (Map.keys ms) of
     [] -> ms
-    [fullKey] -> ms {userGroups = u fullKey ms.userGroups}
+    [fullKey] -> u fullKey ms
     bad -> error $ "uuid clash: " <> show bad
