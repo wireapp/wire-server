@@ -170,15 +170,15 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   where
     -- Teams in which the user who wants to reach out is member with
     -- `ImplicitConnection` permission.
-    getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r) => Sem r [TeamId]
+    getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r') => Sem r' [TeamId]
     getUserCollaborationTeams =
       gTeam
         <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations u)
 
     -- We do not check the permissions of team collaborators if a user tries to
-    -- reach out to them (if they are in the same team.) The logic behind this
-    -- is that team collaborators have implicitly agreed to be collaborated
-    -- with.
+    -- reach out to them (if they are in the same team.) The reasoning behind
+    -- this is that team collaborators have implicitly agreed to be
+    -- collaborated with.
     getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
     getTeamCollaborators teams = gUser <$$> (concat <$> mapM internalGetAllTeamCollaborators teams)
 
