@@ -125,7 +125,6 @@ splitPushActualRecipients p =
                   let clients = case r._recipientClients of
                         RecipientClientsAll -> allCassandraClientsFor r._recipientId
                         RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allCassandraClientsFor r._recipientId
-                        RecipientClientsTemporaryOnly -> Set.empty
                    in Set.map (\c -> (r._recipientId, c.clientId)) clients
               )
               cassandraPush._pushRecipients
@@ -138,7 +137,6 @@ splitPushActualRecipients p =
                   let clients = case r._recipientClients of
                         RecipientClientsAll -> allRabbitMqClientsFor r._recipientId
                         RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allRabbitMqClientsFor r._recipientId
-                        RecipientClientsTemporaryOnly -> Set.empty
                    in Set.map (\c -> (r._recipientId, c.clientId)) clients
               )
               rabbitmqPush._pushRecipients
@@ -150,7 +148,6 @@ splitPushActualRecipients p =
                 let clients = case r._recipientClients of
                       RecipientClientsAll -> Set.map (.clientId) $ clientsFor r._recipientId
                       RecipientClientsSome cids -> Set.fromList $ Imports.toList cids
-                      RecipientClientsTemporaryOnly -> Set.empty
                  in Set.map (r._recipientId,) clients
             )
             p.push._pushRecipients
@@ -187,7 +184,6 @@ instance Arbitrary PushWithUserClients where
           RecipientClientsAll -> do
             extraClientIds <- setOf' arbitrary
             Set.fromList <$> traverse arbitraryClientWithId (Set.toList extraClientIds)
-          RecipientClientsTemporaryOnly -> arbitrary
         pure (r._recipientId, clients)
 
       arbitraryClientWithId :: ClientId -> Gen Client

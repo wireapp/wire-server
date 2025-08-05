@@ -178,7 +178,6 @@ splitPush clientsFull p = do
             RecipientClientsSome cs ->
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
-            RecipientClientsTemporaryOnly -> mempty
           (rabbitmqClients, legacyClients) = Set.partition supportsConsumableNotifications relevantClients
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
           legacyClientIds = (.clientId) <$> Set.toList legacyClients
@@ -198,7 +197,6 @@ splitPush clientsFull p = do
           let rabbitMqRecipients = case rcpt._recipientClients of
                 RecipientClientsAll -> RecipientClientsAll
                 RecipientClientsSome _ -> RecipientClientsSome $ list1 r rs
-                RecipientClientsTemporaryOnly -> RecipientClientsTemporaryOnly
            in These
                 rcpt {_recipientClients = rabbitMqRecipients}
                 rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
@@ -302,8 +300,6 @@ pushViaRabbitMq newNotif = do
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
                 Set.fromList $ map (clientRoutingKey r._recipientId) cs
-              RecipientClientsTemporaryOnly ->
-                Set.singleton $ temporaryRoutingKey r._recipientId
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
@@ -390,7 +386,6 @@ mkCassandraTargets NewNotification {..} =
           -- clients are stored in cassandra as a list with a notification.  empty list
           -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
           RecipientClientsSome cs -> Just $ toList cs
-          RecipientClientsTemporaryOnly -> Nothing
       pure $ target (r ^. recipientId) & targetClients .~ clients
 
 -- | Information needed to push notifications over websockets and/or native
@@ -498,7 +493,6 @@ nativeTargets psh rcps' dontPush =
       -- equalClient a x = Just (a ^. addrClient) == Presence.clientId x
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
-    eligibleClient _ RecipientClientsTemporaryOnly = False
     whitelistedOrNoWhitelist a =
       null (psh ^. pushConnections)
         || a ^. addrConn `elem` psh ^. pushConnections
