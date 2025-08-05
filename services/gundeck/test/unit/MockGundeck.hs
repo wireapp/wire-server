@@ -585,9 +585,9 @@ handlePushRabbit Push {..} = do
               [] -> [userRoutingKey uid]
               _ ->
                 let rabbitClients = filter (`notElem` legacyClients) $ map (.clientId) clients
-                 in temporaryRoutingKey uid : (clientRoutingKey uid <$> rabbitClients)
+                 in [userRoutingKey uid | not (null rabbitClients)]
           RecipientClientsSome cc ->
-            temporaryRoutingKey uid : (clientRoutingKey uid <$> filter (`notElem` legacyClients) (toList cc))
+            (clientRoutingKey uid <$> filter (`notElem` legacyClients) (toList cc))
           RecipientClientsTemporaryOnly -> [temporaryRoutingKey uid]
     for routingKeys $ \routingKey ->
       msRabbitQueue %= deliver ("user-notifications", routingKey) _pushPayload

@@ -130,10 +130,6 @@ splitPushActualRecipients p =
               )
               cassandraPush._pushRecipients
 
-      actualTempRabbitMqRecipients :: Set UserId =
-        flip foldMap mRabbitMqPush $ \rabbitmqPush ->
-          Set.map (\r -> r._recipientId) rabbitmqPush._pushRecipients
-
       actualRabbitMqRecipients :: Set (UserId, ClientId) =
         flip foldMap mRabbitMqPush $ \rabbitmqPush ->
           Set.unions $
@@ -166,12 +162,8 @@ splitPushActualRecipients p =
                in Set.member c rmqClients
           )
           allExpectedPushRecipients
-
-      expectedTempRabbitMqRecipients =
-        Set.map (._recipientId) p.push._pushRecipients
    in counterexample ("actualRecipients: " <> show actualRabbitMqRecipients <> "\nallExpectedRecipients: " <> show allExpectedPushRecipients) $
         actualRabbitMqRecipients `Set.isSubsetOf` allExpectedPushRecipients
-          .&&. actualTempRabbitMqRecipients === expectedTempRabbitMqRecipients
           .&&. actualCassandraRecipients === expectedCassandraRecipients
           .&&. actualRabbitMqRecipients === expectedRabbitMqRecipients
 
