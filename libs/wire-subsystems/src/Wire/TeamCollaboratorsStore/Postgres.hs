@@ -173,8 +173,8 @@ getTeamCollaboratorsWithIdsImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  [TeamId] ->
-  [UserId] ->
+  Set TeamId ->
+  Set UserId ->
   Sem r [TeamCollaborator]
 getTeamCollaboratorsWithIdsImpl teamIds userIds = do
   pool <- input
@@ -182,7 +182,7 @@ getTeamCollaboratorsWithIdsImpl teamIds userIds = do
   either throw pure eitherTeamCollaborators
   where
     session :: Session [TeamCollaborator]
-    session = statement (teamIds, userIds) getTeamCollaboratorStatement
+    session = statement (Data.Set.toList teamIds, Data.Set.toList userIds) getTeamCollaboratorStatement
 
     getTeamCollaboratorStatement :: Statement ([TeamId], [UserId]) [TeamCollaborator]
     getTeamCollaboratorStatement =

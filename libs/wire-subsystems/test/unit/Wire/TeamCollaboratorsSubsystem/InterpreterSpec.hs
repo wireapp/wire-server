@@ -187,8 +187,8 @@ spec = do
                       createTeamCollaborator authUser collaborator.id tid collabPerms
                   collaborators <-
                     internalGetTeamCollaboratorsWithIds
-                      (concat (Map.elems collaboratorTeams))
-                      ((.id) <$> Map.keys collaboratorTeams)
+                      (Set.fromList (concat (Map.elems collaboratorTeams)))
+                      (Set.fromList ((.id) <$> Map.keys collaboratorTeams))
                   let collaboratorTids = Set.fromList $ map gTeam collaborators
                       expectedCollaboratorTids :: [TeamId] = concat $ Map.elems collaboratorTeams
                   pure $
@@ -205,14 +205,14 @@ spec = do
                 authUser = toLocalUnsafe ownDomain owner.id
                 perms = rolePermissions role
                 ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
-                teamMap = Map.fromList $ concatMap (\(_, tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
+                teamMap = Map.fromList $ concatMap (\(_, toList -> tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
              in runNoFederationStack localBackend teamMap config $ do
                   forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) ->
                     forM_ (collaboratorTeams Map.! collaborator) \tid ->
                       createTeamCollaborator authUser collaborator.id tid collabPerms
                   collaborators <-
                     internalGetTeamCollaboratorsWithIds
-                      (concat (Map.elems collaboratorTeams))
+                      (Set.fromList (concat (Map.elems collaboratorTeams)))
                       mempty
                   pure $
                     length collaborators === 0

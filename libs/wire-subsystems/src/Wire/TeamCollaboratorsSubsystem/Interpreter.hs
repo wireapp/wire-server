@@ -105,8 +105,8 @@ getAllTeamCollaboratorsImpl zUser team = do
 internalGetTeamCollaboratorsWithIdsImpl ::
   ( Member Store.TeamCollaboratorsStore r
   ) =>
-  [TeamId] ->
-  [UserId] ->
+  Set TeamId ->
+  Set UserId ->
   Sem r [TeamCollaborator]
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
