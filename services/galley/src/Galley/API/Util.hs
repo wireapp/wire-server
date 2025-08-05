@@ -254,6 +254,18 @@ ensureGroupConversation conv = do
   let ty = Data.convType conv
   when (ty /= RegularConv) $ throwS @'InvalidOperation
 
+-- | Ensure that the conversation is of the right type for the action
+checkConversationType ::
+  (Member (ErrorS 'InvalidOperation) r) =>
+  ConversationActionTag ->
+  Data.Conversation ->
+  Sem r ()
+checkConversationType ConversationRenameTag _conv = pure ()
+checkConversationType ConversationResetTag _conv = pure ()
+checkConversationType _ conv = do
+  let ty = Data.convType conv
+  when (ty /= RegularConv) $ throwS @'InvalidOperation
+
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only

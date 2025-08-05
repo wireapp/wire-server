@@ -35,6 +35,43 @@ testResetGroupConversation domain = do
   otherMember <- assertOne =<< asList (conv' %. "members.others")
   otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
 
+testResetSelfConversation :: (HasCallStack) => App ()
+testResetSelfConversation = do
+  alice <- randomUser OwnDomain def
+  [alice1, alice2] <- traverse (createMLSClient def) (replicate 2 alice)
+  void $ uploadNewKeyPackage def alice2
+  (_, conv) <- createSelfGroup def alice1
+  convId <- objConvId conv
+  void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
+  mlsConv <- getMLSConv convId
+
+  resetConversation alice mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+
+  conv' <- getConversation alice conv >>= getJSON 200
+  conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
+  conv' %. "epoch" `shouldMatchInt` 0
+
+testResetOne2OneConversation :: (HasCallStack) => App ()
+testResetOne2OneConversation = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  otherDomain <- asString OtherDomain
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  convOwnerDomain <- asString $ conv %. "conversation.qualified_id.domain"
+  let user = if convOwnerDomain == otherDomain then bob else alice
+  convId <- objConvId (conv %. "conversation")
+
+  resetOne2OneGroup def alice1 conv
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  mlsConv <- getMLSConv convId
+
+  resetConversation user mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+
+  conv' <- getConversation user convId >>= getJSON 200
+  conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
+  conv' %. "epoch" `shouldMatchInt` 0
+
 testResetMixedConversation :: (HasCallStack) => Domain -> App ()
 testResetMixedConversation domain = do
   -- create mixed conversation
