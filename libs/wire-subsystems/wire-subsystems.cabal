@@ -181,6 +181,9 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.ConversationStore
+    Wire.ConversationStore.Cassandra
+    Wire.ConversationSubsystem
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
