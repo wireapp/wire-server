@@ -54,15 +54,12 @@ import Galley.API.Message
 import Galley.API.Push
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Options
-import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.One2One
-import Galley.Types.UserList (UserList (UserList))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -101,7 +98,10 @@ import Wire.API.User (BaseProtocolTag (..))
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.UserList (UserList (UserList))
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -315,7 +315,7 @@ leaveConversation requestingDomain lc = do
   case res of
     Left e -> pure $ LeaveConversationResponse (Left e)
     Right conv -> do
-      let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
+      let remotes = filter ((== qDomain leaver) . tDomain) ((.id_) <$> conv.remoteMembers)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       do
         outcome <-
@@ -446,7 +446,7 @@ onUserDeleted origDomain udcn = do
       mconv <- E.getConversation c
       E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
-        when (isRemoteMember deletedUser (Data.convRemoteMembers conv)) $
+        when (isRemoteMember deletedUser (conv.remoteMembers)) $
           case Data.convType conv of
             -- No need for a notification on One2One conv as the user is being
             -- deleted and that notification should suffice.

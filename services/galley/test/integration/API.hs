@@ -69,7 +69,6 @@ import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer hiding (status)
 import Galley.API.Mapping
 import Galley.Options (federator, rabbitmq)
-import Galley.Types.Conversations.Members
 import Imports hiding (id)
 import Imports qualified as I
 import Network.HTTP.Types.Status qualified as HTTP
@@ -107,6 +106,7 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.StoredConversation hiding (convName)
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -126,7 +126,7 @@ tests s =
     mainTests =
       testGroup
         "Main Conversations API"
-        [ test s "status" status,
+        [ test s "status" testStatus,
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
@@ -255,8 +255,8 @@ getNotFullyConnectedBackendsMock = "get-not-fully-connected-backends" ~> NonConn
 -------------------------------------------------------------------------------
 -- API Tests
 
-status :: TestM ()
-status = do
+testStatus :: TestM ()
+testStatus = do
   g <- viewGalley
   get (g . path "/i/status")
     !!! const 200 === statusCode

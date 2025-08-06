@@ -75,9 +75,6 @@ import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
-import Galley.Data.Conversation
-import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
@@ -93,8 +90,6 @@ import Galley.Effects.SubConversationStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
 import Galley.Options
-import Galley.Types.Conversations.Members
-import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
@@ -130,7 +125,10 @@ import Wire.API.User as User
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.UserList
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
@@ -443,7 +441,7 @@ ensureAllowed ::
   Sing tag ->
   Local x ->
   ConversationAction tag ->
-  Conversation ->
+  StoredConversation ->
   ConvOrTeamMember mem ->
   Sem r ()
 ensureAllowed tag _ action conv (TeamMember tm) = do
@@ -482,7 +480,7 @@ ensureAllowed tag loc action conv (ConvMember origUser) = do
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
     SConversationUpdateAddPermissionTag -> do
-      unless (conv.convMetadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
+      unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
     SConversationReceiptModeUpdateTag -> do
       -- cannot update receipt mode of MLS conversations
       when (convProtocolTag conv == ProtocolMLSTag) $
@@ -515,11 +513,11 @@ performAction ::
   ) =>
   Sing tag ->
   Qualified UserId ->
-  Local Conversation ->
+  Local StoredConversation ->
   ConversationAction tag ->
   Sem r (PerformActionResult tag)
 performAction tag origUser lconv action = do
-  let lcnv = fmap (.convId) lconv
+  let lcnv = fmap (.id_) lconv
       conv = tUnqualified lconv
   case tag of
     SConversationJoinTag -> do
@@ -549,7 +547,7 @@ performAction tag origUser lconv action = do
             E.removeAllMLSClients groupId
             E.deleteAllProposals groupId
 
-      let cid = conv.convId
+      let cid = conv.id_
       for_ (conv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
         sconvs <- E.listSubConversations cid
         for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
@@ -566,7 +564,7 @@ performAction tag origUser lconv action = do
 
       pure $ mkPerformActionResult action
     SConversationRenameTag -> do
-      zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
+      zusrMembership <- join <$> forM conv.metadata.cnvmTeam (flip E.getTeamMember (qUnqualified origUser))
       for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
@@ -588,7 +586,7 @@ performAction tag origUser lconv action = do
             extraConversationData = def
           }
     SConversationUpdateProtocolTag -> do
-      case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
+      case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
           pure $ mkPerformActionResult action
@@ -609,7 +607,7 @@ performAction tag origUser lconv action = do
           noChanges
         (_, _, _) -> throwS @'ConvInvalidProtocolTransition
     SConversationUpdateAddPermissionTag -> do
-      when (conv.convMetadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
+      when (conv.metadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
       E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
       pure $ mkPerformActionResult action
     SConversationResetTag -> do
@@ -628,29 +626,29 @@ performConversationJoin ::
     Member TeamCollaboratorsSubsystem r
   ) =>
   Qualified UserId ->
-  Local Conversation ->
+  Local StoredConversation ->
   ConversationJoin ->
   Sem r (BotsAndMembers, ConversationJoin)
 performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
   let newMembers = ulNewMembers lconv conv . toUserList lconv $ invited
 
   lusr <- ensureLocal lconv qusr
-  ensureMemberLimit (convProtocolTag conv) (toList (convLocalMembers conv)) newMembers
+  ensureMemberLimit (convProtocolTag conv) (toList conv.localMembers) newMembers
   ensureAccess conv InviteAccess
   checkLocals lusr (convTeam conv) (ulLocals newMembers)
-  enforceFederationProtocol (protocolTag conv.convProtocol) (fmap void (ulRemotes newMembers))
+  enforceFederationProtocol (protocolTag conv.protocol) (fmap void (ulRemotes newMembers))
   checkRemotes lusr (ulRemotes newMembers)
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
   checkTeamMemberAddPermission lusr
-  addMembersToLocalConversation (fmap (.convId) lconv) newMembers role joinType
+  addMembersToLocalConversation (fmap (.id_) lconv) newMembers role joinType
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
     checkRemoteBackendsConnected loc = do
       let invitedRemoteUsers = snd . partitionQualified loc . NE.toList $ invited
           invitedRemoteDomains = Set.fromList $ void <$> invitedRemoteUsers
-          existingRemoteDomains = Set.fromList $ void . rmId <$> convRemoteMembers (tUnqualified lconv)
+          existingRemoteDomains = Set.fromList $ void . (.id_) <$> (tUnqualified lconv).remoteMembers
           allInvitedAlreadyInConversation = null $ invitedRemoteDomains \\ existingRemoteDomains
 
       if not allInvitedAlreadyInConversation
@@ -660,7 +658,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
             E.runFederatedConcurrentlyEither @_ @'Brig invitedRemoteUsers $ \_ ->
               pure ()
 
-    conv :: Data.Conversation
+    conv :: StoredConversation
     conv = tUnqualified lconv
 
     checkLocals ::
@@ -695,11 +693,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
       [UserId] ->
       Sem r ()
     checkLHPolicyConflictsLocal newUsers = do
-      let convUsers = convLocalMembers conv
+      let convUsers = conv.localMembers
 
       allNewUsersGaveConsent <- allLegalholdConsentGiven newUsers
 
-      whenM (anyLegalholdActivated (lmId <$> convUsers)) $
+      whenM (anyLegalholdActivated ((.id_) <$> convUsers)) $
         unless allNewUsersGaveConsent $
           throwS @'MissingLegalholdConsent
 
@@ -708,12 +706,12 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
           throwS @'MissingLegalholdConsent
 
         convUsersLHStatus <- do
-          uidsStatus <- getLHStatusForUsers (lmId <$> convUsers)
+          uidsStatus <- getLHStatusForUsers ((.id_) <$> convUsers)
           pure $ zipWith (\mem (_, status) -> (mem, status)) convUsers uidsStatus
 
         if any
           ( \(mem, status) ->
-              lmConvRoleName mem == roleNameWireAdmin
+              mem.convRoleName == roleNameWireAdmin
                 && consentGiven status == ConsentGiven
           )
           convUsersLHStatus
@@ -724,7 +722,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
                   qusr
                   lconv
                   (convBotsAndMembers (tUnqualified lconv))
-                  (tUntagged (qualifyAs lconv (lmId mem)))
+                  (tUntagged (qualifyAs lconv mem.id_))
           else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
@@ -734,16 +732,16 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
 
     checkTeamMemberAddPermission :: Local UserId -> Sem r ()
     checkTeamMemberAddPermission lusr = do
-      case conv.convMetadata.cnvmTeam of
+      case conv.metadata.cnvmTeam of
         Just tid -> do
           maybeTeamMember <- E.getTeamMember tid (tUnqualified lusr)
           case maybeTeamMember of
             Just tm -> do
-              let isChannel = conv.convMetadata.cnvmGroupConvType == Just Channel
+              let isChannel = conv.metadata.cnvmGroupConvType == Just Channel
                   isConversationAdmin =
-                    maybe False (\m -> m.lmConvRoleName == roleNameWireAdmin) $
-                      find (\m -> m.lmId == lusr.tUntagged.qUnqualified) conv.convLocalMembers
-                  isAddPermissionEveryone = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+                    maybe False (\m -> m.convRoleName == roleNameWireAdmin) $
+                      find (\m -> m.id_ == lusr.tUntagged.qUnqualified) conv.localMembers
+                  isAddPermissionEveryone = conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
 
               if isChannel
                 then do
@@ -772,7 +770,7 @@ performConversationAccessData ::
     Member BackendNotificationQueueAccess r
   ) =>
   Qualified UserId ->
-  Local Conversation ->
+  Local StoredConversation ->
   ConversationAccessData ->
   Sem r (BotsAndMembers, ConversationAccessData)
 performConversationAccessData qusr lconv action = do
@@ -809,7 +807,7 @@ performConversationAccessData qusr lconv action = do
 
   pure (mempty, action)
   where
-    lcnv = fmap (.convId) lconv
+    lcnv = fmap (.id_) lconv
     conv = tUnqualified lconv
 
     maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
@@ -872,13 +870,13 @@ updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
   conv <- getConversationWithError lcnv
   -- check that the action does not bypass the underlying protocol
-  unless (protocolValidAction (convProtocol conv) tag action) $
+  unless (protocolValidAction conv.protocol tag action) $
     throwS @'InvalidOperation
   -- perform all authorisation checks and, if successful, then update itself
   updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
--- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
+-- 'StoredConversation' value directly, instead of a 'ConvId', and skips protocol
 -- checks. All the other checks are still performed.
 --
 -- This is intended to be used by protocol-aware code, once all the
@@ -899,13 +897,13 @@ updateLocalConversationUnchecked ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>
-  Local Conversation ->
+  Local StoredConversation ->
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
-  let lcnv = fmap (.convId) lconv
+  let lcnv = fmap (.id_) lconv
       conv = tUnqualified lconv
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
@@ -920,10 +918,10 @@ updateLocalConversationUnchecked lconv qusr con action = do
     par.action
     par.extraConversationData
   where
-    getTeamMembership :: Conversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
+    getTeamMembership :: StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
+    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.metadata.cnvmTeam
 
-    ensureConversationActionAllowed :: Sing tag -> Local x -> Conversation -> Maybe TeamMember -> Sem r ()
+    ensureConversationActionAllowed :: Sing tag -> Local x -> StoredConversation -> Maybe TeamMember -> Sem r ()
     ensureConversationActionAllowed tag loc conv mTeamMember = do
       self <-
         noteS @'ConvNotFound $
@@ -941,8 +939,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
       -- extra action-specific checks
       ensureAllowed tag loc action conv self
 
-    skipConversationRoleCheck :: Sing tag -> Conversation -> Maybe TeamMember -> Bool
-    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.convMetadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+    skipConversationRoleCheck :: Sing tag -> StoredConversation -> Maybe TeamMember -> Bool
+    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
     skipConversationRoleCheck _ _ _ = False
 
 -- --------------------------------------------------------------------------------
@@ -1098,24 +1096,24 @@ notifyTypingIndicator ::
     Member NotificationSubsystem r,
     Member FederatorAccess r
   ) =>
-  Conversation ->
+  StoredConversation ->
   Qualified UserId ->
   Maybe ConnId ->
   TypingStatus ->
   Sem r TypingDataUpdated
 notifyTypingIndicator conv qusr mcon ts = do
   now <- Now.get
-  lconv <- qualifyLocal (Data.convId conv)
+  lconv <- qualifyLocal conv.id_
   let origDomain = qDomain qusr
-      (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
-      localMembers = fmap lmId (tryRemoveSelfFromLocalUsers lconv $ Data.convLocalMembers conv)
-      remoteMembersFromOriginDomain = fmap (tUnqualified . rmId) (tryRemoveSelfFromRemoteUsers lconv remoteMemsOrig)
-      remoteMembersFromOtherDomains = fmap rmId remoteMemsOther
+      (remoteMemsOrig, remoteMemsOther) = List.partition (\m -> origDomain == tDomain m.id_) conv.remoteMembers
+      localMembers = fmap (.id_) (tryRemoveSelfFromLocalUsers lconv conv.localMembers)
+      remoteMembersFromOriginDomain = fmap (tUnqualified . (.id_)) (tryRemoveSelfFromRemoteUsers lconv remoteMemsOrig)
+      remoteMembersFromOtherDomains = fmap (.id_) remoteMemsOther
       tdu users =
         TypingDataUpdated
           { time = now,
             origUserId = qusr,
-            convId = Data.convId conv,
+            convId = conv.id_,
             usersInConv = users,
             typingStatus = ts
           }
@@ -1128,10 +1126,10 @@ notifyTypingIndicator conv qusr mcon ts = do
   pure (tdu remoteMembersFromOriginDomain)
   where
     tryRemoveSelfFromLocalUsers :: Local x -> [LocalMember] -> [LocalMember]
-    tryRemoveSelfFromLocalUsers l ms = foldQualified l (\usr -> filter (\m -> lmId m /= tUnqualified usr) ms) (const ms) qusr
+    tryRemoveSelfFromLocalUsers l ms = foldQualified l (\usr -> filter (\m -> m.id_ /= tUnqualified usr) ms) (const ms) qusr
 
     tryRemoveSelfFromRemoteUsers :: Local x -> [RemoteMember] -> [RemoteMember]
-    tryRemoveSelfFromRemoteUsers l rms = foldQualified l (const rms) (\rusr -> filter (\rm -> rmId rm /= rusr) rms) qusr
+    tryRemoveSelfFromRemoteUsers l rms = foldQualified l (const rms) (\rusr -> filter (\rm -> rm.id_ /= rusr) rms) qusr
 
 pushTypingIndicatorEvents ::
   (Member NotificationSubsystem r) =>

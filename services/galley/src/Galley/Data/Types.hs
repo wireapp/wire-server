@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Data.Types
-  ( Conversation (..),
+  ( StoredConversation (..),
     isConvDeleted,
     selfConv,
     Code (..),
@@ -36,12 +36,12 @@ import Data.Code
 import Data.Id
 import Data.Range
 import Data.Text.Ascii qualified as Ascii
-import Galley.Data.Conversation
 import Galley.Data.Scope
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Wire.API.Password (Password)
+import Wire.StoredConversation
 
 --------------------------------------------------------------------------------
 -- Code

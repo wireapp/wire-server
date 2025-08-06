@@ -49,7 +49,6 @@ import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
@@ -57,7 +56,6 @@ import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import Galley.External.LegalHoldService qualified as LHService
-import Galley.Types.Conversations.Members
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types.Status (status200)
@@ -84,6 +82,8 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 
 createSettings ::
@@ -407,7 +407,7 @@ requestDevice lzusr tid uid = do
     disallowIfMLSUser :: Local UserId -> Sem r ()
     disallowIfMLSUser luid = do
       void $ iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
-        when (any (\c -> c.convMetadata.cnvmType /= SelfConv && c.convProtocol /= ProtocolProteus) convs) $ do
+        when (any (\c -> c.metadata.cnvmType /= SelfConv && c.protocol /= ProtocolProteus) convs) $ do
           throwS @'MLSLegalholdIncompatible
 
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
@@ -741,23 +741,23 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
   void $
     iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
-        let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
+        let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.remoteMembers
 
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
-          let mems = Data.convLocalMembers conv
-          uidsLHStatus <- getLHStatusForUsers (lmId <$> mems)
+          let mems = conv.localMembers
+          uidsLHStatus <- getLHStatusForUsers ((.id_) <$> mems)
           pure $
             zipWith
               ( \mem (mid, status) ->
-                  assert (lmId mem == mid) $
-                    if lmId mem == tUnqualified luid
+                  assert (mem.id_ == mid) $
+                    if mem.id_ == tUnqualified luid
                       then (mem, hypotheticalLHStatus)
                       else (mem, status)
               )
               mems
               uidsLHStatus
 
-        let lcnv = qualifyAs luid (Data.convId conv)
+        let lcnv = qualifyAs luid conv.id_
         -- we know that this is a group conversation, so invalid operation
         -- and conversation not found errors cannot actually be thrown
         mapToRuntimeError @'InvalidOperation
@@ -767,12 +767,12 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
           . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
           $ if any
             ((== ConsentGiven) . consentGiven . snd)
-            (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
+            (filter ((== roleNameWireAdmin) . (.convRoleName) . fst) membersAndLHStatus)
             then do
               for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-                let lusr = qualifyAs luid (lmId memberNoConsent)
+                let lusr = qualifyAs luid memberNoConsent.id_
                 removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
             else do
               for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-                let lusr = qualifyAs luid (lmId legalholder)
+                let lusr = qualifyAs luid legalholder.id_
                 removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)

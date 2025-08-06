@@ -22,12 +22,12 @@ module Galley.API.Cells
 where
 
 import Data.Default
-import Galley.Data.Conversation qualified as Data
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Event.Conversation
+import Wire.StoredConversation
 
 class HasCellsState a where
   getCellsState :: a -> CellsState
@@ -35,8 +35,8 @@ class HasCellsState a where
 instance HasCellsState CellsState where
   getCellsState = id
 
-instance HasCellsState Data.Conversation where
-  getCellsState = getCellsState . Data.convMetadata
+instance HasCellsState StoredConversation where
+  getCellsState = getCellsState . (.metadata)
 
 instance HasCellsState Public.OwnConversation where
   getCellsState = getCellsState . Public.cnvMetadata

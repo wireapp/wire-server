@@ -4,7 +4,6 @@ import Data.Id
 import Data.Qualified
 import Data.Singletons
 import Galley.API.Util
-import Galley.Data.Conversation
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Imports hiding ((\\))
@@ -20,6 +19,7 @@ import Wire.API.Federation.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
 
 data LocalConversationUpdate = LocalConversationUpdate
   { lcuEvent :: Event,
@@ -39,16 +39,16 @@ notifyConversationAction ::
   Qualified UserId ->
   Bool ->
   Maybe ConnId ->
-  Local Conversation ->
+  Local StoredConversation ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   ExtraConversationData ->
   Sem r LocalConversationUpdate
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action extraData = do
   now <- Now.get
-  let lcnv = fmap (.convId) lconv
+  let lcnv = fmap (.id_) lconv
       conv = tUnqualified lconv
-      tid = conv.convMetadata.cnvmTeam
+      tid = conv.metadata.cnvmTeam
       e = conversationActionToEvent tag now quid (tUntagged lcnv) extraData Nothing tid action
       mkUpdate uids =
         ConversationUpdate

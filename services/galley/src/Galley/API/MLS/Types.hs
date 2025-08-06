@@ -27,8 +27,6 @@ import Data.IntSet qualified as IntSet
 import Data.Map qualified as Map
 import Data.Qualified
 import GHC.Records (HasField (..))
-import Galley.Data.Conversation.Types
-import Galley.Types.Conversations.Members
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
@@ -36,6 +34,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
+import Wire.StoredConversation
 
 -- | A map of leaf index to members.
 --

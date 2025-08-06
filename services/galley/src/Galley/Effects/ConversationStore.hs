@@ -66,9 +66,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
-import Galley.Data.Conversation
 import Galley.Data.Types
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -76,17 +74,18 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.MLS.GroupInfo
+import Wire.StoredConversation
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
-  CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
+  CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
   CreateMLSSelfConversation ::
     Local UserId ->
-    ConversationStore m Conversation
+    ConversationStore m StoredConversation
   DeleteConversation :: ConvId -> ConversationStore m ()
-  GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
+  GetConversation :: ConvId -> ConversationStore m (Maybe StoredConversation)
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
-  GetConversations :: [ConvId] -> ConversationStore m [Conversation]
+  GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
