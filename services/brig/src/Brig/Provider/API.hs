@@ -812,7 +812,6 @@ addBot zuid zcon cid add = do
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
-  -- let usr = User (Qualified (botUserId bid) domain) Nothing Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
   let usr =
         NewStoredUser
           { id = botUserId bid,
@@ -836,8 +835,6 @@ addBot zuid zcon cid add = do
             managedBy = ManagedByWire,
             supportedProtocols = defSupportedProtocols
           }
-
-  -- (Qualified (botUserId bid) domain) Nothing Nothing name Nothing pict assets colour Active locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
 
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
