@@ -240,7 +240,7 @@ requestEmailChange ::
   Sem r ChangeEmailResponse
 requestEmailChange lusr email allowScim = do
   let u = tUnqualified lusr
-  team <- (>>= SU.teamId) <$> UserStore.getUser u
+  team <- (>>= (.teamId)) <$> UserStore.getUser u
   guardRegisteredEmailDomain team
   createEmailChangeToken lusr email allowScim >>= \case
     ChangeEmailIdempotent ->
