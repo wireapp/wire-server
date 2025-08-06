@@ -97,6 +97,7 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
+import Wire.ConversationsSubsystem qualified as ConversationsSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -227,6 +228,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
+        <@> mkNamedAPI @"close-conversations-from" (ConversationsSubsystem.internalCloseConversationsFrom tid)
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
