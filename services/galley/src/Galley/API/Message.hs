@@ -52,7 +52,6 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
 import Galley.API.Util
-import Galley.Data.Conversation
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
@@ -63,7 +62,6 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.TeamStore
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
-import Galley.Types.Conversations.Members
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy hiding (send)
@@ -89,6 +87,7 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
 
 data UserType = User | Bot
 
@@ -227,7 +226,7 @@ getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
   -- Use runFederatedConcurrentlyEither so we can catch federation errors and report to clients
   -- which domains and users aren't contactable at the moment.
-  tUnqualified <$$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
+  tUnqualified <$$$> runFederatedConcurrentlyEither (map (.id_) remoteMembers) getRemoteClientsFromDomain
   where
     getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
@@ -391,20 +390,20 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       let senderClient = qualifiedNewOtrSender msg
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-      unless (protocolTag (convProtocol conv) `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
+      unless (protocolTag conv.protocol `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
         throwS @'InvalidOperation
 
-      let localMemberIds = lmId <$> convLocalMembers conv
+      let localMemberIds = (.id_) <$> conv.localMembers
           botMap :: BotMap
           botMap = Map.fromList $ do
-            mem <- convLocalMembers conv
+            mem <- conv.localMembers
             b <- maybeToList $ newBotMember mem
-            pure (lmId mem, b)
+            pure (mem.id_, b)
           members :: Set (Qualified UserId)
           members =
             Set.fromList $
               map (tUntagged . qualifyAs lcnv) localMemberIds
-                <> map (tUntagged . rmId) (convRemoteMembers conv)
+                <> map (tUntagged . (.id_)) conv.remoteMembers
       isInternal <- view (settings . intraListing) <$> input
 
       -- check if the sender is part of the conversation
@@ -418,13 +417,13 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           else getClients localMemberIds
       let qualifiedLocalClients =
             Map.mapKeys (localDomain,)
-              . makeUserMap (Set.fromList (map lmId (convLocalMembers conv)))
+              . makeUserMap (Set.fromList (map (.id_) conv.localMembers))
               . Clients.toMap
               $ localClients
 
       -- get remote clients
       qualifiedRemoteClients :: [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))] <-
-        getRemoteClients (convRemoteMembers conv)
+        getRemoteClients conv.remoteMembers
       let -- concatenating maps is correct here, because their sets of keys are disjoint
           qualifiedRemoteClients' = mconcat $ rights qualifiedRemoteClients
           -- Try to get the client IDs for the users that we failed to fetch clients for from the recipient list.

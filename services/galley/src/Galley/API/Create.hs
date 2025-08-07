@@ -51,8 +51,6 @@ import Galley.API.One2One
 import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
-import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore qualified as E
@@ -60,10 +58,8 @@ import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
-import Galley.Types.Conversations.Members
 import Galley.Types.Teams (notTeamMember)
 import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
@@ -91,7 +87,10 @@ import Wire.API.User
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.UserList
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -265,7 +264,7 @@ createGroupConvAndMkResponse ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  (Conversation -> Sem r b) ->
+  (StoredConversation -> Sem r b) ->
   Sem r b
 createGroupConvAndMkResponse lusr conn newConv mkResponse = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
@@ -307,7 +306,7 @@ createGroupConversationGeneric ::
   Maybe ConnId ->
   NewConv ->
   JoinType ->
-  Sem r Conversation
+  Sem r StoredConversation
 createGroupConversationGeneric lusr conn newConv joinType = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
@@ -325,12 +324,12 @@ createGroupConversationGeneric lusr conn newConv joinType = do
   E.getConversation (tUnqualified lcnv)
     >>= note (BadConvState (tUnqualified lcnv))
   where
-    sendCellsNotification :: Data.Conversation -> Sem r ()
+    sendCellsNotification :: StoredConversation -> Sem r ()
     sendCellsNotification conv = do
       now <- Now.get
-      let lconv = qualifyAs lusr (Data.convId conv)
+      let lconv = qualifyAs lusr conv.id_
           event = CellsEvent (tUntagged lconv) (tUntagged lusr) now CellsConvCreateNoData
-      when (conv.convMetadata.cnvmCellsState /= CellsDisabled) $ do
+      when (conv.metadata.cnvmCellsState /= CellsDisabled) $ do
         let push =
               def
                 { origin = Just (tUnqualified lusr),
@@ -464,9 +463,9 @@ createProteusSelfConversation lusr = do
     create lcnv = do
       let nc =
             NewConversation
-              { ncMetadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
-                ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
-                ncProtocol = BaseProtocolProteusTag
+              { metadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
+                users = ulFromLocals [toUserRole (tUnqualified lusr)],
+                protocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
@@ -580,9 +579,9 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
           }
   let nc =
         NewConversation
-          { ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
-            ncProtocol = BaseProtocolProteusTag,
-            ncMetadata = meta
+          { users = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
+            protocol = BaseProtocolProteusTag,
+            metadata = meta
           }
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -652,9 +651,9 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
               }
       let nc =
             NewConversation
-              { ncMetadata = meta,
-                ncUsers = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
-                ncProtocol = BaseProtocolProteusTag
+              { metadata = meta,
+                users = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
+                protocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
       notifyCreatedConversation self (Just zcon) c def
@@ -704,9 +703,9 @@ createConnectConversation lusr conn j = do
         NewConversation
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
-            ncUsers = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
-            ncProtocol = BaseProtocolProteusTag,
-            ncMetadata = meta
+            users = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
+            protocol = BaseProtocolProteusTag,
+            metadata = meta
           }
   E.getConversation (tUnqualified lcnv)
     >>= maybe (create lcnv nc) (update n)
@@ -720,25 +719,25 @@ createConnectConversation lusr conn j = do
         [ def
             { origin = Just (tUnqualified lusr),
               json = toJSONObject e,
-              recipients = map localMemberToRecipient (Data.convLocalMembers c),
-              isCellsEvent = shouldPushToCells c.convMetadata e,
+              recipients = map localMemberToRecipient c.localMembers,
+              isCellsEvent = shouldPushToCells c.metadata e,
               route = PushV2.RouteDirect,
               conn
             }
         ]
       conversationCreated lusr c
     update n conv = do
-      let mems = Data.convLocalMembers conv
+      let mems = conv.localMembers
        in conversationExisted lusr
             =<< if tUnqualified lusr `isMember` mems
               then -- we already were in the conversation, maybe also other
                 connect n conv
               else do
-                let lcid = qualifyAs lusr (Data.convId conv)
+                let lcid = qualifyAs lusr conv.id_
                 mm <- E.createMember lcid lusr
                 let conv' =
                       conv
-                        { Data.convLocalMembers = Data.convLocalMembers conv <> toList mm
+                        { localMembers = conv.localMembers <> toList mm
                         }
                 if null mems
                   then do
@@ -752,10 +751,10 @@ createConnectConversation lusr conn j = do
                       else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-          let lcnv = qualifyAs lusr (Data.convId conv)
+          let lcnv = qualifyAs lusr conv.id_
           n' <- case n of
             Just x -> do
-              E.setConversationName (Data.convId conv) x
+              E.setConversationName conv.id_ x
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
           t <- Now.get
@@ -764,8 +763,8 @@ createConnectConversation lusr conn j = do
             [ def
                 { origin = Just (tUnqualified lusr),
                   json = toJSONObject e,
-                  recipients = map localMemberToRecipient (Data.convLocalMembers conv),
-                  isCellsEvent = shouldPushToCells conv.convMetadata e,
+                  recipients = map localMemberToRecipient conv.localMembers,
+                  isCellsEvent = shouldPushToCells conv.metadata e,
                   route = PushV2.RouteDirect,
                   conn
                 }
@@ -800,7 +799,7 @@ newRegularConversation lusr newConv = do
           else ulAddLocal (toUserRole (tUnqualified lusr)) usersWithoutCreator
   let nc =
         NewConversation
-          { ncMetadata =
+          { metadata =
               ConversationMetadata
                 { cnvmType = RegularConv,
                   cnvmCreator = Just (tUnqualified lusr),
@@ -819,8 +818,8 @@ newRegularConversation lusr newConv = do
                       then CellsPending
                       else CellsDisabled
                 },
-            ncUsers = newConvUsersRoles,
-            ncProtocol = newConvProtocol newConv
+            users = newConvUsersRoles,
+            protocol = newConvProtocol newConv
           }
   pure (nc, users)
 
@@ -832,7 +831,7 @@ conversationCreated ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Data.Conversation ->
+  StoredConversation ->
   Sem r (ConversationResponse Public.OwnConversation)
 conversationCreated lusr cnv = Created <$> conversationViewV9 lusr cnv
 
@@ -853,7 +852,7 @@ notifyCreatedConversation ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  Data.Conversation ->
+  StoredConversation ->
   JoinType ->
   Sem r ()
 notifyCreatedConversation lusr conn c joinType = do
@@ -861,21 +860,21 @@ notifyCreatedConversation lusr conn c joinType = do
   -- Ask remote servers to store conversation membership and notify remote users
   -- of being added to a conversation
   registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType
-  unless (null (Data.convRemoteMembers c)) $
+  unless (null c.remoteMembers) $
     unlessM E.isFederationConfigured $
       throw FederationNotConfigured
 
   -- Notify local users
-  pushNotifications =<< mapM (toPush now) (Data.convLocalMembers c)
+  pushNotifications =<< mapM (toPush now) c.localMembers
   where
     route
       | Data.convType c == RegularConv = PushV2.RouteAny
       | otherwise = PushV2.RouteDirect
     toPush t m = do
-      let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers c
-          localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
-          lconv = qualifyAs lusr (Data.convId c)
-      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
+      let remoteOthers = remoteMemberToOther <$> c.remoteMembers
+          localOthers = map (localMemberToOther (tDomain lusr)) $ c.localMembers
+          lconv = qualifyAs lusr c.id_
+      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr m.id_)
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t Nothing (EdConversation c')
       pure $
         def
@@ -908,7 +907,7 @@ toUUIDs a b = do
   pure (a', b')
 
 accessRoles :: NewConv -> Set AccessRole
-accessRoles b = fromMaybe Data.defRole (newConvAccessRoles b)
+accessRoles b = fromMaybe defRole (newConvAccessRoles b)
 
 access :: NewConv -> [Access]
 access a = case Set.toList (newConvAccess a) of

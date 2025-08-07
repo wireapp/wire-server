@@ -43,12 +43,8 @@ import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Galley.Data.Conversation
-import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore (ConversationStore (..))
-import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -63,21 +59,23 @@ import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.User
+import Wire.StoredConversation
+import Wire.UserList
 
 createMLSSelfConversation ::
   Local UserId ->
-  Client Conversation
+  Client StoredConversation
 createMLSSelfConversation lusr = do
   let cnv = mlsSelfConvId . tUnqualified $ lusr
       usr = tUnqualified lusr
       nc =
         NewConversation
-          { ncMetadata =
+          { metadata =
               (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
-            ncUsers = ulFromLocals [toUserRole usr],
-            ncProtocol = BaseProtocolMLSTag
+            users = ulFromLocals [toUserRole usr],
+            protocol = BaseProtocolMLSTag
           }
-      meta = ncMetadata nc
+      meta = nc.metadata
       gid =
         newGroupId meta.cnvmType
           . fmap Conv
@@ -107,21 +105,21 @@ createMLSSelfConversation lusr = do
         Just gid
       )
 
-  (lmems, rmems) <- addMembers cnv (ncUsers nc)
+  (lmems, rmems) <- addMembers cnv nc.users
   pure
-    Conversation
-      { convId = cnv,
-        convLocalMembers = lmems,
-        convRemoteMembers = rmems,
-        convDeleted = False,
-        convMetadata = meta,
-        convProtocol = proto
+    StoredConversation
+      { id_ = cnv,
+        localMembers = lmems,
+        remoteMembers = rmems,
+        deleted = False,
+        metadata = meta,
+        protocol = proto
       }
 
-createConversation :: Local ConvId -> NewConversation -> Client Conversation
+createConversation :: Local ConvId -> NewConversation -> Client StoredConversation
 createConversation lcnv nc = do
-  let meta = ncMetadata nc
-      (proto, mgid) = case ncProtocol nc of
+  let meta = nc.metadata
+      (proto, mgid) = case nc.protocol of
         BaseProtocolProteusTag -> (ProtocolProteus, Nothing)
         BaseProtocolMLSTag ->
           let gid =
@@ -148,22 +146,22 @@ createConversation lcnv nc = do
         meta.cnvmTeam,
         meta.cnvmMessageTimer,
         meta.cnvmReceiptMode,
-        baseProtocolToProtocol (ncProtocol nc),
+        baseProtocolToProtocol nc.protocol,
         mgid,
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
         meta.cnvmCellsState
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-  (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
+  (lmems, rmems) <- addMembers (tUnqualified lcnv) nc.users
   pure
-    Conversation
-      { convId = tUnqualified lcnv,
-        convLocalMembers = lmems,
-        convRemoteMembers = rmems,
-        convDeleted = False,
-        convMetadata = meta,
-        convProtocol = proto
+    StoredConversation
+      { id_ = tUnqualified lcnv,
+        localMembers = lmems,
+        remoteMembers = rmems,
+        deleted = False,
+        metadata = meta,
+        protocol = proto
       }
 
 deleteConversation :: ConvId -> Client ()
@@ -174,7 +172,7 @@ deleteConversation cid = do
   remoteMembers <- lookupRemoteMembers cid
 
   removeMembersFromLocalConv cid $
-    UserList (lmId <$> localMembers) (rmId <$> remoteMembers)
+    UserList ((.id_) <$> localMembers) ((.id_) <$> remoteMembers)
 
   retry x5 $ write Cql.deleteConv (params LocalQuorum (Identity cid))
 
@@ -261,7 +259,7 @@ setGroupInfo :: ConvId -> GroupInfoData -> Client ()
 setGroupInfo conv gid =
   write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
 
-getConversation :: ConvId -> Client (Maybe Conversation)
+getConversation :: ConvId -> Client (Maybe StoredConversation)
 getConversation conv = do
   cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   remoteMems <- UnliftIO.async $ lookupRemoteMembers conv
@@ -276,17 +274,17 @@ getConversation conv = do
 -- marked as deleted, actually remove it from the database and return
 -- 'Nothing'.
 conversationGC ::
-  Conversation ->
-  MaybeT Client Conversation
+  StoredConversation ->
+  MaybeT Client StoredConversation
 conversationGC conv =
   asum
     [ -- return conversation if not deleted
-      guard (not (convDeleted conv)) $> conv,
+      guard (not conv.deleted) $> conv,
       -- actually delete it and fail
-      lift (deleteConversation (convId conv)) *> mzero
+      lift (deleteConversation conv.id_) *> mzero
     ]
 
-localConversation :: ConvId -> Client (Maybe Conversation)
+localConversation :: ConvId -> Client (Maybe StoredConversation)
 localConversation cid =
   UnliftIO.runConcurrently $
     toConv cid
@@ -303,7 +301,7 @@ localConversations ::
     Member TinyLog r
   ) =>
   [ConvId] ->
-  Sem r [Conversation]
+  Sem r [StoredConversation]
 localConversations =
   collectAndLog
     <=< ( embedClient
@@ -313,7 +311,7 @@ localConversations =
     collectAndLog cs = case partitionEithers cs of
       (errs, convs) -> traverse_ (warn . Log.msg) errs $> convs
 
-    localConversation' :: ConvId -> Client (Either ByteString Conversation)
+    localConversation' :: ConvId -> Client (Either ByteString StoredConversation)
     localConversation' cid =
       note ("No conversation for: " <> toByteString' cid) <$> localConversation cid
 
@@ -372,20 +370,20 @@ toConv ::
   [LocalMember] ->
   [RemoteMember] ->
   Maybe Cql.ConvRow ->
-  Maybe Conversation
+  Maybe StoredConversation
 toConv cid ms remoteMems mconv = do
   (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
   pure
-    Conversation
-      { convId = cid,
-        convDeleted = fromMaybe False del,
-        convLocalMembers = ms,
-        convRemoteMembers = remoteMems,
-        convProtocol = proto,
-        convMetadata =
+    StoredConversation
+      { id_ = cid,
+        deleted = fromMaybe False del,
+        localMembers = ms,
+        remoteMembers = remoteMems,
+        protocol = proto,
+        metadata =
           ConversationMetadata
             { cnvmType = cty,
               cnvmCreator = muid,

@@ -24,8 +24,6 @@ import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Galley.Data.Conversation.Types hiding (Conversation)
-import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
@@ -56,7 +54,7 @@ getLocalConvForUser ::
   ) =>
   Qualified UserId ->
   Local ConvId ->
-  Sem r Data.Conversation
+  Sem r StoredConversation
 getLocalConvForUser qusr lcnv = do
   conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
@@ -65,10 +63,10 @@ getLocalConvForUser qusr lcnv = do
     foldQualified
       lcnv
       ( fmap isJust
-          . getLocalMember (convId conv)
+          . getLocalMember conv.id_
           . tUnqualified
       )
-      (fmap isJust . getRemoteMember (convId conv))
+      (fmap isJust . getRemoteMember conv.id_)
       qusr
   unless isMember' $ throwS @'ConvNotFound
 

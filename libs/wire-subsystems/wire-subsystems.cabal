@@ -236,6 +236,7 @@ library
     Wire.SessionStore.Cassandra
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
+    Wire.StoredConversation
     Wire.StoredUser
     Wire.TeamCollaboratorsStore
     Wire.TeamCollaboratorsStore.Postgres
@@ -252,6 +253,7 @@ library
     Wire.UserGroupSubsystem.Interpreter
     Wire.UserKeyStore
     Wire.UserKeyStore.Cassandra
+    Wire.UserList
     Wire.UserSearch.Metrics
     Wire.UserSearch.Migration
     Wire.UserSearch.Types

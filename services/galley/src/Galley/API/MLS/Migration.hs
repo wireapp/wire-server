@@ -24,12 +24,12 @@ import Data.Time
 import Galley.API.MLS.Types
 import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Federation.API
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.StoredConversation
 
 -- | Similar to @Ap f All@, but short-circuiting.
 --
@@ -65,12 +65,12 @@ checkMigrationCriteria now conv ws
 
     localUsersMigrated = ApAll $ do
       localProfiles <-
-        getUsers (map lmId conv.mcLocalMembers)
+        getUsers (map (.id_) conv.mcLocalMembers)
       pure $ all (containsMLS . userSupportedProtocols) localProfiles
 
     remoteUsersMigrated = ApAll $ do
       remoteProfiles <- fmap (foldMap tUnqualified)
-        . runFederatedConcurrently (map rmId conv.mcRemoteMembers)
+        . runFederatedConcurrently (map (.id_) conv.mcRemoteMembers)
         $ \ruids ->
           fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
       pure $ all (containsMLS . profileSupportedProtocols) remoteProfiles

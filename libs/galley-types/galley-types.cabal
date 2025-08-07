@@ -14,7 +14,6 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Galley.Types
-    Galley.Types.Conversations.Members
     Galley.Types.Conversations.One2One
     Galley.Types.Conversations.Roles
     Galley.Types.Teams

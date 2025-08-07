@@ -54,7 +54,6 @@ import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
@@ -68,8 +67,6 @@ import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
-import Galley.Types.Conversations.Members (RemoteMember (rmId))
-import Galley.Types.UserList
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -102,8 +99,11 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserList
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -154,13 +154,12 @@ ejpdGetConvInfo uid = do
     getPages :: Local UserId -> ConvIdsPage -> Sem r [EJPDConvInfo]
     getPages luid page = do
       let convids = MTP.mtpResults page
-          mk :: Data.Conversation -> Maybe EJPDConvInfo
+          mk :: StoredConversation -> Maybe EJPDConvInfo
           mk conv = do
-            let convType = conv.convMetadata.cnvmType
-                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) (tUntagged $ qualifyAs luid conv.convId)
+            let ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.metadata.cnvmName) (tUntagged $ qualifyAs luid conv.id_)
             -- we don't want self conversations as they don't tell us anything about connections
             -- we don't want connect conversations, because the peer has not responded yet
-            case convType of
+            case conv.metadata.cnvmType of
               RegularConv -> Just ejpdConvInfo
               -- FUTUREWORK(mangoiv): with GHC 9.12 we can refactor this to or-patterns
               One2OneConv -> Nothing
@@ -395,30 +394,30 @@ rmUser lusr conn = do
       now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
-        One2OneConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        One2OneConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
-          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+          | tUnqualified lusr `isMember` c.localMembers -> do
               runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
-              E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+              E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
               let e =
                     Event
-                      { evtConv = tUntagged (qualifyAs lusr (Data.convId c)),
+                      { evtConv = tUntagged (qualifyAs lusr c.id_),
                         evtSubConv = Nothing,
                         evtFrom = tUntagged lusr,
                         evtTime = now,
                         evtTeam = Nothing,
                         evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
                       }
-              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser c
+              for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
               pure . Just $
                 def
                   { origin = Just (tUnqualified lusr),
                     json = toJSONObject e,
-                    recipients = map localMemberToRecipient (Data.convLocalMembers c),
-                    isCellsEvent = shouldPushToCells c.convMetadata e,
+                    recipients = map localMemberToRecipient c.localMembers,
+                    isCellsEvent = shouldPushToCells c.metadata e,
                     conn,
                     route = PushV2.RouteDirect
                   }
@@ -430,9 +429,9 @@ rmUser lusr conn = do
     -- made. When a team is deleted the burst of RPCs created here could
     -- lead to performance issues. We should cover this in a performance
     -- test.
-    notifyRemoteMembers :: UTCTime -> Qualified UserId -> Data.Conversation -> Remote [UserId] -> Sem r ()
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> StoredConversation -> Remote [UserId] -> Sem r ()
     notifyRemoteMembers now qUser c remotes = do
-      let cid = Data.convId c
+      let cid = c.id_
           convUpdate =
             ConversationUpdate
               { time = now,

@@ -75,8 +75,6 @@ import Galley.API.Mapping qualified as Mapping
 import Galley.API.One2One
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
-import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
@@ -87,7 +85,6 @@ import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env
 import Galley.Options
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -117,6 +114,8 @@ import Wire.API.User
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
+import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 
 getBotConversation ::
@@ -133,15 +132,15 @@ getBotConversation zbot cnv = do
   botQuid <- tUntagged <$> qualifyLocal (botUserId zbot)
   c <- maskConvAccessDenied $ getConversationAsMember botQuid lcnv
   let domain = tDomain lcnv
-      cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
+      cmems = mapMaybe (mkMember domain) (toList c.localMembers)
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
   where
     mkMember :: Domain -> LocalMember -> Maybe OtherMember
     mkMember domain m
-      | lmId m == botUserId zbot =
+      | m.id_ == botUserId zbot =
           Nothing -- no need to list the bot itself
       | otherwise =
-          Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
+          Just (OtherMember (Qualified m.id_ domain) m.service m.convRoleName)
 
 getUnqualifiedOwnConversation ::
   forall r.
@@ -544,14 +543,14 @@ getConversationsInternal ::
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
   Maybe (Range 1 500 Int32) ->
-  Sem r (Public.ConversationList Data.Conversation)
+  Sem r (Public.ConversationList StoredConversation)
 getConversationsInternal luser mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
   cs <-
     E.getConversations localConvIds
       >>= filterM removeDeleted
-      >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
+      >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   pure $ Public.ConversationList cs more
   where
     size = fromMaybe (toRange (Proxy @32)) msize
@@ -575,10 +574,10 @@ getConversationsInternal luser mids mstart msize = do
 
     removeDeleted ::
       (Member ConversationStore r) =>
-      Data.Conversation ->
+      StoredConversation ->
       Sem r Bool
     removeDeleted c
-      | Data.isConvDeleted c = E.deleteConversation (Data.convId c) >> pure False
+      | Data.isConvDeleted c = E.deleteConversation c.id_ >> pure False
       | otherwise = pure True
 
 listConversations ::
@@ -598,7 +597,7 @@ listConversations luser (Public.ListConversations ids) = do
   localInternalConversations <-
     E.getConversations foundLocalIds
       >>= filterM removeDeleted
-      >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
+      >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   localConversations <- mapM (Mapping.conversationViewV9 luser) localInternalConversations
 
   (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures luser remoteIds
@@ -627,10 +626,10 @@ listConversations luser (Public.ListConversations ids) = do
   where
     removeDeleted ::
       (Member ConversationStore r) =>
-      Data.Conversation ->
+      StoredConversation ->
       Sem r Bool
     removeDeleted c
-      | Data.isConvDeleted c = E.deleteConversation (Data.convId c) >> pure False
+      | Data.isConvDeleted c = E.deleteConversation c.id_ >> pure False
       | otherwise = pure True
     foundsAndNotFounds :: (Monad m, Eq a) => ([a] -> m [a]) -> [a] -> m ([a], [a])
     foundsAndNotFounds f xs = do
@@ -644,7 +643,7 @@ iterateConversations ::
   ) =>
   Local UserId ->
   Range 1 500 Int32 ->
-  ([Data.Conversation] -> Sem r a) ->
+  ([StoredConversation] -> Sem r a) ->
   Sem r [a]
 iterateConversations luid pageSize handleConvs = go Nothing
   where
@@ -654,7 +653,7 @@ iterateConversations luid pageSize handleConvs = go Nothing
       resultTail <- case convList convResult of
         (conv : rest) ->
           if convHasMore convResult
-            then go (Just (maximum (Data.convId <$> (conv : rest))))
+            then go (Just (maximum ((.id_) <$> (conv : rest))))
             else pure []
         _ -> pure []
       pure $ resultHead : resultTail
@@ -753,10 +752,10 @@ getConversationByReusableCode lusr key value = do
   ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView c conv
   where
-    coverView :: Data.Code -> Data.Conversation -> ConversationCoverView
+    coverView :: Data.Code -> StoredConversation -> ConversationCoverView
     coverView c conv =
       ConversationCoverView
-        { cnvCoverConvId = Data.convId conv,
+        { cnvCoverConvId = conv.id_,
           cnvCoverName = Data.convName conv,
           cnvCoverHasPassword = Data.codeHasPassword c
         }
@@ -788,7 +787,7 @@ getConversationGuestLinksStatus ::
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
-  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember uid) conv.convMetadata.cnvmTeam
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember uid) conv.metadata.cnvmTeam
   ensureConvAdmin conv uid mTeamMember
   getConversationGuestLinksFeatureStatus (Data.convTeam conv)
 
@@ -1076,20 +1075,20 @@ ensureConvAdmin ::
   ( Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r
   ) =>
-  Data.Conversation ->
+  StoredConversation ->
   UserId ->
   Maybe TeamMember ->
   Sem r ()
 ensureConvAdmin conversation uid mTeamMember = do
-  case find ((== uid) . lmId) conversation.convLocalMembers of
+  case find (\m -> m.id_ == uid) conversation.localMembers of
     Nothing -> throwS @'ConvNotFound
     Just lm -> unless (hasAdminPermissions lm) $ throwS @'ConvAccessDenied
   where
     hasAdminPermissions :: LocalMember -> Bool
-    hasAdminPermissions lm = lmConvRoleName lm == roleNameWireAdmin || isChannelAdmin mTeamMember
+    hasAdminPermissions lm = lm.convRoleName == roleNameWireAdmin || isChannelAdmin mTeamMember
 
     isChannelAdmin :: Maybe TeamMember -> Bool
     isChannelAdmin Nothing = False
     isChannelAdmin (Just tm) =
-      conversation.convMetadata.cnvmGroupConvType == Just Channel
+      conversation.metadata.cnvmGroupConvType == Just Channel
         && isAdminOrOwner (tm ^. permissions)

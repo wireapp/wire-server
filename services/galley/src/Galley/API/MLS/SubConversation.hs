@@ -44,8 +44,6 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.App (Env)
-import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore qualified as Eff
@@ -71,6 +69,8 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 
 type MLSGetSubConvStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -421,7 +421,7 @@ resetLocalSubConversation qusr lcnvId scnvId reset = do
       let newGid =
             fromRight
               ( Group.newGroupId
-                  cnv.convMetadata.cnvmType
+                  cnv.metadata.cnvmType
                   (flip SubConv scnvId <$> tUntagged lcnvId)
               )
               $ nextGenGroupId gid

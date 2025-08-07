@@ -27,8 +27,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.Error (InternalError)
 import Galley.API.Mapping
-import Galley.Data.Conversation qualified as Data
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy (Sem)
 import Polysemy qualified as P
@@ -44,6 +42,7 @@ import Wire.API.Federation.API.Galley
     RemoteConversationV2 (..),
   )
 import Wire.Sem.Logger qualified as P
+import Wire.StoredConversation
 
 run :: Sem '[P.TinyLog, P.Error InternalError] a -> Either InternalError a
 run = P.run . P.runError . P.discardLogs
@@ -63,7 +62,7 @@ tests =
       testProperty "conversation view metadata is correct" $
         \(ConvWithLocalUser c luid) ->
           fmap cnvMetadata (run (conversationViewV9 luid c))
-            == Right (Data.convMetadata c),
+            == Right c.metadata,
       testProperty "other members in conversation view do not contain self" $
         \(ConvWithLocalUser c luid) -> case run $ conversationViewV9 luid c of
           Left _ -> False
@@ -76,7 +75,7 @@ tests =
             == Right (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
         \(RandomConversation c) luid ->
-          notElem (tUnqualified luid) (map lmId (Data.convLocalMembers c)) ==>
+          notElem (tUnqualified luid) (map (.id_) c.localMembers) ==>
             isLeft (run (conversationViewV9 luid c)),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
@@ -91,7 +90,7 @@ tests =
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (tUntagged ruid) /= dom ==>
             fmap (.metadata) (conversationToRemote dom ruid c)
-              == Just (Data.convMetadata c),
+              == Just c.metadata,
       testProperty "remote conversation view does not contain self" $
         \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
           Nothing -> False
@@ -106,10 +105,10 @@ cnvUids c =
    in memId (cmSelf mems)
         : map omQualifiedId (cmOthers mems)
 
-convUids :: Domain -> Data.Conversation -> [Qualified UserId]
+convUids :: Domain -> StoredConversation -> [Qualified UserId]
 convUids dom c =
-  map ((`Qualified` dom) . lmId) (Data.convLocalMembers c)
-    <> map (tUntagged . rmId) (Data.convRemoteMembers c)
+  map ((`Qualified` dom) . (.id_)) c.localMembers
+    <> map (tUntagged . (.id_)) c.remoteMembers
 
 genLocalMember :: Gen LocalMember
 genLocalMember =
@@ -122,9 +121,9 @@ genLocalMember =
 genRemoteMember :: Gen RemoteMember
 genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
 
-genConversation :: Gen Data.Conversation
+genConversation :: Gen StoredConversation
 genConversation =
-  Data.Conversation
+  StoredConversation
     <$> arbitrary
     <*> listOf genLocalMember
     <*> listOf genRemoteMember
@@ -147,36 +146,36 @@ genConversationMetadata =
     <*> arbitrary
 
 newtype RandomConversation = RandomConversation
-  {unRandomConversation :: Data.Conversation}
+  {unRandomConversation :: StoredConversation}
   deriving (Show)
 
 instance Arbitrary RandomConversation where
   arbitrary = RandomConversation <$> genConversation
 
-data ConvWithLocalUser = ConvWithLocalUser Data.Conversation (Local UserId)
+data ConvWithLocalUser = ConvWithLocalUser StoredConversation (Local UserId)
   deriving (Show)
 
 instance Arbitrary ConvWithLocalUser where
   arbitrary = do
     member <- genLocalMember
-    ConvWithLocalUser <$> genConv member <*> genLocal (lmId member)
+    ConvWithLocalUser <$> genConv member <*> genLocal member.id_
     where
       genLocal :: x -> Gen (Local x)
       genLocal v = flip toLocalUnsafe v <$> arbitrary
       genConv m = uniqueMembers m . unRandomConversation <$> arbitrary
-      uniqueMembers :: LocalMember -> Data.Conversation -> Data.Conversation
+      uniqueMembers :: LocalMember -> StoredConversation -> StoredConversation
       uniqueMembers m c =
-        c {Data.convLocalMembers = nubOrdOn lmId (m : Data.convLocalMembers c)}
+        c {localMembers = nubOrdOn (.id_) (m : c.localMembers)}
 
-data ConvWithRemoteUser = ConvWithRemoteUser Data.Conversation (Remote UserId)
+data ConvWithRemoteUser = ConvWithRemoteUser StoredConversation (Remote UserId)
   deriving (Show)
 
 instance Arbitrary ConvWithRemoteUser where
   arbitrary = do
     member <- genRemoteMember
-    ConvWithRemoteUser <$> genConv member <*> pure (rmId member)
+    ConvWithRemoteUser <$> genConv member <*> pure member.id_
     where
       genConv m = uniqueMembers m . unRandomConversation <$> arbitrary
-      uniqueMembers :: RemoteMember -> Data.Conversation -> Data.Conversation
+      uniqueMembers :: RemoteMember -> StoredConversation -> StoredConversation
       uniqueMembers m c =
-        c {Data.convRemoteMembers = nubOrdOn rmId (m : Data.convRemoteMembers c)}
+        c {remoteMembers = nubOrdOn (.id_) (m : c.remoteMembers)}
