@@ -564,10 +564,22 @@ importGalleyClients Env {..} path = do
 
 -- galley.conversation
 
-type RowGalleyConversation = (Maybe UUID, Maybe (Cassandra.Set Int32), Maybe Int32, Maybe UUID, Maybe Bool, Maybe Int64, Maybe Text, Maybe Int32, Maybe UUID, Maybe Int32)
+type RowGalleyConversation =
+  ( Maybe UUID,
+    Maybe (Cassandra.Set Int32),
+    Maybe Int32,
+    Maybe UUID,
+    Maybe Bool,
+    Maybe Int64,
+    Maybe Text,
+    Maybe Int32,
+    Maybe UUID,
+    Maybe Int32,
+    Maybe UUID
+  )
 
 selectGalleyConversation :: PrepQuery R (Identity [ConvId]) RowGalleyConversation
-selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation WHERE conv in ?"
+selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type, parent_conv FROM conversation WHERE conv in ?"
 
 readGalleyConversation :: Env -> [ConvId] -> ConduitM () [RowGalleyConversation] IO ()
 readGalleyConversation Env {..} cids =
@@ -575,7 +587,7 @@ readGalleyConversation Env {..} cids =
     paginateC selectGalleyConversation (paramsP LocalQuorum (pure cids) envPageSize) x5
 
 selectGalleyConversationAll :: PrepQuery R () RowGalleyConversation
-selectGalleyConversationAll = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation"
+selectGalleyConversationAll = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type, parent_conv FROM conversation"
 
 readGalleyConversationAll :: Env -> ConduitM () [RowGalleyConversation] IO ()
 readGalleyConversationAll Env {..} =
@@ -592,7 +604,7 @@ exportGalleyConversationFull env path = do
 
 insertGalleyConversation :: PrepQuery W RowGalleyConversation ()
 insertGalleyConversation =
-  "INSERT INTO conversation (conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  "INSERT INTO conversation (conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type, parent_conv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 importGalleyConversation :: Env -> FilePath -> IO ()
 importGalleyConversation Env {..} path = do
