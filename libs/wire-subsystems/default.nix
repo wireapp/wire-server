@@ -49,6 +49,7 @@
 , hspec
 , hspec-discover
 , html-entities
+, http-api-data
 , http-client
 , http-types
 , http2-manager
@@ -158,6 +159,7 @@ mkDerivation {
     HsOpenSSL
     hspec
     html-entities
+    http-api-data
     http-client
     http-types
     http2-manager
