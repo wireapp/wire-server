@@ -184,6 +184,7 @@ library
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Interpreter
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
