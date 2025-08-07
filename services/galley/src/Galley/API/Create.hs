@@ -818,18 +818,19 @@ newRegularConversation lusr newConv = do
                   cnvmCreator = Just (tUnqualified lusr),
                   cnvmAccess = access newConv,
                   cnvmAccessRoles = accessRoles newConv,
-                  cnvmName = fmap fromRange (newConvName newConv),
-                  cnvmMessageTimer = newConvMessageTimer newConv,
-                  cnvmReceiptMode = case newConvProtocol newConv of
-                    BaseProtocolProteusTag -> newConvReceiptMode newConv
+                  cnvmName = fmap fromRange newConv.newConvName,
+                  cnvmMessageTimer = newConv.newConvMessageTimer,
+                  cnvmReceiptMode = case newConv.newConvProtocol of
+                    BaseProtocolProteusTag -> newConv.newConvReceiptMode
                     BaseProtocolMLSTag -> Just def,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmTeam = fmap cnvTeamId newConv.newConvTeam,
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
                   cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then newConv.newConvChannelAddPermission <|> Just def else Nothing,
                   cnvmCellsState =
                     if newConv.newConvCells
                       then CellsPending
-                      else CellsDisabled
+                      else CellsDisabled,
+                  cnvmParent = newConv.newConvParent
                 },
             users = newConvUsersRoles,
             protocol = newConvProtocol newConv
