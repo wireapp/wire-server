@@ -53,7 +53,7 @@ import Wire.Sem.Paging.Cassandra (CassandraPaging)
 import Wire.TeamCollaboratorsSubsystem
 
 getClients ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r
   ) =>
   UserId ->

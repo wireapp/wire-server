@@ -163,8 +163,6 @@ library
     Galley.Data.Types
     Galley.Effects
     Galley.Effects.BackendNotificationQueueAccess
-    Galley.Effects.BotAccess
-    Galley.Effects.BrigAccess
     Galley.Effects.ClientStore
     Galley.Effects.CodeStore
     Galley.Effects.ConversationStore
@@ -189,15 +187,11 @@ library
     Galley.External
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.External.LegalHoldService.Types
     Galley.Intra.BackendNotificationQueue
-    Galley.Intra.Client
     Galley.Intra.Effects
     Galley.Intra.Federator
     Galley.Intra.Journal
     Galley.Intra.Spar
-    Galley.Intra.Team
-    Galley.Intra.User
     Galley.Intra.Util
     Galley.Keys
     Galley.Monad
@@ -609,7 +603,6 @@ test-suite galley-tests
     Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
-    Test.Galley.Intra.User
     Test.Galley.Mapping
 
   ghc-options:    -threaded -with-rtsopts=-N -Wno-x-partial
@@ -623,7 +616,6 @@ test-suite galley-tests
     , lens
     , polysemy
     , polysemy-wire-zoo
-    , QuickCheck
     , tasty
     , tasty-hunit
     , tasty-quickcheck

@@ -179,6 +179,12 @@ library
     Wire.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
+    Wire.BrigAPIAccess
+    Wire.BrigAPIAccess.Rpc
+    Wire.ConversationStore
+    Wire.ConversationStore.Cassandra
+    Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Interpreter
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -312,6 +318,7 @@ library
     , HsOpenSSL
     , hspec
     , html-entities
+    , http-api-data
     , http-client
     , http-types
     , http2-manager
@@ -379,6 +386,7 @@ test-suite wire-subsystems-tests
     Spec
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
+    Wire.BrigAPIAccess.RpcSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend

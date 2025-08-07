@@ -50,7 +50,6 @@ import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamMemberStore
@@ -78,6 +77,7 @@ import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.BrigAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -143,7 +143,7 @@ getSettings lzusr tid = do
 removeSettingsInternalPaging ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -190,7 +190,7 @@ removeSettings ::
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -250,7 +250,7 @@ removeSettings' ::
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
     Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -304,7 +304,7 @@ removeSettings' tid =
 -- out).
 grantConsent ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -345,7 +345,7 @@ grantConsent lusr tid = do
 requestDevice ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -441,7 +441,7 @@ requestDevice lzusr tid uid = do
 approveDevice ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -524,7 +524,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
 disableForUser ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -595,7 +595,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 -- (anybody with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatusAndHandlePolicyConflicts ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -659,7 +659,7 @@ changeLegalholdStatusAndHandlePolicyConflicts tid luid old new = do
 -- FUTUREWORK: make this async?
 blockNonConsentingConnections ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r

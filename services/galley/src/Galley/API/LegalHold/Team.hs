@@ -28,7 +28,6 @@ import Data.Default
 import Data.Id
 import Data.Range
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore
@@ -39,6 +38,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
+import Wire.BrigAPIAccess
 
 assertLegalHoldEnabledForTeam ::
   forall r.
@@ -83,7 +83,7 @@ isLegalHoldEnabledForTeam tid = do
   pure $ status == FeatureStatusEnabled
 
 ensureNotTooLargeToActivateLegalHold ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
     Member TeamStore r
   ) =>

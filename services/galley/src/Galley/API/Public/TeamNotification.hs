@@ -24,7 +24,7 @@ type SizeRange = Range 1 10000 Int32
 -- less warped.  This is a work-around because we cannot send events to all of a large team.
 -- See haddocks of module "Galley.API.TeamNotifications" for details.
 getTeamNotifications ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidTeamNotificationId) r,
     Member TeamNotificationStore r
