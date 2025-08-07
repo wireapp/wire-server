@@ -172,6 +172,8 @@ library
     Wire.ActivationCodeStore.Cassandra
     Wire.AppStore
     Wire.AppStore.Postgres
+    Wire.AppSubsystem
+    Wire.AppSubsystem.Interpreter
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Config
     Wire.AuthenticationSubsystem.Cookie
