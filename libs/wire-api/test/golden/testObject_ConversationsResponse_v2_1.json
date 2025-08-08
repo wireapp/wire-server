@@ -43,6 +43,7 @@
             },
             "message_timer": null,
             "name": " 0",
+            "parent": null,
             "protocol": "proteus",
             "cells_state": "disabled",
             "qualified_id": {
@@ -107,6 +108,7 @@
             },
             "message_timer": 1319272593797015,
             "name": "",
+            "parent": null,
             "protocol": "mls",
             "cells_state": "disabled",
             "qualified_id": {
