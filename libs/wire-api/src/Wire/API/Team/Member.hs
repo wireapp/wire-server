@@ -631,7 +631,7 @@ collaboratorToTeamPermissions =
   foldMap
     ( \case
         Collaborator.CreateTeamConversation -> Set.fromList [CreateConversation, AddRemoveConvMember]
-        Collaborator.ImplicitConnection -> mempty
+        Collaborator.ImplicitConnection -> Set.singleton CreateConversation
     )
 
 ----------------------------------------------------------------------

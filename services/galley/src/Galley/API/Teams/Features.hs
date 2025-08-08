@@ -70,6 +70,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamCollaboratorsSubsystem
 
 patchFeatureInternal ::
   forall cfg r.
@@ -338,7 +339,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member (TeamMemberStore InternalPaging) r,
         Member P.TinyLog r,
         Member Random r,
-        Member (Embed IO) r
+        Member (Embed IO) r,
+        Member TeamCollaboratorsSubsystem r
       )
 
   prepareFeature tid feat = do
@@ -448,3 +450,5 @@ instance SetFeatureConfig LimitedEventFanoutConfig
 instance SetFeatureConfig DomainRegistrationConfig
 
 instance SetFeatureConfig CellsConfig
+
+instance SetFeatureConfig ConsumableNotificationsConfig

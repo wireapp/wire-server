@@ -10,6 +10,7 @@ module Testlib.ModService
   )
 where
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
@@ -30,6 +31,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.String.Conversions (cs)
+import Data.String.Interpolate
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
@@ -53,7 +55,8 @@ import Testlib.Ports (PortNamespace (..))
 import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
-import Text.RawString.QQ
+import Text.RE.Replace
+import Text.RE.TDFA
 import qualified UnliftIO
 import Prelude
 
@@ -513,27 +516,23 @@ startNginzK8s domain sm = do
     copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
   let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
-      upstreamsCfg = tmpDir </> "upstreams.conf"
-  liftIO $ do
-    conf <- Text.readFile nginxConfFile
-    Text.writeFile nginxConfFile $
-      ( conf
+  conf <- Text.readFile nginxConfFile
+  let conf' =
+        conf
           & Text.replace "access_log /dev/stdout" "access_log /dev/null"
-          -- TODO: Get these ports out of config
+          -- FUTUREWORK: Get these ports out of config
           & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
           & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
           & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
-          & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
-      )
-  createUpstreamsCfg upstreamsCfg sm
+
+  Text.writeFile nginxConfFile $ replaceUpstreamsInConfig conf' sm
+
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
 startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
   let domain = berDomain resource
-      http2Port = berNginzHttp2Port resource
-      sslPort = berNginzSslPort resource
   sm <- getServiceMap domain
 
   -- Create a whole temporary directory and copy all nginx's config files.
@@ -549,8 +548,6 @@ startNginzLocal resource = do
     copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
     copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 
-  let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
-
   -- hide access log
   let nginxConfFile = tmpDir </> "conf" </> "nginz" </> "nginx.conf"
   liftIO $ do
@@ -561,37 +558,29 @@ startNginzLocal resource = do
       )
 
   -- override port configuration
-  let portConfigTemplate =
-        [r|listen {localPort};
-listen {http2_port};
-listen {ssl_port} ssl;
-listen [::]:{ssl_port} ssl;
-http2 on;
-|]
-  let portConfig =
-        portConfigTemplate
-          & Text.replace "{localPort}" (cs $ show (sm.nginz.port))
-          & Text.replace "{http2_port}" (cs $ show http2Port)
-          & Text.replace "{ssl_port}" (cs $ show sslPort)
+  let nginzPort = sm.nginz.port
+      http2Port = berNginzHttp2Port resource
+      sslPort = berNginzSslPort resource
+      portConfig =
+        [i|listen #{nginzPort};
+            listen #{http2Port};
+            listen #{sslPort} ssl;
+            listen [::]:#{sslPort} ssl;
+            http2 on;
+        |]
+      integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
 
-  liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
-  liftIO $ writeFile integrationConfFile (cs portConfig)
+  liftIO $ do
+    whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
+    writeFile integrationConfFile portConfig
 
   -- override upstreams
   let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
-  liftIO $ createUpstreamsCfg upstreamsCfg sm
-  let upstreamFederatorTemplate =
-        [r|upstream {name} {
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}|]
-  liftIO $
-    appendFile
-      upstreamsCfg
-      ( cs $
-          upstreamFederatorTemplate
-            & Text.replace "{name}" "federator_external"
-            & Text.replace "{port}" (cs $ show sm.federatorExternal.port)
-      )
+
+  liftIO $ do
+    whenM (doesFileExist upstreamsCfg) $
+      removeFile upstreamsCfg
+    writeFile upstreamsCfg (makeUpstreamsCfgs sm)
 
   -- override pid configuration
   let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
@@ -606,34 +595,82 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
   -- return handle and nginx tmp dir path
   pure $ ServiceInstance ph tmpDir
 
-createUpstreamsCfg :: String -> ServiceMap -> IO ()
-createUpstreamsCfg upstreamsCfg sm = do
-  liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
-  let upstreamTemplate =
-        [r|upstream {name} {
-least_conn;
-keepalive 32;
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}
-|]
+makeUpstreamsCfgs :: ServiceMap -> String
+makeUpstreamsCfgs sm =
+  let upstreamTemplate _name _port =
+        [i|upstream #{_name} {
+            least_conn;
+            keepalive 32;
+            server 127.0.0.1:#{_port} max_fails=3 weight=1;
+            }
+        |]
+   in concat
+        $ (flip map)
+          [ (serviceName Brig, sm.brig.port),
+            (serviceName Cannon, sm.cannon.port),
+            (serviceName Cargohold, sm.cargohold.port),
+            (serviceName Galley, sm.galley.port),
+            (serviceName Gundeck, sm.gundeck.port),
+            (serviceName Nginz, sm.nginz.port),
+            (serviceName WireProxy, sm.proxy.port),
+            (serviceName Spar, sm.spar.port),
+            ("federator_external", sm.federatorExternal.port)
+          ]
+        $ uncurry upstreamTemplate
 
-  forM_
-    [ (serviceName Brig, sm.brig.port),
-      (serviceName Cannon, sm.cannon.port),
-      (serviceName Cargohold, sm.cargohold.port),
-      (serviceName Galley, sm.galley.port),
-      (serviceName Gundeck, sm.gundeck.port),
-      (serviceName Nginz, sm.nginz.port),
-      (serviceName WireProxy, sm.proxy.port),
-      (serviceName Spar, sm.spar.port)
-    ]
-    \case
-      (srv, p) -> do
-        let upstream =
-              upstreamTemplate
-                & Text.replace "{name}" (cs $ srv)
-                & Text.replace "{port}" (cs $ show p)
-        liftIO $ appendFile upstreamsCfg (cs upstream)
+-- | replace 'upstream <name> { ... }' blocks
+replaceUpstreamsInConfig :: Text.Text -> ServiceMap -> Text.Text
+replaceUpstreamsInConfig nginxConf sm =
+  insertGeneratedUpstreams generateUpstreamsText $ removeUpstreamBlocks
+  where
+    -- remove blocks like:
+    --
+    -- upstream <name> {
+    --   ...
+    --   <config>
+    --   ...
+    -- }
+    --
+    -- Prerequisite is that the upstream  block itself does not contain block
+    -- delimiters. AFAIK this usually holds.
+    removeUpstreamBlocks :: Text.Text
+    removeUpstreamBlocks =
+      replaceAll "" $
+        -- regex-tdfa does unfortunately not support shorthands for character classes.
+        nginxConf *=~ [re|upstream[[:blank:]]+[[:word:]]+([[:blank:]]|[[:cntrl:]])+{([^}]|[[:cntrl:]])+}|]
+
+    -- Insert generated upstreams:
+    -- Try to put them right after the opening 'http {'.
+    insertGeneratedUpstreams :: Text.Text -> Text.Text -> Text.Text
+    insertGeneratedUpstreams ups conf =
+      case Text.breakOn "http {" conf of
+        (pre, rest)
+          | not (Text.null rest) ->
+              let (httpOpen, postOpen) = Text.splitAt (Text.length "http {") rest
+               in Text.concat [pre, httpOpen, "\n\n", ups, postOpen]
+        _ -> Text.concat [ups, "\n", conf]
+
+    generateUpstreamsText :: Text.Text
+    generateUpstreamsText =
+      Text.concat $
+        [ (serviceName Brig, sm.brig.port),
+          (serviceName Cannon, sm.cannon.port),
+          (serviceName Cargohold, sm.cargohold.port),
+          (serviceName Galley, sm.galley.port),
+          (serviceName Gundeck, sm.gundeck.port),
+          (serviceName Nginz, sm.nginz.port),
+          (serviceName WireProxy, sm.proxy.port),
+          (serviceName Spar, sm.spar.port)
+        ]
+          <&> Text.pack . uncurry upstreamTemplate
+      where
+        upstreamTemplate _name _port =
+          [i|upstream #{_name} {
+              least_conn;
+              keepalive 32;
+              server 127.0.0.1:#{_port} max_fails=3 weight=1;
+              }
+          |]
 
 startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
 startNginz domain conf workingDir = do

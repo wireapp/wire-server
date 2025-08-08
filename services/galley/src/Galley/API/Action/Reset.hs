@@ -8,13 +8,11 @@ import Data.Qualified
 import Galley.API.Action.Kick
 import Galley.API.MLS.Util
 import Galley.API.Util
-import Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Env
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -36,6 +34,7 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.StoredConversation as Data
 
 resetLocalMLSMainConversation ::
   ( Member (Input Env) r,
@@ -56,15 +55,15 @@ resetLocalMLSMainConversation ::
     Member P.TinyLog r
   ) =>
   Qualified UserId ->
-  Local Data.Conversation ->
+  Local StoredConversation ->
   MLSReset ->
   Sem r GroupId
 resetLocalMLSMainConversation qusr lcnv reset = do
   let cnv = tUnqualified lcnv
-      cnvId = cnv.convId
+      cnvId = cnv.id_
       lcnvOrSub = qualifyAs lcnv (Conv cnvId)
-      ctype = cnv.convMetadata.cnvmType
-  mlsData <- case convProtocol cnv of
+      ctype = cnv.metadata.cnvmType
+  mlsData <- case cnv.protocol of
     ProtocolMLS md -> pure md
     ProtocolMixed md -> pure md
     ProtocolProteus -> throwS @'InvalidOperation
@@ -87,7 +86,7 @@ resetLocalMLSMainConversation qusr lcnv reset = do
       resetConversation cnvId newGid
 
       -- kick all remote members from backends that don't support this group ID version
-      let remoteUsers = map rmId (convRemoteMembers cnv)
+      let remoteUsers = map (.id_) cnv.remoteMembers
       let targets = convBotsAndMembers cnv
       results <-
         runFederatedConcurrentlyEither @_ @Brig remoteUsers $

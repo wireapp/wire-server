@@ -59,9 +59,7 @@ import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Types
 import Galley.Data.Services
-import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
@@ -69,6 +67,8 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode
 import Wire.API.Provider.Service
+import Wire.StoredConversation
+import Wire.UserList
 
 data MemberStore m a where
   CreateMembers :: (ToUserRole u) => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])

@@ -5,10 +5,8 @@ import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Removal
 import Galley.API.Util
-import Galley.Data.Conversation
 import Galley.Effects
 import Galley.Env (Env)
-import Galley.Types.UserList
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
@@ -17,6 +15,8 @@ import Polysemy.TinyLog
 import Wire.API.Federation.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.StoredConversation
+import Wire.UserList
 
 leaveConversation ::
   ( Member TinyLog r,
@@ -32,7 +32,7 @@ leaveConversation ::
     Member Now r
   ) =>
   Qualified UserId ->
-  Local Conversation ->
+  Local StoredConversation ->
   Sem r ()
 leaveConversation origUser lconv = do
   let victims = [origUser]

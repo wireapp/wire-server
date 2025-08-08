@@ -383,6 +383,28 @@ getMLSOne2OneConversation self other = do
       $ joinHttpPath ["one2one-conversations", domain, uid]
   submit "GET" req
 
+postOne2OneConversation ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  self ->
+  other ->
+  String ->
+  String ->
+  App Response
+postOne2OneConversation self other tid convName = do
+  qUid <- objQidObject other
+  req <-
+    baseRequest self Galley Versioned
+      $ joinHttpPath ["one2one-conversations"]
+  submit
+    "POST"
+    ( req
+        & addJSONObject
+          [ "name" .= convName,
+            "qualified_users" .= [qUid],
+            "team" .= Aeson.object ["teamid" .= tid, "managed" .= False]
+          ]
+    )
+
 getGroupClients ::
   (HasCallStack, MakesValue user) =>
   user ->

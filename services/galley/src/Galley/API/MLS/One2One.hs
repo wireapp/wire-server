@@ -27,9 +27,7 @@ where
 import Data.Id as Id
 import Data.Qualified
 import Galley.API.MLS.Types
-import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects.ConversationStore
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
@@ -40,6 +38,8 @@ import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.SubConversation
 import Wire.API.User
+import Wire.StoredConversation
+import Wire.UserList
 
 -- | Construct a local MLS 1-1 'Conversation' between a local user and another
 -- (possibly remote) user.
@@ -128,12 +128,12 @@ createMLSOne2OneConversation ::
   Qualified UserId ->
   Qualified UserId ->
   Local MLSConversation ->
-  Sem r Data.Conversation
+  Sem r StoredConversation
 createMLSOne2OneConversation self other lconv = do
   createConversation
     (fmap mcId lconv)
-    Data.NewConversation
-      { ncMetadata = mcMetadata (tUnqualified lconv),
-        ncUsers = fmap (,roleNameWireMember) (toUserList lconv [self, other]),
-        ncProtocol = BaseProtocolMLSTag
+    NewConversation
+      { metadata = mcMetadata (tUnqualified lconv),
+        users = fmap (,roleNameWireMember) (toUserList lconv [self, other]),
+        protocol = BaseProtocolMLSTag
       }

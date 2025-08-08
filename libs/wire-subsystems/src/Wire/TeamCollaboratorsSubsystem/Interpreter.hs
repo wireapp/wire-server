@@ -35,6 +35,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   CreateTeamCollaborator zUser user team perms -> createTeamCollaboratorImpl zUser user team perms
   GetAllTeamCollaborators zUser team -> getAllTeamCollaboratorsImpl zUser team
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
+  InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -43,6 +44,13 @@ internalGetTeamCollaboratorImpl ::
   Sem r (Maybe TeamCollaborator)
 internalGetTeamCollaboratorImpl teamId userId = do
   Store.getTeamCollaborator teamId userId
+
+internalGetTeamCollaborationsImpl ::
+  (Member Store.TeamCollaboratorsStore r) =>
+  UserId ->
+  Sem r [TeamCollaborator]
+internalGetTeamCollaborationsImpl userId = do
+  Store.getTeamCollaborations userId
 
 createTeamCollaboratorImpl ::
   ( Member TeamSubsystem r,

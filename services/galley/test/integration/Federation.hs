@@ -7,15 +7,14 @@ import Data.Qualified
 import Data.UUID qualified as UUID
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Conversation.Types qualified as Types
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), defMemberStatus)
 import Imports
 import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireMember)
+import Wire.StoredConversation
 
 isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
@@ -28,7 +27,7 @@ isConvMemberLTests = do
       convRemoteMembers = [RemoteMember rUserId roleNameWireMember]
       lconv =
         toLocalUnsafe localDomain $
-          Types.Conversation
+          StoredConversation
             convId
             convLocalMembers
             convRemoteMembers

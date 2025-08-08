@@ -25,18 +25,17 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.Data.Conversation
-import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User
+import Wire.StoredConversation
+import Wire.UserList
 
 newConnectConversationWithRemote ::
   Local UserId ->
@@ -44,12 +43,12 @@ newConnectConversationWithRemote ::
   NewConversation
 newConnectConversationWithRemote creator users =
   NewConversation
-    { ncMetadata =
+    { metadata =
         (defConversationMetadata (Just (tUnqualified creator)))
           { cnvmType = One2OneConv
           },
-      ncUsers = fmap toUserRole users,
-      ncProtocol = BaseProtocolProteusTag
+      users = fmap toUserRole users,
+      protocol = BaseProtocolProteusTag
     }
 
 iUpsertOne2OneConversation ::
@@ -79,7 +78,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
             case (uooActor, uooActorDesiredMembership) of
               (LocalActor, Included) -> do
                 void $ createMember lconvId uooLocalUser
-                unless (null (convRemoteMembers conv)) $
+                unless (null conv.remoteMembers) $
                   acceptConnectConversation (tUnqualified lconvId)
               (LocalActor, Excluded) -> do
                 deleteMembers
@@ -87,7 +86,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                   (UserList [tUnqualified uooLocalUser] [])
               (RemoteActor, Included) -> do
                 void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
-                unless (null (convLocalMembers conv)) $
+                unless (null conv.localMembers) $
                   acceptConnectConversation (tUnqualified lconvId)
               (RemoteActor, Excluded) ->
                 deleteMembers

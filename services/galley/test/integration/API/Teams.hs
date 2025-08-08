@@ -86,6 +86,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User qualified as Public
 import Wire.API.User qualified as U
+import Wire.StoredConversation (selfConv)
 
 tests :: IO TestSetup -> TestTree
 tests s =

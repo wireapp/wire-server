@@ -25,26 +25,26 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Types
-import Galley.Data.Conversation.Types as Data
 import Galley.Effects.MemberStore
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
+import Wire.StoredConversation as Data
 
 mkMLSConversation ::
   (Member MemberStore r) =>
-  Data.Conversation ->
+  StoredConversation ->
   Sem r (Maybe MLSConversation)
 mkMLSConversation conv =
   for (Data.mlsMetadata conv) $ \(mlsData, migrationState) -> do
     (cm, im) <- lookupMLSClientLeafIndices (cnvmlsGroupId mlsData)
     pure
       MLSConversation
-        { mcId = Data.convId conv,
-          mcMetadata = Data.convMetadata conv,
-          mcLocalMembers = Data.convLocalMembers conv,
-          mcRemoteMembers = Data.convRemoteMembers conv,
+        { mcId = conv.id_,
+          mcMetadata = conv.metadata,
+          mcLocalMembers = conv.localMembers,
+          mcRemoteMembers = conv.remoteMembers,
           mcMLSData = mlsData,
           mcMembers = cm,
           mcIndexMap = im,
@@ -65,13 +65,13 @@ newMLSConversation lcnv meta mlsData =
       mcMigrationState = MLSMigrationMLS
     }
 
-mcConv :: MLSConversation -> Data.Conversation
+mcConv :: MLSConversation -> StoredConversation
 mcConv mlsConv =
-  Data.Conversation
-    { convId = mcId mlsConv,
-      convLocalMembers = mcLocalMembers mlsConv,
-      convRemoteMembers = mcRemoteMembers mlsConv,
-      convDeleted = False,
-      convMetadata = mcMetadata mlsConv,
-      convProtocol = ProtocolMLS (mcMLSData mlsConv)
+  StoredConversation
+    { id_ = mcId mlsConv,
+      localMembers = mcLocalMembers mlsConv,
+      remoteMembers = mcRemoteMembers mlsConv,
+      deleted = False,
+      metadata = mcMetadata mlsConv,
+      protocol = ProtocolMLS (mcMLSData mlsConv)
     }

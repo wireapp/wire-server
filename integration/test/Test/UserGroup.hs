@@ -4,6 +4,7 @@ module Test.UserGroup where
 
 import API.Brig
 import API.Galley
+import Control.Error (lastMay)
 import Notifications (isUserGroupCreatedNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -60,6 +61,10 @@ testUserGroupSmoke = do
     resp.json %. "name" `shouldMatch` "also good"
     resp.json %. "members" `shouldMatch` [mem2id, mem3id]
 
+  bindResponse (getUserGroups owner def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "page.0.name" `shouldMatch` "also good"
+
   bindResponse (deleteUserGroup owner badGid) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
@@ -74,3 +79,181 @@ testUserGroupSmoke = do
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 404
+
+testUserGroupGetGroups :: (HasCallStack) => App ()
+testUserGroupGetGroups = do
+  (owner, _team, []) <- createTeam OwnDomain 1
+
+  let groupNames = ["First group", "CC", "CCC"] <> ((: []) <$> ['A' .. 'G'])
+  forM_ groupNames $ \gname -> do
+    let newGroup = object ["name" .= gname, "members" .= ([] :: [()])]
+    bindResponse (createUserGroup owner newGroup) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "name" `shouldMatch` gname
+      resp.json %. "members" `shouldMatch` ([] :: [()])
+
+  -- Default sort by is createdAt, and sortOrder is DESC
+  _ <- runSearch owner def {q = Just "C"} ["C", "CCC", "CC"]
+
+  -- Default sortOrder is DESC, regardless of sortBy
+  _ <- runSearch owner def {q = Just "CC", sortByKeys = Just "name"} ["CCC", "CC"]
+
+  -- Test combinations of sortBy and sortOrder:
+  _ <-
+    runSearch
+      owner
+      def {sortByKeys = Just "name", sortOrder = Just "asc"}
+      [ "A",
+        "B",
+        "C",
+        "CC",
+        "CCC",
+        "D",
+        "E",
+        "F",
+        "First group",
+        "G"
+      ]
+  _ <-
+    runSearch
+      owner
+      def {sortByKeys = Just "name", sortOrder = Just "desc"}
+      ( reverse
+          [ "A",
+            "B",
+            "C",
+            "CC",
+            "CCC",
+            "D",
+            "E",
+            "F",
+            "First group",
+            "G"
+          ]
+      )
+  _ <-
+    runSearch
+      owner
+      def {sortByKeys = Just "created_at", sortOrder = Just "asc"}
+      [ "First group",
+        "CC",
+        "CCC",
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G"
+      ]
+  _ <-
+    runSearch
+      owner
+      def {sortByKeys = Just "created_at", sortOrder = Just "desc"}
+      ( reverse
+          [ "First group",
+            "CC",
+            "CCC",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G"
+          ]
+      )
+
+  -- Test sorting and filtering works across pages
+  let firstPageParams = def {sortByKeys = Just "name", sortOrder = Just "desc", pSize = Just 3}
+  Just (name1, createdAt1, id1) <-
+    runSearch
+      owner
+      firstPageParams
+      [ "G",
+        "First group",
+        "F"
+      ]
+  Just (name2, createdAt2, id2) <-
+    runSearch
+      owner
+      firstPageParams {lastName = Just name1, lastCreatedAt = Just createdAt1, lastId = Just id1}
+      [ "E",
+        "D",
+        "CCC"
+      ]
+  Just (name3, createdAt3, id3) <-
+    runSearch
+      owner
+      firstPageParams {lastName = Just name2, lastCreatedAt = Just createdAt2, lastId = Just id2}
+      [ "CC",
+        "C",
+        "B"
+      ]
+
+  void
+    $ runSearch
+      owner
+      firstPageParams {lastName = Just name3, lastCreatedAt = Just createdAt3, lastId = Just id3}
+      ["A"]
+
+runSearch :: (HasCallStack, MakesValue owner) => owner -> GetUserGroupsArgs -> [String] -> App (Maybe (String, String, String))
+runSearch owner args expected =
+  bindResponse (getUserGroups owner args) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    found <- ((%. "name") `mapM`) =<< asList =<< resp.json %. "page"
+    found `shouldMatch` expected
+    results <- asList $ resp.json %. "page"
+    for (lastMay results) $ \lastGroup ->
+      (,,)
+        <$> asString (lastGroup %. "name")
+        <*> asString (lastGroup %. "createdAt")
+        <*> asString (lastGroup %. "id")
+
+testUserGroupGetGroupsAllInputs :: (HasCallStack) => App ()
+testUserGroupGetGroupsAllInputs = do
+  (owner, _team, []) <- createTeam OwnDomain 1
+  for_ ((: []) <$> ['A' .. 'Z']) $ \gname -> do
+    let newGroup = object ["name" .= gname, "members" .= ([] :: [()])]
+    createUserGroup owner newGroup >>= assertSuccess
+
+  Just (ln, ltz, lid) <- runSearch owner def {pSize = Just 3} ["Z", "Y", "X"]
+  let getUserGroupArgs = getUserGroupArgsCombinations ln ltz lid
+  for_ getUserGroupArgs $ \args -> do
+    bindResponse (getUserGroups owner args) $ \resp -> do
+      -- most important check is that all combinations return 200
+      resp.status `shouldMatchInt` 200
+      -- additionally we can check a few invariants
+      groups <- resp.json %. "page" >>= asList
+      case (args.q, args.lastName, args.lastCreatedAt, args.lastId) of
+        (Nothing, Nothing, Nothing, Nothing) -> length groups `shouldMatchInt` (fromMaybe 15 args.pSize)
+        (Just _, Nothing, Nothing, Nothing) -> length groups `shouldMatchInt` 1
+        _ -> pure ()
+  where
+    getUserGroupArgsCombinations :: String -> String -> String -> [GetUserGroupsArgs]
+    getUserGroupArgsCombinations ln ltz lid =
+      [ GetUserGroupsArgs
+          { q = q',
+            sortByKeys = sortBy',
+            sortOrder = sortOrder',
+            pSize = pSize',
+            lastName = lastName',
+            lastCreatedAt = lastCreatedAt',
+            lastId = lastId'
+          }
+        | q' <- qs,
+          sortBy' <- sortByKeysList,
+          sortOrder' <- sortOrders,
+          pSize' <- pSizes,
+          lastName' <- lastNames,
+          lastCreatedAt' <- lastCreatedAts,
+          lastId' <- lastIds
+      ]
+      where
+        qs = [Nothing, Just "A"]
+        sortByKeysList = [Nothing, Just "name", Just "created_at"]
+        sortOrders = [Nothing, Just "asc", Just "desc"]
+        pSizes = [Nothing, Just 3]
+        lastNames = [Nothing, Just ln]
+        lastCreatedAts = [Nothing, Just ltz]
+        lastIds = [Nothing, Just lid]

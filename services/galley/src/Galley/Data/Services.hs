@@ -25,9 +25,9 @@ module Galley.Data.Services
 where
 
 import Data.Id
-import Galley.Types.Conversations.Members
 import Imports
 import Wire.API.Provider.Service
+import Wire.StoredConversation
 
 -- BotMember ------------------------------------------------------------------
 
@@ -43,10 +43,10 @@ instance Ord BotMember where
   compare = compare `on` botMemId
 
 newBotMember :: LocalMember -> Maybe BotMember
-newBotMember m = BotMember m <$ lmService m
+newBotMember m = BotMember m <$ m.service
 
 botMemId :: BotMember -> BotId
-botMemId = BotId . lmId . fromBotMember
+botMemId m = BotId $ m.fromBotMember.id_
 
 botMemService :: BotMember -> ServiceRef
-botMemService = fromJust . lmService . fromBotMember
+botMemService m = fromJust $ m.fromBotMember.service

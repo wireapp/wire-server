@@ -157,8 +157,6 @@ library
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
-    Galley.Data.Conversation
-    Galley.Data.Conversation.Types
     Galley.Data.Scope
     Galley.Data.Services
     Galley.Data.TeamNotifications
@@ -289,7 +287,6 @@ library
     Galley.TeamSubsystem
     Galley.Types.Clients
     Galley.Types.ToUserRole
-    Galley.Types.UserList
     Galley.Validation
 
   ghc-options:
@@ -553,6 +550,7 @@ executable galley-integration
     , warp-tls               >=3.2
     , wire-api
     , wire-api-federation
+    , wire-subsystems
     , yaml
 
 executable galley-migrate-data
@@ -621,7 +619,6 @@ test-suite galley-tests
     , containers
     , extra                >=1.3
     , galley
-    , galley-types
     , imports
     , lens
     , polysemy
@@ -634,3 +631,4 @@ test-suite galley-tests
     , uuid-types
     , wire-api
     , wire-api-federation
+    , wire-subsystems

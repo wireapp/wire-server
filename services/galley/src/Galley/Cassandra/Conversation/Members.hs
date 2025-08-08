@@ -41,9 +41,7 @@ import Galley.Cassandra.Services
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.MemberStore (MemberStore (..))
-import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Imports hiding (Set)
 import Polysemy
 import Polysemy.Input
@@ -55,6 +53,8 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.Provider.Service
+import Wire.StoredConversation
+import Wire.UserList
 
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
@@ -175,18 +175,18 @@ toMember ::
 toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
   Just $
     LocalMember
-      { lmId = usr,
-        lmService = newServiceRef <$> srv <*> prv,
-        lmStatus = toMemberStatus (omus, omur, oar, oarr, hid, hidr),
-        lmConvRoleName = fromMaybe roleNameWireAdmin crn
+      { id_ = usr,
+        service = newServiceRef <$> srv <*> prv,
+        status = toMemberStatus (omus, omur, oar, oarr, hid, hidr),
+        convRoleName = fromMaybe roleNameWireAdmin crn
       }
 toMember _ = Nothing
 
 newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
 newRemoteMemberWithRole ur@(tUntagged -> (Qualified (u, r) _)) =
   RemoteMember
-    { rmId = qualifyAs ur u,
-      rmConvRoleName = r
+    { id_ = qualifyAs ur u,
+      convRoleName = r
     }
 
 lookupRemoteMember :: ConvId -> Domain -> UserId -> Client (Maybe RemoteMember)
@@ -195,8 +195,8 @@ lookupRemoteMember conv domain usr = do
   where
     mkMem (Identity role) =
       RemoteMember
-        { rmId = toRemoteUnsafe domain usr,
-          rmConvRoleName = role
+        { id_ = toRemoteUnsafe domain usr,
+          convRoleName = role
         }
 
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
@@ -205,8 +205,8 @@ lookupRemoteMembers conv = do
   where
     mkMem (domain, usr, role) =
       RemoteMember
-        { rmId = toRemoteUnsafe domain usr,
-          rmConvRoleName = role
+        { id_ = toRemoteUnsafe domain usr,
+          convRoleName = role
         }
 
 lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]

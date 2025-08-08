@@ -83,7 +83,6 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember)
 import Galley.Effects
 import Galley.Effects.BrigAccess qualified as E
@@ -99,9 +98,7 @@ import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Journal qualified as Journal
 import Galley.Options
-import Galley.Types.Conversations.Members qualified as Conv
 import Galley.Types.Teams
-import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -137,8 +134,11 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
+import Wire.StoredConversation
+import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserList
 
 getTeamH ::
   forall r.
@@ -634,9 +634,9 @@ uncheckedUpdateTeamMember ::
   TeamId ->
   NewTeamMember ->
   Sem r ()
-uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
+uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
   let mZusr = tUnqualified <$> mlzusr
-  let targetMember = ntmNewTeamMember newMember
+  let targetMember = ntmNewTeamMember newMem
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
   P.debug $
@@ -692,9 +692,9 @@ updateTeamMember ::
   TeamId ->
   NewTeamMember ->
   Sem r ()
-updateTeamMember lzusr zcon tid newMember = do
+updateTeamMember lzusr zcon tid newMem = do
   let zusr = tUnqualified lzusr
-  let targetMember = ntmNewTeamMember newMember
+  let targetMember = ntmNewTeamMember newMem
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
   P.debug $
@@ -716,7 +716,7 @@ updateTeamMember lzusr zcon tid newMember = do
     )
     $ throwS @'AccessDenied
 
-  uncheckedUpdateTeamMember (Just lzusr) (Just zcon) tid newMember
+  uncheckedUpdateTeamMember (Just lzusr) (Just zcon) tid newMem
   where
     canDowngradeOwner = canDeleteMember
 
@@ -937,13 +937,13 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   for_ cc $ \c ->
     E.getConversation (c ^. conversationId) >>= \conv ->
       for_ conv $ \dc ->
-        when (remove `isMember` Data.convLocalMembers dc) $ do
+        when (remove `isMember` dc.localMembers) $ do
           E.deleteMembers (c ^. conversationId) (UserList [remove] [])
-          let (bots, allLocUsers) = localBotsAndUsers (Data.convLocalMembers dc)
+          let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
               targets =
                 BotsAndMembers
-                  (Set.fromList $ Conv.lmId <$> allLocUsers)
-                  (Set.fromList $ Conv.rmId <$> Data.convRemoteMembers dc)
+                  (Set.fromList $ (.id_) <$> allLocUsers)
+                  (Set.fromList $ (.id_) <$> dc.remoteMembers)
                   (Set.fromList bots)
           void $
             notifyConversationAction
@@ -1011,7 +1011,8 @@ deleteTeamConversation ::
     Member NotificationSubsystem r,
     Member Now r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->

@@ -297,13 +297,13 @@ mkDerivation {
     warp-tls
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
   ];
   testHaskellDepends = [
     base
     containers
     extra
-    galley-types
     imports
     lens
     polysemy
@@ -316,6 +316,7 @@ mkDerivation {
     uuid-types
     wire-api
     wire-api-federation
+    wire-subsystems
   ];
   description = "Conversations";
   license = lib.licenses.agpl3Only;

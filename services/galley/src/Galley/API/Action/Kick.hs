@@ -7,7 +7,6 @@ import Data.Singletons
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Util
-import Galley.Data.Conversation
 import Galley.Effects
 import Galley.Env (Env)
 import Imports hiding ((\\))
@@ -21,6 +20,7 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.StoredConversation
 
 -- | Kick a user from a conversation and send notifications.
 --
@@ -41,7 +41,7 @@ kickMember ::
     Member Random r
   ) =>
   Qualified UserId ->
-  Local Conversation ->
+  Local StoredConversation ->
   BotsAndMembers ->
   Qualified UserId ->
   Sem r ()

@@ -56,7 +56,6 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
-import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
@@ -94,6 +93,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all

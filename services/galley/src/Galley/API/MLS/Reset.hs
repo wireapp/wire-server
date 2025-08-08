@@ -40,6 +40,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.TeamCollaboratorsSubsystem
 
 resetMLSConversation ::
   ( Member (Input Env) r,
@@ -67,7 +68,8 @@ resetMLSConversation ::
     Member Resource r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   MLSReset ->

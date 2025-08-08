@@ -39,14 +39,11 @@ import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
-import Galley.Data.Conversation.Types hiding (Conversation)
-import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -66,6 +63,7 @@ import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
+import Wire.StoredConversation
 
 processInternalCommit ::
   forall r.
@@ -382,14 +380,14 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
 handleNoChanges :: (Monoid a) => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
-existingLocalMembers :: Local Data.Conversation -> Set (Qualified UserId)
+existingLocalMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingLocalMembers lconv =
-  (Set.fromList . map (fmap lmId . tUntagged)) (traverse convLocalMembers lconv)
+  (Set.fromList . map (fmap (.id_) . tUntagged)) (traverse (.localMembers) lconv)
 
-existingRemoteMembers :: Local Data.Conversation -> Set (Qualified UserId)
+existingRemoteMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingRemoteMembers lconv =
-  Set.fromList . map (tUntagged . rmId) . convRemoteMembers . tUnqualified $
+  Set.fromList . map (tUntagged . (.id_)) . (.remoteMembers) . tUnqualified $
     lconv
 
-existingMembers :: Local Data.Conversation -> Set (Qualified UserId)
+existingMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv

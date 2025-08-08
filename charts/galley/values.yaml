@@ -210,6 +210,10 @@ config:
         status: enabled
         config:
           mlsConversationReset: false
+      consumableNotifications:
+        defaults:
+          status: disabled
+          lockStatus: locked
 
   aws:
     region: "eu-west-1"

@@ -4,7 +4,7 @@ import Control.Error (MaybeT (..))
 import Control.Lens ((^.))
 import Data.Default
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
 import Data.Set qualified as Set
 import Imports
@@ -19,9 +19,11 @@ import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
+import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
@@ -38,6 +40,8 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
+  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId ->
+    getUserGroupsImpl getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
@@ -132,13 +136,56 @@ getUserGroupImpl ::
   Sem r (Maybe UserGroup)
 getUserGroupImpl getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
-  getterCanSeeAll <- do
-    creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
-    pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+  getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid
-  if getterCanSeeAll || getter `elem` (toList userGroup.members)
+  if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
+
+mkGetterCanSeeAll ::
+  forall r.
+  (Member TeamSubsystem r) =>
+  UserId ->
+  TeamId ->
+  MaybeT (Sem r) Bool
+mkGetterCanSeeAll getter team = do
+  creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
+  pure . isAdminOrOwner $ creatorTeamMember ^. permissions
+
+getUserGroupsImpl ::
+  forall r.
+  ( Member UserSubsystem r,
+    Member TeamSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r
+  ) =>
+  UserId ->
+  Maybe Text ->
+  Maybe SortBy ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe UserGroupName ->
+  Maybe UTCTimeMillis ->
+  Maybe UserGroupId ->
+  Sem r UserGroupPage
+getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId = do
+  team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
+  getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
+  unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
+  let pageReq =
+        UserGroupPageRequest
+          { pageSize = fromMaybe def mPageSize,
+            sortOrder = fromMaybe Desc sortOrder',
+            paginationState = case (fromMaybe def sortBy') of
+              SortByName -> PaginationSortByName $ (,) <$> mLastGroupName <*> mLastGroupId
+              SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> mLastCreatedAt <*> mLastGroupId,
+            team = team,
+            searchString = searchString
+          }
+  UserGroupPage <$> Store.getUserGroups pageReq
+  where
+    ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
+    ifNothing e = maybe (throw e) pure
 
 updateGroupImpl ::
   ( Member UserSubsystem r,
@@ -201,7 +248,7 @@ addUserImpl adder groupId addeeId = do
   ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  unless (addeeId `elem` ug.members) $ do
+  unless (addeeId `elem` runIdentity ug.members) $ do
     Store.addUser groupId addeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
@@ -224,7 +271,7 @@ removeUserImpl remover groupId removeeId = do
   ug <- getUserGroupImpl remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  when (removeeId `elem` ug.members) $ do
+  when (removeeId `elem` runIdentity ug.members) $ do
     Store.removeUser groupId removeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications

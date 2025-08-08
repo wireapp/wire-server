@@ -71,7 +71,6 @@ import GHC.TypeNats
 import Galley.Options qualified as Opts
 import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
-import Galley.Types.UserList
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.URI (pathSegments)
@@ -128,6 +127,7 @@ import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
+import Wire.UserList
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -2341,9 +2341,6 @@ randomEmail :: (MonadIO m) => m EmailAddress
 randomEmail = do
   uid <- liftIO nextRandom
   pure $ unsafeEmailAddress ("success+" <> UUID.toASCIIBytes uid) "simulator.amazonses.com"
-
-selfConv :: UserId -> ConvId
-selfConv u = Id (toUUID u)
 
 -- TODO: Refactor, as used also in other services
 retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a

@@ -96,10 +96,8 @@ import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Services as Data
-import Galley.Data.Types hiding (Conversation)
+import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.CodeStore qualified as E
@@ -109,8 +107,6 @@ import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..))
-import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -144,6 +140,9 @@ import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
+import Wire.TeamCollaboratorsSubsystem
+import Wire.UserList
 
 acceptConv ::
   ( Member ConversationStore r,
@@ -192,9 +191,9 @@ blockConvUnqualified ::
   Sem r ()
 blockConvUnqualified zusr cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
-  unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
+  unless (convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
-  let mems = Data.convLocalMembers conv
+  let mems = conv.localMembers
   when (zusr `isMember` mems) $
     E.deleteMembers cnv (UserList [zusr] [])
 
@@ -246,7 +245,7 @@ unblockConvUnqualified ::
 unblockConvUnqualified lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
-  unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
+  unless (convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   conv' <- acceptOne2One lusr conv conn
   conversationViewV9 lusr conv'
@@ -291,7 +290,8 @@ type UpdateConversationAccessEffects =
 
 updateConversationAccess ::
   ( Members UpdateConversationAccessEffects r,
-    Member Now r
+    Member Now r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -305,7 +305,8 @@ updateConversationAccess lusr con qcnv update = do
 
 updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,
-    Member Now r
+    Member Now r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -337,7 +338,8 @@ updateConversationReceiptMode ::
     Member Now r,
     Member MemberStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -417,7 +419,8 @@ updateConversationReceiptModeUnqualified ::
     Member Now r,
     Member MemberStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -436,7 +439,8 @@ updateConversationMessageTimer ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -469,7 +473,8 @@ updateConversationMessageTimerUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -495,7 +500,8 @@ deleteLocalConversation ::
     Member MemberStore r,
     Member ProposalStore r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -585,8 +591,8 @@ addCode ::
   Sem r AddCodeResult
 addCode lusr mbZHost mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled (Data.convTeam conv)
-  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  Query.ensureGuestLinksEnabled (convTeam conv)
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.metadata.cnvmTeam
   Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
@@ -600,19 +606,19 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       E.createCode code mPw
       now <- Now.get
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
-      let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
-      pushConversationEvent mZcon conv event (qualifyAs lusr (map lmId users)) bots
+      let (bots, users) = localBotsAndUsers $ conv.localMembers
+      pushConversationEvent mZcon conv event (qualifyAs lusr (map (.id_) users)) bots
       pure $ CodeAdded event
     -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
       when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
       pure $ CodeAlreadyExisted (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri)
   where
-    ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
+    ensureGuestsOrNonTeamMembersAllowed :: StoredConversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
-        ( GuestAccessRole `Set.member` Data.convAccessRoles conv
-            || NonTeamMemberAccessRole `Set.member` Data.convAccessRoles conv
+        ( GuestAccessRole `Set.member` convAccessRoles conv
+            || NonTeamMemberAccessRole `Set.member` convAccessRoles conv
         )
         $ throwS @'ConvAccessDenied
 
@@ -652,15 +658,15 @@ rmCode ::
 rmCode lusr zcon lcnv = do
   conv <-
     E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.convMetadata.cnvmTeam
+  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember (tUnqualified lusr)) conv.metadata.cnvmTeam
   Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
-  let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
+  let (bots, users) = localBotsAndUsers $ conv.localMembers
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
   now <- Now.get
   let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing EdConvCodeDelete
-  pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map lmId users)) bots
+  pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map (.id_) users)) bots
   pure event
 
 getCode ::
@@ -681,9 +687,9 @@ getCode ::
 getCode mbZHost lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled (convTeam conv)
   ensureAccess conv CodeAccess
-  ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
+  ensureConvMember (conv.localMembers) (tUnqualified lusr)
   key <- E.makeKey cnv
   (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
   convUri <- getConversationCodeURI mbZHost
@@ -708,7 +714,7 @@ checkReusableCode origIp convCode = do
   code <- verifyReusableCode (RateLimitIp origIp) False Nothing convCode
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
-    Query.ensureGuestLinksEnabled (Data.convTeam conv)
+    Query.ensureGuestLinksEnabled (convTeam conv)
 
 updateConversationProtocolWithLocalUser ::
   forall r.
@@ -738,7 +744,8 @@ updateConversationProtocolWithLocalUser ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -783,7 +790,8 @@ updateChannelAddPermission ::
     Member BrigAccess r,
     Member FederatorAccess r,
     Member MemberStore r,
-    Member (ErrorS 'InvalidTargetAccess) r
+    Member (ErrorS 'InvalidTargetAccess) r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -838,7 +846,7 @@ joinConversationByReusableCode ::
 joinConversationByReusableCode lusr zcon req = do
   c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) True req.password req.code
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled (convTeam conv)
   joinConversation lusr zcon conv CodeAccess
 
 joinConversationById ::
@@ -885,15 +893,15 @@ joinConversation ::
   ) =>
   Local UserId ->
   ConnId ->
-  Data.Conversation ->
+  StoredConversation ->
   Access ->
   Sem r (UpdateResult Event)
 joinConversation lusr zcon conv access = do
-  let lcnv = qualifyAs lusr conv.convId
+  let lcnv = qualifyAs lusr conv.id_
   ensureConversationAccess (tUnqualified lusr) conv access
   ensureGroupConversation conv
   -- FUTUREWORK: remote users?
-  ensureMemberLimit (Data.convProtocolTag conv) (toList $ Data.convLocalMembers conv) [tUnqualified lusr]
+  ensureMemberLimit (convProtocolTag conv) (toList $ conv.localMembers) [tUnqualified lusr]
   getUpdateResult $ do
     -- NOTE: When joining conversations, all users become members
     -- as this is our desired behavior for these types of conversations
@@ -943,7 +951,8 @@ addMembers ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -988,7 +997,8 @@ addMembersUnqualifiedV2 ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1031,7 +1041,8 @@ addMembersUnqualified ::
     Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1119,7 +1130,8 @@ updateOtherMemberLocalConv ::
     Member NotificationSubsystem r,
     Member Now r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1146,7 +1158,8 @@ updateOtherMemberUnqualified ::
     Member NotificationSubsystem r,
     Member Now r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1172,7 +1185,8 @@ updateOtherMember ::
     Member NotificationSubsystem r,
     Member Now r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1212,7 +1226,8 @@ removeMemberUnqualified ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1242,7 +1257,8 @@ removeMemberQualified ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1319,7 +1335,8 @@ removeMemberFromLocalConv ::
     Member Random r,
     Member SubConversationStore r,
     Member TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1335,7 +1352,7 @@ removeMemberFromLocalConv lcnv lusr con victim
   | otherwise = do
       conv <- getConversationWithError lcnv
       let lconv = qualifyAs lusr conv
-      if not (isConvMemberL lconv lusr) && conv.convMetadata.cnvmGroupConvType == Just Channel
+      if not (isConvMemberL lconv lusr) && conv.metadata.cnvmGroupConvType == Just Channel
         then
           fmap (const Nothing) . runError @NoChanges $ removeMemberFromChannel (tUntagged lusr) lconv victim
         else
@@ -1367,7 +1384,7 @@ removeMemberFromChannel ::
     Member BackendNotificationQueueAccess r
   ) =>
   Qualified UserId ->
-  Local Data.Conversation ->
+  Local StoredConversation ->
   Qualified UserId ->
   Sem r ()
 removeMemberFromChannel qusr lconv victim = do
@@ -1379,8 +1396,8 @@ removeMemberFromChannel qusr lconv victim = do
   let notificationTargets = convBotsAndMembers conv
   kickMember qusr lconv notificationTargets victim
   where
-    getTeamMembership :: Data.Conversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.convMetadata.cnvmTeam
+    getTeamMembership :: StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
+    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.metadata.cnvmTeam
 
 -- OTR
 
@@ -1550,7 +1567,8 @@ updateConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1576,7 +1594,8 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1598,7 +1617,8 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1714,7 +1734,7 @@ addBot lusr zcon b = do
         { origin = Just (tUnqualified lusr),
           json = toJSONObject e,
           recipients = map localMemberToRecipient users,
-          isCellsEvent = shouldPushToCells c.convMetadata e,
+          isCellsEvent = shouldPushToCells c.metadata e,
           conn = Just zcon
         }
     ]
@@ -1722,7 +1742,7 @@ addBot lusr zcon b = do
   pure e
   where
     regularConvChecks c = do
-      let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
+      let (bots, users) = localBotsAndUsers c.localMembers
       unless (tUnqualified lusr `isMember` users) $ throwS @'ConvNotFound
       ensureGroupConversation c
       self <- getSelfMemberFromLocals (tUnqualified lusr) users
@@ -1733,7 +1753,7 @@ addBot lusr zcon b = do
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
-        ensureMemberLimit (Data.convProtocolTag c) (toList $ Data.convLocalMembers c) [tUntagged botId]
+        ensureMemberLimit (convProtocolTag c) (toList c.localMembers) [tUntagged botId]
       pure (bots, users)
 
 rmBot ::
@@ -1753,8 +1773,8 @@ rmBot ::
 rmBot lusr zcon b = do
   c <-
     E.getConversation (b ^. rmBotConv) >>= noteS @'ConvNotFound
-  let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
-  unless (tUnqualified lusr `isMember` Data.convLocalMembers c) $
+  let (bots, users) = localBotsAndUsers c.localMembers
+  unless (tUnqualified lusr `isMember` c.localMembers) $
     throwS @'ConvNotFound
   -- A bot can remove itself (which will internally be triggered when a service is deleted),
   -- otherwise we have to check for the correct permissions
@@ -1764,7 +1784,7 @@ rmBot lusr zcon b = do
     self <- getSelfMemberFromLocals (tUnqualified lusr) users
     -- Similarly to addBot we currently only allow admins to remove bots. Once bots support MLS we, also need to check for channel admin permissions here.
     ensureActionAllowed SRemoveConversationMember self
-  let lcnv = qualifyAs lusr (Data.convId c)
+  let lcnv = qualifyAs lusr c.id_
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
     else do
@@ -1777,11 +1797,11 @@ rmBot lusr zcon b = do
               { origin = Just (tUnqualified lusr),
                 json = toJSONObject e,
                 recipients = map localMemberToRecipient users,
-                isCellsEvent = shouldPushToCells c.convMetadata e,
+                isCellsEvent = shouldPushToCells c.metadata e,
                 conn = zcon
               }
           ]
-        E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
+        E.deleteMembers c.id_ (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)
         pure $ Updated e
@@ -1799,7 +1819,7 @@ updateCellsState ::
 updateCellsState cnv state = do
   when (state /= CellsDisabled) $ do
     conv <- E.getConversation cnv >>= noteS @ConvNotFound
-    tid <- noteS @InvalidOperation conv.convMetadata.cnvmTeam
+    tid <- noteS @InvalidOperation conv.metadata.cnvmTeam
     feat <- getFeatureForTeam @CellsConfig tid
     noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
   E.setConversationCellsState cnv state

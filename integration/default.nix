@@ -45,6 +45,7 @@
 , HsOpenSSL
 , http-client
 , http-types
+, interpolate
 , kan-extensions
 , lens
 , lens-aeson
@@ -61,6 +62,7 @@
 , proto-lens
 , random
 , raw-strings-qq
+, regex
 , regex-base
 , regex-tdfa
 , retry
@@ -149,6 +151,7 @@ mkDerivation {
     HsOpenSSL
     http-client
     http-types
+    interpolate
     kan-extensions
     lens
     lens-aeson
@@ -164,6 +167,7 @@ mkDerivation {
     proto-lens
     random
     raw-strings-qq
+    regex
     regex-base
     regex-tdfa
     retry

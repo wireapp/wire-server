@@ -182,6 +182,8 @@ sitemap' =
     :<|> Named @"put-route-snd-factor-password-challenge" (mkFeatureStatusPutRoute @SndFactorPasswordChallengeConfig)
     :<|> Named @"get-route-limited-event-fanout" (mkFeatureGetRoute @LimitedEventFanoutConfig)
     :<|> Named @"put-route-limited-event-fanout" (mkFeatureStatusPutRoute @LimitedEventFanoutConfig)
+    :<|> Named @"get-route-consumable-notifications" (mkFeatureGetRoute @ConsumableNotificationsConfig)
+    :<|> Named @"put-route-consumable-notifications" (mkFeatureStatusPutRoute @ConsumableNotificationsConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -213,6 +215,7 @@ sitemap' =
     :<|> Named @"lock-unlock-route-snd-factor-password-challenge-config" (mkFeatureLockUnlockRoute @SndFactorPasswordChallengeConfig)
     :<|> Named @"lock-unlock-route-limited-event-fanout-config" (mkFeatureLockUnlockRoute @LimitedEventFanoutConfig)
     :<|> Named @"lock-unlock-route-cells-config" (mkFeatureLockUnlockRoute @CellsConfig)
+    :<|> Named @"lock-unlock-route-consumable-notifications-config" (mkFeatureLockUnlockRoute @ConsumableNotificationsConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

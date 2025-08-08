@@ -246,9 +246,9 @@ queueOpts qName =
       queueHeaders =
         FieldTable $
           Map.fromList
-            [ ( "x-dead-letter-exchange",
-                FVString $
-                  encodeUtf8 userNotificationDlxName
+            [ ("x-queue-type", FVString "quorum"),
+              ( "x-dead-letter-exchange",
+                FVString $ encodeUtf8 userNotificationDlxName
               ),
               ( "x-dead-letter-routing-key",
                 FVString $ encodeUtf8 userNotificationDlqName

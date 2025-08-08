@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+{-# OPTIONS -Wno-ambiguous-fields #-}
+{-# OPTIONS -Wno-orphans #-}
+
 module Wire.StoredUser where
 
 import Data.Domain
@@ -12,6 +15,7 @@ import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import GHC.Records
 import Imports
 import Wire.API.Locale
+import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.User
 import Wire.Arbitrary
@@ -101,12 +105,9 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _ = l
 
--- | If the user is not activated, 'toIdentity' will return 'Nothing' as a
--- precaution, because elsewhere we rely on the fact that a non-empty
--- 'UserIdentity' means that the user is activated.
---
--- The reason it's just a "precaution" is that we /also/ have an invariant that
--- having an email or phone in the database means the user has to be activated.
+-- | If the user is not activated, 'toIdentity' will return 'Nothing', because
+-- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the
+-- user is activated.
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
@@ -123,3 +124,84 @@ instance HasField "identity" StoredUser (Maybe UserIdentity) where
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country
+
+--------------------------------------------------------------------------------
+
+data NewStoredUser = NewStoredUser
+  { id :: UserId,
+    name :: Name,
+    textStatus :: Maybe TextStatus,
+    pict :: Pict,
+    assets :: [Asset],
+    email :: Maybe EmailAddress,
+    ssoId :: Maybe UserSSOId,
+    accentId :: ColourId,
+    password :: Maybe Password,
+    activated :: Bool,
+    status :: AccountStatus,
+    expires :: Maybe UTCTimeMillis,
+    language :: Language,
+    country :: Maybe Country,
+    providerId :: Maybe ProviderId,
+    serviceId :: Maybe ServiceId,
+    handle :: Maybe Handle,
+    teamId :: Maybe TeamId,
+    managedBy :: ManagedBy,
+    supportedProtocols :: Set BaseProtocolTag
+  }
+  deriving (Show)
+
+recordInstance ''NewStoredUser
+
+-- addPrepQuery requires a Show instance for the input tuple type, but Show
+-- instances are only defined up to 15 elements. Note that we can't use the
+-- TupleType type family because type families in instance declarations are not
+-- allowed.
+deriving instance
+  Show
+    ( UserId,
+      Name,
+      Maybe TextStatus,
+      Pict,
+      [Asset],
+      Maybe EmailAddress,
+      Maybe UserSSOId,
+      ColourId,
+      Maybe Password,
+      Bool,
+      AccountStatus,
+      Maybe UTCTimeMillis,
+      Language,
+      Maybe Country,
+      Maybe ProviderId,
+      Maybe ServiceId,
+      Maybe Handle,
+      Maybe TeamId,
+      ManagedBy,
+      Set BaseProtocolTag
+    )
+
+instance HasField "service" NewStoredUser (Maybe ServiceRef) where
+  getField user = ServiceRef <$> user.serviceId <*> user.providerId
+
+newStoredUserToUser :: Qualified NewStoredUser -> User
+newStoredUserToUser (Qualified new domain) =
+  User
+    { userQualifiedId = Qualified new.id domain,
+      -- save identity even if the user is not activated
+      userIdentity = toIdentity True new.email new.ssoId,
+      userEmailUnvalidated = Nothing,
+      userDisplayName = new.name,
+      userTextStatus = new.textStatus,
+      userPict = new.pict,
+      userAssets = new.assets,
+      userAccentId = new.accentId,
+      userStatus = new.status,
+      userLocale = Locale new.language new.country,
+      userService = newServiceRef <$> new.serviceId <*> new.providerId,
+      userHandle = new.handle,
+      userExpire = new.expires,
+      userTeam = new.teamId,
+      userManagedBy = new.managedBy,
+      userSupportedProtocols = new.supportedProtocols
+    }

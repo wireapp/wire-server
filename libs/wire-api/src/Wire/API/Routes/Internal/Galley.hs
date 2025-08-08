@@ -86,6 +86,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
     :<|> IFeatureStatusLockStatusPut ChannelsConfig
     :<|> IFeatureStatusLockStatusPut CellsConfig
+    :<|> IFeatureStatusLockStatusPut ConsumableNotificationsConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

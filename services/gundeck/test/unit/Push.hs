@@ -125,14 +125,9 @@ splitPushActualRecipients p =
                   let clients = case r._recipientClients of
                         RecipientClientsAll -> allCassandraClientsFor r._recipientId
                         RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allCassandraClientsFor r._recipientId
-                        RecipientClientsTemporaryOnly -> Set.empty
                    in Set.map (\c -> (r._recipientId, c.clientId)) clients
               )
               cassandraPush._pushRecipients
-
-      actualTempRabbitMqRecipients :: Set UserId =
-        flip foldMap mRabbitMqPush $ \rabbitmqPush ->
-          Set.map (\r -> r._recipientId) rabbitmqPush._pushRecipients
 
       actualRabbitMqRecipients :: Set (UserId, ClientId) =
         flip foldMap mRabbitMqPush $ \rabbitmqPush ->
@@ -142,7 +137,6 @@ splitPushActualRecipients p =
                   let clients = case r._recipientClients of
                         RecipientClientsAll -> allRabbitMqClientsFor r._recipientId
                         RecipientClientsSome cids -> Set.filter (\c -> c.clientId `elem` cids) $ allRabbitMqClientsFor r._recipientId
-                        RecipientClientsTemporaryOnly -> Set.empty
                    in Set.map (\c -> (r._recipientId, c.clientId)) clients
               )
               rabbitmqPush._pushRecipients
@@ -154,7 +148,6 @@ splitPushActualRecipients p =
                 let clients = case r._recipientClients of
                       RecipientClientsAll -> Set.map (.clientId) $ clientsFor r._recipientId
                       RecipientClientsSome cids -> Set.fromList $ Imports.toList cids
-                      RecipientClientsTemporaryOnly -> Set.empty
                  in Set.map (r._recipientId,) clients
             )
             p.push._pushRecipients
@@ -166,12 +159,8 @@ splitPushActualRecipients p =
                in Set.member c rmqClients
           )
           allExpectedPushRecipients
-
-      expectedTempRabbitMqRecipients =
-        Set.map (._recipientId) p.push._pushRecipients
    in counterexample ("actualRecipients: " <> show actualRabbitMqRecipients <> "\nallExpectedRecipients: " <> show allExpectedPushRecipients) $
         actualRabbitMqRecipients `Set.isSubsetOf` allExpectedPushRecipients
-          .&&. actualTempRabbitMqRecipients === expectedTempRabbitMqRecipients
           .&&. actualCassandraRecipients === expectedCassandraRecipients
           .&&. actualRabbitMqRecipients === expectedRabbitMqRecipients
 
@@ -195,7 +184,6 @@ instance Arbitrary PushWithUserClients where
           RecipientClientsAll -> do
             extraClientIds <- setOf' arbitrary
             Set.fromList <$> traverse arbitraryClientWithId (Set.toList extraClientIds)
-          RecipientClientsTemporaryOnly -> arbitrary
         pure (r._recipientId, clients)
 
       arbitraryClientWithId :: ClientId -> Gen Client
