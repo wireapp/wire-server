@@ -43,6 +43,7 @@
             },
             "message_timer": null,
             "name": " 0",
+            "parent": null,
             "protocol": "proteus",
             "cells_state": "disabled",
             "qualified_id": {
