@@ -169,6 +169,10 @@ library
   exposed-modules:
     Wire.ActivationCodeStore
     Wire.ActivationCodeStore.Cassandra
+    Wire.AppStore
+    Wire.AppStore.Postgres
+    Wire.AppSubsystem
+    Wire.AppSubsystem.Interpreter
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Config
     Wire.AuthenticationSubsystem.Cookie
@@ -224,6 +228,8 @@ library
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.Postgres
+    Wire.PostgresMarshall
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
@@ -246,6 +252,7 @@ library
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamSubsystem
+    Wire.TeamSubsystem.Util
     Wire.TeamSubsystem.GalleyAPI
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
