@@ -1,1 +1,0 @@
-charts/nginz: remove nginz_disco script and sidecar container, and replace outside upstreams.txt file by an inline block, making use of 'resolve' keyword to directly reference DNS names inside the kubernetes cluster.

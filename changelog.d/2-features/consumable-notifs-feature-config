@@ -1,3 +1,0 @@
-Introduce new feature config `consumableNotifications`, it should be used by
-clients to determine whether they should use the consumable-notifications
-feature. This will not be enforced by the server.

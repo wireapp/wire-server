@@ -1,3 +1,68 @@
+# [2025-08-08] (Chart Release 5.20.0)
+
+## Release notes
+
+
+* The wire-server now uses quorum queues for user notifications, communicating
+  with cells and for watching dead lettered user-notifications. These were
+  previously declared without any type making them "classic" RabbitMQ queues.
+
+  The transition is unfortunately not automatic. There are no official clients of
+  wire-server which use these queues, so in most cases there should only be two
+  queues which need to moved over:
+  1. cells_events
+  2. dead-user-notifications
+
+  If there are no other classic queues and no cells server is deployed, the steps
+  of upgrade are very simple:
+
+  1. Delete these queues
+  2. Deploy the new version of wire-server
+
+  Please note that rolling back this deployment would not be possible unless these
+  queues are deleted again.
+
+  In case there are other classic queues of format
+  `user-notifications.<user-id>.<client-id>` or if a cells server is configured,
+  then this ugprade would require some downtime. The steps are documented on
+  RabbitMQ blog:
+  https://www.rabbitmq.com/blog/2023/03/02/quorum-queues-migration#in-place-migration
+
+
+## API changes
+
+
+* New end-point `GET /user-groups?...` for filtering, sorting, and pagination. (#4607)
+
+
+## Features
+
+
+* Allow team collaborators with `implicit_connection` permission to create and query a One2One conversation with a team member. (#4692)
+
+* Introduce new feature config `consumableNotifications`, it should be used by
+  clients to determine whether they should use the consumable-notifications
+  feature. This will not be enforced by the server. (#4689)
+
+* Do not deliver client specific notifications to temporary clients. (#4703)
+
+
+## Bug fixes and other updates
+
+
+* Fix bug where reset action was returning "invalid-op" for non-group conversations (#4702)
+
+
+## Internal changes
+
+
+* Move user creation to UserStore (#4695)
+
+* Fixed 504 errors when trying to reach services in other namespaces. (#4701)
+
+* charts/nginz: remove nginz_disco script and sidecar container, and replace outside upstreams.txt file by an inline block, making use of 'resolve' keyword to directly reference DNS names inside the kubernetes cluster. (#4663)
+
+
 # [2025-07-28] (Chart Release 5.19.0)
 
 ## Release notes
