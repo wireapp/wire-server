@@ -262,6 +262,7 @@ library
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamSubsystem
+    Wire.TeamSubsystem.Util
     Wire.TeamSubsystem.GalleyAPI
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
