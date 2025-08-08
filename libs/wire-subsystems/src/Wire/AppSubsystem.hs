@@ -1,7 +1,6 @@
 module Wire.AppSubsystem where
 
 import Data.Aeson
-import Data.Qualified
 import Imports
 import Wire.API.User
 
@@ -26,4 +25,4 @@ defNewApp name =
 data AppSubsystemError = AppSubsystemErrorNoTeam
 
 data AppSubsystem m a where
-  CreateApp :: Local User -> NewApp -> AppSubsystem m ()
+  CreateApp :: User -> NewApp -> AppSubsystem m ()

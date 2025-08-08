@@ -2,7 +2,6 @@ module Wire.AppSubsystem.Interpreter where
 
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Qualified
 import Data.Set qualified as Set
 import Data.UUID.V4
 import Imports
@@ -11,19 +10,28 @@ import Polysemy.Error
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
+import Wire.API.Event.Team
 import Wire.API.User
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
+import Wire.NotificationSubsystem
+import Wire.Sem.Now
 import Wire.StoredUser
-import Wire.UserStore
+import Wire.TeamSubsystem
+import Wire.TeamSubsystem.Util
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as Store
 
 runAppSubsystem ::
   ( Member UserStore r,
     Member TinyLog r,
     Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
-    Member AppStore r
+    Member AppStore r,
+    Member Now r,
+    Member TeamSubsystem r,
+    Member NotificationSubsystem r
   ) =>
   Sem (AppSubsystem ': r) a ->
   Sem r a
@@ -35,12 +43,15 @@ createAppImpl ::
     Member TinyLog r,
     Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
-    Member AppStore r
+    Member AppStore r,
+    Member Now r,
+    Member TeamSubsystem r,
+    Member NotificationSubsystem r
   ) =>
-  Local User ->
+  User ->
   NewApp ->
   Sem r ()
-createAppImpl (tUnqualified -> creator) new = do
+createAppImpl creator new = do
   tid <- note AppSubsystemErrorNoTeam creator.userTeam
   u <- appNewStoredUser creator new
 
@@ -49,10 +60,12 @@ createAppImpl (tUnqualified -> creator) new = do
   Log.info $
     Log.field "user" (toByteString u.id) . Log.msg (Log.val "Creating user")
 
+  -- create app and user entries
   Store.createApp u.id tid new.meta
-  createUser u Nothing
+  Store.createUser u Nothing
 
--- TODO: generate a team event
+  -- generate a team event
+  generateTeamEvent (userId creator) tid (EdAppCreate u.id)
 
 appNewStoredUser ::
   (Member (Embed IO) r) =>
