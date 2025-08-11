@@ -112,20 +112,9 @@ data RecipientClients
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
-  | -- | Only temporary clients receive these events.
-    -- It not supposed to be used by consumers of gundeck, only here for
-    -- internal gundeck use.
-    --
-    -- This is a little hack to make the 'splitPush' function work properly so
-    -- that temporary clients receive notifications over rabbitmq even when there
-    -- are no real clients which support consumable-notifications. This should
-    -- go away when we drop support for Cassandra.
-    RecipientClientsTemporaryOnly
   deriving (Eq, Show, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RecipientClients)
 
--- | This doesn't produce the 'RecipientClientsTemporaryOnly' case becasue we
--- don't expect it to come from outside gundeck.
 instance Arbitrary RecipientClients where
   arbitrary =
     oneof [allClients, someClients]
@@ -135,15 +124,6 @@ instance Arbitrary RecipientClients where
         RecipientClientsSome <$> do
           firstClientId <- arbitrary
           (List1.list1 firstClientId . filter (/= firstClientId) . Set.toList <$> setOf' arbitrary)
-
-instance Semigroup RecipientClients where
-  RecipientClientsAll <> _ = RecipientClientsAll
-  _ <> RecipientClientsAll = RecipientClientsAll
-  RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
-    RecipientClientsSome (cs1 <> cs2)
-  RecipientClientsTemporaryOnly <> x =
-    x
-  x <> RecipientClientsTemporaryOnly = x
 
 instance ToSchema Recipient where
   schema =
@@ -163,7 +143,6 @@ instance ToSchema RecipientClients where
           & (S.schema . S.description ?~ "List of clientIds. Empty means `all clients`.")
 
       i :: A.Value -> A.Parser RecipientClients
-      i (A.String "temp-only") = pure RecipientClientsTemporaryOnly
       i v =
         parseJSON @[ClientId] v >>= \case
           [] -> pure RecipientClientsAll
@@ -174,7 +153,6 @@ instance ToSchema RecipientClients where
         pure . \case
           RecipientClientsSome cs -> toJSON cs
           RecipientClientsAll -> A.Array mempty
-          RecipientClientsTemporaryOnly -> A.String "temp-only"
 
 makeLenses ''Recipient
 

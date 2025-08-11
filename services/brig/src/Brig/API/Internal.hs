@@ -289,6 +289,7 @@ teamsAPI ::
     Member BlockListStore r,
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
+    Member UserStore r,
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r,
     Member InvitationStore r,
@@ -571,6 +572,7 @@ createUserNoVerify ::
     Member Events r,
     Member InvitationStore r,
     Member UserKeyStore r,
+    Member UserStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
     Member HashPassword r,
@@ -596,7 +598,8 @@ createUserNoVerifySpar ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member UserStore r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)

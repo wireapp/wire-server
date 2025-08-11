@@ -74,7 +74,6 @@ import Util.Options
 import Wire.API.Internal.Notification
 import Wire.API.Notification
 import Wire.API.Presence (Presence (..))
-import Wire.API.Presence qualified as Presence
 import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
@@ -146,10 +145,11 @@ instance MonadMapAsync Gundeck where
       Nothing -> mapAsync f l
       Just chunkSize -> concat <$> mapM (mapAsync f) (List.chunksOf chunkSize l)
 
-splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push])
+splitPushes :: (MonadPushAll m) => [Push] -> m ([Push], [Push], UserClientsFull)
 splitPushes ps = do
   allUserClients <- mpaGetClients (Set.unions $ map (\p -> Set.map (._recipientId) $ p._pushRecipients) ps)
-  pure . partitionHereThere $ map (splitPush allUserClients) ps
+  let (rabbitmqPushes, legacyPushes) = partitionHereThere $ map (splitPush allUserClients) ps
+  pure (rabbitmqPushes, legacyPushes, allUserClients)
 
 -- | Split a push into rabbitmq and legacy push. This code exists to help with
 -- migration. Once it is completed and old APIs are not supported anymore we can
@@ -157,6 +157,7 @@ splitPushes ps = do
 splitPush ::
   UserClientsFull ->
   Push ->
+  -- | These rabbitmqPush cassandraPush
   These Push Push
 splitPush clientsFull p = do
   let (rabbitmqRecipients, legacyRecipients) =
@@ -177,7 +178,6 @@ splitPush clientsFull p = do
             RecipientClientsSome cs ->
               Set.filter (\c -> c.clientId `elem` toList cs) allClients
             RecipientClientsAll -> allClients
-            RecipientClientsTemporaryOnly -> mempty
           (rabbitmqClients, legacyClients) = Set.partition supportsConsumableNotifications relevantClients
           rabbitmqClientIds = (.clientId) <$> Set.toList rabbitmqClients
           legacyClientIds = (.clientId) <$> Set.toList legacyClients
@@ -190,13 +190,16 @@ splitPush clientsFull p = do
           -- We return all clients for RabbitMQ even if there are no real
           -- clients so a temporary client can still read the notifications on
           -- RabbitMQ.
-          (These rcpt {_recipientClients = RecipientClientsTemporaryOnly} rcpt)
+          That rcpt
         (_, []) ->
-          (This rcpt)
+          This rcpt
         (r : rs, l : ls) ->
-          These
-            rcpt {_recipientClients = RecipientClientsSome $ list1 r rs}
-            rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
+          let rabbitMqRecipients = case rcpt._recipientClients of
+                RecipientClientsAll -> RecipientClientsAll
+                RecipientClientsSome _ -> RecipientClientsSome $ list1 r rs
+           in These
+                rcpt {_recipientClients = rabbitMqRecipients}
+                rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
 
 getClients :: Set UserId -> Gundeck UserClientsFull
 getClients uids = do
@@ -221,13 +224,13 @@ getClients uids = do
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
 pushAll pushes = do
   Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
-  (rabbitmqPushes, legacyPushes) <- splitPushes pushes
+  (rabbitmqPushes, legacyPushes, allUserClients) <- splitPushes pushes
 
   legacyNotifs <- mapM mkNewNotification legacyPushes
-  pushAllLegacy legacyNotifs
+  pushAllLegacy legacyNotifs allUserClients
 
   rabbitmqNotifs <- mapM mkNewNotification rabbitmqPushes
-  pushAllViaRabbitMq rabbitmqNotifs
+  pushAllViaRabbitMq rabbitmqNotifs allUserClients
 
   -- Note that Cells needs all notifications because it doesn't matter whether
   -- some recipients have rabbitmq clients or not.
@@ -240,8 +243,8 @@ pushAll pushes = do
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [NewNotification] -> m ()
-pushAllLegacy newNotifications = do
+pushAllLegacy :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [NewNotification] -> UserClientsFull -> m ()
+pushAllLegacy newNotifications userClientsFull = do
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
@@ -257,11 +260,14 @@ pushAllLegacy newNotifications = do
     wsTargets <- mapM mkWSTargets newNotifications
     resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
     -- native push
-    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) ->
-      pushNativeWithBudget notif psh alreadySent
+    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
+      let alreadySentClients = Set.fromList $ mapMaybe (\p -> (p.userId,) <$> p.clientId) alreadySent
+          rabbitmqClients = Map.map (Set.filter supportsConsumableNotifications) userClientsFull.userClientsFull
+          rabbitmqClientIds = Map.foldMapWithKey (\uid clients -> Set.map (\c -> (uid, c.clientId)) clients) rabbitmqClients
+      pushNativeWithBudget notif psh (Set.toList $ Set.union alreadySentClients rabbitmqClientIds)
 
-pushNativeWithBudget :: (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) => Notification -> Push -> [Presence] -> m ()
-pushNativeWithBudget notif psh alreadySent = do
+pushNativeWithBudget :: (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) => Notification -> Push -> [(UserId, ClientId)] -> m ()
+pushNativeWithBudget notif psh dontPush = do
   perPushConcurrency <- mntgtPerPushConcurrency
   let rcps' = nativeTargetsRecipients psh
       cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
@@ -272,14 +278,16 @@ pushNativeWithBudget notif psh alreadySent = do
   -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
   unless (psh ^. pushTransient) $
     mpaRunWithBudget cost () $
-      mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
+      mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' dontPush
 
-pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> m ()
-pushAllViaRabbitMq newNotifs = do
+pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
+pushAllViaRabbitMq newNotifs userClientsFull = do
   for_ newNotifs $ pushViaRabbitMq
   mpaForkIO $ do
-    for_ newNotifs $ \newNotif ->
-      pushNativeWithBudget newNotif.nnNotification newNotif.nnPush []
+    for_ newNotifs $ \newNotif -> do
+      let cassandraClients = Map.map (Set.filter $ not . supportsConsumableNotifications) userClientsFull.userClientsFull
+          cassandraClientIds = Map.foldMapWithKey (\uid clients -> Set.map (\c -> (uid, c.clientId)) clients) cassandraClients
+      pushNativeWithBudget newNotif.nnNotification newNotif.nnPush (Set.toList $ cassandraClientIds)
 
 pushViaRabbitMq :: (MonadPushAll m) => NewNotification -> m ()
 pushViaRabbitMq newNotif = do
@@ -291,11 +299,7 @@ pushViaRabbitMq newNotif = do
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
-                Set.fromList $
-                  temporaryRoutingKey r._recipientId
-                    : map (clientRoutingKey r._recipientId) cs
-              RecipientClientsTemporaryOnly ->
-                Set.singleton $ temporaryRoutingKey r._recipientId
+                Set.fromList $ map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey ->
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
@@ -382,7 +386,6 @@ mkCassandraTargets NewNotification {..} =
           -- clients are stored in cassandra as a list with a notification.  empty list
           -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
           RecipientClientsSome cs -> Just $ toList cs
-          RecipientClientsTemporaryOnly -> Nothing
       pure $ target (r ^. recipientId) & targetClients .~ clients
 
 -- | Information needed to push notifications over websockets and/or native
@@ -465,9 +468,9 @@ nativeTargets ::
   (MonadNativeTargets m, MonadMapAsync m) =>
   Push ->
   [Recipient] ->
-  [Presence] ->
+  [(UserId, ClientId)] ->
   m [Address]
-nativeTargets psh rcps' alreadySent =
+nativeTargets psh rcps' dontPush =
   mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
   where
     addresses :: Recipient -> m [Address]
@@ -483,14 +486,9 @@ nativeTargets psh rcps' alreadySent =
       -- Is the client not whitelisted?
       | not (whitelistedOrNoWhitelist a) = False
       -- Include client if not found in already served presences.
-      | otherwise = isNothing (List.find (isOnline a) alreadySent)
-    isOnline a x =
-      a ^. addrUser == Presence.userId x
-        && (a ^. addrConn == Presence.connId x || equalClient a x)
-    equalClient a x = Just (a ^. addrClient) == Presence.clientId x
+      | otherwise = not $ List.elem (a ^. addrUser, a ^. addrClient) dontPush --  (List.find (isOnline a) alreadySent)
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
-    eligibleClient _ RecipientClientsTemporaryOnly = False
     whitelistedOrNoWhitelist a =
       null (psh ^. pushConnections)
         || a ^. addrConn `elem` psh ^. pushConnections

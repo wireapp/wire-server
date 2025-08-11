@@ -17,19 +17,6 @@
 }:
 let
 
-  nginzWithReloader = stdenv.mkDerivation {
-    name = "reload-script";
-    src = (writers.writeBash "nginz_reload.sh" ../services/nginz/nginz_reload.sh);
-    phases = "installPhase";
-    nativeBuildInputs = [ makeWrapper ];
-    installPhase = ''
-      mkdir -p $out/bin
-      cp $src $out/bin/nginz_reload.sh
-      wrapProgram $out/bin/nginz_reload.sh \
-        --prefix PATH : "${lib.makeBinPath [ inotify-tools nginz ]}"
-    '';
-  };
-
   # Docker tools doesn't create tmp directories but nginx needs this and so we
   # have to create it ourself.
   tmpDir = runCommand "tmp-dir" { } ''
@@ -64,7 +51,7 @@ let
       chmod 1777 var/cache/nginx
     '';
     config = {
-      Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginzWithReloader}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
+      Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginz}/bin/nginx" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
       Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
       User = "65534";
     };

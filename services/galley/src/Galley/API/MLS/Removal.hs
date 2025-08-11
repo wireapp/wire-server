@@ -35,14 +35,11 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
-import Galley.Data.Conversation.Types
-import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Galley.Env
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -62,6 +59,7 @@ import Wire.API.MLS.SubConversation
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random
+import Wire.StoredConversation
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
@@ -208,7 +206,7 @@ removeClient ::
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
-  Local Data.Conversation ->
+  Local StoredConversation ->
   Qualified UserId ->
   ClientId ->
   Sem r ()
@@ -245,7 +243,7 @@ removeUser ::
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
-  Local Data.Conversation ->
+  Local StoredConversation ->
   RemoveUserIncludeMain ->
   Qualified UserId ->
   Sem r ()
@@ -293,15 +291,15 @@ removeExtraneousClients ::
     Member TinyLog r
   ) =>
   Qualified UserId ->
-  Local Conversation ->
+  Local StoredConversation ->
   Sem r ()
 removeExtraneousClients qusr lconv = do
   mMlsConv <- mkMLSConversation (tUnqualified lconv)
   for_ mMlsConv $ \mlsConv -> do
     let allMembers =
           Set.fromList $
-            map (tUntagged . qualifyAs lconv . lmId) (mcLocalMembers mlsConv)
-              <> map (tUntagged . rmId) (mcRemoteMembers mlsConv)
+            map (tUntagged . qualifyAs lconv . (.id_)) (mcLocalMembers mlsConv)
+              <> map (tUntagged . (.id_)) (mcRemoteMembers mlsConv)
     let getClients c =
           filter
             (\(cid, _) -> cidQualifiedUser cid `Set.notMember` allMembers)

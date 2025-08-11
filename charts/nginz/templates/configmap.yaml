@@ -18,7 +18,6 @@ metadata:
 data:
   nginx.conf: |2
     {{- include "nginz_nginx.conf" . | indent 4 }}
-  upstreams.txt: "{{- include "nginz_upstreams.txt" . | trim }}"
 
 {{ (.Files.Glob "static/conf/*").AsConfig | indent 2 }}
 ---

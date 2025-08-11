@@ -21,7 +21,6 @@ import Data.ProtoLens.Labels ()
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import Data.Timeout
-import MLS.Util
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import qualified Network.WebSockets as WS
@@ -142,35 +141,27 @@ testConsumeTempEvents = do
 
         ackEvent ws e
 
-testConsumeTempEventsWithoutOwnClient :: (HasCallStack) => App ()
-testConsumeTempEventsWithoutOwnClient = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-
-  runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
-    handle <- randomHandle
-    putHandle bob handle >>= assertSuccess
-
-    -- We cannot use 'assertEvent' here because there is a race between the temp
-    -- queue being created and rabbitmq fanning out the previous events.
-    void $ assertFindsEvent ws $ \e -> do
-      e %. "type" `shouldMatch` "event"
-      e %. "data.event.payload.0.type" `shouldMatch` "user.update"
-      e %. "data.event.payload.0.user.id" `shouldMatch` objId bob
-      e %. "data.event.payload.0.user.handle" `shouldMatch` handle
-
-      ackEvent ws e
-
 testTemporaryQueuesAreDeletedAfterUse :: (HasCallStack) => App ()
 testTemporaryQueuesAreDeletedAfterUse = do
   startDynamicBackendsReturnResources [def] $ \[beResource] -> do
     let domain = beResource.berDomain
     rabbitmqAdmin <- mkRabbitMqAdminClientForResource beResource
-    queuesBeforeWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-    let deadNotifsQueue = Queue {name = fromString "dead-user-notifications", vhost = fromString beResource.berVHost}
-        cellsEventsQueue = Queue {name = fromString "cells_events", vhost = fromString beResource.berVHost}
-    queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue]
-
     [alice, bob] <- createAndConnectUsers [domain, domain]
+
+    -- Create client for alice, so their temp websocket works
+    aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
+    aliceId <- asString $ alice %. "qualified_id.id"
+    aliceClientId <- asString $ aliceClient %. "id"
+
+    let aliceClientQueueName = "user-notifications." <> aliceId <> "." <> aliceClientId
+        aliceClientQueue = Queue {name = fromString aliceClientQueueName, vhost = fromString beResource.berVHost}
+        deadNotifsQueue = Queue {name = fromString "dead-user-notifications", vhost = fromString beResource.berVHost}
+        cellsEventsQueue = Queue {name = fromString "cells_events", vhost = fromString beResource.berVHost}
+
+    -- Wait for queue for the new client to be created
+    eventually $ do
+      queuesBeforeWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
+      queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue]
 
     runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
       handle <- randomHandle
@@ -178,7 +169,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
       queuesDuringWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
       addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
-        length queuesDuringWS.items `shouldMatchInt` 3
+        length queuesDuringWS.items `shouldMatchInt` 4
 
       -- We cannot use 'assertEvent' here because there is a race between the temp
       -- queue being created and rabbitmq fanning out the previous events.
@@ -190,49 +181,9 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
         ackEvent ws e
 
-    -- Use let binding here so 'shouldMatchEventually' retries the whole request
-    let queuesAfterWSM = rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-    eventually $ fmap (.items) queuesAfterWSM `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue]
-
-testMLSTempEvents :: (HasCallStack) => App ()
-testMLSTempEvents = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  clients@[alice1, _, _] <-
-    traverse
-      ( createMLSClient
-          def
-            { clientArgs =
-                def
-                  { acapabilities = Just ["consumable-notifications"]
-                  }
-            }
-      )
-      [alice, bob, bob]
-
-  traverse_ (uploadNewKeyPackage def) clients
-  convId <- createNewGroup def alice1
-
-  runCodensity (createEventsWebSocket bob Nothing) $ \ws -> do
-    commit <- createAddCommit alice1 convId [bob]
-    void $ postMLSCommitBundle commit.sender (mkBundle commit) >>= getJSON 201
-
-    -- FUTUREWORK: we should not rely on events arriving in this particular order
-
-    -- We cannot use 'assertEvent' here because there is a race between the temp
-    -- queue being created and rabbitmq fanning out the previous events.
-    void $ assertFindsEvent ws $ \e -> do
-      e %. "type" `shouldMatch` "event"
-      e %. "data.event.payload.0.type" `shouldMatch` "conversation.member-join"
-      user <- assertOne =<< (e %. "data.event.payload.0.data.users" & asList)
-      user %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
-      ackEvent ws e
-
-    void $ assertEvent ws $ \e -> do
-      e %. "type" `shouldMatch` "event"
-      e %. "data.event.payload.0.type" `shouldMatch` "conversation.mls-welcome"
-      ackEvent ws e
-
-    assertNoEvent_ ws
+    eventually $ do
+      queuesAfterWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
+      queuesAfterWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue]
 
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus :: (HasCallStack) => App ()
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
@@ -280,7 +231,7 @@ testEventsForSpecificClients = do
     ws1 <- createEventsWebSocket alice (Just cid1)
     wsTemp <- createEventsWebSocket alice Nothing
     lift $ do
-      forM_ [ws1, wsTemp] consumeAllEvents
+      void $ consumeAllEvents ws1
 
       let eventForClient1 =
             object
@@ -297,16 +248,11 @@ testEventsForSpecificClients = do
       assertEvent ws1 $ \e ->
         e %. "data.event.payload.0.hello" `shouldMatch` "client1"
 
-      assertEvent wsTemp $ \e -> do
-        e %. "data.event.payload.0.hello" `shouldMatch` "client1"
-        ackEvent wsTemp e
-
-      assertEvent wsTemp $ \e -> do
-        e %. "data.event.payload.0.hello" `shouldMatch` "client2"
-        ackEvent wsTemp e
-
       addFailureContext "client 1 should not get any events meant for client 2"
         $ assertNoEvent_ ws1
+
+      addFailureContext "temp client should not get any events meant solely for client 1 or 2"
+        $ assertNoEvent_ wsTemp
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
 testConsumeEventsForDifferentUsers = do

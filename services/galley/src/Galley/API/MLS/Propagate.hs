@@ -29,7 +29,6 @@ import Galley.API.Push
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Types.Conversations.Members
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -49,6 +48,7 @@ import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.StoredConversation
 
 -- | Propagate a message.
 -- The message will not be propagated to the sender client if provided. This is
@@ -76,7 +76,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
       botMap = Map.fromList $ do
         m <- lmems
         b <- maybeToList $ newBotMember m
-        pure (lmId m, b)
+        pure (m.id_, b)
       mm = defMessageMetadata
   let qt =
         tUntagged lConvOrSub <&> \case
@@ -121,13 +121,13 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
     localMemberRecipient :: Local x -> LocalMember -> Maybe Recipient
     localMemberRecipient loc lm = do
       let localUserQId = tUntagged (qualifyAs loc localUserId)
-          localUserId = lmId lm
+          localUserId = lm.id_
       clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
       pure $ Recipient localUserId (RecipientClientsSome (List1 clients))
 
     remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
     remoteMemberMLSClients rm = do
-      let remoteUserQId = tUntagged (rmId rm)
+      let remoteUserQId = tUntagged rm.id_
           remoteUserId = qUnqualified remoteUserQId
       clients <-
         nonEmpty . map fst $

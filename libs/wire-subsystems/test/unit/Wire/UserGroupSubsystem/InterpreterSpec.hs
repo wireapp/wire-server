@@ -3,24 +3,27 @@
 module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
 
 import Control.Lens ((.~), (^.))
+import Control.Monad
 import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
+import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
-import Polysemy.Internal.Kind (Append)
+import Polysemy.Internal.Kind
 import Polysemy.State
-import System.Random (StdGen)
 import System.Random qualified as Rand
 import System.Timeout (timeout)
 import Test.Hspec
@@ -32,41 +35,44 @@ import Wire.API.Team.Role
 import Wire.API.User as User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
-import Wire.Sem.Random qualified as Rnd
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
-import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupSubsystem
-import Wire.UserGroupSubsystem.Interpreter
-import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
+import Wire.UserSubsystem
+
+type AllDependencies =
+  '[ UserSubsystem,
+     TeamSubsystem,
+     GalleyAPIAccess
+   ]
+    `Append` UserGroupStoreInMemEffectStack
+    `Append` '[ Input (Local ()),
+                MockNow,
+                NotificationSubsystem,
+                State [Push],
+                Error UserGroupSubsystemError
+              ]
+
+runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
+runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) id . runDependencies usrs team
 
 runDependencies ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    '[ UserSubsystem,
-       TeamSubsystem,
-       GalleyAPIAccess,
-       UserGroupStore,
-       State UserGroupInMemState,
-       Rnd.Random,
-       State StdGen,
-       Input (Local ()),
-       NotificationSubsystem,
-       State [Push],
-       Error UserGroupSubsystemError
-     ]
-    a ->
+  Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
   run
     . runError
     . evalState mempty
     . inMemoryNotificationSubsystemInterpreter
+    . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
@@ -76,25 +82,14 @@ runDependencies initialUsers initialTeams =
 runDependenciesWithReturnState ::
   [User] ->
   Map TeamId [TeamMember] ->
-  Sem
-    ( '[ UserSubsystem,
-         TeamSubsystem,
-         GalleyAPIAccess
-       ]
-        `Append` EffectStack
-        `Append` '[ Input (Local ()),
-                    NotificationSubsystem,
-                    State [Push],
-                    Error UserGroupSubsystemError
-                  ]
-    )
-    a ->
+  Sem AllDependencies a ->
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
     . runError
     . runState mempty
     . inMemoryNotificationSubsystemInterpreter
+    . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
@@ -115,8 +110,13 @@ unexpected :: Sem r Property
 unexpected =
   pure $ counterexample "An error was expected to have occurred by now" False
 
+-- | This makes even hspec/quickcheck properties terminate, but at the cost of eliminating
+-- shrinking (the timeout is running inside the test runs for each generated input).
 timeoutHook :: Spec -> Spec
-timeoutHook = around_ $ maybe (fail "exceeded timeout") pure <=< timeout 1_000_000
+timeoutHook =
+  describe "[timeout wrapper]"
+    . around_ (maybe (fail "exceeded timeout") pure <=< timeout 1_000_000)
+    . modifyMaxShrinks (const 0)
 
 spec :: Spec
 spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
@@ -137,10 +137,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         }
                 createdGroup <- createGroup (ownerId team) newUserGroup
                 retrievedGroup <- getGroup (ownerId team) createdGroup.id_
-                now <- (.now) <$> get
+                now <- toUTCTimeMillis <$> get
                 let assert =
                       createdGroup.name === newUserGroupName
-                        .&&. createdGroup.members === newUserGroup.members
+                        .&&. createdGroup.members === Identity newUserGroup.members
                         .&&. createdGroup.managedBy === ManagedByWire
                         .&&. createdGroup.createdAt === now
                         .&&. Just createdGroup === retrievedGroup
@@ -252,7 +252,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               void $ createGroup (ownerId team) newUserGroup
               unexpected
 
-  describe "GetGroup, GetGroups, GetGroupsForUser" $ do
+  describe "GetGroup, GetGroups" $ do
     prop "key misses produce 404" $ \team groupId ->
       expectRight
         . runDependencies (allUsers team) (galleyTeam team)
@@ -276,9 +276,14 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroupAdmin <- getGroup (ownerId team) group1.id_
           getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
 
+          getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing
+          getGroupsOutsider <- try $ getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing
+
           pure $
             getGroupAdmin === Just group1
+              .&&. getGroupsAdmin.page === [userGroupToMeta group1]
               .&&. getGroupOutsider === Nothing
+              .&&. getGroupsOutsider === Left UserGroupNotATeamAdmin
 
     prop "team members can only get user groups from their own team" $
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
@@ -305,10 +310,116 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
               getOwnGroup <- getGroup (ownerId team1) group1.id_
               getOtherGroup <- getGroup (ownerId team1) group2.id_
+              getOwnGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName1)) Nothing Nothing Nothing Nothing Nothing Nothing
+              getOtherGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName2)) Nothing Nothing Nothing Nothing Nothing Nothing
 
               pure $
                 getOwnGroup === Just group1
+                  .&&. getOwnGroups.page === [userGroupToMeta group1]
                   .&&. getOtherGroup === Nothing
+                  .&&. getOtherGroups.page === []
+
+    it "getGroups: q=<name>, returning 0, 1, 2 groups" $ do
+      WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
+      runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
+        let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
+        groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
+
+        get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing Nothing
+        get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing Nothing
+        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing Nothing Nothing
+        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing Nothing Nothing
+
+        pure do
+          get0.page `shouldBe` []
+          get1.page `shouldBe` userGroupToMeta <$> [head groups]
+          get2.page `shouldBe` userGroupToMeta <$> [groups !! 2, groups !! 1]
+          get3.page `shouldBe` userGroupToMeta <$> [groups !! 3]
+
+    prop "getGroups: pagination (happy flow)" $ do
+      \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
+       numGroupsPre
+       pageSizePre ->
+          let numGroups = fromIntegral @Natural numGroupsPre + 1
+              pageSize =
+                let smallify = (\case 0 -> 3; other -> other) . (`mod` (numGroups + 5))
+                 in PageSize . unsafeRange . smallify . fromRange . fromPageSize $ pageSizePre
+           in expectRight
+                . runDependencies (allUsers team1) (galleyTeam team1)
+                . interpretUserGroupSubsystem
+                $ do
+                  let mkNewGroup = NewUserGroup (either undefined id $ userGroupNameFromText "same name") mempty
+                      mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
+
+                  -- groups are only distinguished by creation date
+                  groups <- replicateM (fromIntegral numGroups) mkGroup
+
+                  results :: [UserGroupPage] <- do
+                    let fetch mLastName mLastCreatedAt mLastGroupId = do
+                          p <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) Nothing (Just pageSize) mLastName mLastCreatedAt mLastGroupId
+                          if length p.page < pageSizeToInt pageSize
+                            then pure [p]
+                            else do
+                              let lastThing = last p.page
+                              (p :) <$> fetch (Just lastThing.name) (Just lastThing.createdAt) (Just lastThing.id_)
+                    fetch Nothing Nothing Nothing
+
+                  let all' :: (x -> Property) -> [x] -> Property
+                      all' mkProp = foldr (\x acc -> mkProp x .&&. acc) (True === True)
+
+                      assertLessThanOrEq :: (Show a, Ord a) => a -> a -> Property
+                      assertLessThanOrEq x y = counterexample (show x <> "\n>\n" <> show y) $ x <= y
+                  pure $
+                    -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
+                    mconcat ((.page) <$> results) === (userGroupToMeta <$> reverse groups)
+                      -- every page has the expected size
+                      .&&. all'
+                        (\r -> length r.page === pageSizeToInt pageSize)
+                        (take (length results - 2) results)
+                      .&&. all'
+                        (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
+                        (drop (length results - 2) results)
+
+    it "getGroups (ordering)" $ do
+      WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
+      runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
+        let mkNewGroup name = NewUserGroup (either undefined id $ userGroupNameFromText name) mempty
+            mkGroup name = createGroup (ownerId team1) (mkNewGroup name)
+
+        -- construct groups such that there are groups with same name and different creation
+        -- date and vice versa.  create names in random order (not alpha).  the digits are
+        -- group names, `a` and `b` are times.
+        group2a <- mkGroup "2"
+        group1a <- mkGroup "1"
+        group3a <- mkGroup "3"
+        passTime 1
+        group2b <- mkGroup "2"
+        group1b <- mkGroup "1"
+        group3b <- mkGroup "3"
+
+        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing Nothing Nothing
+        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing Nothing Nothing
+
+        let expectSortByDefaults = [[group1b, group2b, group3b], [group1a, group2a, group3a]]
+            expectSortByNameDesc = [[group3a, group3b], [group2a, group2b], [group1a, group1b]]
+            expectSortByCreatedAtAsc = [[group1a, group2a, group3a], [group1b, group2b, group3b]]
+
+            -- for every list in first argument (expected), take the corresponding number of elements
+            -- from the second (actual), and compare them as sets.
+            validatePartialOrder :: [[UserGroupId]] -> [UserGroupId] -> Bool
+            validatePartialOrder = f
+              where
+                f [] [] = True
+                f [] (_ : _) = False
+                f (_ : _) [] = False
+                f (xs : expect') rest@(_ : _) = case splitAt (length xs) rest of
+                  (xs', rest') -> Set.fromList xs == Set.fromList xs' && f expect' rest'
+
+        pure do
+          ((.id_) <$> sortByDefaults.page) `shouldSatisfy` validatePartialOrder ((.id_) <$$> expectSortByDefaults)
+          ((.id_) <$> sortByNameDesc.page) `shouldSatisfy` validatePartialOrder ((.id_) <$$> expectSortByNameDesc)
+          ((.id_) <$> sortByCreatedAtAsc.page) `shouldSatisfy` validatePartialOrder ((.id_) <$$> expectSortByCreatedAtAsc)
 
   describe "UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m (Maybe UserGroup)" $ do
     prop "updateGroup updates the name" $
@@ -465,10 +576,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   ugWithoutFirst <- getGroup (ownerId team) ug.id_
                   removeUser (ownerId team) ug.id_ (User.userId mbr1) -- idemp
                   let propertyCheck =
-                        ((.members) <$> ugWithFirst) === Just (V.fromList [User.userId mbr1])
-                          .&&. ((.members) <$> ugWithIdemP) === Just (V.fromList [User.userId mbr1])
-                          .&&. ((sort . V.toList . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
-                          .&&. ((.members) <$> ugWithoutFirst) === Just (V.fromList [User.userId mbr2])
+                        ((.members) <$> ugWithFirst) === Just (Identity $ V.fromList [User.userId mbr1])
+                          .&&. ((.members) <$> ugWithIdemP) === Just (Identity $ V.fromList [User.userId mbr1])
+                          .&&. ((sort . V.toList . runIdentity . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
+                          .&&. ((.members) <$> ugWithoutFirst) === Just (Identity $ V.fromList [User.userId mbr2])
                   pure (ug, propertyCheck)
 
             assertAddEvent :: UserGroup -> UserId -> Push -> Property

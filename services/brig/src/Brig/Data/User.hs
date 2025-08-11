@@ -19,9 +19,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Data.User
-  ( newAccount,
-    newAccountInviteViaScim,
-    insertAccount,
+  ( -- * Creation
+    newStoredUser,
+    newStoredUserViaScim,
 
     -- * Lookups
     lookupUser,
@@ -73,6 +73,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.AuthenticationSubsystem.Config
+import Wire.StoredUser
 
 -- | Preconditions:
 --
@@ -82,15 +83,14 @@ import Wire.AuthenticationSubsystem.Config
 -- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
-newAccount ::
+newStoredUser ::
   NewUser Password ->
   Maybe InvitationId ->
   Maybe TeamId ->
   Maybe Handle ->
-  AppT r (User, Maybe Password)
-newAccount u inv tid mbHandle = do
+  AppT r NewStoredUser
+newStoredUser u inv tid mbHandle = do
   defLoc <- defaultUserLocale <$> asks (.settings)
-  domain <- viewFederationDomain
   uid <-
     Id <$> do
       case (inv, newUserUUID u) of
@@ -106,7 +106,7 @@ newAccount u inv tid mbHandle = do
       now <- liftIO =<< asks (.currentTime)
       pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> pure Nothing
-  pure (user uid domain (locale defLoc) expiry, u.newUserPassword)
+  pure (user uid (locale defLoc) expiry u.newUserPassword)
   where
     ident = newUserIdentity u
     name = newUserDisplayName u
@@ -120,102 +120,60 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e =
-      User
-        { userQualifiedId = (Qualified uid domain),
-          userIdentity = ident,
-          userEmailUnvalidated = Nothing,
-          userDisplayName = name,
-          userTextStatus = Nothing,
-          userPict = pict,
-          userAssets = assets,
-          userAccentId = colour,
-          userStatus = status,
-          userLocale = l,
-          userService = Nothing,
-          userHandle = mbHandle,
-          userExpire = e,
-          userTeam = tid,
-          userManagedBy = managedBy,
-          userSupportedProtocols = prots
+    user uid l e mPassword =
+      NewStoredUser
+        { id = uid,
+          email = ident >>= emailIdentity,
+          ssoId = ident >>= ssoIdentity,
+          name,
+          textStatus = Nothing,
+          pict,
+          assets,
+          accentId = colour,
+          password = mPassword,
+          activated = False,
+          status,
+          language = l.lLanguage,
+          country = l.lCountry,
+          providerId = Nothing,
+          serviceId = Nothing,
+          handle = mbHandle,
+          expires = e,
+          teamId = tid,
+          managedBy = managedBy,
+          supportedProtocols = prots
         }
 
-newAccountInviteViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m User
-newAccountInviteViaScim uid externalId tid locale name email = do
+newStoredUserViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m NewStoredUser
+newStoredUserViaScim uid externalId tid locale name email = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   let loc = fromMaybe defLoc locale
-  domain <- viewFederationDomain
   pure $
-    User
-      (Qualified uid domain)
-      (Just $ SSOIdentity (UserScimExternalId externalId) (Just email))
-      Nothing
-      name
-      Nothing
-      (Pict [])
-      []
-      defaultAccentId
-      PendingInvitation
-      loc
-      Nothing
-      Nothing
-      Nothing
-      (Just tid)
-      ManagedByScim
-      defSupportedProtocols
-
-insertAccount ::
-  (MonadClient m) =>
-  User ->
-  -- | If a bot: conversation and team
-  --   (if a team conversation)
-  Maybe (ConvId, Maybe TeamId) ->
-  Maybe Password ->
-  -- | Whether the user is activated
-  Bool ->
-  m ()
-insertAccount u mbConv password activated = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  let Locale l c = userLocale u
-  addPrepQuery
-    userInsert
-    ( userId u,
-      userDisplayName u,
-      userTextStatus u,
-      userPict u,
-      userAssets u,
-      userEmail u,
-      userSSOId u,
-      userAccentId u,
-      password,
-      activated,
-      userStatus u,
-      userExpire u,
-      l,
-      c,
-      view serviceRefProvider <$> userService u,
-      view serviceRefId <$> userService u,
-      userHandle u,
-      userTeam u,
-      userManagedBy u,
-      userSupportedProtocols u
-    )
-  for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
-    let pid = sref ^. serviceRefProvider
-        sid = sref ^. serviceRefId
-    addPrepQuery cqlServiceUser (pid, sid, BotId (userId u), cid, mbTid)
-    for_ mbTid $ \tid ->
-      addPrepQuery cqlServiceTeam (pid, sid, BotId (userId u), cid, tid)
-  where
-    cqlServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
-    cqlServiceUser =
-      "INSERT INTO service_user (provider, service, user, conv, team) \
-      \VALUES (?, ?, ?, ?, ?)"
-    cqlServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
-    cqlServiceTeam =
-      "INSERT INTO service_team (provider, service, user, conv, team) \
-      \VALUES (?, ?, ?, ?, ?)"
+    NewStoredUser
+      { id = uid,
+        email = Just email,
+        ssoId = Just (UserScimExternalId externalId),
+        name,
+        textStatus = Nothing,
+        pict = Pict [],
+        assets = [],
+        accentId = defaultAccentId,
+        password = Nothing,
+        -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
+        -- would not produce an identity, and so we won't have the email address to construct
+        -- the SCIM user.
+        activated = True,
+        status = PendingInvitation,
+        language = loc.lLanguage,
+        country = loc.lCountry,
+        providerId = Nothing,
+        serviceId = Nothing,
+        handle = Nothing,
+        expires = Nothing,
+        teamId = Just tid,
+        managedBy = ManagedByScim,
+        supportedProtocols = defSupportedProtocols
+      }
 
 updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
@@ -386,31 +344,6 @@ type UserRow =
     Maybe (Set BaseProtocolTag)
   )
 
-type UserRowInsert =
-  ( UserId,
-    Name,
-    Maybe TextStatus,
-    Pict,
-    [Asset],
-    Maybe EmailAddress,
-    Maybe UserSSOId,
-    ColourId,
-    Maybe Password,
-    Activated,
-    AccountStatus,
-    Maybe UTCTimeMillis,
-    Language,
-    Maybe Country,
-    Maybe ProviderId,
-    Maybe ServiceId,
-    Maybe Handle,
-    Maybe TeamId,
-    ManagedBy,
-    Set BaseProtocolTag
-  )
-
-deriving instance Show UserRowInsert
-
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
   "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
@@ -429,13 +362,6 @@ richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
-
-userInsert :: PrepQuery W UserRowInsert ()
-userInsert =
-  "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
-  \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, team, managed_by, supported_protocols) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
 userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
@@ -543,22 +469,3 @@ toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
     toLocaleWithDefault :: Locale -> (Maybe Language, Maybe Country) -> Locale
     toLocaleWithDefault _ (Just l, c) = Locale l c
     toLocaleWithDefault l _ = l
-
--- | Construct a 'UserIdentity'.
---
--- If the user is not activated, 'toIdentity' will return 'Nothing' as a precaution, because
--- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the user is
--- activated.
---
--- The reason it's just a "precaution" is that we /also/ have an invariant that having an
--- email in the database means the user has to be activated.
-toIdentity ::
-  -- | Whether the user is activated
-  Bool ->
-  Maybe EmailAddress ->
-  Maybe UserSSOId ->
-  Maybe UserIdentity
-toIdentity True (Just e) Nothing = Just $! EmailIdentity e
-toIdentity True email (Just ssoid) = Just $! SSOIdentity ssoid email
-toIdentity True Nothing Nothing = Nothing
-toIdentity False _ _ = Nothing
