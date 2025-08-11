@@ -762,6 +762,25 @@ testAddUserBareProposalCommit = do
       "Users added to an MLS group should find it when listing conversations"
       (convId `elem` convIds)
 
+testShadowConversation :: (HasCallStack) => App ()
+testShadowConversation = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  shadowConv <- postConversation alice1 (defMLS {parent = Just convId.id_}) >>= getJSON 201
+  shadowConvId <- objConvId shadowConv
+  createGroup def alice1 shadowConvId
+
+  withWebSockets [bob] $ \wss -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) wss
+
+    void $ createAddCommit alice1 shadowConvId [charlie] >>= sendAndConsumeCommitBundle
+    void $ createApplicationMessage shadowConvId charlie1 "hello" >>= sendAndConsumeMessage
+    void $ createApplicationMessage shadowConvId bob1 "world" >>= sendAndConsumeMessage
+
 testPropExistingConv :: (HasCallStack) => App ()
 testPropExistingConv = do
   [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)

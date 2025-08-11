@@ -33,7 +33,8 @@ data CreateConv = CreateConv
     groupConvType :: Maybe String,
     cells :: Bool,
     addPermission :: Maybe String,
-    skipCreator :: Maybe Bool
+    skipCreator :: Maybe Bool,
+    parent :: Maybe String
   }
 
 defProteus :: CreateConv
@@ -51,7 +52,8 @@ defProteus =
       groupConvType = Nothing,
       cells = False,
       addPermission = Nothing,
-      skipCreator = Nothing
+      skipCreator = Nothing,
+      parent = Nothing
     }
 
 defMLS :: CreateConv
@@ -87,7 +89,8 @@ instance MakesValue CreateConv where
                 "receipt_mode" .=? cc.receiptMode,
                 "group_conv_type" .=? cc.groupConvType,
                 "add_permission" .=? cc.addPermission,
-                "skip_creator" .=? cc.skipCreator
+                "skip_creator" .=? cc.skipCreator,
+                "parent" .=? cc.parent
               ]
         )
 
