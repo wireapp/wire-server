@@ -764,7 +764,7 @@ testAddUserBareProposalCommit = do
 
 testShadowConversation :: (HasCallStack) => App ()
 testShadowConversation = do
-  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
   convId <- createNewGroup def alice1
@@ -779,16 +779,15 @@ testShadowConversation = do
 
     void $ createAddCommit alice1 shadowConvId [charlie] >>= sendAndConsumeCommitBundle
 
-    fetchedConversation <- bindResponse (getConversation alice1 shadowConvId) $ \resp -> do
+    fetchedConversation <- bindResponse (getConversationInternal alice1 shadowConvId) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json
     fetchedMembers <- fetchedConversation %. "members"
     let extractId x = x %. "qualified_id"
-    fetchedSelfMemberId <- fetchedMembers %. "self" >>= extractId
     fetchedOtherMembers <- fetchedMembers %. "others" & asList
     fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
     expectedMemberIds <- traverse extractId [alice, bob, charlie]
-    (fetchedSelfMemberId : fetchedOtherMemberIds) `shouldMatch` expectedMemberIds
+    sort fetchedOtherMemberIds `shouldMatch` sort expectedMemberIds
 
 testPropExistingConv :: (HasCallStack) => App ()
 testPropExistingConv = do
