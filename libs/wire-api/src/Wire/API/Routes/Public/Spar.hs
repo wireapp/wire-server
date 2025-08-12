@@ -41,6 +41,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
+import Wire.API.Servant.Tentatively
 import Wire.API.SwaggerServant
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -142,7 +143,7 @@ type IdpGetAll = Get '[JSON] IdPList
 
 -- | See also: 'validateNewIdP', 'idpCreate', 'idpCreateXML'.
 type IdpCreate =
-  ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
+  ReqBodyCustomError '[RawXML, JSON] "internal-error" (Tentatively IdPMetadataInfo)
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
     :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion -- see also: 'DeprecateSSOAPIV1'
     -- FUTUREWORK: The handle is restricted to 32 characters. Can we find a more reasonable upper bound and create a type for it? Also see `IdpUpdate`.
@@ -150,7 +151,7 @@ type IdpCreate =
     :> PostCreated '[JSON] IdP
 
 type IdpUpdate =
-  ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
+  ReqBodyCustomError '[RawXML, JSON] "internal-error" (Tentatively IdPMetadataInfo)
     :> Capture "id" SAML.IdPId
     -- FUTUREWORK: The handle is restricted to 32 characters. Can we find a more reasonable upper bound and create a type for it? Also see `IdpCreate`.
     :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text)
