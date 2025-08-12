@@ -47,7 +47,6 @@ import Galley.API.MLS.Commit.Core (getCommitData)
 import Galley.API.MLS.Commit.ExternalCommit
 import Galley.API.MLS.Commit.InternalCommit
 import Galley.API.MLS.Conversation
-import Galley.API.MLS.Enabled
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Propagate
@@ -91,6 +90,8 @@ import Wire.API.MLS.RatchetTree
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
+import Wire.ConversationSubsystem.Config hiding (MLSNotEnabled)
+import Wire.ConversationSubsystem.Interpreter
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -146,7 +147,9 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member SubConversationStore r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -198,7 +201,9 @@ postMLSCommitBundleFromLocalUser ::
     Member Resource r,
     Member SubConversationStore r,
     Members MLSBundleStaticErrors r,
-    HasProposalEffects r
+    HasProposalEffects r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   ClientId ->

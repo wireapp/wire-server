@@ -20,13 +20,11 @@ module Galley.API.MLS.GroupInfo where
 import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
-import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -38,6 +36,8 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -49,8 +49,9 @@ getGroupInfo ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member FederatorAccess r,
-    Member (Input Env) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->

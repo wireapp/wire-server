@@ -78,6 +78,7 @@ import Galley.Intra.Federator
 import Galley.Keys
 import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
+import Galley.Options qualified as Opts
 import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.TeamSubsystem (interpretTeamSubsystem)
@@ -111,6 +112,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess.Rpc
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig (..), ConversationSubsystemError, conversationSubsystemErrorToHttpError)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -129,6 +131,7 @@ import Wire.TeamCollaboratorsSubsystem.Interpreter
 type GalleyEffects0 =
   '[ Input ClientState,
      Input Hasql.Pool,
+     Input ConversationSubsystemConfig,
      Input Env,
      Error InvalidInput,
      Error ParseException,
@@ -137,6 +140,7 @@ type GalleyEffects0 =
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
      Error TeamCollaboratorsError,
+     Error ConversationSubsystemError,
      Error Hasql.UsageError,
      Error HttpError,
      Async,
@@ -155,7 +159,7 @@ validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when (settings' ^. maxConvSize > fromIntegral optFanoutLimit) $
+  when (settings' ^. Opts.maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
@@ -268,12 +272,14 @@ evalGalley e =
     . asyncToIOFinal
     . mapError httpErrorToJSONResponse
     . mapError postgresUsageErrorToHttpError
+    . mapError conversationSubsystemErrorToHttpError
     . mapError teamCollaboratorsSubsystemErrorToHttpError
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
     . runInputConst e
+    . runInputConst convSubsystemConfig
     . runInputConst (e ^. hasqlPool)
     . runInputConst (e ^. cstate)
     . mapError rateLimitExceededToHttpError
@@ -322,6 +328,11 @@ evalGalley e =
     . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
+    convSubsystemConfig =
+      ConversationSubsystemConfig
+        { mlsKeys = e._mlsKeys,
+          maxConvSize = e._options._settings._maxConvSize
+        }
 
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =

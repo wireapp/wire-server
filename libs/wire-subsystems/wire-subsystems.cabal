@@ -184,6 +184,9 @@ library
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Config
+    Wire.ConversationSubsystem.Interpreter
+    Wire.ConversationSubsystem.Validation
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -386,6 +389,7 @@ test-suite wire-subsystems-tests
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
+    Wire.ConversationSubsystem.InterpreterSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend

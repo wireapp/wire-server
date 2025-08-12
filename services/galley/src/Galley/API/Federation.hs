@@ -40,7 +40,6 @@ import Data.Text.Lazy qualified as LT
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
 import Galley.API.MLS.One2One
@@ -95,6 +94,8 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -146,7 +147,8 @@ onClientRemoved ::
     Member ProposalStore r,
     Member Random r,
     Member SubConversationStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -631,7 +633,9 @@ sendMLSCommitBundle ::
     Member Random r,
     Member SubConversationStore r,
     Member ProposalStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -686,7 +690,9 @@ sendMLSMessage ::
     Member P.TinyLog r,
     Member ProposalStore r,
     Member SubConversationStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -732,7 +738,9 @@ leaveSubConversation ::
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
@@ -800,7 +808,8 @@ getOne2OneConversation ::
     Member (Input (Local ())) r,
     Member (Error InternalError) r,
     Member BrigAPIAccess r,
-    Member (Input Env) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   GetOne2OneConversationRequest ->
@@ -862,9 +871,10 @@ onMLSMessageSent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member MemberStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   RemoteMLSMessage ->
@@ -917,9 +927,10 @@ mlsSendWelcome ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member P.TinyLog r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member Now r
+    Member Now r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   MLSWelcomeRequest ->
@@ -939,9 +950,10 @@ mlsSendWelcome origDomain req = do
 queryGroupInfo ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member SubConversationStore r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Domain ->
   GetGroupInfoRequest ->

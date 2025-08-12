@@ -67,7 +67,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Types
 import Galley.API.Mapping
@@ -111,6 +110,8 @@ import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
 import Wire.API.Team.Member (TeamMember, isAdminOrOwner, permissions)
 import Wire.API.User
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
@@ -502,7 +503,9 @@ conversationIdsPageFrom ::
       Member (ListItems p ConvId) r,
       Member (ListItems p (Remote ConvId)) r,
       Member P.TinyLog r,
-      Member TeamCollaboratorsSubsystem r
+      Member TeamCollaboratorsSubsystem r,
+      Member (Input ConversationSubsystemConfig) r,
+      Member (Error ConversationSubsystemError) r
     )
   ) =>
   Local UserId ->
@@ -808,9 +811,9 @@ getMLSSelfConversationWithError ::
   forall r.
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (Input Env) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Sem r OwnConversation
@@ -849,7 +852,6 @@ getMLSSelfConversation lusr = do
 getMLSOne2OneConversationV5 ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (Input Env) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -858,7 +860,9 @@ getMLSOne2OneConversationV5 ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -871,7 +875,6 @@ getMLSOne2OneConversationV5 lself qother = do
 getMLSOne2OneConversationInternal ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (Input Env) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -879,7 +882,9 @@ getMLSOne2OneConversationInternal ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -890,7 +895,6 @@ getMLSOne2OneConversationInternal lself qother =
 getMLSOne2OneConversationV6 ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (Input Env) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -898,7 +902,9 @@ getMLSOne2OneConversationV6 ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -916,7 +922,6 @@ getMLSOne2OneConversationV6 lself qother = do
 getMLSOne2OneConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (Input Env) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -924,7 +929,9 @@ getMLSOne2OneConversation ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -939,8 +946,8 @@ getLocalMLSOne2OneConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
-    Member (Input Env) r,
-    Member (ErrorS MLSNotEnabled) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Local ConvId ->
@@ -1014,13 +1021,14 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
 -- two is responsible for hosting the conversation.
 isMLSOne2OneEstablished ::
   ( Member ConversationStore r,
-    Member (Input Env) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
     Member FederatorAccess r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified UserId ->
