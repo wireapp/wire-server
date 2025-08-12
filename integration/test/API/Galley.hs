@@ -180,6 +180,19 @@ getConversation user qcnv = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
   submit "GET" req
 
+getConversationInternal ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue qcnv
+  ) =>
+  user ->
+  qcnv ->
+  App Response
+getConversationInternal user qcnv = do
+  (_domain, cnv) <- objQid qcnv
+  req <- baseRequest user Galley Unversioned (joinHttpPath ["i", "conversations", cnv])
+  submit "GET" req
+
 getSubConversation ::
   ( HasCallStack,
     MakesValue user
