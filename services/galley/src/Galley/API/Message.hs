@@ -55,7 +55,6 @@ import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
@@ -84,6 +83,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.BrigAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -250,7 +250,7 @@ postRemoteOtrMessage sender conv rawMsg = do
   (.response) <$> runFederated conv rpc
 
 postBroadcast ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
@@ -359,7 +359,7 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
@@ -524,7 +524,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
                   qualifiedNewOtrRecipients msg
 
 guardQualifiedLegalholdPolicyConflictsWrapper ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Error (MessageNotSent MessageSendingStatus)) r,
     Member (Input Opts) r,
     Member TeamStore r,

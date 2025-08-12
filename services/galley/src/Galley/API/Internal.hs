@@ -480,7 +480,7 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r,

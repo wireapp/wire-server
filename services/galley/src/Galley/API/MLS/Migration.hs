@@ -22,13 +22,13 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time
 import Galley.API.MLS.Types
-import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Imports
 import Polysemy
 import Wire.API.Federation.API
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.BrigAPIAccess
 import Wire.StoredConversation
 
 -- | Similar to @Ap f All@, but short-circuiting.
@@ -47,7 +47,7 @@ instance (Monad f) => Monoid (ApAll f) where
   mempty = ApAll (pure True)
 
 checkMigrationCriteria ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member FederatorAccess r
   ) =>
   UTCTime ->
