@@ -191,5 +191,9 @@ data:
         consumableNotifications:
           {{- toYaml .settings.featureFlags.consumableNotifications | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.chatBubbles }}
+        chatBubbles:
+          {{- toYaml .settings.featureFlags.chatBubbles | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

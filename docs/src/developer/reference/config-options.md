@@ -600,6 +600,23 @@ config:
           mlsConversationReset: true
 ```
 
+### Chat Bubbles
+
+Feature toggle for `chatBubbles`.
+
+Example default configuration:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      chatBubbles:
+        defaults:
+          status: disabled
+          lockStatus: unlocked
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only
