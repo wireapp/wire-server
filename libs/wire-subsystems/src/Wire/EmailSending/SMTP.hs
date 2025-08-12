@@ -21,11 +21,10 @@ module Wire.EmailSending.SMTP
   ( initSMTP,
     emailViaSMTPInterpreter,
     sendMailWithDuration,
-    initSMTP',
+    initSMTPWithTimeout,
     SMTPConnType (..),
     SMTP (..),
-    Username (..),
-    Password (..),
+    Credential (..),
     SMTPPoolException (..),
   )
 where
@@ -53,9 +52,11 @@ emailViaSMTPInterpreter :: (Member (Embed IO) r) => Logger -> SMTP -> Interprete
 emailViaSMTPInterpreter logger smtp = interpret \case
   SendMail mail -> sendMailImpl logger smtp mail
 
-newtype Username = Username Text
-
-newtype Password = Password Text
+data Credential
+  = -- | username and password
+    BasicAuth Text Text
+  | -- | username and client credential
+    XOAUTH2ClientCredential Text Text
 
 data SMTP = SMTP {pool :: !(Pool SMTP.SMTPConnection)}
 
@@ -80,25 +81,25 @@ initSMTP ::
   Logger ->
   Text ->
   Maybe PortNumber ->
-  Maybe (Username, Password) ->
+  Maybe Credential ->
   SMTPConnType ->
   IO SMTP
-initSMTP = initSMTP' defaultTimeoutDuration
+initSMTP = initSMTPWithTimeout defaultTimeoutDuration
 
 -- | `initSMTP` with configurable timeout duration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-initSMTP' ::
+initSMTPWithTimeout ::
   (TimeUnit t) =>
   t ->
   Logger ->
   Text ->
   Maybe PortNumber ->
-  Maybe (Username, Password) ->
+  Maybe Credential ->
   SMTPConnType ->
   IO SMTP
-initSMTP' timeoutDuration lg host port credentials connType = do
+initSMTPWithTimeout timeoutDuration lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth.
   -- Otherwise, config errors will be detected "too late".
   con <-
@@ -143,10 +144,16 @@ initSMTP' timeoutDuration lg host port credentials connType = do
           SMTP.connectSMTPSSLWithSettings (unpack host) $
             SMTP.defaultSettingsSMTPSSL {SMTP.sslPort = p}
       ok <- case credentials of
-        (Just (Username u, Password p)) ->
+        Just (BasicAuth u p) ->
           ensureTimeout $
             SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
-        _ -> pure True
+        Just (XOAUTH2ClientCredential u t) ->
+          -- TODO(SB) pass token endpoint
+          -- TODO(SB) get token by providing the client credential to the token endpoint
+          -- TODO(SB) find the example for querying the token endpoint in the ticket
+          ensureTimeout $
+            SMTP.authenticate SMTP.XOAUTH2 (unpack u) (unpack t) conn
+        Nothing -> pure True
       if ok
         then pure conn
         else CE.throw SMTPUnauthorized
