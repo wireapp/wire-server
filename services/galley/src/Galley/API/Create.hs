@@ -32,7 +32,6 @@ module Galley.API.Create
   )
 where
 
-import Control.Error (headMay)
 import Control.Lens hiding ((??))
 import Data.Default
 import Data.Id
@@ -91,6 +90,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem
 import Wire.UserList
 
 ----------------------------------------------------------------------------
@@ -122,7 +122,8 @@ createGroupConversationUpToV3 ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -165,7 +166,8 @@ createGroupOwnConversation ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -208,7 +210,8 @@ createGroupConversation ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -252,7 +255,8 @@ createGroupConvAndMkResponse ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -291,7 +295,8 @@ createGroupConversationGeneric ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error ConversationSubsystemError) r
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -356,7 +361,8 @@ checkCreateConvPermissions ::
     Member TeamStore r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   NewConv ->
@@ -368,13 +374,13 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
   -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
-  tm <- getTeamMember (tUnqualified lusr) Nothing
+  tm <- internalGetUserTeamMember (tUnqualified lusr)
   for_ tm $
     permissionCheck AddRemoveConvMember . Just
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  mTeamMember <- getTeamMember (tUnqualified lusr) (Just convTeam)
+  mTeamMember <- internalGetTeamMember (tUnqualified lusr) convTeam
   teamAssociation <- case mTeamMember of
     Just tm -> pure (Just (Right tm))
     Nothing -> do
@@ -429,10 +435,6 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
         Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
     ensureCreateChannelPermissions _ Nothing = do
       throwS @NotATeamMember
-
-getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
-getTeamMember uid (Just tid) = E.getTeamMember tid uid
-getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations

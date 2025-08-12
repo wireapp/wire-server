@@ -25,3 +25,5 @@ interpretTeamSubsystem = interpret $ \case
     admins <- E.getTeamAdmins tid
     membs <- E.selectTeamMembers tid admins
     pure $ newTeamMemberList membs ListComplete
+  InternalGetUserTeam uid ->
+    listToMaybe <$> E.getUserTeams uid
