@@ -778,8 +778,17 @@ testShadowConversation = do
     traverse_ (awaitMatch isMemberJoinNotif) wss
 
     void $ createAddCommit alice1 shadowConvId [charlie] >>= sendAndConsumeCommitBundle
-    void $ createApplicationMessage shadowConvId charlie1 "hello" >>= sendAndConsumeMessage
-    void $ createApplicationMessage shadowConvId bob1 "world" >>= sendAndConsumeMessage
+
+    fetchedConversation <- bindResponse (getConversation alice1 shadowConvId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json
+    fetchedMembers <- fetchedConversation %. "members"
+    let extractId x = x %. "qualified_id"
+    fetchedSelfMemberId <- fetchedMembers %. "self" >>= extractId
+    fetchedOtherMembers <- fetchedMembers %. "others" & asList
+    fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
+    expectedMemberIds <- traverse extractId [alice, bob, charlie]
+    (fetchedSelfMemberId : fetchedOtherMemberIds) `shouldMatch` expectedMemberIds
 
 testPropExistingConv :: (HasCallStack) => App ()
 testPropExistingConv = do
