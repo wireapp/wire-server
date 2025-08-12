@@ -16,9 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS
-  ( isMLSEnabled,
-    assertMLSEnabled,
-    postMLSMessage,
+  ( postMLSMessage,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
     getMLSPublicKeys,
@@ -28,21 +26,19 @@ where
 
 import Data.Default
 import Galley.API.Error
-import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
-import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.MLS.Keys
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
 
 getMLSPublicKeys ::
-  ( Member (Input Env) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (Error InternalError) r
+  ( Member (Error InternalError) r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Maybe MLSPublicKeyFormat ->
   Sem r (MLSKeysByPurpose (MLSKeys SomeKey))

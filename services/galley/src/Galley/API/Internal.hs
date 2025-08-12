@@ -94,6 +94,7 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
+import Wire.ConversationSubsystem.Config
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -139,7 +140,9 @@ ejpdGetConvInfo ::
     Member (ListItems p ConvId) r,
     Member (ListItems p (Remote ConvId)) r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   UserId ->
   Sem r [EJPDConvInfo]
@@ -333,7 +336,9 @@ rmUser ::
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
