@@ -137,6 +137,7 @@ library
     Test.FeatureFlags.AppLock
     Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
+    Test.FeatureFlags.ChatBubbles
     Test.FeatureFlags.ClassifiedDomains
     Test.FeatureFlags.ConferenceCalling
     Test.FeatureFlags.ConsumableNotifications
