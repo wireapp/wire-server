@@ -88,6 +88,7 @@ module Wire.API.Team.Feature
     CellsConfig (..),
     AllowedGlobalOperationsConfig (..),
     ConsumableNotificationsConfig (..),
+    ChatBubblesConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -246,6 +247,7 @@ data FeatureSingleton cfg where
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
   FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
+  FeatureSingletonChatBubblesConfig :: FeatureSingleton ChatBubblesConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1490,6 +1492,27 @@ instance IsFeatureConfig ConsumableNotificationsConfig where
   featureSingleton = FeatureSingletonConsumableNotificationsConfig
   objectSchema = pure ConsumableNotificationsConfig
 
+--------------------------------------------------------------------------------
+-- Chat Bubbles Feature
+
+data ChatBubblesConfig = ChatBubblesConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform ChatBubblesConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ChatBubblesConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature ChatBubblesConfig
+
+instance ToSchema ChatBubblesConfig where
+  schema = object "ChatBubblesConfig" objectSchema
+
+instance Default (LockableFeature ChatBubblesConfig) where
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
+
+instance IsFeatureConfig ChatBubblesConfig where
+  type FeatureSymbol ChatBubblesConfig = "chatBubbles"
+  featureSingleton = FeatureSingletonChatBubblesConfig
+
+  objectSchema = pure ChatBubblesConfig
+
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1577,7 +1600,8 @@ type Features =
     ChannelsConfig,
     CellsConfig,
     AllowedGlobalOperationsConfig,
-    ConsumableNotificationsConfig
+    ConsumableNotificationsConfig,
+    ChatBubblesConfig
   ]
 
 -- | list of available features as a record
