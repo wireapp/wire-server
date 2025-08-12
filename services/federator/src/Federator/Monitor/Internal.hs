@@ -28,6 +28,7 @@ import Federator.Options (RunSettings (..))
 import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
+import Network.Wai.Utilities.Exception
 import OpenSSL.Session (SSLContext)
 import OpenSSL.Session qualified as SSL
 import Polysemy (Embed, Member, Members, Sem, embed)
@@ -332,7 +333,7 @@ showFederationSetupError (InvalidCAStore path msg) = "invalid CA store: " <> Tex
 showFederationSetupError (InvalidClientCertificate msg) = Text.pack msg
 showFederationSetupError (InvalidClientPrivateKey msg) = Text.pack msg
 showFederationSetupError (CertificateAndPrivateKeyDoNotMatch cert key) = Text.pack $ "Certificate and private key do not match, certificate: " <> cert <> ", private key: " <> key
-showFederationSetupError (SSLException exc) = Text.pack $ "Unexpected SSL Exception: " <> displayException exc
+showFederationSetupError (SSLException exc) = Text.pack $ "Unexpected SSL Exception: " <> displayExceptionNoBacktrace exc
 
 mkSSLContext ::
   ( Member (Embed IO) r,
@@ -343,10 +344,10 @@ mkSSLContext ::
 mkSSLContext settings = do
   ctx <- mkSSLContextWithoutCert settings
 
-  Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
+  Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayExceptionNoBacktrace) $
     SSL.contextSetCertificateChainFile ctx (clientCertificate settings)
 
-  Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
+  Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayExceptionNoBacktrace) $
     SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
 
   privateKeyCheck <- Polysemy.fromExceptionVia @SSL.SomeSSLException SSLException $ SSL.contextCheckPrivateKey ctx
@@ -378,7 +379,7 @@ mkSSLContextWithoutCert settings = do
           SSL.vpCallback = Nothing
         }
   forM_ (remoteCAStore settings) $ \caStorePath ->
-    Polysemy.fromExceptionVia @SomeException (InvalidCAStore caStorePath . displayException) $
+    Polysemy.fromExceptionVia @SomeException (InvalidCAStore caStorePath . displayExceptionNoBacktrace) $
       SSL.contextSetCAFile ctx caStorePath
 
   when (useSystemCAStore settings) $

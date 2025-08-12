@@ -43,6 +43,7 @@ module Imports
     module Data.Tuple,
     module Data.String,
     module Data.List,
+    module Data.Type.Equality,
     Generic,
     Typeable,
     HasCallStack,
@@ -157,7 +158,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Int
 import Data.Kind (Type)
-import Data.List hiding (delete, insert, singleton, unzip)
+import Data.List hiding (List, delete, insert, singleton, unzip)
 import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid hiding (First (..), Last (..))
@@ -169,6 +170,7 @@ import Data.Text (Text)
 import Data.Text.Lazy qualified
 import Data.Traversable
 import Data.Tuple
+import Data.Type.Equality hiding (inner, trans)
 import Data.Void
 import Data.Word
 import GHC.Exts

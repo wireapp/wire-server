@@ -19,7 +19,7 @@ module Web.Scim.Schema.User.Email where
 
 import Control.Applicative ((<|>))
 import Data.Aeson
-import Data.Text hiding (dropWhile)
+import Data.Text hiding (dropWhile, show)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
 import qualified Text.Email.Validate as Email
