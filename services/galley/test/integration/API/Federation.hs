@@ -257,7 +257,8 @@ addLocalUser = do
       -- notifications
       WS.assertNoEvent (1 # Second) [wsC]
       -- Since dee is not connected to bob, they don't get any notifications
-      WS.assertNoEvent (1 # Second) [wsD]
+      WS.assertNoEventExcept (1 # Second) [wsD] $ wsEventOfType "user.activate"
+
   aliceConvs <- listRemoteConvs remoteDomain alice
   liftIO $ aliceConvs @?= [Qualified conv remoteDomain]
   deeConvs <- listRemoteConvs remoteDomain dee

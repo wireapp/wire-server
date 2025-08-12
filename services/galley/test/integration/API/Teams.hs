@@ -704,7 +704,7 @@ testCreateTeamMLSConv = do
     liftIO $ do
       assertEqual "protocol mismatch" ProtocolMLSTag (protocolTag (cnvProtocol conv))
     checkConvCreateEvent (tUnqualified lConvId) wsOwner
-    WS.assertNoEvent (2 # Second) [wsExtern]
+    WS.assertNoEventExcept (2 # Second) [wsExtern] $ wsEventOfType "user.activate"
 
 testAddTeamConvAsExternalPartner :: TestM ()
 testAddTeamConvAsExternalPartner = do

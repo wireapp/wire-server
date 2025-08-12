@@ -52,6 +52,7 @@ module Test.Tasty.Cannon
     assertMatchN_,
     assertSuccess,
     assertNoEvent,
+    assertNoEventExcept,
 
     -- * Unpacking Notifications
     unpackPayload,
@@ -330,12 +331,17 @@ assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout 
 assertSuccess = either throwM pure
 
 assertNoEvent :: (HasCallStack, MonadIO m) => Timeout -> [WebSocket] -> m ()
-assertNoEvent t ww = do
+assertNoEvent t ww = assertNoEventExcept t ww (const False)
+
+assertNoEventExcept :: (HasCallStack, MonadIO m) => Timeout -> [WebSocket] -> (Notification -> Bool) -> m ()
+assertNoEventExcept t ww except = do
   results <- awaitMatchN' t (zip [(0 :: Int) ..] ww) pure
   for_ results $ \(ix, result) ->
     either (const $ pure ()) (liftIO . f ix) result
   where
-    f ix n = assertFailure $ "unexpected notification received: " ++ show (ix, n)
+    f ix n
+      | except n = pure ()
+      | otherwise = assertFailure $ "unexpected notification received: " ++ show (ix, n)
 
 -----------------------------------------------------------------------------
 -- Unpacking Notifications

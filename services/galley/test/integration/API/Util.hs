@@ -1788,6 +1788,16 @@ wsAssertClientAdded cid n = do
   etype @?= Just "user.client-add"
   (fromByteString . T.encodeUtf8 =<< eclient) @?= Just cid
 
+wsEventOfType ::
+  (HasCallStack) =>
+  Text ->
+  Notification ->
+  Bool
+wsEventOfType t n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  etype == Just t
+
 assertMLSMessageEvent ::
   (HasCallStack) =>
   Qualified ConvOrSubConvId ->
