@@ -11,15 +11,17 @@ import Testlib.Prelude
 
 testUserGroupSmoke :: (HasCallStack) => App ()
 testUserGroupSmoke = do
-  (owner, team, [mem1, mem2, mem3, mem4, mem5, admin2]) <- createTeam OwnDomain 7
+  (owner, team, [mem1, mem2, mem3, mem4, mem5, mem6, admin2]) <- createTeam OwnDomain 8
   updateTeamMember team owner admin2 Admin >>= assertSuccess
   mem1id <- asString $ mem1 %. "id"
   mem2id <- asString $ mem2 %. "id"
   mem3id <- asString $ mem3 %. "id"
   mem4id <- asString $ mem4 %. "id"
   mem5id <- asString $ mem5 %. "id"
+  mem6id <- asString $ mem6 %. "id"
 
   let badGid = "225c4d54-1ae7-11f0-8e9c-cbb31865d602"
+      badMemid = "7bf23c0b-0be6-4432-bc5d-ab301bf75a99"
 
   gid <- withWebSockets [owner, admin2] $ \wss -> do
     gid <- bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= ([mem1id, mem2id])])) $ \resp -> do
@@ -57,6 +59,9 @@ testUserGroupSmoke = do
 
   bindResponse (addUsersToGroup owner gid [mem3id, mem4id, mem5id]) $ \resp -> do
     resp.status `shouldMatchInt` 204
+
+  bindResponse (addUsersToGroup owner gid [badMemid, mem6id]) $ \resp -> do
+    resp.status `shouldMatchInt` 400
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 204
