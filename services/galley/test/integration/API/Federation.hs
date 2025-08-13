@@ -215,7 +215,8 @@ onConvCreated = do
       -- since Charlie is not connected to Bob; expect a conversation with Alice&Bob only
       WS.assertMatch_ (5 # Second) wsA $
         wsAssertConvCreateWithRole qconv expectedFrom expectedSelf expectedOthers
-      WS.assertNoEvent (1 # Second) [wsC]
+      -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
+      WS.assertNoEventExcept (1 # Second) [wsC] $ wsIsEventOfType "user.activate"
   convs <- listRemoteConvs remoteDomain alice
   liftIO $ convs @?= [Qualified conv remoteDomain]
 
@@ -255,9 +256,11 @@ addLocalUser = do
         wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
       -- Since charlie is not really present in the conv, they don't get any
       -- notifications
-      WS.assertNoEvent (1 # Second) [wsC]
+      -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
+      WS.assertNoEventExcept (1 # Second) [wsC] $ wsIsEventOfType "user.activate"
       -- Since dee is not connected to bob, they don't get any notifications
-      WS.assertNoEventExcept (1 # Second) [wsD] $ wsEventOfType "user.activate"
+      -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
+      WS.assertNoEventExcept (1 # Second) [wsD] $ wsIsEventOfType "user.activate"
 
   aliceConvs <- listRemoteConvs remoteDomain alice
   liftIO $ aliceConvs @?= [Qualified conv remoteDomain]
@@ -479,7 +482,8 @@ notifyUpdate extras action etype edata = do
         evtType e @?= etype
         evtFrom e @?= qbob
         evtData e @?= edata
-      WS.assertNoEvent (1 # Second) [wsC]
+      -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
+      WS.assertNoEventExcept (1 # Second) [wsC] $ wsIsEventOfType "user.activate"
 
 notifyUpdateUnavailable :: [Qualified UserId] -> SomeConversationAction -> EventType -> EventData -> TestM ()
 notifyUpdateUnavailable extras action etype edata = do
