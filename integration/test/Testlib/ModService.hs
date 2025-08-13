@@ -26,6 +26,7 @@ import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
+import Data.IORef
 import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
@@ -432,9 +433,10 @@ cleanupService inst = do
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: (HasCallStack) => String -> Service -> App ()
-waitUntilServiceIsUp domain srv =
-  retryRequestUntil
+waitUntilServiceIsUp :: (HasCallStack) => Maybe ProcessDebug -> String -> Service -> App ()
+waitUntilServiceIsUp mDebug domain srv =
+  retryRequestUntilDebug
+    mDebug
     (checkServiceIsUp domain srv)
     (show srv)
 
@@ -467,6 +469,10 @@ withProcess resource overrides service = do
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
+  stdOut <- liftIO $ newIORef []
+  stdErr <- liftIO $ newIORef []
+  phRef <- liftIO $ newIORef Nothing
+
   let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
   let initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
@@ -476,8 +482,9 @@ withProcess resource overrides service = do
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
           let colorize = fromMaybe id (lookup execName processColors)
-          void $ forkIO $ logToConsole colorize prefix stdoutHdl
-          void $ forkIO $ logToConsole colorize prefix stderrHdl
+          void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
+          void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
+          liftIO $ writeIORef phRef (Just ph)
           pure $ ServiceInstance ph tempFile
 
   void $
@@ -486,28 +493,67 @@ withProcess resource overrides service = do
         E.bracket initProcess cleanupService
 
   lift $
-    addFailureContext ("Waiting for service: " <> prefix) $
-      waitUntilServiceIsUp domain service
+    addFailureContext ("Waiting for service: " <> prefix) $ do
+      waitUntilServiceIsUp (Just $ ProcessDebug {phRef = phRef, stdOut = stdOut, stdErr = stdErr}) domain service
 
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
-logToConsole colorize prefix hdl = do
+logToConsole = logToConsoleDebug Nothing
+
+logToConsoleDebug :: Maybe (IORef [String]) -> (String -> String) -> String -> Handle -> IO ()
+logToConsoleDebug mOutput colorize prefix hdl = do
   let go =
         do
           line <- hGetLine hdl
           putStrLn (colorize (prefix <> line))
+          case mOutput of
+            Nothing -> pure ()
+            Just output -> do
+              modifyIORef output (<> [line])
           go
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
-retryRequestUntil reqAction err = do
+retryRequestUntil = retryRequestUntilDebug Nothing
+
+data ProcessDebug = ProcessDebug
+  { phRef :: IORef (Maybe ProcessHandle),
+    stdOut :: IORef [String],
+    stdErr :: IORef [String]
+  }
+
+retryRequestUntilDebug :: (HasCallStack) => Maybe ProcessDebug -> ((HasCallStack) => App Bool) -> String -> App ()
+retryRequestUntilDebug mProcessDebug reqAction err = do
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       (const reqAction)
-  unless isUp $
-    assertFailure ("Timed out waiting for service " <> err <> " to come up")
+  unless isUp $ do
+    case mProcessDebug of
+      Nothing ->
+        assertFailure ("Timed out waiting for service " <> err <> " to come up")
+      Just (ProcessDebug {..}) -> do
+        stdOut' <- liftIO $ readIORef stdOut
+        stdErr' <- liftIO $ readIORef stdErr
+        mPh <- liftIO $ readIORef phRef
+        let stdOutStr = List.intercalate "\n" stdOut'
+            stdErrStr = List.intercalate "\n" stdErr'
+        mExitCode <- liftIO $ case mPh of
+          Nothing -> pure Nothing
+          Just ph -> Just <$> getProcessExitCode ph
+        let msg =
+              "Timed out waiting for service "
+                <> err
+                <> " to come up\n"
+                <> "stdout:\n"
+                <> stdOutStr
+                <> "\nstderr:\n"
+                <> stdErrStr
+                <> "\nexitCode:\n"
+                <> show (maybe "no exit code" show mExitCode)
+        addFailureContext msg $
+          assertFailure ("Timed out waiting for service " <> err <> " to come up")
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
@@ -684,6 +730,7 @@ startNginz domain conf workingDir = do
 
   let prefix = "[" <> "nginz" <> "@" <> domain <> "] "
   let colorize = fromMaybe id (lookup "nginx" processColors)
+
   void $ forkIO $ logToConsole colorize prefix stdoutHdl
   void $ forkIO $ logToConsole colorize prefix stderrHdl
 
