@@ -84,6 +84,10 @@ type instance
     QueryParam' mods l x :> SpecialiseToVersion v api
 
 type instance
+  SpecialiseToVersion v (QueryFlag l :> api) =
+    QueryFlag l :> SpecialiseToVersion v api
+
+type instance
   SpecialiseToVersion v (Header' opts l x :> api) =
     Header' opts l x :> SpecialiseToVersion v api
 
