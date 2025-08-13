@@ -451,3 +451,5 @@ instance SetFeatureConfig DomainRegistrationConfig
 instance SetFeatureConfig CellsConfig
 
 instance SetFeatureConfig ConsumableNotificationsConfig
+
+instance SetFeatureConfig ChatBubblesConfig
