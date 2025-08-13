@@ -88,14 +88,14 @@ instance ToSchema UserGroupUpdate where
 
 type UserGroup = UserGroup_ Identity
 
-type UserGroupMeta = UserGroup_ (Const ())
+type UserGroupMeta = UserGroup_ (Const (Maybe Int))
 
 userGroupToMeta :: UserGroup -> UserGroupMeta
 userGroupToMeta ug =
   UserGroup_
     { id_ = ug.id_,
       name = ug.name,
-      members = Const (),
+      members = Const (Just $ length $ ug.members),
       managedBy = ug.managedBy,
       createdAt = ug.createdAt
     }
@@ -109,27 +109,27 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
   }
   deriving (Generic)
 
-deriving instance Eq (UserGroup_ (Const ()))
+deriving instance Eq (UserGroup_ (Const (Maybe Int)))
 
-deriving instance Ord (UserGroup_ (Const ()))
+deriving instance Ord (UserGroup_ (Const (Maybe Int)))
 
-deriving instance Show (UserGroup_ (Const ()))
+deriving instance Show (UserGroup_ (Const (Maybe Int)))
 
-deriving via GenericUniform (UserGroup_ (Const ())) instance Arbitrary (UserGroup_ (Const ()))
+deriving via GenericUniform (UserGroup_ (Const (Maybe Int))) instance Arbitrary (UserGroup_ (Const (Maybe Int)))
 
-deriving via Schema (UserGroup_ (Const ())) instance A.ToJSON (UserGroup_ (Const ()))
+deriving via Schema (UserGroup_ (Const (Maybe Int))) instance A.ToJSON (UserGroup_ (Const (Maybe Int)))
 
-deriving via Schema (UserGroup_ (Const ())) instance A.FromJSON (UserGroup_ (Const ()))
+deriving via Schema (UserGroup_ (Const (Maybe Int))) instance A.FromJSON (UserGroup_ (Const (Maybe Int)))
 
-deriving via Schema (UserGroup_ (Const ())) instance OpenApi.ToSchema (UserGroup_ (Const ()))
+deriving via Schema (UserGroup_ (Const (Maybe Int))) instance OpenApi.ToSchema (UserGroup_ (Const (Maybe Int)))
 
-instance ToSchema (UserGroup_ (Const ())) where
+instance ToSchema (UserGroup_ (Const (Maybe Int))) where
   schema =
     object "UserGroupMeta" $
       UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
-        <*> (.members) .= pure mempty
+        <*> (fromMaybe 0 . getConst . (.members)) .= field "members" (Const . Just <$> schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
