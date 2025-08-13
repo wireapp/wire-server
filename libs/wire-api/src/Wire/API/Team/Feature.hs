@@ -1505,7 +1505,7 @@ instance ToSchema ChatBubblesConfig where
   schema = object "ChatBubblesConfig" objectSchema
 
 instance Default (LockableFeature ChatBubblesConfig) where
-  def = defUnlockedFeature {status = FeatureStatusDisabled}
+  def = defLockedFeature
 
 instance IsFeatureConfig ChatBubblesConfig where
   type FeatureSymbol ChatBubblesConfig = "chatBubbles"

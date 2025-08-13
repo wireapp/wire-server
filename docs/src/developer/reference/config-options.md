@@ -614,7 +614,7 @@ config:
       chatBubbles:
         defaults:
           status: disabled
-          lockStatus: unlocked
+          lockStatus: locked
 ```
 
 ## Settings in brig

@@ -168,7 +168,7 @@ settings:
     chatBubbles:
       defaults:
         status: disabled
-        lockStatus: unlocked
+        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false
