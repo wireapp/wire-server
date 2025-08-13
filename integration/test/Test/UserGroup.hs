@@ -11,11 +11,13 @@ import Testlib.Prelude
 
 testUserGroupSmoke :: (HasCallStack) => App ()
 testUserGroupSmoke = do
-  (owner, team, [mem1, mem2, mem3, admin2]) <- createTeam OwnDomain 5
+  (owner, team, [mem1, mem2, mem3, mem4, mem5, admin2]) <- createTeam OwnDomain 7
   updateTeamMember team owner admin2 Admin >>= assertSuccess
   mem1id <- asString $ mem1 %. "id"
   mem2id <- asString $ mem2 %. "id"
   mem3id <- asString $ mem3 %. "id"
+  mem4id <- asString $ mem4 %. "id"
+  mem5id <- asString $ mem5 %. "id"
 
   let badGid = "225c4d54-1ae7-11f0-8e9c-cbb31865d602"
 
@@ -53,13 +55,16 @@ testUserGroupSmoke = do
   bindResponse (addUserToGroup owner gid mem3id) $ \resp -> do
     resp.status `shouldMatchInt` 204
 
+  bindResponse (addUsersToGroup owner gid [mem3id, mem4id, mem5id]) $ \resp -> do
+    resp.status `shouldMatchInt` 204
+
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 204
 
   bindResponse (getUserGroup owner gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "name" `shouldMatch` "also good"
-    resp.json %. "members" `shouldMatch` [mem2id, mem3id]
+    resp.json %. "members" `shouldMatch` [mem2id, mem3id, mem4id, mem5id]
 
   bindResponse (getUserGroups owner def) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -75,6 +80,9 @@ testUserGroupSmoke = do
     resp.status `shouldMatchInt` 404
 
   bindResponse (addUserToGroup owner gid mem1id) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+
+  bindResponse (addUsersToGroup owner gid [mem1id, mem5id]) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
