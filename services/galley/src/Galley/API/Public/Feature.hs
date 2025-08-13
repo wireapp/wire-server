@@ -70,7 +70,7 @@ featureAPI =
     <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", AllowedGlobalOperationsConfig) getFeature
     <@> mkNamedAPI @'("get", ConsumableNotificationsConfig) getFeature
-    <@> featureAPIGetPut
+    <@> mkNamedAPI @'("get", ChatBubblesConfig) getFeature
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
