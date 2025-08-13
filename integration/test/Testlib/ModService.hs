@@ -553,7 +553,7 @@ retryRequestUntilDebug mProcessDebug reqAction err = do
                 <> "\nexitCode:\n"
                 <> show (maybe "no exit code" show mExitCode)
         addFailureContext msg $
-          assertFailure ("Timed out waiting for service " <> err <> " to come up")
+          assertFailure msg
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
