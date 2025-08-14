@@ -7,7 +7,6 @@ import Data.FileEmbed
 import Hasql.Migration
 import Hasql.Pool
 import Hasql.Session
-import Hasql.Transaction qualified
 import Hasql.Transaction.Sessions
 import Imports
 import System.Logger (Logger)
@@ -24,22 +23,14 @@ instance Exception PostgresMigrationError
 runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
-        forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
-          Log.info logger $ Log.msg (Log.val "Starting migration") . migrationName migrationCmd
-          mErr <- transaction Serializable Write $ do
-            -- see https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
-            Hasql.Transaction.sql "SELECT pg_advisory_lock(12345);"
-            runMigration migrationCmd
-              <* Hasql.Transaction.sql "SELECT pg_advisory_unlock(12345);"
-          case mErr of
-            Nothing ->
-              Log.info logger $ Log.msg (Log.val "Finished migration") . migrationName migrationCmd
-            Just err -> do
-              Log.err logger $
-                Log.msg (Log.val "Unexpected error during migration")
-                  . migrationName migrationCmd
-                  . Log.field "error" (show err)
-              throw $ PostgresMigrationError err
+        Log.info logger $ Log.msg (Log.val "Running migrations")
+        transaction Serializable Write $ do
+          forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
+            mErr <- runMigration migrationCmd
+            case mErr of
+              Nothing -> pure ()
+              Just err -> throw $ PostgresMigrationError err
+        Log.info logger $ Log.msg (Log.val "Migrations completed successfully")
 
   either throwIO pure =<< use pool session
 
