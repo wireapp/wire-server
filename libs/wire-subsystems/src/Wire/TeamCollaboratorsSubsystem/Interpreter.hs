@@ -12,7 +12,6 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.ConversationsSubsystem (ConversationsSubsystem, internalCloseConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -26,8 +25,7 @@ interpretTeamCollaboratorsSubsystem ::
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r,
-    Member ConversationsSubsystem r
+    Member NotificationSubsystem r
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
 interpretTeamCollaboratorsSubsystem = interpret $ \case
@@ -36,7 +34,6 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
-  RemoveTeamCollaborator zUser user team -> removeTeamCollaboratorImpl zUser user team
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -84,7 +81,6 @@ getAllTeamCollaboratorsImpl zUser team = do
   guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.getAllTeamCollaborators team
 
-
 internalGetTeamCollaboratorsWithIdsImpl ::
   ( Member Store.TeamCollaboratorsStore r
   ) =>
@@ -94,66 +90,3 @@ internalGetTeamCollaboratorsWithIdsImpl ::
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
-removeTeamCollaboratorImpl ::
-  ( Member TeamSubsystem r,
-    Member (Error TeamCollaboratorsError) r,
-    Member Store.TeamCollaboratorsStore r,
-    Member Now r,
-    Member NotificationSubsystem r,
-    Member ConversationsSubsystem r
-  ) =>
-  Local UserId ->
-  UserId ->
-  TeamId ->
-  Sem r ()
-removeTeamCollaboratorImpl zUser user team = do
-  guardPermission (tUnqualified zUser) team TeamMember.RemoveTeamCollaborator InsufficientRights
-  Store.removeTeamCollaborator user team
-  internalCloseConversationsFrom team user
-
-  now <- get
-  let event = newEvent team now (EdCollaboratorRemove user)
-  teamMembersList <- internalGetTeamAdmins team
-  let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
-  -- TODO: Review the event's values
-  pushNotifications
-    [ def
-        { origin = Just (tUnqualified zUser),
-          json = toJSONObject $ event,
-          recipients =
-            ( \uid ->
-                Recipient
-                  { recipientUserId = uid,
-                    recipientClients = Push.RecipientClientsAll
-                  }
-            )
-              <$> teamMembers,
-          transient = False
-        }
-    ]
-
--- This is of general usefulness. However, we cannot move this to wire-api as
--- this would lead to a cyclic dependency.
-guardPermission ::
-  ( Member TeamSubsystem r,
-    Member (Error ex) r,
-    TeamMember.IsPerm TeamMember.TeamMember perm
-  ) =>
-  UserId ->
-  TeamId ->
-  perm ->
-  ex ->
-  Sem r ()
-guardPermission user team perm ex = do
-  res <-
-    isJust <$> runMaybeT do
-      member <- MaybeT $ internalGetTeamMember user team
-      guard (member `TeamMember.hasPermission` perm)
-  unless res $
-    throw ex
-
-teamCollaboratorsSubsystemErrorToHttpError :: TeamCollaboratorsError -> HttpError
-teamCollaboratorsSubsystemErrorToHttpError =
-  StdError . \case
-    InsufficientRights -> errorToWai @E.InsufficientTeamPermissions
-    AlreadyExists -> errorToWai @E.DuplicateEntry
