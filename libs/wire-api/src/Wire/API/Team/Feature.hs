@@ -89,6 +89,7 @@ module Wire.API.Team.Feature
     AllowedGlobalOperationsConfig (..),
     ConsumableNotificationsConfig (..),
     ChatBubblesConfig (..),
+    AppsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -248,6 +249,7 @@ data FeatureSingleton cfg where
   FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
   FeatureSingletonChatBubblesConfig :: FeatureSingleton ChatBubblesConfig
+  FeatureSingletonAppsConfig :: FeatureSingleton AppsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1513,7 +1515,28 @@ instance IsFeatureConfig ChatBubblesConfig where
 
   objectSchema = pure ChatBubblesConfig
 
-----------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Apps Feature
+
+data AppsConfig = AppsConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform AppsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName AppsConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature AppsConfig
+
+instance ToSchema AppsConfig where
+  schema = object "AppsConfig" objectSchema
+
+instance Default (LockableFeature AppsConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig AppsConfig where
+  type FeatureSymbol AppsConfig = "apps"
+  featureSingleton = FeatureSingletonAppsConfig
+
+  objectSchema = pure AppsConfig
+
+---------------------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1601,7 +1624,8 @@ type Features =
     CellsConfig,
     AllowedGlobalOperationsConfig,
     ConsumableNotificationsConfig,
-    ChatBubblesConfig
+    ChatBubblesConfig,
+    AppsConfig
   ]
 
 -- | list of available features as a record
