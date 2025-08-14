@@ -248,7 +248,7 @@ instance HasSettingsOverrides MLSTest where
 liftTest :: TestM a -> MLSTest a
 liftTest = MLSTest . lift
 
-runMLSTest :: MLSTest a -> TestM a
+runMLSTest :: (HasCallStack) => MLSTest a -> TestM a
 runMLSTest (MLSTest m) =
   withSystemTempDirectory "mls" $ \tmp -> do
     saveRemovalKey (tmp </> "removal.key")
