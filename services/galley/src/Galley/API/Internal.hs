@@ -348,13 +348,49 @@ rmUser ::
   Maybe ConnId ->
   Sem r ()
 rmUser lusr conn = do
-  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
-  leaveTeams tids
+  let forTids page f =
+        for_ (pageItems page) $ \tid -> do
+          f tid
+          page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
+          forTids page' f
+
+  leaveTeams lusr conn $ forTids tids
+  deleteClients (tUnqualified lusr)
+
+leaveTeams ::
+  forall p1 r.
+  ( p1 ~ CassandraPaging,
+    Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error DynError) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member (ListItems p1 ConvId) r,
+    Member (ListItems p1 (Remote ConvId)) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member Random r,
+    Member SubConversationStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ((TeamId -> Sem r ()) -> Sem r ()) ->
+  Sem r ()
+leaveTeams lusr conn forTids = do
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  forTids leaveTeams'
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
-
-  deleteClients (tUnqualified lusr)
   where
     goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages range page = do
@@ -367,7 +403,7 @@ rmUser lusr conn = do
         newCids <- Query.conversationIdsPageFrom lusr nextQuery
         goConvPages range newCids
 
-    leaveTeams page = for_ (pageItems page) $ \tid -> do
+    leaveTeams' tid = do
       toNotify <-
         handleImpossibleErrors $
           getFeatureForTeam @LimitedEventFanoutConfig tid
@@ -377,8 +413,6 @@ rmUser lusr conn = do
                 )
               . (.status)
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
-      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-      leaveTeams page'
 
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
