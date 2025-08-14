@@ -72,6 +72,11 @@ data GalleyAPIAccess m a where
     Maybe (UserId, UTCTimeMillis) ->
     Role ->
     GalleyAPIAccess m Bool
+  RemoveTeamMember ::
+    Local UserId ->
+    UserId ->
+    TeamId ->
+    GalleyAPIAccess m ()
   CreateTeam ::
     UserId ->
     NewTeam ->
