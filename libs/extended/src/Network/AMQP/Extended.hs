@@ -16,7 +16,7 @@ module Network.AMQP.Extended
   )
 where
 
-import Control.Exception (throwIO)
+import Control.Exception (AsyncException, throwIO)
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
@@ -36,7 +36,7 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Network.RabbitMqAdmin
 import Network.TLS
 import Network.TLS.Extra.Cipher
-import Servant
+import Servant hiding (Handler)
 import Servant.Client
 import Servant.Client qualified as Servant
 import System.Logger (Logger)
@@ -192,17 +192,21 @@ openConnectionWithRetries l AmqpEndpoint {..} connName hooks = do
                 . Log.field "error" (displayException @SomeException e)
                 . Log.field "willRetry" willRetry
                 . Log.field "retryCount" retryStatus.rsIterNumber
-          getConn =
-            recovering
-              policy
-              ( skipAsyncExceptions
-                  <> [logRetries (const $ pure True) logError]
-              )
-              ( const $ do
-                  Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-                  connOpts <- mkConnectionOpts AmqpEndpoint {..} connName
-                  liftIO $ Q.openConnection'' connOpts
-              )
+          getConn = do
+            Log.info l $ Log.msg (Log.val "About to enter recovering...")
+            conn <-
+              recovering
+                policy
+                ( logAndSkipAsyncExceptions l
+                    <> [logRetries (const $ pure True) logError]
+                )
+                ( const $ do
+                    Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
+                    connOpts <- mkConnectionOpts AmqpEndpoint {..} connName
+                    liftIO $ Q.openConnection'' connOpts
+                )
+            Log.info l $ Log.msg (Log.val "Retrieved connection...")
+            pure conn
       bracket getConn (liftIO . Q.closeConnection) $ \conn -> do
         liftBaseWith $ \runInIO ->
           Q.addConnectionClosedHandler conn True $ void $ runInIO $ do
@@ -233,6 +237,20 @@ openConnectionWithRetries l AmqpEndpoint {..} connName hooks = do
         _ -> do
           logException l "RabbitMQ channel closed" e
           openChan conn
+
+-- | List of pre-made handlers that will skip retries on
+-- 'AsyncException' and 'SomeAsyncException' and log them.
+-- See also `Control.Retry.skipAsyncExceptions`
+logAndSkipAsyncExceptions :: (MonadIO m) => Logger -> [RetryStatus -> Control.Monad.Catch.Handler m Bool]
+logAndSkipAsyncExceptions l = handlers
+  where
+    asyncH _ = Handler $ \(e :: AsyncException) -> do
+      logException l "AsyncException caught" (SomeException e)
+      pure False
+    someAsyncH _ = Handler $ \(e :: SomeAsyncException) -> do
+      logException l "SomeAsyncException caught" (SomeException e)
+      pure False
+    handlers = [asyncH, someAsyncH]
 
 mkTLSSettings :: HostName -> RabbitMqTlsOpts -> IO TLSSettings
 mkTLSSettings host opts = do
