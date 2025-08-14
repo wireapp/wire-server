@@ -99,6 +99,7 @@ import Galley.Schema.V95_TeamFeatureDataMigrationState qualified as V95_TeamFeat
 import Galley.Schema.V96_GroupConversationType qualified as V96_GroupConversationType
 import Galley.Schema.V97_CellsConversation qualified as V97_CellsConversation
 import Galley.Schema.V98_ChannelAddPermission qualified as V98_ChannelAddPermission
+import Galley.Schema.V99_ConversationAddParent qualified as V99_ConversationAddParent
 import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
@@ -198,7 +199,8 @@ migrations =
     V95_TeamFeatureDataMigrationState.migration,
     V96_GroupConversationType.migration,
     V97_CellsConversation.migration,
-    V98_ChannelAddPermission.migration
+    V98_ChannelAddPermission.migration,
+    V99_ConversationAddParent.migration
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files

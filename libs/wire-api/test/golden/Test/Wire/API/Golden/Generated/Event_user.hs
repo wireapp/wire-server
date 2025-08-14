@@ -168,7 +168,8 @@ testObject_Event_user_8 =
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1}),
                     cnvmGroupConvType = Just GroupConversation,
                     cnvmChannelAddPermission = Nothing,
-                    cnvmCellsState = CellsDisabled
+                    cnvmCellsState = CellsDisabled,
+                    cnvmParent = Nothing
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =

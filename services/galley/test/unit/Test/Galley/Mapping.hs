@@ -144,6 +144,7 @@ genConversationMetadata =
     <*> arbitrary
     <*> arbitrary
     <*> arbitrary
+    <*> arbitrary
 
 newtype RandomConversation = RandomConversation
   {unRandomConversation :: StoredConversation}

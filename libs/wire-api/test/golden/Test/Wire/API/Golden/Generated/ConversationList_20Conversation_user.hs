@@ -52,7 +52,8 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0}),
                     cnvmGroupConvType = Just GroupConversation,
                     cnvmChannelAddPermission = Nothing,
-                    cnvmCellsState = CellsReady
+                    cnvmCellsState = CellsReady,
+                    cnvmParent = Nothing
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =

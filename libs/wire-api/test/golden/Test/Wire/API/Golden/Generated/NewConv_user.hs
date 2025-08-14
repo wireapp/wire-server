@@ -52,7 +52,8 @@ testObject_NewConv_user_1 =
       newConvGroupConvType = GroupConversation,
       newConvCells = False,
       newConvChannelAddPermission = Nothing,
-      newConvSkipCreator = False
+      newConvSkipCreator = False,
+      newConvParent = Nothing
     }
 
 testObject_NewConv_user_3 :: NewConv
@@ -75,5 +76,6 @@ testObject_NewConv_user_3 =
       newConvGroupConvType = Channel,
       newConvCells = True,
       newConvChannelAddPermission = Just Admins,
-      newConvSkipCreator = False
+      newConvSkipCreator = False,
+      newConvParent = Nothing
     }
