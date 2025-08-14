@@ -195,5 +195,9 @@ data:
         chatBubbles:
           {{- toYaml .settings.featureFlags.chatBubbles | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.apps }}
+        apps:
+          {{- toYaml .settings.featureFlags.apps | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

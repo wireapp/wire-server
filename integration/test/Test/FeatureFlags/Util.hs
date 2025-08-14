@@ -160,7 +160,8 @@ defAllFeatures =
                 ]
           ],
       "consumableNotifications" .= disabledLocked,
-      "chatBubbles" .= disabledLocked
+      "chatBubbles" .= disabledLocked,
+      "apps" .= disabledLocked
     ]
 
 hasExplicitLockStatus :: String -> Bool

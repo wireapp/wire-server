@@ -306,6 +306,13 @@ newtype instance FeatureDefaults ChatBubblesConfig
   deriving (FromJSON) via Defaults (LockableFeature ChatBubblesConfig)
   deriving (ParseFeatureDefaults) via OptionalField ChatBubblesConfig
 
+newtype instance FeatureDefaults AppsConfig
+  = AppsDefaults (LockableFeature AppsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature AppsConfig)
+  deriving (ParseFeatureDefaults) via OptionalField AppsConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 

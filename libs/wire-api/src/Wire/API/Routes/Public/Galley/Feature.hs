@@ -70,6 +70,7 @@ type FeatureAPI =
     :<|> FeatureAPIGet AllowedGlobalOperationsConfig
     :<|> FeatureAPIGet ConsumableNotificationsConfig
     :<|> FeatureAPIGet ChatBubblesConfig
+    :<|> FeatureAPIGet AppsConfig
 
 type DeprecationNotice1 = "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022"
 

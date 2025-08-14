@@ -218,6 +218,10 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
+      apps:
+        defaults:
+          status: disabled
+          lockStatus: locked
 
   aws:
     region: "eu-west-1"

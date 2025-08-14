@@ -453,3 +453,5 @@ instance SetFeatureConfig CellsConfig
 instance SetFeatureConfig ConsumableNotificationsConfig
 
 instance SetFeatureConfig ChatBubblesConfig
+
+instance SetFeatureConfig AppsConfig
