@@ -135,6 +135,7 @@ library
     Test.FeatureFlags
     Test.FeatureFlags.AllowedGlobalOperations
     Test.FeatureFlags.AppLock
+    Test.FeatureFlags.Apps
     Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ChatBubbles
