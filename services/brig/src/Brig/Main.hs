@@ -29,7 +29,7 @@ main = withOpenSSL $ do
               opts
               (\dbname -> opts {postgresql = Map.insert "dbname" dbname opts.postgresql})
               mOverrideDbName
-      migratePostres optsWithOverride reset
+      migratePostgres optsWithOverride reset
 
 data Command = Run | MigratePostgres (Maybe Text) Bool
 
