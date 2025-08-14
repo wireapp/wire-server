@@ -23,8 +23,10 @@ instance Exception PostgresMigrationError
 runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
+        -- see https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
+        sql "SELECT pg_advisory_lock(12345);"
         forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
-          Log.info logger $ Log.msg (Log.val "Starting migrations") . migrationName migrationCmd
+          Log.info logger $ Log.msg (Log.val "Starting migration") . migrationName migrationCmd
           mErr <- transaction Serializable Write $ runMigration migrationCmd
           case mErr of
             Nothing ->
@@ -35,6 +37,7 @@ runAllMigrations pool logger = do
                   . migrationName migrationCmd
                   . Log.field "error" (show err)
               throw $ PostgresMigrationError err
+        sql "SELECT pg_advisory_unlock(12345);"
 
   either throwIO pure =<< use pool session
 
