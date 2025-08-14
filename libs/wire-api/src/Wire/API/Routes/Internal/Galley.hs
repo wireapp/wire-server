@@ -253,6 +253,13 @@ type ITeamsAPIBase =
                  :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "OK")
              )
              :<|> Named
+                    "unchecked-remove-team-member"
+                    ( Summary
+                        "Remove a user from a team and conversations"
+                        :> ZLocalUser
+                        :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "OK")
+                    )
+             :<|> Named
                     "unchecked-get-team-members"
                     ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
                         :> Get '[JSON] TeamMemberList
