@@ -4,7 +4,6 @@ module Network.AMQP.Extended
   ( RabbitMqHooks (..),
     RabbitMqAdminOpts (..),
     AmqpEndpoint (..),
-    withConnection,
     openConnectionWithRetries,
     mkRabbitMqAdminClientEnv,
     mkRabbitMqAdminClientEnvWithCreds,
@@ -153,38 +152,6 @@ data RabbitMqConnectionError = RabbitMqConnectionFailed String
   deriving (Show)
 
 instance Exception RabbitMqConnectionError
-
--- | Connects with RabbitMQ and opens a channel.
-withConnection ::
-  forall m a.
-  (MonadIO m, MonadMask m) =>
-  Logger ->
-  AmqpEndpoint ->
-  Maybe Text ->
-  (Q.Connection -> m a) ->
-  m a
-withConnection l AmqpEndpoint {..} connName k = do
-  -- Jittered exponential backoff with 1ms as starting delay and 1s as total
-  -- wait time.
-  let policy = limitRetriesByCumulativeDelay 1_000_000 $ fullJitterBackoff 1000
-      logError willRetry e retryStatus = do
-        Log.err l $
-          Log.msg (Log.val "Failed to connect to RabbitMQ")
-            . Log.field "error" (displayException @SomeException e)
-            . Log.field "willRetry" willRetry
-            . Log.field "retryCount" retryStatus.rsIterNumber
-      getConn =
-        recovering
-          policy
-          ( skipAsyncExceptions
-              <> [logRetries (const $ pure True) logError]
-          )
-          ( const $ do
-              Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-              connOpts <- mkConnectionOpts AmqpEndpoint {..} connName
-              liftIO $ Q.openConnection'' connOpts
-          )
-  bracket getConn (liftIO . Q.closeConnection) k
 
 mkConnectionOpts :: (MonadIO m) => AmqpEndpoint -> Maybe Text -> m Q.ConnectionOpts
 mkConnectionOpts AmqpEndpoint {..} name = do
