@@ -1,0 +1,5 @@
+{
+  "git+https://github.com/wireapp//proteus?branch=otak%2Ffix-1.0.3#1.0.3": "17ravvn7p8zq9yn8zq8fn88d78n69ai3hf81xxs5i701n7m8d19p",
+  "git+https://github.com/wireapp/cryptobox?tag=v1.0.3#1.0.3": "070i2rwas51ci20vk2q5kdfnmhzd73kbdsps23x46f54wa617k25",
+  "git+https://github.com/wireapp/hkdf?tag=v0.3.2#0.3.2": "09fk0zxaaqmpnjq914w5cydyjg9vfgm3qmlzbza9bmvs6bb2hpyk"
+}

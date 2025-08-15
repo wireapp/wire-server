@@ -29,7 +29,6 @@
 , conduit
 , containers
 , cookie
-, cryptobox-haskell
 , crypton
 , currency-codes
 , data-default
@@ -95,6 +94,7 @@
 , postie
 , process
 , prometheus-client
+, proteus-bindings
 , proto-lens
 , QuickCheck
 , random
@@ -184,7 +184,6 @@ mkDerivation {
     conduit
     containers
     cookie
-    cryptobox-haskell
     crypton
     currency-codes
     data-default
@@ -236,6 +235,7 @@ mkDerivation {
     polysemy-time
     polysemy-wire-zoo
     prometheus-client
+    proteus-bindings
     proto-lens
     random-shuffle
     raw-strings-qq
