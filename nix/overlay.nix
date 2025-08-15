@@ -54,7 +54,7 @@ in
 
 self: super: {
 
-  cryptobox = self.callPackage ./pkgs/cryptobox { };
+  proteus-bindings = self.callPackage ./pkgs/proteus-bindings { };
   zauth = self.callPackage ./pkgs/zauth { };
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 

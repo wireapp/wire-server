@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "proteus": {
+      "type": "Git",
+      "url": "https://github.com/wireapp/proteus",
+      "rev": "b92dbc2d0c77105cae3911a7388acba05450a06d",
+      "sha256": "0xr0hqchd44n82gc48rl9094s7l0wxrb3z4603igbcvxk0jmwnb6"
+    }
+  }
+}
