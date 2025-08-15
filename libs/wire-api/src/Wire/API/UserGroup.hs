@@ -86,6 +86,19 @@ instance ToSchema UserGroupUpdate where
       UserGroupUpdate
         <$> (.name) .= field "name" schema
 
+newtype UserGroupAddUsers = UserGroupAddUsers
+  { members :: Vector UserId
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupAddUsers
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupAddUsers
+
+instance ToSchema UserGroupAddUsers where
+  schema =
+    object "UserGroupAddUsers" $
+      UserGroupAddUsers
+        <$> (.members) .= field "members" (vector schema)
+
 type UserGroup = UserGroup_ Identity
 
 type UserGroupMeta = UserGroup_ (Const ())
