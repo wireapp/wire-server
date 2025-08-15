@@ -22,6 +22,7 @@ data UserGroupSubsystem m a where
     Maybe UserGroupName ->
     Maybe UTCTimeMillis ->
     Maybe UserGroupId ->
+    Bool ->
     UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
