@@ -94,6 +94,7 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
+import Wire.ConversationsSubsystem qualified as ConversationsSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -215,6 +216,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
+              <@> mkNamedAPI @"unchecked-remove-team-member" (\luid -> leaveTeams luid Nothing (for_ [tid]))
               <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembers tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
@@ -226,6 +228,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
+        <@> mkNamedAPI @"close-conversations-from" (ConversationsSubsystem.internalCloseConversationsFrom tid)
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
@@ -343,13 +346,60 @@ rmUser ::
   Maybe ConnId ->
   Sem r ()
 rmUser lusr conn = do
-  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
-  leaveTeams tids
+  let forTids page f =
+        for_ (pageItems page) $ \tid -> do
+          f tid
+          page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
+          forTids page' f
+
+  leaveTeams lusr conn $ forTids tids
+  deleteClients (tUnqualified lusr)
+
+leaveTeams ::
+  forall p1 r.
+  ( p1 ~ CassandraPaging,
+    Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error DynError) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member (ListItems p1 ConvId) r,
+    Member (ListItems p1 (Remote ConvId)) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member Random r,
+    Member SubConversationStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ((TeamId -> Sem r ()) -> Sem r ()) ->
+  Sem r ()
+leaveTeams lusr conn forTids = do
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  forTids $ \tid -> do
+    toNotify <-
+      handleImpossibleErrors $
+        getFeatureForTeam @LimitedEventFanoutConfig tid
+          >>= ( \case
+                  FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                  FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+              )
+            . (.status)
+    uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+    internalRemoveTeamCollaborator (tUnqualified lusr) tid
+
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
-
-  deleteClients (tUnqualified lusr)
   where
     goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages range page = do
@@ -361,19 +411,6 @@ rmUser lusr conn = do
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom lusr nextQuery
         goConvPages range newCids
-
-    leaveTeams page = for_ (pageItems page) $ \tid -> do
-      toNotify <-
-        handleImpossibleErrors $
-          getFeatureForTeam @LimitedEventFanoutConfig tid
-            >>= ( \case
-                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
-                )
-              . (.status)
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
-      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-      leaveTeams page'
 
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
