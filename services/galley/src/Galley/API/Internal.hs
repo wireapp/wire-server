@@ -389,7 +389,18 @@ leaveTeams ::
   Sem r ()
 leaveTeams lusr conn forTids = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  forTids leaveTeams'
+  forTids $ \tid -> do
+    toNotify <-
+      handleImpossibleErrors $
+        getFeatureForTeam @LimitedEventFanoutConfig tid
+          >>= ( \case
+                  FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                  FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+              )
+            . (.status)
+    uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+    internalRemoveTeamCollaborator (tUnqualified lusr) tid
+
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
   where
@@ -403,17 +414,6 @@ leaveTeams lusr conn forTids = do
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom lusr nextQuery
         goConvPages range newCids
-
-    leaveTeams' tid = do
-      toNotify <-
-        handleImpossibleErrors $
-          getFeatureForTeam @LimitedEventFanoutConfig tid
-            >>= ( \case
-                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
-                )
-              . (.status)
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
 
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
