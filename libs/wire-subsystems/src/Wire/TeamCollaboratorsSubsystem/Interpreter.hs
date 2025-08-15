@@ -12,6 +12,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
+import Wire.ConversationsSubsystem (ConversationsSubsystem, internalCloseConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -25,7 +26,8 @@ interpretTeamCollaboratorsSubsystem ::
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member ConversationsSubsystem r
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
 interpretTeamCollaboratorsSubsystem = interpret $ \case
@@ -34,6 +36,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+  InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -90,3 +93,13 @@ internalGetTeamCollaboratorsWithIdsImpl ::
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
+internalRemoveTeamCollaboratorImpl ::
+  ( Member Store.TeamCollaboratorsStore r,
+    Member ConversationsSubsystem r
+  ) =>
+  UserId ->
+  TeamId ->
+  Sem r ()
+internalRemoveTeamCollaboratorImpl user team = do
+  Store.removeTeamCollaborator user team
+  internalCloseConversationsFrom team user
