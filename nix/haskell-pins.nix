@@ -52,9 +52,7 @@ let
     # maintained by us
     # ----------------
 
-    cryptobox-haskell = {
-      src = inputs.cryptobox-haskell;
-    };
+    # None
 
     # --------------------
     # END maintained by us
