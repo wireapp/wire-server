@@ -24,3 +24,6 @@ inMemoryTeamCollaboratorsStoreInterpreter =
       gets $ \(s :: Map TeamId [TeamCollaborator]) -> find (\tc -> tc.gUser == userId) =<< Map.lookup teamId s
     GetTeamCollaborations userId ->
       gets $ \(s :: Map TeamId [TeamCollaborator]) -> concatMap (filter (\tc -> tc.gUser == userId)) (Map.elems s)
+    GetTeamCollaboratorsWithIds teamIds userIds ->
+      gets $ \(s :: Map TeamId [TeamCollaborator]) ->
+        concatMap (concatMap (filter (\tc -> tc.gUser `elem` userIds)) . (\(tid :: TeamId) -> Map.lookup tid s)) teamIds

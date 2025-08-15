@@ -77,6 +77,7 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
+import Wire.API.Team.Collaborator qualified as CollaboratorPermission
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Conf
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -542,15 +543,27 @@ createOne2OneConversation lusr zcon j =
     checkBindingTeamPermissions lother tid = do
       mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
       zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
-      void $ permissionCheck CreateConversation $ (Left <$> zusrMembership) <|> (Right <$> mTeamCollaborator)
+      case (mTeamCollaborator, zusrMembership) of
+        (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
+        (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
+        (Just collaborator, Just member) ->
+          unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
+            throwS @OperationDenied
       E.getTeamBinding tid >>= \case
         Just Binding -> do
           when (isJust zusrMembership) $
             verifyMembership tid (tUnqualified lusr)
-          verifyMembership tid (tUnqualified lother)
+          mOtherTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lother)
+          unless (isJust mOtherTeamCollaborator) $
+            verifyMembership tid (tUnqualified lother)
           pure (Just tid)
         Just _ -> throwS @'NonBindingTeam
         Nothing -> throwS @'TeamNotFound
+
+    guardPerm p m =
+      if m `hasPermission` p
+        then pure ()
+        else throwS @OperationDenied
 
 createLegacyOne2OneConversationUnchecked ::
   ( Member BackendNotificationQueueAccess r,

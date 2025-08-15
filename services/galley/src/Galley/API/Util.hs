@@ -84,10 +84,10 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
+import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
-import Wire.API.Team.Permission qualified as Perm
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
@@ -160,17 +160,27 @@ ensureConnectedToLocalsOrSameTeam ::
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
-  icTeams <- implicitConnectionsTeams
+  icTeams <- getUserCollaborationTeams
+  icUsers <- getTeamCollaborators uTeams
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
-  ensureConnectedToLocals u (uids \\ join sameTeamUids)
+  ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
   where
-    implicitConnectionsTeams :: (Member TeamCollaboratorsSubsystem r) => Sem r [TeamId]
-    implicitConnectionsTeams =
+    -- Teams in which the user who wants to reach out is member with
+    -- `ImplicitConnection` permission.
+    getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r') => Sem r' [TeamId]
+    getUserCollaborationTeams =
       gTeam
-        <$$> (filter (flip hasPermission Perm.CreateConversation) <$> internalGetTeamCollaborations u)
+        <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations u)
+
+    -- We do not check the permissions of team collaborators if a user tries to
+    -- reach out to them (if they are in the same team.) The reasoning behind
+    -- this is that team collaborators have implicitly agreed to be
+    -- collaborated with.
+    getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
+    getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds (Set.fromList teams) (Set.fromList uids)
 
 -- | Check that the user is connected to everybody else.
 --
