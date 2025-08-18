@@ -215,3 +215,17 @@ testLegacyFedFederationV2 fedDomainV2 = do
 
   bob' <- BrigP.getUser alice bob >>= getJSON 200
   bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+
+testPostgresMigrations :: (HasCallStack) => Deflake 5 -> App ()
+testPostgresMigrations _ = do
+  void $ reset OwnDomain
+  runMigrations OwnDomain >>= assertSuccess
+  void $ reset OtherDomain
+  runMigrations OtherDomain >>= assertSuccess
+  where
+    runMigrations domain = do
+      req <- baseRequest domain Brig Unversioned $ "/i/postgres/run-migrations"
+      submit "POST" req
+    reset domain = do
+      req <- baseRequest domain Brig Unversioned $ "/i/postgres/reset"
+      submit "POST" req

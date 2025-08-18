@@ -84,6 +84,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Routes.Internal.Brig (PostgresManagementAPI)
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -118,6 +119,7 @@ import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
+import Wire.PostgresMigrations (resetSchema, runAllMigrations)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
@@ -196,6 +198,24 @@ servantSitemap =
     :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
     :<|> enterpriseLoginApi
+    :<|> postgresManagementAPI
+
+postgresManagementAPI :: ServerT PostgresManagementAPI (Handler r)
+postgresManagementAPI =
+  Named @"postgres-reset" resetPostgres
+    :<|> Named @"postgres-migrations" runMigrations
+
+runMigrations :: Handler r NoContent
+runMigrations = do
+  pool <- asks (.hasqlPool)
+  logger <- asks (.appLogger)
+  liftIO $ runAllMigrations pool logger $> NoContent
+
+resetPostgres :: Handler r NoContent
+resetPostgres = do
+  pool <- asks (.hasqlPool)
+  logger <- asks (.appLogger)
+  liftIO $ resetSchema pool logger $> NoContent
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)

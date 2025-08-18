@@ -29,6 +29,7 @@ module Wire.API.Routes.Internal.Brig
     AuthAPI,
     FederationRemotesAPI,
     EJPDRequest,
+    PostgresManagementAPI,
     ISearchIndexAPI,
     ProviderAPI,
     GetAccountConferenceCallingConfig,
@@ -543,7 +544,22 @@ type API =
            :<|> FederationRemotesAPI
            :<|> ProviderAPI
            :<|> EnterpriseLoginApi
+           :<|> PostgresManagementAPI
        )
+
+type PostgresManagementAPI =
+  Named
+    "postgres-reset"
+    ( "postgres"
+        :> "reset"
+        :> Post '[Servant.JSON] NoContent
+    )
+    :<|> Named
+           "postgres-migrations"
+           ( "postgres"
+               :> "run-migrations"
+               :> Post '[Servant.JSON] NoContent
+           )
 
 type IStatusAPI =
   Named
