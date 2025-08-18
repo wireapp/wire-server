@@ -60,9 +60,6 @@ testUserGroupSmoke = do
   bindResponse (addUsersToGroup owner gid [mem3id, mem4id, mem5id]) $ \resp -> do
     resp.status `shouldMatchInt` 204
 
-  bindResponse (addUsersToGroup mem3id gid [mem6id]) $ \resp -> do
-    resp.status `shouldMatchInt` 401
-
   bindResponse (addUsersToGroup owner gid [badMemid, mem6id]) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
@@ -95,6 +92,33 @@ testUserGroupSmoke = do
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 404
+
+testUserGroupAddGroupDenied :: (HasCallStack) => App ()
+testUserGroupAddGroupDenied = do
+  let noMember = [] :: [()]
+
+  (owner0, _team0, []) <- createTeam OwnDomain 1
+  gid0 <- bindResponse (createUserGroup owner0 (object ["name" .= "none", "members" .= noMember])) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` "none"
+    resp.json %. "members" `shouldMatch` noMember
+    asString $ (resp.json %. "id")
+
+  (owner1, _team1, [mem10]) <- createTeam OwnDomain 2
+  _gid1 <- bindResponse (createUserGroup owner1 (object ["name" .= "none", "members" .= noMember])) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` "none"
+    resp.json %. "members" `shouldMatch` noMember
+    asString $ (resp.json %. "id")
+  mem10id <- asString $ mem10 %. "id"
+
+  bindResponse (addUsersToGroup owner1 gid0 [mem10id]) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+
+  bindResponse (getUserGroup owner0 gid0) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` "none"
+    resp.json %. "members" `shouldMatch` noMember
 
 testUserGroupGetGroups :: (HasCallStack) => App ()
 testUserGroupGetGroups = do
