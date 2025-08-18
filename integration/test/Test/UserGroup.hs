@@ -5,7 +5,7 @@ module Test.UserGroup where
 import API.Brig
 import API.Galley
 import Control.Error (lastMay)
-import Notifications (isUserGroupCreatedNotif)
+import Notifications (isUserGroupCreatedNotif, isUserGroupUpdatedNotif, isUserGroupUserAddedNotif)
 import SetupHelpers
 import Testlib.Prelude
 
@@ -57,8 +57,16 @@ testUserGroupSmoke = do
   bindResponse (addUserToGroup owner gid mem3id) $ \resp -> do
     resp.status `shouldMatchInt` 204
 
-  bindResponse (addUsersToGroup owner gid [mem3id, mem4id, mem5id]) $ \resp -> do
-    resp.status `shouldMatchInt` 204
+  withWebSockets [owner, admin2] $ \wssAdmins -> do
+    withWebSockets [mem4, mem5] $ \wssMembers -> do
+      bindResponse (addUsersToGroup owner gid [mem3id, mem4id, mem5id]) $ \resp -> do
+        resp.status `shouldMatchInt` 204
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupUpdatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` gid
+      for_ wssMembers $ \ws -> do
+        notif <- awaitMatch isUserGroupUserAddedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` gid
 
   bindResponse (addUsersToGroup owner gid [badMemid, mem6id]) $ \resp -> do
     resp.status `shouldMatchInt` 400
