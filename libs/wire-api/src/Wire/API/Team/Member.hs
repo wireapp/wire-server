@@ -528,7 +528,8 @@ rolePerms RoleAdmin =
       [ AddTeamMember,
         RemoveTeamMember,
         SetTeamData,
-        SetMemberPermissions
+        SetMemberPermissions,
+        JoinRegularConversations
       ]
 rolePerms RoleMember =
   rolePerms RoleExternalPartner
