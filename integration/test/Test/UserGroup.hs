@@ -60,6 +60,9 @@ testUserGroupSmoke = do
   bindResponse (addUsersToGroup owner gid [mem3id, mem4id, mem5id]) $ \resp -> do
     resp.status `shouldMatchInt` 204
 
+  bindResponse (addUsersToGroup mem3id gid [mem6id]) $ \resp -> do
+    resp.status `shouldMatchInt` 401
+
   bindResponse (addUsersToGroup owner gid [badMemid, mem6id]) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
