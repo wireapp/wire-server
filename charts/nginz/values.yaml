@@ -21,6 +21,7 @@ config:
     useProxyProtocol: true
 terminationGracePeriodSeconds: 90
 nginx_conf:
+  dns_resolver: kube-dns
   cluster_domain: cluster.local
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
   zauth_acl: /etc/wire/nginz/conf/zauth.acl
