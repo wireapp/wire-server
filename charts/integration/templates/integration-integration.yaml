@@ -376,3 +376,6 @@ spec:
       value: "1"
     - name: ENABLE_FEDERATION_V2
       value: "1"
+    # TODO(leif): remove
+    - name: TEST_INCLUDE
+      value: "UserGroup"
