@@ -131,6 +131,9 @@ runTests tests mXMLOutput cfg = do
 
   runCodensity (mkEnvs cfg) $ \(genv, env) ->
     withAsync displayOutput $ \displayThread -> do
+      -- Although migrations are run on service start up we are running them here before
+      -- to prevent race conditions between brig and galley
+      -- which cause flakiness and can make the complete test suite fail
       runAppWithEnv env runMigrations
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
