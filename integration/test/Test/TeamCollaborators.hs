@@ -158,16 +158,19 @@ testImplicitConnectionNoCollaborator = do
 
 testRemoveMember :: (HasCallStack) => App ()
 testRemoveMember = do
-  (owner, team, [alice]) <- createTeam OwnDomain 2
+  (owner0, team0, [alice]) <- createTeam OwnDomain 2
+  (owner1, team1, [bob]) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
-  bob <- randomUser OwnDomain def
-  addTeamCollaborator
-    owner
-    team
-    bob
-    ["implicit_connection"]
-    >>= assertSuccess
-  removeTeamCollaborator owner team bob >>= assertSuccess
+  charlie <- randomUser OwnDomain def
+  addTeamCollaborator owner0 team0 charlie ["implicit_connection"] >>= assertSuccess
+  addTeamCollaborator owner1 team1 charlie ["implicit_connection"] >>= assertSuccess
 
-  postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "no-team-member"
+  postOne2OneConversation charlie alice team0 "chit-chat" >>= assertSuccess
+  postOne2OneConversation charlie bob team1 "chit-chat" >>= assertSuccess
+
+  removeTeamCollaborator owner0 team0 charlie >>= assertSuccess
+
+  getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
+  postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+  postOne2OneConversation charlie bob team1 "chit-chat" >>= assertSuccess
