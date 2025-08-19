@@ -2,10 +2,15 @@ module Testlib.RunServices (main) where
 
 import Control.Concurrent
 import Control.Monad.Codensity
+import Control.Monad.Reader.Class (MonadReader (ask))
+import Control.Monad.Trans.Class
+import Data.String.Conversions (cs)
+import qualified Data.Yaml as Yaml
 import Options.Applicative
 import System.Directory
 import System.Exit
 import System.FilePath
+import System.IO.Temp (writeTempFile)
 import System.Posix (getWorkingDirectory)
 import System.Process
 import Testlib.Ports
@@ -75,6 +80,7 @@ main = do
     runAppWithEnv env
       $ lowerCodensity
       $ do
+        lift $ runMigrations
         void
           $ traverseConcurrentlyCodensity
             ( \r ->
@@ -85,6 +91,26 @@ main = do
             )
             [backendA, backendB]
         liftIO run
+
+runMigrations :: (HasCallStack) => App ()
+runMigrations = do
+  env <- ask
+  let brig = "brig"
+  let (cwd, exe) = case env.servicesCwdBase of
+        Nothing -> (Nothing, brig)
+        Just dir ->
+          (Just (dir </> brig), "../../dist" </> brig)
+  getConfig <- readAndUpdateConfig def backendA Brig
+  config <- liftIO getConfig
+  tempFile <- liftIO $ writeTempFile "/tmp" "brig-migrations.yaml" (cs $ Yaml.encode config)
+  let dbnames = ["backendA", "backendB", "dyn-1", "dyn-2", "dyn-3"]
+  for_ dbnames $ runMigration exe tempFile cwd
+  liftIO $ putStrLn "Postgres migrations finished"
+  where
+    runMigration exe tempFile cwd dbname = do
+      let cp = (proc exe ["-c", tempFile, "migrate-postgres", "--dbname", dbname]) {cwd}
+      (_, _, _, ph) <- liftIO $ createProcess cp
+      void $ liftIO $ waitForProcess ph
 
 backendA :: BackendResource
 backendA =
