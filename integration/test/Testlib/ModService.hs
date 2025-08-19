@@ -6,6 +6,7 @@ module Testlib.ModService
     startDynamicBackends,
     startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
+    readAndUpdateConfig,
     logToConsole,
   )
 where
@@ -451,16 +452,18 @@ checkServiceIsUp domain srv = do
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
+readAndUpdateConfig :: ServiceOverrides -> BackendResource -> Service -> App (IO Value)
+readAndUpdateConfig overrides resource service =
+  appToIO $
+    readServiceConfig service
+      >>= updateServiceMapInConfig resource service
+      >>= lookupConfigOverride overrides service
+
 withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service -> Codensity App ()
 withProcess resource overrides service = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
   env <- lift ask
-  getConfig <-
-    lift . appToIO $
-      readServiceConfig service
-        >>= updateServiceMapInConfig resource service
-        >>= lookupConfigOverride overrides service
   let execName = configName service
   let (cwd, exe) = case env.servicesCwdBase of
         Nothing -> (Nothing, execName)
@@ -473,6 +476,7 @@ withProcess resource overrides service = do
   stdErr <- liftIO $ newIORef []
   phRef <- liftIO $ newIORef Nothing
 
+  getConfig <- lift $ readAndUpdateConfig overrides resource service
   let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
   let initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm

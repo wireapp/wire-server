@@ -1,7 +1,8 @@
-module Testlib.RunServices (main) where
+module Testlib.RunServices (main, backendA, backendB) where
 
 import Control.Concurrent
 import Control.Monad.Codensity
+import Control.Monad.IO.Class
 import Options.Applicative
 import System.Directory
 import System.Exit
