@@ -563,8 +563,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
             DownloadTeamMembersCsv,
-            NewTeamCollaborator,
-            JoinRegularConversations
+            NewTeamCollaborator
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
@@ -575,7 +574,8 @@ roleHiddenPermissions role = HiddenPermissions p p
     roleHiddenPerms RoleExternalPartner =
       Set.fromList
         [ ViewLegalHoldUserSettings,
-          ViewTeamSearchVisibility
+          ViewTeamSearchVisibility,
+          JoinRegularConversations
         ]
 
 isAdminOrOwner :: Permissions -> Bool
