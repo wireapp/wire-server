@@ -191,7 +191,7 @@ http {
   #
 {{- $clusterDomain := .Values.nginx_conf.cluster_domain }}
 
-  resolver kube-dns.kube-system.svc.{{ $clusterDomain }} valid=30s ipv6=off;
+  resolver {{ .Values.nginx_conf.dns_resolver }}.kube-system.svc.{{ $clusterDomain }} valid=30s ipv6=off;
   resolver_timeout 5s;
 
 {{- $validUpstreams := include "valid_upstreams" . | fromJson }}
