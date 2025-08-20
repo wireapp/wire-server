@@ -157,8 +157,8 @@ devtest:
 ifeq ("$(package)", "all")
 	ghcid --command 'cabal repl lib:integration' --test='Testlib.Run.mainI []'
 else
-	@ghcid --command 'cabal repl $(package):${package}-tests lib:$(package)' --test='Main.main' \
-	  || echo -e "\n\n\n*** usage: make devtest-package package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
+	@ghcid --command 'cabal repl $(package):${package}-tests lib:$(package) --enable-multi-repl' --test='Main.main' \
+	  || echo -e "\n\n\n*** usage: make devtest package=<package>.\n*** this works for wire-subsystems; for other packages, you may need to edit the cabal file.\n\n"
 endif
 
 .PHONY: devtest-package
