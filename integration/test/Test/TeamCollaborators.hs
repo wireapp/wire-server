@@ -173,4 +173,4 @@ testRemoveMember = do
 
   getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
-  postOne2OneConversation charlie bob team1 "chit-chat" >>= assertSuccess
+  getMLSOne2OneConversation charlie bob >>= assertSuccess
