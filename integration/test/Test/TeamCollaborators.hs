@@ -156,8 +156,8 @@ testImplicitConnectionNoCollaborator = do
   -- Alice and Bob aren't connected at all.
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
 
-testRemoveMember :: (HasCallStack) => App ()
-testRemoveMember = do
+testRemoveMemberInO2O :: (HasCallStack) => App ()
+testRemoveMemberInO2O = do
   (owner0, team0, [alice]) <- createTeam OwnDomain 2
   (owner1, team1, [bob]) <- createTeam OwnDomain 2
 
@@ -174,3 +174,23 @@ testRemoveMember = do
   getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
   getMLSOne2OneConversation charlie bob >>= assertSuccess
+
+testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
+testRemoveMemberInTeamConversation = do
+  (owner, team, [alice, bob]) <- createTeam OwnDomain 3
+
+  aliceId <- alice %. "qualified_id"
+  bobId <- bob %. "qualified_id"
+  conv <-
+    postConversation
+      owner
+      defProteus {team = Just team, skipCreator = Just True, qualifiedUsers = [aliceId, bobId]}
+      >>= getJSON 201
+
+  removeTeamCollaborator owner team bob >>= assertSuccess
+
+  getConversation alice conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  getConversation bob conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
