@@ -24,7 +24,7 @@ where
 
 import Cassandra as C
 import Cassandra.Settings as C
-import Data.Text as Text
+import Data.Text as Text hiding (show)
 import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client qualified as HTTP
