@@ -100,10 +100,9 @@ endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
 # ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
-# Usage: make ci                        - build & run all tests, excluding integration
-#        make ci package=all            - build & run all tests, including integration
-#        make ci package=brig           - build brig & run "brig-integration"
-#        make ci package=integration    - build & run "integration"
+# Usage: make ci-fast                   - run all integration tests
+#        make ci-fast package=brig      - run integration test for package
+#        make ci-safe                   - build & run all integration tests
 #
 # You can pass environment variables to all the suites, like so
 # TASTY_PATTERN=".."  make ci package=brig
@@ -128,7 +127,7 @@ ci:
 	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
 
 # Compile and run services
-# Usage: make crun `OR` make crun package=galley
+# Usage: make cr `OR` make cr package=galley
 .PHONY: cr
 cr: c db-migrate
 	./dist/run-services
