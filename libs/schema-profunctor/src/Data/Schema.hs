@@ -907,6 +907,12 @@ instance ToSchema Bool where schema = genericToSchema
 
 instance ToSchema Natural where schema = genericToSchema
 
+instance (ToSchema a) => ToSchema (Identity a) where schema = dimap runIdentity Identity schema
+
+instance (ToSchema a) => ToSchema (Const a x) where schema = dimap getConst Const schema
+
+instance (S.ToSchema a, A.ToJSON a, A.FromJSON a) => ToSchema (Maybe a) where schema = genericToSchema
+
 declareSwaggerSchema :: SchemaP (WithDeclare d) v w a b -> Declare d
 declareSwaggerSchema = runDeclare . schemaDoc
 

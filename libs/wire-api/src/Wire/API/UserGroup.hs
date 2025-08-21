@@ -129,7 +129,7 @@ instance ToSchema (UserGroup_ (Const (Maybe Int))) where
       UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
-        <*> (fromMaybe 0 . getConst . (.members)) .= field "members" (Const . Just <$> schema)
+        <*> (.members) .= field "members" schema
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
