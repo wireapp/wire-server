@@ -74,6 +74,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           NewClient id' ci -> newClient id' ci
           CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
           AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
+          RemoveTeamMember zUser' user team -> removeTeamMember zUser' user team
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
@@ -93,6 +94,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
+          CloseConversationsFrom tid uid -> closeConversationsFrom tid uid
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -278,6 +280,29 @@ addTeamMember u tid minvmeta role = do
         . zUser u
         . expect [status200, status403]
         . lbytes (encode bdy)
+
+-- | Calls 'Galley.API.uncheckedRemoveTeamMemberH'.
+removeTeamMember ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Sem r ()
+removeTeamMember _puid tuid tid = do
+  debug $
+    remote "galley"
+      . msg (val "Removing member from team")
+  void $ galleyRequest req
+  where
+    req =
+      method DELETE
+        . paths ["i", "teams", toByteString' tid, "members"]
+        . header "Content-Type" "application/json"
+        . zUser tuid
+        . expect [status200, status403]
 
 -- | Calls 'Galley.API.createBindingTeamH'.
 createTeam ::
@@ -656,3 +681,22 @@ getEJPDConvInfo uid = do
     getReq =
       method GET
         . paths ["i", "user", toByteString' uid, "all-conversations"]
+
+-- | Calls 'Galley.API.updateTeamStatusH'.
+closeConversationsFrom ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r ()
+closeConversationsFrom tid uid = do
+  debug $ remote "galley" . msg (val "Close all conversations of a user in a team")
+  void $ galleyRequest req
+  where
+    req =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "close-conversations-from", toByteString' uid]
+        . header "Content-Type" "application/json"
+        . expect2xx

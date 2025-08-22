@@ -143,3 +143,42 @@ testImplicitConnectionNoCollaborator = do
     >>= assertSuccess
 
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+
+testRemoveMemberInO2O :: (HasCallStack) => App ()
+testRemoveMemberInO2O = do
+  (owner0, team0, [alice]) <- createTeam OwnDomain 2
+  (owner1, team1, [bob]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  charlie <- randomUser OwnDomain def
+  addTeamCollaborator owner0 team0 charlie ["implicit_connection"] >>= assertSuccess
+  addTeamCollaborator owner1 team1 charlie ["implicit_connection"] >>= assertSuccess
+
+  postOne2OneConversation charlie alice team0 "chit-chat" >>= assertSuccess
+  postOne2OneConversation charlie bob team1 "chit-chat" >>= assertSuccess
+
+  removeTeamCollaborator owner0 team0 charlie >>= assertSuccess
+
+  getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
+  postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+  getMLSOne2OneConversation charlie bob >>= assertSuccess
+
+testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
+testRemoveMemberInTeamConversation = do
+  (owner, team, [alice, bob]) <- createTeam OwnDomain 3
+
+  aliceId <- alice %. "qualified_id"
+  bobId <- bob %. "qualified_id"
+  conv <-
+    postConversation
+      owner
+      defProteus {team = Just team, skipCreator = Just True, qualifiedUsers = [aliceId, bobId]}
+      >>= getJSON 201
+
+  removeTeamCollaborator owner team bob >>= assertSuccess
+
+  getConversation alice conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  getConversation bob conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403

@@ -68,6 +68,7 @@ import Galley.Cassandra.SubConversation
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
+import Galley.ConversationsSubsystem (interpretConversationsSubsystemCassandra)
 import Galley.Effects
 import Galley.Effects.FireAndForget
 import Galley.Env
@@ -314,6 +315,7 @@ evalGalley e =
     . interpretFederatorAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
+    . interpretConversationsSubsystemCassandra
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
     . interpretTeamCollaboratorsSubsystem

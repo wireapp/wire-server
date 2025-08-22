@@ -26,6 +26,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   NewClient _ _ -> error "NewClient not implemented in miniGalleyAPIAccess"
   CheckUserCanJoinTeam _ -> pure Nothing
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
+  RemoveTeamMember {} -> error "RemoveTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
   GetTeamMembers tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
@@ -47,6 +48,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
+  CloseConversationsFrom _ _ -> pure ()
 
 getFeatureConfigForTeamImpl :: forall feature. (IsFeatureConfig feature) => AllTeamFeatures -> TeamId -> LockableFeature feature
 getFeatureConfigForTeamImpl allfeatures _ = npProject' (Proxy @(feature)) allfeatures

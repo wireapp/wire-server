@@ -72,6 +72,11 @@ data GalleyAPIAccess m a where
     Maybe (UserId, UTCTimeMillis) ->
     Role ->
     GalleyAPIAccess m Bool
+  RemoveTeamMember ::
+    Local UserId ->
+    UserId ->
+    TeamId ->
+    GalleyAPIAccess m ()
   CreateTeam ::
     UserId ->
     NewTeam ->
@@ -139,5 +144,6 @@ data GalleyAPIAccess m a where
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
+  CloseConversationsFrom :: TeamId -> UserId -> GalleyAPIAccess m ()
 
 makeSem ''GalleyAPIAccess
