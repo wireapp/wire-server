@@ -16,9 +16,9 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
+import UnliftIO.Async (pooledForConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
 import Wire.ConversationsSubsystem
-import Wire.Sem.Paging.Cassandra (InternalPage (InternalPage), mkInternalPage)
 
 interpretConversationsSubsystemCassandra ::
   ( Member (Embed IO) r,
@@ -38,21 +38,27 @@ closeConversationsFromImpl tid uid =
   runConduit $
     paginateWithStateC listConversationsIds
       .| mapMC performFilter
-      .| mapM_C (bimapM_ (mapM_ deleteConversation) performConversationsRemoveUser)
+      .| mapM_C (bimapM_ (mapM_ deleteConversation) (pooledMapConcurrentlyN_ 16 performConversationsRemoveUser))
   where
     listConversationsIds pagingState =
       fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity uid) 32 pagingState)
     performFilter :: [ConvId] -> Client ([ConvId], [ConvId])
     performFilter convIds = do
-      page <- paginate conversationsFilter (params LocalQuorum (Identity convIds))
-      InternalPage (_, _, filteredConvIds) <- mkInternalPage page pure
+      filteredConvIds <-
+        concat <$> pooledForConcurrentlyN 16 convIds performConversationsFilter
       let extractConv = map (\(convId, _team, _convType) -> convId)
       pure $
         bimap extractConv extractConv $
           partition (\(_convId, _team, convType) -> convType == One2OneConv) $
             filter (\(_convId, team, _convType) -> team == Just tid) filteredConvIds
-    conversationsFilter :: PrepQuery R (Identity [ConvId]) (ConvId, Maybe TeamId, ConvType)
-    conversationsFilter = "select conv, team, type from conversation where conv in ?"
-    performConversationsRemoveUser convIds = retry x5 $ write conversationsRemoveUser (params LocalQuorum (uid, convIds))
-    conversationsRemoveUser :: PrepQuery W (UserId, [ConvId]) ()
-    conversationsRemoveUser = "delete from user where user = ? and conv in ?"
+    performConversationsFilter :: ConvId -> Client [(ConvId, Maybe TeamId, ConvType)]
+    performConversationsFilter convId =
+      retry x1 $
+        query conversationsFilter $
+          params LocalQuorum (Identity convId)
+    conversationsFilter :: PrepQuery R (Identity ConvId) (ConvId, Maybe TeamId, ConvType)
+    conversationsFilter = "select conv, team, type from conversation where conv = ?"
+    performConversationsRemoveUser convId =
+      retry x5 $ write conversationsRemoveUser (params LocalQuorum (uid, convId))
+    conversationsRemoveUser :: PrepQuery W (UserId, ConvId) ()
+    conversationsRemoveUser = "delete from user where user = ? and conv = ?"
