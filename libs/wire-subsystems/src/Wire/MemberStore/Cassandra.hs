@@ -125,8 +125,12 @@ removeRemoteMembersFromLocalConv cnv victims = do
 members :: ConvId -> Client [LocalMember]
 members conv = do
   parents <- retry x1 $ query Cql.selectConvParent (params LocalQuorum (Identity conv))
-  fmap (nubBy ((==) `on` (.id_)) . mapMaybe toMember) . retry x1 $
-    query Cql.selectMembers (params LocalQuorum (Identity $ conv : mapMaybe runIdentity parents))
+  concatMap (nubBy ((==) `on` (.id_)) . mapMaybe toMember)
+    <$> UnliftIO.pooledMapConcurrentlyN 16 fetchMembers (conv : mapMaybe runIdentity parents)
+  where
+    fetchMembers convId =
+      retry x1 $
+        query Cql.selectMembers (params LocalQuorum (Identity convId))
 
 allMembers :: Client [LocalMember]
 allMembers =
@@ -226,8 +230,11 @@ member ::
   Client (Maybe LocalMember)
 member cnv usr = do
   parents <- retry x1 $ query Cql.selectConvParent (params LocalQuorum (Identity cnv))
-  (toMember =<<)
-    <$> retry x1 (query1 Cql.selectMember (params LocalQuorum (cnv : mapMaybe runIdentity parents, usr)))
+  asum . map (toMember =<<)
+    <$> UnliftIO.pooledMapConcurrentlyN 16 fetchMembers (cnv : mapMaybe runIdentity parents)
+  where
+    fetchMembers convId =
+      retry x1 (query1 Cql.selectMember (params LocalQuorum (convId, usr)))
 
 -- | Set local users as belonging to a remote conversation. This is invoked by a
 -- remote galley when users from the current backend are added to conversations

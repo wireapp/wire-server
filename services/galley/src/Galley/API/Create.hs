@@ -53,6 +53,8 @@ import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
 import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.MemberStore (getLocalMember)
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Teams (notTeamMember)
@@ -124,7 +126,8 @@ createGroupConversationUpToV3 ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MemberStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -169,7 +172,8 @@ createGroupOwnConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MemberStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -214,7 +218,8 @@ createGroupConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MemberStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -260,7 +265,8 @@ createGroupConvAndMkResponse ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MemberStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -301,7 +307,8 @@ createGroupConversationGeneric ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MemberStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -791,8 +798,10 @@ createConnectConversation lusr conn j = do
 -- | Return a 'NewConversation' record suitable for creating a group conversation.
 newRegularConversation ::
   ( Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS OperationDenied) r,
     Member (Error InvalidInput) r,
-    Member (Input Opts) r
+    Member (Input Opts) r,
+    Member MemberStore r
   ) =>
   Local UserId ->
   NewConv ->
@@ -800,6 +809,10 @@ newRegularConversation ::
 newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
+  forM_ newConv.newConvParent $ \parent -> do
+    mMebership <- getLocalMember parent (tUnqualified lusr)
+    when (isNothing mMebership) $
+      throwS @OperationDenied
   users <- case newConvProtocol newConv of
     BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
     BaseProtocolMLSTag -> do

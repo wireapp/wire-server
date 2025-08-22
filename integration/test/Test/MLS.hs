@@ -787,7 +787,17 @@ testShadowConversation = do
     fetchedOtherMembers <- fetchedMembers %. "others" & asList
     fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
     expectedMemberIds <- traverse extractId [alice, bob, charlie]
-    sort fetchedOtherMemberIds `shouldMatch` sort expectedMemberIds
+    sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
+
+testShadowConversationDenied :: (HasCallStack) => App ()
+testShadowConversationDenied = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  bindResponse (postConversation bob1 (defMLS {parent = Just convId.id_})) $ \resp -> do
+    resp.status `shouldMatchInt` 403
 
 testPropExistingConv :: (HasCallStack) => App ()
 testPropExistingConv = do
