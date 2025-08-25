@@ -243,8 +243,7 @@ testFederatedUserSearchForNonTeamUser = do
 
 testSearchTeam :: (HasCallStack) => App ()
 testSearchTeam = do
-  let n = 5
-  (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain n
+  (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
   updateTeamMember tid owner m1 Owner >>= assertSuccess
   updateTeamMember tid owner m2 Member >>= assertSuccess
   updateTeamMember tid owner m3 Partner >>= assertSuccess
@@ -253,6 +252,10 @@ testSearchTeam = do
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
-    length docs `shouldMatchInt` n
+    length docs `shouldMatchInt` 5
   bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
-    printJSON resp.json
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    for_ docs $ \doc -> do
+      doc %. "role" `shouldMatch` "member"
+    length docs `shouldMatchInt` 1
