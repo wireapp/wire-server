@@ -11,3 +11,4 @@ intepreterTeamSubsystemToGalleyAPI = interpret $ \case
   InternalGetTeamMember userId teamId -> GalleyAPIAccess.getTeamMember userId teamId
   InternalGetTeamMembers teamId maxResults -> GalleyAPIAccess.getTeamMembers teamId maxResults
   InternalGetTeamAdmins teamId -> GalleyAPIAccess.getTeamAdmins teamId
+  InternalGetUserTeam userId -> GalleyAPIAccess.getTeamId userId

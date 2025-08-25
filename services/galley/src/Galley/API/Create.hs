@@ -32,7 +32,6 @@ module Galley.API.Create
   )
 where
 
-import Control.Error (headMay)
 import Control.Lens hiding ((??))
 import Data.Default
 import Data.Id
@@ -45,12 +44,10 @@ import Data.UUID.Tagged qualified as U
 import Galley.API.Action
 import Galley.API.Cells
 import Galley.API.Error
-import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
-import Galley.App (Env)
 import Galley.Effects
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
@@ -85,12 +82,16 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
+import Wire.ConversationSubsystem.Validation
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem
 import Wire.UserList
 
 ----------------------------------------------------------------------------
@@ -105,26 +106,25 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -149,27 +149,26 @@ createGroupOwnConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (Error NonFederatingBackends) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -194,27 +193,26 @@ createGroupConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (Error NonFederatingBackends) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -235,14 +233,11 @@ createGroupConversation lusr conn newConv = do
 
 createGroupConvAndMkResponse ::
   ( Member (Input Opts) r,
-    Member (Input Env) r,
     Member Now r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS NotATeamMember) r,
     Member (ErrorS NotConnected) r,
-    Member (ErrorS MLSNotEnabled) r,
-    Member (ErrorS MLSNonEmptyMemberList) r,
     Member (ErrorS MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
@@ -250,7 +245,6 @@ createGroupConvAndMkResponse ::
     Member (Error UnreachableBackends) r,
     Member (Error NonFederatingBackends) r,
     Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member P.TinyLog r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
@@ -260,7 +254,10 @@ createGroupConvAndMkResponse ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -282,26 +279,25 @@ createGroupConversationGeneric ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -366,7 +362,8 @@ checkCreateConvPermissions ::
     Member TeamStore r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   NewConv ->
@@ -378,13 +375,13 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
   -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
-  tm <- getTeamMember (tUnqualified lusr) Nothing
+  tm <- internalGetUserTeamMember (tUnqualified lusr)
   for_ tm $
     permissionCheck AddRemoveConvMember . Just
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  mTeamMember <- getTeamMember (tUnqualified lusr) (Just convTeam)
+  mTeamMember <- internalGetTeamMember (tUnqualified lusr) convTeam
   teamAssociation <- case mTeamMember of
     Just tm -> pure (Just (Right tm))
     Nothing -> do
@@ -439,10 +436,6 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
         Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
     ensureCreateChannelPermissions _ Nothing = do
       throwS @NotATeamMember
-
-getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
-getTeamMember uid (Just tid) = E.getTeamMember tid uid
-getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
@@ -785,57 +778,6 @@ createConnectConversation lusr conn j = do
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
---------------------------------------------------------------------------------
--- Conversation creation records
-
--- | Return a 'NewConversation' record suitable for creating a group conversation.
-newRegularConversation ::
-  ( Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (Error InvalidInput) r,
-    Member (Input Opts) r
-  ) =>
-  Local UserId ->
-  NewConv ->
-  Sem r (NewConversation, ConvSizeChecked UserList UserId)
-newRegularConversation lusr newConv = do
-  o <- input
-  let uncheckedUsers = newConvMembers lusr newConv
-  users <- case newConvProtocol newConv of
-    BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
-    BaseProtocolMLSTag -> do
-      unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
-      pure mempty
-  let usersWithoutCreator = (,newConvUsersRole newConv) <$> fromConvSize users
-      newConvUsersRoles =
-        if newConv.newConvSkipCreator
-          then usersWithoutCreator
-          else ulAddLocal (toUserRole (tUnqualified lusr)) usersWithoutCreator
-  let nc =
-        NewConversation
-          { metadata =
-              ConversationMetadata
-                { cnvmType = RegularConv,
-                  cnvmCreator = Just (tUnqualified lusr),
-                  cnvmAccess = access newConv,
-                  cnvmAccessRoles = accessRoles newConv,
-                  cnvmName = fmap fromRange (newConvName newConv),
-                  cnvmMessageTimer = newConvMessageTimer newConv,
-                  cnvmReceiptMode = case newConvProtocol newConv of
-                    BaseProtocolProteusTag -> newConvReceiptMode newConv
-                    BaseProtocolMLSTag -> Just def,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
-                  cnvmGroupConvType = Just newConv.newConvGroupConvType,
-                  cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then newConv.newConvChannelAddPermission <|> Just def else Nothing,
-                  cnvmCellsState =
-                    if newConv.newConvCells
-                      then CellsPending
-                      else CellsDisabled
-                },
-            users = newConvUsersRoles,
-            protocol = newConvProtocol newConv
-          }
-  pure (nc, users)
-
 -------------------------------------------------------------------------------
 -- Helpers
 
@@ -918,19 +860,6 @@ toUUIDs a b = do
   a' <- U.fromUUID (toUUID a) & note InvalidUUID4
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4
   pure (a', b')
-
-accessRoles :: NewConv -> Set AccessRole
-accessRoles b = fromMaybe defRole (newConvAccessRoles b)
-
-access :: NewConv -> [Access]
-access a = case Set.toList (newConvAccess a) of
-  [] -> Data.defRegularConvAccess
-  (x : xs) -> x : xs
-
-newConvMembers :: Local x -> NewConv -> UserList UserId
-newConvMembers loc body =
-  UserList (newConvUsers body) []
-    <> toUserList loc (newConvQualifiedUsers body)
 
 newOne2OneConvMembers :: Local x -> NewOne2OneConv -> UserList UserId
 newOne2OneConvMembers loc body =

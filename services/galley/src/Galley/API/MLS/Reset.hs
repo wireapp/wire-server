@@ -21,7 +21,6 @@ import Data.Id
 import Data.Qualified
 import Galley.API.Action
 import Galley.API.Error
-import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Update
 import Galley.Effects
@@ -38,6 +37,8 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -46,7 +47,6 @@ resetMLSConversation ::
   ( Member (Input Env) r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member (ErrorS MLSNotEnabled) r,
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS (ActionDenied LeaveConversation)) r,
     Member (ErrorS ConvNotFound) r,
@@ -69,7 +69,9 @@ resetMLSConversation ::
     Member SubConversationStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   MLSReset ->

@@ -36,7 +36,6 @@ import Control.Monad.Codensity hiding (reset)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
-import Galley.API.MLS
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Removal
@@ -67,6 +66,8 @@ import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.ConversationSubsystem.Config (ConversationSubsystemConfig, ConversationSubsystemError)
+import Wire.ConversationSubsystem.Interpreter
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
@@ -171,7 +172,9 @@ getSubConversationGroupInfo ::
          SubConversationStore
        ]
       r,
-    Members MLSGroupInfoStaticErrors r
+    Members MLSGroupInfoStaticErrors r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -218,11 +221,12 @@ deleteSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (Error FederationError) r,
     Member FederatorAccess r,
-    Member (Input Env) r,
     Member MemberStore r,
     Member Resource r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -294,10 +298,11 @@ leaveSubConversation ::
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -318,11 +323,12 @@ leaveLocalSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSNotEnabled) r,
     Member (Error FederationError) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   ClientIdentity ->
   Local ConvId ->

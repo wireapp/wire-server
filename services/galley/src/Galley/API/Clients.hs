@@ -47,6 +47,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
+import Wire.ConversationSubsystem.Config
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
@@ -83,7 +84,9 @@ rmClient ::
     Member Random r,
     Member SubConversationStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   UserId ->
   ClientId ->
