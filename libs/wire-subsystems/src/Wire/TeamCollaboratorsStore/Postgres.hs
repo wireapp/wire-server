@@ -37,6 +37,7 @@ interpretTeamCollaboratorsStoreToPostgres =
     GetAllTeamCollaborators teamId -> getAllTeamCollaboratorsImpl teamId
     GetTeamCollaborator teamId userId -> getTeamCollaboratorImpl teamId userId
     GetTeamCollaborations userId -> getTeamCollaborationsImpl userId
+    GetTeamCollaboratorsWithIds teamIds userIds -> getTeamCollaboratorsWithIdsImpl teamIds userIds
 
 getTeamCollaboratorImpl ::
   ( Member (Input Pool) r,
@@ -165,4 +166,29 @@ getTeamCollaborationsImpl teamId = do
       dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
         [vectorStatement|
           select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where user_id = ($1 :: uuid)
+          |]
+
+getTeamCollaboratorsWithIdsImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  Set TeamId ->
+  Set UserId ->
+  Sem r [TeamCollaborator]
+getTeamCollaboratorsWithIdsImpl teamIds userIds = do
+  pool <- input
+  eitherTeamCollaborators <- liftIO $ use pool session
+  either throw pure eitherTeamCollaborators
+  where
+    session :: Session [TeamCollaborator]
+    session = statement (Data.Set.toList teamIds, Data.Set.toList userIds) getTeamCollaboratorStatement
+
+    getTeamCollaboratorStatement :: Statement ([TeamId], [UserId]) [TeamCollaborator]
+    getTeamCollaboratorStatement =
+      dimap
+        (bimap (Data.Vector.fromList . Imports.map toUUID) (Data.Vector.fromList . Imports.map toUUID))
+        (Data.Vector.toList . (toTeamCollaborator <$>))
+        $ [vectorStatement|
+            select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where team_id = ANY($1 :: uuid[]) and user_id = ANY($2 :: uuid[])
           |]

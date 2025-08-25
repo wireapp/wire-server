@@ -12,5 +12,6 @@ data TeamCollaboratorsStore m a where
   GetAllTeamCollaborators :: TeamId -> TeamCollaboratorsStore m [TeamCollaborator]
   GetTeamCollaborator :: TeamId -> UserId -> TeamCollaboratorsStore m (Maybe TeamCollaborator)
   GetTeamCollaborations :: UserId -> TeamCollaboratorsStore m ([TeamCollaborator])
+  GetTeamCollaboratorsWithIds :: Set TeamId -> Set UserId -> TeamCollaboratorsStore m [TeamCollaborator]
 
 makeSem ''TeamCollaboratorsStore

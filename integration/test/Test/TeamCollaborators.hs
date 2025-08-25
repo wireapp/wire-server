@@ -113,6 +113,11 @@ testImplicitConnectionAllowed = do
 
   getMLSOne2OneConversation bob alice >>= assertSuccess
 
+  -- Connecting should work the other way round as well.
+  postOne2OneConversation alice bob team "chat-chit" >>= assertSuccess
+
+  getMLSOne2OneConversation alice bob >>= assertSuccess
+
 testImplicitConnectionNotConfigured :: (HasCallStack) => App ()
 testImplicitConnectionNotConfigured = do
   (owner, team, [alice]) <- createTeam OwnDomain 2
@@ -128,6 +133,12 @@ testImplicitConnectionNotConfigured = do
 
   postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "operation-denied"
 
+  -- Team members can create 1:1s with all collaborators, regardless of the
+  -- collaborators' permissions.
+  postOne2OneConversation alice bob team "chat-chit" >>= assertSuccess
+
+  getMLSOne2OneConversation alice bob >>= assertSuccess
+
 testImplicitConnectionNoCollaborator :: (HasCallStack) => App ()
 testImplicitConnectionNoCollaborator = do
   (_owner0, team0, [alice]) <- createTeam OwnDomain 2
@@ -142,4 +153,7 @@ testImplicitConnectionNoCollaborator = do
     ["implicit_connection"]
     >>= assertSuccess
 
+  -- Alice and Bob aren't connected at all.
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+
+  postOne2OneConversation alice bob team0 "chat-chit" >>= assertLabel 403 "non-binding-team-members"
