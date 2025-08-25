@@ -771,7 +771,7 @@ testAddTeamMemberToConv = do
   -- mem1T1 (who is *not* a member of the new conversation) can *not* add other team members
   -- despite being a team member and having the permission `AddRemoveConvMember`.
   Util.assertNotConvMember mem1T1 cidT1
-  Util.postMembers mem1T1 (pure qMem2T1) qcidT1 !!! const 404 === statusCode
+  Util.postMembers mem1T1 (pure qMem2T1) qcidT1 !!! const 403 === statusCode
   Util.assertNotConvMember mem2T1 cidT1
   -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
   -- since conversation roles trump any team roles. Note that all users are admins by default
