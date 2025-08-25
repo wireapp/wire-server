@@ -37,7 +37,7 @@ testObject_UserGroupUpdate_2 :: UserGroupUpdate
 testObject_UserGroupUpdate_2 = UserGroupUpdate (unsafeToUserGroupName "some name @@~~ii")
 
 testObject_UserGroup_1 :: UserGroupMeta
-testObject_UserGroup_1 = UserGroup_ userGroupId1 (unsafeToUserGroupName "name") (Const Nothing) ManagedByWire someUTCTime
+testObject_UserGroup_1 = UserGroup_ userGroupId1 (unsafeToUserGroupName "name") (Const ()) Nothing ManagedByWire someUTCTime
 
 testObject_UserGroup_2 :: UserGroup
-testObject_UserGroup_2 = UserGroup_ userGroupId2 (unsafeToUserGroupName "yet another one") (Identity $ fromList [userId1, userId2]) ManagedByScim someUTCTime
+testObject_UserGroup_2 = UserGroup_ userGroupId2 (unsafeToUserGroupName "yet another one") (Identity $ fromList [userId1, userId2]) Nothing ManagedByScim someUTCTime
