@@ -27,11 +27,10 @@ import Cassandra qualified as Cql
 import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson
-import Data.Attoparsec.ByteString.Char8 (string)
-import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString)
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -97,10 +96,7 @@ instance S.ToParamSchema Role where
       & S.enum_ ?~ fmap roleName [minBound .. maxBound]
 
 instance FromHttpApiData Role where
-  parseQueryParam name = note ("Unknown role: " <> name) $
-    getAlt $
-      flip foldMap [minBound .. maxBound] $ \s ->
-        guard (T.pack (show s) == name) $> s
+  parseQueryParam name = note ("Unknown role: " <> name) $ fromByteString $ T.encodeUtf8 name
 
 roleName :: (IsString a) => Role -> a
 roleName RoleOwner = "owner"
@@ -112,10 +108,14 @@ instance ToByteString Role where
   builder = roleName
 
 instance FromByteString Role where
-  parser =
-    asum $
-      [minBound .. maxBound] <&> \ctor ->
-        ctor <$ string (roleName ctor)
+  parser = do
+    name :: ByteString <- parser
+    case name of
+      "owner" -> pure RoleOwner
+      "admin" -> pure RoleAdmin
+      "member" -> pure RoleMember
+      "partner" -> pure RoleExternalPartner
+      _ -> fail $ "Unknown role: " ++ show name
 
 defaultRole :: Role
 defaultRole = RoleMember
