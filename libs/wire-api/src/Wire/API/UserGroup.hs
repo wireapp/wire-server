@@ -88,14 +88,15 @@ instance ToSchema UserGroupUpdate where
 
 type UserGroup = UserGroup_ Identity
 
-type UserGroupMeta = UserGroup_ (Const (Maybe Int))
+type UserGroupMeta = UserGroup_ (Const ())
 
 userGroupToMeta :: UserGroup -> UserGroupMeta
 userGroupToMeta ug =
   UserGroup_
     { id_ = ug.id_,
       name = ug.name,
-      members = Const (Just $ length $ ug.members),
+      members = Const (),
+      membersCount = ug.membersCount,
       managedBy = ug.managedBy,
       createdAt = ug.createdAt
     }
@@ -104,32 +105,34 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
   { id_ :: UserGroupId,
     name :: UserGroupName,
     members :: f (Vector UserId),
+    membersCount :: Maybe Int,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
   }
   deriving (Generic)
 
-deriving instance Eq (UserGroup_ (Const (Maybe Int)))
+deriving instance Eq (UserGroup_ (Const ()))
 
-deriving instance Ord (UserGroup_ (Const (Maybe Int)))
+deriving instance Ord (UserGroup_ (Const ()))
 
-deriving instance Show (UserGroup_ (Const (Maybe Int)))
+deriving instance Show (UserGroup_ (Const ()))
 
-deriving via GenericUniform (UserGroup_ (Const (Maybe Int))) instance Arbitrary (UserGroup_ (Const (Maybe Int)))
+deriving via GenericUniform (UserGroup_ (Const ())) instance Arbitrary (UserGroup_ (Const ()))
 
-deriving via Schema (UserGroup_ (Const (Maybe Int))) instance A.ToJSON (UserGroup_ (Const (Maybe Int)))
+deriving via Schema (UserGroup_ (Const ())) instance A.ToJSON (UserGroup_ (Const ()))
 
-deriving via Schema (UserGroup_ (Const (Maybe Int))) instance A.FromJSON (UserGroup_ (Const (Maybe Int)))
+deriving via Schema (UserGroup_ (Const ())) instance A.FromJSON (UserGroup_ (Const ()))
 
-deriving via Schema (UserGroup_ (Const (Maybe Int))) instance OpenApi.ToSchema (UserGroup_ (Const (Maybe Int)))
+deriving via Schema (UserGroup_ (Const ())) instance OpenApi.ToSchema (UserGroup_ (Const ()))
 
-instance ToSchema (UserGroup_ (Const (Maybe Int))) where
+instance ToSchema (UserGroup_ (Const ())) where
   schema =
     object "UserGroupMeta" $
       UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
-        <*> (.members) .= field "members" schema
+        <*> (.members) .= pure mempty
+        <*> (.membersCount) .= field "membersCount" schema
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
@@ -154,5 +157,6 @@ instance ToSchema (UserGroup_ Identity) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
+        <*> (.membersCount) .= field "membersCount" schema
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema

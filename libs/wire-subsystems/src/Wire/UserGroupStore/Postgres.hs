@@ -68,6 +68,7 @@ getUserGroupImpl team id_ = do
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ Identity <$> statement id_ getGroupMembersStatement
+      let membersCount = Nothing
       pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
@@ -180,13 +181,14 @@ getUserGroupsImpl req = do
         )
 
     parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32) -> Either Text UserGroupMeta
-    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersRaw) = do
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw) = do
       managedBy <- case managedByPre of
         0 -> pure ManagedByWire
         1 -> pure ManagedByScim
         bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
       name <- userGroupNameFromText namePre
-      let members = Const (fromIntegral <$> membersRaw)
+      let members = Const ()
+          membersCount = fromIntegral <$> membersCountRaw
       pure $ UserGroup_ {..}
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
@@ -245,7 +247,7 @@ createUserGroupImpl team newUserGroup managedBy = do
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
       (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
-      pure UserGroup_ {members = Identity newUserGroup.members, managedBy = managedBy_, ..}
+      pure UserGroup_ {membersCount = Nothing, members = Identity newUserGroup.members, managedBy = managedBy_, ..}
 
     decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =
