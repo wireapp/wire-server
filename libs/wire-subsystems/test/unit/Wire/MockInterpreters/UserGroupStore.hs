@@ -70,6 +70,7 @@ createUserGroupImpl tid nug managedBy = do
           { id_ = gid,
             name = nug.name,
             members = Identity nug.members,
+            membersCount = Nothing,
             managedBy = managedBy,
             createdAt = toUTCTimeMillis now
           }

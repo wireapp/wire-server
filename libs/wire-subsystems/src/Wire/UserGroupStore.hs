@@ -15,7 +15,8 @@ data UserGroupPageRequest = UserGroupPageRequest
     searchString :: Maybe Text,
     paginationState :: PaginationState,
     sortOrder :: SortOrder,
-    pageSize :: PageSize
+    pageSize :: PageSize,
+    includeMemberCount :: Bool
   }
 
 data PaginationState = PaginationSortByName (Maybe (UserGroupName, UserGroupId)) | PaginationSortByCreatedAt (Maybe (UTCTimeMillis, UserGroupId))

@@ -68,6 +68,7 @@ getUserGroupImpl team id_ = do
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ Identity <$> statement id_ getGroupMembersStatement
+      let membersCount = Nothing
       pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
@@ -168,33 +169,40 @@ getUserGroupsImpl req = do
     encodeTime :: HE.Params UTCTimeMillis
     encodeTime = contramap fromUTCTimeMillis $ HE.param $ HE.nonNullable HE.timestamptz
 
-    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime)]
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32)]
     decodeRow =
       HD.rowList
-        ( (,,,)
+        ( (,,,,)
             <$> HD.column (HD.nonNullable HD.uuid)
             <*> HD.column (HD.nonNullable HD.text)
             <*> HD.column (HD.nonNullable HD.int4)
             <*> HD.column (HD.nonNullable HD.timestamptz)
+            <*> (if req.includeMemberCount then Just <$> HD.column (HD.nonNullable HD.int4) else pure Nothing)
         )
 
-    parseRow :: (UUID, Text, Int32, UTCTime) -> Either Text UserGroupMeta
-    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt) = do
+    parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32) -> Either Text UserGroupMeta
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw) = do
       managedBy <- case managedByPre of
         0 -> pure ManagedByWire
         1 -> pure ManagedByScim
         bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
       name <- userGroupNameFromText namePre
       let members = Const ()
+          membersCount = fromIntegral <$> membersCountRaw
       pure $ UserGroup_ {..}
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
 -- query string and the search string (which needs escaping).
 paginationStateToSqlQuery :: UserGroupPageRequest -> Text
 paginationStateToSqlQuery UserGroupPageRequest {..} =
-  (T.unwords $ filter (not . T.null) [sel, whr, constraintClause, like, orderBy, limit])
+  (T.unwords $ filter (not . T.null) [selFrom, whr, constraintClause, like, orderBy, limit])
   where
-    sel = "select id, name, managed_by, created_at from user_group"
+    selFrom = "select " <> sel <> " from user_group as ug"
+    sel =
+      T.intercalate ", " $
+        filter (not . T.null) $
+          ["id", "name", "managed_by", "created_at"]
+            <> ["(select count(*) from user_group_member as ugm where ugm.user_group_id = ug.id) as members" | includeMemberCount]
     whr = "where team_id = ($1 :: uuid)"
     sortColumn = toSortBy paginationState
     orderBy = T.unwords ["order by", sortColumnName sortColumn, sortOrderClause sortOrder <> ", id", sortOrderClause sortOrder]
@@ -239,7 +247,7 @@ createUserGroupImpl team newUserGroup managedBy = do
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
       (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
-      pure UserGroup_ {members = Identity newUserGroup.members, managedBy = managedBy_, ..}
+      pure UserGroup_ {membersCount = Nothing, members = Identity newUserGroup.members, managedBy = managedBy_, ..}
 
     decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =
