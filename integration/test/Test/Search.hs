@@ -237,3 +237,22 @@ testFederatedUserSearchForNonTeamUser = do
         [] -> pure ()
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
+
+--------------------------------------------------------------------------------
+-- TEAM SEARCH
+
+testSearchTeam :: (HasCallStack) => App ()
+testSearchTeam = do
+  let n = 5
+  (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain n
+  updateTeamMember tid owner m1 Owner >>= assertSuccess
+  updateTeamMember tid owner m2 Member >>= assertSuccess
+  updateTeamMember tid owner m3 Partner >>= assertSuccess
+  updateTeamMember tid owner m4 Admin >>= assertSuccess
+  BrigI.refreshIndex OwnDomain
+  bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` n
+  bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
+    printJSON resp.json

@@ -250,17 +250,17 @@ searchContacts user searchTerm domain = do
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__search
-searchTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
-searchTeam user q = do
+searchTeam :: (HasCallStack, MakesValue user) => user -> [(String, String)] -> App Response
+searchTeam user params = do
   tid <- user %. "team" & asString
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
-  submit "GET" (req & addQueryParams [("q", q)])
+  submit "GET" (req & addQueryParams params)
+
+searchTeamWithSearchTerm :: (HasCallStack, MakesValue user) => user -> String -> App Response
+searchTeamWithSearchTerm user q = searchTeam user [("q", q)]
 
 searchTeamAll :: (HasCallStack, MakesValue user) => user -> App Response
-searchTeamAll user = do
-  tid <- user %. "team" & asString
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
-  submit "GET" (req & addQueryParams [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")])
+searchTeamAll user = searchTeam user [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")]
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
