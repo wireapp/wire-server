@@ -184,6 +184,10 @@ sitemap' =
     :<|> Named @"put-route-limited-event-fanout" (mkFeatureStatusPutRoute @LimitedEventFanoutConfig)
     :<|> Named @"get-route-consumable-notifications" (mkFeatureGetRoute @ConsumableNotificationsConfig)
     :<|> Named @"put-route-consumable-notifications" (mkFeatureStatusPutRoute @ConsumableNotificationsConfig)
+    :<|> Named @"get-route-chat-bubbles-config" (mkFeatureGetRoute @ChatBubblesConfig)
+    :<|> Named @"put-route-chat-bubbles-config" (mkFeatureStatusPutRoute @ChatBubblesConfig)
+    :<|> Named @"get-route-apps-config" (mkFeatureGetRoute @AppsConfig)
+    :<|> Named @"put-route-apps-config" (mkFeatureStatusPutRoute @AppsConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -216,6 +220,8 @@ sitemap' =
     :<|> Named @"lock-unlock-route-limited-event-fanout-config" (mkFeatureLockUnlockRoute @LimitedEventFanoutConfig)
     :<|> Named @"lock-unlock-route-cells-config" (mkFeatureLockUnlockRoute @CellsConfig)
     :<|> Named @"lock-unlock-route-consumable-notifications-config" (mkFeatureLockUnlockRoute @ConsumableNotificationsConfig)
+    :<|> Named @"lock-unlock-route-chat-bubbles-config" (mkFeatureLockUnlockRoute @ChatBubblesConfig)
+    :<|> Named @"lock-unlock-route-apps-config" (mkFeatureLockUnlockRoute @AppsConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

@@ -368,6 +368,14 @@ galley:
           status: enabled
           config:
             mlsConversationReset: false
+        chatBubbles:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        apps:
+          defaults:
+            status: disabled
+            lockStatus: locked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo

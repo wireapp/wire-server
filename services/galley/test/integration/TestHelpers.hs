@@ -26,7 +26,7 @@ import Data.Domain (Domain)
 import Data.Qualified
 import Galley.Options (federationDomain, settings)
 import Imports
-import Test.Tasty (TestName, TestTree)
+import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, testCase)
 import TestSetup
 
@@ -37,6 +37,10 @@ test s n h = testCase n runTest
     runTest = do
       setup <- s
       void . flip runReaderT setup . runTestM $ h
+
+-- | Use this for debugging flaky tests to run them `n` times.
+deflake :: Int -> IO TestSetup -> TestName -> TestM a -> TestTree
+deflake n s name h = testGroup "deflake" $ (\i -> test s (name <> " (retry " <> show i <> ")") h) <$> [1 .. n]
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsGConf . settings . federationDomain)

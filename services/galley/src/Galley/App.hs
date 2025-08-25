@@ -110,10 +110,12 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.BrigAPIAccess.Rpc
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.ParseException
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
@@ -129,6 +131,7 @@ type GalleyEffects0 =
      Input Hasql.Pool,
      Input Env,
      Error InvalidInput,
+     Error ParseException,
      Error InternalError,
      -- federation errors can be thrown by almost every endpoint, so we avoid
      -- having to declare it every single time, and simply handle it here
@@ -269,6 +272,7 @@ evalGalley e =
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
+    . mapError toResponse
     . runInputConst e
     . runInputConst (e ^. hasqlPool)
     . runInputConst (e ^. cstate)
@@ -306,17 +310,16 @@ evalGalley e =
     . interpretClientStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
     . interpretFireAndForget
-    . interpretBotAccess
     . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
-    . interpretExternalAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
     . interpretTeamCollaboratorsSubsystem
     . interpretSparAccess
-    . interpretBrigAccess
+    . interpretBrigAccess (e ^. brig)
+    . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
 

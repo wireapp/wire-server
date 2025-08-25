@@ -47,7 +47,6 @@ import Galley.API.Teams.Features.Get
 import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
 import Galley.App
 import Galley.Effects
-import Galley.Effects.BrigAccess (updateSearchVisibilityInbound)
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
@@ -66,6 +65,7 @@ import Wire.API.Event.FeatureConfig
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -307,8 +307,7 @@ instance SetFeatureConfig LegalholdConfig where
     SetFeatureForTeamConstraints LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),
         Member BackendNotificationQueueAccess r,
-        Member BotAccess r,
-        Member BrigAccess r,
+        Member BrigAPIAccess r,
         Member CodeStore r,
         Member ConversationStore r,
         Member (Error FederationError) r,
@@ -378,7 +377,7 @@ instance SetFeatureConfig GuestLinksConfig
 instance SetFeatureConfig SndFactorPasswordChallengeConfig
 
 instance SetFeatureConfig SearchVisibilityInboundConfig where
-  type SetFeatureForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
+  type SetFeatureForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAPIAccess r)
   prepareFeature tid feat = do
     updateSearchVisibilityInbound $ toTeamStatus tid feat
 
@@ -452,3 +451,7 @@ instance SetFeatureConfig DomainRegistrationConfig
 instance SetFeatureConfig CellsConfig
 
 instance SetFeatureConfig ConsumableNotificationsConfig
+
+instance SetFeatureConfig ChatBubblesConfig
+
+instance SetFeatureConfig AppsConfig

@@ -37,7 +37,6 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.SubConversationStore
@@ -68,13 +67,14 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
+import Wire.BrigAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
 
 type HasProposalActionEffects r =
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -151,7 +151,7 @@ incrementEpoch (SubConv c s) = do
   pure (SubConv c subconv)
 
 getClientInfo ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member FederatorAccess r,
     Member (Error FederationError) r
   ) =>
@@ -179,7 +179,7 @@ getRemoteMLSClients rusr suite = do
       <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
 
 getSingleClientInfo ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member FederatorAccess r,
     Member (Error FederationError) r
   ) =>
@@ -249,7 +249,7 @@ checkUpdatePath ::
   ( Member (ErrorS MLSIdentityMismatch) r,
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member FederatorAccess r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>

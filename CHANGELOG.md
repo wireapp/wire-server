@@ -1,3 +1,31 @@
+# [2025-08-25] (Chart Release 5.21.0)
+
+## API changes
+
+
+* Create new API version V12 and finalize V11 (#4724)
+
+
+## Features
+
+
+* New team feature config for chat bubbles (#4711)
+
+* New team feature config for apps (#4715)
+
+
+## Internal changes
+
+
+* Fix race condition during postgres migrations in integration tests (#4723)
+
+* Improve logging on RabbitMQ connection (#4716)
+
+* Add PodDisruptionBudgets to service charts; render only when replicas > 1 (#4720)
+
+* charts/nginz: Make k8s dns resolver service configurable for nginz (#4726)
+
+
 # [2025-08-08] (Chart Release 5.20.0)
 
 ## Release notes

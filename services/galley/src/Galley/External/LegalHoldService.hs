@@ -40,7 +40,6 @@ import Data.Misc
 import Data.Qualified (Local, QualifiedWithTag (tUntagged), tUnqualified)
 import Data.Set qualified as Set
 import Galley.Effects.LegalHoldStore as LegalHoldData
-import Galley.External.LegalHoldService.Types
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types
@@ -50,6 +49,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import Wire.API.Team.LegalHold.External
+import Wire.BrigAPIAccess
 
 ----------------------------------------------------------------------
 -- api

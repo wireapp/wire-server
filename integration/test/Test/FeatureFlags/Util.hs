@@ -159,7 +159,9 @@ defAllFeatures =
                 [ "mlsConversationReset" .= False
                 ]
           ],
-      "consumableNotifications" .= disabledLocked
+      "consumableNotifications" .= disabledLocked,
+      "chatBubbles" .= disabledLocked,
+      "apps" .= disabledLocked
     ]
 
 hasExplicitLockStatus :: String -> Bool

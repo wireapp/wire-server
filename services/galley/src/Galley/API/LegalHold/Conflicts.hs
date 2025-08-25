@@ -34,7 +34,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.TeamStore
 import Galley.Options
 import Galley.Types.Teams
@@ -49,13 +48,14 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.User.Client as Client
+import Wire.BrigAPIAccess
 
 data LegalholdConflicts = LegalholdConflicts
 
 data LegalholdConflictsOldClients = LegalholdConflictsOldClients
 
 guardQualifiedLegalholdPolicyConflicts ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Error LegalholdConflicts) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
@@ -80,7 +80,7 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
 guardLegalholdPolicyConflicts ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Error LegalholdConflicts) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -105,7 +105,7 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
 
 guardLegalholdPolicyConflictsUid ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Error LegalholdConflicts) r,
     Member TeamStore r,
     Member P.TinyLog r

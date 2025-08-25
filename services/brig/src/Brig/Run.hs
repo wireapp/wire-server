@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Run (run, mkApp, migratePostres) where
+module Brig.Run (run, mkApp, migratePostgres) where
 
 import AWS.Util (readAuthExpiration)
 import Brig.API.Federation
@@ -110,8 +110,8 @@ run opts = withTracer \tracer -> do
     brig = opts.brig
     server e = defaultServer (unpack $ brig.host) brig.port e.appLogger
 
-migratePostres :: Opts -> Bool -> IO ()
-migratePostres opts resetFirst = do
+migratePostgres :: Opts -> Bool -> IO ()
+migratePostgres opts resetFirst = do
   logger <- initLogger opts
   pool <- initPostgresPool opts.postgresql opts.postgresqlPassword
   when resetFirst $ resetSchema pool logger

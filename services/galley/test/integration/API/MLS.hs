@@ -218,7 +218,7 @@ tests s =
         ]
     ]
 
-postMLSConvFail :: TestM ()
+postMLSConvFail :: (HasCallStack) => TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
@@ -235,7 +235,7 @@ postMLSConvFail = do
       const 400 === statusCode
       const (Just "non-empty-member-list") === fmap Wai.label . responseJsonError
 
-postMLSConvOk :: TestM ()
+postMLSConvOk :: (HasCallStack) => TestM ()
 postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
@@ -257,7 +257,7 @@ postMLSConvOk = do
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 --
 -- This test verifies that a user must be a member of an MLS conversation in order to send messages to it.
-testSenderNotInConversation :: TestM ()
+testSenderNotInConversation :: (HasCallStack) => TestM ()
 testSenderNotInConversation = do
   -- create users
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -286,7 +286,7 @@ testSenderNotInConversation = do
 
 -- @END
 
-testAddUserWithBundle :: TestM ()
+testAddUserWithBundle :: (HasCallStack) => TestM ()
 testAddUserWithBundle = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
@@ -319,7 +319,7 @@ testAddUserWithBundle = do
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpGroupInfo commit))
   liftIO $ mpGroupInfo commit @?= Just returnedGS
 
-testAddUserNotConnected :: TestM ()
+testAddUserNotConnected :: (HasCallStack) => TestM ()
 testAddUserNotConnected = do
   users@[alice, bob] <- replicateM 2 randomQualifiedUser
 
@@ -343,7 +343,7 @@ testAddUserNotConnected = do
     liftTest $ connectUsers (qUnqualified alice) (pure (qUnqualified bob))
     void $ sendAndConsumeCommitBundle commit
 
-testAddUserWithProteusClients :: TestM ()
+testAddUserWithProteusClients :: (HasCallStack) => TestM ()
 testAddUserWithProteusClients = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -357,7 +357,7 @@ testAddUserWithProteusClients = do
     void $ setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
-testAddClientPartial :: TestM ()
+testAddClientPartial :: (HasCallStack) => TestM ()
 testAddClientPartial = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -377,7 +377,7 @@ testAddClientPartial = do
       createAddCommitWithKeyPackages alice1 [(bob2, kp.raw)]
         >>= sendAndConsumeCommitBundle
 
-testSendAnotherUsersCommit :: TestM ()
+testSendAnotherUsersCommit :: (HasCallStack) => TestM ()
 testSendAnotherUsersCommit = do
   -- create users
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -404,7 +404,7 @@ testSendAnotherUsersCommit = do
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
-testAddUsersToProteus :: TestM ()
+testAddUsersToProteus :: (HasCallStack) => TestM ()
 testAddUsersToProteus = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   void $ postConvQualified (qUnqualified alice) Nothing defNewProteusConv
@@ -419,7 +419,7 @@ testAddUsersToProteus = do
         =<< localPostCommitBundle alice1 bundle <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
 
-testAddUsersDirectly :: TestM ()
+testAddUsersDirectly :: (HasCallStack) => TestM ()
 testAddUsersDirectly = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   charlie <- randomQualifiedUser
@@ -437,7 +437,7 @@ testAddUsersDirectly = do
           <!! const 403 === statusCode
     liftIO $ Wai.label e @?= "invalid-op"
 
-testRemoveUsersDirectly :: TestM ()
+testRemoveUsersDirectly :: (HasCallStack) => TestM ()
 testRemoveUsersDirectly = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -454,7 +454,7 @@ testRemoveUsersDirectly = do
           <!! const 403 === statusCode
     liftIO $ Wai.label e @?= "invalid-op"
 
-testProteusMessage :: TestM ()
+testProteusMessage :: (HasCallStack) => TestM ()
 testProteusMessage = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -474,7 +474,7 @@ testProteusMessage = do
           <!! const 404 === statusCode
     liftIO $ Wai.label e @?= "no-conversation"
 
-testAddRemotesSomeUnreachable :: TestM ()
+testAddRemotesSomeUnreachable :: (HasCallStack) => TestM ()
 testAddRemotesSomeUnreachable = do
   let bobDomain = Domain "bob.example.com"
       charlieDomain = Domain "charlie.example.com"
@@ -503,7 +503,7 @@ testAddRemotesSomeUnreachable = do
       memId (cmSelf (cnvMembers convAfter)) @?= alice
       cmOthers (cnvMembers convAfter) @?= []
 
-testCommitLock :: TestM ()
+testCommitLock :: (HasCallStack) => TestM ()
 testCommitLock = do
   users <- createAndConnectUsers (replicate 4 Nothing)
 
@@ -544,7 +544,7 @@ testCommitLock = do
               (groupId, epoch)
           )
 
-testUnknownProposalRefCommit :: TestM ()
+testUnknownProposalRefCommit :: (HasCallStack) => TestM ()
 testUnknownProposalRefCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -593,7 +593,7 @@ testUnknownProposalRefCommit = do
 -- skipped: 1 3 6 7 8 9 13
 -- faked: 4
 -- actual test step: 12 14
-testLocalToRemote :: TestM ()
+testLocalToRemote :: (HasCallStack) => TestM ()
 testLocalToRemote = do
   -- create users
   let aliceDomain = Domain "faraway.example.com"
@@ -633,7 +633,7 @@ testLocalToRemote = do
       bdy.sender @?= qUnqualified bob
       bdy.rawMessage @?= Base64ByteString (mpMessage message)
 
-testLocalToRemoteNonMember :: TestM ()
+testLocalToRemoteNonMember :: (HasCallStack) => TestM ()
 testLocalToRemoteNonMember = do
   -- create users
   let domain = Domain "faraway.example.com"
@@ -676,7 +676,7 @@ testLocalToRemoteNonMember = do
 --
 -- This test verifies that only the members of an MLS conversation are allowed
 -- to join via external commit.
-testExternalCommitNotMember :: TestM ()
+testExternalCommitNotMember :: (HasCallStack) => TestM ()
 testExternalCommitNotMember = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
@@ -696,7 +696,7 @@ testExternalCommitNotMember = do
 
 -- @END
 
-testExternalCommitSameClient :: TestM ()
+testExternalCommitSameClient :: (HasCallStack) => TestM ()
 testExternalCommitSameClient = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
@@ -716,7 +716,7 @@ testExternalCommitSameClient = do
     message <- createApplicationMessage bob1 "hello"
     void $ sendAndConsumeMessage message
 
-testExternalCommitNewClient :: TestM ()
+testExternalCommitNewClient :: (HasCallStack) => TestM ()
 testExternalCommitNewClient = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
@@ -741,7 +741,7 @@ testExternalCommitNewClient = do
 -- | Check that external backend proposals are replayed after external commits
 -- AND that (external) client proposals are NOT replayed by the backend in the
 -- same case (since this is up to the clients).
-testExternalCommitNewClientResendBackendProposal :: TestM ()
+testExternalCommitNewClientResendBackendProposal :: (HasCallStack) => TestM ()
 testExternalCommitNewClientResendBackendProposal = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
@@ -795,7 +795,7 @@ testExternalCommitNewClientResendBackendProposal = do
         wsAssertBackendRemoveProposalWithEpoch bob qcnv bobIdx2 (Epoch 2)
       WS.assertNoEvent (2 # WS.Second) [wsA, wsB]
 
-testAppMessage :: TestM ()
+testAppMessage :: (HasCallStack) => TestM ()
 testAppMessage = do
   users@(alice : _) <- createAndConnectUsers (replicate 4 Nothing)
 
@@ -814,7 +814,7 @@ testAppMessage = do
           wsAssertMLSMessage (fmap Conv qcnv) alice (mpMessage message)
         WS.assertNoEvent (2 # WS.Second) [head wss]
 
-testAppMessage2 :: TestM ()
+testAppMessage2 :: (HasCallStack) => TestM ()
 testAppMessage2 = do
   -- create users
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
@@ -846,7 +846,7 @@ testAppMessage2 = do
           wsAssertMLSMessage (fmap Conv conversation) bob (mpMessage message)
         WS.assertNoEvent (2 # WS.Second) [wsBob1]
 
-testAppMessageUnreachable :: TestM ()
+testAppMessageUnreachable :: (HasCallStack) => TestM ()
 testAppMessageUnreachable = do
   -- alice is local, bob is remote
   -- alice creates a local conversation and invites bob
@@ -867,7 +867,7 @@ testAppMessageUnreachable = do
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
 
-testRemoteToRemoteInSub :: TestM ()
+testRemoteToRemoteInSub :: (HasCallStack) => TestM ()
 testRemoteToRemoteInSub = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
@@ -924,7 +924,7 @@ testRemoteToRemoteInSub = do
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
 
-testRemoteToLocal :: TestM ()
+testRemoteToLocal :: (HasCallStack) => TestM ()
 testRemoteToLocal = do
   -- alice is local, bob is remote
   -- alice creates a local conversation and invites bob
@@ -974,7 +974,7 @@ testRemoteToLocal = do
         WS.assertMatch_ (5 # Second) ws $
           wsAssertMLSMessage (fmap Conv qcnv) bob (mpMessage message)
 
-testRemoteToLocalWrongConversation :: TestM ()
+testRemoteToLocalWrongConversation :: (HasCallStack) => TestM ()
 testRemoteToLocalWrongConversation = do
   -- alice is local, bob is remote
   -- alice creates a local conversation and invites bob
@@ -1014,7 +1014,7 @@ testRemoteToLocalWrongConversation = do
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
     liftIO $ resp @?= MLSMessageResponseError MLSGroupConversationMismatch
 
-testRemoteNonMemberToLocal :: TestM ()
+testRemoteNonMemberToLocal :: (HasCallStack) => TestM ()
 testRemoteNonMemberToLocal = do
   -- alice is local, bob is remote
   -- alice creates a local conversation and invites bob
@@ -1051,7 +1051,7 @@ testRemoteNonMemberToLocal = do
       resp @?= MLSMessageResponseError ConvNotFound
 
 -- | The group exists in mls-test-cli's store, but not in wire-server's database.
-propNonExistingConv :: TestM ()
+propNonExistingConv :: (HasCallStack) => TestM ()
 propNonExistingConv = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -1069,7 +1069,7 @@ propNonExistingConv = do
 -- bob2 joins with external proposal (alice1 commits it)
 -- bob2 adds charlie1
 -- alice1 sends a message
-testExternalAddProposal :: TestM ()
+testExternalAddProposal :: (HasCallStack) => TestM ()
 testExternalAddProposal = do
   -- create users
   [alice, bob, charlie] <-
@@ -1124,7 +1124,7 @@ testExternalAddProposal = do
     createAddCommit bob2 [charlie]
       >>= sendAndConsumeCommitBundle
 
-testExternalAddProposalNonAdminCommit :: TestM ()
+testExternalAddProposalNonAdminCommit :: (HasCallStack) => TestM ()
 testExternalAddProposalNonAdminCommit = do
   -- create users
   [alice, bob, charlie] <-
@@ -1163,7 +1163,7 @@ testExternalAddProposalNonAdminCommit = do
 -- scenario:
 -- alice adds bob and charlie
 -- charlie sends an external proposal for bob
-testExternalAddProposalWrongClient :: TestM ()
+testExternalAddProposalWrongClient :: (HasCallStack) => TestM ()
 testExternalAddProposalWrongClient = do
   [alice, bob, charlie] <-
     createAndConnectUsers (replicate 3 Nothing)
@@ -1191,7 +1191,7 @@ testExternalAddProposalWrongClient = do
 -- scenario:
 -- alice adds bob
 -- charlie attempts to join with an external add proposal
-testExternalAddProposalWrongUser :: TestM ()
+testExternalAddProposalWrongUser :: (HasCallStack) => TestM ()
 testExternalAddProposalWrongUser = do
   users@[_, bob, _charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
@@ -1211,7 +1211,7 @@ testExternalAddProposalWrongUser = do
         const 404 === statusCode
         const (Just "no-conversation") === fmap Wai.label . responseJsonError
 
-testBackendRemoveProposalRecreateClient :: TestM ()
+testBackendRemoveProposalRecreateClient :: (HasCallStack) => TestM ()
 testBackendRemoveProposalRecreateClient = do
   alice <- randomQualifiedUser
   runMLSTest $ do
@@ -1247,7 +1247,7 @@ testBackendRemoveProposalRecreateClient = do
 
     void $ createApplicationMessage alice2 "hello" >>= sendAndConsumeMessage
 
-testBackendRemoveProposalLocalConvLocalUser :: TestM ()
+testBackendRemoveProposalLocalConvLocalUser :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvLocalUser = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   runMLSTest $ do
@@ -1274,7 +1274,7 @@ testBackendRemoveProposalLocalConvLocalUser = do
     events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
     liftIO $ events @?= []
 
-testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
+testBackendRemoveProposalLocalConvRemoteUser :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvRemoteUser = do
   [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
   runMLSTest $ do
@@ -1304,7 +1304,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
           WS.assertMatch (5 # WS.Second) wsA $
             wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idx
 
-sendRemoteMLSWelcome :: TestM ()
+sendRemoteMLSWelcome :: (HasCallStack) => TestM ()
 sendRemoteMLSWelcome = do
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
@@ -1335,7 +1335,7 @@ sendRemoteMLSWelcome = do
       WS.assertMatch_ (5 # WS.Second) wsB $
         wsAssertMLSWelcome alice qcid welcome
 
-testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
+testBackendRemoveProposalLocalConvLocalLeaverCreator :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCreator = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
@@ -1374,7 +1374,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCreator = do
     events <- createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
     liftIO $ events @?= []
 
-testBackendRemoveProposalLocalConvLocalLeaverCommitter :: TestM ()
+testBackendRemoveProposalLocalConvLocalLeaverCommitter :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
@@ -1419,7 +1419,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
     events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
     liftIO $ events @?= []
 
-testBackendRemoveProposalLocalConvRemoteLeaver :: TestM ()
+testBackendRemoveProposalLocalConvRemoteLeaver :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvRemoteLeaver = do
   [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
 
@@ -1449,7 +1449,7 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
           WS.assertMatch_ (5 # WS.Second) wsA $
             wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idx
 
-testBackendRemoveProposalLocalConvLocalClient :: TestM ()
+testBackendRemoveProposalLocalConvLocalClient :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvLocalClient = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
@@ -1486,7 +1486,7 @@ testBackendRemoveProposalLocalConvLocalClient = do
         wsAssertMLSMessage (Conv <$> qcnv) charlie (mpMessage mp) n
       WS.assertNoEvent (2 # WS.Second) [wsC]
 
-testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
+testBackendRemoveProposalLocalConvRemoteClient :: (HasCallStack) => TestM ()
 testBackendRemoveProposalLocalConvRemoteClient = do
   [alice, bob] <- createAndConnectUsers [Nothing, Just "faraway.example.com"]
 
@@ -1513,7 +1513,7 @@ testBackendRemoveProposalLocalConvRemoteClient = do
           \notification ->
             void $ wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idxBob1 notification
 
-testGetGroupInfoOfLocalConv :: TestM ()
+testGetGroupInfoOfLocalConv :: (HasCallStack) => TestM ()
 testGetGroupInfoOfLocalConv = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
@@ -1530,7 +1530,7 @@ testGetGroupInfoOfLocalConv = do
     returnedGS <- liftTest $ getGroupInfo alice (fmap Conv qcnv)
     liftIO $ gs @=? returnedGS
 
-testGetGroupInfoOfRemoteConv :: TestM ()
+testGetGroupInfoOfRemoteConv :: (HasCallStack) => TestM ()
 testGetGroupInfoOfRemoteConv = do
   let aliceDomain = Domain "faraway.example.com"
   [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
@@ -1560,7 +1560,7 @@ testGetGroupInfoOfRemoteConv = do
       frRPC req @?= "query-group-info"
       frTargetDomain req @?= qDomain qcnv
 
-testFederatedGetGroupInfo :: TestM ()
+testFederatedGetGroupInfo :: (HasCallStack) => TestM ()
 testFederatedGetGroupInfo = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Just "faraway.example.com", Just "faraway.example.com"]
 
@@ -1602,7 +1602,7 @@ testFederatedGetGroupInfo = do
           GetGroupInfoResponseState _ ->
             assertFailure "Unexpected success"
 
-testDeleteMLSConv :: TestM ()
+testDeleteMLSConv :: (HasCallStack) => TestM ()
 testDeleteMLSConv = do
   localDomain <- viewFederationDomain
   -- c <- view tsCannon
@@ -1621,7 +1621,7 @@ testDeleteMLSConv = do
     deleteTeamConv tid (qUnqualified qcnv) aliceUnq
       !!! statusCode === const 200
 
-testAddUserToRemoteConvWithBundle :: TestM ()
+testAddUserToRemoteConvWithBundle :: (HasCallStack) => TestM ()
 testAddUserToRemoteConvWithBundle = do
   let aliceDomain = Domain "faraway.example.com"
   [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
@@ -1696,13 +1696,13 @@ testSelfConversationList isBelowV3 = do
       g <- view tsUnversionedGalley
       getConvPageWithGalley (addPrefixAtVersion V2 . g) u s c
 
-testSelfConversationMLSNotConfigured :: TestM ()
+testSelfConversationMLSNotConfigured :: (HasCallStack) => TestM ()
 testSelfConversationMLSNotConfigured = do
   alice <- randomUser
   withMLSDisabled $
     getConvPage alice Nothing (Just 100) !!! const 200 === statusCode
 
-testSelfConversationOtherUser :: TestM ()
+testSelfConversationOtherUser :: (HasCallStack) => TestM ()
 testSelfConversationOtherUser = do
   users@[_alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   runMLSTest $ do
@@ -1718,7 +1718,7 @@ testSelfConversationOtherUser = do
           const (Just "invalid-op") === fmap Wai.label . responseJsonError
       WS.assertNoEvent (1 # WS.Second) wss
 
-testSelfConversationLeave :: TestM ()
+testSelfConversationLeave :: (HasCallStack) => TestM ()
 testSelfConversationLeave = do
   alice <- randomQualifiedUser
   runMLSTest $ do
@@ -1737,7 +1737,7 @@ assertMLSNotEnabled = do
   const 400 === statusCode
   const (Just "mls-not-enabled") === fmap Wai.label . responseJsonError
 
-postMLSConvDisabled :: TestM ()
+postMLSConvDisabled :: (HasCallStack) => TestM ()
 postMLSConvDisabled = do
   alice <- randomQualifiedUser
   withMLSDisabled $
@@ -1747,7 +1747,7 @@ postMLSConvDisabled = do
       defNewMLSConv
       !!! assertMLSNotEnabled
 
-postMLSMessageDisabled :: TestM ()
+postMLSMessageDisabled :: (HasCallStack) => TestM ()
 postMLSMessageDisabled = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   runMLSTest $ do
@@ -1760,7 +1760,7 @@ postMLSMessageDisabled = do
       localPostCommitBundle (mpSender mp) bundle
         !!! assertMLSNotEnabled
 
-postMLSBundleDisabled :: TestM ()
+postMLSBundleDisabled :: (HasCallStack) => TestM ()
 postMLSBundleDisabled = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   runMLSTest $ do
@@ -1773,7 +1773,7 @@ postMLSBundleDisabled = do
       localPostCommitBundle (mpSender mp) bundle
         !!! assertMLSNotEnabled
 
-getGroupInfoDisabled :: TestM ()
+getGroupInfoDisabled :: (HasCallStack) => TestM ()
 getGroupInfoDisabled = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   runMLSTest $ do
@@ -1786,7 +1786,7 @@ getGroupInfoDisabled = do
       localGetGroupInfo (qUnqualified alice) (fmap Conv qcnv)
         !!! assertMLSNotEnabled
 
-deleteSubConversationDisabled :: TestM ()
+deleteSubConversationDisabled :: (HasCallStack) => TestM ()
 deleteSubConversationDisabled = do
   alice <- randomUser
   cnvId <- Qualified <$> randomId <*> pure (Domain "www.example.com")
@@ -1798,7 +1798,7 @@ deleteSubConversationDisabled = do
   withMLSDisabled $
     deleteSubConv alice cnvId scnvId dsc !!! assertMLSNotEnabled
 
-testExternalCommitSameClientSubConv :: TestM ()
+testExternalCommitSameClientSubConv :: (HasCallStack) => TestM ()
 testExternalCommitSameClientSubConv = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
@@ -1828,7 +1828,7 @@ testExternalCommitSameClientSubConv = do
           >>= sendAndConsumeCommitBundle
       WS.assertNoEvent (2 # WS.Second) [wsB]
 
-testJoinSubNonMemberClient :: TestM ()
+testJoinSubNonMemberClient :: (HasCallStack) => TestM ()
 testJoinSubNonMemberClient = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
@@ -1847,7 +1847,7 @@ testJoinSubNonMemberClient = do
     localGetGroupInfo (ciUser bob1) qcs
       !!! const 404 === statusCode
 
-testAddClientSubConvFailure :: TestM ()
+testAddClientSubConvFailure :: (HasCallStack) => TestM ()
 testAddClientSubConvFailure = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   runMLSTest $ do
@@ -1888,7 +1888,7 @@ testAddClientSubConvFailure = do
 testRemoveClientSubConv :: TestM ()
 testRemoveClientSubConv = pure ()
 
-testJoinRemoteSubConv :: TestM ()
+testJoinRemoteSubConv :: (HasCallStack) => TestM ()
 testJoinRemoteSubConv = do
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
 
@@ -1923,7 +1923,7 @@ testJoinRemoteSubConv = do
       mmsr.sender @?= ciUser bob1
       mmsr.senderClient @?= ciClient bob1
 
-testRemoteSubConvNotificationWhenUserJoins :: TestM ()
+testRemoteSubConvNotificationWhenUserJoins :: (HasCallStack) => TestM ()
 testRemoteSubConvNotificationWhenUserJoins = do
   [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
 
@@ -1947,7 +1947,7 @@ testRemoteSubConvNotificationWhenUserJoins = do
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
-testSendMessageSubConv :: TestM ()
+testSendMessageSubConv :: (HasCallStack) => TestM ()
 testSendMessageSubConv = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
@@ -2059,7 +2059,7 @@ testRemoteMemberGetSubConv isAMember = do
 -- Then Bob creates a subconversation with the same subconversation ID and the
 -- test asserts that both Alice and Bob get no events, which means the backend
 -- does not resubmit the pending remove proposal for Alice's client.
-testJoinDeletedSubConvWithRemoval :: TestM ()
+testJoinDeletedSubConvWithRemoval :: (HasCallStack) => TestM ()
 testJoinDeletedSubConvWithRemoval = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   runMLSTest $ do
@@ -2094,7 +2094,7 @@ testJoinDeletedSubConvWithRemoval = do
       void $ createSubConv qcnv bob1 subConvId
       void . liftIO $ WS.assertNoEvent (3 # WS.Second) wss
 
-testDeleteSubConvStale :: TestM ()
+testDeleteSubConvStale :: (HasCallStack) => TestM ()
 testDeleteSubConvStale = do
   alice <- randomQualifiedUser
   let sconv = SubConvId "conference"
@@ -2155,7 +2155,7 @@ testDeleteRemoteSubConv isAMember = do
           Aeson.decode (frBody actualReq)
     liftIO $ req @?= Just expectedReq
 
-testLastLeaverSubConv :: TestM ()
+testLastLeaverSubConv :: (HasCallStack) => TestM ()
 testLastLeaverSubConv = do
   alice <- randomQualifiedUser
 
@@ -2186,7 +2186,7 @@ testLastLeaverSubConv = do
       assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
       length (pscMembers psc) @?= 0
 
-testLeaveSubConvNonMember :: TestM ()
+testLeaveSubConvNonMember :: (HasCallStack) => TestM ()
 testLeaveSubConvNonMember = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
@@ -2215,7 +2215,7 @@ testLeaveSubConvNonMember = do
             <!! const 404 === statusCode
       liftIO $ Wai.label e @?= "no-conversation"
 
-testLeaveRemoteSubConv :: TestM ()
+testLeaveRemoteSubConv :: (HasCallStack) => TestM ()
 testLeaveRemoteSubConv = do
   -- setup fake remote conversation
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
@@ -2250,7 +2250,7 @@ testLeaveRemoteSubConv = do
     -- check that leave-sub-conversation is called
     void $ assertOne (filter ((== "leave-sub-conversation") . frRPC) reqs)
 
-testRemoveUserParent :: TestM ()
+testRemoveUserParent :: (HasCallStack) => TestM ()
 testRemoveUserParent = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
   let subname = SubConvId "conference"
@@ -2291,7 +2291,7 @@ testRemoveUserParent = do
       (sort [bob1, bob2, alice1])
       (sort $ pscMembers sub)
 
-testRemoveCreatorParent :: TestM ()
+testRemoveCreatorParent :: (HasCallStack) => TestM ()
 testRemoveCreatorParent = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
   let subname = SubConvId "conference"

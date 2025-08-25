@@ -85,7 +85,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data.Services (BotMember)
 import Galley.Effects
-import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
@@ -130,6 +129,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
+import Wire.BrigAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
@@ -249,7 +249,7 @@ createBindingTeam tid zusr body = do
   pure tid
 
 updateTeamStatus ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'InvalidTeamStatusUpdate) r,
     Member (ErrorS 'TeamNotFound) r,
     Member Now r,
@@ -319,7 +319,7 @@ updateTeamH zusr zcon tid updateData = do
 
 deleteTeam ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Error AuthenticationError) r,
     Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -376,7 +376,7 @@ internalDeleteBindingTeam tid force = do
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
@@ -548,7 +548,7 @@ uncheckedGetTeamMember tid uid =
 
 addTeamMember ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'NoAddToBinding) r,
@@ -595,7 +595,7 @@ addTeamMember lzusr zcon tid nmem = do
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
@@ -620,7 +620,7 @@ uncheckedAddTeamMember tid nmem = do
 
 uncheckedUpdateTeamMember ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
@@ -674,7 +674,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
 
 updateTeamMember ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
@@ -727,7 +727,7 @@ updateTeamMember lzusr zcon tid newMem = do
 
 deleteTeamMember ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -756,7 +756,7 @@ deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid rem
 
 deleteNonBindingTeamMember ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -785,7 +785,7 @@ deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon ti
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember' ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error InvalidInput) r,
@@ -996,7 +996,7 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -1125,7 +1125,7 @@ ensureNotElevated targetPermissions member =
     $ throwS @'InvalidPermissions
 
 ensureNotTooLarge ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (Input Opts) r
   ) =>
@@ -1163,7 +1163,7 @@ ensureNotTooLargeForLegalHold tid teamSize =
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
 
 addTeamMemberInternal ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member NotificationSubsystem r,
@@ -1234,7 +1234,7 @@ getBindingTeamMembers zusr = do
 -- RegisterError`.
 canUserJoinTeam ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,

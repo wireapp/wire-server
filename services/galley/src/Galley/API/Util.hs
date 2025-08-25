@@ -47,7 +47,6 @@ import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
@@ -85,14 +84,15 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
+import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
-import Wire.API.Team.Permission qualified as Perm
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
+import Wire.BrigAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
@@ -106,7 +106,7 @@ import Wire.UserList
 data NoChanges = NoChanges
 
 ensureAccessRole ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'ConvAccessDenied) r
   ) =>
@@ -128,7 +128,7 @@ ensureAccessRole roles users = do
 -- | Check that the given user is either part of the same team as the other
 -- users OR that there is a connection.
 ensureConnectedOrSameTeam ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -149,7 +149,7 @@ ensureConnectedOrSameTeam lusr others = do
 -- 'ensureConnected' for non-team-members of the _given_ user. Implicit
 -- connections are created per team, so we count them as team membership here.
 ensureConnectedToLocalsOrSameTeam ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -160,17 +160,27 @@ ensureConnectedToLocalsOrSameTeam ::
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
-  icTeams <- implicitConnectionsTeams
+  icTeams <- getUserCollaborationTeams
+  icUsers <- getTeamCollaborators uTeams
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
     fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
-  ensureConnectedToLocals u (uids \\ join sameTeamUids)
+  ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
   where
-    implicitConnectionsTeams :: (Member TeamCollaboratorsSubsystem r) => Sem r [TeamId]
-    implicitConnectionsTeams =
+    -- Teams in which the user who wants to reach out is member with
+    -- `ImplicitConnection` permission.
+    getUserCollaborationTeams :: (Member TeamCollaboratorsSubsystem r') => Sem r' [TeamId]
+    getUserCollaborationTeams =
       gTeam
-        <$$> (filter (flip hasPermission Perm.CreateConversation) <$> internalGetTeamCollaborations u)
+        <$$> (filter (flip hasPermission CollaboratorPermission.ImplicitConnection) <$> internalGetTeamCollaborations u)
+
+    -- We do not check the permissions of team collaborators if a user tries to
+    -- reach out to them (if they are in the same team.) The reasoning behind
+    -- this is that team collaborators have implicitly agreed to be
+    -- collaborated with.
+    getTeamCollaborators :: (Member TeamCollaboratorsSubsystem r') => [TeamId] -> Sem r' [UserId]
+    getTeamCollaborators teams = gUser <$$> internalGetTeamCollaboratorsWithIds (Set.fromList teams) (Set.fromList uids)
 
 -- | Check that the user is connected to everybody else.
 --
@@ -178,7 +188,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
 ensureConnected ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r
   ) =>
   Local UserId ->
@@ -190,7 +200,7 @@ ensureConnected self others = do
 
 ensureConnectedToLocals ::
   ( Member (ErrorS 'NotConnected) r,
-    Member BrigAccess r
+    Member BrigAPIAccess r
   ) =>
   UserId ->
   [UserId] ->
@@ -203,7 +213,7 @@ ensureConnectedToLocals u uids = do
     throwS @'NotConnected
 
 ensureConnectedToRemotes ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r
   ) =>
   Local UserId ->
@@ -216,7 +226,7 @@ ensureConnectedToRemotes u remotes = do
     throwS @'NotConnected
 
 ensureReAuthorised ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Error AuthenticationError) r
   ) =>
   UserId ->
@@ -797,7 +807,7 @@ verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
   pure c
 
 ensureConversationAccess ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r
@@ -1177,7 +1187,7 @@ getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
 
 getBrigClients ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ClientStore r
   ) =>
   [UserId] ->

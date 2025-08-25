@@ -23,18 +23,14 @@ instance Exception PostgresMigrationError
 runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
-        forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
-          Log.info logger $ Log.msg (Log.val "Starting migrations") . migrationName migrationCmd
-          mErr <- transaction Serializable Write $ runMigration migrationCmd
-          case mErr of
-            Nothing ->
-              Log.info logger $ Log.msg (Log.val "Finished migration") . migrationName migrationCmd
-            Just err -> do
-              Log.err logger $
-                Log.msg (Log.val "Unexpected error during migration")
-                  . migrationName migrationCmd
-                  . Log.field "error" (show err)
-              throw $ PostgresMigrationError err
+        Log.info logger $ Log.msg (Log.val "Running migrations")
+        transaction Serializable Write $ do
+          forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
+            mErr <- runMigration migrationCmd
+            case mErr of
+              Nothing -> pure ()
+              Just err -> throw $ PostgresMigrationError err
+        Log.info logger $ Log.msg (Log.val "Migrations completed successfully")
 
   either throwIO pure =<< use pool session
 
