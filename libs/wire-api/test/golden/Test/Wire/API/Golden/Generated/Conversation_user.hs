@@ -61,7 +61,8 @@ testObject_Conversation_user_1 =
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsReady
+            cnvmCellsState = CellsReady,
+            cnvmParent = Nothing
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -111,7 +112,8 @@ testObject_Conversation_user_2 =
             cnvmReceiptMode = Nothing,
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsPending
+            cnvmCellsState = CellsPending,
+            cnvmParent = Nothing
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -180,7 +182,8 @@ testObject_Conversation_user_3 =
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsDisabled
+            cnvmCellsState = CellsDisabled,
+            cnvmParent = Nothing
           },
       cnvMembers =
         OwnConvMembers
@@ -245,7 +248,8 @@ testObject_Conversation_user_4 =
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsDisabled
+            cnvmCellsState = CellsDisabled,
+            cnvmParent = Nothing
           },
       cnvMembers =
         OwnConvMembers
@@ -288,7 +292,8 @@ testObject_Conversation_user_5 =
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsDisabled
+            cnvmCellsState = CellsDisabled,
+            cnvmParent = Nothing
           },
       cnvMembers =
         OwnConvMembers

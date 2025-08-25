@@ -762,6 +762,43 @@ testAddUserBareProposalCommit = do
       "Users added to an MLS group should find it when listing conversations"
       (convId `elem` convIds)
 
+testShadowConversation :: (HasCallStack) => App ()
+testShadowConversation = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
+  convId <- createNewGroup def alice1
+
+  shadowConv <- postConversation alice1 (defMLS {parent = Just convId.id_}) >>= getJSON 201
+  shadowConvId <- objConvId shadowConv
+  createGroup def alice1 shadowConvId
+
+  withWebSockets [bob] $ \wss -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) wss
+
+    void $ createAddCommit alice1 shadowConvId [charlie] >>= sendAndConsumeCommitBundle
+
+    fetchedConversation <- bindResponse (getConversationInternal alice1 shadowConvId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json
+    fetchedMembers <- fetchedConversation %. "members"
+    let extractId x = x %. "qualified_id"
+    fetchedOtherMembers <- fetchedMembers %. "others" & asList
+    fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
+    expectedMemberIds <- traverse extractId [alice, bob, charlie]
+    sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
+
+testShadowConversationDenied :: (HasCallStack) => App ()
+testShadowConversationDenied = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+  convId <- createNewGroup def alice1
+
+  bindResponse (postConversation bob1 (defMLS {parent = Just convId.id_})) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+
 testPropExistingConv :: (HasCallStack) => App ()
 testPropExistingConv = do
   [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)

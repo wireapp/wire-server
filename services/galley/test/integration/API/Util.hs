@@ -599,6 +599,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
           False
           Nothing
           False
+          Nothing
   post
     ( g
         . path "/conversations"
@@ -638,7 +639,8 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvGroupConvType = GroupConversation,
             newConvCells = False,
             newConvChannelAddPermission = Nothing,
-            newConvSkipCreator = False
+            newConvSkipCreator = False,
+            newConvParent = Nothing
           }
   r <-
     post
@@ -684,6 +686,7 @@ createOne2OneTeamConv u1 u2 n tid = do
           False
           Nothing
           False
+          Nothing
   post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -713,6 +716,7 @@ defNewProteusConv =
     False
     Nothing
     False
+    Nothing
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
@@ -772,6 +776,7 @@ postTeamConv tid u us name a r mtimer = do
           False
           Nothing
           False
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -825,6 +830,7 @@ postConvWithReceipt u us name a r mtimer rcpt = do
           False
           Nothing
           False
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -2434,6 +2440,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
         (Just GroupConversation)
         Nothing
         def
+        Nothing
     )
     (RemoteConvMembers selfRole otherMembers)
     ProtocolProteus

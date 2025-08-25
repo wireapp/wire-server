@@ -62,6 +62,7 @@
     },
     "message_timer": 1319272593797015,
     "name": "",
+    "parent": null,
     "protocol": "proteus",
     "cells_state": "pending",
     "qualified_id": {

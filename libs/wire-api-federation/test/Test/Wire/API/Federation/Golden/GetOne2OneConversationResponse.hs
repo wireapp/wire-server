@@ -72,7 +72,8 @@ remoteConversation =
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsDisabled
+            cnvmCellsState = CellsDisabled,
+            cnvmParent = Nothing
           },
       members =
         RemoteConvMembers
@@ -112,7 +113,8 @@ remoteConversationV2 =
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
-            cnvmCellsState = CellsPending
+            cnvmCellsState = CellsPending,
+            cnvmParent = Nothing
           },
       members =
         RemoteConvMembers
