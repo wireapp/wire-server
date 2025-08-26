@@ -21,7 +21,6 @@ module Galley.Cassandra.CustomBackend (interpretCustomBackendStoreToCassandra) w
 
 import Cassandra
 import Data.Domain (Domain)
-import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
@@ -31,6 +30,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.CustomBackend
+import Wire.ConversationStore.Cassandra.Instances ()
 
 interpretCustomBackendStoreToCassandra ::
   ( Member (Embed IO) r,

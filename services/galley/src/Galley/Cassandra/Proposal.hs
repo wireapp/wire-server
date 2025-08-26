@@ -23,7 +23,6 @@ where
 
 import Cassandra
 import Data.Timeout
-import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.ProposalStore
@@ -35,6 +34,7 @@ import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.ConversationStore.Cassandra.Instances ()
 
 -- | Proposals in the database expire after this timeout
 defaultTTL :: Timeout

@@ -76,13 +76,10 @@ import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.Data.Scope (Scope (ReusableCode))
-import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.FireAndForget qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore qualified as E
 import Galley.Effects.SubConversationStore qualified as E
 import Galley.Effects.TeamStore qualified as E
@@ -121,6 +118,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
+import Wire.ConversationStore qualified as E
+import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

@@ -40,7 +40,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
-import Galley.API.MLS.Types
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ProposalStore
@@ -69,6 +68,7 @@ import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
 import Wire.BrigAPIAccess
+import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem

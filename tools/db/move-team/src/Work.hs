@@ -35,7 +35,6 @@ import Data.Conduit.List qualified as CL
 import Data.Id
 import Data.Set qualified as Set
 import Data.UUID
-import Galley.Cassandra.Instances ()
 import Imports
 import Schema
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitWith)
@@ -44,6 +43,7 @@ import System.IO qualified as IO
 import System.Logger qualified as Log
 import System.Process (system)
 import Types
+import Wire.ConversationStore.Cassandra.Instances ()
 
 assertTargetDirEmpty :: Env -> IO ()
 assertTargetDirEmpty Env {..} = do

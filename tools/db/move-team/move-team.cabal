@@ -76,7 +76,6 @@ library
     , conduit
     , containers
     , filepath
-    , galley
     , imports
     , iproute
     , lens
@@ -92,6 +91,7 @@ library
     , uuid
     , vector
     , wire-api
+    , wire-subsystems
 
   default-language:   GHC2021
 

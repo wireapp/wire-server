@@ -19,11 +19,9 @@ module Galley.Cassandra.Services where
 
 import Cassandra
 import Control.Lens
-import Data.Id
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Galley.Data.Services
 import Galley.Effects.ServiceStore hiding (deleteService)
 import Imports
 import Polysemy
@@ -31,7 +29,6 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Provider.Service hiding (DeleteService)
-import Wire.StoredConversation
 
 -- Service --------------------------------------------------------------------
 

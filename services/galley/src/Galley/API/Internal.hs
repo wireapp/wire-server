@@ -57,10 +57,8 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
-import Galley.Effects.ConversationStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ServiceStore
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
@@ -94,6 +92,8 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
+import Wire.ConversationStore
+import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

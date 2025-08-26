@@ -40,13 +40,11 @@ import Galley.API.MLS
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Removal
-import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.MemberStore qualified as Eff
 import Galley.Effects.SubConversationStore qualified as Eff
 import Imports
 import Polysemy
@@ -67,6 +65,8 @@ import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore qualified as Eff
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation

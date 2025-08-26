@@ -109,7 +109,6 @@ library
     Galley.API.MLS.Removal
     Galley.API.MLS.Reset
     Galley.API.MLS.SubConversation
-    Galley.API.MLS.Types
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
     Galley.API.One2One
@@ -137,15 +136,10 @@ library
     Galley.App
     Galley.Aws
     Galley.Cassandra
-    Galley.Cassandra.Access
     Galley.Cassandra.Client
     Galley.Cassandra.Code
-    Galley.Cassandra.Conversation
-    Galley.Cassandra.Conversation.Members
-    Galley.Cassandra.Conversation.MLS
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
-    Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
@@ -158,21 +152,18 @@ library
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
     Galley.Data.Scope
-    Galley.Data.Services
     Galley.Data.TeamNotifications
     Galley.Data.Types
     Galley.Effects
     Galley.Effects.BackendNotificationQueueAccess
     Galley.Effects.ClientStore
     Galley.Effects.CodeStore
-    Galley.Effects.ConversationStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
-    Galley.Effects.MemberStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore

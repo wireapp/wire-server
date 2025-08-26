@@ -69,7 +69,6 @@ import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
-import Galley.API.MLS.Types
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.One2One
@@ -78,10 +77,8 @@ import Galley.API.Util
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.ListItems qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env
 import Galley.Options
@@ -111,7 +108,10 @@ import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
 import Wire.API.Team.Member (TeamMember, isAdminOrOwner, permissions)
 import Wire.API.User
+import Wire.ConversationStore qualified as E
+import Wire.ConversationStore.MLS.Types
 import Wire.HashPassword (HashPassword)
+import Wire.MemberStore qualified as E
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation

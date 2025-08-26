@@ -55,9 +55,7 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FireAndForget qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Imports
@@ -95,6 +93,8 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
+import Wire.ConversationStore qualified as E
+import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

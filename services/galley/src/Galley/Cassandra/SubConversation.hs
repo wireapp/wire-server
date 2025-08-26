@@ -22,8 +22,6 @@ import Cassandra.Util
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Map qualified as Map
-import Galley.API.MLS.Types
-import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Cassandra.Util
@@ -37,6 +35,8 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore.Cassandra (lookupMLSClientLeafIndices)
 
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = runMaybeT $ do

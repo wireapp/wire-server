@@ -26,7 +26,6 @@ import Cassandra
 import Data.Id
 import Data.Qualified
 import Data.Range
-import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
@@ -35,6 +34,7 @@ import Imports hiding (max)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
+import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.Sem.Paging.Cassandra
 
 -- | Deprecated, use 'localConversationIdsPageFrom'

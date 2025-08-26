@@ -52,14 +52,11 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Proposal
-import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.MemberStore
 import Galley.Effects.SubConversationStore
 import Galley.Effects.TeamStore qualified as TeamStore
 import Galley.Options
@@ -91,6 +88,9 @@ import Wire.API.MLS.RatchetTree
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
+import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation

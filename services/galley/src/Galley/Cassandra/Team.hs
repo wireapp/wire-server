@@ -40,7 +40,6 @@ import Data.Set qualified as Set
 import Data.Text.Encoding
 import Data.UUID.V4 (nextRandom)
 import Galley.Aws qualified as Aws
-import Galley.Cassandra.Conversation qualified as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
@@ -479,7 +478,7 @@ removeTeamConv tid cid = liftClient $ do
     setConsistency LocalQuorum
     addPrepQuery Cql.markConvDeleted (Identity cid)
     addPrepQuery Cql.deleteTeamConv (tid, cid)
-  C.deleteConversation cid
+  todo "C.deleteConversation cid" -- TODO(leif): this has to be moved to the store effect
 
 updateTeamStatus :: TeamId -> TeamStatus -> Client ()
 updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params LocalQuorum (s, t))

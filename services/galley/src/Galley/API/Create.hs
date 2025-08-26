@@ -52,13 +52,10 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Teams (notTeamMember)
-import Galley.Types.ToUserRole
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
@@ -68,6 +65,7 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -85,6 +83,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
+import Wire.ConversationStore qualified as E
+import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

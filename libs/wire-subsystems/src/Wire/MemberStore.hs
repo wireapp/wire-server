@@ -25,14 +25,14 @@ import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.Conversation.Role
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode
 import Wire.API.Provider.Service
+import Wire.ConversationStore.MLS.Types
 import Wire.StoredConversation
 import Wire.UserList
-import Wire.API.Conversation.Role
-import Wire.ConversationStore.MLS.Types
 
 data MemberStore m a where
   CreateMembers :: (ToUserRole u) => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])

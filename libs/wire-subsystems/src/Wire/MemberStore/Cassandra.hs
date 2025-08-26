@@ -24,37 +24,37 @@ module Wire.MemberStore.Cassandra
     removeMembersFromLocalConv,
     toMemberStatus,
     interpretMemberStoreToCassandra,
+    lookupMLSClientLeafIndices,
   )
 where
 
 import Cassandra
+import Control.Arrow
+import Control.Lens
 import Data.Domain
 import Data.Id
 import Data.List.Extra qualified as List
-import Control.Arrow
-import Control.Lens
 import Data.Monoid
 import Data.Qualified
 import Data.Set qualified as Set
-import Polysemy.Embed
 import Imports hiding (Set)
-import Wire.ConversationStore.MLS.Types
+import Polysemy
+import Polysemy.Embed
+import Polysemy.TinyLog
+import System.Logger.Message
 import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
 import Wire.API.MLS.Credential
-import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.Provider.Service
+import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.ConversationStore.Cassandra.Queries qualified as Cql
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore (MemberStore (..))
 import Wire.StoredConversation
 import Wire.UserList
-
-import Polysemy
-import Polysemy.TinyLog
-import System.Logger.Message
-import Wire.ConversationStore.Cassandra.Queries qualified as Cql
-import Wire.MemberStore (MemberStore (..))
 
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
@@ -461,8 +461,9 @@ interpretMemberStoreToCassandra client = interpret $ \case
     runEmbedded (runClient client) $ embed $ removeMembersFromLocalConv cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "MemberStore.DeleteMembersInRemoteConversation"
-    runEmbedded (runClient client) $ embed $
-      removeLocalMembersFromRemoteConv rcnv uids
+    runEmbedded (runClient client) $
+      embed $
+        removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> do
     logEffect "MemberStore.AddMLSClients"
     runEmbedded (runClient client) $ embed $ addMLSClients lcnv quid cs

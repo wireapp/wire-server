@@ -24,7 +24,6 @@ import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Env
 import Imports
@@ -38,6 +37,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore qualified as E
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,

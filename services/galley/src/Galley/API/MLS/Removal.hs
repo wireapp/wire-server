@@ -34,9 +34,7 @@ import Data.Set qualified as Set
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
-import Galley.API.MLS.Types
 import Galley.Effects
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Galley.Env
@@ -56,6 +54,8 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random

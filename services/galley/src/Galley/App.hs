@@ -56,8 +56,6 @@ import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
-import Galley.Cassandra.Conversation
-import Galley.Cassandra.Conversation.Members
 import Galley.Cassandra.ConversationList
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.LegalHold
@@ -111,9 +109,11 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess.Rpc
+import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
+import Wire.MemberStore.Cassandra (interpretMemberStoreToCassandra)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -297,14 +297,14 @@ evalGalley e =
     . interpretTeamNotificationStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
-    . interpretMemberStoreToCassandra
+    . interpretMemberStoreToCassandra (e ^. cstate)
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
     . randomToIO
     . runHashPassword e._options._settings._passwordHashingOptions
     . interpretRateLimit e._passwordHashingRateLimitEnv
     . interpretSubConversationStoreToCassandra
-    . interpretConversationStoreToCassandra
+    . interpretConversationStoreToCassandra (e ^. cstate)
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra

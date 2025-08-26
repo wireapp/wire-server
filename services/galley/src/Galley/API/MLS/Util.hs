@@ -26,8 +26,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Galley.Data.Types
 import Galley.Effects
-import Galley.Effects.ConversationStore
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Imports
@@ -46,6 +44,8 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore
+import Wire.MemberStore
 
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,
