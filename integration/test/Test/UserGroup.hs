@@ -273,4 +273,4 @@ testUserGroupMembersCount = do
 
   bindResponse (getUserGroups owner (def {includeMemberCount = True})) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "page.0.members" `shouldMatchInt` 2
+    resp.json %. "page.0.membersCount" `shouldMatchInt` 2
