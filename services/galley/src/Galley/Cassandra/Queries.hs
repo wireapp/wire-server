@@ -15,8 +15,81 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO(leif): remove unused queries
-module Galley.Cassandra.Queries where
+module Galley.Cassandra.Queries
+  ( selectCustomBackend,
+    upsertCustomBackend,
+    deleteCustomBackend,
+    selectUserConvsFrom,
+    selectUserConvs,
+    selectUserRemoteConvs,
+    selectSubConversation,
+    insertSubConversation,
+    updateSubConvGroupInfo,
+    selectSubConvGroupInfo,
+    selectSubConvEpoch,
+    insertEpochForSubConversation,
+    insertCipherSuiteForSubConversation,
+    deleteSubConversation,
+    listSubConversations,
+    insertCode,
+    lookupCode,
+    deleteCode,
+    upsertMemberAddClient,
+    upsertMemberRmClient,
+    selectClients,
+    rmClients,
+    selectSearchVisibility,
+    updateSearchVisibility,
+    insertSrv,
+    selectSrv,
+    rmSrv,
+    insertLegalHoldSettings,
+    selectLegalHoldSettings,
+    removeLegalHoldSettings,
+    insertPendingPrekeys,
+    dropPendingPrekeys,
+    selectPendingPrekeys,
+    updateUserLegalHoldStatus,
+    selectLegalHoldWhitelistedTeam,
+    insertLegalHoldWhitelistedTeam,
+    removeLegalHoldWhitelistedTeam,
+    insertTeam,
+    listBillingTeamMembers,
+    listTeamAdmins,
+    selectTeamName,
+    selectTeamConv,
+    selectTeamConvs,
+    selectUserTeamsFrom,
+    selectUserTeams,
+    selectTeamMember,
+    insertTeamMember,
+    insertUserTeam,
+    insertBillingTeamMember,
+    insertTeamAdmin,
+    updatePermissions,
+    deleteBillingTeamMember,
+    deleteTeamAdmin,
+    deleteTeamMember,
+    deleteUserTeam,
+    selectTeam,
+    selectUserTeamsIn,
+    selectTeamMembers,
+    selectOneUserTeam,
+    selectTeamBindingWritetime,
+    selectTeamBinding,
+    markTeamDeleted,
+    deleteTeam,
+    deleteTeamConv,
+    updateTeamStatus,
+    updateTeamName,
+    updateTeamIcon,
+    updateTeamIconKey,
+    updateTeamSplashScreen,
+    selectTeamConvsFrom,
+    selectTeamMembersFrom,
+    selectTeamMembers',
+  )
+where
 
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
@@ -32,7 +105,6 @@ import Text.RawString.QQ
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
@@ -146,9 +218,6 @@ selectUserTeamsFrom = "select team from user_team where user = ? and team > ? or
 insertTeam :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 
-insertTeamConv :: PrepQuery W (TeamId, ConvId) ()
-insertTeamConv = "insert into team_conv (team, conv) values (?, ?)"
-
 deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
 deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
 
@@ -226,17 +295,8 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
 selectUserConvs = "select conv from user where user = ? order by conv"
 
-selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
-selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
-
 selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
 selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
-
-insertUserConv :: PrepQuery W (UserId, ConvId) ()
-insertUserConv = "insert into user (user, conv) values (?, ?)"
-
-deleteUserConv :: PrepQuery W (UserId, ConvId) ()
-deleteUserConv = "delete from user where user = ? and conv = ?"
 
 -- MLS SubConversations -----------------------------------------------------
 
@@ -271,60 +331,8 @@ deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subco
 --
 -- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations for a user.
 
--- local conversation with remote members
-
-insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId, RoleName) ()
-insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role) values (?, ?, ?, ?)"
-
-removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
-removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
-
-selectRemoteMember :: PrepQuery R (ConvId, Domain, UserId) (Identity RoleName)
-selectRemoteMember = "select conversation_role from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
-
-selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName)
-selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv = ?"
-
-updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
-updateRemoteMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
-
--- Used when removing a federation domain, so that we can quickly list all of the affected remote users and conversations
--- This returns local conversation IDs and remote users
-selectRemoteMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId, RoleName)
-selectRemoteMembersByDomain = "select conv, user_remote_id, conversation_role from member_remote_user where user_remote_domain = ?"
-
--- local user with remote conversations
-
-insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
-insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
-
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
 selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
-
-selectRemoteConvMemberStatuses :: PrepQuery R (UserId, Domain, [ConvId]) (ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
-selectRemoteConvMemberStatuses = "select conv_remote_id, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id in ?"
-
-selectRemoteConvMembers :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
-selectRemoteConvMembers = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
-
-deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
-deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
-
--- Used when removing a federation domain, so that we can quickly list all of the affected local users and conversations
--- This returns remote conversation IDs and local users
-selectLocalMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId)
-selectLocalMembersByDomain = "select conv_remote_id, user from user_remote_conv where conv_remote_domain = ?"
-
--- remote conversation status for local user
-
-updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteOtrMemberMutedStatus = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
-
-updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteOtrMemberArchived = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
-
-updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteMemberHidden = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
 
@@ -344,29 +352,6 @@ upsertMemberRmClient c =
   let t = LT.fromStrict (clientToText c)
    in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
 
--- MLS Clients --------------------------------------------------------------
-
-addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
-addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, false)"
-
-planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
-planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
-
-removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
-removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
-
-removeAllMLSClients :: PrepQuery W (Identity GroupId) ()
-removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
-
-lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32, Bool)
-lookupMLSClients = "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
-
-acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
-acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"
-
-releaseCommitLock :: PrepQuery W (GroupId, Epoch) ()
-releaseCommitLock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
-
 -- Services -----------------------------------------------------------------
 
 rmSrv :: PrepQuery W (ProviderId, ServiceId) ()
@@ -377,11 +362,6 @@ insertSrv = "insert into service (provider, id, base_url, auth_token, fingerprin
 
 selectSrv :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool)
 selectSrv = "select base_url, auth_token, fingerprints, enabled from service where provider = ? AND id = ?"
-
--- Bots ---------------------------------------------------------------------
-
-insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
-insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
 
 -- LegalHold ----------------------------------------------------------------
 

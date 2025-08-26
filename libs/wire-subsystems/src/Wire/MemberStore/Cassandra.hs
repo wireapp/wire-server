@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- FUTUREWORK: Some queries are leaking from this module. We should eventually only export
+-- the interpreter to ensure proper encapsulation when we want to migrate to a different storage backend e.g.
 module Wire.MemberStore.Cassandra
   ( addMembers,
     members,
