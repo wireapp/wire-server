@@ -30,7 +30,7 @@ where
 
 import Data.Aeson
 import qualified Data.Aeson as Aeson
-import Data.Text
+import Data.Text hiding (show)
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic

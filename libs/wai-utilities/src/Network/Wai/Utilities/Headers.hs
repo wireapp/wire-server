@@ -20,7 +20,7 @@ module Network.Wai.Utilities.Headers where
 import Data.ByteString
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
 import Data.OpenApi.ParamSchema (ToParamSchema (..))
-import Data.Text as T
+import Data.Text as T hiding (show)
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Imports

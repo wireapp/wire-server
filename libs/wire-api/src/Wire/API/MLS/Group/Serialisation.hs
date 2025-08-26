@@ -39,6 +39,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Imports
+import Network.Wai.Utilities.Exception
 import Web.HttpApiData (FromHttpApiData (parseHeader))
 import Wire.API.Conversation hiding (newGroupId)
 import Wire.API.MLS.Group
@@ -116,7 +117,7 @@ getParts = do
       eDomain <-
         T.decodeUtf8' . L.toStrict
           <$> getRemainingLazyByteString
-      domain <- either (fail . displayException) pure eDomain
+      domain <- either (fail . displayExceptionNoBacktrace) pure eDomain
       pure
         GroupIdParts
           { convType,
@@ -148,7 +149,7 @@ getDomain = do
   len <- fromIntegral <$> getWord16be
   domain <- T.decodeUtf8' <$> getByteString len
   case domain of
-    Left e -> fail (displayException e)
+    Left e -> fail (displayExceptionNoBacktrace e)
     Right d -> pure (Domain d)
 
 newGroupId :: ConvType -> Qualified ConvOrSubConvId -> GroupId

@@ -10,6 +10,7 @@ import Hasql.Pool
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.Exception
 import Network.Wai.Utilities.JSONResponse
 
 -- | Error thrown to the user
@@ -49,6 +50,6 @@ postgresUsageErrorToHttpError err = case err of
     -- return "404 not found", not "database crashed"?
     -- The problem is that the SessionError is not typed to easily be parsed
     -- To prevent foreign key errors we should check the foreign key constraints before inserting
-    StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
-  ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
-  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+    StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> displayExceptionNoBacktrace err))
+  ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> displayExceptionNoBacktrace err))
+  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> displayExceptionNoBacktrace err))

@@ -101,6 +101,7 @@ import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode, statusMessage)
 import Network.Wai.Utilities (Error (..), mkError)
+import Network.Wai.Utilities.Exception
 import Servant.API
 import Servant.Client qualified as SC
 import Servant.Server qualified as SS
@@ -1063,7 +1064,7 @@ runClientToHandler :: SC.ClientM a -> Handler a
 runClientToHandler client = do
   clientEnv <- asks (.brigServantClientEnv)
   res <- liftIO $ SC.runClientM client clientEnv
-  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
+  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayExceptionNoBacktrace) pure res
 
 domRegLock :: Domain -> SC.ClientM NoContent
 domRegUnlock :: Domain -> SC.ClientM NoContent
