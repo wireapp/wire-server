@@ -33,6 +33,7 @@ module Wire.API.Team.Member
     setOptionalPerms,
     setOptionalPermsMany,
     teamMemberObjectSchema,
+    Wire.API.Team.Member.getPermissions,
 
     -- * TeamMemberList
     TeamMemberList,
