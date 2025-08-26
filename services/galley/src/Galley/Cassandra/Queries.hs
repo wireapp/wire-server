@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- TODO(leif): remove unused queries
 module Galley.Cassandra.Queries where
 
 import Cassandra as C hiding (Value)
@@ -29,7 +30,6 @@ import Galley.Data.Scope
 import Imports
 import Text.RawString.QQ
 import Wire.API.Conversation
-import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -210,114 +210,6 @@ updateTeamStatus = {- `IF EXISTS`, but that requires benchmarking -} "update tea
 updateTeamSplashScreen :: PrepQuery W (Text, TeamId) ()
 updateTeamSplashScreen = {- `IF EXISTS`, but that requires benchmarking -} "update team set splash_screen = ? where team = ?"
 
--- Conversations ------------------------------------------------------------
-
-type ConvRow =
-  ( ConvType,
-    Maybe UserId,
-    Maybe (C.Set Access),
-    Maybe AccessRoleLegacy,
-    Maybe (C.Set AccessRole),
-    Maybe Text,
-    Maybe TeamId,
-    Maybe Bool,
-    Maybe Milliseconds,
-    Maybe ReceiptMode,
-    Maybe ProtocolTag,
-    Maybe GroupId,
-    Maybe Epoch,
-    Maybe (Writetime Epoch),
-    Maybe CipherSuiteTag,
-    Maybe GroupConvType,
-    Maybe AddPermission,
-    Maybe CellsState
-  )
-
-selectConv :: PrepQuery R (Identity ConvId) ConvRow
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state  from conversation where conv = ?"
-
-isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
-isConvDeleted = "select deleted from conversation where conv = ?"
-
-insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe GroupConvType, Maybe AddPermission, CellsState) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, channel_add_permission, cells_state) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-
-insertMLSSelfConv ::
-  PrepQuery
-    W
-    ( ConvId,
-      ConvType,
-      Maybe UserId,
-      C.Set Access,
-      C.Set AccessRole,
-      Maybe Text,
-      Maybe TeamId,
-      Maybe Milliseconds,
-      Maybe ReceiptMode,
-      Maybe GroupId
-    )
-    ()
-insertMLSSelfConv =
-  fromString $
-    "insert into conversation (conv, type, creator, access, \
-    \ access_roles_v2, name, team, message_timer, receipt_mode,\
-    \ protocol, group_id) values \
-    \ (?, ?, ?, ?, ?, ?, ?, ?, ?, "
-      <> show (fromEnum ProtocolMLSTag)
-      <> ", ?)"
-
-updateToMixedConv :: PrepQuery W (ConvId, ProtocolTag, GroupId, Epoch) ()
-updateToMixedConv =
-  "insert into conversation (conv, protocol, group_id, epoch) values (?, ?, ?, ?)"
-
-updateToMLSConv :: PrepQuery W (ConvId, ProtocolTag) ()
-updateToMLSConv = "insert into conversation (conv, protocol, receipt_mode) values (?, ?, 0)"
-
-updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
-updateConvAccess = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
-
-updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()
-updateConvReceiptMode = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set receipt_mode = ? where conv = ?"
-
-updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
-updateConvMessageTimer = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set message_timer = ? where conv = ?"
-
-updateConvName :: PrepQuery W (Text, ConvId) ()
-updateConvName = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set name = ? where conv = ?"
-
-updateConvType :: PrepQuery W (ConvType, ConvId) ()
-updateConvType = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set type = ? where conv = ?"
-
-getConvEpoch :: PrepQuery R (Identity ConvId) (Identity (Maybe Epoch))
-getConvEpoch = "select epoch from conversation where conv = ?"
-
-updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
-updateConvEpoch = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set epoch = ? where conv = ?"
-
-updateConvCipherSuite :: PrepQuery W (CipherSuiteTag, ConvId) ()
-updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?"
-
-updateConvCellsState :: PrepQuery W (CellsState, ConvId) ()
-updateConvCellsState = "update conversation set cells_state = ? where conv = ?"
-
-resetConversation :: PrepQuery W (GroupId, ConvId) ()
-resetConversation = "update conversation set group_id = ?, epoch = 0 where conv = ?"
-
-deleteConv :: PrepQuery W (Identity ConvId) ()
-deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
-
-markConvDeleted :: PrepQuery W (Identity ConvId) ()
-markConvDeleted = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set deleted = true where conv = ?"
-
-selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity (Maybe GroupInfoData))
-selectGroupInfo = "select public_group_state from conversation where conv = ?"
-
-updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
-updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
-
-updateChannelAddPermission :: PrepQuery W (AddPermission, ConvId) ()
-updateChannelAddPermission = "update conversation set channel_add_permission = ? where conv = ?"
-
 -- Conversations accessible by code -----------------------------------------
 
 insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Maybe Password, Int32) ()
@@ -374,37 +266,6 @@ listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch)
 
 deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
 deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
-
--- Members ------------------------------------------------------------------
-
-type MemberStatus = Int32
-
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
-
-selectMembers :: PrepQuery R (Identity ConvId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ?"
-
-selectAllMembers :: PrepQuery R () (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectAllMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member"
-
-insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
-insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
-
-removeMember :: PrepQuery W (ConvId, UserId) ()
-removeMember = "delete from member where conv = ? and user = ?"
-
-updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
-updateOtrMemberMutedStatus = {- `IF EXISTS`, but that requires benchmarking -} "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
-
-updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateOtrMemberArchived = {- `IF EXISTS`, but that requires benchmarking -} "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
-
-updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateMemberHidden = {- `IF EXISTS`, but that requires benchmarking -} "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
-
-updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
-updateMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Federated conversations -----------------------------------------------------
 --

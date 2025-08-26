@@ -476,7 +476,7 @@ removeTeamConv tid cid = liftClient $ do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery Cql.markConvDeleted (Identity cid)
+    todo "addPrepQuery Cql.markConvDeleted (Identity cid)" -- TODO(leif): this has to be moved to the store effect
     addPrepQuery Cql.deleteTeamConv (tid, cid)
   todo "C.deleteConversation cid" -- TODO(leif): this has to be moved to the store effect
 

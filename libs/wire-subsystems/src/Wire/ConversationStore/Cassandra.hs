@@ -16,9 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationStore.Cassandra
-  ( createConversation,
-    deleteConversation,
-    interpretConversationStoreToCassandra,
+  ( interpretConversationStoreToCassandra,
   )
 where
 

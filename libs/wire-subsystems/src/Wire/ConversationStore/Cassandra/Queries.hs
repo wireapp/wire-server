@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- TODO(leif): make sure these are only used in the store interpreter, maybe inline them?
 module Wire.ConversationStore.Cassandra.Queries
   ( insertMLSSelfConv,
     insertMember,
