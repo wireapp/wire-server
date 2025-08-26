@@ -21,14 +21,3 @@ import Cassandra
 import Imports hiding (Set)
 import Wire.API.Conversation
 import Wire.StoredConversation
-
-defAccess :: ConvType -> Maybe (Set Access) -> [Access]
-defAccess SelfConv Nothing = [PrivateAccess]
-defAccess ConnectConv Nothing = [PrivateAccess]
-defAccess One2OneConv Nothing = [PrivateAccess]
-defAccess RegularConv Nothing = defRegularConvAccess
-defAccess SelfConv (Just (Set [])) = [PrivateAccess]
-defAccess ConnectConv (Just (Set [])) = [PrivateAccess]
-defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
-defAccess RegularConv (Just (Set [])) = defRegularConvAccess
-defAccess _ (Just (Set (x : xs))) = x : xs

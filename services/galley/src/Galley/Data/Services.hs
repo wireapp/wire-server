@@ -28,25 +28,3 @@ import Data.Id
 import Imports
 import Wire.API.Provider.Service
 import Wire.StoredConversation
-
--- BotMember ------------------------------------------------------------------
-
--- | For now we assume bots to always be local
---
--- FUTUREWORK(federation): allow remote bots
-newtype BotMember = BotMember {fromBotMember :: LocalMember} deriving (Show)
-
-instance Eq BotMember where
-  (==) = (==) `on` botMemId
-
-instance Ord BotMember where
-  compare = compare `on` botMemId
-
-newBotMember :: LocalMember -> Maybe BotMember
-newBotMember m = BotMember m <$ m.service
-
-botMemId :: BotMember -> BotId
-botMemId m = BotId $ m.fromBotMember.id_
-
-botMemService :: BotMember -> ServiceRef
-botMemService m = fromJust $ m.fromBotMember.service

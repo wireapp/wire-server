@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Conversation
+module Wire.ConversationStore.Cassandra
   ( createConversation,
     deleteConversation,
     interpretConversationStoreToCassandra,
@@ -24,6 +24,7 @@ where
 
 import Cassandra hiding (Set)
 import Cassandra qualified as Cql
+import Cassandra.Settings
 import Cassandra.Util
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
@@ -35,29 +36,28 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
-import Data.Time.Clock
+import Data.Time
 import Data.UUID.V4 (nextRandom)
-import Galley.Cassandra.Access
-import Galley.Cassandra.Conversation.MLS
-import Galley.Cassandra.Conversation.Members
-import Galley.Cassandra.Queries qualified as Cql
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Effects.ConversationStore (ConversationStore (..))
 import Imports
 import Polysemy
-import Polysemy.Input
+import Polysemy.Embed
 import Polysemy.TinyLog
 import System.Logger qualified as Log
+import System.Logger.Message
 import UnliftIO qualified
 import Wire.API.Conversation hiding (Conversation, Member, members, newGroupId)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.User
+import Wire.ConversationStore (ConversationStore (..), LockAcquired (..))
+import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.ConversationStore.Cassandra.Queries qualified as Cql
+import Wire.MemberStore.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -296,15 +296,14 @@ localConversation cid =
 
 localConversations ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r,
     Member TinyLog r
   ) =>
+  ClientState ->
   [ConvId] ->
   Sem r [StoredConversation]
-localConversations =
+localConversations client =
   collectAndLog
-    <=< ( embedClient
-            . UnliftIO.pooledMapConcurrentlyN 8 localConversation'
+    <=< ( runEmbedded (runClient client) . embed . UnliftIO.pooledMapConcurrentlyN 8 localConversation'
         )
   where
     collectAndLog cs = case partitionEithers cs of
@@ -399,48 +398,72 @@ toConv cid ms remoteMems mconv = do
       }
 
 updateToMixedProtocol ::
-  ( Members
-      '[ Embed IO,
-         Input ClientState
-       ]
-      r
-  ) =>
+  (Member (Embed IO) r) =>
+  ClientState ->
   Local ConvId ->
   ConvType ->
   Sem r ()
-updateToMixedProtocol lcnv ct = do
+updateToMixedProtocol client lcnv ct = do
   let gid = newGroupId ct $ Conv <$> tUntagged lcnv
       epoch = Epoch 0
-  embedClient . retry x5 . batch $ do
+  runEmbedded (runClient client) . embed . retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch)
   pure ()
 
 updateToMLSProtocol ::
-  ( Members
-      '[ Embed IO,
-         Input ClientState
-       ]
-      r
-  ) =>
+  (Member (Embed IO) r) =>
+  ClientState ->
   Local ConvId ->
   Sem r ()
-updateToMLSProtocol lcnv =
-  embedClient . retry x5 $
+updateToMLSProtocol client lcnv =
+  runEmbedded (runClient client) . embed . retry x5 $
     write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
 
 updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
 updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
 
+acquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> Client LockAcquired
+acquireCommitLock groupId epoch ttl = do
+  rows <-
+    retry x5 $
+      trans
+        Cql.acquireCommitLock
+        ( params
+            LocalQuorum
+            (groupId, epoch, round ttl)
+        )
+          { serialConsistency = Just LocalSerialConsistency
+          }
+  pure $
+    if checkTransSuccess rows
+      then Acquired
+      else NotAcquired
+
+releaseCommitLock :: GroupId -> Epoch -> Client ()
+releaseCommitLock groupId epoch =
+  retry x5 $
+    write
+      Cql.releaseCommitLock
+      ( params
+          LocalQuorum
+          (groupId, epoch)
+      )
+
+checkTransSuccess :: [Row] -> Bool
+checkTransSuccess [] = False
+checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
+
 interpretConversationStoreToCassandra ::
+  forall r a.
   ( Member (Embed IO) r,
-    Member (Input ClientState) r,
     Member TinyLog r
   ) =>
+  ClientState ->
   Sem (ConversationStore ': r) a ->
   Sem r a
-interpretConversationStoreToCassandra = interpret $ \case
+interpretConversationStoreToCassandra client = interpret $ \case
   CreateConversationId -> do
     logEffect "ConversationStore.CreateConversationId"
     Id <$> embed nextRandom
@@ -458,7 +481,7 @@ interpretConversationStoreToCassandra = interpret $ \case
     embedClient $ getConvEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
-    localConversations cids
+    localConversations client cids
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
     embedClient $ conversationMeta cid
@@ -515,10 +538,16 @@ interpretConversationStoreToCassandra = interpret $ \case
     embedClient $ releaseCommitLock gId epoch
   UpdateToMixedProtocol cid ct -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
-    updateToMixedProtocol cid ct
+    updateToMixedProtocol client cid ct
   UpdateToMLSProtocol cid -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
-    updateToMLSProtocol cid
+    updateToMLSProtocol client cid
   UpdateChannelAddPermissions cid cap -> do
     logEffect "ConversationStore.UpdateChannelAddPermissions"
     embedClient $ updateChannelAddPermissions cid cap
+  where
+    embedClient :: Client x -> Sem r x
+    embedClient = runEmbedded (runClient client) . embed
+
+    logEffect :: ByteString -> Sem r ()
+    logEffect = debug . msg . val

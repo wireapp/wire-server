@@ -280,7 +280,6 @@ library
     Galley.Schema.V98_ChannelAddPermission
     Galley.TeamSubsystem
     Galley.Types.Clients
-    Galley.Types.ToUserRole
     Galley.Validation
 
   ghc-options:

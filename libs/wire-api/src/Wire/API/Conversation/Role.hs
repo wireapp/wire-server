@@ -56,6 +56,7 @@ module Wire.API.Conversation.Role
     isValidRoleName,
     roleActions,
     toConvRole,
+    ToUserRole (..),
   )
 where
 
@@ -68,6 +69,7 @@ import Data.Aeson.TH qualified as A
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
+import Data.Id
 import Data.OpenApi qualified as S
 import Data.Range (fromRange, genRangeText)
 import Data.Schema
@@ -270,3 +272,12 @@ isValidRoleName =
         *> count 126 (optional (satisfy chars))
         *> endOfInput
     chars = inClass "a-z0-9_"
+
+class ToUserRole a where
+  toUserRole :: a -> (UserId, RoleName)
+
+instance ToUserRole (UserId, RoleName) where
+  toUserRole x = x
+
+instance ToUserRole UserId where
+  toUserRole uid = (uid, roleNameWireAdmin)
