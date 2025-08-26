@@ -821,15 +821,6 @@ fromSomeResponse (SomeResponse Response {..}) = do
         ..
       }
 
-class HasAcceptCheck cs where
-  acceptCheck' :: Proxy cs -> AcceptHeader -> DelayedIO ()
-
-instance (AllMime cs) => HasAcceptCheck cs where
-  acceptCheck' = acceptCheck
-
-instance HasAcceptCheck '() where
-  acceptCheck' _ _ = pure ()
-
 instance
   ( HasAcceptCheck cs,
     IsResponseList cs as,
