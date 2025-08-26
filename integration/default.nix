@@ -24,7 +24,6 @@
 , cql
 , cql-io
 , criterion
-, cryptobox-haskell
 , crypton
 , crypton-x509
 , cryptostore
@@ -59,6 +58,7 @@
 , optparse-applicative
 , pem
 , process
+, proteus-bindings
 , proto-lens
 , random
 , raw-strings-qq
@@ -132,7 +132,6 @@ mkDerivation {
     cql
     cql-io
     criterion
-    cryptobox-haskell
     crypton
     crypton-x509
     cryptostore
@@ -164,6 +163,7 @@ mkDerivation {
     optparse-applicative
     pem
     process
+    proteus-bindings
     proto-lens
     random
     raw-strings-qq

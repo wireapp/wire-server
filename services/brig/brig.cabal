@@ -232,7 +232,6 @@ library
     , conduit                               >=1.2.8
     , containers                            >=0.5
     , cookie                                >=0.4
-    , cryptobox-haskell                     >=0.1.1
     , crypton
     , currency-codes                        >=2.0
     , data-default
@@ -284,6 +283,7 @@ library
     , polysemy-time
     , polysemy-wire-zoo
     , prometheus-client
+    , proteus-bindings
     , proto-lens                            >=0.1
     , random-shuffle                        >=0.0.3
     , raw-strings-qq
