@@ -46,7 +46,6 @@ import Data.Tagged
 import Galley.API.LegalHold.Team
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient)
 import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore (getOneUserTeam, getTeamMember)
@@ -61,6 +60,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
+import Wire.BrigAPIAccess (getAccountConferenceCallingConfigClient)
 
 data DoAuth = DoAuth UserId | DontDoAuth
 
@@ -218,7 +218,7 @@ instance (GetFeatureForUserConstraints cfg r, GetFeatureConfig cfg, ComputeFeatu
 
 getAllTeamFeaturesForUser ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS OperationDenied) r,
@@ -347,7 +347,7 @@ instance GetFeatureConfig ConferenceCallingConfig where
         Member (ErrorS 'TeamNotFound) r,
         Member TeamStore r,
         Member TeamFeatureStore r,
-        Member BrigAccess r
+        Member BrigAPIAccess r
       )
 
   getFeatureForUser uid = do
@@ -402,6 +402,10 @@ instance GetFeatureConfig CellsConfig
 instance GetFeatureConfig AllowedGlobalOperationsConfig
 
 instance GetFeatureConfig ConsumableNotificationsConfig
+
+instance GetFeatureConfig ChatBubblesConfig
+
+instance GetFeatureConfig AppsConfig
 
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but
 -- should, are blocked completely.  (This is a workaround until we have 2FA for those

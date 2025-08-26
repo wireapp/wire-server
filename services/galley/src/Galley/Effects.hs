@@ -20,8 +20,7 @@ module Galley.Effects
     GalleyEffects1,
 
     -- * Effects to access the Intra API
-    BotAccess,
-    BrigAccess,
+    BrigAPIAccess,
     FederatorAccess,
     SparAccess,
 
@@ -66,8 +65,6 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Effects.BotAccess
-import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
@@ -98,6 +95,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
+import Wire.BrigAPIAccess
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.NotificationSubsystem
@@ -112,17 +110,16 @@ import Wire.TeamSubsystem (TeamSubsystem)
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ BrigAccess,
+  '[ ExternalAccess,
+     BrigAPIAccess,
      SparAccess,
      TeamCollaboratorsSubsystem,
      NotificationSubsystem,
      TeamSubsystem,
      GundeckAPIAccess,
      Rpc,
-     ExternalAccess,
      FederatorAccess,
      BackendNotificationQueueAccess,
-     BotAccess,
      FireAndForget,
      TeamCollaboratorsStore,
      ClientStore,

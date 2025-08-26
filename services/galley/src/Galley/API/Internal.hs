@@ -283,6 +283,8 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Get
     <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -302,6 +304,8 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", ChannelsConfig) (updateLockStatus @ChannelsConfig)
     <@> mkNamedAPI @'("ilock", CellsConfig) (updateLockStatus @CellsConfig)
     <@> mkNamedAPI @'("ilock", ConsumableNotificationsConfig) (updateLockStatus @ConsumableNotificationsConfig)
+    <@> mkNamedAPI @'("ilock", ChatBubblesConfig) (updateLockStatus @ChatBubblesConfig)
+    <@> mkNamedAPI @'("ilock", AppsConfig) (updateLockStatus @AppsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 
@@ -480,7 +484,7 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r,

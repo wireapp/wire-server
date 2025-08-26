@@ -88,6 +88,8 @@ module Wire.API.Team.Feature
     CellsConfig (..),
     AllowedGlobalOperationsConfig (..),
     ConsumableNotificationsConfig (..),
+    ChatBubblesConfig (..),
+    AppsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -246,6 +248,8 @@ data FeatureSingleton cfg where
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
   FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
+  FeatureSingletonChatBubblesConfig :: FeatureSingleton ChatBubblesConfig
+  FeatureSingletonAppsConfig :: FeatureSingleton AppsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1490,7 +1494,49 @@ instance IsFeatureConfig ConsumableNotificationsConfig where
   featureSingleton = FeatureSingletonConsumableNotificationsConfig
   objectSchema = pure ConsumableNotificationsConfig
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Chat Bubbles Feature
+
+data ChatBubblesConfig = ChatBubblesConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform ChatBubblesConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName ChatBubblesConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature ChatBubblesConfig
+
+instance ToSchema ChatBubblesConfig where
+  schema = object "ChatBubblesConfig" objectSchema
+
+instance Default (LockableFeature ChatBubblesConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig ChatBubblesConfig where
+  type FeatureSymbol ChatBubblesConfig = "chatBubbles"
+  featureSingleton = FeatureSingletonChatBubblesConfig
+
+  objectSchema = pure ChatBubblesConfig
+
+-------------------------------------------------------------------------------
+-- Apps Feature
+
+data AppsConfig = AppsConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform AppsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName AppsConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature AppsConfig
+
+instance ToSchema AppsConfig where
+  schema = object "AppsConfig" objectSchema
+
+instance Default (LockableFeature AppsConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig AppsConfig where
+  type FeatureSymbol AppsConfig = "apps"
+  featureSingleton = FeatureSingletonAppsConfig
+
+  objectSchema = pure AppsConfig
+
+---------------------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1577,7 +1623,9 @@ type Features =
     ChannelsConfig,
     CellsConfig,
     AllowedGlobalOperationsConfig,
-    ConsumableNotificationsConfig
+    ConsumableNotificationsConfig,
+    ChatBubblesConfig,
+    AppsConfig
   ]
 
 -- | list of available features as a record

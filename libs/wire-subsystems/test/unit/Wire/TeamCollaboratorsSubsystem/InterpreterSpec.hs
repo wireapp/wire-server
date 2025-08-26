@@ -165,6 +165,57 @@ spec = do
                     pure $
                       length collaborators === length expectedCollaboratorTids
                         .&&. collaboratorTids === (Set.fromList expectedCollaboratorTids)
+  describe "GetTeamCollaboratorsWithIds" $ do
+    -- The collaboratorTeams parameter leads to quadratic complextity: Limit
+    -- the amount of elements as this test mostly checks our test code anyways.
+    modifyMaxSize (const 10) $ do
+      prop "gets all collaborators if all userIds are provided" $
+        \(owner :: StoredUser)
+         (collaboratorTeams :: Map StoredUser [TeamId])
+         config
+         ownDomain
+         collabPerms
+         ((EligibleRole role) :: EligibleRole) -> do
+            let localBackend :: MiniBackend = def {users = owner : (Map.keys collaboratorTeams)}
+                authUser = toLocalUnsafe ownDomain owner.id
+                perms = rolePermissions role
+                ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+                teamMap = Map.fromList $ concatMap (\(_, tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
+             in runNoFederationStack localBackend teamMap config $ do
+                  forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) ->
+                    forM_ (collaboratorTeams Map.! collaborator) \tid ->
+                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                  collaborators <-
+                    internalGetTeamCollaboratorsWithIds
+                      (Set.fromList (concat (Map.elems collaboratorTeams)))
+                      (Set.fromList ((.id) <$> Map.keys collaboratorTeams))
+                  let collaboratorTids = Set.fromList $ map gTeam collaborators
+                      expectedCollaboratorTids :: [TeamId] = concat $ Map.elems collaboratorTeams
+                  pure $
+                    length collaborators === length expectedCollaboratorTids
+                      .&&. collaboratorTids === (Set.fromList expectedCollaboratorTids)
+      prop "gets no collaborators if no userIds are provided" $
+        \(owner :: StoredUser)
+         (collaboratorTeams :: Map StoredUser [TeamId])
+         config
+         ownDomain
+         collabPerms
+         ((EligibleRole role) :: EligibleRole) -> do
+            let localBackend :: MiniBackend = def {users = owner : (Map.keys collaboratorTeams)}
+                authUser = toLocalUnsafe ownDomain owner.id
+                perms = rolePermissions role
+                ownerTeamMember :: TeamMember = mkTeamMember owner.id perms Nothing UserLegalHoldDisabled
+                teamMap = Map.fromList $ concatMap (\(_, toList -> tids) -> map (,[ownerTeamMember]) tids) $ Map.toList collaboratorTeams
+             in runNoFederationStack localBackend teamMap config $ do
+                  forM_ (Map.keys collaboratorTeams) $ \(collaborator :: StoredUser) ->
+                    forM_ (collaboratorTeams Map.! collaborator) \tid ->
+                      createTeamCollaborator authUser collaborator.id tid collabPerms
+                  collaborators <-
+                    internalGetTeamCollaboratorsWithIds
+                      (Set.fromList (concat (Map.elems collaboratorTeams)))
+                      mempty
+                  pure $
+                    length collaborators === 0
 
 eligibleRoles :: [Role]
 eligibleRoles = [RoleAdmin, RoleOwner]

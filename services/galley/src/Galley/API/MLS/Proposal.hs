@@ -43,7 +43,6 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Types
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.ProposalStore
 import Galley.Env
 import Galley.Options
@@ -69,6 +68,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
+import Wire.BrigAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -116,7 +116,7 @@ proposalProcessingStage (GroupContextExtensionsProposal _) = ProposalProcessingS
 
 type HasProposalEffects r =
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member NotificationSubsystem r,
     Member (Error InternalError) r,
@@ -286,7 +286,7 @@ isExternal _ = True
 
 -- check owner/subject of the key package exists and belongs to the user
 checkExternalProposalUser ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (Input (Local ())) r
   ) =>

@@ -78,8 +78,6 @@ import Galley.API.Util
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
-import Galley.Effects.BotAccess qualified as E
-import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
@@ -122,6 +120,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
+import Wire.BrigAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -132,7 +131,7 @@ import Wire.UserList
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
-    ( Member BrigAccess r,
+    ( Member BrigAPIAccess r,
       Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (ErrorS 'NotATeamMember) r,
@@ -197,7 +196,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvMemberNotFound) r
     )
   HasConversationActionEffects 'ConversationDeleteTag r =
-    ( Member BrigAccess r,
+    ( Member BrigAPIAccess r,
       Member CodeStore r,
       Member ConversationStore r,
       Member (Error FederationError) r,
@@ -215,8 +214,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS InvalidOperation) r
     )
   HasConversationActionEffects 'ConversationAccessDataTag r =
-    ( Member BotAccess r,
-      Member BrigAccess r,
+    ( Member BrigAPIAccess r,
       Member CodeStore r,
       Member (Error InternalError) r,
       Member (Error InvalidInput) r,
@@ -251,7 +249,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
       Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
       Member (Error NoChanges) r,
-      Member BrigAccess r,
+      Member BrigAPIAccess r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member NotificationSubsystem r,
@@ -816,7 +814,7 @@ performConversationAccessData qusr lconv action = do
         then pure bm
         else pure $ bm {bmBots = mempty}
 
-    maybeRemoveGuests :: (Member BrigAccess r) => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveGuests :: (Member BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
       if Set.member GuestAccessRole (cupAccessRoles action)
         then pure bm
@@ -966,7 +964,7 @@ addMembersToLocalConversation lcnv users role joinType = do
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 updateLocalStateOfRemoteConv ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
@@ -1054,7 +1052,7 @@ updateLocalStateOfRemoteConv rcu con = do
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member MemberStore r,
     Member P.TinyLog r
   ) =>

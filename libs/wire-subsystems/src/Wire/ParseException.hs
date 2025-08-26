@@ -2,6 +2,10 @@ module Wire.ParseException where
 
 import Data.Text qualified as Text
 import Imports
+import Network.HTTP.Types
+import Network.Wai.Utilities
+import Network.Wai.Utilities.JSONResponse
+import Wire.API.Error
 
 -- | Failed to parse a response from another service.
 data ParseException = ParseException
@@ -16,3 +20,6 @@ instance Exception ParseException where
       ++ Text.unpack r
       ++ " with message: "
       ++ m
+
+instance APIError ParseException where
+  toResponse _ = waiErrorToJSONResponse $ mkError status500 "internal-error" "Internal server error"

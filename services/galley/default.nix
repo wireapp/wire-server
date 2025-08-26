@@ -308,7 +308,6 @@ mkDerivation {
     lens
     polysemy
     polysemy-wire-zoo
-    QuickCheck
     tasty
     tasty-hunit
     tasty-quickcheck

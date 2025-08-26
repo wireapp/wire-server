@@ -52,7 +52,6 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
@@ -78,12 +77,14 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
+import Wire.API.Team.Collaborator qualified as CollaboratorPermission
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Conf
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
+import Wire.BrigAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -99,7 +100,7 @@ import Wire.UserList
 -- API up to and including version 3.
 createGroupConversationUpToV3 ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -143,7 +144,7 @@ createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLe
 -- API in from version 4 to 8
 createGroupOwnConversation ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -188,7 +189,7 @@ createGroupOwnConversation lusr conn newConv = do
 -- API in version 9 and above.
 createGroupConversation ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -253,7 +254,7 @@ createGroupConvAndMkResponse ::
     Member P.TinyLog r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member NotificationSubsystem r,
     Member LegalHoldStore r,
@@ -276,7 +277,7 @@ createGroupConvAndMkResponse lusr conn newConv mkResponse = do
 createGroupConversationGeneric ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -355,7 +356,7 @@ ensureNoLegalholdConflicts (UserList locals remotes) = do
       throwS @'MissingLegalholdConsent
 
 checkCreateConvPermissions ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
@@ -472,7 +473,7 @@ createProteusSelfConversation lusr = do
 
 createOne2OneConversation ::
   ( Member BackendNotificationQueueAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -542,15 +543,27 @@ createOne2OneConversation lusr zcon j =
     checkBindingTeamPermissions lother tid = do
       mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
       zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
-      void $ permissionCheck CreateConversation $ (Left <$> zusrMembership) <|> (Right <$> mTeamCollaborator)
+      case (mTeamCollaborator, zusrMembership) of
+        (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
+        (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
+        (Just collaborator, Just member) ->
+          unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
+            throwS @OperationDenied
       E.getTeamBinding tid >>= \case
         Just Binding -> do
           when (isJust zusrMembership) $
             verifyMembership tid (tUnqualified lusr)
-          verifyMembership tid (tUnqualified lother)
+          mOtherTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lother)
+          unless (isJust mOtherTeamCollaborator) $
+            verifyMembership tid (tUnqualified lother)
           pure (Just tid)
         Just _ -> throwS @'NonBindingTeam
         Nothing -> throwS @'TeamNotFound
+
+    guardPerm p m =
+      if m `hasPermission` p
+        then pure ()
+        else throwS @OperationDenied
 
 createLegacyOne2OneConversationUnchecked ::
   ( Member BackendNotificationQueueAccess r,

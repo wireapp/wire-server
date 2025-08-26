@@ -45,7 +45,6 @@ import Data.List1 qualified as List1
 import Data.Range (Range)
 import Galley.Data.TeamNotifications qualified as DataTeamQueue
 import Galley.Effects
-import Galley.Effects.BrigAccess as Intra
 import Galley.Effects.TeamNotificationStore qualified as E
 import Imports
 import Polysemy
@@ -54,9 +53,10 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Team (Event)
 import Wire.API.Internal.Notification
 import Wire.API.User
+import Wire.BrigAPIAccess as Intra
 
 getTeamNotifications ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamNotificationStore r
   ) =>

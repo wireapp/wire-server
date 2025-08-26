@@ -319,6 +319,10 @@ type SternAPI =
     :<|> Named "put-route-limited-event-fanout" (MkFeatureStatusPutRoute LimitedEventFanoutConfig)
     :<|> Named "get-route-consumable-notifications" (MkFeatureGetRoute ConsumableNotificationsConfig)
     :<|> Named "put-route-consumable-notifications" (MkFeatureStatusPutRoute ConsumableNotificationsConfig)
+    :<|> Named "get-route-chat-bubbles-config" (MkFeatureGetRoute ChatBubblesConfig)
+    :<|> Named "put-route-chat-bubbles-config" (MkFeatureStatusPutRoute ChatBubblesConfig)
+    :<|> Named "get-route-apps-config" (MkFeatureGetRoute AppsConfig)
+    :<|> Named "put-route-apps-config" (MkFeatureStatusPutRoute AppsConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -468,6 +472,8 @@ type SternAPI =
     :<|> Named "lock-unlock-route-limited-event-fanout-config" (MkFeatureLockUnlockRoute LimitedEventFanoutConfig)
     :<|> Named "lock-unlock-route-cells-config" (MkFeatureLockUnlockRoute CellsConfig)
     :<|> Named "lock-unlock-route-consumable-notifications-config" (MkFeatureLockUnlockRoute ConsumableNotificationsConfig)
+    :<|> Named "lock-unlock-route-chat-bubbles-config" (MkFeatureLockUnlockRoute ChatBubblesConfig)
+    :<|> Named "lock-unlock-route-apps-config" (MkFeatureLockUnlockRoute AppsConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger

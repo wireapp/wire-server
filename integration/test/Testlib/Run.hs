@@ -5,15 +5,19 @@ import Control.Exception as E
 import Control.Monad
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Control.Monad.Reader.Class (asks)
+import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (fromString))
+import Data.String.Conversions (cs)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time
+import qualified Data.Yaml as Yaml
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import RunAllTests
@@ -21,10 +25,15 @@ import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
+import System.IO.Temp (writeTempFile)
+import System.Process
 import Testlib.Assertions
 import Testlib.Env
+import Testlib.ModService (readAndUpdateConfig)
 import Testlib.Options
 import Testlib.Printing
+import Testlib.ResourcePool (acquireResources)
+import Testlib.RunServices (backendA, backendB)
 import Testlib.Types
 import Testlib.XML
 import Text.Printf
@@ -120,8 +129,12 @@ runTests tests mXMLOutput cfg = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  runCodensity (mkGlobalEnv cfg) $ \genv ->
+  runCodensity (mkEnvs cfg) $ \(genv, env) ->
     withAsync displayOutput $ \displayThread -> do
+      -- Although migrations are run on service start up we are running them here before
+      -- to prevent race conditions between brig and galley
+      -- which cause flakiness and can make the complete test suite fail
+      runAppWithEnv env runMigrations
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
         timestamp <- getCurrentTime
@@ -150,6 +163,37 @@ runTests tests mXMLOutput cfg = do
       mapM_ (saveXMLReport report) mXMLOutput
       when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
         exitFailure
+  where
+    mkEnvs :: FilePath -> Codensity IO (GlobalEnv, Env)
+    mkEnvs fp = do
+      g <- mkGlobalEnv fp
+      e <- mkEnv Nothing g
+      pure (g, e)
+
+runMigrations :: App ()
+runMigrations = do
+  cwdBase <- asks (.servicesCwdBase)
+  let brig = "brig"
+  let (cwd, exe) = case cwdBase of
+        Nothing -> (Nothing, brig)
+        Just dir ->
+          (Just (dir </> brig), "../../dist" </> brig)
+  getConfig <- readAndUpdateConfig def backendA Brig
+  config <- liftIO getConfig
+  tempFile <- liftIO $ writeTempFile "/tmp" "brig-migrations.yaml" (cs $ Yaml.encode config)
+  dynDomains <- asks (.dynamicDomains)
+  pool <- asks (.resourcePool)
+  lowerCodensity $ do
+    resources <- acquireResources (length dynDomains) pool
+    let dbnames = [backendA.berPostgresqlDBName, backendB.berPostgresqlDBName] <> map (.berPostgresqlDBName) resources
+    for_ dbnames $ runMigration exe tempFile cwd
+    liftIO $ putStrLn "Postgres migrations finished"
+  where
+    runMigration :: (MonadIO m) => FilePath -> FilePath -> Maybe FilePath -> String -> m ()
+    runMigration exe tempFile cwd dbname = do
+      let cp = (proc exe ["-c", tempFile, "migrate-postgres", "--dbname", dbname]) {cwd}
+      (_, _, _, ph) <- liftIO $ createProcess cp
+      void $ liftIO $ waitForProcess ph
 
 deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
 deleteFederationV0AndV1Queues env = do

@@ -29,8 +29,8 @@ import Galley.Cassandra.Util
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
 import Galley.Effects.ExternalAccess (ExternalAccess (..))
+import Galley.Effects.FireAndForget
 import Galley.Env
-import Galley.Intra.User
 import Galley.Monad
 import Imports
 import Network.HTTP.Client qualified as Http
@@ -47,11 +47,14 @@ import UnliftIO (Async, async, waitCatch)
 import Wire.API.Bot.Service
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
+import Wire.BrigAPIAccess
 
 interpretExternalAccess ::
   ( Member (Embed IO) r,
     Member (Input Env) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member BrigAPIAccess r,
+    Member FireAndForget r
   ) =>
   Sem (ExternalAccess ': r) a ->
   Sem r a
@@ -64,7 +67,7 @@ interpretExternalAccess = interpret $ \case
     embedApp $ deliverAsync (toList pp)
   DeliverAndDeleteAsync cid pp -> do
     logEffect "ExternalAccess.DeliverAndDeleteAsync"
-    embedApp $ deliverAndDeleteAsync cid (toList pp)
+    deliverAndDeleteAsync cid (toList pp)
 
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
@@ -73,9 +76,9 @@ deliverAsync :: [(BotMember, Event)] -> App ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
-deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> App ()
-deliverAndDeleteAsync cnv pushes = void . forkIO $ do
-  gone <- deliver pushes
+deliverAndDeleteAsync :: (Member (Input Env) r, Member (Embed IO) r, Member BrigAPIAccess r, Member FireAndForget r) => ConvId -> [(BotMember, Event)] -> Sem r ()
+deliverAndDeleteAsync cnv pushes = fireAndForget $ do
+  gone <- embedApp $ deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
 
 deliver :: [(BotMember, Event)] -> App [BotMember]

@@ -165,6 +165,14 @@ settings:
       defaults:
         status: disabled
         lockStatus: locked
+    chatBubbles:
+      defaults:
+        status: disabled
+        lockStatus: locked
+    apps:
+      defaults:
+        status: disabled
+        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false
