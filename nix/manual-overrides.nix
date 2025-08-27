@@ -17,7 +17,7 @@ hself: hsuper: {
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
 
   # Tests require a running redis
-  hedis = hlib.dontCheck (hlib.doJailbreak hsuper.hedis);
+  hedis = hlib.dontCheck hsuper.hedis;
 
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
 
@@ -37,12 +37,6 @@ hself: hsuper: {
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   postie = hlib.doJailbreak hsuper.postie;
-  polysemy-time = hlib.doJailbreak (hsuper.polysemy-time);
-  polysemy-resume = hlib.doJailbreak (hsuper.polysemy-resume);
-  polysemy-conc = hlib.doJailbreak (hsuper.polysemy-conc);
-  text-builder-core = hlib.doJailbreak hsuper.text-builder-core;
-  text-builder = hlib.doJailbreak hsuper.text-builder;
-  bitvec = hlib.doJailbreak hsuper.bitvec;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -76,7 +70,7 @@ hself: hsuper: {
 
   # cabal multirepl requires Cabal 3.12
   Cabal = hsuper.Cabal_3_12_1_0;
-  Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
+  Cabal-syntax = hsuper.Cabal-syntax_3_14_2_0;
 
   text-builder = hlib.doJailbreak (hsuper.text-builder_1_0_0_4);
 
@@ -87,7 +81,7 @@ hself: hsuper: {
   cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags hsuper.cryptostore [ "-fuse_crypton" ]))
     [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
   # doJailbreak because upstreams requires a specific crypton-connection version we don't have
-  hoogle = hlib.justStaticExecutables (hlib.doJailbreak (hlib.dontCheck (hsuper.hoogle)));
+  hoogle = hlib.justStaticExecutables (hlib.dontCheck (hsuper.hoogle));
 
   # Extra dependencies/flags for local packages
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
