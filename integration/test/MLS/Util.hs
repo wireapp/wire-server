@@ -654,7 +654,10 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
     -- at this point we know that every new user has been added to the
     -- conversation
     for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
+      MLSNotificationMessageTag ->
+        when (conv.epoch > 0) $
+          void $
+            consumeMessageNoExternal conv.ciphersuite cid mp ws
       MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
     pure r
 

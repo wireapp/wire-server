@@ -1,6 +1,7 @@
 module Test.MLS.Reset where
 
 import API.Galley
+import qualified Data.Map as Map
 import MLS.Util
 import Notifications (isConvResetNotif)
 import SetupHelpers
@@ -55,7 +56,7 @@ testResetOne2OneConversation :: (HasCallStack) => App ()
 testResetOne2OneConversation = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  void $ uploadNewKeyPackage def bob1
+  void . replicateM 2 $ uploadNewKeyPackage def bob1
   otherDomain <- asString OtherDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   convOwnerDomain <- asString $ conv %. "conversation.qualified_id.domain"
@@ -64,13 +65,37 @@ testResetOne2OneConversation = do
 
   resetOne2OneGroup def alice1 conv
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
   resetConversation user mlsConv.groupId mlsConv.epoch >>= assertStatus 200
 
   conv' <- getConversation user convId >>= getJSON 200
-  conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
+  groupId <- conv' %. "group_id" & asString
+  groupId `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
+  convId' <- objConvId conv'
+
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.insert
+            convId'
+            ( mlsConv
+                { groupId,
+                  epoch = 0,
+                  convId = convId'
+                }
+            )
+            $ Map.delete convId mls.convs
+      }
+  resetOne2OneGroupGeneric def alice1 conv' (conv %. "public_keys")
+
+  void $ createAddCommit alice1 convId' [bob] >>= sendAndConsumeCommitBundle
+
+  conv'' <- getConversation user convId >>= getJSON 200
+  conv'' %. "epoch" `shouldMatchInt` 1
+  conv'' %. "group_id" `shouldMatch` groupId
 
 testResetMixedConversation :: (HasCallStack) => Domain -> App ()
 testResetMixedConversation domain = do

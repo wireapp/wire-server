@@ -89,7 +89,8 @@ convReceiptMode c = c.metadata.cnvmReceiptMode
 data NewConversation = NewConversation
   { metadata :: ConversationMetadata,
     users :: UserList (UserId, RoleName),
-    protocol :: BaseProtocolTag
+    protocol :: BaseProtocolTag,
+    groupId :: Maybe GroupId
   }
 
 data MLSMigrationState

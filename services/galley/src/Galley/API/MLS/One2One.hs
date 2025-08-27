@@ -130,10 +130,12 @@ createMLSOne2OneConversation ::
   Local MLSConversation ->
   Sem r StoredConversation
 createMLSOne2OneConversation self other lconv = do
+  let conv = tUnqualified lconv
   createConversation
     (fmap mcId lconv)
     NewConversation
-      { metadata = mcMetadata (tUnqualified lconv),
+      { metadata = mcMetadata conv,
         users = fmap (,roleNameWireMember) (toUserList lconv [self, other]),
-        protocol = BaseProtocolMLSTag
+        protocol = BaseProtocolMLSTag,
+        groupId = Just conv.mcMLSData.cnvmlsGroupId
       }

@@ -323,10 +323,20 @@ data ConvId = ConvId
   deriving (Show, Eq, Ord)
 
 convIdToQidObject :: ConvId -> Value
-convIdToQidObject convId = object [fromString "id" .= convId.id_, fromString "domain" .= convId.domain]
+convIdToQidObject convId =
+  object
+    [ fromString "id" .= convId.id_,
+      fromString "domain" .= convId.domain
+    ]
 
 instance ToJSON ConvId where
-  toJSON = convIdToQidObject
+  toJSON convId =
+    object
+      [ fromString "id" .= convId.id_,
+        fromString "domain" .= convId.domain,
+        fromString "group_id" .= convId.groupId,
+        fromString "subconv_id" .= convId.subconvId
+      ]
 
 data MLSState = MLSState
   { baseDir :: FilePath,
@@ -334,15 +344,6 @@ data MLSState = MLSState
     clientGroupState :: Map ClientIdentity ClientGroupState
   }
   deriving (Show)
-
-printMLSState :: MLSState -> String
-printMLSState MLSState {convs, clientGroupState} =
-  "MLSState {"
-    <> "convs = "
-    <> show convs
-    <> ", clientGroupState = "
-    <> show (Map.keys clientGroupState)
-    <> "}"
 
 data MLSConv = MLSConv
   { members :: Set ClientIdentity,
