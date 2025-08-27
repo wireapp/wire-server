@@ -225,6 +225,8 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.ListItems
+    Wire.ListItems.ConversationIds.Cassandra
     Wire.MemberStore
     Wire.MemberStore.Cassandra
     Wire.NotificationSubsystem
@@ -276,6 +278,7 @@ library
     Wire.UserSubsystem.HandleBlacklist
     Wire.UserSubsystem.Interpreter
     Wire.UserSubsystem.UserSubsystemConfig
+    Wire.Util
     Wire.VerificationCode
     Wire.VerificationCodeGen
     Wire.VerificationCodeStore

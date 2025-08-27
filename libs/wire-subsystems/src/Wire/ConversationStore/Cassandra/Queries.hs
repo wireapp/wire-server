@@ -60,6 +60,9 @@ module Wire.ConversationStore.Cassandra.Queries
     planMLSClientRemoval,
     ConvRow,
     selectUserConvsIn,
+    selectUserConvsFrom,
+    selectUserConvs,
+    selectUserRemoteConvs,
     selectRemoteConvMemberStatuses,
     updateToMixedConv,
     updateToMLSConv,
@@ -233,6 +236,12 @@ insertUserConv = "insert into user (user, conv) values (?, ?)"
 deleteUserConv :: PrepQuery W (UserId, ConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
 
+selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
+selectUserConvs = "select conv from user where user = ? order by conv"
+
+selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
+selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
+
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32
@@ -269,6 +278,9 @@ updateMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "up
 -- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations for a user.
 
 -- local conversation with remote members
+
+selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
 
 insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId, RoleName) ()
 insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role) values (?, ?, ?, ?)"

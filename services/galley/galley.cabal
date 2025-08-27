@@ -138,7 +138,6 @@ library
     Galley.Cassandra
     Galley.Cassandra.Client
     Galley.Cassandra.Code
-    Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.LegalHold
     Galley.Cassandra.Proposal
@@ -163,7 +162,6 @@ library
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
     Galley.Effects.LegalHoldStore
-    Galley.Effects.ListItems
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore

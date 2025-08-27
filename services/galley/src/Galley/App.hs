@@ -56,7 +56,7 @@ import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
-import Galley.Cassandra.ConversationList
+import Wire.ListItems.ConversationIds.Cassandra
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal

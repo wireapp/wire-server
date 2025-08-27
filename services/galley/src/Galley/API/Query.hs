@@ -78,7 +78,7 @@ import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.ListItems qualified as E
+import Wire.ListItems qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env
 import Galley.Options

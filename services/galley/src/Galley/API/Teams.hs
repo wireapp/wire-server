@@ -86,7 +86,7 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
-import Galley.Effects.ListItems qualified as E
+import Wire.ListItems qualified as E
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.SparAccess qualified as Spar

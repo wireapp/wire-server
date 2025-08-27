@@ -19,9 +19,6 @@ module Galley.Cassandra.Queries
   ( selectCustomBackend,
     upsertCustomBackend,
     deleteCustomBackend,
-    selectUserConvsFrom,
-    selectUserConvs,
-    selectUserRemoteConvs,
     selectSubConversation,
     insertSubConversation,
     updateSubConvGroupInfo,
@@ -131,8 +128,6 @@ team
 team_admin
 team_conv
 team_member
-user
-user_remote_conv
 user_team
 -}
 
@@ -306,14 +301,6 @@ lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation
 deleteCode :: PrepQuery W (Key, Scope) ()
 deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
--- User Conversations -------------------------------------------------------
-
-selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
-selectUserConvs = "select conv from user where user = ? order by conv"
-
-selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
-selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
-
 -- MLS SubConversations -----------------------------------------------------
 
 selectSubConversation :: PrepQuery R (ConvId, SubConvId) (Maybe CipherSuiteTag, Maybe Epoch, Maybe (Writetime Epoch), Maybe GroupId)
@@ -342,13 +329,6 @@ listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch)
 
 deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
 deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
-
--- Federated conversations -----------------------------------------------------
---
--- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations for a user.
-
-selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
-selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
 
 -- Clients ------------------------------------------------------------------
 

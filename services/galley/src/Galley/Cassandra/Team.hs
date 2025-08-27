@@ -44,7 +44,7 @@ import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Galley.Effects.ListItems
+import Wire.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env

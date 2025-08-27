@@ -79,7 +79,7 @@ where
 
 import Data.Id
 import Data.Range
-import Galley.Effects.ListItems
+import Wire.ListItems
 import Galley.Types.Teams
 import Imports
 import Polysemy

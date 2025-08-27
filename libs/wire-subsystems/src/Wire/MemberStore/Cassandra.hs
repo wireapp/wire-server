@@ -41,7 +41,6 @@ import Imports hiding (Set)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.TinyLog
-import System.Logger.Message
 import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
@@ -55,6 +54,7 @@ import Wire.ConversationStore.MLS.Types
 import Wire.MemberStore (MemberStore (..))
 import Wire.StoredConversation
 import Wire.UserList
+import Wire.Util
 
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
@@ -488,6 +488,3 @@ interpretMemberStoreToCassandra client = interpret $ \case
   GetLocalMembersByDomain dom -> do
     logEffect "MemberStore.GetLocalMembersByDomain"
     runEmbedded (runClient client) $ embed $ lookupLocalMembersByDomain dom
-  where
-    logEffect :: (Member TinyLog r) => ByteString -> Sem r ()
-    logEffect = debug . msg . val

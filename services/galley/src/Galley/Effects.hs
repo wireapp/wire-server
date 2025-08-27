@@ -72,7 +72,7 @@ import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.LegalHoldStore
-import Galley.Effects.ListItems
+import Wire.ListItems
 import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore

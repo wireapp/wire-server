@@ -1,8 +1,7 @@
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,23 +16,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.ListItems
-  ( ListItems (..),
-    listItems,
-  )
-where
+module Wire.Util where
 
-import Data.Id
+import Cassandra hiding (Set)
 import Imports
 import Polysemy
-import Wire.Sem.Paging
+import Polysemy.Embed
+import Polysemy.TinyLog
+import System.Logger.Message
 
--- | General pagination-aware list-by-user effect
-data ListItems p i m a where
-  ListItems ::
-    UserId ->
-    Maybe (PagingState p i) ->
-    PagingBounds p i ->
-    ListItems p i m (Page p i)
+embedClient :: (Member (Embed IO) r) => ClientState -> Client x -> Sem r x
+embedClient client = runEmbedded (runClient client) . embed
 
-makeSem ''ListItems
+logEffect :: (Member TinyLog r) => ByteString -> Sem r ()
+logEffect = debug . msg . val

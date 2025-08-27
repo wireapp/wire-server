@@ -41,7 +41,6 @@ import Polysemy
 import Polysemy.Embed
 import Polysemy.TinyLog
 import System.Logger qualified as Log
-import System.Logger.Message
 import UnliftIO qualified
 import Wire.API.Conversation hiding (Conversation, Member, members, newGroupId)
 import Wire.API.Conversation.CellsState
@@ -58,6 +57,7 @@ import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.MemberStore.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
+import Wire.Util
 
 createMLSSelfConversation ::
   Local UserId ->
@@ -476,73 +476,73 @@ interpretConversationStoreToCassandra client = interpret $ \case
     Id <$> embed nextRandom
   CreateConversation loc nc -> do
     logEffect "ConversationStore.CreateConversation"
-    embedClient $ createConversation loc nc
+    embedClient client $ createConversation loc nc
   CreateMLSSelfConversation lusr -> do
     logEffect "ConversationStore.CreateMLSSelfConversation"
-    embedClient $ createMLSSelfConversation lusr
+    embedClient client $ createMLSSelfConversation lusr
   GetConversation cid -> do
     logEffect "ConversationStore.GetConversation"
-    embedClient $ getConversation cid
+    embedClient client $ getConversation cid
   GetConversationEpoch cid -> do
     logEffect "ConversationStore.GetConversationEpoch"
-    embedClient $ getConvEpoch cid
+    embedClient client $ getConvEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
     localConversations client cids
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
-    embedClient $ conversationMeta cid
+    embedClient client $ conversationMeta cid
   GetGroupInfo cid -> do
     logEffect "ConversationStore.GetGroupInfo"
-    embedClient $ getGroupInfo cid
+    embedClient client $ getGroupInfo cid
   IsConversationAlive cid -> do
     logEffect "ConversationStore.IsConversationAlive"
-    embedClient $ isConvAlive cid
+    embedClient client $ isConvAlive cid
   SelectConversations uid cids -> do
     logEffect "ConversationStore.SelectConversations"
-    embedClient $ localConversationIdsOf uid cids
+    embedClient client $ localConversationIdsOf uid cids
   GetRemoteConversationStatus uid cids -> do
     logEffect "ConversationStore.GetRemoteConversationStatus"
-    embedClient $ remoteConversationStatus uid cids
+    embedClient client $ remoteConversationStatus uid cids
   SetConversationType cid ty -> do
     logEffect "ConversationStore.SetConversationType"
-    embedClient $ updateConvType cid ty
+    embedClient client $ updateConvType cid ty
   SetConversationName cid value -> do
     logEffect "ConversationStore.SetConversationName"
-    embedClient $ updateConvName cid value
+    embedClient client $ updateConvName cid value
   SetConversationAccess cid value -> do
     logEffect "ConversationStore.SetConversationAccess"
-    embedClient $ updateConvAccess cid value
+    embedClient client $ updateConvAccess cid value
   SetConversationReceiptMode cid value -> do
     logEffect "ConversationStore.SetConversationReceiptMode"
-    embedClient $ updateConvReceiptMode cid value
+    embedClient client $ updateConvReceiptMode cid value
   SetConversationMessageTimer cid value -> do
     logEffect "ConversationStore.SetConversationMessageTimer"
-    embedClient $ updateConvMessageTimer cid value
+    embedClient client $ updateConvMessageTimer cid value
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
-    embedClient $ updateConvEpoch cid epoch
+    embedClient client $ updateConvEpoch cid epoch
   SetConversationCipherSuite cid cs -> do
     logEffect "ConversationStore.SetConversationCipherSuite"
-    embedClient $ updateConvCipherSuite cid cs
+    embedClient client $ updateConvCipherSuite cid cs
   SetConversationCellsState cid ps -> do
     logEffect "ConversationStore.SetConversationCellsState"
-    embedClient $ updateConvCellsState cid ps
+    embedClient client $ updateConvCellsState cid ps
   ResetConversation cid groupId -> do
     logEffect "ConversationStore.ResetConversation"
-    embedClient $ resetConversation cid groupId
+    embedClient client $ resetConversation cid groupId
   DeleteConversation cid -> do
     logEffect "ConversationStore.DeleteConversation"
-    embedClient $ deleteConversation cid
+    embedClient client $ deleteConversation cid
   SetGroupInfo cid gib -> do
     logEffect "ConversationStore.SetGroupInfo"
-    embedClient $ setGroupInfo cid gib
+    embedClient client $ setGroupInfo cid gib
   AcquireCommitLock gId epoch ttl -> do
     logEffect "ConversationStore.AcquireCommitLock"
-    embedClient $ acquireCommitLock gId epoch ttl
+    embedClient client $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> do
     logEffect "ConversationStore.ReleaseCommitLock"
-    embedClient $ releaseCommitLock gId epoch
+    embedClient client $ releaseCommitLock gId epoch
   UpdateToMixedProtocol cid ct -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
     updateToMixedProtocol client cid ct
@@ -551,13 +551,7 @@ interpretConversationStoreToCassandra client = interpret $ \case
     updateToMLSProtocol client cid
   UpdateChannelAddPermissions cid cap -> do
     logEffect "ConversationStore.UpdateChannelAddPermissions"
-    embedClient $ updateChannelAddPermissions cid cap
+    embedClient client $ updateChannelAddPermissions cid cap
   DeleteTeamConversation tid cid -> do
     logEffect "ConversationStore.DeleteTeamConversation"
-    embedClient $ removeTeamConv tid cid
-  where
-    embedClient :: Client x -> Sem r x
-    embedClient = runEmbedded (runClient client) . embed
-
-    logEffect :: ByteString -> Sem r ()
-    logEffect = debug . msg . val
+    embedClient client $ removeTeamConv tid cid
