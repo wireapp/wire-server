@@ -132,7 +132,7 @@ instance ToSchema (UserGroup_ (Const ())) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (.members) .= pure mempty
-        <*> (.membersCount) .= field "membersCount" schema
+        <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
@@ -157,6 +157,6 @@ instance ToSchema (UserGroup_ Identity) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
-        <*> (.membersCount) .= field "membersCount" schema
+        <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
