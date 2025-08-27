@@ -78,6 +78,7 @@ hself: hsuper: {
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_12_1_0;
 
+  text-builder = hlib.doJailbreak (hsuper.text-builder_1_0_0_4);
 
   # -----------------
   # flags and patches
