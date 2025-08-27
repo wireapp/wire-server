@@ -67,20 +67,16 @@ import Data.Qualified
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.ConversationStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.LegalHoldStore
-import Galley.Effects.ListItems
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
-import Galley.Effects.SubConversationStore
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
@@ -96,14 +92,18 @@ import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
+import Wire.ConversationStore (ConversationStore)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
+import Wire.ListItems
+import Wire.MemberStore (MemberStore)
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Now
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
+import Wire.SubConversationStore
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -125,7 +125,6 @@ type GalleyEffects1 =
      ClientStore,
      CodeStore,
      ProposalStore,
-     ConversationStore,
      SubConversationStore,
      RateLimit,
      HashPassword,
@@ -137,6 +136,7 @@ type GalleyEffects1 =
      ServiceStore,
      TeamNotificationStore,
      TeamStore,
+     ConversationStore,
      TeamFeatureStore,
      TeamMemberStore InternalPaging,
      TeamMemberStore CassandraPaging,

@@ -27,12 +27,12 @@ import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Misc
-import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
+import Wire.ConversationStore.Cassandra.Instances ()
 
 runCommand :: Logger -> ClientState -> ClientState -> IO ()
 runCommand l spar galley = do

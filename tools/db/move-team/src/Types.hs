@@ -34,9 +34,9 @@ import Data.Id
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
 import Data.Vector qualified as V
-import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)
+import Wire.ConversationStore.Cassandra.Instances ()
 
 data Env = Env
   { envLogger :: Logger,

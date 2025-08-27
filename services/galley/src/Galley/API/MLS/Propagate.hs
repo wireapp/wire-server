@@ -24,9 +24,7 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Qualified
-import Galley.API.MLS.Types
 import Galley.API.Push
-import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Imports
@@ -45,6 +43,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
+import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

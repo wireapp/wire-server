@@ -17,56 +17,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.MemberStore
-  ( -- * Member store effect
-    MemberStore (..),
-
-    -- * Create members
-    createMember,
-    createMembers,
-    createMembersInRemoteConversation,
-    createBotMember,
-
-    -- * Read members
-    getLocalMember,
-    getLocalMembers,
-    getAllLocalMembers,
-    getRemoteMember,
-    getRemoteMembers,
-    checkLocalMemberRemoteConv,
-    selectRemoteMembers,
-    getRemoteMembersByDomain,
-    getLocalMembersByDomain,
-
-    -- * Update members
-    setSelfMember,
-    setOtherMember,
-    addMLSClients,
-    planClientRemoval,
-    removeMLSClients,
-    removeAllMLSClients,
-    lookupMLSClients,
-    lookupMLSClientLeafIndices,
-
-    -- * Delete members
-    deleteMembers,
-    deleteMembersInRemoteConversation,
-  )
-where
+module Wire.MemberStore where
 
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Galley.API.MLS.Types
-import Galley.Data.Services
-import Galley.Types.ToUserRole
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.Conversation.Role
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode
 import Wire.API.Provider.Service
+import Wire.ConversationStore.MLS.Types
 import Wire.StoredConversation
 import Wire.UserList
 

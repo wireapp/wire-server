@@ -32,7 +32,6 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore qualified as E
-import Galley.Effects.ConversationStore (getConversation)
 import Galley.Env
 import Galley.Types.Clients (clientIds)
 import Imports
@@ -47,6 +46,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
+import Wire.ConversationStore (getConversation)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (CassandraPaging)

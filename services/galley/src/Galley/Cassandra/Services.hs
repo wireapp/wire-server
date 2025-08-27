@@ -19,11 +19,9 @@ module Galley.Cassandra.Services where
 
 import Cassandra
 import Control.Lens
-import Data.Id
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Galley.Data.Services
 import Galley.Effects.ServiceStore hiding (deleteService)
 import Imports
 import Polysemy
@@ -31,21 +29,6 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Provider.Service hiding (DeleteService)
-import Wire.StoredConversation
-
--- FUTUREWORK: support adding bots to a remote conversation
-addBotMember :: ServiceRef -> BotId -> ConvId -> Client BotMember
-addBotMember s bot cnv = do
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery insertUserConv (botUserId bot, cnv)
-    addPrepQuery insertBot (cnv, bot, sid, pid)
-  pure (BotMember mem)
-  where
-    pid = s ^. serviceRefProvider
-    sid = s ^. serviceRefId
-    mem = (newMember (botUserId bot)) {service = Just s}
 
 -- Service --------------------------------------------------------------------
 

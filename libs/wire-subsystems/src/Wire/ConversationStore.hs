@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,56 +17,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.ConversationStore
-  ( -- * ConversationStore Effect
-    ConversationStore (..),
-
-    -- * Create conversation
-    createConversationId,
-    createConversation,
-    createMLSSelfConversation,
-
-    -- * Read conversation
-    getConversation,
-    getConversationEpoch,
-    getConversations,
-    getConversationMetadata,
-    getGroupInfo,
-    isConversationAlive,
-    getRemoteConversationStatus,
-    selectConversations,
-
-    -- * Update conversation
-    setConversationType,
-    setConversationName,
-    setConversationAccess,
-    setConversationReceiptMode,
-    setConversationMessageTimer,
-    setConversationEpoch,
-    setConversationCipherSuite,
-    setConversationCellsState,
-    resetConversation,
-    acceptConnectConversation,
-    setGroupInfo,
-    updateToMixedProtocol,
-    updateToMLSProtocol,
-    updateChannelAddPermissions,
-
-    -- * Delete conversation
-    deleteConversation,
-
-    -- * MLS commit lock management
-    acquireCommitLock,
-    releaseCommitLock,
-  )
-where
+module Wire.ConversationStore where
 
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
-import Galley.Data.Types
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -75,6 +32,11 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.MLS.GroupInfo
 import Wire.StoredConversation
+
+data LockAcquired
+  = Acquired
+  | NotAcquired
+  deriving (Show, Eq)
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -109,6 +71,7 @@ data ConversationStore m a where
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
+  DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

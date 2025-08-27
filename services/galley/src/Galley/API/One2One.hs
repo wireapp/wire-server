@@ -25,15 +25,15 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.Effects.ConversationStore
-import Galley.Effects.MemberStore
 import Galley.Types.Conversations.One2One (one2OneConvId)
-import Galley.Types.ToUserRole
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Role
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User
+import Wire.ConversationStore
+import Wire.MemberStore
 import Wire.StoredConversation
 import Wire.UserList
 

@@ -6,7 +6,6 @@
 , base
 , cassandra-util
 , conduit
-, galley
 , gitignoreSource
 , imports
 , lens
@@ -16,6 +15,7 @@
 , types-common
 , unliftio
 , wire-api
+, wire-subsystems
 }:
 mkDerivation {
   pname = "migrate-sso-feature-flag";
@@ -27,7 +27,6 @@ mkDerivation {
     base
     cassandra-util
     conduit
-    galley
     imports
     lens
     optparse-applicative
@@ -35,6 +34,7 @@ mkDerivation {
     types-common
     unliftio
     wire-api
+    wire-subsystems
   ];
   description = "Backfill sso feature flag into teams that already have an IdP";
   license = lib.licenses.agpl3Only;

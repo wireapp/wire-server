@@ -3,6 +3,7 @@
 
 module Wire.StoredConversation where
 
+import Cassandra qualified as C
 import Data.Domain
 import Data.Id
 import Data.Misc
@@ -174,3 +175,36 @@ defMemberStatus =
       msHidden = False,
       msHiddenRef = Nothing
     }
+
+defAccess :: ConvType -> Maybe (C.Set Access) -> [Access]
+defAccess SelfConv Nothing = [PrivateAccess]
+defAccess ConnectConv Nothing = [PrivateAccess]
+defAccess One2OneConv Nothing = [PrivateAccess]
+defAccess RegularConv Nothing = defRegularConvAccess
+defAccess SelfConv (Just (C.Set [])) = [PrivateAccess]
+defAccess ConnectConv (Just (C.Set [])) = [PrivateAccess]
+defAccess One2OneConv (Just (C.Set [])) = [PrivateAccess]
+defAccess RegularConv (Just (C.Set [])) = defRegularConvAccess
+defAccess _ (Just (C.Set (x : xs))) = x : xs
+
+-- BotMember ------------------------------------------------------------------
+
+-- | For now we assume bots to always be local
+--
+-- FUTUREWORK(federation): allow remote bots
+newtype BotMember = BotMember {fromBotMember :: LocalMember} deriving (Show)
+
+instance Eq BotMember where
+  (==) = (==) `on` botMemId
+
+instance Ord BotMember where
+  compare = compare `on` botMemId
+
+newBotMember :: LocalMember -> Maybe BotMember
+newBotMember m = BotMember m <$ m.service
+
+botMemId :: BotMember -> BotId
+botMemId m = BotId $ m.fromBotMember.id_
+
+botMemService :: BotMember -> ServiceRef
+botMemService m = fromJust $ m.fromBotMember.service

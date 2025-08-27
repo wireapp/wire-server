@@ -24,12 +24,12 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.API.MLS.Types
-import Galley.Effects.MemberStore
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore
 import Wire.StoredConversation as Data
 
 mkMLSConversation ::

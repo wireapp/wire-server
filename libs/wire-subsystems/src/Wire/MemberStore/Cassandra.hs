@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,36 +15,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Conversation.Members
+-- FUTUREWORK: Some queries are leaking from this module. We should eventually only export
+-- the interpreter to ensure proper encapsulation when we want to migrate to a different storage backend e.g.
+module Wire.MemberStore.Cassandra
   ( addMembers,
     members,
-    allMembers,
-    toMember,
     lookupRemoteMembers,
     removeMembersFromLocalConv,
     toMemberStatus,
+    lookupMLSClientLeafIndices,
     interpretMemberStoreToCassandra,
   )
 where
 
 import Cassandra
+import Control.Arrow
+import Control.Lens
 import Data.Domain
 import Data.Id
 import Data.List.Extra qualified as List
 import Data.Monoid
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.Cassandra.Conversation.MLS
-import Galley.Cassandra.Instances ()
-import Galley.Cassandra.Queries qualified as Cql
-import Galley.Cassandra.Services
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Effects.MemberStore (MemberStore (..))
-import Galley.Types.ToUserRole
 import Imports hiding (Set)
 import Polysemy
-import Polysemy.Input
+import Polysemy.Embed
 import Polysemy.TinyLog
 import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
@@ -53,8 +48,13 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.Provider.Service
+import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.ConversationStore.Cassandra.Queries qualified as Cql
+import Wire.ConversationStore.MLS.Types
+import Wire.MemberStore (MemberStore (..))
 import Wire.StoredConversation
 import Wire.UserList
+import Wire.Util
 
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
@@ -390,78 +390,101 @@ removeAllMLSClients :: GroupId -> Client ()
 removeAllMLSClients groupId = do
   retry x5 $ write Cql.removeAllMLSClients (params LocalQuorum (Identity groupId))
 
+-- FUTUREWORK: support adding bots to a remote conversation
+addBotMember :: ServiceRef -> BotId -> ConvId -> Client BotMember
+addBotMember s bot cnv = do
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery Cql.insertUserConv (botUserId bot, cnv)
+    addPrepQuery Cql.insertBot (cnv, bot, sid, pid)
+  pure (BotMember mem)
+  where
+    pid = s ^. serviceRefProvider
+    sid = s ^. serviceRefId
+    mem = (newMember (botUserId bot)) {service = Just s}
+
+lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
+lookupMLSClientLeafIndices groupId = do
+  entries <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
+  pure $ (mkClientMap &&& mkIndexMap) entries
+
+lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
+lookupMLSClients = fmap fst . lookupMLSClientLeafIndices
+
 interpretMemberStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r,
     Member TinyLog r
   ) =>
+  ClientState ->
   Sem (MemberStore ': r) a ->
   Sem r a
-interpretMemberStoreToCassandra = interpret $ \case
+interpretMemberStoreToCassandra client = interpret $ \case
   CreateMembers cid ul -> do
     logEffect "MemberStore.CreateMembers"
-    embedClient $ addMembers cid ul
+    runEmbedded (runClient client) $ embed $ addMembers cid ul
   CreateMembersInRemoteConversation rcid uids -> do
     logEffect "MemberStore.CreateMembersInRemoteConversation"
-    embedClient $ addLocalMembersToRemoteConv rcid uids
+    runEmbedded (runClient client) $ embed $ addLocalMembersToRemoteConv rcid uids
   CreateBotMember sr bid cid -> do
     logEffect "MemberStore.CreateBotMember"
-    embedClient $ addBotMember sr bid cid
+    runEmbedded (runClient client) $ embed $ addBotMember sr bid cid
   GetLocalMember cid uid -> do
     logEffect "MemberStore.GetLocalMember"
-    embedClient $ member cid uid
+    runEmbedded (runClient client) $ embed $ member cid uid
   GetLocalMembers cid -> do
     logEffect "MemberStore.GetLocalMembers"
-    embedClient $ members cid
+    runEmbedded (runClient client) $ embed $ members cid
   GetAllLocalMembers -> do
     logEffect "MemberStore.GetAllLocalMembers"
-    embedClient allMembers
+    runEmbedded (runClient client) $ embed $ allMembers
   GetRemoteMember cid uid -> do
     logEffect "MemberStore.GetRemoteMember"
-    embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
+    runEmbedded (runClient client) $ embed $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> do
     logEffect "MemberStore.GetRemoteMembers"
-    embedClient $ lookupRemoteMembers rcid
+    runEmbedded (runClient client) $ embed $ lookupRemoteMembers rcid
   CheckLocalMemberRemoteConv uid rcnv -> do
     logEffect "MemberStore.CheckLocalMemberRemoteConv"
-    fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
+    fmap (not . null) $ runEmbedded (runClient client) $ embed $ lookupLocalMemberRemoteConv uid rcnv
   SelectRemoteMembers uids rcnv -> do
     logEffect "MemberStore.SelectRemoteMembers"
-    embedClient $ filterRemoteConvMembers uids rcnv
+    runEmbedded (runClient client) $ embed $ filterRemoteConvMembers uids rcnv
   SetSelfMember qcid luid upd -> do
     logEffect "MemberStore.SetSelfMember"
-    embedClient $ updateSelfMember qcid luid upd
+    runEmbedded (runClient client) $ embed $ updateSelfMember qcid luid upd
   SetOtherMember lcid quid upd -> do
     logEffect "MemberStore.SetOtherMember"
-    embedClient $ updateOtherMemberLocalConv lcid quid upd
+    runEmbedded (runClient client) $ embed $ updateOtherMemberLocalConv lcid quid upd
   DeleteMembers cnv ul -> do
     logEffect "MemberStore.DeleteMembers"
-    embedClient $ removeMembersFromLocalConv cnv ul
+    runEmbedded (runClient client) $ embed $ removeMembersFromLocalConv cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "MemberStore.DeleteMembersInRemoteConversation"
-    embedClient $
-      removeLocalMembersFromRemoteConv rcnv uids
+    runEmbedded (runClient client) $
+      embed $
+        removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> do
     logEffect "MemberStore.AddMLSClients"
-    embedClient $ addMLSClients lcnv quid cs
+    runEmbedded (runClient client) $ embed $ addMLSClients lcnv quid cs
   PlanClientRemoval lcnv cids -> do
     logEffect "MemberStore.PlanClientRemoval"
-    embedClient $ planMLSClientRemoval lcnv cids
+    runEmbedded (runClient client) $ embed $ planMLSClientRemoval lcnv cids
   RemoveMLSClients lcnv quid cs -> do
     logEffect "MemberStore.RemoveMLSClients"
-    embedClient $ removeMLSClients lcnv quid cs
+    runEmbedded (runClient client) $ embed $ removeMLSClients lcnv quid cs
   RemoveAllMLSClients gid -> do
     logEffect "MemberStore.RemoveAllMLSClients"
-    embedClient $ removeAllMLSClients gid
+    runEmbedded (runClient client) $ embed $ removeAllMLSClients gid
   LookupMLSClients lcnv -> do
     logEffect "MemberStore.LookupMLSClients"
-    embedClient $ lookupMLSClients lcnv
+    runEmbedded (runClient client) $ embed $ lookupMLSClients lcnv
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "MemberStore.LookupMLSClientLeafIndices"
-    embedClient $ lookupMLSClientLeafIndices lcnv
+    runEmbedded (runClient client) $ embed $ lookupMLSClientLeafIndices lcnv
   GetRemoteMembersByDomain dom -> do
     logEffect "MemberStore.GetRemoteMembersByDomain"
-    embedClient $ lookupRemoteMembersByDomain dom
+    runEmbedded (runClient client) $ embed $ lookupRemoteMembersByDomain dom
   GetLocalMembersByDomain dom -> do
     logEffect "MemberStore.GetLocalMembersByDomain"
-    embedClient $ lookupLocalMembersByDomain dom
+    runEmbedded (runClient client) $ embed $ lookupLocalMembersByDomain dom

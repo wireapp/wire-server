@@ -46,7 +46,6 @@ import Data.Tagged
 import Galley.API.LegalHold.Team
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamStore (getOneUserTeam, getTeamMember)
 import Galley.Options
@@ -61,6 +60,7 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess (getAccountConferenceCallingConfigClient)
+import Wire.ConversationStore as ConversationStore
 
 data DoAuth = DoAuth UserId | DontDoAuth
 

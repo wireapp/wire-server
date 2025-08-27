@@ -35,11 +35,8 @@ import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
-import Galley.API.MLS.Types
 import Galley.Effects
-import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.SubConversationStore
 import Galley.Env
 import Galley.Options
 import Imports
@@ -68,8 +65,11 @@ import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.SubConversationStore
 import Wire.TeamCollaboratorsSubsystem
 
 type HasProposalActionEffects r =

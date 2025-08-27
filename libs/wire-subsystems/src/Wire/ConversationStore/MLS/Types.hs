@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
-module Galley.API.MLS.Types where
+module Wire.ConversationStore.MLS.Types where
 
 import Data.Bifunctor
 import Data.Domain

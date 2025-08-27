@@ -56,15 +56,11 @@ import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
-import Galley.Cassandra.Conversation
-import Galley.Cassandra.Conversation.Members
-import Galley.Cassandra.ConversationList
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Services
-import Galley.Cassandra.SubConversation
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
@@ -111,9 +107,12 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess.Rpc
+import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
+import Wire.ListItems.ConversationIds.Cassandra
+import Wire.MemberStore.Cassandra (interpretMemberStoreToCassandra)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -122,6 +121,7 @@ import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
+import Wire.SubConversationStore.Cassandra
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 
@@ -293,18 +293,18 @@ evalGalley e =
     . interpretTeamMemberStoreToCassandraWithPaging lh
     . interpretTeamMemberStoreToCassandra lh
     . interpretTeamFeatureStoreToCassandra
+    . interpretConversationStoreToCassandra (e ^. cstate)
     . interpretTeamStoreToCassandra lh
     . interpretTeamNotificationStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
-    . interpretMemberStoreToCassandra
+    . interpretMemberStoreToCassandra (e ^. cstate)
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
     . randomToIO
     . runHashPassword e._options._settings._passwordHashingOptions
     . interpretRateLimit e._passwordHashingRateLimitEnv
     . interpretSubConversationStoreToCassandra
-    . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra

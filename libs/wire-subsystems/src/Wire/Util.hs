@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,20 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Access where
+module Wire.Util where
 
-import Cassandra
-import Imports hiding (Set)
-import Wire.API.Conversation
-import Wire.StoredConversation
+import Cassandra hiding (Set)
+import Imports
+import Polysemy
+import Polysemy.Embed
+import Polysemy.Input (Input, input)
+import Polysemy.TinyLog
+import System.Logger.Message
 
-defAccess :: ConvType -> Maybe (Set Access) -> [Access]
-defAccess SelfConv Nothing = [PrivateAccess]
-defAccess ConnectConv Nothing = [PrivateAccess]
-defAccess One2OneConv Nothing = [PrivateAccess]
-defAccess RegularConv Nothing = defRegularConvAccess
-defAccess SelfConv (Just (Set [])) = [PrivateAccess]
-defAccess ConnectConv (Just (Set [])) = [PrivateAccess]
-defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
-defAccess RegularConv (Just (Set [])) = defRegularConvAccess
-defAccess _ (Just (Set (x : xs))) = x : xs
+embedClient :: (Member (Embed IO) r) => ClientState -> Client x -> Sem r x
+embedClient client = runEmbedded (runClient client) . embed
+
+logEffect :: (Member TinyLog r) => ByteString -> Sem r ()
+logEffect = debug . msg . val
+
+embedClientInput :: (Member (Embed IO) r, Member (Input ClientState) r) => Client x -> Sem r x
+embedClientInput a = do
+  client <- input
+  embedClient client a

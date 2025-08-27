@@ -17,10 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.SubConversationStore where
+module Wire.SubConversationStore where
 
 import Data.Id
-import Galley.API.MLS.Types
 import Imports
 import Polysemy
 import Wire.API.Conversation.Protocol
@@ -28,6 +27,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore.MLS.Types
 
 data SubConversationStore m a where
   CreateSubConversation :: ConvId -> SubConvId -> GroupId -> SubConversationStore m SubConversation
