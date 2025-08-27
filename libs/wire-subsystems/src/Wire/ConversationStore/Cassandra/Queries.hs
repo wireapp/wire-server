@@ -92,6 +92,20 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.GroupInfo
 
+{-
+TABLES:
+
+conversation
+member
+member_remote_user
+mls_commit_locks
+mls_group_member_client
+team_conv
+user
+user_remote_conv
+
+-}
+
 -- Teams --------------------------------------------------------------------
 
 insertTeamConv :: PrepQuery W (TeamId, ConvId) ()

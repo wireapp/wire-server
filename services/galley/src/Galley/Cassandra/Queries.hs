@@ -116,6 +116,26 @@ import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 
+-- rg -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number services/galley/src/Galley/Cassandra/Queries.hs | sort | uniq
+{-
+TABLES:
+
+billing_team_member
+clients
+custom_backend
+legalhold_pending_prekeys
+legalhold_service
+legalhold_whitelisted
+service
+team
+team_admin
+team_conv
+team_member
+user
+user_remote_conv
+user_team
+-}
+
 -- Teams --------------------------------------------------------------------
 
 selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe Icon)
