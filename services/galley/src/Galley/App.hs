@@ -293,6 +293,7 @@ evalGalley e =
     . interpretTeamMemberStoreToCassandraWithPaging lh
     . interpretTeamMemberStoreToCassandra lh
     . interpretTeamFeatureStoreToCassandra
+    . interpretConversationStoreToCassandra (e ^. cstate)
     . interpretTeamStoreToCassandra lh
     . interpretTeamNotificationStoreToCassandra
     . interpretServiceStoreToCassandra
@@ -304,7 +305,6 @@ evalGalley e =
     . runHashPassword e._options._settings._passwordHashingOptions
     . interpretRateLimit e._passwordHashingRateLimitEnv
     . interpretSubConversationStoreToCassandra
-    . interpretConversationStoreToCassandra (e ^. cstate)
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra

@@ -62,13 +62,16 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
+import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationStore qualified as E
 import Wire.Sem.Paging.Cassandra
 
 interpretTeamStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input Env) r,
     Member (Input ClientState) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member ConversationStore r
   ) =>
   FeatureDefaults LegalholdConfig ->
   Sem (TeamStore ': r) a ->
@@ -139,10 +142,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
     embedClient (teamCreationTime tid)
   DeleteTeam tid -> do
     logEffect "TeamStore.DeleteTeam"
-    embedClient (deleteTeam tid)
-  DeleteTeamConversation tid cid -> do
-    logEffect "TeamStore.DeleteTeamConversation"
-    embedClient (removeTeamConv tid cid)
+    deleteTeam tid
   SetTeamData tid upd -> do
     logEffect "TeamStore.SetTeamData"
     embedClient (updateTeam tid upd)
@@ -441,22 +441,31 @@ getTeamsBindings =
   fmap catMaybes
     . UnliftIO.pooledMapConcurrentlyN 8 getTeamBinding
 
-deleteTeam :: TeamId -> Client ()
+deleteTeam ::
+  ( Member (Input ClientState) r,
+    Member (Embed IO) r,
+    Member ConversationStore r
+  ) =>
+  TeamId ->
+  Sem r ()
 deleteTeam tid = do
+  embedClient (markTeamDeletedAndRemoveTeamMembers tid)
+  cnvs <- embedClient $ teamConversationsForPagination tid Nothing (unsafeRange 2000)
+  removeConvs cnvs
+  embedClient (retry x5 $ write Cql.deleteTeam (params LocalQuorum (Deleted, tid)))
+  where
+    removeConvs cnvs = do
+      for_ (result cnvs) $ E.deleteTeamConversation tid . view conversationId
+      unless (null $ result cnvs) $
+        removeConvs =<< embedClient (nextPage cnvs)
+
+markTeamDeletedAndRemoveTeamMembers :: TeamId -> Client ()
+markTeamDeletedAndRemoveTeamMembers tid = do
   -- TODO: delete service_whitelist records that mention this team
   retry x5 $ write Cql.markTeamDeleted (params LocalQuorum (PendingDelete, tid))
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   removeTeamMembers mems
-  cnvs <- teamConversationsForPagination tid Nothing (unsafeRange 2000)
-  removeConvs cnvs
-  retry x5 $ write Cql.deleteTeam (params LocalQuorum (Deleted, tid))
   where
-    removeConvs :: Page TeamConversation -> Client ()
-    removeConvs cnvs = do
-      for_ (result cnvs) $ removeTeamConv tid . view conversationId
-      unless (null $ result cnvs) $
-        removeConvs =<< liftClient (nextPage cnvs)
-
     removeTeamMembers ::
       Page
         ( UserId,
@@ -470,15 +479,6 @@ deleteTeam tid = do
       mapM_ (removeTeamMember tid . view _1) (result mems)
       unless (null $ result mems) $
         removeTeamMembers =<< liftClient (nextPage mems)
-
-removeTeamConv :: TeamId -> ConvId -> Client ()
-removeTeamConv tid cid = liftClient $ do
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    todo "addPrepQuery Cql.markConvDeleted (Identity cid)" -- TODO(leif): this has to be moved to the store effect
-    addPrepQuery Cql.deleteTeamConv (tid, cid)
-  todo "C.deleteConversation cid" -- TODO(leif): this has to be moved to the store effect
 
 updateTeamStatus :: TeamId -> TeamStatus -> Client ()
 updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params LocalQuorum (s, t))

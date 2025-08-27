@@ -42,7 +42,6 @@ module Galley.Effects.TeamStore
     lookupBindingTeam,
 
     -- ** Update teams
-    deleteTeamConversation,
     setTeamData,
     setTeamStatus,
 
@@ -134,7 +133,6 @@ data TeamStore m a where
   GetTeamBinding :: TeamId -> TeamStore m (Maybe TeamBinding)
   GetTeamCreationTime :: TeamId -> TeamStore m (Maybe TeamCreationTime)
   DeleteTeam :: TeamId -> TeamStore m ()
-  DeleteTeamConversation :: TeamId -> ConvId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
   FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)

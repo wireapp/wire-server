@@ -79,7 +79,6 @@ module Galley.Cassandra.Queries
     selectTeamBinding,
     markTeamDeleted,
     deleteTeam,
-    deleteTeamConv,
     updateTeamStatus,
     updateTeamName,
     updateTeamIcon,
@@ -217,9 +216,6 @@ selectUserTeamsFrom = "select team from user_team where user = ? and team > ? or
 
 insertTeam :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
-
-deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
-deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
 
 insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) ()
 insertTeamMember = "insert into team_member (team, user, perms, invited_by, invited_at) values (?, ?, ?, ?, ?)"

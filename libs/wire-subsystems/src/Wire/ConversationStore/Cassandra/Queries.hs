@@ -39,6 +39,7 @@ module Wire.ConversationStore.Cassandra.Queries
     insertBot,
     insertConv,
     insertTeamConv,
+    deleteTeamConv,
     markConvDeleted,
     deleteConv,
     selectConv,
@@ -91,8 +92,13 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.GroupInfo
 
+-- Teams --------------------------------------------------------------------
+
 insertTeamConv :: PrepQuery W (TeamId, ConvId) ()
 insertTeamConv = "insert into team_conv (team, conv) values (?, ?)"
+
+deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
+deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
 
 -- Conversations ------------------------------------------------------------
 

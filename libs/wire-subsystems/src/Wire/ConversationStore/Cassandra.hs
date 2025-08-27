@@ -453,6 +453,15 @@ checkTransSuccess :: [Row] -> Bool
 checkTransSuccess [] = False
 checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
 
+removeTeamConv :: TeamId -> ConvId -> Client ()
+removeTeamConv tid cid = liftClient $ do
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery Cql.markConvDeleted (Identity cid)
+    addPrepQuery Cql.deleteTeamConv (tid, cid)
+  deleteConversation cid
+
 interpretConversationStoreToCassandra ::
   forall r a.
   ( Member (Embed IO) r,
@@ -543,6 +552,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   UpdateChannelAddPermissions cid cap -> do
     logEffect "ConversationStore.UpdateChannelAddPermissions"
     embedClient $ updateChannelAddPermissions cid cap
+  DeleteTeamConversation tid cid -> do
+    logEffect "ConversationStore.DeleteTeamConversation"
+    embedClient $ removeTeamConv tid cid
   where
     embedClient :: Client x -> Sem r x
     embedClient = runEmbedded (runClient client) . embed

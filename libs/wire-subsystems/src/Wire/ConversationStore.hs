@@ -71,6 +71,7 @@ data ConversationStore m a where
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
+  DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore
 
