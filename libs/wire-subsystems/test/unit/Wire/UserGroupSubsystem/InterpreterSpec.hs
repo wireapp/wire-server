@@ -146,20 +146,6 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         .&&. Just createdGroup === retrievedGroup
                 pure (createdGroup, assert)
 
-          assertAllMembersReceivedMemberAdded :: Push -> Bool
-          assertAllMembersReceivedMemberAdded push =
-            all
-              (\user -> Recipient {recipientUserId = User.userId user, recipientClients = RecipientClientsAll} `elem` push.recipients)
-              members
-
-          assertOwnerEvent :: Push -> Bool
-          assertOwnerEvent push =
-            if ownerId team `elem` (User.userId <$> members)
-              then
-                Recipient {recipientUserId = ownerId team, recipientClients = RecipientClientsAll} `elem` push.recipients
-              else
-                Recipient {recipientUserId = ownerId team, recipientClients = RecipientClientsAll} `notElem` push.recipients
-
           assertPushEvents :: UserGroup -> [Push] -> Property
           assertPushEvents ug pushes =
             foldl
@@ -168,14 +154,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                     A.Success (UserGroupEvent (UserGroupCreated ugid)) ->
                       ugid === ug.id_
                         .&&. push.origin === Just (ownerId team)
-                    A.Success (UserGroupEvent (UserGroupMemberAdded ugid)) ->
-                      ugid === ug.id_
-                        .&&. push.origin === Just (ownerId team)
-                        .&&. assertAllMembersReceivedMemberAdded push
-                        .&&. assertOwnerEvent push
                     _ -> counterexample ("Failed to decode push: " <> show push) False
               )
-              (length pushes === 2)
+              (length pushes === 1)
               pushes
        in case resultOrError of
             Left err -> counterexample ("Unexpected error: " <> show err) False
@@ -211,12 +192,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                                  RoleMember -> (expectedRecipient `elem` push.recipients) === False
                                  RoleExternalPartner -> (expectedRecipient `elem` push.recipients) === False
                              )
-                    A.Success (UserGroupEvent (UserGroupMemberAdded ugid)) ->
-                      ugid === ug.id_
-                        .&&. push.origin === Just (ownerId team)
                     _ -> counterexample ("Failed to decode push: " <> show push) False
               )
-              (length pushes === 2)
+              (length pushes === 1)
               pushes
        in case resultOrError of
             Left err -> counterexample ("Unexpected error: " <> show err) False
@@ -450,7 +428,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
 
           assertPushEvents :: UserGroup -> [Push] -> Property
-          assertPushEvents ug [push, _memberAddedEvent, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
+          assertPushEvents ug [push, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
             A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
               push.origin === Just (ownerId team)
                 .&&. push.transient === True
@@ -522,7 +500,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
 
           assertPushEvents :: UserGroup -> [Push] -> Property
-          assertPushEvents ug [push, _memberAddedEvent, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
+          assertPushEvents ug [push, _createEvent] = case A.fromJSON @Event (A.Object push.json) of
             A.Success (UserGroupEvent (UserGroupDeleted ugid)) ->
               push.origin === Just (ownerId team)
                 .&&. push.transient === True
@@ -582,22 +560,6 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                           .&&. ((.members) <$> ugWithoutFirst) === Just (Identity $ V.fromList [User.userId mbr2])
                   pure (ug, propertyCheck)
 
-            assertAddEvent :: UserGroup -> UserId -> Push -> Property
-            assertAddEvent ug uid push = case A.fromJSON @Event (A.Object push.json) of
-              A.Success (UserGroupEvent (UserGroupMemberAdded ugid)) ->
-                push.origin === Just (ownerId team)
-                  .&&. ugid === ug.id_
-                  .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]
-              _ -> counterexample ("Failed to decode push: " <> show push) False
-
-            assertRemoveEvent :: UserGroup -> UserId -> Push -> Property
-            assertRemoveEvent ug uid push = case A.fromJSON @Event (A.Object push.json) of
-              A.Success (UserGroupEvent (UserGroupMemberRemoved ugid)) ->
-                push.origin === Just (ownerId team)
-                  .&&. ugid === ug.id_
-                  .&&. push.recipients === [Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}]
-              _ -> counterexample ("Failed to decode push: " <> show push) False
-
             assertUpdateEvent :: UserGroup -> Push -> Property
             assertUpdateEvent ug push = case A.fromJSON @Event (A.Object push.json) of
               A.Success (UserGroupEvent (UserGroupUpdated ugid)) ->
@@ -608,14 +570,11 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               _ -> counterexample ("Failed to decode push: " <> show push) False
          in case resultOrError of
               Left err -> counterexample ("Unexpected error: " <> show err) False
-              Right ([rm, update3, add2, update2, add1, update1, _addInitial, _create], (ug, propertyCheck)) ->
+              Right ([update3, update2, update1, _create], (ug, propertyCheck)) ->
                 propertyCheck
                   .&&. assertUpdateEvent ug update1
-                  .&&. assertAddEvent ug (User.userId mbr1) add1
                   .&&. assertUpdateEvent ug update2
-                  .&&. assertAddEvent ug (User.userId mbr2) add2
                   .&&. assertUpdateEvent ug update3
-                  .&&. assertRemoveEvent ug (User.userId mbr1) rm
 
     prop "added/removed user must be team member." $
       \((WithMods team) :: WithMods '[AtLeastSixMembers] ArbitraryTeam)
