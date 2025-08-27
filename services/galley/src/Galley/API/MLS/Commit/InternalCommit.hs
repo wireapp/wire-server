@@ -40,7 +40,6 @@ import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ProposalStore
-import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -64,6 +63,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.MemberStore
 import Wire.StoredConversation
+import Wire.SubConversationStore
 
 processInternalCommit ::
   forall r.

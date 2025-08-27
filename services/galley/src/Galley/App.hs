@@ -56,13 +56,11 @@ import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
-import Wire.ListItems.ConversationIds.Cassandra
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Services
-import Galley.Cassandra.SubConversation
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
@@ -113,6 +111,7 @@ import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
+import Wire.ListItems.ConversationIds.Cassandra
 import Wire.MemberStore.Cassandra (interpretMemberStoreToCassandra)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -122,6 +121,7 @@ import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
+import Wire.SubConversationStore.Cassandra
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 

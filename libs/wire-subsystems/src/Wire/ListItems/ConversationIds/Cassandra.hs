@@ -31,9 +31,9 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.ConversationStore.Cassandra.Instances ()
-import Wire.Sem.Paging.Cassandra
-import Wire.ListItems
 import Wire.ConversationStore.Cassandra.Queries as Cql
+import Wire.ListItems
+import Wire.Sem.Paging.Cassandra
 import Wire.Util
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
@@ -103,4 +103,3 @@ interpretLegacyConversationListToCassandra = interpret $ \case
     client <- input
     logEffect "LegacyConversationList.ListItems"
     embedClient client $ conversationIdsFrom uid ps max
-

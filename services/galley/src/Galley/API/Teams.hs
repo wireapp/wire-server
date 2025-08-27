@@ -86,7 +86,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
-import Wire.ListItems qualified as E
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.SparAccess qualified as Spar
@@ -128,6 +127,7 @@ import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
+import Wire.ListItems qualified as E
 import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now

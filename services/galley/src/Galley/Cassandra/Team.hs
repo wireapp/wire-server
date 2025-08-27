@@ -44,7 +44,6 @@ import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Wire.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
@@ -64,6 +63,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
+import Wire.ListItems
 import Wire.Sem.Paging.Cassandra
 
 interpretTeamStoreToCassandra ::

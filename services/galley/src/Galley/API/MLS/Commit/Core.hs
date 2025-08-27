@@ -37,7 +37,6 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.SubConversationStore
 import Galley.Env
 import Galley.Options
 import Imports
@@ -70,6 +69,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.SubConversationStore
 import Wire.TeamCollaboratorsSubsystem
 
 type HasProposalActionEffects r =

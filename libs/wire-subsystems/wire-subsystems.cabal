@@ -250,6 +250,8 @@ library
     Wire.SparAPIAccess.Rpc
     Wire.StoredConversation
     Wire.StoredUser
+    Wire.SubConversationStore
+    Wire.SubConversationStore.Cassandra
     Wire.TeamCollaboratorsStore
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem

@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.SubConversationStore where
+module Wire.SubConversationStore where
 
 import Data.Id
 import Imports

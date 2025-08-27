@@ -15,19 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- | Tables that are used in this module:
+-- - billing_team_member
+-- - clients
+-- - conversation_codes
+-- - custom_backend
+-- - legalhold_pending_prekeys
+-- - legalhold_service
+-- - legalhold_whitelisted
+-- - service
+-- - team
+-- - team_admin
+-- - team_conv
+-- - team_member
+-- - user_team
+-- update using: `rg -i -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number services/galley/src/Galley/Cassandra/Queries.hs | sort | uniq`
 module Galley.Cassandra.Queries
   ( selectCustomBackend,
     upsertCustomBackend,
     deleteCustomBackend,
-    selectSubConversation,
-    insertSubConversation,
-    updateSubConvGroupInfo,
-    selectSubConvGroupInfo,
-    selectSubConvEpoch,
-    insertEpochForSubConversation,
-    insertCipherSuiteForSubConversation,
-    deleteSubConversation,
-    listSubConversations,
     insertCode,
     lookupCode,
     deleteCode,
@@ -98,12 +104,7 @@ import Data.Text.Lazy qualified as LT
 import Galley.Data.Scope
 import Imports
 import Text.RawString.QQ
-import Wire.API.Conversation
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol
-import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.GroupInfo
-import Wire.API.MLS.SubConversation
 import Wire.API.Password (Password)
 import Wire.API.Provider
 import Wire.API.Provider.Service
@@ -112,24 +113,6 @@ import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
-
--- rg -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number services/galley/src/Galley/Cassandra/Queries.hs | sort | uniq
-{-
-TABLES:
-
-billing_team_member
-clients
-custom_backend
-legalhold_pending_prekeys
-legalhold_service
-legalhold_whitelisted
-service
-team
-team_admin
-team_conv
-team_member
-user_team
--}
 
 -- Teams --------------------------------------------------------------------
 
@@ -300,35 +283,6 @@ lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation
 
 deleteCode :: PrepQuery W (Key, Scope) ()
 deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
-
--- MLS SubConversations -----------------------------------------------------
-
-selectSubConversation :: PrepQuery R (ConvId, SubConvId) (Maybe CipherSuiteTag, Maybe Epoch, Maybe (Writetime Epoch), Maybe GroupId)
-selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
-
-insertSubConversation :: PrepQuery W (ConvId, SubConvId, Epoch, GroupId, Maybe GroupInfoData) ()
-insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?)"
-
-updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData) ()
-updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
-
-selectSubConvGroupInfo :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe GroupInfoData))
-selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
-
-selectSubConvEpoch :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Epoch))
-selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
-
-insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
-insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
-
-insertCipherSuiteForSubConversation :: PrepQuery W (CipherSuiteTag, ConvId, SubConvId) ()
-insertCipherSuiteForSubConversation = "UPDATE subconversation set cipher_suite = ? WHERE conv_id = ? AND subconv_id = ?"
-
-listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
-listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
-
-deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
-deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
 
 -- Clients ------------------------------------------------------------------
 

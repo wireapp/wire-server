@@ -145,7 +145,6 @@ library
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Services
     Galley.Cassandra.Store
-    Galley.Cassandra.SubConversation
     Galley.Cassandra.Team
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
@@ -167,7 +166,6 @@ library
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
-    Galley.Effects.SubConversationStore
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore

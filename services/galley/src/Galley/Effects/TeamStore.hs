@@ -79,7 +79,6 @@ where
 
 import Data.Id
 import Data.Range
-import Wire.ListItems
 import Galley.Types.Teams
 import Imports
 import Polysemy
@@ -92,6 +91,7 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
+import Wire.ListItems
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 

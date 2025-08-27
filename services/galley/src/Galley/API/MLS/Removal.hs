@@ -36,7 +36,6 @@ import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.Effects
 import Galley.Effects.ProposalStore
-import Galley.Effects.SubConversationStore
 import Galley.Env
 import Imports
 import Polysemy
@@ -60,6 +59,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random
 import Wire.StoredConversation
+import Wire.SubConversationStore
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::

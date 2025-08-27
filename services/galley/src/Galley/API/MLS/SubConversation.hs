@@ -45,7 +45,6 @@ import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.SubConversationStore qualified as Eff
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -71,6 +70,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.SubConversationStore qualified as Eff
 
 type MLSGetSubConvStaticErrors =
   '[ ErrorS 'ConvNotFound,

@@ -1,4 +1,3 @@
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -22,6 +21,7 @@ import Cassandra hiding (Set)
 import Imports
 import Polysemy
 import Polysemy.Embed
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog
 import System.Logger.Message
 
@@ -30,3 +30,8 @@ embedClient client = runEmbedded (runClient client) . embed
 
 logEffect :: (Member TinyLog r) => ByteString -> Sem r ()
 logEffect = debug . msg . val
+
+embedClientInput :: (Member (Embed IO) r, Member (Input ClientState) r) => Client x -> Sem r x
+embedClientInput a = do
+  client <- input
+  embedClient client a

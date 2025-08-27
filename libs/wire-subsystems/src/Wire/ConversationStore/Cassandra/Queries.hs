@@ -15,7 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO(leif): make sure these are only used in the store interpreter, maybe inline them?
+-- | Tables that are used in this module:
+-- - conversation
+-- - member
+-- - member_remote_user
+-- - mls_commit_locks
+-- - mls_group_member_client
+-- - subconversation
+-- - team_conv
+-- - user
+-- - user_remote_conv
+-- update this list using `rg -i -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number libs/wire-subsystems/src/Wire/ConversationStore/Cassandra/Queries.hs | sort | uniq`
 module Wire.ConversationStore.Cassandra.Queries
   ( insertMLSSelfConv,
     insertMember,
@@ -79,6 +89,15 @@ module Wire.ConversationStore.Cassandra.Queries
     updateRemoteMemberConvRoleName,
     lookupMLSClients,
     MemberStatus,
+    selectSubConversation,
+    insertSubConversation,
+    updateSubConvGroupInfo,
+    selectSubConvGroupInfo,
+    selectSubConvEpoch,
+    insertEpochForSubConversation,
+    insertCipherSuiteForSubConversation,
+    listSubConversations,
+    deleteSubConversation,
   )
 where
 
@@ -94,20 +113,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.GroupInfo
-
-{-
-TABLES:
-
-conversation
-member
-member_remote_user
-mls_commit_locks
-mls_group_member_client
-team_conv
-user
-user_remote_conv
-
--}
+import Wire.API.MLS.SubConversation (SubConvId)
 
 -- Teams --------------------------------------------------------------------
 
@@ -331,6 +337,35 @@ updateRemoteOtrMemberArchived = {- `IF EXISTS`, but that requires benchmarking -
 
 updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
 updateRemoteMemberHidden = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+
+-- MLS SubConversations -----------------------------------------------------
+
+selectSubConversation :: PrepQuery R (ConvId, SubConvId) (Maybe CipherSuiteTag, Maybe Epoch, Maybe (Writetime Epoch), Maybe GroupId)
+selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
+
+insertSubConversation :: PrepQuery W (ConvId, SubConvId, Epoch, GroupId, Maybe GroupInfoData) ()
+insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?)"
+
+updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData) ()
+updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
+
+selectSubConvGroupInfo :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe GroupInfoData))
+selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+selectSubConvEpoch :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Epoch))
+selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
+insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
+
+insertCipherSuiteForSubConversation :: PrepQuery W (CipherSuiteTag, ConvId, SubConvId) ()
+insertCipherSuiteForSubConversation = "UPDATE subconversation set cipher_suite = ? WHERE conv_id = ? AND subconv_id = ?"
+
+listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
+
+deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
+deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
 
 -- MLS Clients --------------------------------------------------------------
 
