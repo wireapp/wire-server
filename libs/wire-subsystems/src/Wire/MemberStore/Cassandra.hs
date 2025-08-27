@@ -20,13 +20,11 @@
 module Wire.MemberStore.Cassandra
   ( addMembers,
     members,
-    allMembers,
-    toMember,
     lookupRemoteMembers,
     removeMembersFromLocalConv,
     toMemberStatus,
-    interpretMemberStoreToCassandra,
     lookupMLSClientLeafIndices,
+    interpretMemberStoreToCassandra,
   )
 where
 
