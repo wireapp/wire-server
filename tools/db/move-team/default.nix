@@ -10,7 +10,6 @@
 , conduit
 , containers
 , filepath
-, galley
 , gitignoreSource
 , imports
 , iproute
@@ -28,6 +27,7 @@
 , uuid
 , vector
 , wire-api
+, wire-subsystems
 }:
 mkDerivation {
   pname = "move-team";
@@ -43,7 +43,6 @@ mkDerivation {
     conduit
     containers
     filepath
-    galley
     imports
     iproute
     lens
@@ -59,6 +58,7 @@ mkDerivation {
     uuid
     vector
     wire-api
+    wire-subsystems
   ];
   executableHaskellDepends = [
     base
