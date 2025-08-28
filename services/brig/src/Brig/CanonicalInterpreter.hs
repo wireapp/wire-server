@@ -38,6 +38,10 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
+import Wire.AppStore
+import Wire.AppStore.Postgres
+import Wire.AppSubsystem
+import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
@@ -139,8 +143,10 @@ type BrigCanonicalEffects =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ TeamSubsystem,
+  '[ AppSubsystem,
+     TeamSubsystem,
      TeamCollaboratorsStore,
+     AppStore,
      EmailSubsystem,
      VerificationCodeSubsystem,
      PropertySubsystem,
@@ -149,6 +155,7 @@ type BrigLowerLevelEffects =
      NotificationSubsystem,
      RateLimit,
      UserGroupStore,
+     Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
      Error EnterpriseLoginSubsystemError,
@@ -178,6 +185,7 @@ type BrigLowerLevelEffects =
      SFT,
      ConnectionStore InternalPaging,
      Input Hasql.Pool,
+     Input AppSubsystemConfig,
      Input UserSubsystemConfig,
      Input VerificationCodeThrottleTTL,
      Input (Local ()),
@@ -233,6 +241,7 @@ runBrigToIO e (AppT ma) = do
             activationCodeTimeout = e.settings.activationTimeout,
             blockedDomains = blockedDomains
           }
+      appSubsystemConfig = AppSubsystemConfig {defaultLocale = userSubsystemConfig.defaultLocale}
       teamInvitationSubsystemConfig =
         TeamInvitationSubsystemConfig
           { maxTeamSize = e.settings.maxTeamSize,
@@ -321,6 +330,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst localUnit
               . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
               . runInputConst userSubsystemConfig
+              . runInputConst appSubsystemConfig
               . runInputConst e.hasqlPool
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
@@ -350,6 +360,7 @@ runBrigToIO e (AppT ma) = do
               . mapError enterpriseLoginSubsystemErrorToHttpError
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
+              . mapError appSubsystemErrorToHttpError
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
@@ -358,8 +369,10 @@ runBrigToIO e (AppT ma) = do
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
+              . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . intepreterTeamSubsystemToGalleyAPI
+              . runAppSubsystem
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem

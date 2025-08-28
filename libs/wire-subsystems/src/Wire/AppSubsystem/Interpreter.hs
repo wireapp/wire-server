@@ -2,14 +2,17 @@ module Wire.AppSubsystem.Interpreter where
 
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.UUID.V4
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
+import Wire.API.App
 import Wire.API.Event.Team
 import Wire.API.User
 import Wire.AppStore (AppStore)
@@ -28,6 +31,7 @@ runAppSubsystem ::
     Member TinyLog r,
     Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
+    Member (Input AppSubsystemConfig) r,
     Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
@@ -43,16 +47,18 @@ createAppImpl ::
     Member TinyLog r,
     Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
+    Member (Input AppSubsystemConfig) r,
     Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r
   ) =>
-  User ->
+  Local UserId ->
   NewApp ->
-  Sem r ()
-createAppImpl creator new = do
-  tid <- note AppSubsystemErrorNoTeam creator.userTeam
+  Sem r CreatedApp
+createAppImpl lusr new = do
+  creator <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
+  tid <- note AppSubsystemErrorNoTeam creator.teamId
   u <- appNewStoredUser creator new
 
   Log.debug $
@@ -65,16 +71,22 @@ createAppImpl creator new = do
   Store.createUser u Nothing
 
   -- generate a team event
-  generateTeamEvent (userId creator) tid (EdAppCreate u.id)
+  generateTeamEvent creator.id tid (EdAppCreate u.id)
+
+  -- TODO: generate cookie
+  pure CreatedApp {user = newStoredUserToUser (tUntagged (qualifyAs lusr u)), cookie = ()}
 
 appNewStoredUser ::
-  (Member (Embed IO) r) =>
-  User ->
+  ( Member (Embed IO) r,
+    Member (Input AppSubsystemConfig) r
+  ) =>
+  StoredUser ->
   NewApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
   uid <- liftIO nextRandom
-  let loc = creator.userLocale
+  defLoc <- inputs defaultLocale
+  let loc = toLocale defLoc (creator.language, creator.country)
   pure
     NewStoredUser
       { id = Id uid,
@@ -94,7 +106,7 @@ appNewStoredUser creator new = do
         serviceId = Nothing,
         handle = Nothing,
         expires = Nothing,
-        teamId = creator.userTeam,
+        teamId = creator.teamId,
         managedBy = defaultManagedBy,
         supportedProtocols = defAppSupportedProtocols
       }
