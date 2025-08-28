@@ -808,8 +808,8 @@ newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
   forM_ newConv.newConvParent $ \parent -> do
-    mMebership <- E.getLocalMember parent (tUnqualified lusr)
-    when (isNothing mMebership) $
+    mMembership <- E.getLocalMember parent (tUnqualified lusr)
+    when (isNothing mMembership) $
       throwS @OperationDenied
   users <- case newConvProtocol newConv of
     BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
