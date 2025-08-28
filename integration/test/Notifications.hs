@@ -233,9 +233,6 @@ isUserGroupCreatedNotif = notifTypeIsEqual "user-group.created"
 isUserGroupUpdatedNotif :: (MakesValue a) => a -> App Bool
 isUserGroupUpdatedNotif = notifTypeIsEqual "user-group.updated"
 
-isUserGroupUserAddedNotif :: (MakesValue a) => a -> App Bool
-isUserGroupUserAddedNotif = notifTypeIsEqual "user-group.member-added"
-
 isConvResetNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvResetNotif n =
   fieldEquals n "payload.0.type" "conversation.mls-reset"
