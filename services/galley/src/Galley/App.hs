@@ -310,12 +310,12 @@ evalGalley e =
     . interpretFederatorAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
+    . interpretBrigAccess (e ^. brig)
     . interpretConversationsSubsystemCassandra
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
     . interpretTeamCollaboratorsSubsystem
     . interpretSparAccess
-    . interpretBrigAccess (e ^. brig)
     . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
