@@ -1684,9 +1684,10 @@ getUserGroups ::
   Maybe UserGroupName ->
   Maybe UTCTimeMillis ->
   Maybe UserGroupId ->
+  Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId
+getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount =
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd

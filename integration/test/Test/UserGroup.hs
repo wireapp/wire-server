@@ -239,7 +239,8 @@ testUserGroupGetGroupsAllInputs = do
             pSize = pSize',
             lastName = lastName',
             lastCreatedAt = lastCreatedAt',
-            lastId = lastId'
+            lastId = lastId',
+            includeMemberCount = includeMemberCount'
           }
         | q' <- qs,
           sortBy' <- sortByKeysList,
@@ -247,7 +248,8 @@ testUserGroupGetGroupsAllInputs = do
           pSize' <- pSizes,
           lastName' <- lastNames,
           lastCreatedAt' <- lastCreatedAts,
-          lastId' <- lastIds
+          lastId' <- lastIds,
+          includeMemberCount' <- [False, True]
       ]
       where
         qs = [Nothing, Just "A"]
@@ -257,3 +259,18 @@ testUserGroupGetGroupsAllInputs = do
         lastNames = [Nothing, Just ln]
         lastCreatedAts = [Nothing, Just ltz]
         lastIds = [Nothing, Just lid]
+
+testUserGroupMembersCount :: (HasCallStack) => App ()
+testUserGroupMembersCount = do
+  (owner, _team, [mem1, mem2]) <- createTeam OwnDomain 3
+  mem1id <- asString $ mem1 %. "id"
+  mem2id <- asString $ mem2 %. "id"
+
+  bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= ([mem1id, mem2id])])) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "name" `shouldMatch` "none"
+    resp.json %. "members" `shouldMatch` [mem1id, mem2id]
+
+  bindResponse (getUserGroups owner (def {includeMemberCount = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "page.0.membersCount" `shouldMatchInt` 2

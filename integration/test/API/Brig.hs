@@ -1063,11 +1063,12 @@ data GetUserGroupsArgs = GetUserGroupsArgs
     pSize :: Maybe Int,
     lastName :: Maybe String,
     lastCreatedAt :: Maybe String,
-    lastId :: Maybe String
+    lastId :: Maybe String,
+    includeMemberCount :: Bool
   }
 
 instance Default GetUserGroupsArgs where
-  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing False
 
 getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
 getUserGroups user GetUserGroupsArgs {..} = do
@@ -1082,7 +1083,8 @@ getUserGroups user GetUserGroupsArgs {..} = do
               (("page_size",) . show) <$> pSize,
               ("last_seen_name",) <$> lastName,
               ("last_seen_created_at",) <$> lastCreatedAt,
-              ("last_seen_id",) <$> lastId
+              ("last_seen_id",) <$> lastId,
+              (if includeMemberCount then Just ("include_member_count", "true") else Nothing)
             ]
         )
 
