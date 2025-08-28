@@ -387,7 +387,7 @@ data:
       {{- if .setAuditLogEmailRecipient }}
       setAuditLogEmailRecipient: {{ .setAuditLogEmailRecipient }}
       {{- end }}
-      setChallengeTTL: {{ or .setChallengeTTL 172800 }}
+      setChallengeTTL: {{ or .setChallengeTTL 604800 }}
       setEphemeralUserCreationEnabled: {{ .setEphemeralUserCreationEnabled }}
     {{- end }}
   {{- end }}

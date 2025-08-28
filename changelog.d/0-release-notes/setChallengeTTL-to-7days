@@ -1,0 +1,1 @@
+Increase the default of `setChallengeTTL` from 2 to 7 days in Brig's Helm chart.
