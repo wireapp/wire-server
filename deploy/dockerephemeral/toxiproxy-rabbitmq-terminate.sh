@@ -9,16 +9,41 @@ RABBITMQ_SVC="rabbitmq"
 # Primary proxy to target; adjust if you want to target others
 DEFAULT_PROXY="rabbitmq-amqp-tls"
 
-exec_toxi() {
-  docker compose -f "$COMPOSE_FILE" exec -T "$TOXIPROXY_SVC" toxiproxy-cli "$@"
+curlx() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -sS "$@"
+  else
+    # Fallback to using the compose service with curl
+    docker compose -f "$COMPOSE_FILE" run --rm --no-deps --entrypoint curl init_vhosts -sS "$@"
+  fi
+}
+
+TOXIPROXY_API="${TOXIPROXY_API:-http://127.0.0.1:8474}"
+
+add_toxic() {
+  local proxy="$1" name="$2" type="$3" stream="$4" attrs_json="$5"
+  local resp code
+  resp=$(curlx -X POST -H 'Content-Type: application/json' \
+    --data "{\"name\":\"$name\",\"type\":\"$type\",\"stream\":\"$stream\",\"attributes\":$attrs_json}" \
+    -w "\n%{http_code}" "$TOXIPROXY_API/proxies/$proxy/toxics") || true
+  code="${resp##*$'\n'}"
+  if [[ "$code" != 2* ]]; then
+    echo "Error adding toxic '$name' ($type/$stream) to proxy '$proxy':" >&2
+    echo "HTTP $code" >&2
+    echo "Response: ${resp%$'\n'*}" >&2
+    return 1
+  fi
+}
+
+remove_toxic() {
+  local proxy="$1" name="$2"
+  curlx -X DELETE --fail "$TOXIPROXY_API/proxies/$proxy/toxics/$name" >/dev/null || true
 }
 
 cleanup_toxics() {
   local proxy="$1" name
-  for name in force_rst blackhole_up blackhole_down odd_fin_up odd_fin_down odd_slow_close; do
-    if ! exec_toxi toxic remove "$proxy" -n "$name" >/dev/null 2>&1; then
-      true
-    fi
+  for name in force_rst_up force_rst_down blackhole_up blackhole_down odd_fin_up odd_fin_down odd_slow_close; do
+    remove_toxic "$proxy" "$name"
   done
 }
 
@@ -41,19 +66,24 @@ case "${choice}" in
   1)
     proxy=$(prompt_proxy)
     echo "Applying Abrupt RST on proxy '${proxy}'..."
-    # Sends TCP RST to peer immediately
-    exec_toxi toxic add "$proxy" -n force_rst -t reset_peer -d downstream || true
-    exec_toxi toxic add "$proxy" -n force_rst -t reset_peer -d upstream || true
-    echo "RST toxic applied. Press Enter to remove it and restore normal traffic."
-    read -r _
-    cleanup_toxics "$proxy"
+    # Sends TCP RST to peer immediately (both directions)
+    if add_toxic "$proxy" force_rst_down reset_peer downstream '{}' && \
+       add_toxic "$proxy" force_rst_up reset_peer upstream '{}'; then
+      echo "RST toxic applied. Press Enter to remove it and restore normal traffic."
+      read -r _
+      cleanup_toxics "$proxy"
+    else
+      echo "Failed to apply reset_peer toxic. Your Toxiproxy version may not support it." >&2
+      echo "Try option 3 (odd/graceful FIN) or 2 (blackhole) as an alternative." >&2
+      exit 1
+    fi
     ;;
   2)
     proxy=$(prompt_proxy)
     echo "Applying Silent Black Hole on proxy '${proxy}'..."
     # timeout toxic with timeout=0 drops all traffic indefinitely (blackhole)
-    exec_toxi toxic add "$proxy" -n blackhole_down -t timeout -d downstream -a timeout=0 || true
-    exec_toxi toxic add "$proxy" -n blackhole_up -t timeout -d upstream -a timeout=0 || true
+    add_toxic "$proxy" blackhole_down timeout downstream '{"timeout":0}'
+    add_toxic "$proxy" blackhole_up timeout upstream '{"timeout":0}'
     echo "Blackhole toxics applied. Press Enter to remove them and restore normal traffic."
     read -r _
     cleanup_toxics "$proxy"
@@ -62,9 +92,9 @@ case "${choice}" in
     proxy=$(prompt_proxy)
     echo "Applying Odd/Graceful FIN on proxy '${proxy}'..."
     # Limit bytes to force mid-stream termination then close slowly (FIN)
-    exec_toxi toxic add "$proxy" -n odd_fin_down -t limit_data -d downstream -a bytes=64 || true
-    exec_toxi toxic add "$proxy" -n odd_fin_up -t limit_data -d upstream -a bytes=64 || true
-    exec_toxi toxic add "$proxy" -n odd_slow_close -t slow_close -d downstream -a delay=1000 || true
+    add_toxic "$proxy" odd_fin_down limit_data downstream '{"bytes":64}'
+    add_toxic "$proxy" odd_fin_up limit_data upstream '{"bytes":64}'
+    add_toxic "$proxy" odd_slow_close slow_close downstream '{"delay":1000}'
     echo "Odd FIN toxics applied. Press Enter to remove them and restore normal traffic."
     read -r _
     cleanup_toxics "$proxy"
@@ -83,4 +113,3 @@ case "${choice}" in
 esac
 
 echo "Done."
-
