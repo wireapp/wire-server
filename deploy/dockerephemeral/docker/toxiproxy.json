@@ -1,5 +1,11 @@
 [
   {
+    "name": "rabbitmq-amqp-tcp",
+    "listen": "0.0.0.0:5672",
+    "upstream": "rabbitmq:5672",
+    "enabled": true
+  },
+  {
     "name": "rabbitmq-amqp-tls",
     "listen": "0.0.0.0:5671",
     "upstream": "rabbitmq:5671",

@@ -8,7 +8,7 @@ TOXIPROXY_SVC="toxiproxy"
 RABBITMQ_SVC="rabbitmq"
 
 # Primary proxy to target; adjust if you want to target others
-DEFAULT_PROXY="rabbitmq-amqp-tls"
+DEFAULT_PROXY="rabbitmq-amqp-tcp"
 
 curlx() {
   if command -v curl >/dev/null 2>&1; then

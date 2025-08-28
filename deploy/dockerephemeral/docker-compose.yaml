@@ -326,6 +326,7 @@ services:
     ports:
       # Shift real RabbitMQ off standard ports; Toxiproxy will listen on them
       - "127.0.0.1:5673:5671"
+      - "127.0.0.1:5674:5672"
       - "127.0.0.1:15674:15671"
       - "127.0.0.1:15673:15672"
     volumes:
@@ -343,6 +344,7 @@ services:
     ports:
       - "127.0.0.1:8474:8474"   # Toxiproxy admin API
       - "127.0.0.1:5671:5671"   # RabbitMQ AMQP (TLS) via proxy
+      - "127.0.0.1:5672:5672"   # RabbitMQ AMQP via proxy
       - "127.0.0.1:15672:15672" # RabbitMQ management via proxy
       - "127.0.0.1:15671:15671" # RabbitMQ management (TLS) via proxy
     volumes:
