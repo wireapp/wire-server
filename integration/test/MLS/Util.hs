@@ -992,3 +992,34 @@ removeMemberFromChannel user channel userToBeRemoved = do
             convId
             mls.convs
       }
+
+resetMLSConversation ::
+  (HasCallStack, MakesValue cid, MakesValue conv) =>
+  cid ->
+  conv ->
+  App Value
+resetMLSConversation cid conv = do
+  convId <- objConvId conv
+  mlsConv <- getMLSConv convId
+  resetConversation cid mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+
+  conv' <- getConversation cid convId >>= getJSON 200
+  groupId <- conv' %. "group_id" & asString
+  groupId `shouldNotMatch` (mlsConv.groupId :: String)
+  conv' %. "epoch" `shouldMatchInt` 0
+  convId' <- objConvId conv'
+
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.insert
+            convId'
+            ( mlsConv
+                { groupId,
+                  epoch = 0,
+                  convId = convId'
+                }
+            )
+            $ Map.delete convId mls.convs
+      }
+  pure conv'

@@ -1,7 +1,6 @@
 module Test.MLS.Reset where
 
 import API.Galley
-import qualified Data.Map as Map
 import MLS.Util
 import Notifications (isConvResetNotif)
 import SetupHelpers
@@ -39,18 +38,25 @@ testResetGroupConversation domain = do
 testResetSelfConversation :: (HasCallStack) => App ()
 testResetSelfConversation = do
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- traverse (createMLSClient def) (replicate 2 alice)
+  [alice1, alice2, alice3] <- traverse (createMLSClient def) (replicate 3 alice)
   void $ uploadNewKeyPackage def alice2
   (_, conv) <- createSelfGroup def alice1
   convId <- objConvId conv
   void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
-  resetConversation alice mlsConv.groupId mlsConv.epoch >>= assertStatus 200
-
-  conv' <- getConversation alice conv >>= getJSON 200
+  conv' <- resetMLSConversation alice conv
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
+  convId' <- objConvId conv'
+
+  void $ uploadNewKeyPackage def alice3
+  void $ createSelfGroup def alice1
+  void $ createAddCommit alice1 convId' [alice] >>= sendAndConsumeCommitBundle
+
+  conv'' <- getConversation alice convId' >>= getJSON 200
+  conv'' %. "epoch" `shouldMatchInt` 1
+  conv'' %. "group_id" `shouldMatch` (conv' %. "group_id")
 
 testResetOne2OneConversation :: (HasCallStack) => App ()
 testResetOne2OneConversation = do
@@ -68,34 +74,17 @@ testResetOne2OneConversation = do
   void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
-  resetConversation user mlsConv.groupId mlsConv.epoch >>= assertStatus 200
-
-  conv' <- getConversation user convId >>= getJSON 200
-  groupId <- conv' %. "group_id" & asString
-  groupId `shouldNotMatch` (mlsConv.groupId :: String)
+  conv' <- resetMLSConversation user (conv %. "conversation")
+  conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   convId' <- objConvId conv'
-
-  modifyMLSState $ \mls ->
-    mls
-      { convs =
-          Map.insert
-            convId'
-            ( mlsConv
-                { groupId,
-                  epoch = 0,
-                  convId = convId'
-                }
-            )
-            $ Map.delete convId mls.convs
-      }
   resetOne2OneGroupGeneric def alice1 conv' (conv %. "public_keys")
 
   void $ createAddCommit alice1 convId' [bob] >>= sendAndConsumeCommitBundle
 
   conv'' <- getConversation user convId >>= getJSON 200
   conv'' %. "epoch" `shouldMatchInt` 1
-  conv'' %. "group_id" `shouldMatch` groupId
+  conv'' %. "group_id" `shouldMatch` (conv' %. "group_id")
 
 testResetMixedConversation :: (HasCallStack) => Domain -> App ()
 testResetMixedConversation domain = do
