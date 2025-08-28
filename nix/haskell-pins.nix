@@ -177,19 +177,6 @@ let
       };
     };
 
-    # Replace this with upstream once > 0.20.2 has been released.
-    servant = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/servant";
-        rev = "fa8271564ebd9dff22de84aa77a687c89398a612";
-        hash = "sha256-9g3tEfHCtGyA+w4HAy6H36IyIUnDPmfJHAxCswJEVSQ=";
-      };
-      packages = {
-        servant = "servant";
-        servant-server = "servant-server";
-      };
-    };
-
     # we need HEAD, the latest release is too old
     postie = {
       src = fetchgit {
@@ -285,8 +272,8 @@ let
     amazonka = {
       src = fetchgit {
         url = "https://github.com/wireapp/amazonka";
-        rev = "b482e255d1fe8f33ceced7b55aa1f6e93081dea8";
-        hash = "sha256-p/07Hge/QwMldpnqV7Ic5GRiQFoaTxzrAjhmu554J4U=";
+        rev = "d98cefc04bcc7076a915076a322ab5905c6a4945";
+        hash = "sha256-8HNHoTUaLi5lyOrKYybacZsDSHrju9/oo+Lf/YulbIo=";
       };
       packages = {
         amazonka = "lib/amazonka";
@@ -337,16 +324,6 @@ let
     postgresql-syntax = {
       version = "0.4.1.3";
       sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
-    };
-
-    text-builder-core = {
-      version = "0.1.1.1";
-      sha256 = "sha256-BX6JRG+K1PnS3GLvpakG7rTsARfVmGLl1gTW0a4UyDo=";
-    };
-
-    text-builder = {
-      version = "1.0.0.3";
-      sha256 = "sha256-9VCOzwebs89KosOouJjFUcAgY6PF97yJnnIp4HZOK20=";
     };
 
     network-control = {
