@@ -8,9 +8,12 @@ import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
 import GHC.Stack
+import MLS.Util
+import Notifications (isMemberJoinNotif, isNewMLSMessageNotif)
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
+import Prelude (getLine)
 
 -- | Deleting unknown clients should fail with 404.
 testDeleteUnknownClient :: (HasCallStack) => App ()
@@ -215,3 +218,27 @@ testLegacyFedFederationV2 fedDomainV2 = do
 
   bob' <- BrigP.getUser alice bob >>= getJSON 200
   bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+
+testRabbitMQConnection :: (HasCallStack) => App ()
+testRabbitMQConnection = do
+  [alice, bob] <- createUsers [OwnDomain, OtherDomain]
+  connectTwoUsers alice bob
+  clients@[alice1, _] <- traverse (createMLSClient def) [alice, bob]
+  for_ clients (uploadNewKeyPackage def)
+  convId <- createNewGroup def alice1
+
+  withWebSockets [alice, bob] $ \wss@[_, bobWs] -> do
+    void $ createAddCommit alice1 convId [alice, bob] >>= sendAndConsumeCommitBundle
+    for_ wss (awaitMatch isMemberJoinNotif)
+
+    void $ createApplicationMessage convId alice1 "test" >>= sendAndConsumeMessage
+    void $ awaitMatch isNewMLSMessageNotif bobWs
+
+    putStrLn "simulate RabbitMQ outage"
+    putStrLn "e.g.: docker stop rabbitmq"
+    putStrLn "and: docker start rabbitmq"
+    putStrLn "wait a bit for reconnection then press enter to continue..."
+    _ <- liftIO getLine
+
+    void $ createApplicationMessage convId alice1 "test" >>= sendAndConsumeMessage
+    void $ awaitMatch isNewMLSMessageNotif bobWs
