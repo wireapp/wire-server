@@ -1,0 +1,20 @@
+[
+  {
+    "name": "rabbitmq-amqp-tls",
+    "listen": "0.0.0.0:5671",
+    "upstream": "rabbitmq:5671",
+    "enabled": true
+  },
+  {
+    "name": "rabbitmq-management",
+    "listen": "0.0.0.0:15672",
+    "upstream": "rabbitmq:15672",
+    "enabled": true
+  },
+  {
+    "name": "rabbitmq-management-tls",
+    "listen": "0.0.0.0:15671",
+    "upstream": "rabbitmq:15671",
+    "enabled": true
+  }
+]
