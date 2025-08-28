@@ -1626,7 +1626,8 @@ CREATE TABLE galley_test.conversation (
     public_group_state blob,
     receipt_mode int,
     team uuid,
-    type int
+    type int,
+    parent_conv uuid
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''

@@ -56,6 +56,7 @@ module Wire.ConversationStore.Cassandra.Queries
     addMLSClient,
     selectGroupInfo,
     isConvDeleted,
+    selectConvParent,
     updateConvType,
     updateConvName,
     updateConvAccess,
@@ -143,17 +144,40 @@ type ConvRow =
     Maybe CipherSuiteTag,
     Maybe GroupConvType,
     Maybe AddPermission,
-    Maybe CellsState
+    Maybe CellsState,
+    Maybe ConvId
   )
 
 selectConv :: PrepQuery R (Identity ConvId) ConvRow
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state  from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state, parent_conv from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe GroupConvType, Maybe AddPermission, CellsState) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, channel_add_permission, cells_state) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+selectConvParent :: PrepQuery R (Identity ConvId) (Identity (Maybe ConvId))
+selectConvParent = "select parent_conv from conversation where conv = ?"
+
+insertConv ::
+  PrepQuery
+    W
+    ( ConvId,
+      ConvType,
+      Maybe UserId,
+      C.Set Access,
+      C.Set AccessRole,
+      Maybe Text,
+      Maybe TeamId,
+      Maybe Milliseconds,
+      Maybe ReceiptMode,
+      ProtocolTag,
+      Maybe GroupId,
+      Maybe GroupConvType,
+      Maybe AddPermission,
+      CellsState,
+      Maybe ConvId
+    )
+    ()
+insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, channel_add_permission, cells_state, parent_conv) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
   PrepQuery
@@ -167,17 +191,18 @@ insertMLSSelfConv ::
       Maybe TeamId,
       Maybe Milliseconds,
       Maybe ReceiptMode,
-      Maybe GroupId
+      Maybe GroupId,
+      Maybe ConvId
     )
     ()
 insertMLSSelfConv =
   fromString $
     "insert into conversation (conv, type, creator, access, \
     \ access_roles_v2, name, team, message_timer, receipt_mode,\
-    \ protocol, group_id) values \
+    \ protocol, group_id, parent_conv) values \
     \ (?, ?, ?, ?, ?, ?, ?, ?, ?, "
       <> show (fromEnum ProtocolMLSTag)
-      <> ", ?)"
+      <> ", ?, ?)"
 
 updateToMixedConv :: PrepQuery W (ConvId, ProtocolTag, GroupId, Epoch) ()
 updateToMixedConv =

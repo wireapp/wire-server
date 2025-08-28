@@ -1294,7 +1294,8 @@ createConvWithAccessRoles ars g u us =
           newConvGroupConvType = GroupConversation,
           newConvCells = False,
           newConvChannelAddPermission = Nothing,
-          newConvSkipCreator = False
+          newConvSkipCreator = False,
+          newConvParent = Nothing
         }
 
 postMessage ::

@@ -92,15 +92,16 @@ createMLSSelfConversation lusr = do
     addPrepQuery
       Cql.insertMLSSelfConv
       ( cnv,
-        cnvmType meta,
-        cnvmCreator meta,
-        Cql.Set (cnvmAccess meta),
-        Cql.Set (toList (cnvmAccessRoles meta)),
-        cnvmName meta,
-        cnvmTeam meta,
-        cnvmMessageTimer meta,
-        cnvmReceiptMode meta,
-        Just gid
+        meta.cnvmType,
+        meta.cnvmCreator,
+        Cql.Set meta.cnvmAccess,
+        Cql.Set (toList meta.cnvmAccessRoles),
+        meta.cnvmName,
+        meta.cnvmTeam,
+        meta.cnvmMessageTimer,
+        meta.cnvmReceiptMode,
+        Just gid,
+        meta.cnvmParent
       )
 
   (lmems, rmems) <- addMembers cnv nc.users
@@ -149,7 +150,8 @@ createConversation lcnv nc = do
         mgid,
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
-        meta.cnvmCellsState
+        meta.cnvmCellsState,
+        meta.cnvmParent
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) nc.users
@@ -180,10 +182,10 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct, mcap, mcs) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct, mcap, mcs, mcp) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct mcap (fromMaybe def mcs)
+      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct mcap (fromMaybe def mcs) mcp
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -370,7 +372,7 @@ toConv ::
   Maybe Cql.ConvRow ->
   Maybe StoredConversation
 toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
@@ -393,7 +395,8 @@ toConv cid ms remoteMems mconv = do
               cnvmReceiptMode = rm,
               cnvmGroupConvType = mgct,
               cnvmCellsState = fromMaybe def mcells,
-              cnvmChannelAddPermission = mAp
+              cnvmChannelAddPermission = mAp,
+              cnvmParent = mparent
             }
       }
 

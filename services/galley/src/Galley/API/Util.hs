@@ -939,7 +939,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmReceiptMode = receiptMode,
             cnvmGroupConvType = groupConvType,
             cnvmChannelAddPermission = channelAddPermission,
-            cnvmCellsState = def
+            cnvmCellsState = def,
+            cnvmParent = Nothing
           }
         (OwnConvMembers this others)
         ProtocolProteus

@@ -27,6 +27,7 @@
         "last_event_time": "1970-01-01T00:00:00.000Z",
         "message_timer": null,
         "name": " 0",
+        "parent": null,
         "receipt_mode": -2,
         "team": "00000001-0000-0001-0000-000100000002",
         "type": 2

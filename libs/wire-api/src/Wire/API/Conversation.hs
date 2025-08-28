@@ -150,7 +150,8 @@ data ConversationMetadata = ConversationMetadata
     cnvmReceiptMode :: Maybe ReceiptMode,
     cnvmGroupConvType :: Maybe GroupConvType,
     cnvmChannelAddPermission :: Maybe AddPermission,
-    cnvmCellsState :: CellsState
+    cnvmCellsState :: CellsState,
+    cnvmParent :: Maybe ConvId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -169,7 +170,8 @@ defConversationMetadata mCreator =
       cnvmReceiptMode = Nothing,
       cnvmGroupConvType = Just GroupConversation,
       cnvmChannelAddPermission = Nothing,
-      cnvmCellsState = def
+      cnvmCellsState = def,
+      cnvmParent = Nothing
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -232,6 +234,7 @@ conversationMetadataObjectSchema sch =
     <*> cnvmGroupConvType .= optField "group_conv_type" (maybeWithDefault A.Null schema)
     <*> cnvmChannelAddPermission .= optField "add_permission" (maybeWithDefault A.Null schema)
     <*> cnvmCellsState .= (fromMaybe def <$> optField "cells_state" schema)
+    <*> cnvmParent .= optField "parent" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
@@ -770,7 +773,8 @@ data NewConv = NewConv
     newConvGroupConvType :: GroupConvType,
     newConvCells :: Bool,
     newConvChannelAddPermission :: Maybe AddPermission,
-    newConvSkipCreator :: Bool
+    newConvSkipCreator :: Bool,
+    newConvParent :: Maybe ConvId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -849,6 +853,13 @@ newConvSchema v sch =
                  (description ?~ "Don't add creator to the conversation, only works for team admins not wanting to be part of the channels they create.")
                  schema
            )
+      <*> newConvParent
+        .= maybe_
+          ( optFieldWithDocModifier
+              "parent"
+              (description ?~ "Parent conversation")
+              schema
+          )
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \
