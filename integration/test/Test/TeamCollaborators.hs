@@ -175,6 +175,21 @@ testRemoveMemberInO2O = do
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
   getMLSOne2OneConversation charlie bob >>= assertSuccess
 
+testRemoveMemberInO2OConnected :: (HasCallStack) => App ()
+testRemoveMemberInO2OConnected = do
+  (owner0, team0, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator owner0 team0 bob ["implicit_connection"] >>= assertSuccess
+
+  postOne2OneConversation bob alice team0 "chit-chat" >>= assertSuccess
+  connectTwoUsers alice bob
+
+  removeTeamCollaborator owner0 team0 bob >>= assertSuccess
+
+  getMLSOne2OneConversation bob alice >>= assertSuccess
+
 testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
 testRemoveMemberInTeamConversation = do
   (owner, team, [alice, bob]) <- createTeam OwnDomain 3

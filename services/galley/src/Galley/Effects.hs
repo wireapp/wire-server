@@ -107,12 +107,12 @@ import Wire.TeamSubsystem (TeamSubsystem)
 -- All the possible high-level effects.
 type GalleyEffects1 =
   '[ ExternalAccess,
-     BrigAPIAccess,
      SparAccess,
      TeamCollaboratorsSubsystem,
      NotificationSubsystem,
      TeamSubsystem,
      ConversationsSubsystem,
+     BrigAPIAccess,
      GundeckAPIAccess,
      Rpc,
      FederatorAccess,

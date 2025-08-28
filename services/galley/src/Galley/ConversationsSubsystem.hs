@@ -9,7 +9,7 @@ import Conduit
 import Data.Bifoldable
 import Data.Id
 import Galley.Cassandra.Conversation (deleteConversation)
-import Galley.Cassandra.Conversation.Members (removeMembersFromLocalConv)
+import Galley.Cassandra.Conversation.Members (members, removeMembersFromLocalConv)
 import Galley.Cassandra.Queries (selectConv)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store (embedClient)
@@ -20,12 +20,15 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import UnliftIO.Async (pooledForConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
+import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationsSubsystem
+import Wire.StoredConversation qualified
 import Wire.UserList (UserList (UserList))
 
 interpretConversationsSubsystemCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
+    Member E.BrigAPIAccess r,
     Member TinyLog r
   ) =>
   InterpreterFor ConversationsSubsystem r
@@ -34,10 +37,11 @@ interpretConversationsSubsystemCassandra =
     \case
       InternalCloseConversationsFrom tid uid -> do
         logEffect "ConversationsSubsystem.internalCloseConversationsFrom"
-        embedClient $ closeConversationsFromImpl tid uid
+        contacts <- E.getContactList uid
+        embedClient $ closeConversationsFromImpl tid uid contacts
 
-closeConversationsFromImpl :: TeamId -> UserId -> Client ()
-closeConversationsFromImpl tid uid =
+closeConversationsFromImpl :: TeamId -> UserId -> [UserId] -> Client ()
+closeConversationsFromImpl tid uid contacts = do
   runConduit $
     paginateWithStateC listConversationsIds
       .| mapMC performFilter
@@ -49,11 +53,16 @@ closeConversationsFromImpl tid uid =
     performFilter convIds = do
       filteredConvIds <-
         concat <$> pooledForConcurrentlyN 16 convIds performConversationsFilter
-      let extractConv = map (\(convId, _team, _convType) -> convId)
-      pure $
-        bimap extractConv extractConv $
-          partition (\(_convId, _team, convType) -> convType == One2OneConv) $
-            filter (\(_convId, team, _convType) -> team == Just tid) filteredConvIds
+      let filteredTeamConvIds = filter (\(_convId, team, _convType) -> team == Just tid) filteredConvIds
+          extractConv = map (\(convId, _team, _convType) -> convId)
+          (o2os, mlss) =
+            bimap extractConv extractConv $
+              partition (\(_convId, _team, convType) -> convType == One2OneConv) filteredTeamConvIds
+          isNotConnectedToMember convId = do
+            localMembers <- members convId
+            pure $ any (flip notElem (uid : contacts) . (.id_)) localMembers
+      o2osUnconnected <- filterM isNotConnectedToMember o2os
+      pure (o2osUnconnected, mlss)
     performConversationsFilter :: ConvId -> Client [(ConvId, Maybe TeamId, ConvType)]
     performConversationsFilter convId = do
       results <- retry x1 $ query selectConv $ params LocalQuorum (Identity convId)
