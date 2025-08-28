@@ -5,7 +5,7 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
+import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
 import Data.Set qualified as Set
 import Imports
 import Polysemy
