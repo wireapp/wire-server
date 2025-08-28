@@ -108,6 +108,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess.Rpc
+import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter

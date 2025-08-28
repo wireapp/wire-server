@@ -103,3 +103,29 @@ internalRemoveTeamCollaboratorImpl ::
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
   internalCloseConversationsFrom team user
+
+-- This is of general usefulness. However, we cannot move this to wire-api as
+-- this would lead to a cyclic dependency.
+guardPermission ::
+  ( Member TeamSubsystem r,
+    Member (Error ex) r,
+    TeamMember.IsPerm TeamMember.TeamMember perm
+  ) =>
+  UserId ->
+  TeamId ->
+  perm ->
+  ex ->
+  Sem r ()
+guardPermission user team perm ex = do
+  res <-
+    isJust <$> runMaybeT do
+      member <- MaybeT $ internalGetTeamMember user team
+      guard (member `TeamMember.hasPermission` perm)
+  unless res $
+    throw ex
+
+teamCollaboratorsSubsystemErrorToHttpError :: TeamCollaboratorsError -> HttpError
+teamCollaboratorsSubsystemErrorToHttpError =
+  StdError . \case
+    InsufficientRights -> errorToWai @E.InsufficientTeamPermissions
+    AlreadyExists -> errorToWai @E.DuplicateEntry
