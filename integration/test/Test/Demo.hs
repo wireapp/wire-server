@@ -7,6 +7,7 @@ import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
+import Control.Concurrent
 import GHC.Stack
 import MLS.Util
 import Notifications (isMemberJoinNotif, isNewMLSMessageNotif)
@@ -242,3 +243,4 @@ testRabbitMQConnection = do
 
     void $ createApplicationMessage convId alice1 "test" >>= sendAndConsumeMessage
     void $ awaitMatch isNewMLSMessageNotif bobWs
+    liftIO $ threadDelay 2_000_000
