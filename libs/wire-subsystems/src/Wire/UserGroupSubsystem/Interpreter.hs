@@ -5,7 +5,7 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
+import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
 import Data.Set qualified as Set
 import Imports
 import Polysemy
@@ -85,8 +85,7 @@ createUserGroupImpl creator newGroup = do
   ug <- Store.createUserGroup team newGroup managedBy
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
   pushNotifications
-    [ mkEvent creator (UserGroupCreated ug.id_) admins,
-      mkEvent creator (UserGroupMemberAdded ug.id_) (tUnqualified luids)
+    [ mkEvent creator (UserGroupCreated ug.id_) admins
     ]
   pure ug
 
@@ -254,8 +253,7 @@ addUserImpl adder groupId addeeId = do
     Store.addUser groupId addeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
-      [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId],
-        mkEvent adder (UserGroupUpdated groupId) admins
+      [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
 removeUserImpl ::
@@ -277,6 +275,5 @@ removeUserImpl remover groupId removeeId = do
     Store.removeUser groupId removeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
-      [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId],
-        mkEvent remover (UserGroupUpdated groupId) admins
+      [ mkEvent remover (UserGroupUpdated groupId) admins
       ]
