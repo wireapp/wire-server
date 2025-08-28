@@ -90,6 +90,7 @@ import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
 import Wire.ConversationsSubsystem (ConversationsSubsystem)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword

@@ -8,10 +8,6 @@ import Cassandra.Exec
 import Conduit
 import Data.Bifoldable
 import Data.Id
-import Galley.Cassandra.Conversation (deleteConversation)
-import Galley.Cassandra.Conversation.Members (members, removeMembersFromLocalConv)
-import Galley.Cassandra.Queries (selectConv)
-import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Cassandra.Util (logEffect)
 import Imports
@@ -21,7 +17,10 @@ import Polysemy.TinyLog (TinyLog)
 import UnliftIO.Async (pooledForConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
 import Wire.BrigAPIAccess qualified as E
+import Wire.ConversationStore.Cassandra (deleteConversation)
+import Wire.ConversationStore.Cassandra.Queries (selectConv, selectUserConvs)
 import Wire.ConversationsSubsystem
+import Wire.MemberStore.Cassandra (members, removeMembersFromLocalConv)
 import Wire.StoredConversation qualified
 import Wire.UserList (UserList (UserList))
 
@@ -48,7 +47,7 @@ closeConversationsFromImpl tid uid contacts = do
       .| mapM_C (bimapM_ (mapM_ deleteConversation) (pooledMapConcurrentlyN_ 16 performConversationRemoveUser))
   where
     listConversationsIds pagingState =
-      fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity uid) 32 pagingState)
+      fmap runIdentity <$> paginateWithState selectUserConvs (paramsPagingState LocalQuorum (Identity uid) 32 pagingState)
     performFilter :: [ConvId] -> Client ([ConvId], [ConvId])
     performFilter convIds = do
       filteredConvIds <-
@@ -68,7 +67,7 @@ closeConversationsFromImpl tid uid contacts = do
       results <- retry x1 $ query selectConv $ params LocalQuorum (Identity convId)
       pure $
         flip map results $
-          \(convType, _mUserId, _mAccesses, _mRole, _mRoles, _mName, mTeam, _mDeleted, _mTimer, _mMode, _mProtocol, _mGroupId, _mEpoch, _mWriteEpoch, _mCiher, _mGroupConvType, _mChannelPerms, _mCellState) ->
+          \(convType, _mUserId, _mAccesses, _mRole, _mRoles, _mName, mTeam, _mDeleted, _mTimer, _mMode, _mProtocol, _mGroupId, _mEpoch, _mWriteEpoch, _mCiher, _mGroupConvType, _mChannelPerms, _mCellState, _mParentConvId) ->
             (convId, mTeam, convType)
     performConversationRemoveUser :: ConvId -> Client ()
     performConversationRemoveUser convId =
