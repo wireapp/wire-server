@@ -31,6 +31,7 @@ import API.Settings qualified as Settings
 import API.SystemSettings qualified as SystemSettings
 import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
+import API.Template qualified
 import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
@@ -152,6 +153,7 @@ runTests iConf brigOpts otherArgs = do
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
+  emailTemplates <- API.Template.tests brigOpts mg
 
   let smtp = SMTP.tests mg lg
       oauthAPI = API.OAuth.tests mg db b n brigOpts
@@ -174,7 +176,8 @@ runTests iConf brigOpts otherArgs = do
         internalApi,
         smtp,
         oauthAPI,
-        federationEnd2End
+        federationEnd2End,
+        emailTemplates
       ]
   where
     mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
