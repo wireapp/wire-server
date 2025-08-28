@@ -7,6 +7,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
 import Data.Set qualified as Set
+import Data.Vector (Vector)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -45,6 +46,7 @@ interpretUserGroupSubsystem = interpret $ \case
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
+  AddUsers adder groupId addeeIds -> addUsersImpl adder groupId addeeIds
   RemoveUser remover groupId removeeId -> removeUserImpl remover groupId removeeId
 
 data UserGroupSubsystemError
@@ -251,6 +253,31 @@ addUserImpl adder groupId addeeId = do
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   unless (addeeId `elem` runIdentity ug.members) $ do
     Store.addUser groupId addeeId
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+    pushNotifications
+      [ mkEvent adder (UserGroupUpdated groupId) admins
+      ]
+
+addUsersImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Vector UserId ->
+  Sem r ()
+addUsersImpl adder groupId addeeIds = do
+  ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
+  team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
+  forM_ addeeIds $ \addeeId ->
+    internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
+
+  let missingAddeeIds = toList addeeIds \\ toList (runIdentity ug.members)
+  unless (null missingAddeeIds) $ do
+    mapM_ (Store.addUser groupId) missingAddeeIds
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
       [ mkEvent adder (UserGroupUpdated groupId) admins

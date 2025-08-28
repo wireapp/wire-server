@@ -1104,6 +1104,15 @@ addUserToGroup user gid uid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users", uid]
   submit "POST" req
 
+addUsersToGroup :: (MakesValue user) => user -> String -> [String] -> App Response
+addUsersToGroup user gid uids = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users"]
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "members" .= uids
+        ]
+
 removeUserFromGroup :: (MakesValue user) => user -> String -> String -> App Response
 removeUserFromGroup user gid uid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users", uid]
