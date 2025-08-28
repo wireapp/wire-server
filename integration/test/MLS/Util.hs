@@ -654,7 +654,10 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
     -- at this point we know that every new user has been added to the
     -- conversation
     for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessageNoExternal conv.ciphersuite cid mp ws
+      MLSNotificationMessageTag ->
+        when (conv.epoch > 0) $
+          void $
+            consumeMessageNoExternal conv.ciphersuite cid mp ws
       MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
     pure r
 
@@ -989,3 +992,34 @@ removeMemberFromChannel user channel userToBeRemoved = do
             convId
             mls.convs
       }
+
+resetMLSConversation ::
+  (HasCallStack, MakesValue cid, MakesValue conv) =>
+  cid ->
+  conv ->
+  App Value
+resetMLSConversation cid conv = do
+  convId <- objConvId conv
+  mlsConv <- getMLSConv convId
+  resetConversation cid mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+
+  conv' <- getConversation cid convId >>= getJSON 200
+  groupId <- conv' %. "group_id" & asString
+  groupId `shouldNotMatch` (mlsConv.groupId :: String)
+  conv' %. "epoch" `shouldMatchInt` 0
+  convId' <- objConvId conv'
+
+  modifyMLSState $ \mls ->
+    mls
+      { convs =
+          Map.insert
+            convId'
+            ( mlsConv
+                { groupId,
+                  epoch = 0,
+                  convId = convId'
+                }
+            )
+            $ Map.delete convId mls.convs
+      }
+  pure conv'

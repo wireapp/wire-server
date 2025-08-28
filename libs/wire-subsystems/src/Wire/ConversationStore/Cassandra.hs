@@ -70,7 +70,8 @@ createMLSSelfConversation lusr = do
           { metadata =
               (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
             users = ulFromLocals [toUserRole usr],
-            protocol = BaseProtocolMLSTag
+            protocol = BaseProtocolMLSTag,
+            groupId = Nothing
           }
       meta = nc.metadata
       gid =
@@ -119,9 +120,10 @@ createConversation lcnv nc = do
       (proto, mgid) = case nc.protocol of
         BaseProtocolProteusTag -> (ProtocolProteus, Nothing)
         BaseProtocolMLSTag ->
-          let gid =
+          let newGid =
                 newGroupId meta.cnvmType $
                   Conv <$> tUntagged lcnv
+              gid = fromMaybe newGid nc.groupId
            in ( ProtocolMLS
                   ConversationMLSData
                     { cnvmlsGroupId = gid,

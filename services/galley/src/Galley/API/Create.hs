@@ -466,7 +466,8 @@ createProteusSelfConversation lusr = do
             NewConversation
               { metadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
                 users = ulFromLocals [toUserRole (tUnqualified lusr)],
-                protocol = BaseProtocolProteusTag
+                protocol = BaseProtocolProteusTag,
+                groupId = Nothing
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
@@ -594,7 +595,8 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
         NewConversation
           { users = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
             protocol = BaseProtocolProteusTag,
-            metadata = meta
+            metadata = meta,
+            groupId = Nothing
           }
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -666,7 +668,8 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
             NewConversation
               { metadata = meta,
                 users = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
-                protocol = BaseProtocolProteusTag
+                protocol = BaseProtocolProteusTag,
+                groupId = Nothing
               }
       c <- E.createConversation lcnv nc
       notifyCreatedConversation self (Just zcon) c def
@@ -718,7 +721,8 @@ createConnectConversation lusr conn j = do
             -- when the other user accepts the connection request.
             users = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
             protocol = BaseProtocolProteusTag,
-            metadata = meta
+            metadata = meta,
+            groupId = Nothing
           }
   E.getConversation (tUnqualified lcnv)
     >>= maybe (create lcnv nc) (update n)
@@ -832,7 +836,8 @@ newRegularConversation lusr newConv = do
                       else CellsDisabled
                 },
             users = newConvUsersRoles,
-            protocol = newConvProtocol newConv
+            protocol = newConvProtocol newConv,
+            groupId = Nothing
           }
   pure (nc, users)
 
