@@ -280,8 +280,7 @@ addUsersImpl adder groupId addeeIds = do
     mapM_ (Store.addUser groupId) missingAddeeIds
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
-      [ mkEvent adder (UserGroupMemberAdded groupId) missingAddeeIds,
-        mkEvent adder (UserGroupUpdated groupId) admins
+      [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
 removeUserImpl ::
