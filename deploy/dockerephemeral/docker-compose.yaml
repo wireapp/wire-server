@@ -335,22 +335,41 @@ services:
     networks:
       - demo_wire
 
-  toxiproxy:
-    container_name: toxiproxy
-    image: ghcr.io/shopify/toxiproxy:2.9.0
-    command: -host=0.0.0.0 -config /config/toxiproxy.json
+  haproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.haproxy
+    container_name: haproxy
     depends_on:
       - rabbitmq
     ports:
-      - "127.0.0.1:8474:8474"   # Toxiproxy admin API
-      - "127.0.0.1:5671:5671"   # RabbitMQ AMQP (TLS) via proxy
-      - "127.0.0.1:5672:5672"   # RabbitMQ AMQP via proxy
-      - "127.0.0.1:15672:15672" # RabbitMQ management via proxy
-      - "127.0.0.1:15671:15671" # RabbitMQ management (TLS) via proxy
+      - "5671:5671"
+      - "5672:5672"
+      - "15671:15671"
+      - "15672:15672"
+      - "8080:8080"
     volumes:
-      - ./docker/toxiproxy.json:/config/toxiproxy.json:ro
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./haproxy-logs:/var/log/haproxy
     networks:
       - demo_wire
+
+  # toxiproxy:
+  #   container_name: toxiproxy
+  #   image: ghcr.io/shopify/toxiproxy:2.9.0
+  #   command: -host=0.0.0.0 -config /config/toxiproxy.json
+  #   depends_on:
+  #     - rabbitmq
+  #   ports:
+  #     - "127.0.0.1:8474:8474"   # Toxiproxy admin API
+  #     - "127.0.0.1:5671:5671"   # RabbitMQ AMQP (TLS) via proxy
+  #     - "127.0.0.1:5672:5672"   # RabbitMQ AMQP via proxy
+  #     - "127.0.0.1:15672:15672" # RabbitMQ management via proxy
+  #     - "127.0.0.1:15671:15671" # RabbitMQ management (TLS) via proxy
+  #   volumes:
+  #     - ./docker/toxiproxy.json:/config/toxiproxy.json:ro
+  #   networks:
+  #     - demo_wire
 
   init_vhosts:
     image: alpine/curl:3.14
