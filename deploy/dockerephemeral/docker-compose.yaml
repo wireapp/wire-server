@@ -336,7 +336,7 @@ services:
 
   toxiproxy:
     container_name: toxiproxy
-    image: shopify/toxiproxy
+    image: ghcr.io/shopify/toxiproxy:2.9.0
     command: -host=0.0.0.0 -config /config/toxiproxy.json
     depends_on:
       - rabbitmq

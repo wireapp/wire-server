@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034
 set -euo pipefail
 
 COMPOSE_FILE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,6 +30,21 @@ add_toxic() {
   code="${resp##*$'\n'}"
   if [[ "$code" != 2* ]]; then
     echo "Error adding toxic '$name' ($type/$stream) to proxy '$proxy':" >&2
+    echo "HTTP $code" >&2
+    echo "Response: ${resp%$'\n'*}" >&2
+    return 1
+  fi
+}
+
+# Enable/disable proxy (fallback to simulate abrupt disconnect)
+set_proxy_enabled() {
+  local proxy="$1" enabled="$2" resp code
+  resp=$(curlx -X POST -H 'Content-Type: application/json' \
+    --data "{\"enabled\":$enabled}" \
+    -w "\n%{http_code}" "$TOXIPROXY_API/proxies/$proxy") || true
+  code="${resp##*$'\n'}"
+  if [[ "$code" != 2* ]]; then
+    echo "Error toggling proxy '$proxy' enabled=$enabled" >&2
     echo "HTTP $code" >&2
     echo "Response: ${resp%$'\n'*}" >&2
     return 1
@@ -73,9 +89,11 @@ case "${choice}" in
       read -r _
       cleanup_toxics "$proxy"
     else
-      echo "Failed to apply reset_peer toxic. Your Toxiproxy version may not support it." >&2
-      echo "Try option 3 (odd/graceful FIN) or 2 (blackhole) as an alternative." >&2
-      exit 1
+      echo "reset_peer toxic not supported; falling back to disabling proxy (abrupt disconnect)." >&2
+      set_proxy_enabled "$proxy" false || { echo "Failed to disable proxy." >&2; exit 1; }
+      echo "Proxy disabled. Existing connections should drop immediately. Press Enter to re-enable."
+      read -r _
+      set_proxy_enabled "$proxy" true || { echo "Failed to re-enable proxy." >&2; exit 1; }
     fi
     ;;
   2)
