@@ -99,6 +99,9 @@ module Wire.ConversationStore.Cassandra.Queries
     insertCipherSuiteForSubConversation,
     listSubConversations,
     deleteSubConversation,
+    selectTeamConv,
+    selectTeamConvs,
+    selectTeamConvsFrom,
   )
 where
 
@@ -123,6 +126,15 @@ insertTeamConv = "insert into team_conv (team, conv) values (?, ?)"
 
 deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
 deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
+
+selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity ConvId)
+selectTeamConv = "select conv from team_conv where team = ? and conv = ?"
+
+selectTeamConvs :: PrepQuery R (Identity TeamId) (Identity ConvId)
+selectTeamConvs = "select conv from team_conv where team = ? order by conv"
+
+selectTeamConvsFrom :: PrepQuery R (TeamId, ConvId) (Identity ConvId)
+selectTeamConvsFrom = "select conv from team_conv where team = ? and conv > ? order by conv"
 
 -- Conversations ------------------------------------------------------------
 

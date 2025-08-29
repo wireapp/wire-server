@@ -72,6 +72,9 @@ data ConversationStore m a where
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
   DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()
+  GetTeamConversation :: TeamId -> ConvId -> ConversationStore m (Maybe ConvId)
+  GetTeamConversations :: TeamId -> ConversationStore m [ConvId]
+  DeleteTeamConversations :: TeamId -> ConversationStore m ()
 
 makeSem ''ConversationStore
 
