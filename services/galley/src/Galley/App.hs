@@ -112,7 +112,6 @@ import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.ListItems.ConversationIds.Cassandra
-import Wire.MemberStore.Cassandra (interpretMemberStoreToCassandra)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -121,7 +120,6 @@ import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
-import Wire.SubConversationStore.Cassandra
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 
@@ -298,13 +296,11 @@ evalGalley e =
     . interpretTeamNotificationStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
-    . interpretMemberStoreToCassandra (e ^. cstate)
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
     . randomToIO
     . runHashPassword e._options._settings._passwordHashingOptions
     . interpretRateLimit e._passwordHashingRateLimitEnv
-    . interpretSubConversationStoreToCassandra
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra

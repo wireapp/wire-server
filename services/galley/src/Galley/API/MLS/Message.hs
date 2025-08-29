@@ -89,11 +89,9 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.MemberStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
-import Wire.SubConversationStore
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -145,7 +143,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local UserId ->
@@ -170,7 +167,6 @@ postMLSCommitBundle ::
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r,
     Members MLSBundleStaticErrors r,
     HasProposalEffects r
   ) =>
@@ -196,7 +192,6 @@ postMLSCommitBundleFromLocalUser ::
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r,
     Members MLSBundleStaticErrors r,
     HasProposalEffects r
   ) =>
@@ -222,7 +217,6 @@ postMLSCommitBundleToLocalConv ::
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r,
     Members MLSBundleStaticErrors r,
     HasProposalEffects r
   ) =>
@@ -363,7 +357,7 @@ postMLSCommitBundleToRemoteConv ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member TinyLog r
   ) =>
   Local x ->
@@ -418,7 +412,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local x ->
@@ -463,7 +456,6 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member SubConversationStore r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Qualified UserId ->
@@ -556,8 +548,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
     MLSMessageResponseNonFederatingBackends e -> throw e
 
 storeGroupInfo ::
-  ( Member ConversationStore r,
-    Member SubConversationStore r
+  ( Member ConversationStore r
   ) =>
   ConvOrSubConvId ->
   GroupInfoData ->
@@ -570,9 +561,7 @@ fetchConvOrSub ::
   forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Error MLSProtocolError) r,
-    Member MemberStore r,
-    Member SubConversationStore r
+    Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
   GroupId ->
@@ -596,8 +585,7 @@ fetchConvOrSub qusr groupId ctype convOrSubId = for convOrSubId $ \case
 getMLSConv ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (Error MLSProtocolError) r,
-    Member ConversationStore r,
-    Member MemberStore r
+    Member ConversationStore r
   ) =>
   Qualified UserId ->
   Maybe GroupId ->

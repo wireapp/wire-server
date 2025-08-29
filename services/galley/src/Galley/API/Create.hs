@@ -84,7 +84,6 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
-import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -704,7 +703,6 @@ createConnectConversation ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member P.TinyLog r
   ) =>
   Local UserId ->

@@ -61,12 +61,10 @@ resetMLSConversation ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
-    Member MemberStore r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Random r,
     Member Resource r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r
@@ -112,7 +110,7 @@ resetRemoteMLSConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member MemberStore r
+    Member ConversationStore r
   ) =>
   Remote ConvId ->
   Local UserId ->

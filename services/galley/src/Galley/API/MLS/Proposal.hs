@@ -135,7 +135,6 @@ type HasProposalEffects r =
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member TeamStore r,
     Member TeamStore r,

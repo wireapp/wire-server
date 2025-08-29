@@ -69,7 +69,6 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
-import Wire.SubConversationStore
 import Wire.TeamCollaboratorsSubsystem
 
 type HasProposalActionEffects r =
@@ -93,9 +92,7 @@ type HasProposalActionEffects r =
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member NotificationSubsystem r,
@@ -132,9 +129,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
 
 incrementEpoch ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member MemberStore r,
-    Member SubConversationStore r
+    Member (ErrorS 'ConvNotFound) r
   ) =>
   ConvOrSubConv ->
   Sem r ConvOrSubConv

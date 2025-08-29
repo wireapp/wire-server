@@ -128,7 +128,6 @@ import Wire.API.User qualified as U
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ListItems qualified as E
-import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
@@ -381,7 +380,6 @@ uncheckedDeleteTeam ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member SparAccess r,
     Member TeamStore r,
     Member ConversationStore r
@@ -741,7 +739,6 @@ deleteTeamMember ::
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -770,7 +767,6 @@ deleteNonBindingTeamMember ::
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -799,7 +795,6 @@ deleteTeamMember' ::
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -860,7 +855,6 @@ uncheckedDeleteTeamMember ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -923,8 +917,7 @@ removeFromConvsAndPushConvLeaveEvent ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member Now r,
-    Member MemberStore r
+    Member Now r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -1006,12 +999,10 @@ deleteTeamConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
     Member FederatorAccess r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>

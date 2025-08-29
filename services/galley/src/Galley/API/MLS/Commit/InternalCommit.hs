@@ -61,9 +61,7 @@ import Wire.API.Unreachable
 import Wire.API.User.Client
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.MemberStore
 import Wire.StoredConversation
-import Wire.SubConversationStore
 
 processInternalCommit ::
   forall r.
@@ -75,7 +73,6 @@ processInternalCommit ::
     Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member SubConversationStore r,
     Member Resource r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r

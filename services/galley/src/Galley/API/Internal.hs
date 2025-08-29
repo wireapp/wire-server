@@ -93,7 +93,7 @@ import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.ConversationStore
-import Wire.MemberStore qualified as E
+import Wire.ConversationStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -330,11 +330,9 @@ rmUser ::
     Member (ListItems p1 ConvId) r,
     Member (ListItems p1 (Remote ConvId)) r,
     Member (ListItems p2 TeamId) r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -501,11 +499,7 @@ guardLegalholdPolicyConflictsH glh = do
 -- | Get an MLS conversation client list
 iGetMLSClientListForConv ::
   forall r.
-  ( Members
-      '[ MemberStore,
-         ErrorS 'ConvNotFound
-       ]
-      r
+  ( Member ConversationStore r
   ) =>
   GroupId ->
   Sem r ClientList

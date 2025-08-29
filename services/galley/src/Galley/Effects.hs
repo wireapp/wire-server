@@ -36,11 +36,9 @@ module Galley.Effects
     ConversationStore,
     CustomBackendStore,
     LegalHoldStore,
-    MemberStore,
     ProposalStore,
     SearchVisibilityStore,
     ServiceStore,
-    SubConversationStore,
     Random,
     TeamFeatureStore,
     TeamMemberStore,
@@ -96,14 +94,12 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
-import Wire.MemberStore (MemberStore)
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Now
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
-import Wire.SubConversationStore
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -125,13 +121,11 @@ type GalleyEffects1 =
      ClientStore,
      CodeStore,
      ProposalStore,
-     SubConversationStore,
      RateLimit,
      HashPassword,
      Random,
      CustomBackendStore,
      LegalHoldStore,
-     MemberStore,
      SearchVisibilityStore,
      ServiceStore,
      TeamNotificationStore,

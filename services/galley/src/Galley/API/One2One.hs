@@ -33,7 +33,6 @@ import Wire.API.Conversation.Role
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User
 import Wire.ConversationStore
-import Wire.MemberStore
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -54,9 +53,7 @@ newConnectConversationWithRemote creator users =
 
 iUpsertOne2OneConversation ::
   forall r.
-  ( Member ConversationStore r,
-    Member MemberStore r
-  ) =>
+  (Member ConversationStore r) =>
   UpsertOne2OneConversationRequest ->
   Sem r ()
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
