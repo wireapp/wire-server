@@ -137,10 +137,6 @@ updateTeamCollaboratorImpl zUser user team perms = do
 
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r,
-    Member (Error TeamCollaboratorsError) r,
-    Member Store.TeamCollaboratorsStore r,
-    Member Now r,
-    Member NotificationSubsystem r,
     Member ConversationsSubsystem r
   ) =>
   UserId ->
