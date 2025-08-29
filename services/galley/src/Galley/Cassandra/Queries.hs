@@ -26,7 +26,6 @@
 -- - service
 -- - team
 -- - team_admin
--- - team_conv
 -- - team_member
 -- - user_team
 -- update using: `rg -i -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number services/galley/src/Galley/Cassandra/Queries.hs | sort | uniq`
@@ -60,8 +59,6 @@ module Galley.Cassandra.Queries
     listBillingTeamMembers,
     listTeamAdmins,
     selectTeamName,
-    selectTeamConv,
-    selectTeamConvs,
     selectUserTeamsFrom,
     selectUserTeams,
     selectTeamMember,
@@ -87,7 +84,6 @@ module Galley.Cassandra.Queries
     updateTeamIcon,
     updateTeamIconKey,
     updateTeamSplashScreen,
-    selectTeamConvsFrom,
     selectTeamMembersFrom,
     selectTeamMembers',
   )
@@ -127,15 +123,6 @@ selectTeamBinding = "select binding from team where team = ?"
 
 selectTeamBindingWritetime :: PrepQuery R (Identity TeamId) (Identity (Maybe Int64))
 selectTeamBindingWritetime = "select writetime(binding) from team where team = ?"
-
-selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity ConvId)
-selectTeamConv = "select conv from team_conv where team = ? and conv = ?"
-
-selectTeamConvs :: PrepQuery R (Identity TeamId) (Identity ConvId)
-selectTeamConvs = "select conv from team_conv where team = ? order by conv"
-
-selectTeamConvsFrom :: PrepQuery R (TeamId, ConvId) (Identity ConvId)
-selectTeamConvsFrom = "select conv from team_conv where team = ? and conv > ? order by conv"
 
 selectTeamMember ::
   PrepQuery

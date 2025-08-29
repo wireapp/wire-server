@@ -57,7 +57,6 @@ import Polysemy.TinyLog
 import UnliftIO qualified
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
@@ -101,12 +100,6 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   GetTeamName tid -> do
     logEffect "TeamStore.GetTeamName"
     embedClient (getTeamName tid)
-  GetTeamConversation tid cid -> do
-    logEffect "TeamStore.GetTeamConversation"
-    embedClient (teamConversation tid cid)
-  GetTeamConversations tid -> do
-    logEffect "TeamStore.GetTeamConversations"
-    embedClient (getTeamConversations tid)
   SelectTeams uid tids -> do
     logEffect "TeamStore.SelectTeams"
     embedClient (teamIdsOf uid tids)
@@ -256,16 +249,6 @@ getTeamName :: TeamId -> Client (Maybe Text)
 getTeamName tid =
   fmap runIdentity
     <$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
-
-teamConversation :: TeamId -> ConvId -> Client (Maybe TeamConversation)
-teamConversation t c =
-  fmap (newTeamConversation . runIdentity)
-    <$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
-
-getTeamConversations :: TeamId -> Client [TeamConversation]
-getTeamConversations t =
-  map (newTeamConversation . runIdentity)
-    <$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
 
 teamIdsFrom :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (ResultSet TeamId)
 teamIdsFrom usr range (fromRange -> max) =
@@ -450,14 +433,8 @@ deleteTeam ::
   Sem r ()
 deleteTeam tid = do
   embedClient (markTeamDeletedAndRemoveTeamMembers tid)
-  cnvs <- embedClient $ teamConversationsForPagination tid Nothing (unsafeRange 2000)
-  removeConvs cnvs
+  E.deleteTeamConversations tid
   embedClient (retry x5 $ write Cql.deleteTeam (params LocalQuorum (Deleted, tid)))
-  where
-    removeConvs cnvs = do
-      for_ (result cnvs) $ E.deleteTeamConversation tid . view conversationId
-      unless (null $ result cnvs) $
-        removeConvs =<< embedClient (nextPage cnvs)
 
 markTeamDeletedAndRemoveTeamMembers :: TeamId -> Client ()
 markTeamDeletedAndRemoveTeamMembers tid = do
@@ -530,16 +507,6 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
     mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
-
-teamConversationsForPagination ::
-  TeamId ->
-  Maybe ConvId ->
-  Range 1 HardTruncationLimit Int32 ->
-  Client (Page TeamConversation)
-teamConversationsForPagination tid start (fromRange -> max) =
-  fmap (newTeamConversation . runIdentity) <$> case start of
-    Just c -> paginate Cql.selectTeamConvsFrom (paramsP LocalQuorum (tid, c) max)
-    Nothing -> paginate Cql.selectTeamConvs (paramsP LocalQuorum (Identity tid) max)
 
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
 

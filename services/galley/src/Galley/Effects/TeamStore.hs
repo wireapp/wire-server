@@ -31,8 +31,6 @@ module Galley.Effects.TeamStore
     getTeamName,
     getTeamBinding,
     getTeamsBindings,
-    getTeamConversation,
-    getTeamConversations,
     getTeamCreationTime,
     listTeams,
     selectTeams,
@@ -87,7 +85,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
@@ -111,8 +108,6 @@ data TeamStore m a where
   GetTeamAdmins :: TeamId -> TeamStore m [UserId]
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
-  GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe TeamConversation)
-  GetTeamConversations :: TeamId -> TeamStore m [TeamConversation]
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
   GetTeamMember :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
   GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList

@@ -462,6 +462,34 @@ removeTeamConv tid cid = liftClient $ do
     addPrepQuery Cql.deleteTeamConv (tid, cid)
   deleteConversation cid
 
+teamConversation :: TeamId -> ConvId -> Client (Maybe ConvId)
+teamConversation t c =
+  runIdentity <$$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
+
+getTeamConversations :: TeamId -> Client [ConvId]
+getTeamConversations t =
+  runIdentity <$$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
+
+deleteTeamConversations :: TeamId -> Client ()
+deleteTeamConversations tid = do
+  convs <- teamConversationsForPagination Nothing 2000
+  remove convs
+  where
+    remove :: Page ConvId -> Client ()
+    remove convs = do
+      for_ (result convs) $ removeTeamConv tid
+      unless (null $ result convs) $
+        remove =<< nextPage convs
+
+    teamConversationsForPagination ::
+      Maybe ConvId ->
+      Int32 ->
+      Client (Page ConvId)
+    teamConversationsForPagination start n =
+      runIdentity <$$> case start of
+        Just c -> paginate Cql.selectTeamConvsFrom (paramsP LocalQuorum (tid, c) n)
+        Nothing -> paginate Cql.selectTeamConvs (paramsP LocalQuorum (Identity tid) n)
+
 interpretConversationStoreToCassandra ::
   forall r a.
   ( Member (Embed IO) r,
@@ -555,3 +583,12 @@ interpretConversationStoreToCassandra client = interpret $ \case
   DeleteTeamConversation tid cid -> do
     logEffect "ConversationStore.DeleteTeamConversation"
     embedClient client $ removeTeamConv tid cid
+  GetTeamConversation tid cid -> do
+    logEffect "ConversationStore.GetTeamConversation"
+    embedClient client $ teamConversation tid cid
+  GetTeamConversations tid -> do
+    logEffect "ConversationStore.GetTeamConversations"
+    embedClient client $ getTeamConversations tid
+  DeleteTeamConversations tid -> do
+    logEffect "ConversationStore.DeleteTeamConversations"
+    embedClient client $ deleteTeamConversations tid
