@@ -3,6 +3,7 @@ module Test.TeamCollaborators where
 import API.Brig
 import API.Galley
 import Data.Tuple.Extra
+import API.GalleyInternal qualified as Internal
 import Notifications (isTeamCollaboratorAddedNotif)
 import SetupHelpers
 import Testlib.Prelude
@@ -168,10 +169,12 @@ testRemoveMemberInO2O = do
 
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertSuccess
   postOne2OneConversation charlie bob team1 "chit-chat" >>= assertSuccess
+  -- also verify via internal API that the conversation exists
 
   removeTeamCollaborator owner0 team0 charlie >>= assertSuccess
 
   getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
+  -- check internal API that conversation does not extist
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
   getMLSOne2OneConversation charlie bob >>= assertSuccess
 
@@ -181,10 +184,11 @@ testRemoveMemberInO2OConnected = do
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
   bob <- randomUser OwnDomain def
+  connectTwoUsers alice bob
+
   addTeamCollaborator owner0 team0 bob ["implicit_connection"] >>= assertSuccess
 
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertSuccess
-  connectTwoUsers alice bob
 
   removeTeamCollaborator owner0 team0 bob >>= assertSuccess
 
@@ -192,20 +196,44 @@ testRemoveMemberInO2OConnected = do
 
 testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
 testRemoveMemberInTeamConversation = do
-  (owner, team, [alice, bob]) <- createTeam OwnDomain 3
+  (owner, team, [alice, alex, alan]) <- createTeam OwnDomain 4
 
-  aliceId <- alice %. "qualified_id"
-  bobId <- bob %. "qualified_id"
+  bob <- randomUser OwnDomain def
+
+  connectTwoUsers bob alex
+  connectTwoUsers bob alan
+  nonTeamConv <-
+    postConversation
+      alex
+      defProteus {qualifiedUsers = [alan, bob]}
+      >>= getJSON 201
+  getConversation bob nonTeamConv >>= assertSuccess
+
+  addTeamCollaborator owner team bob ["implicit_connection"] >>= assertSuccess
   conv <-
     postConversation
       owner
-      defProteus {team = Just team, skipCreator = Just True, qualifiedUsers = [aliceId, bobId]}
+      defProteus {team = Just team, qualifiedUsers = [alice, bob]}
       >>= getJSON 201
 
+  -- check that admins/owners get events: member removed from conversations, and team member removed
   removeTeamCollaborator owner team bob >>= assertSuccess
 
   getConversation alice conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
+    -- check bob is not a member
+    pure ()
 
   getConversation bob conv `bindResponse` \resp -> do
+    -- should be 404
     resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "not-connected"
+
+  Internal.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    -- check bob is not a member
+    members <- resp.json %. "members" >>= asList
+    pure ()
+
+  -- non team conv still exists
+  getConversation bob nonTeamConv >>= assertSuccess
