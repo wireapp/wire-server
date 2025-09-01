@@ -44,13 +44,10 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
-import Wire.MemberStore
-import Wire.SubConversationStore
 
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,
-    Member ConversationStore r,
-    Member MemberStore r
+    Member ConversationStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -107,8 +104,7 @@ withCommitLock ::
   forall r.
   ( Member Resource r,
     Member ConversationStore r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member SubConversationStore r
+    Member (ErrorS 'MLSStaleMessage) r
   ) =>
   Local ConvOrSubConvId ->
   GroupId ->

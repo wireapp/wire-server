@@ -28,12 +28,12 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
+import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.MemberStore
 import Wire.StoredConversation as Data
 
 mkMLSConversation ::
-  (Member MemberStore r) =>
+  (Member ConversationStore r) =>
   StoredConversation ->
   Sem r (Maybe MLSConversation)
 mkMLSConversation conv =

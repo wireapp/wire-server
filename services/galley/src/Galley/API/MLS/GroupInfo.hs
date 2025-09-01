@@ -49,8 +49,7 @@ getGroupInfo ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member FederatorAccess r,
-    Member (Input Env) r,
-    Member MemberStore r
+    Member (Input Env) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
@@ -65,8 +64,7 @@ getGroupInfo lusr qcnvId = do
     qcnvId
 
 getGroupInfoFromLocalConv ::
-  ( Member ConversationStore r,
-    Member MemberStore r
+  ( Member ConversationStore r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Qualified UserId ->

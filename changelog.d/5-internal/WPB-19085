@@ -1,1 +1,2 @@
-Refactoring of store effects in galley as a prerequisite for the postgres migration (#4732, #4738)
+Refactoring of store effects in galley as a prerequisite for the postgres migration (#4732, #4738, #4740)
+

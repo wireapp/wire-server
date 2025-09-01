@@ -52,8 +52,6 @@ import Wire.API.MLS.ProposalTag
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.MemberStore
-import Wire.SubConversationStore
 
 data ExternalCommitAction = ExternalCommitAction
   { add :: LeafIndex,

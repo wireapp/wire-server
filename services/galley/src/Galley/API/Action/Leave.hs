@@ -23,11 +23,10 @@ leaveConversation ::
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member (Input Env) r,
     Member Now r
   ) =>

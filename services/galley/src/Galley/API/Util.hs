@@ -93,7 +93,6 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
-import Wire.MemberStore
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
@@ -401,7 +400,6 @@ acceptOne2One ::
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member Now r,
-    Member MemberStore r,
     Member NotificationSubsystem r
   ) =>
   Local UserId ->
@@ -466,7 +464,7 @@ memberJoinEvent lorig qconv t lmems rmems =
     remoteToSimple u = SimpleMember (tUntagged u.id_) (u.convRoleName)
 
 convDeleteMembers ::
-  (Member MemberStore r) =>
+  (Member ConversationStore r) =>
   UserList UserId ->
   StoredConversation ->
   Sem r StoredConversation

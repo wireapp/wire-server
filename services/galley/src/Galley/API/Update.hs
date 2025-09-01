@@ -134,7 +134,6 @@ import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.ConversationStore qualified as E
 import Wire.HashPassword as HashPassword
-import Wire.MemberStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
@@ -150,7 +149,6 @@ acceptConv ::
     Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -166,8 +164,7 @@ acceptConv lusr conn cnv = do
 blockConv ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member MemberStore r
+    Member (ErrorS 'InvalidOperation) r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -182,8 +179,7 @@ blockConv lusr qcnv =
 blockConvUnqualified ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member MemberStore r
+    Member (ErrorS 'InvalidOperation) r
   ) =>
   UserId ->
   ConvId ->
@@ -198,7 +194,7 @@ blockConvUnqualified zusr cnv = do
 
 blockRemoteConv ::
   ( Member (ErrorS 'ConvNotFound) r,
-    Member MemberStore r
+    Member ConversationStore r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -214,7 +210,6 @@ unblockConv ::
     Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -234,7 +229,6 @@ unblockConvUnqualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -250,8 +244,7 @@ unblockConvUnqualified lusr conn cnv = do
   conversationViewV9 lusr conv'
 
 unblockRemoteConv ::
-  ( Member MemberStore r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   Remote ConvId ->
   Sem r ()
@@ -278,10 +271,8 @@ type UpdateConversationAccessEffects =
      FireAndForget,
      NotificationSubsystem,
      Input Env,
-     MemberStore,
      ProposalStore,
      Random,
-     SubConversationStore,
      TeamStore,
      TinyLog
    ]
@@ -334,7 +325,6 @@ updateConversationReceiptMode ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member MemberStore r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -368,7 +358,7 @@ updateRemoteConversation ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member TinyLog r,
     RethrowErrors (HasConversationActionGalleyErrors tag) r,
     Member (Error NonFederatingBackends) r,
@@ -415,7 +405,6 @@ updateConversationReceiptModeUnqualified ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member MemberStore r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -494,8 +483,6 @@ deleteLocalConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
-    Member SubConversationStore r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Now r,
     Member TeamStore r,
@@ -733,14 +720,12 @@ updateConversationProtocolWithLocalUser ::
     Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member TinyLog r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member Random r,
     Member ProposalStore r,
-    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -787,7 +772,6 @@ updateChannelAddPermission ::
     Member (Error UnreachableBackends) r,
     Member BrigAPIAccess r,
     Member FederatorAccess r,
-    Member MemberStore r,
     Member (ErrorS 'InvalidTargetAccess) r,
     Member TeamCollaboratorsSubsystem r
   ) =>
@@ -831,7 +815,6 @@ joinConversationByReusableCode ::
     Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member HashPassword r,
@@ -862,7 +845,6 @@ joinConversationById ::
     Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -886,7 +868,7 @@ joinConversation ::
     Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member Now r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -944,10 +926,8 @@ addMembers ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r
@@ -999,10 +979,8 @@ addMembersUnqualifiedV2 ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r
@@ -1043,10 +1021,8 @@ addMembersUnqualified ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r
@@ -1065,8 +1041,7 @@ updateSelfMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member Now r,
-    Member MemberStore r
+    Member Now r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1082,7 +1057,7 @@ updateSelfMember lusr zcon qcnv update = do
   pushConversationEvent (Just zcon) () e (fmap pure lusr) []
   where
     checkLocalMembership ::
-      (Member MemberStore r) =>
+      (Member ConversationStore r) =>
       Local ConvId ->
       Sem r Bool
     checkLocalMembership lcnv =
@@ -1112,8 +1087,7 @@ updateUnqualifiedSelfMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member Now r,
-    Member MemberStore r
+    Member Now r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1136,7 +1110,6 @@ updateOtherMemberLocalConv ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>
@@ -1164,7 +1137,6 @@ updateOtherMemberUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>
@@ -1191,7 +1163,6 @@ updateOtherMember ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>
@@ -1228,10 +1199,8 @@ removeMemberUnqualified ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -1259,10 +1228,8 @@ removeMemberQualified ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -1337,10 +1304,8 @@ removeMemberFromLocalConv ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -1376,9 +1341,7 @@ removeMemberFromChannel ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member TeamStore r,
     Member (Input Env) r,
-    Member MemberStore r,
     Member (Error NoChanges) r,
-    Member SubConversationStore r,
     Member ProposalStore r,
     Member Now r,
     Member ExternalAccess r,
@@ -1388,7 +1351,8 @@ removeMemberFromChannel ::
     Member Random r,
     Member TinyLog r,
     Member (Error FederationError) r,
-    Member BackendNotificationQueueAccess r
+    Member BackendNotificationQueueAccess r,
+    Member ConversationStore r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
@@ -1642,7 +1606,6 @@ memberTyping ::
     Member (Input (Local ())) r,
     Member Now r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member FederatorAccess r,
     Member TeamStore r
   ) =>
@@ -1680,7 +1643,6 @@ memberTypingUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member MemberStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
     Member TeamStore r
@@ -1705,8 +1667,7 @@ addBot ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
-    Member Now r,
-    Member MemberStore r
+    Member Now r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1770,7 +1731,6 @@ rmBot ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
   ) =>
   Local UserId ->

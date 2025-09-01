@@ -111,7 +111,6 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.HashPassword (HashPassword)
 import Wire.ListItems qualified as E
-import Wire.MemberStore qualified as E
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -661,8 +660,7 @@ iterateConversations luid pageSize handleConvs = go Nothing
 internalGetMember ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (Input (Local ())) r,
-    Member MemberStore r
+    Member (Input (Local ())) r
   ) =>
   Qualified ConvId ->
   UserId ->
@@ -674,8 +672,7 @@ internalGetMember qcnv usr = do
 
 getSelfMember ::
   forall r.
-  ( Member MemberStore r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
@@ -699,8 +696,7 @@ getSelfMember lusr cnv = do
       pure $ Just $ conv.cnvMembers.cmSelf
 
 getLocalSelf ::
-  ( Member ConversationStore r,
-    Member MemberStore r
+  ( Member ConversationStore r
   ) =>
   Local UserId ->
   ConvId ->

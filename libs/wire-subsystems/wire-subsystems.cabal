@@ -227,8 +227,6 @@ library
     Wire.InvitationStore.Cassandra
     Wire.ListItems
     Wire.ListItems.ConversationIds.Cassandra
-    Wire.MemberStore
-    Wire.MemberStore.Cassandra
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
@@ -250,8 +248,6 @@ library
     Wire.SparAPIAccess.Rpc
     Wire.StoredConversation
     Wire.StoredUser
-    Wire.SubConversationStore
-    Wire.SubConversationStore.Cassandra
     Wire.TeamCollaboratorsStore
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem
