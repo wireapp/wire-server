@@ -123,8 +123,7 @@ createGroupConversationUpToV3 ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MemberStore r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -169,8 +168,7 @@ createGroupOwnConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MemberStore r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -215,8 +213,7 @@ createGroupConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MemberStore r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -262,8 +259,7 @@ createGroupConvAndMkResponse ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MemberStore r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -304,8 +300,7 @@ createGroupConversationGeneric ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MemberStore r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -801,7 +796,7 @@ newRegularConversation ::
     Member (ErrorS OperationDenied) r,
     Member (Error InvalidInput) r,
     Member (Input Opts) r,
-    Member MemberStore r
+    Member ConversationStore r
   ) =>
   Local UserId ->
   NewConv ->
