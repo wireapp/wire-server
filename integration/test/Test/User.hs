@@ -3,7 +3,7 @@
 module Test.User where
 
 import API.Brig
-import API.BrigInternal as I
+import API.BrigInternal as I hiding (addClient)
 import API.Common
 import API.GalleyInternal
 import qualified API.Spar as Spar
@@ -12,6 +12,7 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -401,3 +402,20 @@ testEphemeralUserCreation (TaggedBool enabled) = do
   where
     registerEphemeralUser domain = addUser domain def
     registerUserWithEmail domain = addUser domain def {email = Just ("user@" <> domain)}
+
+testClientAddedNotSentToOrigClient :: (HasCallStack) => App ()
+testClientAddedNotSentToOrigClient = do
+  user <- randomUser OwnDomain def
+  withWebSocket user $ \ws -> do
+    -- sometimes we get a `user.activate` event
+    -- so we simply assert that we do not get a `user.client-add` event here
+    awaitAnyEvent 1 ws >>= \case
+      Nothing -> pure ()
+      Just e -> isUserClientAddNotif e `shouldMatch` False
+    cid1 <- addClient user def >>= getJSON 201 >>= objId
+    assertNoEvent 1 ws
+    withWebSocket (user, cid1) $ \ws1 -> do
+      -- when we add the second client, the first client should receive a `user.client-add` event
+      cid2 <- addClient user def >>= getJSON 201 >>= objId
+      awaitMatch isUserClientAddNotif ws1 >>= \e ->
+        e %. "payload.0.client.id" `shouldMatch` cid2
