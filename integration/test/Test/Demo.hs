@@ -169,14 +169,6 @@ testDynamicBackendsFederation = do
     bindResponse (BrigP.getConnection u1 u2) assertSuccess
     bindResponse (BrigP.getConnection u2 u1) assertSuccess
 
-testWebSockets :: (HasCallStack) => App ()
-testWebSockets = do
-  user <- randomUser OwnDomain def
-  withWebSocket user $ \ws -> do
-    client <- BrigP.addClient user def >>= getJSON 201
-    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
-    nPayload n %. "client.id" `shouldMatch` (client %. "id")
-
 testMultipleBackends :: App ()
 testMultipleBackends = do
   ownDomainRes <- (BrigP.getAPIVersion OwnDomain >>= getJSON 200) %. "domain"

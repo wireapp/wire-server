@@ -51,11 +51,13 @@ testConsumeEventsOneWebSocket = do
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
+  secondClientId <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201 >>= objId
+
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "type" `shouldMatch` "event"
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.client.id" `shouldMatch` secondClientId
       e %. "data.delivery_tag"
     assertNoEvent_ ws
 
@@ -110,12 +112,6 @@ testConsumeTempEvents = do
   lowerCodensity $ do
     ws0 <- createEventsWebSocket alice (Just clientId0)
 
-    -- Ensure there is no race between event for this client being pushed and temp
-    -- consumer being created
-    lift $ do
-      expectAndAckNewClientEvent ws0 clientId0
-      assertNoEvent_ ws0
-
     wsTemp <- createEventsWebSocket alice Nothing
 
     lift $ do
@@ -124,15 +120,12 @@ testConsumeTempEvents = do
 
       -- Temp client gets this event as it happens after temp client has started
       -- listening
-      void $ expectAndAckNewClientEvent wsTemp clientId1
-
-      -- Client0 should also be notified even if there is a temp client
-      void $ expectAndAckNewClientEvent ws0 clientId1
+      expectAndAckNewClientEvent wsTemp clientId1
 
       assertNoEvent_ wsTemp
       assertNoEvent_ ws0
   where
-    expectAndAckNewClientEvent :: EventWebSocket -> String -> App ()
+    expectAndAckNewClientEvent :: (HasCallStack) => EventWebSocket -> String -> App ()
     expectAndAckNewClientEvent ws cid =
       assertEvent ws $ \e -> do
         e %. "type" `shouldMatch` "event"
@@ -268,8 +261,10 @@ testConsumeEventsForDifferentUsers = do
   lowerCodensity $ do
     aliceWS <- createEventsWebSocket alice (Just aliceClientId)
     bobWS <- createEventsWebSocket bob (Just bobClientId)
-    lift $ assertClientAdd aliceClientId aliceWS
-    lift $ assertClientAdd bobClientId bobWS
+    secondClientIdAlice <- lift $ addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201 >>= objId
+    secondClientIdBob <- lift $ addClient bob def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201 >>= objId
+    lift $ assertClientAdd secondClientIdAlice aliceWS
+    lift $ assertClientAdd secondClientIdBob bobWS
   where
     assertClientAdd :: (HasCallStack) => String -> EventWebSocket -> App ()
     assertClientAdd clientId ws = do
@@ -304,32 +299,31 @@ testConsumeEventsWhileHavingLegacyClients = do
     oldNotif %. "payload.0.client.id" `shouldMatch` newClientId
 
     runCodensity (createEventsWebSocket alice (Just newClientId)) $ \ws -> do
-      assertEvent ws $ \e -> do
-        e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-        e %. "data.event.payload.0.client.id" `shouldMatch` newClientId
+      assertNoEvent_ ws
 
   -- All notifs are also in Cassandra because of the legacy client
   getNotifications alice def {since = Just lastNotifId} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "notifications.0.payload.0.type" `shouldMatch` "user.client-add"
-    resp.json %. "notifications.1.payload.0.type" `shouldMatch` "user.client-add"
 
 testConsumeEventsAcks :: (HasCallStack) => App ()
 testConsumeEventsAcks = do
   alice <- randomUser OwnDomain def
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
+  -- add another client to trigger `user.client-add` event
+  secondClientId <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201 >>= objId
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.client.id" `shouldMatch` secondClientId
 
   -- without ack, we receive the same event again
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.client.id" `shouldMatch` secondClientId
       e %. "data.delivery_tag"
     sendAck ws deliveryTag False
 
@@ -342,13 +336,15 @@ testConsumeEventsMultipleAcks = do
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
+  secondClientId <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201 >>= objId
+
   handle <- randomHandle
   putHandle alice handle >>= assertSuccess
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.client.id" `shouldMatch` secondClientId
 
     deliveryTag <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.update"
@@ -366,13 +362,15 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
+  event <- mkEvent' alice client (object ["value" .= "foobar", "type" .= "test-no-ack"]) True
+  GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
   handle <- randomHandle
   putHandle alice handle >>= assertSuccess
 
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "test-no-ack"
+      e %. "data.event.payload.0.value" `shouldMatch` "foobar"
 
     deliveryTagHandleAdd <- assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "user.update"
@@ -385,8 +383,8 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
   -- Expect client-add event to be delivered again.
   runCodensity (createEventsWebSocket alice (Just clientId)) $ \ws -> do
     deliveryTagClientAdd <- assertEvent ws $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-      e %. "data.event.payload.0.client.id" `shouldMatch` clientId
+      e %. "data.event.payload.0.type" `shouldMatch` "test-no-ack"
+      e %. "data.event.payload.0.value" `shouldMatch` "foobar"
       e %. "data.delivery_tag"
 
     sendAck ws deliveryTagClientAdd False
@@ -565,11 +563,8 @@ testChannelLimit = withModifiedBackend
         >>= asString
 
     lowerCodensity $ do
-      for_ clients $ \c -> do
-        ws <- createEventsWebSocket alice (Just c)
-        lift $ assertEvent ws $ \e -> do
-          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-          e %. "data.event.payload.0.client.id" `shouldMatch` c
+      -- we just connect, no need to assert on any events
+      for_ clients $ \c -> createEventsWebSocket alice (Just c)
 
       -- the first client fails to connect because the server runs out of channels
       do
@@ -604,11 +599,6 @@ testChannelKilled = do
       runCodensity (createEventsWebSocket alice (Just c1)) $ \ws -> do
         -- If creating the user takes longer (async) than adding the clients, we get a
         -- `"user.activate"` here, so we use `assertFindsEvent`.
-        assertFindsEvent ws $ \e -> do
-          e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
-          e %. "data.event.payload.0.client.id" `shouldMatch` c1
-          ackEvent ws e
-
         assertEvent ws $ \e -> do
           e %. "data.event.payload.0.type" `shouldMatch` "user.client-add"
           e %. "data.event.payload.0.client.id" `shouldMatch` c2
@@ -789,6 +779,16 @@ mkEvent uid cid transient =
   object
     [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
       "payload" .= [object ["hello" .= "world", "type" .= "test"]],
+      "transient" .= transient
+    ]
+
+mkEvent' :: (MakesValue uid, MakesValue cid) => uid -> cid -> Value -> Bool -> App Value
+mkEvent' uid cid payload transient = do
+  uid' <- objId uid
+  cid' <- objId cid
+  pure $ object
+    [ "recipients" .= [object ["user_id" .= uid', "clients" .= [cid'], "route" .= "any"]],
+      "payload" .= [payload],
       "transient" .= transient
     ]
 
