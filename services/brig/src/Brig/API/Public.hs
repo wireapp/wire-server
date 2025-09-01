@@ -740,7 +740,8 @@ addClient ::
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member SessionStore r
+    Member SessionStore r,
+    Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
   ConnId ->

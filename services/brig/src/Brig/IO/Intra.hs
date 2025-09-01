@@ -53,6 +53,7 @@ import Bilge.RPC
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
+import Brig.Data.Client qualified as Data
 import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -73,9 +74,12 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List1 (list1)
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -88,7 +92,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
-import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
+import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
@@ -174,7 +178,9 @@ onPropertyEvent orig conn e =
     (pure $ orig :| [])
 
 onClientEvent ::
-  (Member NotificationSubsystem r) =>
+  ( Member NotificationSubsystem r,
+    Member (Embed HttpClientIO) r
+  ) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
@@ -184,12 +190,19 @@ onClientEvent ::
   Sem r ()
 onClientEvent orig conn e = do
   let event = ClientEvent e
-  let rcpt = Recipient orig V2.RecipientClientsAll
+  rcpts <- case e of
+    ClientAdded origClient -> do
+      clients <- embed $ Data.lookupClientsBulk [orig]
+      let withoutOrigClient = fmap (.clientId) $ Set.toList $ (Set.delete origClient (fromMaybe mempty $ Map.lookup orig clients))
+      pure $ case withoutOrigClient of
+        [] -> []
+        c : cs -> [Recipient {recipientUserId = orig, recipientClients = RecipientClientsSome (list1 c cs)}]
+    ClientRemoved _ -> pure $ [Recipient {recipientUserId = orig, recipientClients = RecipientClientsAll}]
   pushNotifications
     [ def
         { origin = Just orig,
           json = toJSONObject event,
-          recipients = [rcpt],
+          recipients = rcpts,
           conn,
           apsData = toApsData event
         }

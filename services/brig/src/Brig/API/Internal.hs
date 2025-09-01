@@ -533,7 +533,8 @@ addClientInternalH ::
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
-    Member SessionStore r
+    Member SessionStore r,
+    Member (Embed HttpClientIO) r
   ) =>
   UserId ->
   Maybe Bool ->

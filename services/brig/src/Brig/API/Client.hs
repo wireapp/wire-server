@@ -174,7 +174,8 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member SessionStore r,
+    Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -194,7 +195,8 @@ addClientWithReAuthPolicy ::
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member SessionStore r
+    Member SessionStore r,
+    Member (Embed HttpClientIO) r
   ) =>
   Data.ReAuthPolicy ->
   Local UserId ->
