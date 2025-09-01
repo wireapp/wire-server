@@ -33,6 +33,7 @@ module Wire.API.Team.Member
     setOptionalPerms,
     setOptionalPermsMany,
     teamMemberObjectSchema,
+    Wire.API.Team.Member.getPermissions,
 
     -- * TeamMemberList
     TeamMemberList,
@@ -478,6 +479,7 @@ data HiddenPerm
   | ChangeTeamMemberProfiles
   | SearchContacts
   | NewTeamCollaborator
+  | JoinRegularConversations
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -573,7 +575,8 @@ roleHiddenPermissions role = HiddenPermissions p p
     roleHiddenPerms RoleExternalPartner =
       Set.fromList
         [ ViewLegalHoldUserSettings,
-          ViewTeamSearchVisibility
+          ViewTeamSearchVisibility,
+          JoinRegularConversations
         ]
 
 isAdminOrOwner :: Permissions -> Bool

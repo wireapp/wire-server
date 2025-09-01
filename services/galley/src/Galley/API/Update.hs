@@ -960,6 +960,15 @@ addMembers ::
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
+
+  when (null conv.metadata.cnvmParent) $
+    mapErrorS @OperationDenied @('ActionDenied 'AddConversationMember) $
+      forM_ conv.metadata.cnvmTeam $ \tid -> do
+        forM_ users $ \u -> do
+          mTeamMembership <- E.getTeamMember tid $ qUnqualified u
+          forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+            permissionCheck JoinRegularConversations . Just
+
   let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
   let action = ConversationJoin users role joinType
   getUpdateResult . fmap lcuEvent $
