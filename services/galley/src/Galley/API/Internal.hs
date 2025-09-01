@@ -94,8 +94,8 @@ import Wire.API.Team.Feature
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.ConversationStore
-import Wire.ConversationsSubsystem qualified as ConversationsSubsystem
 import Wire.ConversationStore qualified as E
+import Wire.ConversationsSubsystem qualified as ConversationsSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -374,11 +374,9 @@ leaveTeams ::
     Member Now r,
     Member (ListItems p1 ConvId) r,
     Member (ListItems p1 (Remote ConvId)) r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r

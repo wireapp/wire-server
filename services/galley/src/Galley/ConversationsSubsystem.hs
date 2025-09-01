@@ -17,10 +17,9 @@ import Polysemy.TinyLog (TinyLog)
 import UnliftIO.Async (pooledForConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
 import Wire.BrigAPIAccess qualified as E
-import Wire.ConversationStore.Cassandra (deleteConversation)
+import Wire.ConversationStore.Cassandra (deleteConversation, members, removeMembersFromLocalConv)
 import Wire.ConversationStore.Cassandra.Queries (selectConv, selectUserConvs)
 import Wire.ConversationsSubsystem
-import Wire.MemberStore.Cassandra (members, removeMembersFromLocalConv)
 import Wire.StoredConversation qualified
 import Wire.UserList (UserList (UserList))
 
