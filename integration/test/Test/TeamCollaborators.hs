@@ -2,8 +2,9 @@ module Test.TeamCollaborators where
 
 import API.Brig
 import API.Galley
+import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
-import Notifications (isTeamCollaboratorAddedNotif)
+import Notifications (isTeamCollaboratorAddedNotif, isTeamMemberLeaveNotif)
 import SetupHelpers
 import Testlib.Prelude
 
@@ -166,13 +167,18 @@ testRemoveMemberInO2O = do
   addTeamCollaborator owner0 team0 charlie ["implicit_connection"] >>= assertSuccess
   addTeamCollaborator owner1 team1 charlie ["implicit_connection"] >>= assertSuccess
 
-  postOne2OneConversation charlie alice team0 "chit-chat" >>= assertSuccess
+  convId <-
+    postOne2OneConversation charlie alice team0 "chit-chat" `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "qualified_id"
   postOne2OneConversation charlie bob team1 "chit-chat" >>= assertSuccess
+  Internal.getConversation convId >>= assertSuccess
 
   removeTeamCollaborator owner0 team0 charlie >>= assertSuccess
 
   getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+  Internal.getConversation convId >>= assertLabel 404 "no-conversation"
   getMLSOne2OneConversation charlie bob >>= assertSuccess
 
 testRemoveMemberInO2OConnected :: (HasCallStack) => App ()
@@ -181,10 +187,11 @@ testRemoveMemberInO2OConnected = do
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
   bob <- randomUser OwnDomain def
+  connectTwoUsers alice bob
+
   addTeamCollaborator owner0 team0 bob ["implicit_connection"] >>= assertSuccess
 
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertSuccess
-  connectTwoUsers alice bob
 
   removeTeamCollaborator owner0 team0 bob >>= assertSuccess
 
@@ -194,18 +201,37 @@ testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
 testRemoveMemberInTeamConversation = do
   (owner, team, [alice, bob]) <- createTeam OwnDomain 3
 
-  aliceId <- alice %. "qualified_id"
-  bobId <- bob %. "qualified_id"
   conv <-
     postConversation
       owner
-      defProteus {team = Just team, skipCreator = Just True, qualifiedUsers = [aliceId, bobId]}
+      defProteus {team = Just team, qualifiedUsers = [alice, bob]}
       >>= getJSON 201
 
-  removeTeamCollaborator owner team bob >>= assertSuccess
+  withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
+    removeTeamCollaborator owner team bob >>= assertSuccess
+
+    bobId <- bob %. "qualified_id"
+    bobUnqualifiedId <- bobId %. "id"
+    let checkEvent :: (MakesValue a) => a -> App ()
+        checkEvent evt = do
+          evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId
+          evt %. "payload.0.team" `shouldMatch` team
+          evt %. "transient" `shouldMatch` True
+
+    awaitMatch isTeamMemberLeaveNotif wsOwner >>= checkEvent
+    assertNoEvent 0 wsAlice
 
   getConversation alice conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
+    otherMember <- assertOne =<< asList (resp.json %. "members.others")
+    otherMember %. "qualified_id" `shouldNotMatch` (bob %. "qualified_id")
 
   getConversation bob conv `bindResponse` \resp -> do
+    -- should be 404
     resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "access-denied"
+
+  Internal.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    otherMembers <- asList (resp.json %. "members.others")
+    traverse (%. "qualified_id") otherMembers `shouldMatchSet` traverse (%. "qualified_id") [owner, alice]

@@ -398,8 +398,8 @@ leaveTeams lusr conn forTids = do
                   FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
               )
             . (.status)
-    uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
     internalRemoveTeamCollaborator (tUnqualified lusr) tid
+    uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
 
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
