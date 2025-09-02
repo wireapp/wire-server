@@ -328,7 +328,8 @@ type UserGroupAPI =
            )
     :<|> Named
            "get-user-groups"
-           ( From 'V10
+           ( Summary "[STUB] (channelsCount not implemented)"
+               :> From 'V10
                :> ZLocalUser
                :> "user-groups"
                :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text

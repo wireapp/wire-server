@@ -110,6 +110,7 @@ userGroupToMeta ug =
       name = ug.name,
       members = Const (),
       membersCount = ug.membersCount,
+      channelsCount = ug.channelsCount,
       managedBy = ug.managedBy,
       createdAt = ug.createdAt
     }
@@ -119,6 +120,7 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
     name :: UserGroupName,
     members :: f (Vector UserId),
     membersCount :: Maybe Int,
+    channelsCount :: Maybe Int,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
   }
@@ -146,6 +148,7 @@ instance ToSchema (UserGroup_ (Const ())) where
         <*> (.name) .= field "name" schema
         <*> (.members) .= pure mempty
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
@@ -171,5 +174,6 @@ instance ToSchema (UserGroup_ Identity) where
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema

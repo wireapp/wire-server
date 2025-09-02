@@ -71,6 +71,7 @@ createUserGroupImpl tid nug managedBy = do
             name = nug.name,
             members = Identity nug.members,
             membersCount = Nothing,
+            channelsCount = Nothing,
             managedBy = managedBy,
             createdAt = toUTCTimeMillis now
           }

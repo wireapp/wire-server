@@ -69,6 +69,7 @@ getUserGroupImpl team id_ = do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ Identity <$> statement id_ getGroupMembersStatement
       let membersCount = Nothing
+      let channelsCount = Nothing
       pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
@@ -189,6 +190,7 @@ getUserGroupsImpl req = do
       name <- userGroupNameFromText namePre
       let members = Const ()
           membersCount = fromIntegral <$> membersCountRaw
+      let channelsCount = Nothing
       pure $ UserGroup_ {..}
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
@@ -247,7 +249,16 @@ createUserGroupImpl team newUserGroup managedBy = do
     session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
       (id_, name, managedBy_, createdAt) <- Transaction.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Transaction.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
-      pure UserGroup_ {membersCount = Nothing, members = Identity newUserGroup.members, managedBy = managedBy_, ..}
+      pure
+        UserGroup_
+          { membersCount = Nothing,
+            members = Identity newUserGroup.members,
+            managedBy = managedBy_,
+            channelsCount = Nothing,
+            id_,
+            name,
+            createdAt
+          }
 
     decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =
