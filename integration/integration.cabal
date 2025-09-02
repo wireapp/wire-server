@@ -112,7 +112,6 @@ library
     Test.AssetUpload
     Test.Auth
     Test.B2B
-    Test.BlockedDomains
     Test.Bot
     Test.Brig
     Test.Cargohold.API

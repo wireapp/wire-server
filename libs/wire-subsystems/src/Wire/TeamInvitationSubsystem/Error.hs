@@ -15,7 +15,6 @@ data TeamInvitationSubsystemError
   | TeamInvitationEmailTaken
   | TeamInvitationInvalidEmail
   | TeamInvitationNotAllowedForEmail
-  | TeamInvitationBlockedDomain
   deriving (Eq, Show)
 
 instance Exception TeamInvitationSubsystemError
@@ -30,4 +29,3 @@ teamInvitationErrorToHttpError =
     TeamInvitationEmailTaken -> errorToWai @E.EmailExists
     TeamInvitationInvalidEmail -> errorToWai @E.InvalidEmail
     TeamInvitationNotAllowedForEmail -> Wai.mkError status403 "condition-failed" "Emails from this domain are not allowed to be invited to this team"
-    TeamInvitationBlockedDomain -> errorToWai @E.CustomerExtensionBlockedDomain

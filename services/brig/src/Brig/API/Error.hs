@@ -20,7 +20,9 @@ module Brig.API.Error where
 import Brig.API.Types
 import Control.Monad.Error.Class
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
+import Data.Text.Lazy as LT
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
@@ -321,6 +323,17 @@ can'tAddLegalHoldClient =
 
 legalHoldNotEnabled :: Wai.Error
 legalHoldNotEnabled = Wai.mkError status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
+
+-- (the tautological constraint in the type signature is added so that once we remove the
+-- feature, ghc will guide us here.)
+customerExtensionBlockedDomain :: Domain -> Wai.Error
+customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable For Legal Reasons") "domain-blocked-for-registration" msg
+  where
+    msg =
+      "[Customer extension] the email domain "
+        <> LT.pack (show domain)
+        <> " that you are attempting to register a user with has been \
+           \blocked for creating wire users.  Please contact your IT department."
 
 verificationCodeRequired :: Wai.Error
 verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."

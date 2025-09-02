@@ -36,7 +36,6 @@ data UserSubsystemError
   | UserSubsystemEmailExists
   | UserSubsystemGuardFailed GuardFailure
   | UserSubsystemMlsRemovalNotAllowed
-  | UserSubsystemBlockedDomain
   deriving (Eq, Show)
 
 data GuardFailure
@@ -84,6 +83,5 @@ userSubsystemErrorToHttpError =
             TeamInviteRestrictedToOtherTeam -> e403 "`teamInvite` is restricted to another team."
             InvalidDomain parseErr -> e400 parseErr
     UserSubsystemMlsRemovalNotAllowed -> errorToWai @E.MlsRemovalNotAllowed
-    UserSubsystemBlockedDomain -> errorToWai @E.CustomerExtensionBlockedDomain
 
 instance Exception UserSubsystemError

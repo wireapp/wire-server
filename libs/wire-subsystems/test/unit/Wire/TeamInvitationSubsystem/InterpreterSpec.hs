@@ -4,12 +4,10 @@ module Wire.TeamInvitationSubsystem.InterpreterSpec (spec) where
 
 import Data.Default
 import Data.Domain
-import Data.HashSet qualified as HashSet
 import Data.Id
 import Data.LegalHold
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Text.Encoding
 import Data.Time
 import Imports
 import Polysemy
@@ -39,7 +37,6 @@ import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserSubsystem
-import Wire.Util
 
 type AllEffects =
   [ Error TeamInvitationSubsystemError,
@@ -126,8 +123,7 @@ spec = do
               cfg =
                 TeamInvitationSubsystemConfig
                   { maxTeamSize = 50,
-                    teamInvitationTimeout = 3_000_000,
-                    blockedDomains = HashSet.empty
+                    teamInvitationTimeout = 3_000_000
                   }
 
               inviterUid = qUnqualified inviter.userQualifiedId
@@ -188,60 +184,3 @@ spec = do
                   . counterexample (show inviter)
                   . counterexample (show existingPersonalAccount)
            in counterexamples backendRedirectOrNoRegistrationFails
-
-    prop "try to invite to blocked domain" $
-      \(tid :: TeamId)
-       (preExistingPersonalAccount :: Maybe User)
-       (preExistingInviteeEmail :: EmailAddress)
-       (emailUsername :: EmailUsername)
-       (blockedDomains :: NonEmptyList Domain) -> do
-          let hasEmailIdentity user = isJust $ emailIdentity =<< userIdentity user
-
-          blockedEmailDomain <- anyElementOf blockedDomains
-          inviter <- arbitrary @User `suchThat` hasEmailIdentity
-
-          let blockedEmailAddress :: EmailAddress =
-                unsafeEmailAddress
-                  ((fromString . getEmailUsername) emailUsername)
-                  ((encodeUtf8 . domainText) blockedEmailDomain)
-
-              invitationRequest =
-                InvitationRequest
-                  { locale = Nothing,
-                    role = Nothing,
-                    inviteeName = Nothing,
-                    inviteeEmail = blockedEmailAddress,
-                    allowExisting = False
-                  }
-
-              config =
-                TeamInvitationSubsystemConfig
-                  { maxTeamSize = 50,
-                    teamInvitationTimeout = 3_000_000,
-                    blockedDomains = (HashSet.fromList . getNonEmpty) blockedDomains
-                  }
-
-              inviterUid = qUnqualified inviter.userQualifiedId
-              inviterLuid = let domain = qDomain inviter.userQualifiedId in toLocalUnsafe domain inviterUid
-              inviterMember = mkTeamMember inviterUid fullPermissions Nothing UserLegalHoldDisabled
-
-              existingPersonalAccount =
-                preExistingPersonalAccount <&> \r ->
-                  r
-                    { userIdentity = Just $ EmailIdentity preExistingInviteeEmail,
-                      userStatus = Active,
-                      userTeam = Nothing,
-                      userManagedBy = ManagedByWire
-                    }
-
-              interpreterArgs =
-                RunAllEffectsArgs
-                  { teams = Map.singleton tid [inviterMember],
-                    initialUsers = [inviter] <> maybeToList existingPersonalAccount,
-                    constGuardResult = Nothing
-                  }
-
-              outcome :: Either TeamInvitationSubsystemError ()
-              outcome = runAllEffects interpreterArgs . runTeamInvitationSubsystem config $ do
-                void $ inviteUser inviterLuid tid invitationRequest
-           in pure $ outcome === Left TeamInvitationBlockedDomain
