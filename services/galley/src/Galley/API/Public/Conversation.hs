@@ -100,3 +100,4 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
     <@> mkNamedAPI @"update-channel-add-permission" updateChannelAddPermission
+    <@> mkNamedAPI @"remove-user-group-from-channel" removeUserGroupFromChannel
