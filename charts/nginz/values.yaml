@@ -62,7 +62,7 @@ nginx_conf:
   #     apiProxy: # (optional)
   #       host: "socks5.proxy.com"
   #       port: 1080
-  #       needsAuthentication: true   
+  #       needsAuthentication: true
 
   disabled_paths:
   - /conversations/last-events
@@ -530,6 +530,18 @@ nginx_conf:
     - path: /bot/conversations/(.+)
       envs:
       - all
+    - path: /user-groups$
+      envs:
+        - all
+    - path: /user-groups/([^/]*)
+      envs:
+        - all
+    - path: /user-groups/([^/]*)/users$
+      envs:
+        - all
+    - path: /user-groups/([^/]*)/users/([^/]*)
+      envs:
+        - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
