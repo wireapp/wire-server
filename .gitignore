@@ -105,3 +105,6 @@ logs-integration
 
 # BOM file - https://github.com/wireapp/tom-bombadil
 sbom.json
+
+# HLS config for haskell-tools plugin (Neovim)
+hls.json
