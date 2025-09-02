@@ -1,3 +1,40 @@
+# [2025-09-02] (Chart Release 5.22.0)
+
+## Release notes
+
+
+* Increase the default of `setChallengeTTL` from 2 to 7 days in Brig's Helm chart. (#4737)
+
+
+## Features
+
+
+* Introduce `galley.conversation.parent_conv` to support shadow conversations. (#4708)
+
+* Add an endpoint to allow team admins to bulk add users to user groups. (#4712)
+
+* Add member count to user group list endpoint. (#4714)
+
+
+## Bug fixes and other updates
+
+
+* Fix bug in reset logic for one2one conversations (#4735)
+
+
+## Internal changes
+
+
+* Refactoring of store effects in galley as a prerequisite for the postgres migration (#4732, #4738, #4740)
+
+
+* Unused UserGroup User events were removed (#4734)
+
+* Update `nixpkgs` (source of dependencies) to [latest of `unstable`
+  channel](https://github.com/NixOS/nixpkgs/commits/c53baa6685261e5253a1c355a1b322f82674a824).
+  This has no specific reason other than preventing tech-debt. (#4733)
+
+
 # [2025-08-25] (Chart Release 5.21.0)
 
 ## API changes
