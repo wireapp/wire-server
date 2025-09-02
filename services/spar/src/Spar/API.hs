@@ -61,6 +61,7 @@ import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
 import Imports
+import Network.Wai (Request, requestHeaders)
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
@@ -69,6 +70,7 @@ import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
+import Servant.Server.Experimental.Auth
 import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
@@ -116,15 +118,20 @@ import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Data.ByteString.Conversion
 
 app :: Env -> Application
 app ctx0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
   let ctx = ctx0 {sparCtxRequestId = rid}
   SAML.setHttpCachePolicy
-    ( serve
+    ( serveWithContext
         (Proxy @SparAPI)
-        (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+        (authContext ctx)
+        (hoistServerWithContext
+          (Proxy @SparAPI)
+          (Proxy @'[Auth])
+          (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
     )
     req
     cont
@@ -442,6 +449,19 @@ ssoSettings =
 ----------------------------------------------------------------------------
 -- IdPConfigStore API
 
+type Auth = AuthHandler Request (UserId, TeamId)
+
+authHandler :: Env -> Auth
+authHandler ctx = mkAuthHandler $ \req -> nt ctx $ do
+  let maybeZuser = lookup "Z-User" (requestHeaders req)
+  zuser <- maybe (throw UserSubsystemMissingIdentity) pure maybeZuser
+  uid :: UserId <- maybe (throw UserSubsystemInsufficientPermissions) pure $ fromByteString zuser
+  tid <- checkUserIsAdmin uid
+  return (uid, tid)
+
+authContext :: Env -> Servant.Context (Auth ': '[])
+authContext e = authHandler e :. EmptyContext
+
 idpGet ::
   ( Member Random r,
     Member (Logger String) r,
@@ -634,16 +654,15 @@ idpCreateV7 ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
-  Maybe UserId ->
+  (UserId, TeamId) ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateV7 zusr idpmeta mReplaces mApiversion mHandle = do
-  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
-  assertNoScimOrNoIdP teamid
-  idpCreate zusr idpmeta mReplaces mApiversion mHandle
+idpCreateV7 (zusr, tid) idpmeta mReplaces mApiversion mHandle = do
+  assertNoScimOrNoIdP
+  idpCreate (Just zusr) idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -653,11 +672,10 @@ idpCreateV7 zusr idpmeta mReplaces mApiversion mHandle = do
         Member (Error SparError) r,
         Member IdPConfigStore r
       ) =>
-      TeamId ->
       Sem r ()
-    assertNoScimOrNoIdP teamid = do
-      numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
-      numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
+    assertNoScimOrNoIdP = do
+      numTokens <- length <$> ScimTokenStore.lookupByTeam tid
+      numIdps <- length <$> IdPConfigStore.getConfigsByTeam tid
       when (numTokens > 0 && numIdps > 0) $
         throwSparSem $
           SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden

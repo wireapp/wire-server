@@ -178,6 +178,7 @@ data UserSubsystem m a where
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
   RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
   GetUserTeam :: UserId -> UserSubsystem m (Maybe TeamId)
+  CheckUserIsAdmin :: UserId -> UserSubsystem m TeamId
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp

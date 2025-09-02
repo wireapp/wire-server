@@ -236,6 +236,7 @@ instance (HasOpenApi api) => HasOpenApi (ZHostOpt :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
+type instance SpecialiseToVersion v (AuthProtect tag :> api) = AuthProtect tag :> SpecialiseToVersion v api
 
 addZAuthSwagger :: OpenApi -> OpenApi
 addZAuthSwagger s =
@@ -258,6 +259,9 @@ instance (HasOpenApi api) => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) w
 
 instance (HasOpenApi api) => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
   toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
+
+instance (HasOpenApi api) => HasOpenApi (AuthProtect _tag :> api) where
+  toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api)) -- TODO: do we want to show something in Swagger here?
 
 instance (HasLink endpoint) => HasLink (ZAuthServant usr opts :> endpoint) where
   type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
