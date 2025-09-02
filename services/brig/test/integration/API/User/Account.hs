@@ -144,6 +144,10 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "delete with profile pic" $ testDeleteWithProfilePic b ch,
       test p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
       testGroup
+        "temporary customer extensions"
+        [ test p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
+        ],
+      testGroup
         "update user email by team owner"
         [ test p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner opts b
         ],
@@ -1314,6 +1318,22 @@ testUpdateSSOId brig galley = do
       ]
   zipWithM_ go users ssoids1
   zipWithM_ go users ssoids2
+
+testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
+testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
+  badEmail1 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad1.domain.com"
+  badEmail2 <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "bad2.domain.com"
+  post (brig . path "/activate/send" . contentJson . body (p badEmail1)) !!! do
+    const 451 === statusCode
+    const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  post (brig . path "/activate/send" . contentJson . body (p badEmail2)) !!! do
+    const 451 === statusCode
+    const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  goodEmail <- randomEmail <&> \e -> unsafeEmailAddress (localPart e) "good.domain.com"
+  post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
+    const 200 === statusCode
+  where
+    p email = RequestBodyLBS . encode $ SendActivationCode email Nothing
 
 -- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
 -- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@

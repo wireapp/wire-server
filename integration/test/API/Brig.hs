@@ -422,20 +422,11 @@ putSelfLocale caller locale = do
 --
 -- NOTE: the full process of changing (and confirming) the email address is more complicated.
 -- see /services/brig/test/integration for details.
-putUserEmail :: (HasCallStack, MakesValue caller, MakesValue target) => caller -> target -> String -> App Response
-putUserEmail caller target emailAddress = do
-  uid <- asString $ target %. "id"
-  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", uid, "email"]
+putSelfEmail :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
+putSelfEmail caller emailAddress = do
+  callerid <- asString $ caller %. "id"
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", callerid, "email"]
   submit "PUT" $ req & addJSONObject ["email" .= emailAddress]
-
-putSelfEmail :: (HasCallStack, MakesValue user) => user -> String -> String -> String -> App Response
-putSelfEmail user cookie token emailAddress = do
-  req <- baseRequest user Brig Versioned "/access/self/email"
-  submit "PUT" $
-    req
-      & setCookie cookie
-      & addHeader "Authorization" ("Bearer " <> token)
-      & addJSONObject ["email" .= emailAddress]
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_self_email
 deleteSelfEmail :: (HasCallStack, MakesValue caller) => caller -> App Response
@@ -890,11 +881,6 @@ activate domain key code = do
   submit "GET" $
     req
       & addQueryParams [("key", key), ("code", code)]
-
-activateSend :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
-activateSend domain email locale = do
-  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["activate", "send"]
-  submit "POST" $ req & addJSONObject (["email" .= email] <> maybeToList (((.=) "locale") <$> locale))
 
 acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> App Response
 acceptTeamInvitation user code mPw = do

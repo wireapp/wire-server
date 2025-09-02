@@ -60,6 +60,7 @@ import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
 import Control.Lens ((.~), (?~))
+import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson
 import Data.ByteString (fromStrict)
@@ -1235,14 +1236,13 @@ sendActivationCode ::
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r,
-    Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member ActivationCodeStore r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
 sendActivationCode ac = do
   let email = ac.emailKey
+  customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
 
@@ -1255,6 +1255,22 @@ searchUsersHandler ::
   Handler r (Public.SearchResult Public.Contact)
 searchUsersHandler luid term mDomain mMaxResults =
   lift . liftSem $ User.searchUsers luid term mDomain mMaxResults
+
+-- | If the user presents an email address from a blocked domain, throw an error.
+--
+-- The tautological constraint in the type signature is added so that once we remove the
+-- feature, ghc will guide us here.
+customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
+customerExtensionCheckBlockedDomains email = do
+  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
+  for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
+    case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
+      Left _ ->
+        pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
+      Right domain ->
+        when (domain `elem` blockedDomains) $
+          throwM $
+            customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
   ( Member GalleyAPIAccess r,
