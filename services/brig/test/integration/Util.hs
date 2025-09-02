@@ -50,7 +50,7 @@ import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Default
-import Data.Domain (Domain (..), domainText, mkDomain)
+import Data.Domain (Domain (..), domainText)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
@@ -1033,15 +1033,6 @@ withSettingsOverrides opts action = liftIO $ do
   mapM_ Async.cancel sftDiscovery
   mapM_ Async.cancel turnDiscovery
   pure res
-
--- | When we remove the customer-specific extension of domain blocking, this test will fail to
--- compile.
-withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
-withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opt.settings = opts.settings {customerExtensions = Just blocked}}
-      blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
-      unsafeMkDomain = either error id . mkDomain
-  withSettingsOverrides opts' sess
 
 -- | Run a probe several times, until a "good" value materializes or until patience runs out
 aFewTimes ::
