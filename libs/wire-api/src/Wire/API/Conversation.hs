@@ -978,8 +978,7 @@ instance ToSchema Invite where
 data InviteQualified = InviteQualified
   { users :: NonEmpty (Qualified UserId),
     -- | This role name is to be applied to all users
-    roleName :: RoleName,
-    userGroups :: [UserGroupId]
+    roleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InviteQualified)
@@ -991,9 +990,6 @@ instance ToSchema InviteQualified where
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
         <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
-        <*> userGroups .= (fromMaybe mempty <$> optFieldWithDocModifier "user_groups" (description ?~ desc) (array schema))
-    where
-      desc = "List of user group IDs to be associated with a channel. For regular conversation this field should not be set. Only team admins and owners are allowed set this field."
 
 --------------------------------------------------------------------------------
 -- update

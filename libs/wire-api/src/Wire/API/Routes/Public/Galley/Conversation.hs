@@ -807,7 +807,7 @@ type ConversationAPI =
            )
     :<|> Named
            "add-members-to-conversation"
-           ( Summary "[STUB] Add qualified members to an existing conversation."
+           ( Summary "Add qualified members to an existing conversation."
                :> From 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
