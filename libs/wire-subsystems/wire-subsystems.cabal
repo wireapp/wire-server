@@ -436,6 +436,7 @@ test-suite wire-subsystems-tests
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
+    Wire.Util
     Wire.VerificationCodeSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover
