@@ -462,6 +462,7 @@ servantSitemap =
         :<|> Named @"add-user-to-group" addUserToGroup
         :<|> Named @"add-users-to-group-bulk" addUsersToGroupbulk
         :<|> Named @"remove-user-from-group" removeUserFromGroup
+        :<|> Named @"update-user-group-members" updateUserGroupMembers
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1696,6 +1697,9 @@ addUsersToGroupbulk lusr gid payload = lift . liftSem $ UserGroup.addUsers (tUnq
 
 removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
+
+updateUserGroupMembers :: Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
+updateUserGroupMembers _ _ _ = pure ()
 
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new

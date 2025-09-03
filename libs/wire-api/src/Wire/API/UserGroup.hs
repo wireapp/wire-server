@@ -177,3 +177,16 @@ instance ToSchema (UserGroup_ Identity) where
         <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
+
+newtype UpdateUserGroupMembers = UpdateUserGroupMembers
+  { members :: Vector UserId
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UpdateUserGroupMembers
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UpdateUserGroupMembers
+
+instance ToSchema UpdateUserGroupMembers where
+  schema =
+    object "UpdateUserGroupMembers" $
+      UpdateUserGroupMembers
+        <$> (.members) .= field "members" (vector schema)

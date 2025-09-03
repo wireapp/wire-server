@@ -402,6 +402,17 @@ type UserGroupAPI =
                :> Capture "uid" UserId
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
            )
+    :<|> Named
+           "update-user-group-members"
+           ( Summary "[STUB] Update user group members. Replaces the users with the given list."
+               :> From 'V12
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> ReqBody '[JSON] UpdateUserGroupMembers
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group members updated")
+           )
 
 type SelfAPI =
   Named
