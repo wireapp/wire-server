@@ -2053,6 +2053,8 @@ type AppsAPI =
     "create-app"
     ( Summary "Create a new app"
         :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
         :> "apps"
         :> ReqBody '[JSON] NewApp
         :> Post '[JSON] CreatedApp

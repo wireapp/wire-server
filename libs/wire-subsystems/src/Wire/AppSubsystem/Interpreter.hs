@@ -45,7 +45,7 @@ runAppSubsystem ::
   Sem (AppSubsystem ': r) a ->
   Sem r a
 runAppSubsystem = interpret \case
-  CreateApp lusr new -> createAppImpl lusr new
+  CreateApp lusr tid new -> createAppImpl lusr tid new
 
 createAppImpl ::
   ( Member UserStore r,
@@ -60,11 +60,16 @@ createAppImpl ::
     Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
+  TeamId ->
   NewApp ->
   Sem r CreatedApp
-createAppImpl lusr new = do
+createAppImpl lusr tid new = do
   creator <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
-  tid <- note AppSubsystemErrorNoTeam creator.teamId
+  when (creator.teamId /= Just tid) $ do
+    throw AppSubsystemErrorInvalidTeam
+
+  -- TODO: check user is admin
+
   u <- appNewStoredUser creator new
 
   Log.debug $

@@ -1697,8 +1697,8 @@ addUsersToGroupbulk lusr gid payload = lift . liftSem $ UserGroup.addUsers (tUnq
 removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
 
-createApp :: (_) => Local UserId -> NewApp -> Handler r CreatedApp
-createApp lusr new = lift . liftSem $ AppSubsystem.createApp lusr new
+createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
+createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
 -- Deprecated
 

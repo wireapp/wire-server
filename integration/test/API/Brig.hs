@@ -1147,3 +1147,34 @@ getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
 getAllTeamCollaborators owner tid = do
   req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
   submit "GET" req
+
+data NewApp = NewApp
+  { name :: String,
+    pict :: Maybe [Value],
+    assets :: Maybe [Value],
+    accentId :: Maybe Int,
+    meta :: Value
+  }
+
+instance Default NewApp where
+  def =
+    NewApp
+      { name = "",
+        pict = Nothing,
+        assets = Nothing,
+        accentId = Nothing,
+        meta = object []
+      }
+
+createApp :: (MakesValue creator) => creator -> String -> NewApp -> App Response
+createApp creator tid new = do
+  req <- baseRequest creator Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "name" .= new.name,
+          "picture" .= new.pict,
+          "assets" .= new.assets,
+          "accent_id" .= new.accentId,
+          "metadata" .= new.meta
+        ]
