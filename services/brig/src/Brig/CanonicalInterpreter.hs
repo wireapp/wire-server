@@ -132,7 +132,8 @@ import Wire.VerificationCodeSubsystem
 import Wire.VerificationCodeSubsystem.Interpreter
 
 type BrigCanonicalEffects =
-  '[ AuthenticationSubsystem,
+  '[ AppSubsystem,
+     AuthenticationSubsystem,
      TeamInvitationSubsystem,
      EnterpriseLoginSubsystem,
      UserGroupSubsystem,
@@ -143,8 +144,7 @@ type BrigCanonicalEffects =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ AppSubsystem,
-     TeamSubsystem,
+  '[ TeamSubsystem,
      TeamCollaboratorsStore,
      AppStore,
      EmailSubsystem,
@@ -372,7 +372,6 @@ runBrigToIO e (AppT ma) = do
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . intepreterTeamSubsystemToGalleyAPI
-              . runAppSubsystem
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem
@@ -382,6 +381,7 @@ runBrigToIO e (AppT ma) = do
                 (mkEnterpriseLoginSubsystemConfig e)
               . runTeamInvitationSubsystem teamInvitationSubsystemConfig
               . authSubsystemInterpreter
+              . runAppSubsystem
           )
     )
     $ runReaderT ma e

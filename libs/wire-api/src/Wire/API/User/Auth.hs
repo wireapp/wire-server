@@ -475,6 +475,13 @@ data SomeUserToken
   | LHUserToken (ZAuth.Token ZAuth.LU)
   deriving (Show)
 
+instance ToSchema SomeUserToken where
+  schema =
+    (T.decodeUtf8 . toByteString')
+      .= parsedText
+        "SomeUserToken"
+        (first T.unpack . parseUrlPiece)
+
 instance FromHttpApiData SomeUserToken where
   parseHeader h =
     first T.pack $

@@ -5,6 +5,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Wire.API.User
+import Wire.API.User.Auth
 
 data NewApp = NewApp
   { name :: Name,
@@ -37,8 +38,7 @@ defNewApp name =
 
 data CreatedApp = CreatedApp
   { user :: User,
-    -- TODO
-    cookie :: ()
+    cookie :: SomeUserToken
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
 
@@ -47,7 +47,4 @@ instance ToSchema CreatedApp where
     object "CreatedApp" $
       CreatedApp
         <$> (.user) .= field "user" schema
-        <*> (.cookie) .= field "cookie" s
-    where
-      s :: ValueSchema SwaggerDoc ()
-      s = null_ -- TODO
+        <*> (.cookie) .= field "cookie" schema

@@ -5,6 +5,7 @@ import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.UUID.V4
+import Data.ZAuth.Token
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -15,9 +16,12 @@ import System.Logger.Message qualified as Log
 import Wire.API.App
 import Wire.API.Event.Team
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
+import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.ZAuth
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.StoredUser
@@ -35,7 +39,8 @@ runAppSubsystem ::
     Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   Sem (AppSubsystem ': r) a ->
   Sem r a
@@ -51,7 +56,8 @@ createAppImpl ::
     Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   NewApp ->
@@ -73,8 +79,12 @@ createAppImpl lusr new = do
   -- generate a team event
   generateTeamEvent creator.id tid (EdAppCreate u.id)
 
-  -- TODO: generate cookie
-  pure CreatedApp {user = newStoredUserToUser (tUntagged (qualifyAs lusr u)), cookie = ()}
+  c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
+  pure
+    CreatedApp
+      { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
+        cookie = mkSomeToken c.cookieValue
+      }
 
 appNewStoredUser ::
   ( Member (Embed IO) r,
