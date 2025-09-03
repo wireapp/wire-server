@@ -315,6 +315,7 @@ userAPI =
     :<|> Named @"i-delete-user-locale" deleteLocale
     :<|> Named @"i-get-default-locale" getDefaultUserLocale
     :<|> Named @"get-user-export-data" getUserExportDataH
+    :<|> Named @"i-check-admin-get-team-id" checkAdminGetTeamId
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
@@ -915,6 +916,9 @@ getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
   defLocale <- defaultUserLocale <$> asks (.settings)
   pure $ LocaleUpdate defLocale
+
+checkAdminGetTeamId :: (Member UserSubsystem r) => UserId -> Handler r TeamId
+checkAdminGetTeamId uid = lift . liftSem $ UserSubsystem.checkUserIsAdmin uid
 
 updateClientLastActive :: UserId -> ClientId -> Handler r ()
 updateClientLastActive u c = do
