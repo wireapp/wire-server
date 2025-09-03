@@ -19,9 +19,9 @@ import Polysemy
 import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
+import Wire.API.Pagination
 import Wire.API.User
 import Wire.API.UserGroup
-import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
 import Wire.Sem.Random qualified as Rnd

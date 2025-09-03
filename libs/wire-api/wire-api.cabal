@@ -85,6 +85,7 @@ library
     Wire.API.Conversation.CellsState
     Wire.API.Conversation.Code
     Wire.API.Conversation.Member
+    Wire.API.Conversation.Pagination
     Wire.API.Conversation.Protocol
     Wire.API.Conversation.Role
     Wire.API.Conversation.Typing
@@ -143,6 +144,7 @@ library
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
+    Wire.API.Pagination
     Wire.API.Password
     Wire.API.Password.Argon2id
     Wire.API.Password.Scrypt

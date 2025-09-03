@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.API.UserGroup.Pagination where
+module Wire.API.Conversation.Pagination where
 
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson qualified as A
@@ -28,26 +28,26 @@ import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.Pagination
-import Wire.API.UserGroup
+import Wire.API.Conversation
 import Wire.Arbitrary as Arbitrary
 
-newtype UserGroupPage = UserGroupPage {page :: [UserGroupMeta]}
+newtype ConversationPage = ConversationPage {page :: [Conversation]}
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationPage
 
-instance ToSchema UserGroupPage where
+instance ToSchema ConversationPage where
   schema =
-    objectWithDocModifier "UserGroupPage" docs $
-      UserGroupPage <$> page .= field "page" (array schema)
+    objectWithDocModifier "ConversationPage" docs $
+      ConversationPage <$> page .= field "page" (array schema)
     where
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
         description
-          ?~ "This is the last page iff it contains fewer rows than requested. There \
+          ?~ "This is the last page if it contains fewer rows than requested. There \
              \may return 0 rows on a page."
 
-instance Arbitrary UserGroupPage where
-  arbitrary = UserGroupPage <$> arbitrary
+instance Arbitrary ConversationPage where
+  arbitrary = ConversationPage <$> arbitrary
 
 ------------------------------
 
@@ -91,4 +91,4 @@ defaultSortOrder :: SortBy -> SortOrder
 defaultSortOrder SortByName = Asc
 defaultSortOrder SortByCreatedAt = Desc
 
-makePrisms ''UserGroupPage
+makePrisms ''ConversationPage

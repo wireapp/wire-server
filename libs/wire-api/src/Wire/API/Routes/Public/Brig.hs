@@ -53,6 +53,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.OAuth
+import Wire.API.Pagination
 import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer

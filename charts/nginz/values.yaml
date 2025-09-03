@@ -701,6 +701,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /search/channels$
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:

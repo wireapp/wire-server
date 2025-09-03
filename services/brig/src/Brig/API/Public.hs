@@ -150,6 +150,7 @@ import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.User.Search qualified as Public
+import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public

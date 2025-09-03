@@ -22,6 +22,7 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Error
+import Wire.API.Pagination
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))

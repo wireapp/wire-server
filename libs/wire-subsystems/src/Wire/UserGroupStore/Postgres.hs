@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
+import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
