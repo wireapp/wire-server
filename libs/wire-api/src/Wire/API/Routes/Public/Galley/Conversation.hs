@@ -1408,17 +1408,3 @@ type ConversationAPI =
                     (UpdateResponses "Add permissions unchanged" "Add permissions updated" Event)
                     (UpdateResult Event)
            )
-    :<|> Named
-           "remove-user-group-from-channel"
-           ( Summary "[STUB] Remove user group from channel"
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
-               :> "user-groups"
-               :> Capture' '[Description "User group ID"] "ug" UserGroupId
-               :> MultiVerb1
-                    'DELETE
-                    '[JSON]
-                    (RespondEmpty 200 "OK")
-           )

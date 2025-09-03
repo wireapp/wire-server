@@ -71,7 +71,6 @@ module Galley.API.Update
     addBot,
     rmBot,
     postBotMessageUnqualified,
-    removeUserGroupFromChannel,
   )
 where
 
@@ -1791,9 +1790,6 @@ updateCellsState cnv state = do
     feat <- getFeatureForTeam @CellsConfig tid
     noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
   E.setConversationCellsState cnv state
-
-removeUserGroupFromChannel :: Local UserId -> ConnId -> Qualified ConvId -> UserGroupId -> Sem r ()
-removeUserGroupFromChannel _ _ _ _ = pure ()
 
 -------------------------------------------------------------------------------
 -- Helpers
