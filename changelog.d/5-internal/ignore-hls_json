@@ -1,0 +1,1 @@
+Add `hls.json` to `.gitignore`. It's only useful in specific editor setups.
