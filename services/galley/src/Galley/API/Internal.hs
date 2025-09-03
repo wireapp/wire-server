@@ -90,6 +90,7 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
+import Wire.API.Team.Conversation (LeftConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
@@ -230,7 +231,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
-        <@> mkNamedAPI @"close-conversations-from" (ConversationsSubsystem.internalCloseConversationsFrom tid)
+        <@> mkNamedAPI @"leave-conversations-from" (ConversationsSubsystem.internalLeaveConversationsFrom tid)
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
@@ -396,8 +397,13 @@ leaveTeams lusr conn forTids = do
                   FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
               )
             . (.status)
-    internalRemoveTeamCollaborator (tUnqualified lusr) tid
+    leftConversations <- internalRemoveTeamCollaborator (tUnqualified lusr) tid
     uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+
+    let qUser = tUntagged lusr
+    now <- Now.get
+    convs <- getConversations leftConversations.left
+    pushNotifications =<< mapM (notifyRemoteMembersAndPrepareLocalMembersLeft now qUser) convs
 
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
@@ -444,28 +450,32 @@ leaveTeams lusr conn forTids = do
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
-              let e =
-                    Event
-                      { evtConv = tUntagged (qualifyAs lusr c.id_),
-                        evtSubConv = Nothing,
-                        evtFrom = tUntagged lusr,
-                        evtTime = now,
-                        evtTeam = Nothing,
-                        evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
-                      }
-              for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
-              pure . Just $
-                def
-                  { origin = Just (tUnqualified lusr),
-                    json = toJSONObject e,
-                    recipients = map localMemberToRecipient c.localMembers,
-                    isCellsEvent = shouldPushToCells c.metadata e,
-                    conn,
-                    route = PushV2.RouteDirect
-                  }
+              Just <$> notifyRemoteMembersAndPrepareLocalMembersLeft now qUser c
           | otherwise -> pure Nothing
 
       pushNotifications (catMaybes pp)
+
+    notifyRemoteMembersAndPrepareLocalMembersLeft :: UTCTime -> Qualified UserId -> StoredConversation -> Sem r Push
+    notifyRemoteMembersAndPrepareLocalMembersLeft now qUser c = do
+      let e =
+            Event
+              { evtConv = tUntagged (qualifyAs lusr c.id_),
+                evtSubConv = Nothing,
+                evtFrom = tUntagged lusr,
+                evtTime = now,
+                evtTeam = Nothing,
+                evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
+              }
+      for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
+      pure $
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = map localMemberToRecipient c.localMembers,
+            isCellsEvent = shouldPushToCells c.metadata e,
+            conn,
+            route = PushV2.RouteDirect
+          }
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

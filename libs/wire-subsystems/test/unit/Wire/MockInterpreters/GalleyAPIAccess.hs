@@ -7,6 +7,7 @@ import Data.Proxy
 import Data.Range
 import Imports
 import Polysemy
+import Wire.API.Team.Conversation (LeftConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
@@ -50,7 +51,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
-  CloseConversationsFrom _ _ -> pure ()
+  LeaveConversationsFrom _tid _uid -> pure $ LeftConversations {left = [], closed = []}
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

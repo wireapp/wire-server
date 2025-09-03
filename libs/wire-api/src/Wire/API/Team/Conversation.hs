@@ -29,6 +29,10 @@ module Wire.API.Team.Conversation
     TeamConversationList,
     newTeamConversationList,
     teamConversations,
+
+    -- * LeftConversations
+    LeftConversations (..),
+    newLeftConversations,
   )
 where
 
@@ -95,3 +99,26 @@ newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 makeLenses ''TeamConversation
+
+--------------------------------------------------------------------------------
+-- LeftConversations
+
+data LeftConversations = LeftConversations {left :: [ConvId], closed :: [ConvId]}
+  deriving (Generic)
+  deriving stock (Eq, Show)
+  deriving (Arbitrary) via (GenericUniform LeftConversations)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema LeftConversations)
+
+instance ToSchema LeftConversations where
+  schema =
+    objectWithDocModifier
+      "LeftConversations"
+      (description ?~ "Conversations left or closed")
+      $ LeftConversations
+        <$> left .= field "left" (array schema)
+        <*> closed .= field "closed" (array schema)
+
+newLeftConversations :: [ConvId] -> [ConvId] -> LeftConversations
+newLeftConversations = LeftConversations
+
+makeLenses ''LeftConversations

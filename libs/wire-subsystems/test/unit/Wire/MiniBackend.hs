@@ -64,6 +64,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
+import Wire.API.Team.Conversation (LeftConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
@@ -638,7 +639,7 @@ interpretMaybeFederationStackState mb =
       interpretConversationsSubsystem =
         interpret $
           \case
-            InternalCloseConversationsFrom _tid _uid -> pure ()
+            InternalLeaveConversationsFrom _tid _uid -> pure $ LeftConversations {left = [], closed = []}
    in miniBackendLowerEffectsInterpreters mb
         . interpretConversationsSubsystem
         . interpretTeamCollaboratorsSubsystem

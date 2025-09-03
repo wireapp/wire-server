@@ -45,6 +45,7 @@ import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
+import Wire.API.Team.Conversation (LeftConversations)
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
@@ -97,7 +98,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
-          CloseConversationsFrom tid uid -> closeConversationsFrom tid uid
+          LeaveConversationsFrom tid uid -> leaveConversationsFrom tid uid
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -707,20 +708,21 @@ getEJPDConvInfo uid = do
         . paths ["i", "user", toByteString' uid, "all-conversations"]
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
-closeConversationsFrom ::
-  ( Member Rpc r,
+leaveConversationsFrom ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
   ) =>
   TeamId ->
   UserId ->
-  Sem r ()
-closeConversationsFrom tid uid = do
-  debug $ remote "galley" . msg (val "Close all conversations of a user in a team")
-  void $ galleyRequest req
+  Sem r LeftConversations
+leaveConversationsFrom tid uid = do
+  debug $ remote "galley" . msg (val "Leave all conversations of a user in a team")
+  decodeBodyOrThrow "galley" =<< galleyRequest req
   where
     req =
       method POST
-        . paths ["i", "teams", toByteString' tid, "close-conversations-from", toByteString' uid]
+        . paths ["i", "teams", toByteString' tid, "leave-conversations-from", toByteString' uid]
         . header "Content-Type" "application/json"
         . expect2xx
