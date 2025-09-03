@@ -1,3 +1,0 @@
-Update `nixpkgs` (source of dependencies) to [latest of `unstable`
-channel](https://github.com/NixOS/nixpkgs/commits/c53baa6685261e5253a1c355a1b322f82674a824).
-This has no specific reason other than preventing tech-debt.
