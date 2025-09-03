@@ -50,6 +50,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Team
+import Wire.API.Team.Conversation (LeftConversations)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
@@ -313,10 +314,10 @@ type ITeamsAPIBase =
                     )
          )
     :<|> Named
-           "close-conversations-from"
-           ( "close-conversations-from"
+           "leave-conversations-from"
+           ( "leave-conversations-from"
                :> Capture "uid" UserId
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "OK")
+               :> Post '[JSON] LeftConversations
            )
 
 type IFeatureStatusGet cfg =

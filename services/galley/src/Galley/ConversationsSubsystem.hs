@@ -16,6 +16,7 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import UnliftIO.Async (pooledForConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Conversation (ConvType (..))
+import Wire.API.Team.Conversation (LeftConversations, newLeftConversations)
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore.Cassandra (deleteConversation, members, removeMembersFromLocalConv)
 import Wire.ConversationStore.Cassandra.Queries (selectConv, selectUserConvs)
@@ -33,17 +34,19 @@ interpretConversationsSubsystemCassandra ::
 interpretConversationsSubsystemCassandra =
   interpret $
     \case
-      InternalCloseConversationsFrom tid uid -> do
-        logEffect "ConversationsSubsystem.internalCloseConversationsFrom"
+      InternalLeaveConversationsFrom tid uid -> do
+        logEffect "ConversationsSubsystem.internalLeaveConversationsFrom"
         contacts <- E.getContactList uid
-        embedClient $ closeConversationsFromImpl tid uid contacts
+        embedClient $ leaveConversationsFromImpl tid uid contacts
 
-closeConversationsFromImpl :: TeamId -> UserId -> [UserId] -> Client ()
-closeConversationsFromImpl tid uid contacts = do
-  runConduit $
-    paginateWithStateC listConversationsIds
-      .| mapMC performFilter
-      .| mapM_C (bimapM_ (mapM_ deleteConversation) (pooledMapConcurrentlyN_ 16 performConversationRemoveUser))
+leaveConversationsFromImpl :: TeamId -> UserId -> [UserId] -> Client LeftConversations
+leaveConversationsFromImpl tid uid contacts =
+  fmap (uncurry newLeftConversations) $
+    runConduit $
+      paginateWithStateC listConversationsIds
+        .| mapMC performFilter
+        .| iterMC (bimapM_ (pooledMapConcurrentlyN_ 16 performConversationRemoveUser) (mapM_ deleteConversation))
+        .| foldC
   where
     listConversationsIds pagingState =
       fmap runIdentity <$> paginateWithState selectUserConvs (paramsPagingState LocalQuorum (Identity uid) 32 pagingState)
@@ -60,7 +63,7 @@ closeConversationsFromImpl tid uid contacts = do
             localMembers <- members convId
             pure $ any (flip notElem (uid : contacts) . (.id_)) localMembers
       o2osUnconnected <- filterM isNotConnectedToMember o2os
-      pure (o2osUnconnected, mlss)
+      pure (mlss, o2osUnconnected)
     performConversationsFilter :: ConvId -> Client [(ConvId, Maybe TeamId, ConvType)]
     performConversationsFilter convId = do
       results <- retry x1 $ query selectConv $ params LocalQuorum (Identity convId)
