@@ -86,6 +86,19 @@ instance ToSchema UserGroupUpdate where
       UserGroupUpdate
         <$> (.name) .= field "name" schema
 
+newtype UserGroupAddUsers = UserGroupAddUsers
+  { members :: Vector UserId
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupAddUsers
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupAddUsers
+
+instance ToSchema UserGroupAddUsers where
+  schema =
+    object "UserGroupAddUsers" $
+      UserGroupAddUsers
+        <$> (.members) .= field "members" (vector schema)
+
 type UserGroup = UserGroup_ Identity
 
 type UserGroupMeta = UserGroup_ (Const ())
@@ -96,6 +109,7 @@ userGroupToMeta ug =
     { id_ = ug.id_,
       name = ug.name,
       members = Const (),
+      membersCount = ug.membersCount,
       managedBy = ug.managedBy,
       createdAt = ug.createdAt
     }
@@ -104,6 +118,7 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
   { id_ :: UserGroupId,
     name :: UserGroupName,
     members :: f (Vector UserId),
+    membersCount :: Maybe Int,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
   }
@@ -130,6 +145,7 @@ instance ToSchema (UserGroup_ (Const ())) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (.members) .= pure mempty
+        <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
@@ -154,5 +170,6 @@ instance ToSchema (UserGroup_ Identity) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
+        <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema

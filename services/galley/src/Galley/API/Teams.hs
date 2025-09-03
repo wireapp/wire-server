@@ -83,13 +83,9 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Services (BotMember)
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
-import Galley.Effects.ListItems qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.SparAccess qualified as Spar
@@ -130,6 +126,8 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
 import Wire.BrigAPIAccess qualified as E
+import Wire.ConversationStore qualified as E
+import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
@@ -382,9 +380,9 @@ uncheckedDeleteTeam ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member SparAccess r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member ConversationStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -431,12 +429,12 @@ uncheckedDeleteTeam lusr zcon tid = do
     createConvDeleteEvents ::
       UTCTime ->
       [TeamMember] ->
-      TeamConversation ->
+      ConvId ->
       ([Push], [(BotMember, Conv.Event)]) ->
       Sem r ([Push], [(BotMember, Conv.Event)])
-    createConvDeleteEvents now teamMembs c (pp, ee) = do
-      let qconvId = tUntagged $ qualifyAs lusr (c ^. conversationId)
-      (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers (c ^. conversationId)
+    createConvDeleteEvents now teamMembs cid (pp, ee) = do
+      let qconvId = tUntagged $ qualifyAs lusr cid
+      (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers cid
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
@@ -741,7 +739,6 @@ deleteTeamMember ::
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -770,7 +767,6 @@ deleteNonBindingTeamMember ::
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -799,7 +795,6 @@ deleteTeamMember' ::
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -860,7 +855,6 @@ uncheckedDeleteTeamMember ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member Now r,
-    Member MemberStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -923,9 +917,7 @@ removeFromConvsAndPushConvLeaveEvent ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member Now r,
-    Member MemberStore r,
-    Member TeamStore r
+    Member Now r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -935,10 +927,10 @@ removeFromConvsAndPushConvLeaveEvent ::
 removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   cc <- E.getTeamConversations tid
   for_ cc $ \c ->
-    E.getConversation (c ^. conversationId) >>= \conv ->
+    E.getConversation c >>= \conv ->
       for_ conv $ \dc ->
         when (remove `isMember` dc.localMembers) $ do
-          E.deleteMembers (c ^. conversationId) (UserList [remove] [])
+          E.deleteMembers c (UserList [remove] [])
           let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
               targets =
                 BotsAndMembers
@@ -962,7 +954,8 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member ConversationStore r
   ) =>
   UserId ->
   TeamId ->
@@ -973,13 +966,14 @@ getTeamConversations zusr tid = do
       >>= noteS @'NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwS @OperationDenied
-  Public.newTeamConversationList <$> E.getTeamConversations tid
+  Public.newTeamConversationList . fmap newTeamConversation <$> E.getTeamConversations tid
 
 getTeamConversation ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member ConversationStore r
   ) =>
   UserId ->
   TeamId ->
@@ -991,8 +985,8 @@ getTeamConversation zusr tid cid = do
       >>= noteS @'NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwS @OperationDenied
-  E.getTeamConversation tid cid
-    >>= noteS @'ConvNotFound
+  teamConv <- E.getTeamConversation tid cid >>= noteS @'ConvNotFound
+  pure $ newTeamConversation teamConv
 
 deleteTeamConversation ::
   ( Member BackendNotificationQueueAccess r,
@@ -1005,12 +999,10 @@ deleteTeamConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
     Member FederatorAccess r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>

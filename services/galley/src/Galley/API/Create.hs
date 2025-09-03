@@ -52,13 +52,10 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Teams (notTeamMember)
-import Galley.Types.ToUserRole
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
@@ -68,6 +65,7 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -85,6 +83,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
+import Wire.ConversationStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -466,7 +465,8 @@ createProteusSelfConversation lusr = do
             NewConversation
               { metadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
                 users = ulFromLocals [toUserRole (tUnqualified lusr)],
-                protocol = BaseProtocolProteusTag
+                protocol = BaseProtocolProteusTag,
+                groupId = Nothing
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
@@ -594,7 +594,8 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
         NewConversation
           { users = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
             protocol = BaseProtocolProteusTag,
-            metadata = meta
+            metadata = meta,
+            groupId = Nothing
           }
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
@@ -666,7 +667,8 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
             NewConversation
               { metadata = meta,
                 users = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
-                protocol = BaseProtocolProteusTag
+                protocol = BaseProtocolProteusTag,
+                groupId = Nothing
               }
       c <- E.createConversation lcnv nc
       notifyCreatedConversation self (Just zcon) c def
@@ -696,7 +698,6 @@ createConnectConversation ::
     Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member MemberStore r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -718,7 +719,8 @@ createConnectConversation lusr conn j = do
             -- when the other user accepts the connection request.
             users = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
             protocol = BaseProtocolProteusTag,
-            metadata = meta
+            metadata = meta,
+            groupId = Nothing
           }
   E.getConversation (tUnqualified lcnv)
     >>= maybe (create lcnv nc) (update n)
@@ -791,8 +793,10 @@ createConnectConversation lusr conn j = do
 -- | Return a 'NewConversation' record suitable for creating a group conversation.
 newRegularConversation ::
   ( Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS OperationDenied) r,
     Member (Error InvalidInput) r,
-    Member (Input Opts) r
+    Member (Input Opts) r,
+    Member ConversationStore r
   ) =>
   Local UserId ->
   NewConv ->
@@ -800,6 +804,10 @@ newRegularConversation ::
 newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
+  forM_ newConv.newConvParent $ \parent -> do
+    mMembership <- E.getLocalMember parent (tUnqualified lusr)
+    when (isNothing mMembership) $
+      throwS @OperationDenied
   users <- case newConvProtocol newConv of
     BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
     BaseProtocolMLSTag -> do
@@ -818,21 +826,23 @@ newRegularConversation lusr newConv = do
                   cnvmCreator = Just (tUnqualified lusr),
                   cnvmAccess = access newConv,
                   cnvmAccessRoles = accessRoles newConv,
-                  cnvmName = fmap fromRange (newConvName newConv),
-                  cnvmMessageTimer = newConvMessageTimer newConv,
-                  cnvmReceiptMode = case newConvProtocol newConv of
-                    BaseProtocolProteusTag -> newConvReceiptMode newConv
+                  cnvmName = fmap fromRange newConv.newConvName,
+                  cnvmMessageTimer = newConv.newConvMessageTimer,
+                  cnvmReceiptMode = case newConv.newConvProtocol of
+                    BaseProtocolProteusTag -> newConv.newConvReceiptMode
                     BaseProtocolMLSTag -> Just def,
-                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv),
+                  cnvmTeam = fmap cnvTeamId newConv.newConvTeam,
                   cnvmGroupConvType = Just newConv.newConvGroupConvType,
                   cnvmChannelAddPermission = if newConv.newConvGroupConvType == Channel then newConv.newConvChannelAddPermission <|> Just def else Nothing,
                   cnvmCellsState =
                     if newConv.newConvCells
                       then CellsPending
-                      else CellsDisabled
+                      else CellsDisabled,
+                  cnvmParent = newConv.newConvParent
                 },
             users = newConvUsersRoles,
-            protocol = newConvProtocol newConv
+            protocol = newConvProtocol newConv,
+            groupId = Nothing
           }
   pure (nc, users)
 

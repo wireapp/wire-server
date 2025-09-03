@@ -52,11 +52,9 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
 import Galley.API.Util
-import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
-import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.TeamStore
 import Galley.Options
@@ -84,6 +82,7 @@ import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

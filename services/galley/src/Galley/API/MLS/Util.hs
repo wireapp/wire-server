@@ -26,10 +26,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Galley.Data.Types
 import Galley.Effects
-import Galley.Effects.ConversationStore
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
-import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -46,11 +43,11 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore
 
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,
-    Member ConversationStore r,
-    Member MemberStore r
+    Member ConversationStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -107,8 +104,7 @@ withCommitLock ::
   forall r.
   ( Member Resource r,
     Member ConversationStore r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member SubConversationStore r
+    Member (ErrorS 'MLSStaleMessage) r
   ) =>
   Local ConvOrSubConvId ->
   GroupId ->

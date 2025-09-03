@@ -35,8 +35,7 @@ kickMember ::
     Member ProposalStore r,
     Member Now r,
     Member (Input Env) r,
-    Member MemberStore r,
-    Member SubConversationStore r,
+    Member ConversationStore r,
     Member TinyLog r,
     Member Random r
   ) =>

@@ -5,8 +5,9 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs, tUnqualified)
+import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
 import Data.Set qualified as Set
+import Data.Vector (Vector)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -40,11 +41,12 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
   GetGroup getter gid -> getUserGroupImpl getter gid
-  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId ->
-    getUserGroupsImpl getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId
+  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount ->
+    getUserGroupsImpl getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount
   UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
   AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
+  AddUsers adder groupId addeeIds -> addUsersImpl adder groupId addeeIds
   RemoveUser remover groupId removeeId -> removeUserImpl remover groupId removeeId
 
 data UserGroupSubsystemError
@@ -85,8 +87,7 @@ createUserGroupImpl creator newGroup = do
   ug <- Store.createUserGroup team newGroup managedBy
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
   pushNotifications
-    [ mkEvent creator (UserGroupCreated ug.id_) admins,
-      mkEvent creator (UserGroupMemberAdded ug.id_) (tUnqualified luids)
+    [ mkEvent creator (UserGroupCreated ug.id_) admins
     ]
   pure ug
 
@@ -167,8 +168,9 @@ getUserGroupsImpl ::
   Maybe UserGroupName ->
   Maybe UTCTimeMillis ->
   Maybe UserGroupId ->
+  Bool ->
   Sem r UserGroupPage
-getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId = do
+getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount' = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
@@ -180,7 +182,8 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupNam
               SortByName -> PaginationSortByName $ (,) <$> mLastGroupName <*> mLastGroupId
               SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> mLastCreatedAt <*> mLastGroupId,
             team = team,
-            searchString = searchString
+            searchString = searchString,
+            includeMemberCount = includeMemberCount'
           }
   UserGroupPage <$> Store.getUserGroups pageReq
   where
@@ -252,8 +255,32 @@ addUserImpl adder groupId addeeId = do
     Store.addUser groupId addeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
-      [ mkEvent adder (UserGroupMemberAdded groupId) [addeeId],
-        mkEvent adder (UserGroupUpdated groupId) admins
+      [ mkEvent adder (UserGroupUpdated groupId) admins
+      ]
+
+addUsersImpl ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Vector UserId ->
+  Sem r ()
+addUsersImpl adder groupId addeeIds = do
+  ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
+  team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
+  forM_ addeeIds $ \addeeId ->
+    internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
+
+  let missingAddeeIds = toList addeeIds \\ toList (runIdentity ug.members)
+  unless (null missingAddeeIds) $ do
+    mapM_ (Store.addUser groupId) missingAddeeIds
+    admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+    pushNotifications
+      [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
 removeUserImpl ::
@@ -275,6 +302,5 @@ removeUserImpl remover groupId removeeId = do
     Store.removeUser groupId removeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
-      [ mkEvent remover (UserGroupMemberRemoved groupId) [removeeId],
-        mkEvent remover (UserGroupUpdated groupId) admins
+      [ mkEvent remover (UserGroupUpdated groupId) admins
       ]

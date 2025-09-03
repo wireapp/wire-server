@@ -35,11 +35,8 @@ import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
-import Galley.API.MLS.Types
 import Galley.Effects
-import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.SubConversationStore
 import Galley.Env
 import Galley.Options
 import Imports
@@ -68,6 +65,8 @@ import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.User.Client
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -93,9 +92,7 @@ type HasProposalActionEffects r =
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member NotificationSubsystem r,
@@ -132,9 +129,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
 
 incrementEpoch ::
   ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member MemberStore r,
-    Member SubConversationStore r
+    Member (ErrorS 'ConvNotFound) r
   ) =>
   ConvOrSubConv ->
   Sem r ConvOrSubConv

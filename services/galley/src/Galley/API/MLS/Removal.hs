@@ -34,11 +34,8 @@ import Data.Set qualified as Set
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
-import Galley.API.MLS.Types
 import Galley.Effects
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
-import Galley.Effects.SubConversationStore
 import Galley.Env
 import Imports
 import Polysemy
@@ -56,6 +53,8 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random
@@ -127,9 +126,8 @@ removeClientsWithClientMapRecursively ::
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member ProposalStore r,
-    Member SubConversationStore r,
     Member (Input Env) r,
     Member Random r,
     Traversable f
@@ -160,12 +158,11 @@ removeClientsFromSubConvs ::
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member MemberStore r,
     Member ProposalStore r,
-    Member SubConversationStore r,
     Member (Input Env) r,
     Member Random r,
-    Traversable f
+    Traversable f,
+    Member ConversationStore r
   ) =>
   Local MLSConversation ->
   -- | A function returning the "list" of clients to be removed from either the
@@ -200,10 +197,9 @@ removeClient ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local StoredConversation ->
@@ -237,10 +233,9 @@ removeUser ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local StoredConversation ->
@@ -267,7 +262,7 @@ removeUser lc includeMain qusr = do
 
 -- | Convert cassandra subconv maps into SubConversations
 listSubConversations' ::
-  (Member SubConversationStore r) =>
+  (Member ConversationStore r) =>
   ConvId ->
   Sem r [SubConversation]
 listSubConversations' cid = do
@@ -284,10 +279,9 @@ removeExtraneousClients ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Qualified UserId ->

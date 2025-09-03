@@ -1024,6 +1024,19 @@ brig:
       setEphemeralUserCreationEnabled: false
 ```
 
+### Domain Verification Challenge TTL
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setChallengeTTL: <seconds>
+```
+
+`setChallengeTTL` defines how long a domain verification challenge should be
+stored. The challenge (`StoredDomainVerificationChallenge`) will be deleted
+after this period.
+
 ## Settings in cargohold
 
 AWS S3 (or an alternative provider / service) is used to upload and download

@@ -23,6 +23,7 @@ ug1 =
     { id_ = Id UUID.nil,
       name = either (error . show) id (userGroupNameFromText "*"),
       members = mempty,
+      membersCount = Nothing,
       managedBy = ManagedByWire,
       createdAt = someUTCTime
     }
@@ -40,6 +41,7 @@ ug2 =
                     "3ec5afe4-552f-11f0-afbb-9b038a8edbd2"
                   ]
           ),
+      membersCount = Nothing,
       managedBy = ManagedByWire,
       createdAt = someUTCTime
     }
@@ -51,6 +53,7 @@ ug3 =
       name = either (error . show) id (userGroupNameFromText "!! user group !!"),
       members =
         Identity $ Vec.fromList (Id . fromJust . UUID.fromString <$> ["37b636e2-552f-11f0-abe8-5bf7b2ad08c9"]),
+      membersCount = Nothing,
       managedBy = ManagedByScim,
       createdAt = someOtherUTCTime
     }

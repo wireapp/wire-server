@@ -31,7 +31,6 @@ import Data.Map qualified as M
 import Data.Text.Lazy qualified as LT
 import Galley.API.Error
 import Galley.API.Teams.Features.Get
-import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
@@ -42,6 +41,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature.TH
+import Wire.ConversationStore.Cassandra.Instances ()
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,

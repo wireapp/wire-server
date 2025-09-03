@@ -32,12 +32,8 @@ import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Removal
-import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.Effects
-import Galley.Effects.ConversationStore
-import Galley.Effects.MemberStore
-import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -54,6 +50,8 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProposalTag
 import Wire.API.MLS.SubConversation
+import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Types
 
 data ExternalCommitAction = ExternalCommitAction
   { add :: LeafIndex,

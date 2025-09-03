@@ -35,7 +35,6 @@ import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.LegalHold
 import Data.Misc
-import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Q
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
@@ -56,6 +55,7 @@ import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User.Client.Prekey
+import Wire.ConversationStore.Cassandra.Instances ()
 
 interpretLegalHoldStoreToCassandra ::
   ( Member (Embed IO) r,

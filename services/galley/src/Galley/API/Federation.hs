@@ -55,9 +55,7 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FireAndForget qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Imports
@@ -95,6 +93,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
+import Wire.ConversationStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -142,10 +141,8 @@ onClientRemoved ::
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Domain ->
@@ -166,7 +163,7 @@ onConversationCreated ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -238,7 +235,7 @@ onConversationUpdated ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -254,7 +251,7 @@ onConversationUpdatedV0 ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -274,10 +271,8 @@ leaveConversation ::
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r
@@ -345,7 +340,7 @@ leaveConversation requestingDomain lc = do
 onMessageSent ::
   ( Member NotificationSubsystem r,
     Member ExternalAccess r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member (Input (Local ())) r,
     Member P.TinyLog r
   ) =>
@@ -426,10 +421,8 @@ onUserDeleted ::
     Member (Input (Local ())) r,
     Member Now r,
     Member (Input Env) r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Domain ->
@@ -491,14 +484,12 @@ updateConversation ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member Resource r,
     Member ConversationStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r
@@ -624,12 +615,10 @@ sendMLSCommitBundle ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member SubConversationStore r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>
@@ -681,11 +670,9 @@ sendMLSMessage ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member ProposalStore r,
-    Member SubConversationStore r,
     Member TeamCollaboratorsSubsystem r
   ) =>
   Domain ->
@@ -710,8 +697,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
       msg
 
 getSubConversationForRemoteUser ::
-  ( Member SubConversationStore r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member TeamStore r
   ) =>
@@ -752,9 +738,7 @@ leaveSubConversation domain lscr = do
 deleteSubConversationForRemoteUser ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
-    Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r,
     Member TeamStore r
   ) =>
   Domain ->
@@ -863,7 +847,7 @@ onMLSMessageSent ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -939,9 +923,7 @@ mlsSendWelcome origDomain req = do
 queryGroupInfo ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
-    Member SubConversationStore r,
-    Member MemberStore r
+    Member (Input Env) r
   ) =>
   Domain ->
   GetGroupInfoRequest ->

@@ -43,17 +43,14 @@ import Data.Time
 import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
-import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.LegalHoldStore
-import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
@@ -93,6 +90,7 @@ import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
@@ -402,7 +400,6 @@ acceptOne2One ::
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member Now r,
-    Member MemberStore r,
     Member NotificationSubsystem r
   ) =>
   Local UserId ->
@@ -467,7 +464,7 @@ memberJoinEvent lorig qconv t lmems rmems =
     remoteToSimple u = SimpleMember (tUntagged u.id_) (u.convRoleName)
 
 convDeleteMembers ::
-  (Member MemberStore r) =>
+  (Member ConversationStore r) =>
   UserList UserId ->
   StoredConversation ->
   Sem r StoredConversation
@@ -940,7 +937,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmReceiptMode = receiptMode,
             cnvmGroupConvType = groupConvType,
             cnvmChannelAddPermission = channelAddPermission,
-            cnvmCellsState = def
+            cnvmCellsState = def,
+            cnvmParent = Nothing
           }
         (OwnConvMembers this others)
         ProtocolProteus

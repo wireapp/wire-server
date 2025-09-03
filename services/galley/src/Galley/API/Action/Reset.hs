@@ -9,9 +9,7 @@ import Galley.API.Action.Kick
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.MemberStore
 import Galley.Env
 import Imports
 import Polysemy
@@ -32,6 +30,7 @@ import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
+import Wire.ConversationStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation as Data
@@ -50,8 +49,6 @@ resetLocalMLSMainConversation ::
     Member Random r,
     Member Resource r,
     Member ConversationStore r,
-    Member MemberStore r,
-    Member SubConversationStore r,
     Member P.TinyLog r
   ) =>
   Qualified UserId ->

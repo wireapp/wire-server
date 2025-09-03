@@ -76,15 +76,11 @@ import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.Data.Scope (Scope (ReusableCode))
-import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
-import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.FireAndForget qualified as E
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore qualified as E
-import Galley.Effects.SubConversationStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
 import Galley.Options
@@ -121,6 +117,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
+import Wire.ConversationStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -153,18 +150,16 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input Opts) r,
       Member Now r,
       Member LegalHoldStore r,
-      Member MemberStore r,
+      Member ConversationStore r,
       Member ProposalStore r,
       Member Random r,
-      Member SubConversationStore r,
       Member TeamStore r,
       Member TinyLog r,
       Member ConversationStore r,
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationLeaveTag r =
-    ( Member MemberStore r,
-      Member (Error InternalError) r,
+    ( Member (Error InternalError) r,
       Member (Error NoChanges) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
@@ -172,14 +167,13 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Now r,
       Member (Input Env) r,
       Member ProposalStore r,
-      Member SubConversationStore r,
+      Member ConversationStore r,
       Member Random r,
       Member TinyLog r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
-    ( Member MemberStore r,
-      Member (Error NoChanges) r,
-      Member SubConversationStore r,
+    ( Member (Error NoChanges) r,
+      Member ConversationStore r,
       Member ProposalStore r,
       Member (Input Env) r,
       Member Now r,
@@ -192,8 +186,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
-    ( Member MemberStore r,
-      Member (ErrorS 'ConvMemberNotFound) r
+    ( Member (ErrorS 'ConvMemberNotFound) r,
+      Member ConversationStore r
     )
   HasConversationActionEffects 'ConversationDeleteTag r =
     ( Member BrigAPIAccess r,
@@ -202,9 +196,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error FederationError) r,
       Member (ErrorS 'NotATeamMember) r,
       Member FederatorAccess r,
-      Member MemberStore r,
       Member ProposalStore r,
-      Member SubConversationStore r,
       Member TeamStore r
     )
   HasConversationActionEffects 'ConversationRenameTag r =
@@ -226,13 +218,11 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member FireAndForget r,
       Member NotificationSubsystem r,
       Member (Input Env) r,
-      Member MemberStore r,
       Member ProposalStore r,
       Member TeamStore r,
       Member TinyLog r,
       Member Now r,
       Member ConversationStore r,
-      Member SubConversationStore r,
       Member Random r
     )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
@@ -256,10 +246,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input Env) r,
       Member (Input Opts) r,
       Member Now r,
-      Member MemberStore r,
       Member ProposalStore r,
       Member Random r,
-      Member SubConversationStore r,
       Member TeamFeatureStore r,
       Member TinyLog r
     )
@@ -276,11 +264,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member MemberStore r,
       Member NotificationSubsystem r,
       Member ProposalStore r,
       Member Random r,
-      Member SubConversationStore r,
       Member Resource r,
       Member TinyLog r,
       Member (ErrorS MLSStaleMessage) r
@@ -947,8 +933,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
-  ( Member MemberStore r,
-    Member (Error NoChanges) r
+  ( Member (Error NoChanges) r,
+    Member ConversationStore r
   ) =>
   Local ConvId ->
   UserList UserId ->
@@ -968,7 +954,7 @@ updateLocalStateOfRemoteConv ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member P.TinyLog r
   ) =>
   Remote F.ConversationUpdate ->
@@ -1053,7 +1039,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
 addLocalUsersToRemoteConv ::
   ( Member BrigAPIAccess r,
-    Member MemberStore r,
+    Member ConversationStore r,
     Member P.TinyLog r
   ) =>
   Remote ConvId ->

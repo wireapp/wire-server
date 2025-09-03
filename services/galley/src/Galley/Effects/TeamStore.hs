@@ -31,8 +31,6 @@ module Galley.Effects.TeamStore
     getTeamName,
     getTeamBinding,
     getTeamsBindings,
-    getTeamConversation,
-    getTeamConversations,
     getTeamCreationTime,
     listTeams,
     selectTeams,
@@ -42,7 +40,6 @@ module Galley.Effects.TeamStore
     lookupBindingTeam,
 
     -- ** Update teams
-    deleteTeamConversation,
     setTeamData,
     setTeamStatus,
 
@@ -80,7 +77,6 @@ where
 
 import Data.Id
 import Data.Range
-import Galley.Effects.ListItems
 import Galley.Types.Teams
 import Imports
 import Polysemy
@@ -89,10 +85,10 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
+import Wire.ListItems
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
@@ -112,8 +108,6 @@ data TeamStore m a where
   GetTeamAdmins :: TeamId -> TeamStore m [UserId]
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
-  GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe TeamConversation)
-  GetTeamConversations :: TeamId -> TeamStore m [TeamConversation]
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
   GetTeamMember :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
   GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
@@ -134,7 +128,6 @@ data TeamStore m a where
   GetTeamBinding :: TeamId -> TeamStore m (Maybe TeamBinding)
   GetTeamCreationTime :: TeamId -> TeamStore m (Maybe TeamCreationTime)
   DeleteTeam :: TeamId -> TeamStore m ()
-  DeleteTeamConversation :: TeamId -> ConvId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
   FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)

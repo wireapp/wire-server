@@ -74,6 +74,7 @@
 , QuickCheck
 , quickcheck-instances
 , random
+, raw-strings-qq
 , resource-pool
 , resourcet
 , retry
@@ -181,6 +182,7 @@ mkDerivation {
     profunctors
     prometheus-client
     QuickCheck
+    raw-strings-qq
     resource-pool
     resourcet
     retry
@@ -280,6 +282,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    raw-strings-qq
     resource-pool
     resourcet
     retry

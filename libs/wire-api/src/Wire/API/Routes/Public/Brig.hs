@@ -336,6 +336,7 @@ type UserGroupAPI =
                :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
                :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
                :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
+               :> QueryFlag "include_member_count"
                :> Get '[JSON] UserGroupPage
            )
     :<|> Named
@@ -371,6 +372,19 @@ type UserGroupAPI =
                :> "users"
                :> Capture "uid" UserId
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "User added to group")
+           )
+    :<|> Named
+           "add-users-to-group-bulk"
+           ( From 'V11
+               :> ZLocalUser
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> CanThrow 'UserGroupMemberIsNotInTheSameTeam
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> ReqBody '[JSON] UserGroupAddUsers
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Users added to group")
            )
     :<|> Named
            "remove-user-from-group"

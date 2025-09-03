@@ -71,7 +71,6 @@ executable migrate-sso-feature-flag
       base
     , cassandra-util
     , conduit
-    , galley
     , imports
     , lens
     , optparse-applicative
@@ -79,5 +78,6 @@ executable migrate-sso-feature-flag
     , types-common
     , unliftio
     , wire-api
+    , wire-subsystems
 
   default-language:   GHC2021

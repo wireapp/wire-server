@@ -19,7 +19,6 @@ module Galley.Cassandra.SearchVisibility (interpretSearchVisibilityStoreToCassan
 
 import Cassandra
 import Data.Id
-import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
@@ -29,6 +28,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.SearchVisibility
+import Wire.ConversationStore.Cassandra.Instances ()
 
 interpretSearchVisibilityStoreToCassandra ::
   ( Member (Embed IO) r,

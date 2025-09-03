@@ -36,14 +36,10 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
-import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ConversationStore
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
-import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -63,6 +59,8 @@ import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
+import Wire.ConversationStore
+import Wire.ConversationStore.MLS.Types
 import Wire.StoredConversation
 
 processInternalCommit ::
@@ -75,7 +73,6 @@ processInternalCommit ::
     Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member SubConversationStore r,
     Member Resource r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r

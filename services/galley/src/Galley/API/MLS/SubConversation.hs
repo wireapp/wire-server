@@ -40,14 +40,11 @@ import Galley.API.MLS
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Removal
-import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.MemberStore qualified as Eff
-import Galley.Effects.SubConversationStore qualified as Eff
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -67,6 +64,8 @@ import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.ConversationStore qualified as Eff
+import Wire.ConversationStore.MLS.Types as Eff
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
@@ -79,8 +78,7 @@ type MLSGetSubConvStaticErrors =
    ]
 
 getSubConversation ::
-  ( Member SubConversationStore r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
@@ -100,8 +98,7 @@ getSubConversation lusr qconv sconv = do
     qconv
 
 getLocalSubConversation ::
-  ( Member SubConversationStore r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
@@ -166,9 +163,7 @@ getSubConversationGroupInfo ::
       '[ ConversationStore,
          Error FederationError,
          FederatorAccess,
-         Input Env,
-         MemberStore,
-         SubConversationStore
+         Input Env
        ]
       r,
     Members MLSGroupInfoStaticErrors r
@@ -186,13 +181,7 @@ getSubConversationGroupInfo lusr qcnvId subconv = do
     qcnvId
 
 getSubConversationGroupInfoFromLocalConv ::
-  ( Members
-      '[ ConversationStore,
-         SubConversationStore,
-         MemberStore
-       ]
-      r
-  ) =>
+  (Member ConversationStore r) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Qualified UserId ->
   SubConvId ->
@@ -219,9 +208,7 @@ deleteSubConversation ::
     Member (Error FederationError) r,
     Member FederatorAccess r,
     Member (Input Env) r,
-    Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -275,10 +262,8 @@ type HasLeaveSubConversationEffects r =
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member MemberStore r,
     Member ProposalStore r,
     Member Random r,
-    Member SubConversationStore r,
     Member TinyLog r
   )
 
@@ -393,9 +378,7 @@ resetLocalSubConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member MemberStore r,
     Member Resource r,
-    Member SubConversationStore r,
     Member TeamStore r
   ) =>
   Qualified UserId ->

@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.ConversationList
+module Wire.ListItems.ConversationIds.Cassandra
   ( interpretConversationListToCassandra,
     interpretRemoteConversationListToCassandra,
     interpretLegacyConversationListToCassandra,
@@ -26,16 +26,15 @@ import Cassandra
 import Data.Id
 import Data.Qualified
 import Data.Range
-import Galley.Cassandra.Instances ()
-import Galley.Cassandra.Queries qualified as Cql
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Effects.ListItems
 import Imports hiding (max)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
+import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.ConversationStore.Cassandra.Queries as Cql
+import Wire.ListItems
 import Wire.Sem.Paging.Cassandra
+import Wire.Util
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
@@ -75,8 +74,9 @@ interpretConversationListToCassandra ::
   Sem r a
 interpretConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> do
+    client <- input
     logEffect "ConversationList.ListItems"
-    embedClient $ localConversationIdsPageFrom uid ps max
+    embedClient client $ localConversationIdsPageFrom uid ps max
 
 interpretRemoteConversationListToCassandra ::
   ( Member (Embed IO) r,
@@ -87,8 +87,9 @@ interpretRemoteConversationListToCassandra ::
   Sem r a
 interpretRemoteConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> do
+    client <- input
     logEffect "RemoteConversationList.ListItems"
-    embedClient $ remoteConversationIdsPageFrom uid ps (fromRange max)
+    embedClient client $ remoteConversationIdsPageFrom uid ps (fromRange max)
 
 interpretLegacyConversationListToCassandra ::
   ( Member (Embed IO) r,
@@ -99,5 +100,6 @@ interpretLegacyConversationListToCassandra ::
   Sem r a
 interpretLegacyConversationListToCassandra = interpret $ \case
   ListItems uid ps max -> do
+    client <- input
     logEffect "LegacyConversationList.ListItems"
-    embedClient $ conversationIdsFrom uid ps max
+    embedClient client $ conversationIdsFrom uid ps max

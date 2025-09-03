@@ -26,7 +26,6 @@ import Data.Id
 import Data.Misc
 import Galley.Cassandra.Services
 import Galley.Cassandra.Util
-import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
 import Galley.Effects.ExternalAccess (ExternalAccess (..))
 import Galley.Effects.FireAndForget
@@ -48,6 +47,7 @@ import Wire.API.Bot.Service
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
 import Wire.BrigAPIAccess
+import Wire.StoredConversation (BotMember, botMemId, botMemService)
 
 interpretExternalAccess ::
   ( Member (Embed IO) r,
