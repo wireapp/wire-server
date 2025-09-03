@@ -106,47 +106,47 @@ awaitNotification user lastNotifId selector = do
   since0 <- mapM objId lastNotifId
   head <$> awaitNotifications user (Nothing :: Maybe ()) since0 1 selector
 
-isDeleteUserNotif :: (MakesValue a) => a -> App Bool
+isDeleteUserNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isDeleteUserNotif n =
   nPayload n %. "type" `isEqual` "user.delete"
 
-isFeatureConfigUpdateNotif :: (MakesValue a) => a -> App Bool
+isFeatureConfigUpdateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isFeatureConfigUpdateNotif n =
   nPayload n %. "type" `isEqual` "feature-config.update"
 
-isNewMessageNotif :: (MakesValue a) => a -> App Bool
+isNewMessageNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
 
-isNewMLSMessageNotif :: (MakesValue a) => a -> App Bool
+isNewMLSMessageNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
 
-isWelcomeNotif :: (MakesValue a) => a -> App Bool
+isWelcomeNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isWelcomeNotif n = fieldEquals n "payload.0.type" "conversation.mls-welcome"
 
-isMemberJoinNotif :: (MakesValue a) => a -> App Bool
+isMemberJoinNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 
-isConvLeaveNotif :: (MakesValue a) => a -> App Bool
+isConvLeaveNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
 
-isConvLeaveNotifWithLeaver :: (MakesValue user, MakesValue a) => user -> a -> App Bool
+isConvLeaveNotifWithLeaver :: (HasCallStack, MakesValue user, MakesValue a) => user -> a -> App Bool
 isConvLeaveNotifWithLeaver user n =
   fieldEquals n "payload.0.type" "conversation.member-leave"
     &&~ (n %. "payload.0.data.user_ids.0") `isEqual` (user %. "id")
 
-isNotifConv :: (MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
+isNotifConv :: (HasCallStack, MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
 isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
 
-isNotifConvId :: (MakesValue a, HasCallStack) => ConvId -> a -> App Bool
+isNotifConvId :: (HasCallStack, MakesValue a, HasCallStack) => ConvId -> a -> App Bool
 isNotifConvId conv n = do
   let subconvField = "payload.0.subconv"
   fieldEquals n "payload.0.qualified_conversation" (convIdToQidObject conv)
     &&~ maybe (isNothing <$> lookupField n subconvField) (fieldEquals n subconvField) conv.subconvId
 
-isNotifForUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
+isNotifForUser :: (HasCallStack, MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
 isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (objQidObject user)
 
-isNotifFromUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
+isNotifFromUser :: (HasCallStack, MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
 isNotifFromUser user n = fieldEquals n "payload.0.qualified_from" (objQidObject user)
 
 isConvNameChangeNotif :: (HasCallStack, MakesValue a) => a -> App Bool
@@ -171,55 +171,55 @@ isConvAccessUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvAccessUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.access-update"
 
-isConvCreateNotif :: (MakesValue a) => a -> App Bool
+isConvCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
 
 -- | like 'isConvCreateNotif' but excludes self conversations
-isConvCreateNotifNotSelf :: (MakesValue a) => a -> App Bool
+isConvCreateNotifNotSelf :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotifNotSelf n =
   fieldEquals n "payload.0.type" "conversation.create"
     &&~ do not <$> fieldEquals n "payload.0.data.access" ["private"]
 
-isConvDeleteNotif :: (MakesValue a) => a -> App Bool
+isConvDeleteNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 
-notifTypeIsEqual :: (MakesValue a) => String -> a -> App Bool
+notifTypeIsEqual :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ
 
-isTeamMemberJoinNotif :: (MakesValue a) => a -> App Bool
+isTeamMemberJoinNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isTeamMemberJoinNotif = notifTypeIsEqual "team.member-join"
 
-isTeamMemberLeaveNotif :: (MakesValue a) => a -> App Bool
+isTeamMemberLeaveNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
-isTeamCollaboratorAddedNotif :: (MakesValue a) => a -> App Bool
+isTeamCollaboratorAddedNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isTeamCollaboratorAddedNotif = notifTypeIsEqual "team.collaborator-add"
 
-isUserActivateNotif :: (MakesValue a) => a -> App Bool
+isUserActivateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserActivateNotif = notifTypeIsEqual "user.activate"
 
-isUserClientAddNotif :: (MakesValue a) => a -> App Bool
+isUserClientAddNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserClientAddNotif = notifTypeIsEqual "user.client-add"
 
-isUserUpdatedNotif :: (MakesValue a) => a -> App Bool
+isUserUpdatedNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserUpdatedNotif = notifTypeIsEqual "user.update"
 
-isUserClientRemoveNotif :: (MakesValue a) => a -> App Bool
+isUserClientRemoveNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserClientRemoveNotif = notifTypeIsEqual "user.client-remove"
 
-isUserLegalholdRequestNotif :: (MakesValue a) => a -> App Bool
+isUserLegalholdRequestNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserLegalholdRequestNotif = notifTypeIsEqual "user.legalhold-request"
 
-isUserLegalholdEnabledNotif :: (MakesValue a) => a -> App Bool
+isUserLegalholdEnabledNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserLegalholdEnabledNotif = notifTypeIsEqual "user.legalhold-enable"
 
-isUserLegalholdDisabledNotif :: (MakesValue a) => a -> App Bool
+isUserLegalholdDisabledNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserLegalholdDisabledNotif = notifTypeIsEqual "user.legalhold-disable"
 
-isUserConnectionNotif :: (MakesValue a) => a -> App Bool
+isUserConnectionNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserConnectionNotif = notifTypeIsEqual "user.connection"
 
-isConnectionNotif :: (MakesValue a) => String -> a -> App Bool
+isConnectionNotif :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 isConnectionNotif status n =
   -- NB:
   -- (&&) <$> (print "hello" *> pure False) <*> fail "bla" === _|_
@@ -227,10 +227,10 @@ isConnectionNotif status n =
   nPayload n %. "type" `isEqual` "user.connection"
     &&~ nPayload n %. "connection.status" `isEqual` status
 
-isUserGroupCreatedNotif :: (MakesValue a) => a -> App Bool
+isUserGroupCreatedNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserGroupCreatedNotif = notifTypeIsEqual "user-group.created"
 
-isUserGroupUpdatedNotif :: (MakesValue a) => a -> App Bool
+isUserGroupUpdatedNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isUserGroupUpdatedNotif = notifTypeIsEqual "user-group.updated"
 
 isConvResetNotif :: (HasCallStack, MakesValue n) => n -> App Bool
@@ -264,7 +264,7 @@ assertLeaveNotification fromUser conv user client leaver =
           ]
       )
 
-assertConvUserDeletedNotif :: (MakesValue leaverId) => WebSocket -> leaverId -> App ()
+assertConvUserDeletedNotif :: (HasCallStack, MakesValue leaverId) => WebSocket -> leaverId -> App ()
 assertConvUserDeletedNotif ws leaverId = do
   n <- awaitMatch isConvLeaveNotif ws
   nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId
