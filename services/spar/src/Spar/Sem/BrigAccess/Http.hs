@@ -64,3 +64,4 @@ brigAccessToHttp mgr req =
       GetStatusMaybe itlu -> Intra.getStatusMaybe itlu
       SetStatus itlu a -> Intra.setStatus itlu a
       GetDefaultUserLocale -> Intra.getDefaultUserLocale
+      CheckAdminGetTeamId itlu -> Intra.checkAdminGetTeamId itlu
