@@ -32,9 +32,9 @@ import Data.Default
 import Data.Id as Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
@@ -353,10 +353,10 @@ rmUser ::
 rmUser lusr conn = do
   let fetchTids acc page =
         if null (pageItems page)
-        then pure acc
-        else do
-          page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-          fetchTids (pageItems page <> acc) page'
+          then pure acc
+          else do
+            page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
+            fetchTids (pageItems page <> acc) page'
 
   tids <- fetchTids [] =<< listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams lusr conn tids
