@@ -480,6 +480,7 @@ data HiddenPerm
   | SearchContacts
   | NewTeamCollaborator
   | JoinRegularConversations
+  | CreateApp
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -564,7 +565,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
             DownloadTeamMembersCsv,
-            NewTeamCollaborator
+            NewTeamCollaborator,
+            CreateApp
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $

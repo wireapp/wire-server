@@ -15,6 +15,7 @@ import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.App
 import Wire.API.Event.Team
+import Wire.API.Team.Member qualified as T
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.AppStore (AppStore)
@@ -22,6 +23,7 @@ import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.ZAuth
+import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.StoredUser
@@ -36,6 +38,7 @@ runAppSubsystem ::
     Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
+    Member GalleyAPIAccess r,
     Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
@@ -53,6 +56,7 @@ createAppImpl ::
     Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
+    Member GalleyAPIAccess r,
     Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
@@ -65,10 +69,9 @@ createAppImpl ::
   Sem r CreatedApp
 createAppImpl lusr tid new = do
   creator <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
-  when (creator.teamId /= Just tid) $ do
-    throw AppSubsystemErrorInvalidTeam
 
-  -- TODO: check user is admin
+  mem <- getTeamMember creator.id tid >>= note AppSubsystemErrorNoPerm
+  note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
   u <- appNewStoredUser creator new
 

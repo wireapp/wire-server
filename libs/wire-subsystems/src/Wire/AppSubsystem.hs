@@ -16,12 +16,12 @@ data AppSubsystemConfig = AppSubsystemConfig
   { defaultLocale :: Locale
   }
 
-data AppSubsystemError = AppSubsystemErrorInvalidTeam | AppSubsystemErrorNoUser
+data AppSubsystemError = AppSubsystemErrorNoPerm | AppSubsystemErrorNoUser
 
 appSubsystemErrorToHttpError :: AppSubsystemError -> HttpError
 appSubsystemErrorToHttpError =
   StdError . \case
-    AppSubsystemErrorInvalidTeam -> Wai.mkError status403 "create-app-invalid-team" "User does not have permissions to create apps"
+    AppSubsystemErrorNoPerm -> Wai.mkError status403 "create-app-no-permission" "User does not have permission to create apps"
     AppSubsystemErrorNoUser -> Wai.mkError status403 "create-app-no-user" "App owner not found"
 
 data AppSubsystem m a where
