@@ -14,13 +14,13 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import UnliftIO.Async (pooledForConcurrentlyN)
-import Wire.ConversationStore.Cassandra (members)
-import Wire.StoredConversation qualified
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Team.Conversation (LeavingConversations, newLeavingConversations)
 import Wire.BrigAPIAccess qualified as E
+import Wire.ConversationStore.Cassandra (members)
 import Wire.ConversationStore.Cassandra.Queries (selectConv, selectUserConvs)
 import Wire.ConversationsSubsystem
+import Wire.StoredConversation qualified
 
 interpretConversationsSubsystemCassandra ::
   ( Member (Embed IO) r,
