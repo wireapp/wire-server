@@ -266,7 +266,7 @@ releases:
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'
     chart: 'bitnami/rabbitmq'
-    version: '16.0.9'
+    version: '16.0.14'
     values:
       - './helm_vars/bitnami.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
@@ -274,7 +274,7 @@ releases:
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace2 }}'
     chart: 'bitnami/rabbitmq'
-    version: '16.0.9'
+    version: '16.0.14'
     values:
       - './helm_vars/bitnami.yaml'
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
