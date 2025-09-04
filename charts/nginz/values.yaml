@@ -542,6 +542,9 @@ nginx_conf:
     - path: /user-groups/([^/]*)/users/([^/]*)
       envs:
         - all
+    - path: /user-groups/([^/]*)/channels$
+      envs:
+        - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true

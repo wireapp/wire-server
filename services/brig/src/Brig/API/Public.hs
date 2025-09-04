@@ -24,6 +24,7 @@ module Brig.API.Public
   ( servantSitemap,
     docsAPI,
     DocsAPI,
+    updateUserGroupChannels,
   )
 where
 
@@ -464,6 +465,7 @@ servantSitemap =
         :<|> Named @"add-users-to-group-bulk" addUsersToGroupbulk
         :<|> Named @"remove-user-from-group" removeUserFromGroup
         :<|> Named @"update-user-group-members" updateUserGroupMembers
+        :<|> Named @"update-user-group-channels" updateUserGroupChannels
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1701,6 +1703,9 @@ removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqua
 
 updateUserGroupMembers :: Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
 updateUserGroupMembers _ _ _ = pure ()
+
+updateUserGroupChannels :: Local UserId -> UserGroupId -> UpdateUserGroupChannels -> Handler r ()
+updateUserGroupChannels _ _ _ = pure ()
 
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new

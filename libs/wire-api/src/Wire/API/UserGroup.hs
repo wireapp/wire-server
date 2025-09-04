@@ -190,3 +190,16 @@ instance ToSchema UpdateUserGroupMembers where
     object "UpdateUserGroupMembers" $
       UpdateUserGroupMembers
         <$> (.members) .= field "members" (vector schema)
+
+newtype UpdateUserGroupChannels = UpdateUserGroupChannels
+  { channels :: Vector ConvId
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UpdateUserGroupChannels
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UpdateUserGroupChannels
+
+instance ToSchema UpdateUserGroupChannels where
+  schema =
+    object "UpdateUserGroupChannels" $
+      UpdateUserGroupChannels
+        <$> (.channels) .= field "channels" (vector schema)

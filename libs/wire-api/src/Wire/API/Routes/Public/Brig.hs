@@ -414,6 +414,17 @@ type UserGroupAPI =
                :> ReqBody '[JSON] UpdateUserGroupMembers
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group members updated")
            )
+    :<|> Named
+           "update-user-group-channels"
+           ( Summary "[STUB] Update user group channels. Replaces the channels with the given list."
+               :> From 'V12
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "channels"
+               :> ReqBody '[JSON] UpdateUserGroupChannels
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group channels updated")
+           )
 
 type SelfAPI =
   Named
