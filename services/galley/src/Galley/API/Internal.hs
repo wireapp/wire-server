@@ -416,7 +416,7 @@ leaveTeams lusr conn tids = do
     goConvPages :: Set.Set ConvId -> Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages otherConvs range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
-      leaveLocalConversations $ filter (`Set.member` otherConvs) localConvs
+      leaveLocalConversations $ filter (`Set.notMember` otherConvs) localConvs
       traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
