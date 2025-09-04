@@ -41,7 +41,7 @@ import Data.Aeson qualified as A
 import Data.Id (ConvId)
 import Data.OpenApi qualified as S
 import Data.Schema
-import GHC.Generics (Generically(..))
+import GHC.Generics (Generically (..))
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
