@@ -6,7 +6,6 @@ where
 import Cassandra
 import Cassandra.Exec
 import Conduit
-import Data.Bifoldable
 import Data.Id
 import Galley.Cassandra.Store (embedClient)
 import Galley.Cassandra.Util (logEffect)
@@ -14,15 +13,14 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
-import UnliftIO.Async (pooledForConcurrentlyN, pooledMapConcurrentlyN_)
+import UnliftIO.Async (pooledForConcurrentlyN)
+import Wire.ConversationStore.Cassandra (members)
+import Wire.StoredConversation qualified
 import Wire.API.Conversation (ConvType (..))
-import Wire.API.Team.Conversation (LeftConversations, newLeftConversations)
+import Wire.API.Team.Conversation (LeavingConversations, newLeavingConversations)
 import Wire.BrigAPIAccess qualified as E
-import Wire.ConversationStore.Cassandra (deleteConversation, members, removeMembersFromLocalConv)
 import Wire.ConversationStore.Cassandra.Queries (selectConv, selectUserConvs)
 import Wire.ConversationsSubsystem
-import Wire.StoredConversation qualified
-import Wire.UserList (UserList (UserList))
 
 interpretConversationsSubsystemCassandra ::
   ( Member (Embed IO) r,
@@ -34,18 +32,17 @@ interpretConversationsSubsystemCassandra ::
 interpretConversationsSubsystemCassandra =
   interpret $
     \case
-      InternalLeaveConversationsFrom tid uid -> do
-        logEffect "ConversationsSubsystem.internalLeaveConversationsFrom"
+      InternalLeavingConversationsFrom tid uid -> do
+        logEffect "ConversationsSubsystem.internalLeavingConversationsFrom"
         contacts <- E.getContactList uid
-        embedClient $ leaveConversationsFromImpl tid uid contacts
+        embedClient $ leavingConversationsFromImpl tid uid contacts
 
-leaveConversationsFromImpl :: TeamId -> UserId -> [UserId] -> Client LeftConversations
-leaveConversationsFromImpl tid uid contacts =
-  fmap (uncurry newLeftConversations) $
+leavingConversationsFromImpl :: TeamId -> UserId -> [UserId] -> Client LeavingConversations
+leavingConversationsFromImpl tid uid contacts =
+  fmap (uncurry newLeavingConversations) $
     runConduit $
       paginateWithStateC listConversationsIds
         .| mapMC performFilter
-        .| iterMC (bimapM_ (pooledMapConcurrentlyN_ 16 performConversationRemoveUser) (mapM_ deleteConversation))
         .| foldC
   where
     listConversationsIds pagingState =
@@ -71,6 +68,3 @@ leaveConversationsFromImpl tid uid contacts =
         flip map results $
           \(convType, _mUserId, _mAccesses, _mRole, _mRoles, _mName, mTeam, _mDeleted, _mTimer, _mMode, _mProtocol, _mGroupId, _mEpoch, _mWriteEpoch, _mCiher, _mGroupConvType, _mChannelPerms, _mCellState, _mParentConvId) ->
             (convId, mTeam, convType)
-    performConversationRemoveUser :: ConvId -> Client ()
-    performConversationRemoveUser convId =
-      removeMembersFromLocalConv convId (UserList [uid] [])

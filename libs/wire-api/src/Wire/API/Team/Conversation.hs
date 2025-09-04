@@ -30,9 +30,9 @@ module Wire.API.Team.Conversation
     newTeamConversationList,
     teamConversations,
 
-    -- * LeftConversations
-    LeftConversations (..),
-    newLeftConversations,
+    -- * LeavingConversations
+    LeavingConversations (..),
+    newLeavingConversations,
   )
 where
 
@@ -41,6 +41,7 @@ import Data.Aeson qualified as A
 import Data.Id (ConvId)
 import Data.OpenApi qualified as S
 import Data.Schema
+import GHC.Generics (Generically(..))
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -101,24 +102,25 @@ newTeamConversationList = TeamConversationList
 makeLenses ''TeamConversation
 
 --------------------------------------------------------------------------------
--- LeftConversations
+-- LeavingConversations
 
-data LeftConversations = LeftConversations {left :: [ConvId], closed :: [ConvId]}
+data LeavingConversations = LeavingConversations {leave :: [ConvId], close :: [ConvId]}
   deriving (Generic)
   deriving stock (Eq, Show)
-  deriving (Arbitrary) via (GenericUniform LeftConversations)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema LeftConversations)
+  deriving (Arbitrary) via (GenericUniform LeavingConversations)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema LeavingConversations)
+  deriving (Semigroup, Monoid) via (Generically LeavingConversations)
 
-instance ToSchema LeftConversations where
+instance ToSchema LeavingConversations where
   schema =
     objectWithDocModifier
-      "LeftConversations"
-      (description ?~ "Conversations left or closed")
-      $ LeftConversations
-        <$> left .= field "left" (array schema)
-        <*> closed .= field "closed" (array schema)
+      "LeavingConversations"
+      (description ?~ "Conversations to leave or close")
+      $ LeavingConversations
+        <$> leave .= field "leave" (array schema)
+        <*> close .= field "close" (array schema)
 
-newLeftConversations :: [ConvId] -> [ConvId] -> LeftConversations
-newLeftConversations = LeftConversations
+newLeavingConversations :: [ConvId] -> [ConvId] -> LeavingConversations
+newLeavingConversations = LeavingConversations
 
-makeLenses ''LeftConversations
+makeLenses ''LeavingConversations

@@ -7,7 +7,7 @@ import Data.Proxy
 import Data.Range
 import Imports
 import Polysemy
-import Wire.API.Team.Conversation (LeftConversations (..))
+import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
@@ -49,7 +49,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
-  LeaveConversationsFrom _tid _uid -> pure $ LeftConversations {left = [], closed = []}
+  LeavingConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
 
 getFeatureConfigForTeamImpl :: forall feature. (IsFeatureConfig feature) => AllTeamFeatures -> TeamId -> LockableFeature feature
 getFeatureConfigForTeamImpl allfeatures _ = npProject' (Proxy @(feature)) allfeatures

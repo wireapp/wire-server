@@ -11,9 +11,9 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Conversation (LeftConversations)
+import Wire.API.Team.Conversation (LeavingConversations)
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeaveConversationsFrom)
+import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeavingConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -100,10 +100,10 @@ internalRemoveTeamCollaboratorImpl ::
   ) =>
   UserId ->
   TeamId ->
-  Sem r LeftConversations
+  Sem r LeavingConversations
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
-  internalLeaveConversationsFrom team user
+  internalLeavingConversationsFrom team user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.
