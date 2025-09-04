@@ -452,12 +452,13 @@ ssoSettings =
 type Auth = AuthHandler Request (UserId, TeamId)
 
 authHandler :: Env -> Auth
-authHandler ctx = mkAuthHandler $ \req -> nt ctx $ do
-  let maybeZuser = lookup "Z-User" (requestHeaders req)
-  zuser <- maybe (throw UserSubsystemMissingIdentity) pure maybeZuser
-  uid :: UserId <- maybe (throw UserSubsystemInsufficientPermissions) pure $ fromByteString zuser
-  tid <- checkUserIsAdmin uid
+authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
+  bs <- maybe (throwSparSem $ SparNoPermission "No Z-User header") pure $ lookup "Z-User" (requestHeaders req)
+  uid <-  maybe (throwSparSem $ SparNoPermission "Can't parse Z-User header") pure $ fromByteString bs
+  tid <- BrigAccess.checkAdminGetTeamId uid
   return (uid, tid)
+  where
+    throwError' se = Spar.Error.sparToServerErrorWithLogging (sparCtxLogger ctx) se >>= throwError
 
 authContext :: Env -> Servant.Context (Auth ': '[])
 authContext e = authHandler e :. EmptyContext
