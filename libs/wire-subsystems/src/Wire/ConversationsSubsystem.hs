@@ -4,9 +4,9 @@ module Wire.ConversationsSubsystem where
 
 import Data.Id
 import Polysemy
-import Wire.API.Team.Conversation (LeftConversations)
+import Wire.API.Team.Conversation (LeavingConversations)
 
 data ConversationsSubsystem m a where
-  InternalLeaveConversationsFrom :: TeamId -> UserId -> ConversationsSubsystem m LeftConversations
+  InternalLeavingConversationsFrom :: TeamId -> UserId -> ConversationsSubsystem m LeavingConversations
 
 makeSem ''ConversationsSubsystem

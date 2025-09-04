@@ -50,7 +50,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Team
-import Wire.API.Team.Conversation (LeftConversations)
+import Wire.API.Team.Conversation (LeavingConversations)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info
@@ -327,7 +327,7 @@ type ITeamsAPIBase =
            "leave-conversations-from"
            ( "leave-conversations-from"
                :> Capture "uid" UserId
-               :> Post '[JSON] LeftConversations
+               :> Post '[JSON] LeavingConversations
            )
 
 type IFeatureStatusGet cfg =

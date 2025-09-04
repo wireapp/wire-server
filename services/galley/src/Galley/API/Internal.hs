@@ -32,6 +32,7 @@ import Data.Default
 import Data.Id as Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Qualified
 import Data.Range
 import Data.Singletons
@@ -90,7 +91,7 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
-import Wire.API.Team.Conversation (LeftConversations (..))
+import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
@@ -218,7 +219,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
-              <@> mkNamedAPI @"unchecked-remove-team-member" (\luid -> leaveTeams luid Nothing (for_ [tid]))
+              <@> mkNamedAPI @"unchecked-remove-team-member" (\luid -> leaveTeams luid Nothing [tid])
               <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembers tid)
               <@> mkNamedAPI @"unchecked-select-team-member-infos" (\userIds -> TeamSubsystem.internalSelectTeamMemberInfos tid (cUsers userIds))
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
@@ -231,7 +232,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
-        <@> mkNamedAPI @"leave-conversations-from" (ConversationsSubsystem.internalLeaveConversationsFrom tid)
+        <@> mkNamedAPI @"leave-conversations-from" (ConversationsSubsystem.internalLeavingConversationsFrom tid)
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
@@ -350,14 +351,15 @@ rmUser ::
   Maybe ConnId ->
   Sem r ()
 rmUser lusr conn = do
-  tids <- listTeams (tUnqualified lusr) Nothing maxBound
-  let forTids page f =
-        for_ (pageItems page) $ \tid -> do
-          f tid
+  let fetchTids acc page =
+        if null (pageItems page)
+        then pure acc
+        else do
           page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-          forTids page' f
+          fetchTids (pageItems page <> acc) page'
 
-  leaveTeams lusr conn $ forTids tids
+  tids <- fetchTids [] =<< listTeams (tUnqualified lusr) Nothing maxBound
+  leaveTeams lusr conn tids
   deleteClients (tUnqualified lusr)
 
 leaveTeams ::
@@ -384,11 +386,12 @@ leaveTeams ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
-  ((TeamId -> Sem r ()) -> Sem r ()) ->
+  [TeamId] ->
   Sem r ()
-leaveTeams lusr conn forTids = do
+leaveTeams lusr conn tids = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  forTids $ \tid -> do
+  leavingConversations <- fold <$> mapM (internalRemoveTeamCollaborator (tUnqualified lusr)) tids
+  forM_ tids $ \tid -> do
     toNotify <-
       handleImpossibleErrors $
         getFeatureForTeam @LimitedEventFanoutConfig tid
@@ -397,27 +400,29 @@ leaveTeams lusr conn forTids = do
                   FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
               )
             . (.status)
-    leftConversations <- internalRemoveTeamCollaborator (tUnqualified lusr) tid
     uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
 
-    let qUser = tUntagged lusr
-    now <- Now.get
-    convs <- getConversations leftConversations.left
-    pushNotifications =<< mapM (notifyRemoteMembersAndPrepareLocalMembersLeft now qUser) convs
+    -- let qUser = tUntagged lusr
+    -- now <- Now.get
+    -- convs <- getConversations leftConversations.leave
+    -- pushNotifications =<< mapM (notifyRemoteMembersAndPrepareLocalMembersLeft now qUser) convs
 
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
-  goConvPages nRange1000 allConvIds
+  goConvPages (Set.fromList $ leavingConversations.leave <> leavingConversations.close) nRange1000 allConvIds
+
+  leaveLocalConversations leavingConversations.leave
+  mapM_ E.deleteConversation leavingConversations.close
   where
-    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
-    goConvPages range page = do
+    goConvPages :: Set.Set ConvId -> Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
+    goConvPages otherConvs range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
-      leaveLocalConversations localConvs
+      leaveLocalConversations $ filter (`Set.member` otherConvs) localConvs
       traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom lusr nextQuery
-        goConvPages range newCids
+        goConvPages otherConvs range newCids
 
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams

@@ -45,7 +45,7 @@ import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
-import Wire.API.Team.Conversation (LeftConversations)
+import Wire.API.Team.Conversation (LeavingConversations)
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
@@ -98,7 +98,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
-          LeaveConversationsFrom tid uid -> leaveConversationsFrom tid uid
+          LeavingConversationsFrom tid uid -> leavingConversationsFrom tid uid
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -708,7 +708,7 @@ getEJPDConvInfo uid = do
         . paths ["i", "user", toByteString' uid, "all-conversations"]
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
-leaveConversationsFrom ::
+leavingConversationsFrom ::
   ( Member (Error ParseException) r,
     Member Rpc r,
     Member (Input Endpoint) r,
@@ -716,8 +716,8 @@ leaveConversationsFrom ::
   ) =>
   TeamId ->
   UserId ->
-  Sem r LeftConversations
-leaveConversationsFrom tid uid = do
+  Sem r LeavingConversations
+leavingConversationsFrom tid uid = do
   debug $ remote "galley" . msg (val "Leave all conversations of a user in a team")
   decodeBodyOrThrow "galley" =<< galleyRequest req
   where

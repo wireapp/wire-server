@@ -13,4 +13,4 @@ interpretConversationsSubsystemToGalleyAPI :: (Member GalleyAPIAccess r) => Inte
 interpretConversationsSubsystemToGalleyAPI =
   interpret $
     \case
-      InternalLeaveConversationsFrom tid uid -> GalleyAPIAccess.leaveConversationsFrom tid uid
+      InternalLeavingConversationsFrom tid uid -> GalleyAPIAccess.leavingConversationsFrom tid uid
