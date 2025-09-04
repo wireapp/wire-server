@@ -309,6 +309,7 @@ library
     , warp
     , warp-tls
     , websockets
+    , wire-api
     , wire-message-proto-lens
     , wreq
     , xml

@@ -8,6 +8,7 @@ import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
+import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
@@ -19,6 +20,7 @@ import qualified Data.Text as ST
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
+import qualified SAML2.WebSSO.Test.Util as SAML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
@@ -429,6 +431,17 @@ testSparCreateTwoScimTokensForOneIdp = do
   createScimTokenV6 owner def >>= assertStatus 400
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   length tokens `shouldMatchInt` 0
+
+testCheckAdminGetTeamId :: (HasCallStack) => App ()
+testCheckAdminGetTeamId = do
+  (owner :: Value, tid :: String, [admin, regular] :: [Value]) <- createTeam OwnDomain 3
+  updateTeamMember tid owner admin Admin >>= assertSuccess
+  void $ setTeamFeatureStatus owner tid "sso" "enabled" -- required for the next request
+  SAML.SampleIdP idpMeta _ _ _ <- SAML.makeSampleIdPMetadata
+  checkAdminGetTeamId admin idpMeta >>= assertSuccess            -- Successful API response for admin,
+  checkAdminGetTeamId regular idpMeta `bindResponse` \resp -> do -- insuficient permissions for non-admin, both as expected.
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "insufficient-permissions"
 
 testSsoLoginAndEmailVerification :: (HasCallStack) => App ()
 testSsoLoginAndEmailVerification = do
