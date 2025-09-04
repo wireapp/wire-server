@@ -141,3 +141,12 @@ finalizeSamlLoginWithZHost domain mbZHost tid (SAML.SignedAuthnResponse authnres
   baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
     >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
     >>= \req -> submit "POST" (req & maybe id zHost mbZHost)
+
+checkAdminGetTeamId :: (HasCallStack, MakesValue caller) => caller -> SAML.IdPMetadata -> App Response
+checkAdminGetTeamId caller idpMeta = do
+  req <- baseRequest caller Spar (ExplicitVersion 7) "/identity-providers"
+  submit "POST" $ req
+    & addQueryParams [("api_version", "v1")]
+    -- Either of these works:
+    -- & addJSON (IdPMetadataValue undefined idpMeta)
+    & addXML (fromLT $ SAML.encode idpMeta)
