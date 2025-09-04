@@ -314,11 +314,13 @@ type UserGroupAPI =
     )
     :<|> Named
            "get-user-group"
-           ( From 'V10
+           ( Summary "[STUB] (channels in response not implemented)"
+               :> From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> "user-groups"
                :> Capture "gid" UserGroupId
+               :> QueryFlag "include_channels"
                :> MultiVerb
                     'GET
                     '[JSON]

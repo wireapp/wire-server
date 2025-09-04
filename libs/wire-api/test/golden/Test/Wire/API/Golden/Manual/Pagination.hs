@@ -23,6 +23,7 @@ ug1 =
     { id_ = Id UUID.nil,
       name = either (error . show) id (userGroupNameFromText "*"),
       members = mempty,
+      channels = mempty,
       membersCount = Nothing,
       channelsCount = Just 1,
       managedBy = ManagedByWire,
@@ -42,6 +43,7 @@ ug2 =
                     "3ec5afe4-552f-11f0-afbb-9b038a8edbd2"
                   ]
           ),
+      channels = mempty,
       membersCount = Nothing,
       channelsCount = Just 1,
       managedBy = ManagedByWire,
@@ -55,6 +57,7 @@ ug3 =
       name = either (error . show) id (userGroupNameFromText "!! user group !!"),
       members =
         Identity $ Vec.fromList (Id . fromJust . UUID.fromString <$> ["37b636e2-552f-11f0-abe8-5bf7b2ad08c9"]),
+      channels = mempty,
       membersCount = Nothing,
       channelsCount = Nothing,
       managedBy = ManagedByScim,

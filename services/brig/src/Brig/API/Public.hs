@@ -1668,8 +1668,8 @@ verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
 createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
 createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
 
-getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
-getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Bool -> Handler r (Maybe UserGroup)
+getUserGroup lusr ugid _ = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
 
 getUserGroups ::
   (_) =>

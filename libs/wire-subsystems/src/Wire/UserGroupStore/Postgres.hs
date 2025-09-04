@@ -70,7 +70,8 @@ getUserGroupImpl team id_ = do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ Identity <$> statement id_ getGroupMembersStatement
       let membersCount = Nothing
-      let channelsCount = Nothing
+          channelsCount = Nothing
+          channels = mempty
       pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
@@ -191,7 +192,8 @@ getUserGroupsImpl req = do
       name <- userGroupNameFromText namePre
       let members = Const ()
           membersCount = fromIntegral <$> membersCountRaw
-      let channelsCount = Nothing
+          channelsCount = Nothing
+          channels = mempty
       pure $ UserGroup_ {..}
 
 -- | Compile a pagination state into select query to return the next page.  Result is the
@@ -254,6 +256,7 @@ createUserGroupImpl team newUserGroup managedBy = do
         UserGroup_
           { membersCount = Nothing,
             members = Identity newUserGroup.members,
+            channels = mempty,
             managedBy = managedBy_,
             channelsCount = Nothing,
             id_,

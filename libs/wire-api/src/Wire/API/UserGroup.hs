@@ -27,6 +27,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.OpenApi qualified as OpenApi
+import Data.Qualified (Qualified)
 import Data.Range
 import Data.Schema
 import Data.Text qualified as Text
@@ -109,6 +110,7 @@ userGroupToMeta ug =
     { id_ = ug.id_,
       name = ug.name,
       members = Const (),
+      channels = Const (),
       membersCount = ug.membersCount,
       channelsCount = ug.channelsCount,
       managedBy = ug.managedBy,
@@ -119,6 +121,7 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
   { id_ :: UserGroupId,
     name :: UserGroupName,
     members :: f (Vector UserId),
+    channels :: f (Maybe (Vector (Qualified ConvId))),
     membersCount :: Maybe Int,
     channelsCount :: Maybe Int,
     managedBy :: ManagedBy,
@@ -147,6 +150,7 @@ instance ToSchema (UserGroup_ (Const ())) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (.members) .= pure mempty
+        <*> (.channels) .= pure mempty
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
@@ -173,6 +177,7 @@ instance ToSchema (UserGroup_ Identity) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
+        <*> (runIdentity . (.channels)) .= (Identity <$> maybe_ (optField "channels" (vector schema)))
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema

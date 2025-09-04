@@ -70,6 +70,7 @@ createUserGroupImpl tid nug managedBy = do
           { id_ = gid,
             name = nug.name,
             members = Identity nug.members,
+            channels = mempty,
             membersCount = Nothing,
             channelsCount = Nothing,
             managedBy = managedBy,
