@@ -43,8 +43,8 @@ instance ToSchema UserGroupPage where
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
         description
-          ?~ "This is the last page iff it contains fewer rows than requested. There \
-             \may return 0 rows on a page."
+          ?~ "This is the last page if it contains fewer rows than requested. There \
+             \may be 0 rows on a page."
 
 instance Arbitrary UserGroupPage where
   arbitrary = UserGroupPage <$> arbitrary
