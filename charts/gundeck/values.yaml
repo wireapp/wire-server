@@ -14,6 +14,9 @@ resources:
     cpu: "100m"
   limits:
     memory: "1Gi"
+
+# Should be greater than Warp's graceful shutdown (default 30s).
+terminationGracePeriodSeconds: 40
 config:
   logLevel: Info
   logFormat: StructuredJSON
