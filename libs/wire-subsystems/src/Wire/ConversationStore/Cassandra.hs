@@ -17,6 +17,9 @@
 
 module Wire.ConversationStore.Cassandra
   ( interpretConversationStoreToCassandra,
+    deleteConversation,
+    members,
+    removeMembersFromLocalConv,
   )
 where
 

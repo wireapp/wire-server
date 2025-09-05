@@ -1178,3 +1178,9 @@ createApp creator tid new = do
           "accent_id" .= new.accentId,
           "metadata" .= new.meta
         ]
+
+removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
+removeTeamCollaborator owner tid collaborator = do
+  (_, collabId) <- objQid collaborator
+  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  submit "DELETE" req

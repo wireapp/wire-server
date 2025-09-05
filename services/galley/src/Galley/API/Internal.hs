@@ -34,6 +34,7 @@ import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
@@ -90,10 +91,12 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
+import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.User.Client
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
+import Wire.ConversationsSubsystem qualified as ConversationsSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -215,6 +218,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
+              <@> mkNamedAPI @"unchecked-remove-team-member" (\luid -> leaveTeams luid Nothing [tid])
               <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembers tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
@@ -226,6 +230,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
+        <@> mkNamedAPI @"leave-conversations-from" (ConversationsSubsystem.internalLeavingConversationsFrom tid)
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
@@ -341,37 +346,73 @@ rmUser ::
   Maybe ConnId ->
   Sem r ()
 rmUser lusr conn = do
-  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  tids <- listTeams (tUnqualified lusr) Nothing maxBound
-  leaveTeams tids
-  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
-  goConvPages nRange1000 allConvIds
+  let fetchTids acc page =
+        if null (pageItems page)
+          then pure acc
+          else do
+            page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
+            fetchTids (pageItems page <> acc) page'
 
+  tids <- fetchTids [] =<< listTeams (tUnqualified lusr) Nothing maxBound
+  leaveTeams lusr conn tids
   deleteClients (tUnqualified lusr)
+
+leaveTeams ::
+  forall p1 r.
+  ( p1 ~ CassandraPaging,
+    Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error DynError) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member (ListItems p1 ConvId) r,
+    Member (ListItems p1 (Remote ConvId)) r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member Random r,
+    Member TeamFeatureStore r,
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  [TeamId] ->
+  Sem r ()
+leaveTeams lusr conn tids = do
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  leavingConversations <- fold <$> mapM (internalRemoveTeamCollaborator (tUnqualified lusr)) tids
+  forM_ tids $ \tid -> do
+    toNotify <-
+      handleImpossibleErrors $
+        getFeatureForTeam @LimitedEventFanoutConfig tid
+          >>= ( \case
+                  FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                  FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+              )
+            . (.status)
+    uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+
+  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
+  goConvPages (Set.fromList $ leavingConversations.leave <> leavingConversations.close) nRange1000 allConvIds
+
+  leaveLocalConversations leavingConversations.leave
+  mapM_ E.deleteConversation leavingConversations.close
   where
-    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
-    goConvPages range page = do
+    goConvPages :: Set.Set ConvId -> Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
+    goConvPages otherConvs range page = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
-      leaveLocalConversations localConvs
+      leaveLocalConversations $ filter (`Set.notMember` otherConvs) localConvs
       traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
             nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom lusr nextQuery
-        goConvPages range newCids
-
-    leaveTeams page = for_ (pageItems page) $ \tid -> do
-      toNotify <-
-        handleImpossibleErrors $
-          getFeatureForTeam @LimitedEventFanoutConfig tid
-            >>= ( \case
-                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
-                )
-              . (.status)
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
-      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-      leaveTeams page'
+        goConvPages otherConvs range newCids
 
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
@@ -404,28 +445,32 @@ rmUser lusr conn = do
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
-              let e =
-                    Event
-                      { evtConv = tUntagged (qualifyAs lusr c.id_),
-                        evtSubConv = Nothing,
-                        evtFrom = tUntagged lusr,
-                        evtTime = now,
-                        evtTeam = Nothing,
-                        evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
-                      }
-              for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
-              pure . Just $
-                def
-                  { origin = Just (tUnqualified lusr),
-                    json = toJSONObject e,
-                    recipients = map localMemberToRecipient c.localMembers,
-                    isCellsEvent = shouldPushToCells c.metadata e,
-                    conn,
-                    route = PushV2.RouteDirect
-                  }
+              Just <$> notifyRemoteMembersAndPrepareLocalMembersLeft now qUser c
           | otherwise -> pure Nothing
 
       pushNotifications (catMaybes pp)
+
+    notifyRemoteMembersAndPrepareLocalMembersLeft :: UTCTime -> Qualified UserId -> StoredConversation -> Sem r Push
+    notifyRemoteMembersAndPrepareLocalMembersLeft now qUser c = do
+      let e =
+            Event
+              { evtConv = tUntagged (qualifyAs lusr c.id_),
+                evtSubConv = Nothing,
+                evtFrom = tUntagged lusr,
+                evtTime = now,
+                evtTeam = Nothing,
+                evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
+              }
+      for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
+      pure $
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = map localMemberToRecipient c.localMembers,
+            isCellsEvent = shouldPushToCells c.metadata e,
+            conn,
+            route = PushV2.RouteDirect
+          }
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

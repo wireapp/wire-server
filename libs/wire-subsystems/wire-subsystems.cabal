@@ -186,6 +186,8 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.ConversationsSubsystem
+    Wire.ConversationsSubsystem.GalleyAPI
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
