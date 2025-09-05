@@ -44,7 +44,7 @@ instance ToSchema ConversationPage where
       docs =
         description
           ?~ "This is the last page if it contains fewer rows than requested. There \
-             \may return 0 rows on a page."
+             \may be 0 rows on a page."
 
 instance Arbitrary ConversationPage where
   arbitrary = ConversationPage <$> arbitrary

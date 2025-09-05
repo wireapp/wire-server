@@ -44,7 +44,7 @@ instance ToSchema UserGroupPage where
       docs =
         description
           ?~ "This is the last page if it contains fewer rows than requested. There \
-             \may beF 0 rows on a page."
+             \may be 0 rows on a page."
 
 instance Arbitrary UserGroupPage where
   arbitrary = UserGroupPage <$> arbitrary
