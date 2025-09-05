@@ -11,9 +11,9 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Conversation (LeavingConversations)
+import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeavingConversationsFrom)
+import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeaveConversationsFrom, internalPlanLeavingConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -37,6 +37,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+  UpdateTeamCollaborator zUser user team perms -> updateTeamCollaboratorImpl zUser user team perms
   InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
@@ -71,7 +72,7 @@ createTeamCollaboratorImpl zUser user team perms = do
   Store.createTeamCollaborator user team perms
 
   -- TODO: Review the event's values
-  generateTeamEvent (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms))
+  generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -94,6 +95,33 @@ internalGetTeamCollaboratorsWithIdsImpl ::
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
+updateTeamCollaboratorImpl ::
+  ( Member TeamSubsystem r,
+    Member (Error TeamCollaboratorsError) r,
+    Member Store.TeamCollaboratorsStore r,
+    Member Now r,
+    Member NotificationSubsystem r,
+    Member ConversationsSubsystem r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+updateTeamCollaboratorImpl zUser user team perms = do
+  guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
+  Store.updateTeamCollaborator user team perms
+
+  extraNotifications <-
+    if Set.null $ Set.intersection (Set.fromList [CreateTeamConversation, ImplicitConnection]) perms
+      then do
+        leavingConversations <- internalLeaveConversationsFrom team user
+        pure $ EdConvDelete <$> leavingConversations.close
+      else pure []
+
+  -- TODO: Review the event's values
+  generateTeamEvents (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms) : extraNotifications)
+
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r,
     Member ConversationsSubsystem r
@@ -103,7 +131,7 @@ internalRemoveTeamCollaboratorImpl ::
   Sem r LeavingConversations
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
-  internalLeavingConversationsFrom team user
+  internalPlanLeavingConversationsFrom team user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

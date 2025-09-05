@@ -481,6 +481,7 @@ data HiddenPerm
   | NewTeamCollaborator
   | JoinRegularConversations
   | CreateApp
+  | UpdateTeamCollaborator
   | RemoveTeamCollaborator
   deriving (Eq, Ord, Show)
 
@@ -568,6 +569,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             DownloadTeamMembersCsv,
             NewTeamCollaborator,
             CreateApp,
+            UpdateTeamCollaborator,
             RemoveTeamCollaborator
           ]
     roleHiddenPerms RoleMember =

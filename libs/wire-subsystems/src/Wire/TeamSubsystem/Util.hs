@@ -13,24 +13,24 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.TeamSubsystem
 
--- | Generate a team event and send it to all team admins
-generateTeamEvent ::
+-- | Generate team events and send them to all team admins
+generateTeamEvents ::
   ( Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r
   ) =>
   UserId ->
   TeamId ->
-  EventData ->
+  [EventData] ->
   Sem r ()
-generateTeamEvent uid tid edata = do
+generateTeamEvents uid tid eventsData = do
   now <- get
-  let event = newEvent tid now edata
   admins <- internalGetTeamAdmins tid
-  pushNotifications
-    [ def
+  pushNotifications $
+    eventsData <&> \eData ->
+      def
         { origin = Just uid,
-          json = toJSONObject $ event,
+          json = toJSONObject $ newEvent tid now eData,
           recipients =
             [ Recipient
                 { recipientUserId = u,
@@ -40,4 +40,3 @@ generateTeamEvent uid tid edata = do
             ],
           transient = False
         }
-    ]

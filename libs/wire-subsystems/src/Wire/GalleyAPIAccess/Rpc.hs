@@ -95,7 +95,8 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
-          LeavingConversationsFrom tid uid -> leavingConversationsFrom tid uid
+          PlanLeavingConversationsFrom tid uid -> planLeavingConversationsFrom tid uid
+          LeaveConversationsFrom tid uid -> leaveConversationsFrom tid uid
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -684,7 +685,7 @@ getEJPDConvInfo uid = do
         . paths ["i", "user", toByteString' uid, "all-conversations"]
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
-leavingConversationsFrom ::
+planLeavingConversationsFrom ::
   ( Member (Error ParseException) r,
     Member Rpc r,
     Member (Input Endpoint) r,
@@ -693,12 +694,33 @@ leavingConversationsFrom ::
   TeamId ->
   UserId ->
   Sem r LeavingConversations
-leavingConversationsFrom tid uid = do
+planLeavingConversationsFrom tid uid = do
+  debug $ remote "galley" . msg (val "Plan to leave all conversations of a user in a team")
+  decodeBodyOrThrow "galley" =<< galleyRequest req
+  where
+    req =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "leave-conversations-from", toByteString' uid]
+        . header "Content-Type" "application/json"
+        . expect2xx
+
+-- | Calls 'Galley.API.updateTeamStatusH'.
+leaveConversationsFrom ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r LeavingConversations
+leaveConversationsFrom tid uid = do
   debug $ remote "galley" . msg (val "Leave all conversations of a user in a team")
   decodeBodyOrThrow "galley" =<< galleyRequest req
   where
     req =
       method POST
         . paths ["i", "teams", toByteString' tid, "leave-conversations-from", toByteString' uid]
+        . queryItem' "perform" Nothing
         . header "Content-Type" "application/json"
         . expect2xx

@@ -317,6 +317,7 @@ type ITeamsAPIBase =
            "leave-conversations-from"
            ( "leave-conversations-from"
                :> Capture "uid" UserId
+               :> QueryFlag "perform"
                :> Post '[JSON] LeavingConversations
            )
 
