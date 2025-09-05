@@ -208,3 +208,29 @@ instance ToSchema UpdateUserGroupChannels where
     object "UpdateUserGroupChannels" $
       UpdateUserGroupChannels
         <$> (.channels) .= field "channels" (vector schema)
+
+newtype CheckUserGroupName = CheckUserGroupName
+  { name :: UserGroupName
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform CheckUserGroupName
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema CheckUserGroupName
+
+instance ToSchema CheckUserGroupName where
+  schema =
+    object "CheckUserGroupName" $
+      CheckUserGroupName
+        <$> (.name) .= field "name" schema
+
+newtype UserGroupNameAvailability = UserGroupNameAvailability
+  { available :: Bool
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupNameAvailability
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupNameAvailability
+
+instance ToSchema UserGroupNameAvailability where
+  schema =
+    object "UserGroupNameAvailability" $
+      UserGroupNameAvailability
+        <$> (.available) .= field "name_available" schema

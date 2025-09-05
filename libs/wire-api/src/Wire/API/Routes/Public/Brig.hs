@@ -427,6 +427,16 @@ type UserGroupAPI =
                :> ReqBody '[JSON] UpdateUserGroupChannels
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group channels updated")
            )
+    :<|> Named
+           "check-user-group-name-available"
+           ( Summary "[STUB] Check if a user group name is available"
+               :> From 'V12
+               :> ZLocalUser
+               :> "user-groups"
+               :> "check-name"
+               :> ReqBody '[JSON] CheckUserGroupName
+               :> MultiVerb 'POST '[JSON] '[Respond 200 "OK" UserGroupNameAvailability] UserGroupNameAvailability
+           )
 
 type SelfAPI =
   Named

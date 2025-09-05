@@ -467,6 +467,7 @@ servantSitemap =
         :<|> Named @"remove-user-from-group" removeUserFromGroup
         :<|> Named @"update-user-group-members" updateUserGroupMembers
         :<|> Named @"update-user-group-channels" updateUserGroupChannels
+        :<|> Named @"check-user-group-name-available" checkUserGroupNameAvailable
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1708,6 +1709,9 @@ updateUserGroupMembers _ _ _ = pure ()
 
 updateUserGroupChannels :: Local UserId -> UserGroupId -> UpdateUserGroupChannels -> Handler r ()
 updateUserGroupChannels _ _ _ = pure ()
+
+checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
+checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
