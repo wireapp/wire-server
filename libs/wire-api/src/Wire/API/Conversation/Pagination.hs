@@ -14,11 +14,10 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.Conversation.Pagination where
 
-import Control.Lens (makePrisms, (?~))
+import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Default
 import Data.OpenApi qualified as S
@@ -90,5 +89,3 @@ instance S.ToParamSchema SortBy where
 defaultSortOrder :: SortBy -> SortOrder
 defaultSortOrder SortByName = Asc
 defaultSortOrder SortByCreatedAt = Desc
-
-makePrisms ''ConversationPage
