@@ -2,8 +2,10 @@
 
 module Test.Wire.API.Golden.Manual.UserGroup where
 
+import Data.Domain
 import Data.Id
 import Data.Json.Util
+import Data.Qualified (Qualified (Qualified))
 import Data.UUID qualified as UUID (fromString)
 import Data.Vector
 import Imports
@@ -37,7 +39,30 @@ testObject_UserGroupUpdate_2 :: UserGroupUpdate
 testObject_UserGroupUpdate_2 = UserGroupUpdate (unsafeToUserGroupName "some name @@~~ii")
 
 testObject_UserGroup_1 :: UserGroupMeta
-testObject_UserGroup_1 = UserGroup_ userGroupId1 (unsafeToUserGroupName "name") (Const ()) Nothing ManagedByWire someUTCTime
+testObject_UserGroup_1 =
+  UserGroup_
+    { id_ = userGroupId1,
+      name = (unsafeToUserGroupName "name"),
+      members = (Const ()),
+      channels = (Const ()),
+      membersCount = Nothing,
+      channelsCount = Just 0,
+      managedBy = ManagedByWire,
+      createdAt = someUTCTime
+    }
 
 testObject_UserGroup_2 :: UserGroup
-testObject_UserGroup_2 = UserGroup_ userGroupId2 (unsafeToUserGroupName "yet another one") (Identity $ fromList [userId1, userId2]) Nothing ManagedByScim someUTCTime
+testObject_UserGroup_2 =
+  UserGroup_
+    { id_ = userGroupId2,
+      name = (unsafeToUserGroupName "yet another one"),
+      members = (Identity $ fromList [userId1, userId2]),
+      channels =
+        Identity . Just . fromList $
+          [ Qualified (Id (fromJust (UUID.fromString "445c08d2-a16b-49ea-a274-4208bb2efe8f"))) (Domain "example.com")
+          ],
+      membersCount = Nothing,
+      channelsCount = Just 1,
+      managedBy = ManagedByScim,
+      createdAt = someUTCTime
+    }

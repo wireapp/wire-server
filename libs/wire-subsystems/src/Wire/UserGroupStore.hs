@@ -6,6 +6,7 @@ import Data.Id
 import Data.Json.Util
 import Imports
 import Polysemy
+import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination

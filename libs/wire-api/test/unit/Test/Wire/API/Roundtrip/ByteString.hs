@@ -83,6 +83,7 @@ tests =
       testRoundTrip @User.Search.TeamUserSearchSortBy,
       testRoundTrip @User.Search.TeamUserSearchSortOrder,
       testRoundTrip @User.Search.RoleFilter,
+      testRoundTrip @User.Search.EmailVerificationFilter,
       testRoundTrip @User.IdentityProvider.WireIdPAPIVersion,
       testRoundTrip @OAuth.OAuthScope
       -- FUTUREWORK:

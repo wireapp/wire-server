@@ -53,6 +53,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.OAuth
+import Wire.API.Pagination
 import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -82,7 +83,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
-import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.User.Search
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
@@ -313,11 +314,13 @@ type UserGroupAPI =
     )
     :<|> Named
            "get-user-group"
-           ( From 'V10
+           ( Summary "[STUB] (channels in response not implemented)"
+               :> From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> "user-groups"
                :> Capture "gid" UserGroupId
+               :> QueryFlag "include_channels"
                :> MultiVerb
                     'GET
                     '[JSON]
@@ -328,7 +331,8 @@ type UserGroupAPI =
            )
     :<|> Named
            "get-user-groups"
-           ( From 'V10
+           ( Summary "[STUB] (channelsCount not implemented)"
+               :> From 'V10
                :> ZLocalUser
                :> "user-groups"
                :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
@@ -400,6 +404,38 @@ type UserGroupAPI =
                :> "users"
                :> Capture "uid" UserId
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
+           )
+    :<|> Named
+           "update-user-group-members"
+           ( Summary "[STUB] Update user group members. Replaces the users with the given list."
+               :> From 'V12
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> ReqBody '[JSON] UpdateUserGroupMembers
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group members updated")
+           )
+    :<|> Named
+           "update-user-group-channels"
+           ( Summary "[STUB] Update user group channels. Replaces the channels with the given list."
+               :> From 'V12
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "channels"
+               :> ReqBody '[JSON] UpdateUserGroupChannels
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group channels updated")
+           )
+    :<|> Named
+           "check-user-group-name-available"
+           ( Summary "[STUB] Check if a user group name is available"
+               :> From 'V12
+               :> ZLocalUser
+               :> "user-groups"
+               :> "check-name"
+               :> ReqBody '[JSON] CheckUserGroupName
+               :> MultiVerb 'POST '[JSON] '[Respond 200 "OK" UserGroupNameAvailability] UserGroupNameAvailability
            )
 
 type SelfAPI =
@@ -1639,7 +1675,7 @@ type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 type SearchAPI =
   Named
     "browse-team"
-    ( Summary "Browse team for members (requires add-user permission)"
+    ( Summary "[STUB] (email query param is ignored) - Browse team for members (requires add-user permission)"
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -1688,6 +1724,14 @@ type SearchAPI =
              ]
              "pagingState"
              PagingState
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description
+                 "Filter for (un-)verified email"
+             ]
+             "email"
+             EmailVerificationFilter
         :> MultiVerb
              'GET
              '[JSON]

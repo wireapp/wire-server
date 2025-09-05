@@ -29,6 +29,7 @@ module Wire.API.User.Search
     TeamUserSearchSortBy (..),
     FederatedUserSearchPolicy (..),
     PagingState (..),
+    EmailVerificationFilter (..),
   )
 where
 
@@ -39,7 +40,8 @@ import Data.Aeson hiding (object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
-import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.ByteString.Conversion
+import Data.ByteString.Conversion qualified as BS
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))
@@ -49,6 +51,7 @@ import Data.Qualified
 import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
+import Data.Text.Encoding qualified as TE
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
@@ -327,3 +330,39 @@ instance C.Cql FederatedUserSearchPolicy where
   fromCql (C.CqlInt 1) = pure ExactHandleSearch
   fromCql (C.CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+data EmailVerificationFilter
+  = EmailUnverified
+  | EmailVerified
+  deriving (Eq, Show, Generic, Enum, Bounded)
+  deriving (Arbitrary) via (GenericUniform EmailVerificationFilter)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema EmailVerificationFilter)
+
+instance ToSchema EmailVerificationFilter where
+  schema =
+    enum @Text "EmailVerificationFilter" $
+      element "unverified" EmailUnverified
+        <> element "verified" EmailVerified
+
+instance ToByteString EmailVerificationFilter where
+  builder EmailUnverified = "unverified"
+  builder EmailVerified = "verified"
+
+instance FromByteString EmailVerificationFilter where
+  parser =
+    asum $
+      [ EmailUnverified <$ string "unverified",
+        EmailVerified <$ string "verified"
+      ]
+
+instance FromHttpApiData EmailVerificationFilter where
+  parseQueryParam = mapLeft T.pack . runParser parser . TE.encodeUtf8
+
+instance ToHttpApiData EmailVerificationFilter where
+  toQueryParam = TE.decodeUtf8 . BS.toByteString'
+
+instance S.ToParamSchema EmailVerificationFilter where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_ ?~ ["unverified", "verified"]

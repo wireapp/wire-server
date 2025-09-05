@@ -24,6 +24,7 @@ module Brig.API.Public
   ( servantSitemap,
     docsAPI,
     DocsAPI,
+    updateUserGroupChannels,
   )
 where
 
@@ -112,6 +113,7 @@ import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
+import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -149,6 +151,7 @@ import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
+import Wire.API.User.Search (EmailVerificationFilter)
 import Wire.API.User.Search qualified as Public
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -462,6 +465,9 @@ servantSitemap =
         :<|> Named @"add-user-to-group" addUserToGroup
         :<|> Named @"add-users-to-group-bulk" addUsersToGroupbulk
         :<|> Named @"remove-user-from-group" removeUserFromGroup
+        :<|> Named @"update-user-group-members" updateUserGroupMembers
+        :<|> Named @"update-user-group-channels" updateUserGroupChannels
+        :<|> Named @"check-user-group-name-available" checkUserGroupNameAvailable
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -635,8 +641,9 @@ browseTeamHandler ::
   Maybe Public.TeamUserSearchSortOrder ->
   Maybe (Range 1 500 Int) ->
   Maybe Public.PagingState ->
+  Maybe EmailVerificationFilter ->
   Handler r (Public.SearchResult Public.TeamContact)
-browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
+browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState _ = do
   let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
   lift . liftSem $ User.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
@@ -1664,8 +1671,8 @@ verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
 createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
 createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
 
-getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
-getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Bool -> Handler r (Maybe UserGroup)
+getUserGroup lusr ugid _ = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
 
 getUserGroups ::
   (_) =>
@@ -1696,6 +1703,15 @@ addUsersToGroupbulk lusr gid payload = lift . liftSem $ UserGroup.addUsers (tUnq
 
 removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
+
+updateUserGroupMembers :: Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
+updateUserGroupMembers _ _ _ = pure ()
+
+updateUserGroupChannels :: Local UserId -> UserGroupId -> UpdateUserGroupChannels -> Handler r ()
+updateUserGroupChannels _ _ _ = pure ()
+
+checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
+checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new

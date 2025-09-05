@@ -542,6 +542,12 @@ nginx_conf:
     - path: /user-groups/([^/]*)/users/([^/]*)
       envs:
         - all
+    - path: /user-groups/([^/]*)/channels$
+      envs:
+        - all
+    - path: /user-groups/check-name$
+      envs:
+        - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -701,6 +707,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /search/channels$
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:
