@@ -42,6 +42,7 @@ module Spar.Intra.Brig
     getStatusMaybe,
     setStatus,
     getDefaultUserLocale,
+    checkAdminGetTeamId,
   )
 where
 
@@ -444,4 +445,11 @@ getDefaultUserLocale = do
   resp <- call $ method GET . paths ["/i/users/locale"]
   case statusCode resp of
     200 -> luLocale <$> parseResponse @LocaleUpdate "brig" resp
+    _ -> rethrow "brig" resp
+
+checkAdminGetTeamId :: (HasCallStack, MonadSparToBrig m) => UserId -> m TeamId
+checkAdminGetTeamId uid = do
+  resp <- call $ method GET . paths ["/i/users", toByteString' uid, "check-admin-get-team-id"]
+  case statusCode resp of
+    200 -> parseResponse @TeamId "brig" resp
     _ -> rethrow "brig" resp

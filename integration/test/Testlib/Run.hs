@@ -112,10 +112,7 @@ main = do
         filter (\(qname, _, _, _) -> f qname)
           . sortOn (\(qname, _, _, _) -> qname)
           $ allTests <&> \(module_, name, summary, full, action) ->
-            let module0 = case module_ of
-                  ('T' : 'e' : 's' : 't' : '.' : m) -> m
-                  _ -> module_
-                qualifiedName = module0 <> "." <> name
+            let qualifiedName = (fromMaybe module_ $ stripPrefix "Test." module_) <> "." <> name
              in (qualifiedName, summary, full, action)
 
   if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg

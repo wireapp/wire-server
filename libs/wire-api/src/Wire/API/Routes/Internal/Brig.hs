@@ -649,6 +649,14 @@ type UserAPI =
                :> "export-data"
                :> MultiVerb1 'GET '[JSON] (Respond 200 "User export data" (Maybe TeamExportUser))
            )
+    :<|> Named
+           "i-check-admin-get-team-id"
+           ( Summary "Check if user is admin, return team ID"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "check-admin-get-team-id"
+               :> Get '[Servant.JSON] TeamId
+           )
 
 type UpdateUserLocale =
   Summary
