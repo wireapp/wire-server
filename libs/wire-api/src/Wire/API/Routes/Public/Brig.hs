@@ -83,7 +83,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
-import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.User.Search
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
@@ -1665,7 +1665,7 @@ type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 type SearchAPI =
   Named
     "browse-team"
-    ( Summary "Browse team for members (requires add-user permission)"
+    ( Summary "[STUB] (email query param is ignored) - Browse team for members (requires add-user permission)"
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -1714,6 +1714,14 @@ type SearchAPI =
              ]
              "pagingState"
              PagingState
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description
+                 "Filter for (un-)verified email"
+             ]
+             "email"
+             EmailVerificationFilter
         :> MultiVerb
              'GET
              '[JSON]

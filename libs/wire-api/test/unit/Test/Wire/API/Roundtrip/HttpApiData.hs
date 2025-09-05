@@ -33,6 +33,7 @@ tests =
     [ testRoundTrip @Wire.API.User.EmailActivation,
       testRoundTrip @Wire.API.User.InvitationCode,
       testRoundTrip @Wire.API.User.Search.PagingState,
+      testRoundTrip @Wire.API.User.Search.EmailVerificationFilter,
       testRoundTrip @Wire.API.Routes.Version.Version,
       testRoundTrip @Wire.API.Routes.Version.VersionNumber
     ]

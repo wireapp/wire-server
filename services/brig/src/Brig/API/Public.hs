@@ -113,6 +113,7 @@ import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
+import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -150,8 +151,8 @@ import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
+import Wire.API.User.Search (EmailVerificationFilter)
 import Wire.API.User.Search qualified as Public
-import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
@@ -639,8 +640,9 @@ browseTeamHandler ::
   Maybe Public.TeamUserSearchSortOrder ->
   Maybe (Range 1 500 Int) ->
   Maybe Public.PagingState ->
+  Maybe EmailVerificationFilter ->
   Handler r (Public.SearchResult Public.TeamContact)
-browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
+browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState _ = do
   let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
   lift . liftSem $ User.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
