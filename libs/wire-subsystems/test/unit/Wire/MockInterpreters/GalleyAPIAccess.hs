@@ -50,6 +50,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
   PlanLeavingConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
+  LeaveConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
 
 getFeatureConfigForTeamImpl :: forall feature. (IsFeatureConfig feature) => AllTeamFeatures -> TeamId -> LockableFeature feature
 getFeatureConfigForTeamImpl allfeatures _ = npProject' (Proxy @(feature)) allfeatures
