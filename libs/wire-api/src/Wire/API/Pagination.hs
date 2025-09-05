@@ -103,4 +103,3 @@ instance S.ToParamSchema PageSize where
 
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
-

@@ -27,8 +27,8 @@ import GHC.Generics
 import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
-import Wire.API.Pagination
 import Wire.API.Conversation
+import Wire.API.Pagination
 import Wire.Arbitrary as Arbitrary
 
 newtype ConversationPage = ConversationPage {page :: [Conversation]}

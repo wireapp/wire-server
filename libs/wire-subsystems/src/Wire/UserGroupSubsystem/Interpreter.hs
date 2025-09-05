@@ -14,6 +14,7 @@ import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as TM
@@ -22,7 +23,6 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Error
-import Wire.API.Pagination
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
