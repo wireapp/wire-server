@@ -545,7 +545,7 @@ nginx_conf:
     - path: /user-groups/([^/]*)/channels$
       envs:
         - all
-    - path: /user-groups/check-name
+    - path: /user-groups/check-name$
       envs:
         - all
     galley:
