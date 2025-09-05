@@ -11,9 +11,9 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Conversation (LeavingConversations)
+import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeavingConversationsFrom)
+import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeaveConversationsFrom, internalPlanLeavingConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -111,29 +111,49 @@ updateTeamCollaboratorImpl ::
 updateTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
   Store.updateTeamCollaborator user team perms
-  when (Set.null $ Set.intersection (Set.fromList [CreateTeamConversation, ImplicitConnection]) perms) $
-    internalLeavingConversationsFrom team user
 
   now <- get
-  let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
   teamMembersList <- internalGetTeamAdmins team
   let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
+
+  extraNotifications <-
+    if Set.null $ Set.intersection (Set.fromList [CreateTeamConversation, ImplicitConnection]) perms
+      then do
+        leavingConversations <- internalLeaveConversationsFrom team user
+        pure $
+          leavingConversations.close <&> \convId ->
+            def
+              { origin = Just (tUnqualified zUser),
+                json = toJSONObject $ newEvent team now (EdConvDelete convId),
+                recipients =
+                  ( \uid ->
+                      Recipient
+                        { recipientUserId = uid,
+                          recipientClients = Push.RecipientClientsAll
+                        }
+                  )
+                    <$> teamMembers,
+                transient = False
+              }
+      else pure []
+
+  let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
   -- TODO: Review the event's values
-  pushNotifications
-    [ def
-        { origin = Just (tUnqualified zUser),
-          json = toJSONObject $ event,
-          recipients =
-            ( \uid ->
-                Recipient
-                  { recipientUserId = uid,
-                    recipientClients = Push.RecipientClientsAll
-                  }
-            )
-              <$> teamMembers,
-          transient = False
-        }
-    ]
+  pushNotifications $
+    def
+      { origin = Just (tUnqualified zUser),
+        json = toJSONObject $ event,
+        recipients =
+          ( \uid ->
+              Recipient
+                { recipientUserId = uid,
+                  recipientClients = Push.RecipientClientsAll
+                }
+          )
+            <$> teamMembers,
+        transient = False
+      }
+      : extraNotifications
 
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r,
@@ -144,7 +164,7 @@ internalRemoveTeamCollaboratorImpl ::
   Sem r LeavingConversations
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
-  internalLeavingConversationsFrom team user
+  internalPlanLeavingConversationsFrom team user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

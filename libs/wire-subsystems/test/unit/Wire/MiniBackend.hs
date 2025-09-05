@@ -632,7 +632,8 @@ interpretMaybeFederationStackState mb =
       interpretConversationsSubsystem =
         interpret $
           \case
-            InternalLeavingConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
+            InternalPlanLeavingConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
+            InternalLeaveConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
    in miniBackendLowerEffectsInterpreters mb
         . interpretConversationsSubsystem
         . interpretTeamCollaboratorsSubsystem

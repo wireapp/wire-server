@@ -230,7 +230,12 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
-        <@> mkNamedAPI @"leave-conversations-from" (ConversationsSubsystem.internalLeavingConversationsFrom tid)
+        <@> mkNamedAPI @"leave-conversations-from"
+          ( \uid perform ->
+              if perform
+                then ConversationsSubsystem.internalLeaveConversationsFrom tid uid
+                else ConversationsSubsystem.internalPlanLeavingConversationsFrom tid uid
+          )
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =

@@ -145,6 +145,13 @@ data GalleyAPIAccess m a where
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
-  LeavingConversationsFrom :: TeamId -> UserId -> GalleyAPIAccess m LeavingConversations
+  PlanLeavingConversationsFrom ::
+    TeamId ->
+    UserId ->
+    GalleyAPIAccess m LeavingConversations
+  LeaveConversationsFrom ::
+    TeamId ->
+    UserId ->
+    GalleyAPIAccess m LeavingConversations
 
 makeSem ''GalleyAPIAccess
