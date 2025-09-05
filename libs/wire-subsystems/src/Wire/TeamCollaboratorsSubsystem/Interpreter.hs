@@ -112,7 +112,7 @@ updateTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
   Store.updateTeamCollaborator user team perms
   when (Set.null $ Set.intersection (Set.fromList [CreateTeamConversation, ImplicitConnection]) perms) $
-    internalCloseConversationsFrom team user
+    internalLeavingConversationsFrom team user
 
   now <- get
   let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
