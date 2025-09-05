@@ -143,7 +143,7 @@ instance ToSchema EventType where
           element "team.conversation-create" ConvCreate,
           element "team.conversation-delete" ConvDelete,
           element "team.collaborator-add" CollaboratorAdd,
-          element "team.app-create" AppCreate
+          element "team.app-create" AppCreate,
           element "team.collaborator-remove" CollaboratorRemove
         ]
 
