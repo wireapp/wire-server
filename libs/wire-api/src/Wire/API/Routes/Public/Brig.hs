@@ -42,6 +42,7 @@ import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.App
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
@@ -110,6 +111,7 @@ type BrigAPI =
     :<|> DomainVerificationTeamAPI
     :<|> DomainVerificationChallengeAPI
     :<|> UserGroupAPI
+    :<|> AppsAPI
 
 data BrigAPITag
 
@@ -2045,3 +2047,15 @@ type SystemSettingsAPI =
                :> "settings"
                :> Get '[JSON] SystemSettings
            )
+
+type AppsAPI =
+  Named
+    "create-app"
+    ( Summary "Create a new app"
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "apps"
+        :> ReqBody '[JSON] NewApp
+        :> Post '[JSON] CreatedApp
+    )

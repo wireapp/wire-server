@@ -108,6 +108,7 @@ library
     RunAllTests
     SetupHelpers
     Test.AccessUpdate
+    Test.Apps
     Test.AssetDownload
     Test.AssetUpload
     Test.Auth

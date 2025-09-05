@@ -1,10 +1,7 @@
 module Wire.TeamCollaboratorsSubsystem.Interpreter where
 
-import Control.Lens
 import Control.Monad.Trans.Maybe
-import Data.Default
 import Data.Id
-import Data.Json.Util
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
@@ -13,7 +10,6 @@ import Polysemy.Error
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
-import Wire.API.Push.V2 qualified as Push
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.Error
@@ -22,6 +18,7 @@ import Wire.Sem.Now
 import Wire.TeamCollaboratorsStore qualified as Store
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem
+import Wire.TeamSubsystem.Util
 
 interpretTeamCollaboratorsSubsystem ::
   ( Member TeamSubsystem r,
@@ -69,26 +66,8 @@ createTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.createTeamCollaborator user team perms
 
-  now <- get
-  let event = newEvent team now (EdCollaboratorAdd user (Set.toList perms))
-  teamMembersList <- internalGetTeamAdmins team
-  let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
   -- TODO: Review the event's values
-  pushNotifications
-    [ def
-        { origin = Just (tUnqualified zUser),
-          json = toJSONObject $ event,
-          recipients =
-            ( \uid ->
-                Recipient
-                  { recipientUserId = uid,
-                    recipientClients = Push.RecipientClientsAll
-                  }
-            )
-              <$> teamMembers,
-          transient = False
-        }
-    ]
+  generateTeamEvent (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms))
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,

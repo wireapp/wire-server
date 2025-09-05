@@ -102,6 +102,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
+import Wire.API.App
 import Wire.API.Connection qualified as Public
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
@@ -154,6 +155,8 @@ import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AppSubsystem (AppSubsystem)
+import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
@@ -405,7 +408,8 @@ servantSitemap ::
     Member Random r,
     Member UserGroupSubsystem r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -432,6 +436,7 @@ servantSitemap =
     :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
     :<|> userGroupAPI
+    :<|> appsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -613,6 +618,9 @@ servantSitemap =
     domainVerificationChallengeAPI =
       Named @"domain-verification-challenge" getDomainVerificationChallenge
         :<|> Named @"verify-challenge" verifyChallenge
+
+    appsAPI :: ServerT AppsAPI (Handler r)
+    appsAPI = Named @"create-app" createApp
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1688,6 +1696,9 @@ addUsersToGroupbulk lusr gid payload = lift . liftSem $ UserGroup.addUsers (tUnq
 
 removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
+
+createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
+createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
 -- Deprecated
 
