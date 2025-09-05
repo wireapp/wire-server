@@ -72,7 +72,7 @@ createTeamCollaboratorImpl zUser user team perms = do
   Store.createTeamCollaborator user team perms
 
   -- TODO: Review the event's values
-  generateTeamEvent (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms))
+  generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -112,48 +112,15 @@ updateTeamCollaboratorImpl zUser user team perms = do
   guardPermission (tUnqualified zUser) team TeamMember.UpdateTeamCollaborator InsufficientRights
   Store.updateTeamCollaborator user team perms
 
-  now <- get
-  teamMembersList <- internalGetTeamAdmins team
-  let teamMembers :: [UserId] = view TeamMember.userId <$> (teamMembersList ^. TeamMember.teamMembers)
-
   extraNotifications <-
     if Set.null $ Set.intersection (Set.fromList [CreateTeamConversation, ImplicitConnection]) perms
       then do
         leavingConversations <- internalLeaveConversationsFrom team user
-        pure $
-          leavingConversations.close <&> \convId ->
-            def
-              { origin = Just (tUnqualified zUser),
-                json = toJSONObject $ newEvent team now (EdConvDelete convId),
-                recipients =
-                  ( \uid ->
-                      Recipient
-                        { recipientUserId = uid,
-                          recipientClients = Push.RecipientClientsAll
-                        }
-                  )
-                    <$> teamMembers,
-                transient = False
-              }
+        pure $ EdConvDelete <$> leavingConversations.close
       else pure []
 
-  let event = newEvent team now (EdCollaboratorUpdate user $ Set.toList perms)
   -- TODO: Review the event's values
-  pushNotifications $
-    def
-      { origin = Just (tUnqualified zUser),
-        json = toJSONObject $ event,
-        recipients =
-          ( \uid ->
-              Recipient
-                { recipientUserId = uid,
-                  recipientClients = Push.RecipientClientsAll
-                }
-          )
-            <$> teamMembers,
-        transient = False
-      }
-      : extraNotifications
+  generateTeamEvents (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms) : extraNotifications)
 
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r,
