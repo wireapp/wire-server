@@ -75,10 +75,10 @@ createAppImpl lusr tid new = do
 
   u <- appNewStoredUser creator new
 
-  Log.debug $
-    Log.field "user" (toByteString u.id) . Log.field "action" (Log.val "User.createUser")
   Log.info $
-    Log.field "user" (toByteString u.id) . Log.msg (Log.val "Creating user")
+    Log.field "app" (toByteString u.id)
+      . Log.field "creator" (toByteString creator.id)
+      . Log.msg (Log.val "Creating app")
 
   -- create app and user entries
   Store.createApp u.id tid new.meta
