@@ -20,13 +20,17 @@ See `docs/legacy/developer/changelog.md` for more information.
 
 Don’t delete columns that are still used by versions that are deployed. If you delete columns then the old version will fail in the deployment process. Rather than deleting keep the unused columns around and comment them as being discontinued in the schema migration code.
 
+If a postgres schema migration has been added then add this to the checklist:
+
+- [ ] Run **`make postgres-schema`** to update the postgres schema documentation
+
 If a cassandra schema migration has been added then add this to the checklist:
 
 - [ ] Run **`make cassandra-schema`** to update the cassandra schema documentation
 
 ### Incompatible schema migrations and data migrations
 
-If the PR contains a cassandra *schema* migration which is backwards incompatible, a changelog entry should be added to the release notes. See [notes on Cassandra](https://github.com/wireapp/wire-server/blob/develop/docs/developer/cassandra-interaction.md#cassandra-schema-migrations) for more details on how to implement such schema changes. A similar entry should be added if the PR contains a *data* migration.
+If the PR contains a *schema* (cassandra or postgres) migration which is backwards incompatible, a changelog entry should be added to the release notes. See [notes on Cassandra](https://github.com/wireapp/wire-server/blob/develop/docs/developer/cassandra-interaction.md#cassandra-schema-migrations) for more details on how to implement such schema changes. A similar entry should be added if the PR contains a *data* migration.
 
 - [ ] Add a changelog entry in `0-release-notes` detailing measures to be taken by instance operators
 

@@ -21,7 +21,9 @@ ingress-nginx-controller nginx-ingress-services reaper restund \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
-PSQL_DB               ?= wire-server
+# (run `psql -h localhost -p 5432 -d backendA -U wire-server -w` for the list of options for PSQL_DB)
+PSQL_DB               ?= backendA
+export PSQL_DB
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -170,6 +172,7 @@ devtest-package:
 sanitize-pr: check-weed treefmt
 	make lint-all-shallow
 	make cassandra-schema
+	make postgres-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 	make list-flaky-tests
@@ -320,7 +323,7 @@ upload-hoogle-image:
 	./hack/bin/upload-image.sh wireServer.hoogleImage
 
 #################################
-## cassandra management
+## cassandra / postgres management
 
 .PHONY: git-add-cassandra-schema
 git-add-cassandra-schema:
@@ -328,11 +331,18 @@ git-add-cassandra-schema:
 	@false
 
 .PHONY: cassandra-schema
-cassandra-schema: db-migrate git-add-cassandra-schema-impl
+cassandra-schema: db-migrate cassandra-schema-impl
 
 .PHONY: cassandra-schema-impl
 cassandra-schema-impl:
 	./hack/bin/cassandra_dump_schema > ./cassandra-schema.cql
+
+.PHONY: postgres-reset postgres-schema-impl
+postgres-schema: postgres-reset postgres-schema-impl
+
+.PHONY: postgres-schema-impl
+postgres-schema-impl:
+	./hack/bin/postgres_dump_schema > ./postgres-schema.sql
 
 .PHONY: cqlsh
 cqlsh:
@@ -344,7 +354,7 @@ cqlsh:
 psql:
 	@grep -q wire-server:wire-server ~/.pgpass || \
 	  echo "consider running 'echo localhost:5432:wire-server:wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
-	psql -h localhost -p 5432 -d $(PSQL_DB) -U wire-server -w || \
+	pg_dump -h localhost -p 5432 $(PSQL_DB) -U wire-server -w --schema-only || \
 	  echo 'if the database is missing, consider running "make postgres-reset", or setting $$PSQL_DB to the correct table space.'
 
 .PHONY: db-reset-package
