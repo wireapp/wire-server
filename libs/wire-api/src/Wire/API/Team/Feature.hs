@@ -1541,7 +1541,7 @@ instance IsFeatureConfig AppsConfig where
 --------------------------------------------------------------------------------
 -- "Simplified User Connection Request QR Code" Feature
 --
--- If it's enabled, clients render QR codes in the user profile pages so
+-- If it's enabled, clients render QR codes in the user profile pages to
 -- simplify connection requests by other users.
 
 data SimplifiedUserConnectionRequestQRCodeConfig = SimplifiedUserConnectionRequestQRCodeConfig
