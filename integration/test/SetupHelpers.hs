@@ -472,7 +472,7 @@ registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds 
 registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
 registerTestIdPWithMetaWithPrivateCreds owner = do
   SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
-  (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
+  (,(idpmeta, pCreds)) <$> createIdp Versioned owner idpmeta
 
 updateTestIdpWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> String -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
 updateTestIdpWithMetaWithPrivateCreds owner idpId = do
