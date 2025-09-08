@@ -236,6 +236,7 @@ instance (HasOpenApi api) => HasOpenApi (ZHostOpt :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
+
 type instance SpecialiseToVersion v (AuthProtect tag :> api) = AuthProtect tag :> SpecialiseToVersion v api
 
 addZAuthSwagger :: OpenApi -> OpenApi

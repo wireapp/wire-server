@@ -18,8 +18,8 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as ST
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
-import qualified SAML2.WebSSO.XML as SAMLXML
 import qualified SAML2.WebSSO.Test.Util as SAML
+import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
@@ -436,8 +436,9 @@ mkTestCheckAdminGetTeamId version = do
   (owner :: Value, tid :: String, [regular] :: [Value]) <- createTeam OwnDomain 2
   void $ setTeamFeatureStatus owner tid "sso" "enabled" -- required for the next request
   SAML.SampleIdP idpMeta _ _ _ <- SAML.makeSampleIdPMetadata
-  createIdp version owner idpMeta >>= assertSuccess            -- Successful API response for owner (admin),
-  createIdp version regular idpMeta `bindResponse` \resp -> do -- insuficient permissions for non-admin, both as expected.
+  createIdp version owner idpMeta >>= assertSuccess -- Successful API response for owner (admin),
+  createIdp version regular idpMeta `bindResponse` \resp -> do
+    -- insuficient permissions for non-admin, both as expected.
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
 

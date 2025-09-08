@@ -50,6 +50,7 @@ import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Conversion
 import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
@@ -118,7 +119,6 @@ import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
-import Data.ByteString.Conversion
 
 app :: Env -> Application
 app ctx0 req cont = do
@@ -128,10 +128,13 @@ app ctx0 req cont = do
     ( serveWithContext
         (Proxy @SparAPI)
         (authContext ctx)
-        (hoistServerWithContext
-          (Proxy @SparAPI)
-          (Proxy @'[AuthHandler Request (UserId, TeamId)])
-          (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+        ( hoistServerWithContext
+            (Proxy @SparAPI)
+            (Proxy @'[AuthHandler Request (UserId, TeamId)])
+            (runSparToHandler ctx)
+            (api $ sparCtxOpts ctx) ::
+            Server SparAPI
+        )
     )
     req
     cont
@@ -452,9 +455,9 @@ ssoSettings =
 authHandler :: Env -> AuthHandler Request (UserId, TeamId)
 authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
   bs <- maybe (throwSparSem $ SparNoPermission "No Z-User header") pure $ lookup "Z-User" (requestHeaders req)
-  uid <-  maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
+  uid <- maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
   tid <- BrigAccess.checkAdminGetTeamId uid
-  return (uid, tid)
+  pure (uid, tid)
   where
     throwError' se = Spar.Error.sparToServerErrorWithLogging (sparCtxLogger ctx) se >>= throwError
 

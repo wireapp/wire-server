@@ -1110,9 +1110,10 @@ removeEmailEitherImpl lusr = runError $ do
 getUserTeamImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamId)
 getUserTeamImpl = UserStore.getUserTeam
 
-checkUserIsAdminImpl
-  :: (Member TeamSubsystem r, Member UserStore r, Member (Error UserSubsystemError) r)
-  => UserId -> Sem r TeamId
+checkUserIsAdminImpl ::
+  (Member TeamSubsystem r, Member UserStore r, Member (Error UserSubsystemError) r) =>
+  UserId ->
+  Sem r TeamId
 checkUserIsAdminImpl uid = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions uid tid [CreateUpdateDeleteIdp]

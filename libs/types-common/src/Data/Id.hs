@@ -93,7 +93,7 @@ import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
-import Servant (FromHttpApiData (..), ToHttpApiData (..), AuthProtect)
+import Servant (AuthProtect, FromHttpApiData (..), ToHttpApiData (..))
 import Servant.Server.Experimental.Auth (AuthServerData)
 import System.Logger (ToBytes)
 import Test.QuickCheck
