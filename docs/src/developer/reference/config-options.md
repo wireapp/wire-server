@@ -634,6 +634,26 @@ config:
           lockStatus: locked
 ```
 
+### Simplified User Connection Request QR-Code
+
+This feature flag is only used by clients. It does not change any behaviour of
+the backend itself. If it is enabled (the default) some clients render a QR
+code in the profile pages of a user to simplify issuing connection requests.
+
+Example configuration which reflects the default:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      simplifiedUserConnectionRequestQRCode:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+```
+
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only

@@ -72,6 +72,7 @@ featureAPI =
     <@> mkNamedAPI @'("get", ConsumableNotificationsConfig) getFeature
     <@> mkNamedAPI @'("get", ChatBubblesConfig) getFeature
     <@> mkNamedAPI @'("get", AppsConfig) getFeature
+    <@> mkNamedAPI @'("get", SimplifiedUserConnectionRequestQRCodeConfig) getFeature
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

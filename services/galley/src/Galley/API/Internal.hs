@@ -285,6 +285,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -306,6 +307,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", ConsumableNotificationsConfig) (updateLockStatus @ConsumableNotificationsConfig)
     <@> mkNamedAPI @'("ilock", ChatBubblesConfig) (updateLockStatus @ChatBubblesConfig)
     <@> mkNamedAPI @'("ilock", AppsConfig) (updateLockStatus @AppsConfig)
+    <@> mkNamedAPI @'("ilock", SimplifiedUserConnectionRequestQRCodeConfig) (updateLockStatus @SimplifiedUserConnectionRequestQRCodeConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 

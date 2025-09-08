@@ -157,6 +157,7 @@ library
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound
     Test.FeatureFlags.SelfDeletingMessages
+    Test.FeatureFlags.SimplifiedUserConnectionRequestQRCode
     Test.FeatureFlags.SndFactorPasswordChallenge
     Test.FeatureFlags.SSO
     Test.FeatureFlags.User

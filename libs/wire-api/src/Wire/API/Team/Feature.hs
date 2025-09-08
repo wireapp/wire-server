@@ -90,6 +90,7 @@ module Wire.API.Team.Feature
     ConsumableNotificationsConfig (..),
     ChatBubblesConfig (..),
     AppsConfig (..),
+    SimplifiedUserConnectionRequestQRCodeConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -250,6 +251,7 @@ data FeatureSingleton cfg where
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
   FeatureSingletonChatBubblesConfig :: FeatureSingleton ChatBubblesConfig
   FeatureSingletonAppsConfig :: FeatureSingleton AppsConfig
+  FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig :: FeatureSingleton SimplifiedUserConnectionRequestQRCodeConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1536,6 +1538,30 @@ instance IsFeatureConfig AppsConfig where
 
   objectSchema = pure AppsConfig
 
+--------------------------------------------------------------------------------
+-- "Simplified User Connection Request QR Code" Feature
+--
+-- If it's enabled, clients render QR codes in the user profile pages to
+-- simplify connection requests by other users.
+
+data SimplifiedUserConnectionRequestQRCodeConfig = SimplifiedUserConnectionRequestQRCodeConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform SimplifiedUserConnectionRequestQRCodeConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName SimplifiedUserConnectionRequestQRCodeConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature SimplifiedUserConnectionRequestQRCodeConfig
+
+instance ToSchema SimplifiedUserConnectionRequestQRCodeConfig where
+  schema = object "SimplifiedUserConnectionRequestQRCode" objectSchema
+
+instance Default (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig where
+  type FeatureSymbol SimplifiedUserConnectionRequestQRCodeConfig = "simplifiedUserConnectionRequestQRCode"
+  featureSingleton = FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig
+
+  objectSchema = pure SimplifiedUserConnectionRequestQRCodeConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1625,7 +1651,8 @@ type Features =
     AllowedGlobalOperationsConfig,
     ConsumableNotificationsConfig,
     ChatBubblesConfig,
-    AppsConfig
+    AppsConfig,
+    SimplifiedUserConnectionRequestQRCodeConfig
   ]
 
 -- | list of available features as a record
