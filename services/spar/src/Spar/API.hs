@@ -130,7 +130,7 @@ app ctx0 req cont = do
         (authContext ctx)
         (hoistServerWithContext
           (Proxy @SparAPI)
-          (Proxy @'[Auth])
+          (Proxy @'[AuthHandler Request (UserId, TeamId)])
           (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
     )
     req
@@ -449,9 +449,7 @@ ssoSettings =
 ----------------------------------------------------------------------------
 -- IdPConfigStore API
 
-type Auth = AuthHandler Request (UserId, TeamId)
-
-authHandler :: Env -> Auth
+authHandler :: Env -> AuthHandler Request (UserId, TeamId)
 authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
   bs <- maybe (throwSparSem $ SparNoPermission "No Z-User header") pure $ lookup "Z-User" (requestHeaders req)
   uid <-  maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
@@ -460,7 +458,7 @@ authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSpa
   where
     throwError' se = Spar.Error.sparToServerErrorWithLogging (sparCtxLogger ctx) se >>= throwError
 
-authContext :: Env -> Servant.Context (Auth ': '[])
+authContext :: Env -> Servant.Context (AuthHandler Request (UserId, TeamId) ': '[])
 authContext e = authHandler e :. EmptyContext
 
 idpGet ::
