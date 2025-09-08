@@ -1110,7 +1110,6 @@ removeEmailEitherImpl lusr = runError $ do
 getUserTeamImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamId)
 getUserTeamImpl = UserStore.getUserTeam
 
--- TODO: should we inline this action in the single location we use this?
 checkUserIsAdminImpl
   :: (Member TeamSubsystem r, Member UserStore r, Member (Error UserSubsystemError) r)
   => UserId -> Sem r TeamId
