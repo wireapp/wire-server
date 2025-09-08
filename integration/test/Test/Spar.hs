@@ -438,8 +438,8 @@ testCheckAdminGetTeamId = do
   updateTeamMember tid owner admin Admin >>= assertSuccess
   void $ setTeamFeatureStatus owner tid "sso" "enabled" -- required for the next request
   SAML.SampleIdP idpMeta _ _ _ <- SAML.makeSampleIdPMetadata
-  checkAdminGetTeamId admin idpMeta >>= assertSuccess            -- Successful API response for admin,
-  checkAdminGetTeamId regular idpMeta `bindResponse` \resp -> do -- insuficient permissions for non-admin, both as expected.
+  createIdp admin idpMeta >>= assertSuccess            -- Successful API response for admin,
+  createIdp regular idpMeta `bindResponse` \resp -> do -- insuficient permissions for non-admin, both as expected.
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
 
