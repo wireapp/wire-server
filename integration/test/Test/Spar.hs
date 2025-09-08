@@ -8,7 +8,6 @@ import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
-import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
@@ -434,11 +433,10 @@ testSparCreateTwoScimTokensForOneIdp = do
 
 testCheckAdminGetTeamId :: (HasCallStack) => App ()
 testCheckAdminGetTeamId = do
-  (owner :: Value, tid :: String, [admin, regular] :: [Value]) <- createTeam OwnDomain 3
-  updateTeamMember tid owner admin Admin >>= assertSuccess
+  (owner :: Value, tid :: String, [regular] :: [Value]) <- createTeam OwnDomain 2
   void $ setTeamFeatureStatus owner tid "sso" "enabled" -- required for the next request
   SAML.SampleIdP idpMeta _ _ _ <- SAML.makeSampleIdPMetadata
-  createIdp admin idpMeta >>= assertSuccess            -- Successful API response for admin,
+  createIdp owner idpMeta >>= assertSuccess            -- Successful API response for owner (admin),
   createIdp regular idpMeta `bindResponse` \resp -> do -- insuficient permissions for non-admin, both as expected.
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
