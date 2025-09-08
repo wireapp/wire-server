@@ -625,14 +625,14 @@ idpCreate ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
-  Maybe UserId ->
+  (UserId, TeamId) ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
+idpCreate (zusr, _tid) (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+  teamid <- Brig.getZUsrCheckPerm (Just zusr) CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   idp <-
     maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
@@ -661,7 +661,7 @@ idpCreateV7 ::
   Sem r IdP
 idpCreateV7 (zusr, tid) idpmeta mReplaces mApiversion mHandle = do
   assertNoScimOrNoIdP
-  idpCreate (Just zusr) idpmeta mReplaces mApiversion mHandle
+  idpCreate (zusr, tid) idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
