@@ -443,6 +443,8 @@ mkTestCheckAdminGetTeamId version = do
 
 testCheckAdminGetTeamId :: App ()
 testCheckAdminGetTeamId = mkTestCheckAdminGetTeamId Versioned
+
+testCheckAdminGetTeamIdV7 :: App ()
 testCheckAdminGetTeamIdV7 = mkTestCheckAdminGetTeamId (ExplicitVersion 7)
 
 testSsoLoginAndEmailVerification :: (HasCallStack) => App ()
