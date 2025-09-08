@@ -104,7 +104,8 @@ withCommitLock ::
   forall r.
   ( Member Resource r,
     Member ConversationStore r,
-    Member (ErrorS 'MLSStaleMessage) r
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member MLSCommitLockStore r
   ) =>
   Local ConvOrSubConvId ->
   GroupId ->

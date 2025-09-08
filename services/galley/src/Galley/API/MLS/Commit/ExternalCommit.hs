@@ -139,7 +139,8 @@ processExternalCommit ::
     Member (ErrorS MLSSubConvClientNotInParent) r,
     Member Resource r,
     HasProposalActionEffects r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member MLSCommitLockStore r
   ) =>
   SenderIdentity ->
   Local ConvOrSubConv ->

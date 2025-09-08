@@ -16,10 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationStore.Cassandra
-  ( interpretConversationStoreToCassandra,
-    deleteConversation,
-    members,
-    removeMembersFromLocalConv,
+  ( interpretMLSCommitLockStoreToCassandra,
+    interpretConversationStoreToCassandra,
   )
 where
 
@@ -62,7 +60,7 @@ import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
 import Wire.API.User
-import Wire.ConversationStore (ConversationStore (..), LockAcquired (..))
+import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.MLS.Types
@@ -969,6 +967,15 @@ listSubConversations cid = do
           }
       )
 
+interpretMLSCommitLockStoreToCassandra :: (Member (Embed IO) r, Member TinyLog r) => ClientState -> InterpreterFor MLSCommitLockStore r
+interpretMLSCommitLockStoreToCassandra client = interpret $ \case
+  AcquireCommitLock gId epoch ttl -> do
+    logEffect "MLSCommitLockStore.AcquireCommitLock"
+    embedClient client $ acquireCommitLock gId epoch ttl
+  ReleaseCommitLock gId epoch -> do
+    logEffect "MLSCommitLockStore.ReleaseCommitLock"
+    embedClient client $ releaseCommitLock gId epoch
+
 interpretConversationStoreToCassandra ::
   forall r a.
   ( Member (Embed IO) r,
@@ -1044,12 +1051,6 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetGroupInfo cid gib -> do
     logEffect "ConversationStore.SetGroupInfo"
     embedClient client $ setGroupInfo cid gib
-  AcquireCommitLock gId epoch ttl -> do
-    logEffect "ConversationStore.AcquireCommitLock"
-    embedClient client $ acquireCommitLock gId epoch ttl
-  ReleaseCommitLock gId epoch -> do
-    logEffect "ConversationStore.ReleaseCommitLock"
-    embedClient client $ releaseCommitLock gId epoch
   UpdateToMixedProtocol cid ct -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
     updateToMixedProtocol client cid ct

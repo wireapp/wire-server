@@ -209,7 +209,8 @@ deleteSubConversation ::
     Member FederatorAccess r,
     Member (Input Env) r,
     Member Resource r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member Eff.MLSCommitLockStore r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -282,7 +283,8 @@ leaveSubConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member Eff.MLSCommitLockStore r
   ) =>
   Local UserId ->
   ClientId ->
@@ -307,7 +309,8 @@ leaveLocalSubConversation ::
     Member (Error FederationError) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member Eff.MLSCommitLockStore r
   ) =>
   ClientIdentity ->
   Local ConvId ->
@@ -379,7 +382,8 @@ resetLocalSubConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member Resource r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member Eff.MLSCommitLockStore r
   ) =>
   Qualified UserId ->
   Local ConvId ->

@@ -493,7 +493,8 @@ performAction ::
   ( HasConversationActionEffects tag r,
     Member BackendNotificationQueueAccess r,
     Member TeamCollaboratorsSubsystem r,
-    Member (Error FederationError) r
+    Member (Error FederationError) r,
+    Member E.MLSCommitLockStore r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -843,7 +844,8 @@ updateLocalConversation ::
     HasConversationActionEffects tag r,
     SingI tag,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -879,7 +881,8 @@ updateLocalConversationUnchecked ::
     Member Now r,
     HasConversationActionEffects tag r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->

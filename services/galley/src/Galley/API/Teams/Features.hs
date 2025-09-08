@@ -66,6 +66,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
+import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -337,7 +338,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member P.TinyLog r,
         Member Random r,
         Member (Embed IO) r,
-        Member TeamCollaboratorsSubsystem r
+        Member TeamCollaboratorsSubsystem r,
+        Member MLSCommitLockStore r
       )
 
   prepareFeature tid feat = do

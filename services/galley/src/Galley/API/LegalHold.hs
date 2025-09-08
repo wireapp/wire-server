@@ -78,6 +78,7 @@ import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -172,7 +173,8 @@ removeSettingsInternalPaging ::
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -214,7 +216,8 @@ removeSettings ::
     Member P.TinyLog r,
     Member Random r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   UserId ->
   TeamId ->
@@ -269,7 +272,8 @@ removeSettings' ::
     Member Random r,
     Member P.TinyLog r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   TeamId ->
   Sem r ()
@@ -317,7 +321,8 @@ grantConsent ::
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -367,7 +372,8 @@ requestDevice ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -460,7 +466,8 @@ approveDevice ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -536,7 +543,8 @@ disableForUser ::
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -599,7 +607,8 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   TeamId ->
   Local UserId ->
@@ -714,7 +723,8 @@ handleGroupConvPolicyConflicts ::
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

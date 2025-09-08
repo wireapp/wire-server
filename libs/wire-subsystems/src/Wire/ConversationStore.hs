@@ -46,6 +46,12 @@ data LockAcquired
   | NotAcquired
   deriving (Show, Eq)
 
+data MLSCommitLockStore m a where
+  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> MLSCommitLockStore m LockAcquired
+  ReleaseCommitLock :: GroupId -> Epoch -> MLSCommitLockStore m ()
+
+makeSem ''MLSCommitLockStore
+
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
@@ -75,8 +81,6 @@ data ConversationStore m a where
   ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
-  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
-  ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
   DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()

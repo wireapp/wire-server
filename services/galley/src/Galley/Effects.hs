@@ -91,7 +91,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
-import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
@@ -132,6 +132,7 @@ type GalleyEffects1 =
      TeamNotificationStore,
      TeamStore,
      ConversationStore,
+     MLSCommitLockStore,
      TeamFeatureStore,
      TeamMemberStore InternalPaging,
      TeamMemberStore CassandraPaging,
