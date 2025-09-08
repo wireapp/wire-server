@@ -454,7 +454,7 @@ type Auth = AuthHandler Request (UserId, TeamId)
 authHandler :: Env -> Auth
 authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
   bs <- maybe (throwSparSem $ SparNoPermission "No Z-User header") pure $ lookup "Z-User" (requestHeaders req)
-  uid <-  maybe (throwSparSem $ SparNoPermission "Can't parse Z-User header") pure $ fromByteString bs
+  uid <-  maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
   tid <- BrigAccess.checkAdminGetTeamId uid
   return (uid, tid)
   where
