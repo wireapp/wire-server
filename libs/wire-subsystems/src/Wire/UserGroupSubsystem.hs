@@ -8,6 +8,7 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Vector (Vector)
 import Imports
 import Polysemy
+import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 
