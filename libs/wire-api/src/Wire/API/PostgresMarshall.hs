@@ -1,9 +1,17 @@
-module Wire.API.PostgresMarshall (PostgresMarshall (..), lmapPG) where
+module Wire.API.PostgresMarshall
+  ( PostgresMarshall (..),
+    PostgresUnmarshall (..),
+    lmapPG,
+    rmapPG,
+    dimapPG,
+  )
+where
 
 import Data.Aeson
 import Data.Id
 import Data.Profunctor
 import Data.UUID
+import Imports
 
 class PostgresMarshall a b where
   postgresMarshall :: a -> b
@@ -377,5 +385,31 @@ instance PostgresMarshall (Id a) UUID where
 instance PostgresMarshall Object Value where
   postgresMarshall = Object
 
+---
+
+class PostgresUnmarshall a b where
+  postgresUnmarshall :: a -> Maybe b
+
+instance PostgresUnmarshall UUID (Id a) where
+  postgresUnmarshall = Just . Id
+
+instance PostgresUnmarshall Value Object where
+  postgresUnmarshall (Object obj) = Just obj
+  postgresUnmarshall _ = Nothing
+
+instance (PostgresUnmarshall a b) => PostgresUnmarshall (Maybe a) (Maybe b) where
+  postgresUnmarshall = fmap postgresUnmarshall
+
+---
+
 lmapPG :: (PostgresMarshall a b, Profunctor p) => p b x -> p a x
 lmapPG = lmap postgresMarshall
+
+rmapPG :: (PostgresUnmarshall x y, Profunctor p) => p a (Maybe x) -> p a (Maybe y)
+rmapPG = rmap (postgresUnmarshall =<<)
+
+dimapPG ::
+  (PostgresMarshall a b, PostgresUnmarshall x y, Profunctor p) =>
+  p b (Maybe x) ->
+  p a (Maybe y)
+dimapPG = dimap postgresMarshall (postgresUnmarshall =<<)

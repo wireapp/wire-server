@@ -50,6 +50,7 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
@@ -83,6 +84,7 @@ import Witherable (wither)
 
 runUserSubsystem ::
   ( Member UserStore r,
+    Member AppStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -292,6 +294,7 @@ lookupLocaleOrDefaultImpl luid = do
 getUserProfilesImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
+    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
@@ -317,6 +320,7 @@ getUserProfilesImpl self others =
 getLocalUserProfilesImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
@@ -334,6 +338,7 @@ getUserProfilesFromDomain ::
     Member DeleteQueue r,
     Member Now r,
     Member UserStore r,
+    Member AppStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
@@ -364,6 +369,7 @@ getUserProfilesRemotePart ruids = do
 getUserProfilesLocalPart ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
@@ -403,6 +409,7 @@ getUserProfilesLocalPart requestingUser luids = do
 getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member DeleteQueue r,
     Member Now r,
     Member (Input UserSubsystemConfig) r,
@@ -422,8 +429,11 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
+    app <- lift $ getApp storedUser.id
     lift $ deleteLocalIfExpired user
-    pure usrProfile
+    pure $ case app of
+      Nothing -> usrProfile
+      Just _ -> usrProfile {profileType = UserTypeApp}
 
 getSelfProfileImpl ::
   ( Member (Input UserSubsystemConfig) r,
@@ -467,6 +477,7 @@ deleteLocalIfExpired user =
 getUserProfilesWithErrorsImpl ::
   forall r fedM.
   ( Member UserStore r,
+    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
