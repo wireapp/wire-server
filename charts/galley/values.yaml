@@ -222,7 +222,10 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
-
+      simplifiedUserConnectionRequestQRCode:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
   aws:
     region: "eu-west-1"
   proxy: {}

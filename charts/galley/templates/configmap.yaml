@@ -199,5 +199,9 @@ data:
         apps:
           {{- toYaml .settings.featureFlags.apps | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.simplifiedUserConnectionRequestQRCode }}
+        simplifiedUserConnectionRequestQRCode:
+          {{- toYaml .settings.featureFlags.simplifiedUserConnectionRequestQRCode | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
