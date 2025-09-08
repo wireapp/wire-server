@@ -89,6 +89,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut ConsumableNotificationsConfig
     :<|> IFeatureStatusLockStatusPut ChatBubblesConfig
     :<|> IFeatureStatusLockStatusPut AppsConfig
+    :<|> IFeatureStatusLockStatusPut SimplifiedUserConnectionRequestQRCodeConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
