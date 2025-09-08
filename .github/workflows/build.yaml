@@ -36,6 +36,7 @@ jobs:
           sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
           
           cat .gitmodules
+          make sanitize-pr
           make build
 
 # tasks to update the submodule reference in wire-docs repo are yet to be added
