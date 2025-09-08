@@ -102,8 +102,8 @@ endif
 # ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
 # Usage: make ci-fast                     - build & run all tests, excluding integration
 #        make ci-fast package=all         - build & run all tests, including integration
-#        make ci-fast package=brig        - run integration test for package
-#        make ci-fast package=integration - build & run all integration tests
+#        make ci-fast package=brig        - build brig & run "brig-integration"
+#        make ci-fast package=integration - build & run "integration"
 #
 # You can pass environment variables to all the suites, like so
 # TASTY_PATTERN=".."  make ci package=brig
