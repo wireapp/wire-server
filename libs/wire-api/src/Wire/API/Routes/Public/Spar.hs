@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -28,6 +30,7 @@ import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
+import Servant.Server.Experimental.Auth
 import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
@@ -124,6 +127,8 @@ type APIAuthResp =
         :> ZHostOpt
         :> Post '[PlainText] Void
     )
+
+type instance AuthServerData (AuthProtect "zoptuser") = (UserId, TeamId)
 
 type APIIDP =
   Named "idp-get" (ZOptUser :> IdpGet)

@@ -93,8 +93,7 @@ import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
-import Servant (AuthProtect, FromHttpApiData (..), ToHttpApiData (..))
-import Servant.Server.Experimental.Auth (AuthServerData)
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import System.Logger (ToBytes)
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
@@ -169,8 +168,6 @@ type ProviderId = Id 'Provider
 type ServiceId = Id 'Service
 
 type TeamId = Id 'Team
-
-type instance AuthServerData (AuthProtect "zoptuser") = (UserId, TeamId)
 
 type ScimTokenId = Id 'ScimToken
 
