@@ -12,5 +12,6 @@
     "supported_protocols": [
         "proteus"
     ],
-    "text_status": "text status"
+    "text_status": "text status",
+    "type": "regular"
 }
