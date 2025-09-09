@@ -1187,5 +1187,5 @@ refreshAppCookie u tid appId = do
 removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
 removeTeamCollaborator owner tid collaborator = do
   (_, collabId) <- objQid collaborator
-  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
   submit "DELETE" req
