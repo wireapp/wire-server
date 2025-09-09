@@ -1704,8 +1704,8 @@ addUsersToGroupbulk lusr gid payload = lift . liftSem $ UserGroup.addUsers (tUnq
 removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
 
-updateUserGroupMembers :: Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
-updateUserGroupMembers _ _ _ = pure ()
+updateUserGroupMembers :: (_) => Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
+updateUserGroupMembers lusr gid gupd = lift . liftSem $ UserGroup.updateUsers (tUnqualified lusr) gid gupd.members
 
 updateUserGroupChannels :: Local UserId -> UserGroupId -> UpdateUserGroupChannels -> Handler r ()
 updateUserGroupChannels _ _ _ = pure ()

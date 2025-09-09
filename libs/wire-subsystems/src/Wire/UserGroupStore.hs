@@ -9,6 +9,7 @@ import Polysemy
 import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
+import Data.Vector
 import Wire.API.UserGroup.Pagination
 
 data UserGroupPageRequest = UserGroupPageRequest
@@ -34,6 +35,7 @@ data UserGroupStore m a where
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe ())
   DeleteUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe ())
   AddUser :: UserGroupId -> UserId -> UserGroupStore m ()
+  UpdateUsers :: UserGroupId -> Vector UserId -> UserGroupStore m ()
   RemoveUser :: UserGroupId -> UserId -> UserGroupStore m ()
 
 makeSem ''UserGroupStore

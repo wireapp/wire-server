@@ -11,7 +11,7 @@ import Testlib.Prelude
 
 testUserGroupSmoke :: (HasCallStack) => App ()
 testUserGroupSmoke = do
-  (owner, team, [mem1, mem2, mem3, mem4, mem5, mem6, admin2]) <- createTeam OwnDomain 8
+  (owner, team, [mem1, mem2, mem3, mem4, mem5, mem6, admin2, mem8, mem9]) <- createTeam OwnDomain 10
   updateTeamMember team owner admin2 Admin >>= assertSuccess
   mem1id <- asString $ mem1 %. "id"
   mem2id <- asString $ mem2 %. "id"
@@ -19,12 +19,14 @@ testUserGroupSmoke = do
   mem4id <- asString $ mem4 %. "id"
   mem5id <- asString $ mem5 %. "id"
   mem6id <- asString $ mem6 %. "id"
+  mem8id <- asString $ mem8 %. "id"
+  mem9id <- asString $ mem9 %. "id"
 
   let badGid = "225c4d54-1ae7-11f0-8e9c-cbb31865d602"
       badMemid = "7bf23c0b-0be6-4432-bc5d-ab301bf75a99"
 
   gid <- withWebSockets [owner, admin2] $ \wss -> do
-    gid <- bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= ([mem1id, mem2id])])) $ \resp -> do
+    gid <- bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= [mem1id, mem2id]])) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "name" `shouldMatch` "none"
       resp.json %. "members" `shouldMatch` [mem1id, mem2id]
@@ -96,6 +98,43 @@ testUserGroupSmoke = do
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 404
+
+  withWebSockets [owner, admin2] $ \wssAdmins -> do
+    ug2Id <- bindResponse (createUserGroup owner (object ["name" .= "ug 2", "members" .= [mem1id]])) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      ug2Id <- asString $ (resp.json %. "id")
+
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupCreatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` ug2Id
+
+      pure ug2Id
+
+    bindResponse (getUserGroup owner ug2Id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members" `shouldMatch` [mem1id]
+
+    bindResponse (updateUserGroupUsers owner ug2Id [mem8id, mem9id]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupUpdatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` ug2Id
+
+    bindResponse (getUserGroup owner ug2Id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members" `shouldMatch` [mem8id, mem9id]
+
+    bindResponse (updateUserGroupUsers owner ug2Id []) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupUpdatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` ug2Id
+
+    bindResponse (getUserGroup owner ug2Id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members" `shouldMatch` ([] :: [()])
 
 testUserGroupAddGroupDenied :: (HasCallStack) => App ()
 testUserGroupAddGroupDenied = do
