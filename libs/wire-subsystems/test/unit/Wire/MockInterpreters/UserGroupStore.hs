@@ -12,7 +12,7 @@ import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Time.Clock
-import Data.Vector (fromList)
+import Data.Vector (Vector, fromList)
 import GHC.Stack
 import Imports
 import Polysemy
@@ -59,7 +59,16 @@ userGroupStoreTestInterpreter =
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
+    UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
+
+updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
+updateUsersImpl gid uids = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = Identity . fromList . nub $ toList uids} :: UserGroup)
+
+  modifyUserGroupsGidOnly gid (Map.alter f)
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do

@@ -30,6 +30,7 @@ data UserGroupSubsystem m a where
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
   AddUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
   AddUsers :: UserId -> UserGroupId -> Vector UserId -> UserGroupSubsystem m ()
+  UpdateUsers :: UserId -> UserGroupId -> Vector UserId -> UserGroupSubsystem m ()
   RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
 
 makeSem ''UserGroupSubsystem

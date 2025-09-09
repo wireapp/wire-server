@@ -32,7 +32,7 @@ import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-import Wire.UserGroupStore
+import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
 
 type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
@@ -46,21 +46,40 @@ interpretUserGroupStoreToPostgres ::
   InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
-    CreateUserGroup team newUserGroup managedBy -> createUserGroupImpl team newUserGroup managedBy
-    GetUserGroup team userGroupId -> getUserGroupImpl team userGroupId
-    GetUserGroups req -> getUserGroupsImpl req
-    UpdateUserGroup tid gid gup -> updateGroupImpl tid gid gup
-    DeleteUserGroup tid gid -> deleteGroupImpl tid gid
-    AddUser gid uid -> addUserImpl gid uid
-    RemoveUser gid uid -> removeUserImpl gid uid
+    CreateUserGroup team newUserGroup managedBy -> createUserGroup team newUserGroup managedBy
+    GetUserGroup team userGroupId -> getUserGroup team userGroupId
+    GetUserGroups req -> getUserGroups req
+    UpdateUserGroup tid gid gup -> updateGroup tid gid gup
+    DeleteUserGroup tid gid -> deleteGroup tid gid
+    AddUser gid uid -> addUser gid uid
+    UpdateUsers gid uids -> updateUsers gid uids
+    RemoveUser gid uid -> removeUser gid uid
 
-getUserGroupImpl ::
+updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
+updateUsers gid uids = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = TransactionSession.transaction Transaction.Serializable TransactionSession.Write do
+      Transaction.statement gid deleteAllUsersStatement
+      Transaction.statement (toUUID gid, uids) insertGroupMembersStatement
+
+    deleteAllUsersStatement :: Statement UserGroupId ()
+    deleteAllUsersStatement =
+      dimap (.toUUID) (const ()) $
+        [resultlessStatement|
+          delete from user_group_member where user_group_id = ($1 :: uuid)
+          |]
+
+getUserGroup ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe UserGroup)
-getUserGroupImpl team id_ = do
+getUserGroup team id_ = do
   pool <- input
   eitherUserGroup <- liftIO $ use pool session
   either throw pure eitherUserGroup
@@ -105,12 +124,12 @@ divide4 f a b c d = divide (\p -> let (w, x, y, z) = f p in (w, (x, y, z))) a (d
 divide5 :: (Divisible f) => (p -> (a, b, c, d, e)) -> f a -> f b -> f c -> f d -> f e -> f p
 divide5 f a b c d e = divide (\p -> let (v, w, x, y, z) = f p in (v, (w, x, y, z))) a (divide4 id b c d e)
 
-getUserGroupsImpl ::
+getUserGroups ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupPageRequest ->
   Sem r [UserGroupMeta]
-getUserGroupsImpl req = do
+getUserGroups req = do
   pool <- input
   eitherResult <- liftIO $ use pool session
   either throw pure eitherResult
@@ -236,14 +255,14 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
         lhs = "(" <> sortColumnName sortColumn <> ", id)"
         mkQuery rhs = T.unwords ["and", lhs, sortOrderOperator sortOrder, rhs]
 
-createUserGroupImpl ::
+createUserGroup ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   NewUserGroup ->
   ManagedBy ->
   Sem r UserGroup
-createUserGroupImpl team newUserGroup managedBy = do
+createUserGroup team newUserGroup managedBy = do
   pool <- input
   eitherUuid <- liftIO $ use pool session
   either throw pure eitherUuid
@@ -280,22 +299,22 @@ createUserGroupImpl team newUserGroup managedBy = do
               returning id :: uuid, name :: text, managed_by :: int, created_at :: timestamptz
             |]
 
-    -- This can perhaps be simplified using rel8
-    insertGroupMembersStatement :: Statement (UUID, Vector UserId) ()
-    insertGroupMembersStatement =
-      lmap (second (fmap (.toUUID)) . uncurry toRelationTable) $
-        [resultlessStatement|
-          insert into user_group_member (user_group_id, user_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
-          |]
+-- This can perhaps be simplified using rel8
+insertGroupMembersStatement :: Statement (UUID, Vector UserId) ()
+insertGroupMembersStatement =
+  lmap (second (fmap (.toUUID)) . uncurry toRelationTable) $
+    [resultlessStatement|
+      insert into user_group_member (user_group_id, user_id) select * from unnest ($1 :: uuid[], $2 :: uuid[])
+      |]
 
-updateGroupImpl ::
+updateGroup ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   UserGroupUpdate ->
   Sem r (Maybe ())
-updateGroupImpl tid gid gup = do
+updateGroup tid gid gup = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
@@ -314,13 +333,13 @@ updateGroupImpl tid gid gup = do
             returning (true :: bool)
           |]
 
-deleteGroupImpl ::
+deleteGroup ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
   Sem r (Maybe ())
-deleteGroupImpl tid gid = do
+deleteGroup tid gid = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
@@ -339,25 +358,25 @@ deleteGroupImpl tid gid = do
             returning (true :: bool)
           |]
 
-addUserImpl ::
+addUser ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
-addUserImpl =
+addUser =
   crudUser
     [resultlessStatement|
       insert into user_group_member (user_group_id, user_id) values (($1 :: uuid), ($2 :: uuid))
       |]
 
-removeUserImpl ::
+removeUser ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
   UserId ->
   Sem r ()
-removeUserImpl =
+removeUser =
   crudUser
     [resultlessStatement|
       delete from user_group_member where user_group_id = ($1 :: uuid) and user_id = ($2 :: uuid)
