@@ -112,7 +112,7 @@ main = do
         filter (\(qname, _, _, _) -> f qname)
           . sortOn (\(qname, _, _, _) -> qname)
           $ allTests <&> \(module_, name, summary, full, action) ->
-            let qualifiedName = (fromMaybe module_ $ stripPrefix "Test." module_) <> "." <> name
+            let qualifiedName = fromMaybe module_ (stripPrefix "Test." module_) <> "." <> name
              in (qualifiedName, summary, full, action)
 
   if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
