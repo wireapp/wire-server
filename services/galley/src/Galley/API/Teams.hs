@@ -81,7 +81,9 @@ import Galley.API.Action
 import Galley.API.Cells (shouldPushToCells)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
-import Galley.API.MLS.Removal (RemoveUserIncludeMain (..), removeUser)
+import Galley.API.MLS.Removal
+  ( RemoveUserIncludeMain (..),
+  )
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
@@ -103,6 +105,7 @@ import Galley.Types.Teams
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy
+import Galley.API.MLS.Removal(removeUser)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
@@ -1398,6 +1401,7 @@ uncheckedLeaveTeams lusr conn tids = do
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   contacts <- E.getContactList (tUnqualified lusr)
   goConvPages contacts nRange1000 allConvIds
+
   where
     goConvPages :: [UserId] -> Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages contacts range page = do
@@ -1435,9 +1439,10 @@ uncheckedLeaveTeams lusr conn tids = do
         SelfConv -> pure Nothing
         One2OneConv -> do
           localMembers <- E.getLocalMembers c.id_
-          if any (flip notElem (tUnqualified lusr : contacts) . (.id_)) localMembers
-            then E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-            else E.deleteConversation c.id_ $> Nothing
+          when (any (flip notElem (tUnqualified lusr : contacts) . (.id_)) localMembers) $
+            E.deleteConversation c.id_
+
+          pure Nothing
         ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` c.localMembers -> do
