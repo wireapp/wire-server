@@ -5,15 +5,16 @@
 Federation allows backends from different domains to communicate and exchange user data.
 By default, federation can be configured at the **domain** level, but in some cases it is necessary to restrict communication further to specific **teams** within a remote domain.
 
-The **team restriction** mechanism lets you define an allowlist of remote teams that are permitted to federate with your domain. Only users belonging to those teams will be discoverable or accessible across domains.
+The **team restriction** mechanism lets you define an allowlist of remote teams that are permitted to **find users from your domain**. In practice, this means that only users belonging to those teams will be discoverable in federated search or connection requests.
 
 Typical deployment:
 
 A customer runs an **on-premise instance** that needs to federate with **their team on Wire Cloud**, but not with other cloud teams or users.
-The allow-list ensures that only the designated cloud team can communicate with the on-prem instance.
+The allow-list ensures that only the designated cloud team can find users on the on-prem instance.
 
 ## Important Limitations
 
+* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users (e.g. via group conversations), even if those users are outside the allow-listed teams. In that case, communication is possible, but direct searchability remains restricted.
 * If a domain is configured via the **static federation config file**, it cannot be modified in the database. That means you cannot:
   * Add or update the domain itself,
   * Add or update team restrictions for that domain.
@@ -80,7 +81,7 @@ Remove a team from the allowlist. Once removed, users from that team will not be
 
 ## Behavior in Federated Search
 
-The team restriction impacts **federated user search** results. Three modes are possible:
+The team restriction impacts **federated user search** results. Two modes are possible:
 
 * **AllowAll** (no restriction):
   All teams from the remote domain are discoverable.
