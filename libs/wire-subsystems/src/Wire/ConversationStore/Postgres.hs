@@ -19,7 +19,6 @@ import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -218,7 +217,7 @@ deleteTeamConversationsImpl :: TeamId -> Sem r ()
 deleteTeamConversationsImpl = undefined
 
 -- MEMBER OPERATIONS
-createMembersImpl :: (ToUserRole u) => ConvId -> UserList u -> Sem r ([LocalMember], [RemoteMember])
+createMembersImpl :: ConvId -> UserList u -> Sem r ([LocalMember], [RemoteMember])
 createMembersImpl = undefined
 
 createMembersInRemoteConversationImpl :: Remote ConvId -> [UserId] -> Sem r ()

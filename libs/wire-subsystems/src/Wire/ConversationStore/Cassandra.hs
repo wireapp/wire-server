@@ -495,11 +495,10 @@ deleteTeamConversations tid = do
 -- When the role is not specified, it defaults to admin.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembers ::
-  (ToUserRole a) =>
   ConvId ->
-  UserList a ->
+  UserList (UserId, RoleName) ->
   Client ([LocalMember], [RemoteMember])
-addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
+addMembers conv (UserList lusers rusers) = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
   -- sequentially. (parallelizing would not aid performance as the partition

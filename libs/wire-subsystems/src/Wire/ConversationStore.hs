@@ -87,7 +87,7 @@ data ConversationStore m a where
   GetTeamConversations :: TeamId -> ConversationStore m [ConvId]
   DeleteTeamConversations :: TeamId -> ConversationStore m ()
   -- MEMBER OPERATIONS
-  CreateMembers :: (ToUserRole u) => ConvId -> UserList u -> ConversationStore m ([LocalMember], [RemoteMember])
+  CreateMembers :: ConvId -> UserList (UserId, RoleName) -> ConversationStore m ([LocalMember], [RemoteMember])
   CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> ConversationStore m BotMember
   GetLocalMember :: ConvId -> UserId -> ConversationStore m (Maybe LocalMember)
@@ -127,4 +127,4 @@ acceptConnectConversation cid = setConversationType cid One2OneConv
 
 -- | Add a member to a local conversation, as an admin.
 createMember :: (Member ConversationStore r) => Local ConvId -> Local UserId -> Sem r [LocalMember]
-createMember c u = fst <$> createMembers (tUnqualified c) (UserList [tUnqualified u] [])
+createMember c u = fst <$> createMembers (tUnqualified c) (UserList [(tUnqualified u, roleNameWireAdmin)] [])
