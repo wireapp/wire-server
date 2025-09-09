@@ -1,0 +1,1 @@
+Add `type` field to user profiles. The possible values are "regular" for regular users, "bot" for services and "app" for apps.
