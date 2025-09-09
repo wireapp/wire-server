@@ -1,4 +1,4 @@
-module Wire.PostgresMarshall (PostgresMarshall (..), lmapPG) where
+module Wire.API.PostgresMarshall (PostgresMarshall (..), lmapPG) where
 
 import Data.Aeson
 import Data.Id

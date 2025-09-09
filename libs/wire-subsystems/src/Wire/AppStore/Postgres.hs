@@ -13,9 +13,9 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error)
 import Polysemy.Input
+import Wire.API.PostgresMarshall
 import Wire.AppStore
 import Wire.Postgres
-import Wire.PostgresMarshall
 
 interpretAppStoreToPostgres ::
   ( Member (Embed IO) r,
