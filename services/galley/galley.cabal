@@ -149,7 +149,6 @@ library
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
-    Galley.ConversationsSubsystem
     Galley.Data.Scope
     Galley.Data.TeamNotifications
     Galley.Data.Types
@@ -291,7 +290,6 @@ library
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
-    , conduit
     , constraints
     , containers                            >=0.5
     , crypton

@@ -64,7 +64,6 @@ import Galley.Cassandra.Services
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
-import Galley.ConversationsSubsystem (interpretConversationsSubsystemCassandra)
 import Galley.Effects
 import Galley.Effects.FireAndForget
 import Galley.Env
@@ -275,6 +274,8 @@ evalGalley e =
     . runInputConst e
     . runInputConst (e ^. hasqlPool)
     . runInputConst (e ^. cstate)
+    . mapError toResponse
+    . mapError toResponse
     . mapError rateLimitExceededToHttpError
     . mapError toResponse -- DynError
     . interpretTinyLog e
@@ -311,12 +312,11 @@ evalGalley e =
     . interpretFederatorAccess
     . runRpcWithHttp (e ^. manager) (e ^. reqId)
     . runGundeckAPIAccess (e ^. options . gundeck)
-    . interpretBrigAccess (e ^. brig)
-    . interpretConversationsSubsystemCassandra
     . interpretTeamSubsystem
     . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
     . interpretTeamCollaboratorsSubsystem
     . interpretSparAccess
+    . interpretBrigAccess (e ^. brig)
     . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e

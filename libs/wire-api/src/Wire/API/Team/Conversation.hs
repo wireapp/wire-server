@@ -29,10 +29,6 @@ module Wire.API.Team.Conversation
     TeamConversationList,
     newTeamConversationList,
     teamConversations,
-
-    -- * LeavingConversations
-    LeavingConversations (..),
-    newLeavingConversations,
   )
 where
 
@@ -41,7 +37,6 @@ import Data.Aeson qualified as A
 import Data.Id (ConvId)
 import Data.OpenApi qualified as S
 import Data.Schema
-import GHC.Generics (Generically (..))
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -100,27 +95,3 @@ newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 makeLenses ''TeamConversation
-
---------------------------------------------------------------------------------
--- LeavingConversations
-
-data LeavingConversations = LeavingConversations {leave :: [ConvId], close :: [ConvId]}
-  deriving (Generic)
-  deriving stock (Eq, Show)
-  deriving (Arbitrary) via (GenericUniform LeavingConversations)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema LeavingConversations)
-  deriving (Semigroup, Monoid) via (Generically LeavingConversations)
-
-instance ToSchema LeavingConversations where
-  schema =
-    objectWithDocModifier
-      "LeavingConversations"
-      (description ?~ "Conversations to leave or close")
-      $ LeavingConversations
-        <$> leave .= field "leave" (array schema)
-        <*> close .= field "close" (array schema)
-
-newLeavingConversations :: [ConvId] -> [ConvId] -> LeavingConversations
-newLeavingConversations = LeavingConversations
-
-makeLenses ''LeavingConversations

@@ -30,7 +30,6 @@ import Wire.API.Conversation
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
-import Wire.API.Team.Conversation (LeavingConversations)
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
@@ -74,11 +73,6 @@ data GalleyAPIAccess m a where
     Maybe (UserId, UTCTimeMillis) ->
     Role ->
     GalleyAPIAccess m Bool
-  RemoveTeamMember ::
-    Local UserId ->
-    UserId ->
-    TeamId ->
-    GalleyAPIAccess m ()
   CreateTeam ::
     UserId ->
     NewTeam ->
@@ -150,6 +144,5 @@ data GalleyAPIAccess m a where
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
-  LeavingConversationsFrom :: TeamId -> UserId -> GalleyAPIAccess m LeavingConversations
 
 makeSem ''GalleyAPIAccess

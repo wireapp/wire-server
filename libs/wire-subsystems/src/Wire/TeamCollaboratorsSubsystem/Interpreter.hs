@@ -11,9 +11,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Event.Team
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Conversation (LeavingConversations)
 import Wire.API.Team.Member qualified as TeamMember
-import Wire.ConversationsSubsystem (ConversationsSubsystem, internalLeavingConversationsFrom)
 import Wire.Error
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -27,8 +25,7 @@ interpretTeamCollaboratorsSubsystem ::
     Member (Error TeamCollaboratorsError) r,
     Member Store.TeamCollaboratorsStore r,
     Member Now r,
-    Member NotificationSubsystem r,
-    Member ConversationsSubsystem r
+    Member NotificationSubsystem r
   ) =>
   InterpreterFor TeamCollaboratorsSubsystem r
 interpretTeamCollaboratorsSubsystem = interpret $ \case
@@ -95,15 +92,13 @@ internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
 internalRemoveTeamCollaboratorImpl ::
-  ( Member Store.TeamCollaboratorsStore r,
-    Member ConversationsSubsystem r
+  ( Member Store.TeamCollaboratorsStore r
   ) =>
   UserId ->
   TeamId ->
-  Sem r LeavingConversations
+  Sem r ()
 internalRemoveTeamCollaboratorImpl user team = do
   Store.removeTeamCollaborator user team
-  internalLeavingConversationsFrom team user
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

@@ -88,10 +88,10 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
-import Wire.ConversationStore
-import Wire.ConversationsSubsystem (ConversationsSubsystem)
+import Wire.ConversationStore (ConversationStore)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
@@ -108,12 +108,11 @@ import Wire.TeamSubsystem (TeamSubsystem)
 -- All the possible high-level effects.
 type GalleyEffects1 =
   '[ ExternalAccess,
+     BrigAPIAccess,
      SparAccess,
      TeamCollaboratorsSubsystem,
      NotificationSubsystem,
      TeamSubsystem,
-     ConversationsSubsystem,
-     BrigAPIAccess,
      GundeckAPIAccess,
      Rpc,
      FederatorAccess,
@@ -149,5 +148,7 @@ type GalleyEffects1 =
      Queue DeleteItem,
      TinyLog,
      Error DynError,
-     Error RateLimitExceeded
+     Error RateLimitExceeded,
+     ErrorS OperationDenied,
+     ErrorS 'NotATeamMember
    ]

@@ -64,7 +64,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User as User hiding (DeleteUser)
@@ -78,7 +77,6 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
-import Wire.ConversationsSubsystem (ConversationsSubsystem (..))
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -635,16 +633,7 @@ interpretMaybeFederationStackState mb =
 
       userSubsystemInterpreter :: InterpreterFor UserSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-      interpretConversationsSubsystem :: forall r0. InterpreterFor ConversationsSubsystem r0
-      interpretConversationsSubsystem =
-        interpret $
-          \case
-            InternalLeavingConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
-   in miniBackendLowerEffectsInterpreters mb
-        . interpretConversationsSubsystem
-        . interpretTeamCollaboratorsSubsystem
-        . raiseUnder @ConversationsSubsystem
-        . userSubsystemInterpreter
+   in miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . userSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case

@@ -147,7 +147,6 @@ mkDerivation {
     cassandra-util
     cassava
     comonad
-    conduit
     constraints
     containers
     crypton

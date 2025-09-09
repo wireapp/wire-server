@@ -50,7 +50,6 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Team
-import Wire.API.Team.Conversation (LeavingConversations)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info
@@ -254,13 +253,6 @@ type ITeamsAPIBase =
                  :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "OK")
              )
              :<|> Named
-                    "unchecked-remove-team-member"
-                    ( Summary
-                        "Remove a user from a team and conversations"
-                        :> ZLocalUser
-                        :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "OK")
-                    )
-             :<|> Named
                     "unchecked-get-team-members"
                     ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
                         :> Get '[JSON] TeamMemberList
@@ -323,12 +315,6 @@ type ITeamsAPIBase =
                         :> MultiVerb1 'PUT '[JSON] (RespondEmpty 204 "OK")
                     )
          )
-    :<|> Named
-           "leave-conversations-from"
-           ( "leave-conversations-from"
-               :> Capture "uid" UserId
-               :> Post '[JSON] LeavingConversations
-           )
 
 type IFeatureStatusGet cfg =
   Named

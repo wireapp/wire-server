@@ -207,6 +207,17 @@ type TeamMemberAPI =
                     "CSV of team members"
                     CSV
            )
+    :<|> Named
+           "remove-team-collaborator"
+           ( Summary "Remove a collaborator from the team."
+               :> From 'V11
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> Capture "uid" UserId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "")
+           )
 
 type TeamMemberDeleteResultResponseType =
   '[ RespondEmpty 202 "Team member scheduled for deletion",

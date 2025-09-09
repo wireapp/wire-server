@@ -7,7 +7,6 @@ import Data.Proxy
 import Data.Range
 import Imports
 import Polysemy
-import Wire.API.Team.Conversation (LeavingConversations (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
@@ -28,7 +27,6 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   NewClient _ _ -> error "NewClient not implemented in miniGalleyAPIAccess"
   CheckUserCanJoinTeam _ -> pure Nothing
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
-  RemoveTeamMember {} -> error "RemoveTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
   GetTeamMembers tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
@@ -51,7 +49,6 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
-  LeavingConversationsFrom _tid _uid -> pure $ LeavingConversations {leave = [], close = []}
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList
