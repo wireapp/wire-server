@@ -239,7 +239,6 @@ library
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.Postgres
-    Wire.PostgresMarshall
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra

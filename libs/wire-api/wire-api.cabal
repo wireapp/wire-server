@@ -148,6 +148,7 @@ library
     Wire.API.Password
     Wire.API.Password.Argon2id
     Wire.API.Password.Scrypt
+    Wire.API.PostgresMarshall
     Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
