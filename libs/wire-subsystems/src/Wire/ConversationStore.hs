@@ -53,7 +53,6 @@ data MLSCommitLockStore m a where
 makeSem ''MLSCommitLockStore
 
 data ConversationStore m a where
-  CreateConversationId :: ConversationStore m ConvId
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
   CreateMLSSelfConversation ::
     Local UserId ->

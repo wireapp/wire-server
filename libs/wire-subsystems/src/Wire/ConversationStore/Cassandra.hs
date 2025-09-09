@@ -41,7 +41,6 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time
-import Data.UUID.V4 (nextRandom)
 import Imports
 import Polysemy
 import Polysemy.Embed
@@ -985,9 +984,6 @@ interpretConversationStoreToCassandra ::
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra client = interpret $ \case
-  CreateConversationId -> do
-    logEffect "ConversationStore.CreateConversationId"
-    Id <$> embed nextRandom
   CreateConversation loc nc -> do
     logEffect "ConversationStore.CreateConversation"
     embedClient client $ createConversation loc nc

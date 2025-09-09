@@ -87,6 +87,7 @@ import Wire.ConversationStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
@@ -123,7 +124,8 @@ createGroupConversationUpToV3 ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -168,7 +170,8 @@ createGroupOwnConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -213,7 +216,8 @@ createGroupConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -259,7 +263,8 @@ createGroupConvAndMkResponse ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -300,7 +305,8 @@ createGroupConversationGeneric ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -316,7 +322,7 @@ createGroupConversationGeneric lusr conn newConv joinType = do
     -- Here we fail early in order to notify users of this misconfiguration
     assertMLSEnabled
 
-  lcnv <- traverse (const E.createConversationId) lusr
+  lcnv <- traverse (const $ Id <$> Random.uuid) lusr
   conv <- E.createConversation lcnv nc
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation lusr conn conv joinType
