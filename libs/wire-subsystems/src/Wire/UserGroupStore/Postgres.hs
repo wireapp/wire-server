@@ -32,7 +32,7 @@ import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-import Wire.UserGroupStore ( UserGroupStore(..), PaginationState(..), UserGroupPageRequest(..), toSortBy )
+import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
 
 type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
@@ -55,7 +55,7 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
 
-updateUsers :: (UserGroupStorePostgresEffectConstraints  r) => UserGroupId -> Vector UserId -> Sem r ()
+updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do
   pool <- input
   result <- liftIO $ use pool session
