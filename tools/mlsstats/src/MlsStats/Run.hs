@@ -35,7 +35,6 @@ import Control.Exception
 import Control.Lens ((.~), (?~), (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Base64 qualified as BS64
-import Data.ByteString.Lazy qualified as LBS
 import Data.Conduit.Combinators hiding (foldMap, stderr, stdout)
 import Data.Domain
 import Data.Id
@@ -228,24 +227,3 @@ uploadParts env bucket key uploadId partNum = do
         yield (partNum, etag)
       uploadParts env bucket key uploadId (partNum + 1)
     Nothing -> pure ()
-
-instance Cql ProtocolTag where
-  ctype = Tagged IntColumn
-
-  toCql = CqlInt . fromIntegral . fromEnum
-
-  fromCql (CqlInt i) = do
-    let i' = fromIntegral i
-    if i' < fromEnum @ProtocolTag minBound
-      || i' > fromEnum @ProtocolTag maxBound
-      then Left $ "unexpected protocol: " ++ show i
-      else Right $ toEnum i'
-  fromCql _ = Left "protocol: int expected"
-
-instance Cql GroupId where
-  ctype = Tagged BlobColumn
-
-  toCql = CqlBlob . LBS.fromStrict . unGroupId
-
-  fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
-  fromCql _ = Left "group_id: blob expected"

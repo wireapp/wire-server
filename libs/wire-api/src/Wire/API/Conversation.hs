@@ -94,6 +94,7 @@ module Wire.API.Conversation
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -126,6 +127,7 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Event.LeaveReason
 import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
@@ -576,6 +578,29 @@ instance ToSchema Access where
             element "code" CodeAccess
           ]
 
+instance C.Cql Access where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . accessToInt32
+
+  fromCql (C.CqlInt i) = case i of
+    1 -> pure PrivateAccess
+    2 -> pure InviteAccess
+    3 -> pure LinkAccess
+    4 -> pure CodeAccess
+    n -> Left $ "Unexpected Access value: " ++ show n
+  fromCql _ = Left "Access value: int expected"
+
+instance PostgresMarshall Access Int32 where
+  postgresMarshall = accessToInt32
+
+accessToInt32 :: Access -> Int32
+accessToInt32 = \case
+  PrivateAccess -> 1
+  InviteAccess -> 2
+  LinkAccess -> 3
+  CodeAccess -> 4
+
 -- | AccessRoles define who can join conversations. The roles are
 -- "supersets", i.e. Activated includes Team and NonActivated includes
 -- Activated.
@@ -631,6 +656,29 @@ data AccessRole
   deriving stock (Eq, Ord, Show, Generic, Bounded, Enum)
   deriving (Arbitrary) via (GenericUniform AccessRole)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema AccessRole
+
+instance C.Cql AccessRole where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . accessRoleToInt32
+
+  fromCql (C.CqlInt i) = case i of
+    1 -> pure TeamMemberAccessRole
+    2 -> pure NonTeamMemberAccessRole
+    3 -> pure GuestAccessRole
+    4 -> pure ServiceAccessRole
+    n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
+  fromCql _ = Left "AccessRoleV2 value: int expected"
+
+instance PostgresMarshall AccessRole Int32 where
+  postgresMarshall = accessRoleToInt32
+
+accessRoleToInt32 :: AccessRole -> Int32
+accessRoleToInt32 = \case
+  TeamMemberAccessRole -> 1
+  NonTeamMemberAccessRole -> 2
+  GuestAccessRole -> 3
+  ServiceAccessRole -> 4
 
 genAccessRolesV2 :: [AccessRole] -> [AccessRole] -> IO (Either String (Set AccessRole))
 genAccessRolesV2 = genEnumSet
@@ -718,6 +766,29 @@ instance ToSchema ConvType where
           element 3 ConnectConv
         ]
 
+instance C.Cql ConvType where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . convTypeToInt32
+
+  fromCql (C.CqlInt i) = case i of
+    0 -> pure RegularConv
+    1 -> pure SelfConv
+    2 -> pure One2OneConv
+    3 -> pure ConnectConv
+    n -> Left $ "unexpected conversation-type: " ++ show n
+  fromCql _ = Left "conv-type: int expected"
+
+instance PostgresMarshall ConvType Int32 where
+  postgresMarshall = convTypeToInt32
+
+convTypeToInt32 :: ConvType -> Int32
+convTypeToInt32 = \case
+  RegularConv -> 0
+  SelfConv -> 1
+  One2OneConv -> 2
+  ConnectConv -> 3
+
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not
 --   interpret it in any way, rather just stores and forwards it
@@ -728,7 +799,7 @@ instance ToSchema ConvType where
 --                              ...
 newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving stock (Eq, Ord, Show)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, C.Cql)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ReceiptMode
 
 instance Default ReceiptMode where
@@ -738,6 +809,9 @@ instance ToSchema ReceiptMode where
   schema =
     (S.schema . description ?~ "Conversation receipt mode") $
       ReceiptMode <$> unReceiptMode .= schema
+
+instance PostgresMarshall ReceiptMode Int32 where
+  postgresMarshall = unReceiptMode
 
 --------------------------------------------------------------------------------
 -- create
@@ -754,6 +828,15 @@ instance ToSchema GroupConvType where
         [ element "group_conversation" GroupConversation,
           element "channel" Channel
         ]
+
+instance C.Cql GroupConvType where
+  ctype = C.Tagged C.IntColumn
+  toCql = C.CqlInt . fromIntegral . fromEnum
+  fromCql (C.CqlInt i) = Right . toEnum . fromIntegral $ i
+  fromCql _ = Left "GroupConvType: int expected"
+
+instance PostgresMarshall GroupConvType Int32 where
+  postgresMarshall = fromIntegral . fromEnum
 
 data NewConv = NewConv
   { newConvUsers :: [UserId],
@@ -1163,6 +1246,15 @@ instance ToSchema AddPermission where
         [ element "admins" Admins,
           element "everyone" Everyone
         ]
+
+instance C.Cql AddPermission where
+  ctype = C.Tagged C.IntColumn
+  toCql = C.CqlInt . fromIntegral . fromEnum
+  fromCql (C.CqlInt i) = Right . toEnum . fromIntegral $ i
+  fromCql _ = Left "AddPermission: int expected"
+
+instance PostgresMarshall AddPermission Int32 where
+  postgresMarshall = fromIntegral . fromEnum
 
 newtype AddPermissionUpdate = AddPermissionUpdate
   { addPermission :: AddPermission

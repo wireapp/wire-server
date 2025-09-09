@@ -45,40 +45,6 @@ import Wire.API.Team.SearchVisibility
 
 deriving instance Cql MutedStatus
 
-deriving instance Cql ReceiptMode
-
-instance Cql ConvType where
-  ctype = Tagged IntColumn
-
-  toCql RegularConv = CqlInt 0
-  toCql SelfConv = CqlInt 1
-  toCql One2OneConv = CqlInt 2
-  toCql ConnectConv = CqlInt 3
-
-  fromCql (CqlInt i) = case i of
-    0 -> pure RegularConv
-    1 -> pure SelfConv
-    2 -> pure One2OneConv
-    3 -> pure ConnectConv
-    n -> Left $ "unexpected conversation-type: " ++ show n
-  fromCql _ = Left "conv-type: int expected"
-
-instance Cql Access where
-  ctype = Tagged IntColumn
-
-  toCql PrivateAccess = CqlInt 1
-  toCql InviteAccess = CqlInt 2
-  toCql LinkAccess = CqlInt 3
-  toCql CodeAccess = CqlInt 4
-
-  fromCql (CqlInt i) = case i of
-    1 -> pure PrivateAccess
-    2 -> pure InviteAccess
-    3 -> pure LinkAccess
-    4 -> pure CodeAccess
-    n -> Left $ "Unexpected Access value: " ++ show n
-  fromCql _ = Left "Access value: int expected"
-
 instance Cql AccessRoleLegacy where
   ctype = Tagged IntColumn
 
@@ -94,23 +60,6 @@ instance Cql AccessRoleLegacy where
     4 -> pure NonActivatedAccessRole
     n -> Left $ "Unexpected AccessRole value: " ++ show n
   fromCql _ = Left "AccessRole value: int expected"
-
-instance Cql AccessRole where
-  ctype = Tagged IntColumn
-
-  toCql = \case
-    TeamMemberAccessRole -> CqlInt 1
-    NonTeamMemberAccessRole -> CqlInt 2
-    GuestAccessRole -> CqlInt 3
-    ServiceAccessRole -> CqlInt 4
-
-  fromCql (CqlInt i) = case i of
-    1 -> pure TeamMemberAccessRole
-    2 -> pure NonTeamMemberAccessRole
-    3 -> pure GuestAccessRole
-    4 -> pure ServiceAccessRole
-    n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
-  fromCql _ = Left "AccessRoleV2 value: int expected"
 
 instance Cql ConvTeamInfo where
   ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]
@@ -171,27 +120,6 @@ instance Cql Public.EnforceAppLock where
     _ -> Left "fromCql EnforceAppLock: int out of range"
   fromCql _ = Left "fromCql EnforceAppLock: int expected"
 
-instance Cql ProtocolTag where
-  ctype = Tagged IntColumn
-
-  toCql = CqlInt . fromIntegral . fromEnum
-
-  fromCql (CqlInt i) = do
-    let i' = fromIntegral i
-    if i' < fromEnum @ProtocolTag minBound
-      || i' > fromEnum @ProtocolTag maxBound
-      then Left $ "unexpected protocol: " ++ show i
-      else Right $ toEnum i'
-  fromCql _ = Left "protocol: int expected"
-
-instance Cql GroupId where
-  ctype = Tagged BlobColumn
-
-  toCql = CqlBlob . LBS.fromStrict . unGroupId
-
-  fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
-  fromCql _ = Left "group_id: blob expected"
-
 instance Cql GroupInfoData where
   ctype = Tagged BlobColumn
 
@@ -237,15 +165,3 @@ instance Cql SubConvId where
   toCql = CqlText . unSubConvId
   fromCql (CqlText txt) = Right (SubConvId txt)
   fromCql _ = Left "SubConvId: Text expected"
-
-instance Cql GroupConvType where
-  ctype = Tagged IntColumn
-  toCql = CqlInt . fromIntegral . fromEnum
-  fromCql (CqlInt i) = Right . toEnum . fromIntegral $ i
-  fromCql _ = Left "GroupConvType: int expected"
-
-instance Cql AddPermission where
-  ctype = Tagged IntColumn
-  toCql = CqlInt . fromIntegral . fromEnum
-  fromCql (CqlInt i) = Right . toEnum . fromIntegral $ i
-  fromCql _ = Left "AddPermission: int expected"

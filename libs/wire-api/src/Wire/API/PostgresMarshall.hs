@@ -10,7 +10,9 @@ where
 import Data.Aeson
 import Data.ByteString qualified as BS
 import Data.Id
+import Data.Misc
 import Data.Profunctor
+import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Data.UUID
 import Data.Vector (Vector)
@@ -20,6 +22,9 @@ import Imports
 
 class PostgresMarshall a b where
   postgresMarshall :: a -> b
+
+instance {-# OVERLAPS #-} (a ~ b) => PostgresMarshall a b where
+  postgresMarshall = id
 
 instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2) => PostgresMarshall (a1, a2) (b1, b2) where
   postgresMarshall (a1, a2) = (postgresMarshall a1, postgresMarshall a2)
@@ -389,6 +394,21 @@ instance PostgresMarshall (Id a) UUID where
 
 instance PostgresMarshall Object Value where
   postgresMarshall = Object
+
+instance PostgresMarshall Milliseconds Int64 where
+  postgresMarshall = msToInt64
+
+instance (PostgresMarshall a b) => PostgresMarshall (Maybe a) (Maybe b) where
+  postgresMarshall = fmap postgresMarshall
+
+instance (PostgresMarshall a b) => PostgresMarshall [a] (Vector b) where
+  postgresMarshall = V.fromList . map postgresMarshall
+
+instance (PostgresMarshall a b) => PostgresMarshall (Set a) (Vector b) where
+  postgresMarshall = V.fromList . map postgresMarshall . Set.toList
+
+instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
+  postgresMarshall = V.map postgresMarshall
 
 ---
 

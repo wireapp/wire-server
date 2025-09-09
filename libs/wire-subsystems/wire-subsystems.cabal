@@ -191,6 +191,7 @@ library
     Wire.ConversationStore.Cassandra.Instances
     Wire.ConversationStore.Cassandra.Queries
     Wire.ConversationStore.MLS.Types
+    Wire.ConversationStore.Postgres
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore

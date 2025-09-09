@@ -37,6 +37,7 @@ module Wire.API.Conversation.Protocol
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow
 import Control.Lens (makePrisms, (?~))
@@ -50,6 +51,7 @@ import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.Arbitrary
@@ -59,6 +61,22 @@ data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
 instance S.ToSchema ProtocolTag
+
+instance C.Cql ProtocolTag where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . fromIntegral . fromEnum
+
+  fromCql (C.CqlInt i) = do
+    let i' = fromIntegral i
+    if i' < fromEnum @ProtocolTag minBound
+      || i' > fromEnum @ProtocolTag maxBound
+      then Left $ "unexpected protocol: " ++ show i
+      else Right $ toEnum i'
+  fromCql _ = Left "protocol: int expected"
+
+instance PostgresMarshall ProtocolTag Int32 where
+  postgresMarshall = fromIntegral . fromEnum
 
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.

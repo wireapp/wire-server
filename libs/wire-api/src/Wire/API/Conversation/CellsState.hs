@@ -23,6 +23,7 @@ import Data.Default
 import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 data CellsState
@@ -51,9 +52,7 @@ instance ToSchema CellsState where
 instance Cql CellsState where
   ctype = Tagged IntColumn
 
-  toCql CellsDisabled = CqlInt 0
-  toCql CellsPending = CqlInt 1
-  toCql CellsReady = CqlInt 2
+  toCql = CqlInt . cellsStateToInt32
 
   fromCql (CqlInt i) = case i of
     0 -> pure CellsDisabled
@@ -61,3 +60,12 @@ instance Cql CellsState where
     2 -> pure CellsReady
     n -> Left $ "unexpected cells_state: " ++ show n
   fromCql _ = Left "cells_state: int expected"
+
+instance PostgresMarshall CellsState Int32 where
+  postgresMarshall = cellsStateToInt32
+
+cellsStateToInt32 :: CellsState -> Int32
+cellsStateToInt32 = \case
+  CellsDisabled -> 0
+  CellsPending -> 1
+  CellsReady -> 2
