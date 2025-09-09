@@ -18,7 +18,7 @@ import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
 import Wire.API.User
 import Wire.API.User.Auth
-import Wire.AppStore (AppStore)
+import Wire.AppStore (AppStore, StoredApp (..))
 import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
@@ -74,14 +74,20 @@ createAppImpl lusr tid new = do
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
   u <- appNewStoredUser creator new
+  let app =
+        StoredApp
+          { id = u.id,
+            teamId = tid,
+            meta = new.meta
+          }
 
   Log.info $
-    Log.field "app" (toByteString u.id)
+    Log.field "app" (toByteString app.id)
       . Log.field "creator" (toByteString creator.id)
       . Log.msg (Log.val "Creating app")
 
   -- create app and user entries
-  Store.createApp u.id tid new.meta
+  Store.createApp app
   Store.createUser u Nothing
 
   -- generate a team event

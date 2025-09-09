@@ -7,7 +7,8 @@ import Testlib.Prelude
 
 testCreateApp :: (HasCallStack) => App ()
 testCreateApp = do
-  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  domain <- make OwnDomain
+  (alice, tid, [bob]) <- createTeam domain 2
   let new = def {name = "chappie"} :: NewApp
 
   bindResponse (createApp bob tid new) $ \resp -> do
@@ -20,7 +21,18 @@ testCreateApp = do
     cookie <- resp.json %. "cookie" & asString
     pure (appId, cookie)
 
-  void $ bindResponse (renewToken OwnDomain cookie) $ \resp -> do
+  -- app user should have type "app"
+  let appIdObject = object ["domain" .= domain, "id" .= appId]
+  bindResponse (getUser alice appIdObject) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "type" `shouldMatch` "app"
+
+  -- creator should have type "regular"
+  bindResponse (getUser alice alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "type" `shouldMatch` "regular"
+
+  void $ bindResponse (renewToken domain cookie) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
     resp.json %. "token_type" `shouldMatch` "Bearer"

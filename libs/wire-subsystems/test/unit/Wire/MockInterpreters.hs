@@ -4,6 +4,7 @@ module Wire.MockInterpreters (module MockInterpreters) where
 -- ls libs/wire-subsystems/test/unit/Wire/MockInterpreters | sed 's|\(.*\)\.hs|import Wire.MockInterpreters.\1 as MockInterpreters|'
 
 import Wire.MockInterpreters.ActivationCodeStore as MockInterpreters
+import Wire.MockInterpreters.AppStore as MockInterpreters
 import Wire.MockInterpreters.BlockListStore as MockInterpreters
 import Wire.MockInterpreters.CryptoSign as MockInterpreters
 import Wire.MockInterpreters.DomainRegistrationStore as MockInterpreters

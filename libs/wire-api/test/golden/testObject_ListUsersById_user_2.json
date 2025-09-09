@@ -13,7 +13,8 @@
             },
             "supported_protocols": [
                 "proteus"
-            ]
+            ],
+            "type": "regular"
         },
         {
             "accent_id": 0,
@@ -30,7 +31,8 @@
                 "proteus",
                 "mls"
             ],
-            "text_status": "text status"
+            "text_status": "text status",
+            "type": "regular"
         }
     ]
 }

@@ -5,7 +5,6 @@ module Wire.AppStore.Postgres
   )
 where
 
-import Data.Aeson
 import Data.Id
 import Hasql.Pool
 import Hasql.TH
@@ -25,20 +24,32 @@ interpretAppStoreToPostgres ::
   InterpreterFor AppStore r
 interpretAppStoreToPostgres =
   interpret $ \case
-    CreateApp userId teamId meta -> createAppImpl userId teamId meta
+    CreateApp app -> createAppImpl app
+    GetApp userId -> getAppImpl userId
 
 createAppImpl ::
   ( Member (Input Pool) r,
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  UserId ->
-  TeamId ->
-  Object ->
+  StoredApp ->
   Sem r ()
-createAppImpl userId teamId meta =
-  runResultlessStatement (userId, teamId, meta) $
+createAppImpl app =
+  runResultlessStatement app $
     lmapPG
       [resultlessStatement|
         insert into apps (user_id, team_id, metadata)
         values ($1 :: uuid, $2 :: uuid, $3 :: json) |]
+
+getAppImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UserId ->
+  Sem r (Maybe StoredApp)
+getAppImpl uid =
+  runMaybeStatement uid $
+    dimapPG
+      [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json) 
+        from apps where user_id = ($1 :: uuid) |]
