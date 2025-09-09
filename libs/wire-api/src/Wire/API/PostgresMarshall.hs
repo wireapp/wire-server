@@ -9,6 +9,7 @@ where
 
 import Data.Aeson
 import Data.ByteString qualified as BS
+import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Profunctor
@@ -397,6 +398,9 @@ instance PostgresMarshall Object Value where
 
 instance PostgresMarshall Milliseconds Int64 where
   postgresMarshall = msToInt64
+
+instance PostgresMarshall Domain Text where
+  postgresMarshall = domainText
 
 instance (PostgresMarshall a b) => PostgresMarshall (Maybe a) (Maybe b) where
   postgresMarshall = fmap postgresMarshall

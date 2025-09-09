@@ -79,6 +79,7 @@ import Deriving.Swagger qualified as S
 import GHC.TypeLits
 import Imports
 import Test.QuickCheck qualified as QC
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -225,7 +226,7 @@ instance FromJSON ConversationRolesList where
 -- expose this constructor outside of this module.
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToByteString, Hashable)
+  deriving newtype (ToByteString, Hashable, Cql)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema RoleName
 
 instance ToSchema RoleName where
@@ -241,7 +242,8 @@ instance ToSchema RoleName where
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") pure . parseRoleName
 
-deriving instance Cql RoleName
+instance PostgresMarshall RoleName Text where
+  postgresMarshall = fromRoleName
 
 instance Arbitrary RoleName where
   arbitrary =

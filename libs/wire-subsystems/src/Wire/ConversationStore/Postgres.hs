@@ -11,7 +11,11 @@ import Data.Range
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Hasql.Pool qualified as Hasql
+import Hasql.Statement qualified as Hasql
 import Hasql.TH (resultlessStatement)
+import Hasql.Transaction (Transaction)
+import Hasql.Transaction qualified as Transaction
+import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -19,6 +23,7 @@ import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -28,7 +33,7 @@ import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.Postgres (runResultlessStatement)
+import Wire.Postgres
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -105,33 +110,40 @@ createConversationImpl ::
 createConversationImpl lcnv nc = do
   let storedConv = newStoredConversation lcnv nc
       meta = storedConv.metadata
-  runResultlessStatement
-    ( storedConv.id_,
-      meta.cnvmType,
-      meta.cnvmCreator,
-      Vector.fromList meta.cnvmAccess,
-      meta.cnvmAccessRoles,
-      meta.cnvmName,
-      meta.cnvmTeam,
-      meta.cnvmMessageTimer,
-      meta.cnvmReceiptMode,
-      protocolTag storedConv.protocol,
-      getGroupId storedConv.protocol,
-      meta.cnvmGroupConvType,
-      meta.cnvmChannelAddPermission,
-      meta.cnvmCellsState,
-      meta.cnvmParent
-    )
-    $ lmapPG @_ @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _)
-      [resultlessStatement|insert into conversation
-                          (id, type, creator, access, access_roles_v2,
-                           name, team, message_timer, receipt_mode, protocol,
-                           group_id, group_conv_type, channel_add_permission, cells_state, parent_conv)
-                          values
-                          ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
-                           $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
-                           $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)|]
+      localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
+      remoteUsers = map (\m -> (,m.convRoleName) <$> m.id_) storedConv.remoteMembers
+      convRow =
+        ( storedConv.id_,
+          meta.cnvmType,
+          meta.cnvmCreator,
+          Vector.fromList meta.cnvmAccess,
+          meta.cnvmAccessRoles,
+          meta.cnvmName,
+          meta.cnvmTeam,
+          meta.cnvmMessageTimer,
+          meta.cnvmReceiptMode,
+          protocolTag storedConv.protocol,
+          getGroupId storedConv.protocol,
+          meta.cnvmGroupConvType,
+          meta.cnvmChannelAddPermission,
+          meta.cnvmCellsState,
+          meta.cnvmParent
+        )
+  runTransaction ReadCommitted Write $ do
+    Transaction.statement convRow insertConvStatement
+    createMembersTransaction storedConv.id_ $ UserList localUsers remoteUsers
   pure storedConv
+  where
+    insertConvStatement =
+      lmapPG @_ @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _)
+        [resultlessStatement|insert into conversation
+                             (id, type, creator, access, access_roles_v2,
+                              name, team, message_timer, receipt_mode, protocol,
+                              group_id, group_conv_type, channel_add_permission, cells_state, parent_conv)
+                             values
+                             ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
+                              $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
+                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)|]
 
 --
 
@@ -217,8 +229,32 @@ deleteTeamConversationsImpl :: TeamId -> Sem r ()
 deleteTeamConversationsImpl = undefined
 
 -- MEMBER OPERATIONS
-createMembersImpl :: ConvId -> UserList u -> Sem r ([LocalMember], [RemoteMember])
-createMembersImpl = undefined
+createMembersImpl ::
+  (Member (Input Hasql.Pool) r, Member (Embed IO) r, Member (Error Hasql.UsageError) r) =>
+  ConvId ->
+  UserList (UserId, RoleName) ->
+  Sem r ([LocalMember], [RemoteMember])
+createMembersImpl convId users@(UserList lusers rusers) = do
+  runTransaction ReadCommitted Write $ createMembersTransaction convId users
+  pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
+
+createMembersTransaction :: ConvId -> UserList (UserId, RoleName) -> Transaction ()
+createMembersTransaction convId (UserList lusers rusers) = do
+  for_ lusers $ \(u, r) ->
+    Transaction.statement (convId, u, r) insertLocalStatement
+  for_ rusers $ \(tUntagged -> Qualified (uid, role) domain) ->
+    Transaction.statement (convId, domain, uid, role) insertRemoteStatement
+  where
+    insertLocalStatement :: Hasql.Statement (ConvId, UserId, RoleName) ()
+    insertLocalStatement =
+      lmapPG
+        [resultlessStatement|insert into conversation_member (conv, "user", status, conversation_role)
+                             values ($1 :: uuid, $2 :: uuid, 0, $3 :: text)|]
+    insertRemoteStatement :: Hasql.Statement (ConvId, Domain, UserId, RoleName) ()
+    insertRemoteStatement =
+      lmapPG
+        [resultlessStatement|insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role)
+                             values ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
 
 createMembersInRemoteConversationImpl :: Remote ConvId -> [UserId] -> Sem r ()
 createMembersInRemoteConversationImpl = undefined
