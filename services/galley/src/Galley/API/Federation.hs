@@ -37,7 +37,6 @@ import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
-import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
@@ -440,7 +439,6 @@ onUserDeleted origDomain udcn = do
       mconv <- E.getConversation c
       E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
-        traceM $ "================== onUserDeleted: " <> show c
         when (isRemoteMember deletedUser (conv.remoteMembers)) $
           case Data.convType conv of
             -- No need for a notification on One2One conv as the user is being

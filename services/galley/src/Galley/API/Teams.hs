@@ -53,7 +53,6 @@ module Galley.API.Teams
     ensureNotTooLargeToActivateLegalHold,
     internalDeleteBindingTeam,
     removeTeamCollaborator,
-    uncheckedLeaveTeams,
   )
 where
 
@@ -77,20 +76,15 @@ import Data.Range as Range
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock (UTCTime)
-import Debug.Trace (traceM)
 import Galley.API.Action
-import Galley.API.Cells (shouldPushToCells)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
-import Galley.API.MLS.Removal (RemoveUserIncludeMain (..), removeUser)
-import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess (enqueueNotification)
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
 import Galley.Effects.Queue qualified as E
@@ -102,32 +96,21 @@ import Galley.Intra.Journal qualified as Journal
 import Galley.Options
 import Galley.Types.Teams
 import Imports hiding (forkIO)
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
-import Wire.API.Conversation (ConvIdsPage, ConvType (..), ConversationRemoveMembers (..), pattern GetPaginatedConversationIds)
-import Wire.API.Conversation.Action
-  ( SomeConversationAction (..),
-  )
+import Wire.API.Conversation (ConvType (..), ConversationRemoveMembers (..))
+import Wire.API.Conversation qualified
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation (EventData (EdMembersLeave))
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
-import Wire.API.Federation.API
-  ( fedQueueClient,
-    sendBundle,
-  )
-import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..), GalleyNotificationTag (OnUserDeletedConversationsTag), UserDeletedConversationsNotification (..), UserDeletedNotificationMaxConvs)
-import Wire.API.Federation.API.Util (makeConversationUpdateBundle)
 import Wire.API.Federation.Error
-import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
@@ -153,7 +136,6 @@ import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
-import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -951,27 +933,32 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   for_ cc $ \c ->
     E.getConversation c >>= \conv ->
       for_ conv $ \dc ->
-        when (remove `isMember` dc.localMembers) $ do
-          E.deleteMembers c (UserList [remove] [])
-          let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
-              targets =
-                BotsAndMembers
-                  (Set.fromList $ (.id_) <$> allLocUsers)
-                  (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                  (Set.fromList bots)
-          void $
-            notifyConversationAction
-              (sing @'ConversationRemoveMembersTag)
-              (tUntagged lusr)
-              True
-              zcon
-              (qualifyAs lusr dc)
-              targets
-              ( ConversationRemoveMembers
-                  (pure . tUntagged . qualifyAs lusr $ remove)
-                  EdReasonDeleted
-              )
-              def
+        case () of
+          _
+            | dc.metadata.cnvmType == One2OneConv ->
+                E.deleteConversation dc.id_
+            | otherwise ->
+                when (remove `isMember` dc.localMembers) $ do
+                  E.deleteMembers c (UserList [remove] [])
+                  let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
+                      targets =
+                        BotsAndMembers
+                          (Set.fromList $ (.id_) <$> allLocUsers)
+                          (Set.fromList $ (.id_) <$> dc.remoteMembers)
+                          (Set.fromList bots)
+                  void $
+                    notifyConversationAction
+                      (sing @'ConversationRemoveMembersTag)
+                      (tUntagged lusr)
+                      True
+                      zcon
+                      (qualifyAs lusr dc)
+                      targets
+                      ( ConversationRemoveMembers
+                          (pure . tUntagged . qualifyAs lusr $ remove)
+                          EdReasonDeleted
+                      )
+                      def
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
@@ -1320,29 +1307,21 @@ checkAdminLimit adminCount =
 
 -- | Removing a team collaborator and clean their conversations
 removeTeamCollaborator ::
-  forall p1 r.
-  ( p1 ~ CassandraPaging,
-    Member BackendNotificationQueueAccess r,
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (Error DynError) r,
     Member (Error FederationError) r,
-    Member (Error InternalError) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS NotATeamMember) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
-    Member (ListItems p1 ConvId) r,
-    Member (ListItems p1 (Remote ConvId)) r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member BrigAPIAccess r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -1354,69 +1333,17 @@ removeTeamCollaborator lusr tid rusr = do
       . Log.field "action" (Log.val "Teams.removeTeamCollaborator")
   zusrMember <- E.getTeamMember tid (tUnqualified lusr)
   void $ permissionCheck RemoveTeamMember zusrMember
-  uncheckedLeaveTeams (lusr $> rusr) Nothing [tid]
+  toNotify <-
+    handleImpossibleErrors $
+      getFeatureForTeam @LimitedEventFanoutConfig tid
+        >>= ( \case
+                FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+            )
+          . (.status)
+  uncheckedDeleteTeamMember lusr Nothing tid (tUnqualified lusr) toNotify
   internalRemoveTeamCollaborator rusr tid
-
-uncheckedLeaveTeams ::
-  forall p1 r.
-  ( p1 ~ CassandraPaging,
-    Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error DynError) r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
-    Member Now r,
-    Member (ListItems p1 ConvId) r,
-    Member (ListItems p1 (Remote ConvId)) r,
-    Member ProposalStore r,
-    Member P.TinyLog r,
-    Member Random r,
-    Member TeamFeatureStore r,
-    Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member BrigAPIAccess r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  [TeamId] ->
-  Sem r ()
-uncheckedLeaveTeams lusr conn tids = do
-  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  dbg0 <- E.listItems @CassandraPaging @ConvId (tUnqualified lusr) Nothing nRange1000
-  traceM $ "****************** " <> show dbg0.pwsResults
-  dbg1 <- E.listItems @CassandraPaging @(Remote ConvId) (tUnqualified lusr) Nothing nRange1000
-  traceM $ "****************** " <> show dbg1.pwsResults
-  forM_ tids $ \tid -> do
-    toNotify <-
-      handleImpossibleErrors $
-        getFeatureForTeam @LimitedEventFanoutConfig tid
-          >>= ( \case
-                  FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                  FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
-              )
-            . (.status)
-    uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
-
-  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
-  contacts <- E.getContactList (tUnqualified lusr)
-  goConvPages contacts nRange1000 allConvIds
   where
-    goConvPages :: [UserId] -> Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
-    goConvPages contacts range page = do
-      traceM $ "================= goConvPages: " <> show (mtpResults page)
-      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
-      leaveLocalConversations contacts localConvs
-      traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
-      when (mtpHasMore page) $ do
-        let nextState = mtpPagingState page
-            nextQuery = GetPaginatedConversationIds (Just nextState) range
-        newCids <- Query.conversationIdsPageFrom lusr nextQuery
-        goConvPages contacts range newCids
-
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
     -- they are member of, and conversely the list of teams was fetched exactly
@@ -1432,77 +1359,3 @@ uncheckedLeaveTeams lusr conn tids = do
       Sem r a
     handleImpossibleErrors action =
       mapToDynamicError @'TeamNotFound (mapToDynamicError @'NotATeamMember action)
-
-    leaveLocalConversations :: [UserId] -> [ConvId] -> Sem r ()
-    leaveLocalConversations contacts ids = do
-      let qUser = tUntagged lusr
-      cc <- E.getConversations ids
-      now <- Now.get
-      pp <- for cc $ \c -> case Data.convType c of
-        SelfConv -> pure Nothing
-        One2OneConv -> do
-          localMembers <- E.getLocalMembers c.id_
-          when (any (flip notElem (tUnqualified lusr : contacts) . (.id_)) localMembers) $
-            E.deleteConversation c.id_
-
-          pure Nothing
-        ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv
-          | tUnqualified lusr `isMember` c.localMembers -> do
-              runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
-                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-                Right _ -> pure ()
-              E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
-              Just <$> notifyRemoteMembersAndPrepareLocalMembersLeft now qUser c
-          | otherwise -> pure Nothing
-
-      pushNotifications (catMaybes pp)
-
-    notifyRemoteMembersAndPrepareLocalMembersLeft :: UTCTime -> Qualified UserId -> StoredConversation -> Sem r Push
-    notifyRemoteMembersAndPrepareLocalMembersLeft now qUser c = do
-      let e =
-            Conv.Event
-              { evtConv = tUntagged (qualifyAs lusr c.id_),
-                evtSubConv = Nothing,
-                evtFrom = tUntagged lusr,
-                evtTime = now,
-                evtTeam = Nothing,
-                evtData = EdMembersLeave EdReasonDeleted (U.QualifiedUserIdList [qUser])
-              }
-      for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
-      pure $
-        def
-          { origin = Just (tUnqualified lusr),
-            json = toJSONObject e,
-            recipients = map localMemberToRecipient c.localMembers,
-            isCellsEvent = shouldPushToCells c.metadata e,
-            conn,
-            route = PushV2.RouteDirect
-          }
-
-    -- FUTUREWORK: This could be optimized to reduce the number of RPCs
-    -- made. When a team is deleted the burst of RPCs created here could
-    -- lead to performance issues. We should cover this in a performance
-    -- test.
-    notifyRemoteMembers :: UTCTime -> Qualified UserId -> StoredConversation -> Remote [UserId] -> Sem r ()
-    notifyRemoteMembers now qUser c remotes = do
-      let cid = c.id_
-          convUpdate =
-            ConversationUpdate
-              { time = now,
-                origUserId = qUser,
-                convId = cid,
-                alreadyPresentUsers = tUnqualified remotes,
-                action = SomeConversationAction (sing @'ConversationLeaveTag) (),
-                extraConversationData = def
-              }
-      enqueueNotification Q.Persistent remotes $ do
-        makeConversationUpdateBundle convUpdate
-          >>= sendBundle
-
-    leaveRemoteConversations :: Range 1 UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
-    leaveRemoteConversations cids =
-      for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
-        let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = fedQueueClient @'OnUserDeletedConversationsTag userDelete
-        enqueueNotification Q.Persistent remoteConvs rpc

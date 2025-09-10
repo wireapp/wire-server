@@ -28,17 +28,22 @@ where
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Default
 import Data.Id as Id
+import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
+import Data.Time
 import Galley.API.Action
+import Galley.API.Cells
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
+import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
@@ -50,29 +55,40 @@ import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.TeamStore
+import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Imports hiding (head)
+import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Servant
 import System.Logger.Class hiding (Path, name)
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Action
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
+import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User (UserIds (cUsers))
@@ -81,11 +97,14 @@ import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
+import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserList
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -321,23 +340,124 @@ rmUser ::
     Member Random r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member BrigAPIAccess r
+    Member TeamCollaboratorsSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   Sem r ()
 rmUser lusr conn = do
-  let fetchTids acc page =
-        if null (pageItems page)
-          then pure acc
-          else do
-            page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
-            fetchTids (pageItems page <> acc) page'
+  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  tids <- listTeams (tUnqualified lusr) Nothing maxBound
+  leaveTeams tids
+  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
+  goConvPages nRange1000 allConvIds
 
-  tids <- fetchTids [] =<< listTeams (tUnqualified lusr) Nothing maxBound
-  uncheckedLeaveTeams lusr conn tids
   deleteClients (tUnqualified lusr)
+  where
+    goConvPages :: Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
+    goConvPages range page = do
+      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
+      leaveLocalConversations localConvs
+      traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
+      when (mtpHasMore page) $ do
+        let nextState = mtpPagingState page
+            nextQuery = GetPaginatedConversationIds (Just nextState) range
+        newCids <- Query.conversationIdsPageFrom lusr nextQuery
+        goConvPages range newCids
+
+    leaveTeams page = for_ (pageItems page) $ \tid -> do
+      toNotify <-
+        handleImpossibleErrors $
+          getFeatureForTeam @LimitedEventFanoutConfig tid
+            >>= ( \case
+                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+                )
+              . (.status)
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
+      page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
+      leaveTeams page'
+
+    -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
+    -- point: the user is a team member because we fetched the list of teams
+    -- they are member of, and conversely the list of teams was fetched exactly
+    -- for this user so it cannot be that the team is not found. Therefore, this
+    -- helper just drops the errors.
+    handleImpossibleErrors ::
+      Sem
+        ( ErrorS 'NotATeamMember
+            ': ErrorS 'TeamNotFound
+            ': r
+        )
+        a ->
+      Sem r a
+    handleImpossibleErrors action =
+      mapToDynamicError @'TeamNotFound (mapToDynamicError @'NotATeamMember action)
+
+    leaveLocalConversations :: [ConvId] -> Sem r ()
+    leaveLocalConversations ids = do
+      let qUser = tUntagged lusr
+      cc <- getConversations ids
+      now <- Now.get
+      pp <- for cc $ \c -> case Data.convType c of
+        SelfConv -> pure Nothing
+        One2OneConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        RegularConv
+          | tUnqualified lusr `isMember` c.localMembers -> do
+              runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
+                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+                Right _ -> pure ()
+              E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
+              let e =
+                    Event
+                      { evtConv = tUntagged (qualifyAs lusr c.id_),
+                        evtSubConv = Nothing,
+                        evtFrom = tUntagged lusr,
+                        evtTime = now,
+                        evtTeam = Nothing,
+                        evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])
+                      }
+              for_ (bucketRemote (fmap (.id_) c.remoteMembers)) $ notifyRemoteMembers now qUser c
+              pure . Just $
+                def
+                  { origin = Just (tUnqualified lusr),
+                    json = toJSONObject e,
+                    recipients = map localMemberToRecipient c.localMembers,
+                    isCellsEvent = shouldPushToCells c.metadata e,
+                    conn,
+                    route = PushV2.RouteDirect
+                  }
+          | otherwise -> pure Nothing
+
+      pushNotifications (catMaybes pp)
+
+    -- FUTUREWORK: This could be optimized to reduce the number of RPCs
+    -- made. When a team is deleted the burst of RPCs created here could
+    -- lead to performance issues. We should cover this in a performance
+    -- test.
+    notifyRemoteMembers :: UTCTime -> Qualified UserId -> StoredConversation -> Remote [UserId] -> Sem r ()
+    notifyRemoteMembers now qUser c remotes = do
+      let cid = c.id_
+          convUpdate =
+            ConversationUpdate
+              { time = now,
+                origUserId = qUser,
+                convId = cid,
+                alreadyPresentUsers = tUnqualified remotes,
+                action = SomeConversationAction (sing @'ConversationLeaveTag) (),
+                extraConversationData = def
+              }
+      enqueueNotification Q.Persistent remotes $ do
+        makeConversationUpdateBundle convUpdate
+          >>= sendBundle
+
+    leaveRemoteConversations :: Range 1 UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
+    leaveRemoteConversations cids =
+      for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
+        let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
+        let rpc = fedQueueClient @'OnUserDeletedConversationsTag userDelete
+        enqueueNotification Q.Persistent remoteConvs rpc
 
 deleteLoop :: App ()
 deleteLoop = do

@@ -65,7 +65,6 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
-import Debug.Trace
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
@@ -436,12 +435,11 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
           -- remainingSize <= size and remainingSize >= 1, so it is safe to convert to Range
           remotePage <- remotesOnly Nothing (unsafeRange remainingSize)
           pure $
-            trace ("******************* localsAndRemotes: " <> show (Public.mtpResults (filterOut localPage))) $
-              remotePage
-                { Public.mtpResults =
-                    Public.mtpResults (filterOut localPage)
-                      <> Public.mtpResults remotePage
-                }
+            remotePage
+              { Public.mtpResults =
+                  Public.mtpResults (filterOut localPage)
+                    <> Public.mtpResults remotePage
+              }
 
     localsOnly ::
       Domain ->
@@ -464,12 +462,11 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
 
     pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
     pageToConvIdPage table page@C.PageWithState {..} =
-      trace ("******************* pageToConvIdPage: " <> show pwsResults) $
-        Public.MultiTablePage
-          { mtpResults = pwsResults,
-            mtpHasMore = C.pwsHasMore page,
-            mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
-          }
+      Public.MultiTablePage
+        { mtpResults = pwsResults,
+          mtpHasMore = C.pwsHasMore page,
+          mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+        }
 
     -- MLS self-conversation of this user
     selfConvId = mlsSelfConvId (tUnqualified lusr)
