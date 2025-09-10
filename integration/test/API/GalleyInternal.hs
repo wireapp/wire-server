@@ -160,4 +160,3 @@ selectTeamMembers :: (HasCallStack, MakesValue domain) => domain -> String -> [S
 selectTeamMembers domain tid uids = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "members", "by-ids"]
   submit "GET" $ req & addJSON (object ["ids" .= uids])
-

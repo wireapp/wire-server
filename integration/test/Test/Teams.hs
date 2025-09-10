@@ -22,6 +22,7 @@ import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
 import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
+import API.GalleyInternal (selectTeamMembers)
 import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
@@ -38,7 +39,6 @@ import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
-import API.GalleyInternal (selectTeamMembers)
 
 testInvitePersonalUserToTeam :: (HasCallStack) => App ()
 testInvitePersonalUserToTeam = do
