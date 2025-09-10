@@ -20,6 +20,7 @@
 module Wire.API.Team.Role
   ( Role (..),
     defaultRole,
+    permissionsToRole,
   )
 where
 
@@ -33,6 +34,7 @@ import Data.Schema
 import Data.Text.Encoding qualified as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
+import Wire.API.Team.Permission (Permissions (self), permsToInt)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- Note [team roles]
@@ -135,3 +137,12 @@ instance Cql.Cql Role where
     4 -> pure RoleExternalPartner
     n -> Left $ "Unexpected Role value: " ++ show n
   fromCql _ = Left "Role value: int expected"
+
+permissionsToRole :: Permissions -> Maybe Role
+permissionsToRole p =
+  case permsToInt p.self of
+    8191 -> Just RoleOwner
+    5951 -> Just RoleAdmin
+    1587 -> Just RoleMember
+    1025 -> Just RoleExternalPartner
+    _ -> Nothing

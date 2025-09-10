@@ -21,6 +21,9 @@ interpretTeamSubsystem = interpret $ \case
   InternalGetTeamMember uid tid -> E.getTeamMember tid uid
   InternalGetTeamMembers tid maxResults ->
     E.getTeamMembersWithLimit tid $ fromMaybe hardTruncationLimitRange maxResults
+  InternalGetTeamMembersByIds tid uids -> do
+    membs <- E.selectTeamMembers tid uids
+    pure $ newTeamMemberList membs ListComplete
   InternalGetTeamAdmins tid -> do
     admins <- E.getTeamAdmins tid
     membs <- E.selectTeamMembers tid admins

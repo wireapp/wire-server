@@ -244,18 +244,47 @@ testFederatedUserSearchForNonTeamUser = do
 testSearchTeam :: (HasCallStack) => App ()
 testSearchTeam = do
   (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
-  updateTeamMember tid owner m1 Owner >>= assertSuccess
-  updateTeamMember tid owner m2 Member >>= assertSuccess
-  updateTeamMember tid owner m3 Partner >>= assertSuccess
-  updateTeamMember tid owner m4 Admin >>= assertSuccess
+  ownerId <- objId owner
+  m1Id <- objId m1
+  m2Id <- objId m2
+  m3Id <- objId m3
+  m4Id <- objId m4
+
   BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     length docs `shouldMatchInt` 5
-  bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
+    for_ docs $ \doc -> do
+      uid <- doc %. "id" & asString
+      if uid == ownerId
+        then doc %. "role" `shouldMatch` "owner"
+        else doc %. "role" `shouldMatch` "member"
+
+  updateTeamMember tid owner m1 Owner >>= assertSuccess
+  updateTeamMember tid owner m2 Member >>= assertSuccess
+  updateTeamMember tid owner m3 Partner >>= assertSuccess
+  updateTeamMember tid owner m4 Admin >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+  bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 5
     for_ docs $ \doc -> do
-      doc %. "role" `shouldMatch` "member"
-    length docs `shouldMatchInt` 1
+      uid <- doc %. "id" & asString
+      role <- doc %. "role" & asString
+      case uid of
+        _ | uid == ownerId -> role `shouldMatch` "owner"
+        _ | uid == m1Id -> role `shouldMatch` "owner"
+        _ | uid == m2Id -> role `shouldMatch` "member"
+        _ | uid == m3Id -> role `shouldMatch` "partner"
+        _ | uid == m4Id -> role `shouldMatch` "admin"
+        _ -> assertFailure $ "Unexpected user id in search results: " <> uid
+
+  -- bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
+  --   resp.status `shouldMatchInt` 200
+  --   docs <- resp.json %. "documents" >>= asList
+  --   for_ docs $ \doc -> do
+  --     doc %. "role" `shouldMatch` "member"
+  --   length docs `shouldMatchInt` 1

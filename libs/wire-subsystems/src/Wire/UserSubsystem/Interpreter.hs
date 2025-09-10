@@ -43,7 +43,7 @@ import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission qualified as Permission
-import Wire.API.Team.Role (defaultRole)
+import Wire.API.Team.Role (defaultRole, permissionsToRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
@@ -704,7 +704,9 @@ syncUserIndex uid = do
           (pure defaultSearchVisibilityInbound)
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
-      let userDoc = indexUserToDoc vis indexUser
+      tm <- maybe (pure Nothing) (getTeamMember uid . value) indexUser.teamId
+      let mRole = tm >>= permissionsToRole . (^. permissions)
+          userDoc = indexUserToDoc vis mRole indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version

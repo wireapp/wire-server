@@ -51,6 +51,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Wire.API.User (UserIds (UserIds))
 import Wire.GalleyAPIAccess (GalleyAPIAccess (..), MLSOneToOneEstablished (..), ShowOrHideInvitationUrl (..))
 import Wire.ParseException
 import Wire.Rpc
@@ -77,6 +78,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
+          SelectTeamMembers tid uids -> selectTeamMembers tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -350,6 +352,26 @@ getTeamMembers tid maxResults = do
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
         . maybe id (queryItem "maxResults" . toByteString') maxResults
+        . expect2xx
+
+selectTeamMembers ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  [UserId] ->
+  Sem r TeamMemberList
+selectTeamMembers tid uids = do
+  debug $ remote "galley" . msg (val "Select team members")
+  let bdy = UserIds uids
+  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  where
+    req bdy =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", "by-ids"]
+        . lbytes (encode bdy)
         . expect2xx
 
 getTeamAdmins ::

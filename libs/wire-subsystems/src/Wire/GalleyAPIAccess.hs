@@ -85,6 +85,10 @@ data GalleyAPIAccess m a where
     TeamId ->
     Maybe (Range 1 Team.HardTruncationLimit Int32) ->
     GalleyAPIAccess m Team.TeamMemberList
+  SelectTeamMembers ::
+    TeamId ->
+    [UserId] ->
+    GalleyAPIAccess m Team.TeamMemberList
   GetTeamId ::
     UserId ->
     GalleyAPIAccess m (Maybe TeamId)

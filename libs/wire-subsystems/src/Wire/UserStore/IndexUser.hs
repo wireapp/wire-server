@@ -18,6 +18,7 @@ import URI.ByteString
 import Wire.API.User hiding (userId)
 import Wire.API.User.Search
 import Wire.UserSearch.Types
+import Wire.API.Team.Role (Role)
 
 type Activated = Bool
 
@@ -124,8 +125,8 @@ indexUserToVersion IndexUser {..} =
       const () <$$> writeTimeBumper
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
@@ -133,8 +134,7 @@ indexUserToDoc searchVisInbound IndexUser {..} =
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
-          -- FUTUREWORK: This is a bug: https://wearezeta.atlassian.net/browse/WPB-11124
-          udRole = Nothing,
+          udRole = mRole,
           udCreatedAt = Just . toUTCTimeMillis $ writetimeToUTC activated.writetime,
           udManagedBy = value <$> managedBy,
           udSAMLIdP = idpUrl . value =<< ssoId,
