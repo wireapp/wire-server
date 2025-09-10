@@ -78,20 +78,23 @@ interpretAuthenticationSubsystem ::
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
-    userSubsystemInterpreter . \case
-      -- Password Management
-      CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
-      ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
-      -- Password Verification
-      AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
-      ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
-      VerifyUserPassword uid plaintext -> verifyUserPasswordImpl uid plaintext
-      VerifyUserPasswordError luid plaintext -> verifyUserPasswordErrorImpl luid plaintext
-      VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
-      -- Cookie Management
-      NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
-      -- Testing
-      InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
+    userSubsystemInterpreter
+      . \case
+        -- Password Management
+        CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
+        ResetPassword ident resetCode newPassword -> resetPasswordImpl ident resetCode newPassword
+        -- Password Verification
+        AuthenticateEither uid pwd -> authenticateEitherImpl uid pwd
+        ReauthenticateEither uid pwd -> reauthenticateEitherImpl uid pwd
+        VerifyUserPassword uid plaintext -> verifyUserPasswordImpl uid plaintext
+        VerifyUserPasswordError luid plaintext -> verifyUserPasswordErrorImpl luid plaintext
+        VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
+        -- Cookie Management
+        NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
+        NewCookieLimited uid mcid typ mLabel -> runError $ newCookieLimitedImpl uid mcid typ mLabel
+        RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
+        -- Testing
+        InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
 
 maxAttempts :: Int32
 maxAttempts = 3

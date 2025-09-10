@@ -67,6 +67,7 @@ import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.User hiding (fromEmail)
+import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.EmailSubsystem.Template
@@ -78,7 +79,6 @@ import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
-import Wire.SessionStore (SessionStore)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
@@ -372,7 +372,7 @@ suspendTeam ::
     Member Events r,
     Member TinyLog r,
     Member InvitationStore r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -393,7 +393,7 @@ unsuspendTeam ::
     Member UserSubsystem r,
     Member TeamSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -412,7 +412,7 @@ changeTeamAccountStatuses ::
     Member TeamSubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   TeamId ->
   AccountStatus ->

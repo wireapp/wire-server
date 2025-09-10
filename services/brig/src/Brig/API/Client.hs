@@ -117,7 +117,6 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
-import Wire.SessionStore (SessionStore)
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
@@ -173,8 +172,7 @@ addClient ::
     Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member Events r,
-    Member SessionStore r
+    Member Events r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -193,8 +191,7 @@ addClientWithReAuthPolicy ::
     Member Events r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
-    Member SessionStore r
+    Member VerificationCodeSubsystem r
   ) =>
   Data.ReAuthPolicy ->
   Local UserId ->
@@ -278,8 +275,7 @@ updateClient uid cid req = do
 -- a superset of the clients known to galley.
 rmClient ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -302,7 +298,9 @@ rmClient u con clt pw =
       lift $ execDelete u (Just con) client
 
 claimPrekey ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   LegalholdProtectee ->
   UserId ->
   Domain ->
@@ -315,7 +313,9 @@ claimPrekey protectee u d c = do
     else wrapClientE $ claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   LegalholdProtectee ->
   UserId ->
   ClientId ->
@@ -358,7 +358,7 @@ claimMultiPrekeyBundlesInternal ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -388,7 +388,7 @@ claimMultiPrekeyBundlesInternal protectee quc = do
 claimMultiPrekeyBundlesV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -424,7 +424,7 @@ claimMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -454,7 +454,7 @@ claimLocalMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   LegalholdProtectee ->
   UserClients ->
@@ -498,7 +498,9 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- | Enqueue an orderly deletion of an existing client.
 execDelete ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   Maybe ConnId ->
   Client ->
@@ -514,7 +516,9 @@ execDelete u con c = do
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   ClientId ->
   (AppT r) ()
@@ -551,7 +555,13 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
-removeLegalHoldClient :: (Member DeleteQueue r, Member Events r, Member SessionStore r) => UserId -> AppT r ()
+removeLegalHoldClient ::
+  ( Member DeleteQueue r,
+    Member Events r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  AppT r ()
 removeLegalHoldClient uid = do
   clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list

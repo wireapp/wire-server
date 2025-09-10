@@ -666,7 +666,9 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -676,7 +678,9 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
@@ -697,7 +701,7 @@ getPrekeyBundleH zusr (Qualified uid domain) =
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -724,7 +728,7 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -736,7 +740,7 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -753,8 +757,7 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member UserSubsystem r,
-    Member SessionStore r
+    Member UserSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -769,8 +772,7 @@ addClient lusr con new = do
 
 deleteClient ::
   ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r,
-    Member SessionStore r
+    Member DeleteQueue r
   ) =>
   UserId ->
   ConnId ->
@@ -1150,7 +1152,7 @@ changePassword ::
     Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.PasswordChange ->
@@ -1414,7 +1416,7 @@ deleteSelfUser ::
     Member Events r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1432,7 +1434,7 @@ verifyDeleteUser ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()

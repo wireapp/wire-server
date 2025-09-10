@@ -136,7 +136,6 @@ import Wire.HashPassword qualified as HashPassword
 import Wire.RateLimit
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.Sem.Now (Now)
-import Wire.SessionStore (SessionStore)
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserKeyStore (mkEmailKey)
@@ -154,7 +153,6 @@ botAPI ::
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member UserStore r
@@ -930,7 +928,7 @@ botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   BotId ->
   Public.UserClients ->

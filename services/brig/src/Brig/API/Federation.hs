@@ -67,6 +67,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
+import Wire.AuthenticationSubsystem
 import Wire.DeleteQueue
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -74,7 +75,6 @@ import Wire.FederationConfigStore qualified as E
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
-import Wire.SessionStore (SessionStore)
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as UserSubsystem
@@ -89,7 +89,7 @@ federationSitemap ::
     Member UserSubsystem r,
     Member UserStore r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -181,7 +181,13 @@ getUsersByIds _ uids = do
   luids <- qualifyLocal uids
   lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
 
-claimPrekey :: (Member DeleteQueue r, Member SessionStore r) => Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
+claimPrekey ::
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
+  Domain ->
+  (UserId, ClientId) ->
+  (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
   API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
@@ -190,7 +196,10 @@ claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
 claimMultiPrekeyBundle ::
-  (Member (Concurrency 'Unsafe) r, Member DeleteQueue r, Member SessionStore r) =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   Domain ->
   UserClients ->
   Handler r UserClientPrekeyMap
