@@ -38,6 +38,7 @@ import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
+import API.GalleyInternal (selectTeamMembers)
 
 testInvitePersonalUserToTeam :: (HasCallStack) => App ()
 testInvitePersonalUserToTeam = do
@@ -474,3 +475,13 @@ testDeleteTeamUserRatelimitingIsPropagated = do
     bindResponse (deleteTeamMember tid owner m) $ \resp -> do
       pure resp.status
   Set.fromList statusCodes `shouldMatchSet` ([202, 429] :: [Int])
+
+testSelectTeamMembersByIds :: (HasCallStack) => App ()
+testSelectTeamMembersByIds = do
+  (owner, tid, mems) <- createTeam OwnDomain 5
+  uids <- for (owner : mems) ((%. "id") >=> asString)
+
+  selectTeamMembers OwnDomain tid uids `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    tms <- resp.json %. "members" >>= asList
+    length tms `shouldMatchInt` 5

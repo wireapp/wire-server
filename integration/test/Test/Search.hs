@@ -277,10 +277,23 @@ testSearchTeam = do
         _ | uid == m3Id -> role `shouldMatch` "partner"
         _ | uid == m4Id -> role `shouldMatch` "admin"
         _ -> assertFailure $ "Unexpected user id in search results: " <> uid
+  for_
+    [ ("owner", [ownerId, m1Id]),
+      ("admin", [m4Id]),
+      ("member", [m2Id]),
+      ("partner", [m3Id])
+    ]
+    $ \(role, expectedIds) -> do
+      bindResponse (BrigP.searchTeam owner [("frole", role)]) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        docs <- resp.json %. "documents" >>= asList
+        length docs `shouldMatchInt` (length expectedIds)
+        for_ docs $ \doc -> do
+          doc %. "role" `shouldMatch` role
 
-  bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
+  bindResponse (BrigP.searchTeam owner [("frole", "owner,admin,partner")]) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
-    length docs `shouldMatchInt` 1
+    length docs `shouldMatchInt` 4
     for_ docs $ \doc -> do
-      doc %. "role" `shouldMatch` "member"
+      doc %. "role" `shouldNotMatch` "member"

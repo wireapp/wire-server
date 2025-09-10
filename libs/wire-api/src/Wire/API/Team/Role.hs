@@ -21,6 +21,7 @@ module Wire.API.Team.Role
   ( Role (..),
     defaultRole,
     permissionsToRole,
+    roleName,
   )
 where
 

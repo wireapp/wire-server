@@ -371,6 +371,7 @@ selectTeamMembers tid uids = do
     req bdy =
       method GET
         . paths ["i", "teams", toByteString' tid, "members", "by-ids"]
+        . header "Content-Type" "application/json"
         . lbytes (encode bdy)
         . expect2xx
 

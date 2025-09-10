@@ -10,6 +10,7 @@ import Data.ByteString qualified as LBS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
@@ -18,6 +19,7 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
+import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User.Search
 import Wire.IndexedUserStore
@@ -309,7 +311,7 @@ teamUserSearchQuery ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   IndexQuery TeamContact
-teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
+teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder =
   IndexQuery
     ( maybe
         (ES.MatchAllQuery Nothing)
@@ -360,12 +362,20 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
             ES.multiMatchQueryOperator = ES.And
           }
 
+    teamFilter :: ES.Filter
     teamFilter =
       ES.Filter $
         ES.QueryBoolQuery
           boolQuery
-            { ES.boolQueryMustMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
+            { ES.boolQueryMustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter
             }
+      where
+        roleFilter :: [ES.Query]
+        roleFilter =
+          case mRoleFilter of
+            Nothing -> []
+            Just (RoleFilter []) -> []
+            Just (RoleFilter (r : rs)) -> [ES.TermsQuery "role" (roleName <$> r :| rs)]
 
     defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
     defaultSort tuSortBy sortOrder =
