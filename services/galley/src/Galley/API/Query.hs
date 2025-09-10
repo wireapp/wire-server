@@ -116,6 +116,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.UserList
 
 getBotConversation ::
   ( Member ConversationStore r,
@@ -831,8 +832,25 @@ getMLSSelfConversation ::
 getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- E.getConversation selfConvId
-  cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
+  cnv <- maybe (createMLSSelfConversation lusr) pure mconv
   conversationViewV9 lusr cnv
+
+createMLSSelfConversation ::
+  (Member ConversationStore r) =>
+  Local UserId ->
+  Sem r StoredConversation
+createMLSSelfConversation lusr = do
+  let lcnv = mlsSelfConvId <$> lusr
+      usr = tUnqualified lusr
+      nc =
+        NewConversation
+          { metadata =
+              (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
+            users = ulFromLocals [toUserRole usr],
+            protocol = BaseProtocolMLSTag,
+            groupId = Nothing
+          }
+  E.createConversation lcnv nc
 
 -- | Get an MLS 1-1 conversation. If not already existing, the conversation
 -- object is created on the fly, but not persisted. The conversation will only

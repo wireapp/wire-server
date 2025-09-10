@@ -58,7 +58,6 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
-import Wire.API.User
 import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
@@ -69,62 +68,6 @@ import Wire.Util
 
 -----------------------------------------------------------------------------------------
 -- CONVERSATION STORE
-
-createMLSSelfConversation ::
-  Local UserId ->
-  Client StoredConversation
-createMLSSelfConversation lusr = do
-  let cnv = mlsSelfConvId . tUnqualified $ lusr
-      usr = tUnqualified lusr
-      nc =
-        NewConversation
-          { metadata =
-              (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
-            users = ulFromLocals [toUserRole usr],
-            protocol = BaseProtocolMLSTag,
-            groupId = Nothing
-          }
-      meta = nc.metadata
-      gid =
-        newGroupId meta.cnvmType
-          . fmap Conv
-          . tUntagged
-          . qualifyAs lusr
-          $ cnv
-      proto =
-        ProtocolMLS
-          ConversationMLSData
-            { cnvmlsGroupId = gid,
-              cnvmlsActiveData = Nothing
-            }
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery
-      Cql.insertMLSSelfConv
-      ( cnv,
-        meta.cnvmType,
-        meta.cnvmCreator,
-        Cql.Set meta.cnvmAccess,
-        Cql.Set (toList meta.cnvmAccessRoles),
-        meta.cnvmName,
-        meta.cnvmTeam,
-        meta.cnvmMessageTimer,
-        meta.cnvmReceiptMode,
-        Just gid,
-        meta.cnvmParent
-      )
-
-  (lmems, rmems) <- addMembers cnv nc.users
-  pure
-    StoredConversation
-      { id_ = cnv,
-        localMembers = lmems,
-        remoteMembers = rmems,
-        deleted = False,
-        metadata = meta,
-        protocol = proto
-      }
 
 createConversation :: Local ConvId -> NewConversation -> Client StoredConversation
 createConversation lcnv nc = do
@@ -960,9 +903,6 @@ interpretConversationStoreToCassandra client = interpret $ \case
   CreateConversation lcnv nc -> do
     logEffect "ConversationStore.CreateConversation"
     embedClient client $ createConversation lcnv nc
-  CreateMLSSelfConversation lusr -> do
-    logEffect "ConversationStore.CreateMLSSelfConversation"
-    embedClient client $ createMLSSelfConversation lusr
   GetConversation cid -> do
     logEffect "ConversationStore.GetConversation"
     embedClient client $ getConversation cid

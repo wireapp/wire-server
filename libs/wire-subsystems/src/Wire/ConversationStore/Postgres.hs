@@ -40,7 +40,6 @@ import Wire.UserList
 interpretConversationStoreToPostgres :: (Member (Input Hasql.Pool) r, Member (Embed IO) r, Member (Error Hasql.UsageError) r) => InterpreterFor ConversationStore r
 interpretConversationStoreToPostgres = interpret $ \case
   CreateConversation lcnv nc -> createConversationImpl lcnv nc
-  CreateMLSSelfConversation lusr -> createMLSSelfConversationImpl lusr
   GetConversation cid -> getConversationImpl cid
   GetConversationEpoch cid -> getConversationEpochImpl cid
   GetConversations cids -> getConversationsImpl cids
@@ -144,11 +143,6 @@ createConversationImpl lcnv nc = do
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)|]
-
---
-
-createMLSSelfConversationImpl :: Local UserId -> Sem r StoredConversation
-createMLSSelfConversationImpl = undefined
 
 deleteConversationImpl :: ConvId -> Sem r ()
 deleteConversationImpl = undefined
