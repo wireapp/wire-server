@@ -14,6 +14,8 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.MLS.Group.Serialisation qualified as MLS
+import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
 import Wire.API.User
 import Wire.UserList
@@ -30,6 +32,39 @@ data StoredConversation = StoredConversation
     protocol :: Protocol
   }
   deriving (Show)
+
+newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation
+newStoredConversation lcnv nc =
+  let meta = nc.metadata
+      proto = case nc.protocol of
+        BaseProtocolProteusTag -> ProtocolProteus
+        BaseProtocolMLSTag ->
+          let newGid =
+                MLS.newGroupId meta.cnvmType $
+                  Conv <$> tUntagged lcnv
+              gid = fromMaybe newGid nc.groupId
+           in ( ProtocolMLS
+                  ConversationMLSData
+                    { cnvmlsGroupId = gid,
+                      cnvmlsActiveData = Nothing
+                    }
+              )
+      UserList lmems rmems = toUserRole <$> nc.users
+   in StoredConversation
+        { id_ = tUnqualified lcnv,
+          localMembers = newMemberWithRole <$> lmems,
+          remoteMembers = newRemoteMemberWithRole <$> rmems,
+          deleted = False,
+          metadata = meta,
+          protocol = proto
+        }
+
+newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
+newRemoteMemberWithRole ur@(tUntagged -> (Qualified (u, r) _)) =
+  RemoteMember
+    { id_ = qualifyAs ur u,
+      convRoleName = r
+    }
 
 convProtocolTag :: StoredConversation -> ProtocolTag
 convProtocolTag conv = protocolTag conv.protocol

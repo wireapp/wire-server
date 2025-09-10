@@ -128,27 +128,14 @@ createMLSSelfConversation lusr = do
 
 createConversation :: Local ConvId -> NewConversation -> Client StoredConversation
 createConversation lcnv nc = do
-  let meta = nc.metadata
-      (proto, mgid) = case nc.protocol of
-        BaseProtocolProteusTag -> (ProtocolProteus, Nothing)
-        BaseProtocolMLSTag ->
-          let newGid =
-                newGroupId meta.cnvmType $
-                  Conv <$> tUntagged lcnv
-              gid = fromMaybe newGid nc.groupId
-           in ( ProtocolMLS
-                  ConversationMLSData
-                    { cnvmlsGroupId = gid,
-                      cnvmlsActiveData = Nothing
-                    },
-                Just gid
-              )
+  let storedConv = newStoredConversation lcnv nc
+      meta = storedConv.metadata
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery
       Cql.insertConv
-      ( tUnqualified lcnv,
+      ( storedConv.id_,
         meta.cnvmType,
         meta.cnvmCreator,
         Cql.Set meta.cnvmAccess,
@@ -157,24 +144,18 @@ createConversation lcnv nc = do
         meta.cnvmTeam,
         meta.cnvmMessageTimer,
         meta.cnvmReceiptMode,
-        baseProtocolToProtocol nc.protocol,
-        mgid,
+        protocolTag storedConv.protocol,
+        getGroupId storedConv.protocol,
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
         meta.cnvmCellsState,
         meta.cnvmParent
       )
-    for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-  (lmems, rmems) <- addMembers (tUnqualified lcnv) nc.users
-  pure
-    StoredConversation
-      { id_ = tUnqualified lcnv,
-        localMembers = lmems,
-        remoteMembers = rmems,
-        deleted = False,
-        metadata = meta,
-        protocol = proto
-      }
+    for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, storedConv.id_)
+  let localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
+      remoteUsers = map (\m -> (,m.convRoleName) <$> m.id_) storedConv.remoteMembers
+  void $ addMembers storedConv.id_ $ UserList localUsers remoteUsers
+  pure storedConv
 
 deleteConversation :: ConvId -> Client ()
 deleteConversation cid = do
@@ -640,13 +621,6 @@ toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
       }
 toMember _ = Nothing
 
-newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
-newRemoteMemberWithRole ur@(tUntagged -> (Qualified (u, r) _)) =
-  RemoteMember
-    { id_ = qualifyAs ur u,
-      convRoleName = r
-    }
-
 lookupRemoteMember :: ConvId -> Domain -> UserId -> Client (Maybe RemoteMember)
 lookupRemoteMember conv domain usr = do
   mkMem <$$> retry x1 (query1 Cql.selectRemoteMember (params LocalQuorum (conv, domain, usr)))
@@ -984,9 +958,9 @@ interpretConversationStoreToCassandra ::
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra client = interpret $ \case
-  CreateConversation loc nc -> do
+  CreateConversation lcnv nc -> do
     logEffect "ConversationStore.CreateConversation"
-    embedClient client $ createConversation loc nc
+    embedClient client $ createConversation lcnv nc
   CreateMLSSelfConversation lusr -> do
     logEffect "ConversationStore.CreateMLSSelfConversation"
     embedClient client $ createMLSSelfConversation lusr
