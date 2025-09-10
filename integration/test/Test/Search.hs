@@ -244,11 +244,7 @@ testFederatedUserSearchForNonTeamUser = do
 testSearchTeam :: (HasCallStack) => App ()
 testSearchTeam = do
   (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
-  ownerId <- objId owner
-  m1Id <- objId m1
-  m2Id <- objId m2
-  m3Id <- objId m3
-  m4Id <- objId m4
+  [ownerId, m1Id, m2Id, m3Id, m4Id] <- for [owner, m1, m2, m3, m4] objId
 
   BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
@@ -282,9 +278,9 @@ testSearchTeam = do
         _ | uid == m4Id -> role `shouldMatch` "admin"
         _ -> assertFailure $ "Unexpected user id in search results: " <> uid
 
-  -- bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
-  --   resp.status `shouldMatchInt` 200
-  --   docs <- resp.json %. "documents" >>= asList
-  --   for_ docs $ \doc -> do
-  --     doc %. "role" `shouldMatch` "member"
-  --   length docs `shouldMatchInt` 1
+  bindResponse (BrigP.searchTeam owner [("frole", "member")]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 1
+    for_ docs $ \doc -> do
+      doc %. "role" `shouldMatch` "member"

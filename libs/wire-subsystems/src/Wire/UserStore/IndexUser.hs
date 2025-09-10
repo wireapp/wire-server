@@ -15,10 +15,10 @@ import Database.CQL.Protocol
 import Imports
 import SAML2.WebSSO qualified as SAML
 import URI.ByteString
+import Wire.API.Team.Role (Role)
 import Wire.API.User hiding (userId)
 import Wire.API.User.Search
 import Wire.UserSearch.Types
-import Wire.API.Team.Role (Role)
 
 type Activated = Bool
 

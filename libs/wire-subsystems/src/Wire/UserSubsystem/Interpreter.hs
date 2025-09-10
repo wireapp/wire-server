@@ -154,6 +154,8 @@ runUserSubsystem authInterpreter = interpret $
       browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
     InternalUpdateSearchIndex uid ->
       syncUserIndex uid
+    InternalForceUpdateSearchIndex uid ->
+      syncUserIndexWithForce True uid
     AcceptTeamInvitation luid pwd code ->
       authInterpreter $
         acceptTeamInvitationImpl luid pwd code
@@ -688,7 +690,19 @@ syncUserIndex ::
   ) =>
   UserId ->
   Sem r ()
-syncUserIndex uid = do
+syncUserIndex = syncUserIndexWithForce False
+
+syncUserIndexWithForce ::
+  forall r.
+  ( Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
+  ) =>
+  Bool ->
+  UserId ->
+  Sem r ()
+syncUserIndexWithForce force uid = do
   getIndexUser uid
     >>= maybe deleteFromIndex upsert
   where
@@ -707,7 +721,8 @@ syncUserIndex uid = do
       tm <- maybe (pure Nothing) (getTeamMember uid . value) indexUser.teamId
       let mRole = tm >>= permissionsToRole . (^. permissions)
           userDoc = indexUserToDoc vis mRole indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
+          versioning = if force then ES.ExternalGTE else ES.ExternalGT
+          version = versioning . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
 

@@ -487,9 +487,10 @@ getVerificationCode uid action = runMaybeT do
   code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
   pure code.codeValue
 
-internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
+internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
+    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalForceUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,

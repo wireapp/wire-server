@@ -97,6 +97,7 @@ interpretBrigAccess brigEndpoint =
         updateSearchVisibilityInbound status
       DeleteBot convId botId ->
         deleteBot convId botId
+      UpdateSearchIndex uid -> updateSearchIndex uid
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -498,3 +499,13 @@ getLocalMLSClient lusr cid suite =
         . expect2xx
     )
     >>= decodeBodyOrThrow "brig"
+
+updateSearchIndex ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  UserId ->
+  Sem r ()
+updateSearchIndex uid = do
+  void . brigRequest $
+    method POST
+      . paths ["i", "index", "update", toByteString' uid]
+      . expect2xx
