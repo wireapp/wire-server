@@ -82,9 +82,7 @@ import Galley.API.Action
 import Galley.API.Cells (shouldPushToCells)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
-import Galley.API.MLS.Removal
-  ( RemoveUserIncludeMain (..),
-  )
+import Galley.API.MLS.Removal (RemoveUserIncludeMain (..), removeUser)
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
@@ -106,7 +104,6 @@ import Galley.Types.Teams
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy
-import Galley.API.MLS.Removal(removeUser)
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
