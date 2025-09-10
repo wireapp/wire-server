@@ -128,14 +128,14 @@ type APIAuthResp =
         :> Post '[PlainText] Void
     )
 
-type instance AuthServerData (AuthProtect "zoptuser") = (UserId, TeamId)
+type instance AuthServerData (AuthProtect "TeamAdmin") = (UserId, TeamId)
 
 type APIIDP =
   Named "idp-get" (ZOptUser :> IdpGet)
     :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
     :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
-    :<|> Named "idp-create@v7" (Until 'V8 :> AuthProtect "zoptuser" :> IdpCreate) -- (change is semantic, see handler)
-    :<|> Named "idp-create" (From 'V8 :> AuthProtect "zoptuser" :> IdpCreate)
+    :<|> Named "idp-create@v7" (Until 'V8 :> AuthProtect "TeamAdmin" :> IdpCreate) -- (change is semantic, see handler)
+    :<|> Named "idp-create" (From 'V8 :> AuthProtect "TeamAdmin" :> IdpCreate)
     :<|> Named "idp-update" (ZOptUser :> IdpUpdate)
     :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
 
