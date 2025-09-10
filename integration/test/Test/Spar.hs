@@ -431,22 +431,19 @@ testSparCreateTwoScimTokensForOneIdp = do
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   length tokens `shouldMatchInt` 0
 
-mkTestCheckAdminGetTeamId :: (HasCallStack) => Versioned -> App ()
-mkTestCheckAdminGetTeamId version = do
+testCheckAdminGetTeamId :: (HasCallStack) => App ()
+testCheckAdminGetTeamId = do
   (owner :: Value, tid :: String, [regular] :: [Value]) <- createTeam OwnDomain 2
   void $ setTeamFeatureStatus owner tid "sso" "enabled" -- required for the next request
   SAML.SampleIdP idpMeta _ _ _ <- SAML.makeSampleIdPMetadata
-  createIdp version owner idpMeta >>= assertSuccess -- Successful API response for owner (admin),
-  createIdp version regular idpMeta `bindResponse` \resp -> do
+  createIdp owner idpMeta >>= assertSuccess -- Successful API response for owner (admin),
+  createIdp regular idpMeta `bindResponse` \resp -> do
     -- insuficient permissions for non-admin, both as expected.
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
 
-testCheckAdminGetTeamId :: App ()
-testCheckAdminGetTeamId = mkTestCheckAdminGetTeamId Versioned
-
 testCheckAdminGetTeamIdV7 :: App ()
-testCheckAdminGetTeamIdV7 = mkTestCheckAdminGetTeamId (ExplicitVersion 7)
+testCheckAdminGetTeamIdV7 = withAPIVersion 7 testCheckAdminGetTeamId
 
 testSsoLoginAndEmailVerification :: (HasCallStack) => App ()
 testSsoLoginAndEmailVerification = do
