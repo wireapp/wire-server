@@ -1357,6 +1357,7 @@ removeTeamCollaborator lusr tid rusr = do
   zusrMember <- E.getTeamMember tid (tUnqualified lusr)
   void $ permissionCheck RemoveTeamMember zusrMember
   uncheckedLeaveTeams (lusr $> rusr) Nothing [tid]
+  internalRemoveTeamCollaborator rusr tid
 
 uncheckedLeaveTeams ::
   forall p1 r.
