@@ -1386,6 +1386,10 @@ uncheckedLeaveTeams ::
   Sem r ()
 uncheckedLeaveTeams lusr conn tids = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+  dbg0 <- E.listItems @CassandraPaging @ConvId (tUnqualified lusr) Nothing nRange1000
+  traceM $ "****************** " <> show dbg0.pwsResults
+  dbg1 <- E.listItems @CassandraPaging @(Remote ConvId) (tUnqualified lusr) Nothing nRange1000
+  traceM $ "****************** " <> show dbg1.pwsResults
   forM_ tids $ \tid -> do
     toNotify <-
       handleImpossibleErrors $
