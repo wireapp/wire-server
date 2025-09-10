@@ -178,6 +178,7 @@ testRemoveMemberInO2O = do
 
   getMLSOne2OneConversation charlie alice >>= assertLabel 403 "not-connected"
   postOne2OneConversation charlie alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+  putStrLn $ "============ target: " <> show convId
   Internal.getConversation convId >>= assertLabel 404 "no-conversation"
   getMLSOne2OneConversation charlie bob >>= assertSuccess
 

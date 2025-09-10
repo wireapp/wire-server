@@ -77,6 +77,7 @@ import Data.Range as Range
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock (UTCTime)
+import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Cells (shouldPushToCells)
 import Galley.API.Error as Galley
@@ -1402,10 +1403,10 @@ uncheckedLeaveTeams lusr conn tids = do
   allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   contacts <- E.getContactList (tUnqualified lusr)
   goConvPages contacts nRange1000 allConvIds
-
   where
     goConvPages :: [UserId] -> Range 1 1000 Int32 -> ConvIdsPage -> Sem r ()
     goConvPages contacts range page = do
+      traceM $ "================= goConvPages: " <> show (mtpResults page)
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       leaveLocalConversations contacts localConvs
       traverse_ leaveRemoteConversations (rangedChunks remoteConvs)
