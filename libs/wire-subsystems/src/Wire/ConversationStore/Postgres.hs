@@ -267,7 +267,7 @@ getLocalMemberImpl ::
   Sem r (Maybe LocalMember)
 getLocalMemberImpl convId userId = do
   mRow <- runStatement (convId, userId) selectMember
-  pure $ snd . mkMember <$> mRow
+  pure $ snd . mkLocalMember <$> mRow
   where
     selectMember :: Hasql.Statement (ConvId, UserId) (Maybe (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
     selectMember =
@@ -295,7 +295,7 @@ getLocalMembersImpl ::
   Sem r [LocalMember]
 getLocalMembersImpl convId = do
   rows <- runStatement convId selectMembers
-  pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkMember <$> rows))
+  pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkLocalMember <$> rows))
   where
     selectMembers :: Hasql.Statement ConvId (Vector (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
     selectMembers =
@@ -312,8 +312,8 @@ getLocalMembersImpl convId = do
                            END
                         |]
 
-mkMember :: (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName) -> (ConvId, LocalMember)
-mkMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
+mkLocalMember :: (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName) -> (ConvId, LocalMember)
+mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
   ( cid,
     LocalMember
       { id_ = uid,
@@ -331,11 +331,65 @@ mkMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, ar
 getAllLocalMembersImpl :: Sem r [LocalMember]
 getAllLocalMembersImpl = undefined
 
-getRemoteMemberImpl :: ConvId -> Remote UserId -> Sem r (Maybe RemoteMember)
-getRemoteMemberImpl = undefined
+getRemoteMemberImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Error Hasql.UsageError) r
+  ) =>
+  ConvId ->
+  Remote UserId ->
+  Sem r (Maybe RemoteMember)
+getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
+  snd . mkRemoteMember <$$> runStatement (convId, domain, uid) selectMember
+  where
+    selectMember :: Hasql.Statement (ConvId, Domain, UserId) (Maybe (ConvId, Domain, UserId, RoleName))
+    selectMember =
+      dimapPG
+        [maybeStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
+                         FROM member_remote_user
+                         WHERE user_remote_domain = ($2 :: text)
+                         AND user_remote_id = ($3 :: uuid)
+                         AND (conv = ($1 :: uuid)
+                                OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                         ORDER BY CASE
+                           WHEN conv = ($1 :: uuid) THEN 1
+                           ELSE 2
+                           END
+                         LIMIT 1
+                        |]
 
-getRemoteMembersImpl :: ConvId -> Sem r [RemoteMember]
-getRemoteMembersImpl = undefined
+getRemoteMembersImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Error Hasql.UsageError) r
+  ) =>
+  ConvId ->
+  Sem r [RemoteMember]
+getRemoteMembersImpl convId = do
+  rows <- runStatement convId selectMembers
+  pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkRemoteMember <$> rows))
+  where
+    selectMembers :: Hasql.Statement ConvId (Vector (ConvId, Domain, UserId, RoleName))
+    selectMembers =
+      dimapPG
+        [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
+                         FROM member_remote_user
+                         WHERE (conv = ($1 :: uuid)
+                                OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                         ORDER BY CASE
+                           WHEN conv = ($1 :: uuid) THEN 1
+                           ELSE 2
+                           END
+                        |]
+
+mkRemoteMember :: (ConvId, Domain, UserId, RoleName) -> (ConvId, RemoteMember)
+mkRemoteMember (convId, domain, uid, role) =
+  ( convId,
+    RemoteMember
+      { id_ = toRemoteUnsafe domain uid,
+        convRoleName = role
+      }
+  )
 
 checkLocalMemberRemoteConvImpl :: UserId -> Remote ConvId -> Sem r Bool
 checkLocalMemberRemoteConvImpl = undefined
