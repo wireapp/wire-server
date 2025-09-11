@@ -395,6 +395,9 @@ instance
 instance PostgresMarshall (Id a) UUID where
   postgresMarshall = toUUID
 
+instance PostgresMarshall BotId UUID where
+  postgresMarshall = toUUID . botUserId
+
 instance PostgresMarshall Object Value where
   postgresMarshall = Object
 
@@ -621,6 +624,9 @@ instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall
 
 instance PostgresUnmarshall UUID (Id a) where
   postgresUnmarshall = Right . Id
+
+instance PostgresUnmarshall UUID BotId where
+  postgresUnmarshall = Right . BotId . Id
 
 instance PostgresUnmarshall Value Object where
   postgresUnmarshall (Object obj) = Right obj

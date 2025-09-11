@@ -362,8 +362,17 @@ createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users 
         [resultlessStatement|INSERT INTO user_remote_conv ("user", conv_remote_domain, conv_remote_id)
                              VALUES ($1 :: uuid, $2 :: text, $3 :: uuid)|]
 
-createBotMemberImpl :: ServiceRef -> BotId -> ConvId -> Sem r BotMember
-createBotMemberImpl = undefined
+createBotMemberImpl :: (PGConstraints r) => ServiceRef -> BotId -> ConvId -> Sem r BotMember
+createBotMemberImpl serviceRef botId convId = do
+  runStatement (convId, botId, serviceRef._serviceRefId, serviceRef._serviceRefProvider) insert
+  pure . BotMember $ (newMember botId.botUserId) {service = Just serviceRef}
+  where
+    insert :: Hasql.Statement (ConvId, BotId, ServiceId, ProviderId) ()
+    insert =
+      lmapPG
+        [resultlessStatement|INSERT INTO member (conv, "user", service, provider, status)
+                             VALUES ($1 :: uuid, $2 :: uuid, $3 :: uuid, $4 :: uuid, 0)
+                            |]
 
 getLocalMemberImpl :: (PGConstraints r) => ConvId -> UserId -> Sem r (Maybe LocalMember)
 getLocalMemberImpl convId userId = do
