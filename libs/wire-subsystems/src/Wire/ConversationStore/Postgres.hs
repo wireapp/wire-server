@@ -291,8 +291,16 @@ updateChannelAddPermissionsImpl convId addPerm =
                              SET add_permission = ($2 :: integer)
                              WHERE conv = ($1 :: uuid)|]
 
-updateToMixedProtocolImpl :: ConvId -> GroupId -> Epoch -> Sem r ()
-updateToMixedProtocolImpl = undefined
+updateToMixedProtocolImpl :: (PGConstraints r) => ConvId -> GroupId -> Epoch -> Sem r ()
+updateToMixedProtocolImpl convId gid epoch =
+  runStatement (convId, ProtocolMixedTag, gid, epoch) update
+  where
+    update :: Hasql.Statement (ConvId, ProtocolTag, GroupId, Epoch) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET protocol = ($2 :: integer), group_id = ($3 :: bytea), epoch = ($4 :: bigint), epoch_timestamp = NOW()
+                             WHERE conv = ($1 :: uuid)|]
 
 updateToMLSProtocolImpl :: ConvId -> Sem r ()
 updateToMLSProtocolImpl = undefined
