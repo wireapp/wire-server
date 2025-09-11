@@ -32,7 +32,6 @@ import Imports
 import Wire.API.Bot ()
 import Wire.API.Conversation
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
