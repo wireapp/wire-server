@@ -301,11 +301,11 @@ requestEmailChange lusr email allowScim = do
       ) =>
       Sem r' ()
     guardBlockedDomainEmail = do
-      domain <-
+      eDomain <-
         either (throwGuardFailed . InvalidDomain) pure $
           emailDomain email
       blocked <- blockedDomains <$> input
-      when (domain `elem` blocked) $
+      when (eDomain `elem` blocked) $
         throw UserSubsystemBlockedDomain
 
 -- | Prepare changing the email (checking a number of invariants).
