@@ -515,7 +515,7 @@ The allowlist ensures that only the designated cloud team can find users on the 
 
 **Important Limitations:**
 
-* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users (e.g. via group conversations), even if those users are outside the allowlisted teams. In that case, communication is possible, but direct searchability remains restricted.
+* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users, e.g. via adding them to a common group conversations with other non-allowed users.
 * If a domain is configured via the **static federation config file**, it cannot be modified in the database. That means you cannot:
   * Add or update the domain itself,
   * Add or update team restrictions for that domain.
