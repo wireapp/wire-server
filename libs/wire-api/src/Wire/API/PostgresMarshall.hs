@@ -419,6 +419,9 @@ instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
 class PostgresUnmarshall a b where
   postgresUnmarshall :: a -> Either Text b
 
+instance {-# OVERLAPS #-} (a ~ b) => PostgresUnmarshall a b where
+  postgresUnmarshall = Right
+
 instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2) => PostgresUnmarshall (a1, a2) (b1, b2) where
   postgresUnmarshall (a1, a2) =
     (,)
