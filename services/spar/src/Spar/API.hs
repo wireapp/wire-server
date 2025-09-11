@@ -454,7 +454,7 @@ ssoSettings =
 
 authHandler :: Env -> AuthHandler Request (UserId, TeamId)
 authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
-  bs <- maybe (throwSparSem $ SparNoPermission "No Z-User header") pure $ lookup "Z-User" (requestHeaders req)
+  bs <- maybe (throwSparSem SparMissingZUsr) pure $ lookup "Z-User" (requestHeaders req)
   uid <- maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
   tid <- BrigAccess.checkAdminGetTeamId uid
   pure (uid, tid)
