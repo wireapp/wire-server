@@ -31,7 +31,6 @@ import Data.Text.Encoding qualified as T
 import Imports
 import Wire.API.Bot ()
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Proposal
@@ -117,24 +116,11 @@ instance Cql Public.EnforceAppLock where
     _ -> Left "fromCql EnforceAppLock: int out of range"
   fromCql _ = Left "fromCql EnforceAppLock: int expected"
 
-instance Cql GroupInfoData where
-  ctype = Tagged BlobColumn
-
-  toCql = CqlBlob . LBS.fromStrict . unGroupInfoData
-  fromCql (CqlBlob b) = Right $ GroupInfoData (LBS.toStrict b)
-  fromCql _ = Left "GroupInfoData: blob expected"
-
 instance Cql Icon where
   ctype = Tagged TextColumn
   toCql = CqlText . T.decodeUtf8 . toByteString'
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
-
-instance Cql Epoch where
-  ctype = Tagged BigIntColumn
-  toCql = CqlBigInt . fromIntegral . epochNumber
-  fromCql (CqlBigInt n) = pure (Epoch (fromIntegral n))
-  fromCql _ = Left "epoch: bigint expected"
 
 instance Cql ProposalRef where
   ctype = Tagged BlobColumn

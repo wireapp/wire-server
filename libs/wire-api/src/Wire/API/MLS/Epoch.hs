@@ -19,6 +19,7 @@
 
 module Wire.API.MLS.Epoch where
 
+import Cassandra qualified as C
 import Data.Aeson qualified as A
 import Data.Binary
 import Data.OpenApi qualified as S
@@ -26,6 +27,7 @@ import Data.Schema
 import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.MLS.Serialisation
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 import Wire.Sem.FromUTC
 
@@ -42,6 +44,18 @@ instance SerialiseMLS Epoch where
 
 instance FromUTC Epoch where
   fromUTCTime = Epoch . floor . utcTimeToPOSIXSeconds
+
+instance C.Cql Epoch where
+  ctype = C.Tagged C.BigIntColumn
+  toCql = C.CqlBigInt . fromIntegral . epochNumber
+  fromCql (C.CqlBigInt n) = pure (Epoch (fromIntegral n))
+  fromCql _ = Left "epoch: bigint expected"
+
+instance PostgresMarshall Epoch Int64 where
+  postgresMarshall = fromIntegral . epochNumber
+
+instance PostgresUnmarshall Int64 Epoch where
+  postgresUnmarshall = Right . Epoch . fromIntegral
 
 addToEpoch :: (Integral a) => a -> Epoch -> Epoch
 addToEpoch n (Epoch e) = Epoch (e + fromIntegral n)

@@ -69,6 +69,7 @@ import Data.OpenApi.Internal.Schema qualified as S
 import Data.Proxy
 import Data.Schema
 import Data.Text qualified as T
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
@@ -78,6 +79,7 @@ import Imports
 import Web.HttpApiData
 import Wire.API.MLS.ECDSA qualified as ECDSA
 import Wire.API.MLS.Serialisation
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
@@ -150,13 +152,24 @@ instance ToSchema CipherSuiteTag where
 
 instance C.Cql CipherSuiteTag where
   ctype = Tagged IntColumn
-  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+  toCql = CqlInt . cipherSuitTagToInt32
 
-  fromCql (CqlInt index) =
-    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
-      Just t -> Right t
-      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql (CqlInt index) = first Text.unpack $ cipherSuiteTagFromInt32 index
   fromCql _ = Left "CipherSuiteTag: int expected"
+
+instance PostgresMarshall CipherSuiteTag Int32 where
+  postgresMarshall = cipherSuitTagToInt32
+
+instance PostgresUnmarshall Int32 CipherSuiteTag where
+  postgresUnmarshall = cipherSuiteTagFromInt32
+
+cipherSuitTagToInt32 :: CipherSuiteTag -> Int32
+cipherSuitTagToInt32 = fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+cipherSuiteTagFromInt32 :: Int32 -> Either Text CipherSuiteTag
+cipherSuiteTagFromInt32 index = case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+  Just t -> Right t
+  Nothing -> Left "CipherSuiteTag: unexpected index"
 
 -- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.
 cipherSuiteTag :: CipherSuite -> Maybe CipherSuiteTag

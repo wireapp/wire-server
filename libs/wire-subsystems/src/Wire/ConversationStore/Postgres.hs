@@ -38,7 +38,13 @@ import Wire.Postgres
 import Wire.StoredConversation
 import Wire.UserList
 
-interpretConversationStoreToPostgres :: (Member (Input Hasql.Pool) r, Member (Embed IO) r, Member (Error Hasql.UsageError) r) => InterpreterFor ConversationStore r
+type PGConstraints r =
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Error Hasql.UsageError) r
+  )
+
+interpretConversationStoreToPostgres :: (PGConstraints r) => InterpreterFor ConversationStore r
 interpretConversationStoreToPostgres = interpret $ \case
   CreateConversation lcnv nc -> createConversationImpl lcnv nc
   GetConversation cid -> getConversationImpl cid
@@ -98,14 +104,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
 
-createConversationImpl ::
-  ( Member (Input Hasql.Pool) r,
-    Member (Error Hasql.UsageError) r,
-    Member (Embed IO) r
-  ) =>
-  Local ConvId ->
-  NewConversation ->
-  Sem r StoredConversation
+createConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
 createConversationImpl lcnv nc = do
   let storedConv = newStoredConversation lcnv nc
       meta = storedConv.metadata
@@ -171,38 +170,126 @@ getRemoteConversationStatusImpl = undefined
 selectConversationsImpl :: UserId -> [ConvId] -> Sem r [ConvId]
 selectConversationsImpl = undefined
 
-setConversationTypeImpl :: ConvId -> ConvType -> Sem r ()
-setConversationTypeImpl = undefined
+setConversationTypeImpl :: (PGConstraints r) => ConvId -> ConvType -> Sem r ()
+setConversationTypeImpl convId typ =
+  runStatement (convId, typ) update
+  where
+    update :: Hasql.Statement (ConvId, ConvType) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET type = ($2 :: integer)
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationNameImpl :: ConvId -> Range 1 256 Text -> Sem r ()
-setConversationNameImpl = undefined
+setConversationNameImpl :: (PGConstraints r) => ConvId -> Range 1 256 Text -> Sem r ()
+setConversationNameImpl convId (fromRange -> name) =
+  runStatement (convId, name) update
+  where
+    update :: Hasql.Statement (ConvId, Text) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET name = ($2 :: text)
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationAccessImpl :: ConvId -> ConversationAccessData -> Sem r ()
-setConversationAccessImpl = undefined
+setConversationAccessImpl :: (PGConstraints r) => ConvId -> ConversationAccessData -> Sem r ()
+setConversationAccessImpl convId accessData =
+  runStatement (convId, accessData.cupAccess, accessData.cupAccessRoles) update
+  where
+    update :: Hasql.Statement (ConvId, Set Access, Set AccessRole) ()
+    update =
+      lmapPG @_ @(_, Vector _, Vector _)
+        [resultlessStatement|UPDATE conversation
+                             SET access = ($2 :: integer[]), access_roles_v2 = ($3 :: integer[])
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationReceiptModeImpl :: ConvId -> ReceiptMode -> Sem r ()
-setConversationReceiptModeImpl = undefined
+setConversationReceiptModeImpl :: (PGConstraints r) => ConvId -> ReceiptMode -> Sem r ()
+setConversationReceiptModeImpl convId receiptMode =
+  runStatement (convId, receiptMode) update
+  where
+    update :: Hasql.Statement (ConvId, ReceiptMode) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET receipt_mode = ($2 :: integer)
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationMessageTimerImpl :: ConvId -> Maybe Milliseconds -> Sem r ()
-setConversationMessageTimerImpl = undefined
+setConversationMessageTimerImpl :: (PGConstraints r) => ConvId -> Maybe Milliseconds -> Sem r ()
+setConversationMessageTimerImpl convId timer =
+  runStatement (convId, timer) update
+  where
+    update :: Hasql.Statement (ConvId, Maybe Milliseconds) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET message_timer = ($2 :: bigint?)
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationEpochImpl :: ConvId -> Epoch -> Sem r ()
-setConversationEpochImpl = undefined
+setConversationEpochImpl :: (PGConstraints r) => ConvId -> Epoch -> Sem r ()
+setConversationEpochImpl convId epoch =
+  runStatement (convId, epoch) update
+  where
+    update :: Hasql.Statement (ConvId, Epoch) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET epoch = ($2 :: bigint), epoch_timestamp = NOW()
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationCipherSuiteImpl :: ConvId -> CipherSuiteTag -> Sem r ()
-setConversationCipherSuiteImpl = undefined
+setConversationCipherSuiteImpl :: (PGConstraints r) => ConvId -> CipherSuiteTag -> Sem r ()
+setConversationCipherSuiteImpl convId cs =
+  runStatement (convId, cs) update
+  where
+    update :: Hasql.Statement (ConvId, CipherSuiteTag) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET cipher_suite = ($2 :: integer)
+                             WHERE conv = ($1 :: uuid)|]
 
-setConversationCellsStateImpl :: ConvId -> CellsState -> Sem r ()
-setConversationCellsStateImpl = undefined
+setConversationCellsStateImpl :: (PGConstraints r) => ConvId -> CellsState -> Sem r ()
+setConversationCellsStateImpl convId cells =
+  runStatement (convId, cells) update
+  where
+    update :: Hasql.Statement (ConvId, CellsState) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET cells_state = ($2 :: integer)
+                             WHERE conv = ($1 :: uuid)|]
 
-resetConversationImpl :: ConvId -> GroupId -> Sem r ()
-resetConversationImpl = undefined
+resetConversationImpl :: (PGConstraints r) => ConvId -> GroupId -> Sem r ()
+resetConversationImpl convId groupId =
+  runStatement (convId, groupId) update
+  where
+    update :: Hasql.Statement (ConvId, GroupId) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET group_id = ($2 :: bytea), epoch = 0, epoch_timestamp = NOW()
+                             WHERE conv = ($1 :: uuid)|]
 
-setGroupInfoImpl :: ConvId -> GroupInfoData -> Sem r ()
-setGroupInfoImpl = undefined
+setGroupInfoImpl :: (PGConstraints r) => ConvId -> GroupInfoData -> Sem r ()
+setGroupInfoImpl convId groupInfo =
+  runStatement (convId, groupInfo) update
+  where
+    update :: Hasql.Statement (ConvId, GroupInfoData) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET group_info = ($2 :: bytea)
+                             WHERE conv = ($1 :: uuid)|]
 
-updateChannelAddPermissionsImpl :: ConvId -> AddPermission -> Sem r ()
-updateChannelAddPermissionsImpl = undefined
+updateChannelAddPermissionsImpl :: (PGConstraints r) => ConvId -> AddPermission -> Sem r ()
+updateChannelAddPermissionsImpl convId addPerm =
+  runStatement (convId, addPerm) update
+  where
+    update :: Hasql.Statement (ConvId, AddPermission) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET add_permission = ($2 :: integer)
+                             WHERE conv = ($1 :: uuid)|]
 
 updateToMixedProtocolImpl :: Local ConvId -> ConvType -> Sem r ()
 updateToMixedProtocolImpl = undefined
@@ -223,11 +310,7 @@ deleteTeamConversationsImpl :: TeamId -> Sem r ()
 deleteTeamConversationsImpl = undefined
 
 -- MEMBER OPERATIONS
-createMembersImpl ::
-  (Member (Input Hasql.Pool) r, Member (Embed IO) r, Member (Error Hasql.UsageError) r) =>
-  ConvId ->
-  UserList (UserId, RoleName) ->
-  Sem r ([LocalMember], [RemoteMember])
+createMembersImpl :: (PGConstraints r) => ConvId -> UserList (UserId, RoleName) -> Sem r ([LocalMember], [RemoteMember])
 createMembersImpl convId users@(UserList lusers rusers) = do
   runTransaction ReadCommitted Write $ createMembersTransaction convId users
   pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
@@ -256,14 +339,7 @@ createMembersInRemoteConversationImpl = undefined
 createBotMemberImpl :: ServiceRef -> BotId -> ConvId -> Sem r BotMember
 createBotMemberImpl = undefined
 
-getLocalMemberImpl ::
-  ( Member (Input Hasql.Pool) r,
-    Member (Embed IO) r,
-    Member (Error Hasql.UsageError) r
-  ) =>
-  ConvId ->
-  UserId ->
-  Sem r (Maybe LocalMember)
+getLocalMemberImpl :: (PGConstraints r) => ConvId -> UserId -> Sem r (Maybe LocalMember)
 getLocalMemberImpl convId userId = do
   mRow <- runStatement (convId, userId) selectMember
   pure $ snd . mkLocalMember <$> mRow
@@ -285,13 +361,7 @@ getLocalMemberImpl convId userId = do
                         LIMIT 1
                        |]
 
-getLocalMembersImpl ::
-  ( Member (Input Hasql.Pool) r,
-    Member (Embed IO) r,
-    Member (Error Hasql.UsageError) r
-  ) =>
-  ConvId ->
-  Sem r [LocalMember]
+getLocalMembersImpl :: (PGConstraints r) => ConvId -> Sem r [LocalMember]
 getLocalMembersImpl convId = do
   rows <- runStatement convId selectMembers
   pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkLocalMember <$> rows))
@@ -327,14 +397,7 @@ mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRe
       }
   )
 
-getRemoteMemberImpl ::
-  ( Member (Input Hasql.Pool) r,
-    Member (Embed IO) r,
-    Member (Error Hasql.UsageError) r
-  ) =>
-  ConvId ->
-  Remote UserId ->
-  Sem r (Maybe RemoteMember)
+getRemoteMemberImpl :: (PGConstraints r) => ConvId -> Remote UserId -> Sem r (Maybe RemoteMember)
 getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
   snd . mkRemoteMember <$$> runStatement (convId, domain, uid) selectMember
   where
@@ -354,13 +417,7 @@ getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
                          LIMIT 1
                         |]
 
-getRemoteMembersImpl ::
-  ( Member (Input Hasql.Pool) r,
-    Member (Embed IO) r,
-    Member (Error Hasql.UsageError) r
-  ) =>
-  ConvId ->
-  Sem r [RemoteMember]
+getRemoteMembersImpl :: (PGConstraints r) => ConvId -> Sem r [RemoteMember]
 getRemoteMembersImpl convId = do
   rows <- runStatement convId selectMembers
   pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkRemoteMember <$> rows))
