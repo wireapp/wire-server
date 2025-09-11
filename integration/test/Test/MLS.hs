@@ -790,12 +790,12 @@ testShadowConversation = do
     sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
 
     extractedCharlieMembership <-
-    flip filterM fetchedOtherMembers $ \membership -> do
-      membershipId <- membership %. "qualified_id"
-      charlieId <- charlie %. "qualified_id"
-      pure $ membershipId == charlieId
-  charlieMembership <- assertOne extractedCharlieMembership
-  charlieMembership %. "conversation_role" `shouldMatch` "wire_admin"
+      flip filterM fetchedOtherMembers $ \membership -> do
+        membershipId <- membership %. "qualified_id"
+        charlieId <- charlie %. "qualified_id"
+        pure $ membershipId == charlieId
+    charlieMembership <- assertOne extractedCharlieMembership
+    charlieMembership %. "conversation_role" `shouldMatch` "wire_admin"
 
 testShadowConversationDenied :: (HasCallStack) => App ()
 testShadowConversationDenied = do
