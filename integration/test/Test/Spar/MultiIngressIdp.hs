@@ -79,6 +79,13 @@ testMultiIngressIdp = do
 
       -- From unconfigured to configured domain
       updateIdpWithZHost owner (Just bertZHost) idpId2 idpmeta2 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+
+      deleteIdp owner idpId `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 204
+
+      updateIdpWithZHost owner (Just bertZHost) idpId2 idpmeta2 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` bertZHost
 
@@ -96,4 +103,49 @@ testMultiIngressIdp = do
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
 -- TODO: Test creation of two IDPs for the same domain -> should fail
+testMultiIngressAtMostIdpPerDomain :: (HasCallStack) => App ()
+testMultiIngressAtMostIdpPerDomain = do
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= "https://webapp.ernie.example.com",
+                          "spSsoUri" .= "https://nginz-https.ernie.example.com/sso",
+                          "contacts" .= [object ["type" .= "ContactTechnical"]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= "https://webapp.bert.example.com",
+                          "spSsoUri" .= "https://nginz-https.bert.example.com/sso",
+                          "contacts" .= [object ["type" .= "ContactTechnical"]]
+                        ]
+                  ]
+              )
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      SampleIdP idpmeta1 _pCreds _ _ <- makeSampleIdPMetadata
+      idpId1 <-
+        createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "id" >>= asString
+
+      SampleIdP idpmeta2 _pCreds _ _ <- makeSampleIdPMetadata
+      void $ createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+
+      updateIdpWithZHost owner (Just ernieZHost) idpId1 idpmeta2 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
+
 -- TODO: Test updating existing IDP such that two with the same domain would exist -> should fail
