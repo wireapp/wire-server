@@ -38,8 +38,8 @@ import Control.Error
 import Control.Lens ((?~))
 import Data.Aeson hiding (object, (.=))
 import Data.Aeson qualified as Aeson
-import Data.Attoparsec.ByteString (sepBy)
-import Data.Attoparsec.ByteString.Char8 (char, string)
+import Data.Attoparsec.ByteString.Char8 (string)
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Conversion qualified as BS
 import Data.Id (TeamId, UserId)
@@ -299,7 +299,9 @@ instance ToByteString RoleFilter where
   builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)
 
 instance FromByteString RoleFilter where
-  parser = RoleFilter <$> parser `sepBy` char ','
+  parser = do
+    parts <- C8.split ',' <$> parser
+    RoleFilter <$> traverse (maybe (fail "Invalid role") pure . fromByteString) parts
 
 instance FromHttpApiData RoleFilter where
   parseQueryParam = fmap RoleFilter . traverse parseQueryParam . T.split (== ',')
