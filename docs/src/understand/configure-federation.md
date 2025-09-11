@@ -381,12 +381,12 @@ The default strategy of `allowNone` effectively disables federation
 (and probably isn’t what you want if you are reading this).
 `allowAll` federates with any backend that requests contact or that a
 user uses in a search.  `allowDynamic` only federates with known
-remote backends listed in cassandra.
+remote backends listed in Cassandra.
 
 The update frequency determines how often other services will refresh
 the information about remote connections from brig.
 
-#### Managing Remote Domains via internal API
+#### Managing remote domains via internal API
 
 Information about remote federation domains is stored in **brig’s Cassandra** and configured through the **internal brig API**.
 
@@ -458,20 +458,20 @@ Response Example:
 
 Fields:
 
-- `strategy`: federation strategy (`allowNone`, `allowDynamic`, `allowAll`)
-  If federation strategy is `allowDynamic`, only backends that are listed can be reached by us and can reach us
+- `strategy`: federation strategy (`allowNone`, `allowDynamic`, `allowAll`).
+  If federation strategy is `allowDynamic`, only backends that are listed can be reached by us and can reach us.
 - `remotes`: the configured remote domains
   - `domain`: remote backend domain name
-  - `restriction`: either `allow_all` or `restrict_by_team` (see section on **Team Restriction** below)
-  - `search_policy`: the search policy for a remote backend. Independently of the federation strategy, the list provides information about remote backends that may change dynamically (at the time of writing this: search policy, see [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and [User Searchability](searchability.md#user-searchability) for more context)
-    - `no_search`: No users are returned by federated searches.  default.
+  - `restriction`: either `allow_all` or `restrict_by_team` (see section on **Team restriction** below)
+  - `search_policy`: the search policy for a remote backend. Independently of the federation strategy, the list provides information about remote backends that may change dynamically (currently: `search_policy`). See [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and [User Searchability](searchability.md#user-searchability) for more context.
+    - `no_search`: No users are returned by federated searches. Default.
     - `exact_handle_search`: Only users where the handle exactly matches are returned.
     - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
-  - `update_interval`: suggested polling frequency (in seconds) for consuming services
+- `update_interval`: suggested polling frequency (in seconds) for consuming services
 
 If federation strategy is `allowAll`, and there is no entry for a
-domain in the database, default is `no_search`.  The field in
-cassandra is not nullable, ie., you always have to explicitly name a
+domain in the database, default is `no_search`. The field in
+Cassandra is not nullable, i.e., you always have to explicitly name a
 search policy if you create an entry.
 
 
@@ -511,27 +511,27 @@ The **team restriction** mechanism lets you define an allowlist of remote teams 
 Typical deployment:
 
 A customer runs an **on-premise instance** that needs to federate with **their team on Wire Cloud**, but not with other cloud teams or users.
-The allow-list ensures that only the designated cloud team can find users on the on-prem instance.
+The allowlist ensures that only the designated cloud team can find users on the on-prem instance.
 
 **Important Limitations:**
 
-* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users (e.g. via group conversations), even if those users are outside the allow-listed teams. In that case, communication is possible, but direct searchability remains restricted.
+* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users (e.g. via group conversations), even if those users are outside the allowlisted teams. In that case, communication is possible, but direct searchability remains restricted.
 * If a domain is configured via the **static federation config file**, it cannot be modified in the database. That means you cannot:
   * Add or update the domain itself,
   * Add or update team restrictions for that domain.
     Changes require editing the config file and restarting the service.
 * In the future, the config file will be deprecated and all configuration will live in the database.
 * Private (non-team) users are not eligible for team-restricted federation. They will always be excluded if restrictions apply.
-* Removing a team from the allow-list **does not break existing connections** — users already connected can still interact. Restrictions only apply to *new* searches and connection requests.
+* Removing a team from the allowlist **does not break existing connections** — users already connected can still interact. Restrictions only apply to *new* searches and connection requests.
 
-**Behavior in Federated Search**
+**Behavior in federated search**
 
 The team restriction impacts **federated user search** results. Two modes are possible:
 
 * `allow_all` (no restriction):
   All teams from the remote domain are discoverable.
 
-* `restrict_by_teams` (allowlist):
+* `restrict_by_team` (allowlist):
   Only users from explicitly allowed teams are discoverable.
   You must add teams via `POST /i/federation/remotes/:domain/teams`.
 
@@ -540,7 +540,7 @@ The team restriction impacts **federated user search** results. Two modes are po
 * If `domain1` allows only `teamA` from `domain2`, then a user from `teamB` in `domain2` will **not** show up in `domain1`’s federated search.
 * Exact handle search and full search both respect these restrictions.
 
-The following internal API endpoints are available for team restrictions (applicable if `restriction.tag` is set to `restrict_by_teams`):
+The following internal API endpoints are available for team restrictions (applicable if `restriction.tag` is set to `restrict_by_team`):
 
 **Add a Remote Team:**
 
