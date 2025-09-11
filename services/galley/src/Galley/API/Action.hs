@@ -109,6 +109,8 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.MLS.Group.Serialisation qualified as Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
@@ -573,7 +575,9 @@ performAction tag origUser lconv action = do
     SConversationUpdateProtocolTag -> do
       case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
+          let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
+              epoch = Epoch 0
+          E.updateToMixedProtocol (tUnqualified lcnv) gid epoch
           pure $ mkPerformActionResult action
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureForTeam @MlsMigrationConfig tid

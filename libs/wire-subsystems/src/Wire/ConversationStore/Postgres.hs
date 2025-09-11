@@ -66,7 +66,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   ResetConversation cid groupId -> resetConversationImpl cid groupId
   DeleteConversation cid -> deleteConversationImpl cid
   SetGroupInfo cid gib -> setGroupInfoImpl cid gib
-  UpdateToMixedProtocol cid ct -> updateToMixedProtocolImpl cid ct
+  UpdateToMixedProtocol cid gid epoch -> updateToMixedProtocolImpl cid gid epoch
   UpdateToMLSProtocol cid -> updateToMLSProtocolImpl cid
   UpdateChannelAddPermissions cid cap -> updateChannelAddPermissionsImpl cid cap
   DeleteTeamConversation tid cid -> deleteTeamConversationImpl tid cid
@@ -291,7 +291,7 @@ updateChannelAddPermissionsImpl convId addPerm =
                              SET add_permission = ($2 :: integer)
                              WHERE conv = ($1 :: uuid)|]
 
-updateToMixedProtocolImpl :: Local ConvId -> ConvType -> Sem r ()
+updateToMixedProtocolImpl :: ConvId -> GroupId -> Epoch -> Sem r ()
 updateToMixedProtocolImpl = undefined
 
 updateToMLSProtocolImpl :: Local ConvId -> Sem r ()

@@ -53,7 +53,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
@@ -338,16 +337,15 @@ toConv cid ms remoteMems mconv = do
 updateToMixedProtocol ::
   (Member (Embed IO) r) =>
   ClientState ->
-  Local ConvId ->
-  ConvType ->
+  ConvId ->
+  GroupId ->
+  Epoch ->
   Sem r ()
-updateToMixedProtocol client lcnv ct = do
-  let gid = newGroupId ct $ Conv <$> tUntagged lcnv
-      epoch = Epoch 0
+updateToMixedProtocol client convId gid epoch = do
   runEmbedded (runClient client) . embed . retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch)
+    addPrepQuery Cql.updateToMixedConv (convId, ProtocolMixedTag, gid, epoch)
   pure ()
 
 updateToMLSProtocol ::
@@ -955,9 +953,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetGroupInfo cid gib -> do
     logEffect "ConversationStore.SetGroupInfo"
     embedClient client $ setGroupInfo cid gib
-  UpdateToMixedProtocol cid ct -> do
+  UpdateToMixedProtocol cid groupId epoch -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
-    updateToMixedProtocol client cid ct
+    updateToMixedProtocol client cid groupId epoch
   UpdateToMLSProtocol cid -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
     updateToMLSProtocol client cid
