@@ -545,7 +545,7 @@ nextWireId :: (MonadIO m) => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextWireIdP :: (MonadIO m) => WireIdPAPIVersion -> m WireIdP
-nextWireIdP version = WireIdP <$> iid <*> pure (Just version) <*> pure [] <*> pure Nothing <*> idpHandle
+nextWireIdP version = WireIdP <$> iid <*> pure (Just version) <*> pure [] <*> pure Nothing <*> idpHandle <*> pure Nothing
   where
     iid = Id <$> liftIO UUID.nextRandom
     idpHandle = iid <&> IdPHandle . pack . show
