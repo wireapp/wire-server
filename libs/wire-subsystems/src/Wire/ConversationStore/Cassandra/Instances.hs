@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -42,8 +41,6 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.SearchVisibility
-
-deriving instance Cql MutedStatus
 
 instance Cql AccessRoleLegacy where
   ctype = Tagged IntColumn

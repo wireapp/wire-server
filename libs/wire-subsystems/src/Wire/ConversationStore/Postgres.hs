@@ -9,10 +9,11 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Data.Vector qualified as Vector
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
-import Hasql.TH (resultlessStatement)
+import Hasql.TH
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
@@ -259,8 +260,40 @@ createBotMemberImpl = undefined
 getLocalMemberImpl :: ConvId -> UserId -> Sem r (Maybe LocalMember)
 getLocalMemberImpl = undefined
 
-getLocalMembersImpl :: ConvId -> Sem r [LocalMember]
-getLocalMembersImpl = undefined
+getLocalMembersImpl :: (Member (Input Hasql.Pool) r, Member (Embed IO) r, Member (Error Hasql.UsageError) r) => ConvId -> Sem r [LocalMember]
+getLocalMembersImpl convId = do
+  rows <- runStatement convId selectMembers
+  pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkMember <$> rows))
+  where
+    selectMembers :: Hasql.Statement ConvId (Vector (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
+    selectMembers =
+      dimapPG
+        [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                         FROM conversation_member
+                         WHERE status != 0
+                         AND (conv = ($1 :: uuid)
+                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                         ORDER BY CASE
+                           WHEN conv = ($1 :: uuid) THEN 1
+                           ELSE 2
+                           END
+                        |]
+    mkMember :: (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName) -> (ConvId, LocalMember)
+    mkMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
+      ( cid,
+        LocalMember
+          { id_ = uid,
+            status =
+              MemberStatus
+                { msOtrArchived = fromMaybe False archived,
+                  msHidden = fromMaybe False hidden,
+                  ..
+                },
+            service = ServiceRef <$> mServiceId <*> mProviderId,
+            convRoleName = fromMaybe roleNameWireAdmin mRole
+          }
+      )
 
 getAllLocalMembersImpl :: Sem r [LocalMember]
 getAllLocalMembersImpl = undefined

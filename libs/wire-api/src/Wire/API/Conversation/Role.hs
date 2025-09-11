@@ -226,7 +226,7 @@ instance FromJSON ConversationRolesList where
 -- expose this constructor outside of this module.
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToByteString, Hashable, Cql)
+  deriving newtype (ToByteString, Hashable, Cql, PostgresUnmarshall Text)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema RoleName
 
 instance ToSchema RoleName where
