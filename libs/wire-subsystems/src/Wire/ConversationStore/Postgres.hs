@@ -294,7 +294,7 @@ updateChannelAddPermissionsImpl convId addPerm =
 updateToMixedProtocolImpl :: ConvId -> GroupId -> Epoch -> Sem r ()
 updateToMixedProtocolImpl = undefined
 
-updateToMLSProtocolImpl :: Local ConvId -> Sem r ()
+updateToMLSProtocolImpl :: ConvId -> Sem r ()
 updateToMLSProtocolImpl = undefined
 
 deleteTeamConversationImpl :: TeamId -> ConvId -> Sem r ()

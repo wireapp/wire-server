@@ -586,7 +586,7 @@ performAction tag origUser lconv action = do
           ok <- checkMigrationCriteria now mlsConv mig
           unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
           removeExtraneousClients origUser lconv
-          E.updateToMLSProtocol lcnv
+          E.updateToMLSProtocol (tUnqualified lcnv)
           pure $ mkPerformActionResult action
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges

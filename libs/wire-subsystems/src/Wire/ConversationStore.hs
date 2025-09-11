@@ -78,7 +78,7 @@ data ConversationStore m a where
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
-  UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
+  UpdateToMLSProtocol :: ConvId -> ConversationStore m ()
   DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()
   GetTeamConversation :: TeamId -> ConvId -> ConversationStore m (Maybe ConvId)
   GetTeamConversations :: TeamId -> ConversationStore m [ConvId]

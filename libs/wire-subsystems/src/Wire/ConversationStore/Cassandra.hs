@@ -351,11 +351,11 @@ updateToMixedProtocol client convId gid epoch = do
 updateToMLSProtocol ::
   (Member (Embed IO) r) =>
   ClientState ->
-  Local ConvId ->
+  ConvId ->
   Sem r ()
-updateToMLSProtocol client lcnv =
+updateToMLSProtocol client cnv =
   runEmbedded (runClient client) . embed . retry x5 $
-    write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
+    write Cql.updateToMLSConv (params LocalQuorum (cnv, ProtocolMLSTag))
 
 updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
 updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
