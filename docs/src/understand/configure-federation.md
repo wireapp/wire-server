@@ -458,12 +458,14 @@ Response Example:
 
 Fields:
 
-- `strategy`: federation strategy (`allowNone`, `allowDynamic`, `allowAll`).
-  If federation strategy is `allowDynamic`, only backends that are listed can be reached by us and can reach us.
-- `remotes`: the configured remote domains
-  - `domain`: remote backend domain name
-  - `restriction`: either `allow_all` or `restrict_by_team` (see section on **Team restriction** below)
-  - `search_policy`: the search policy for a remote backend. Independently of the federation strategy, the list provides information about remote backends that may change dynamically (currently: `search_policy`). See [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and [User Searchability](searchability.md#user-searchability) for more context.
+- `strategy`: Federation strategy, possible values:
+  - `allowAll`: Federation with any domain is allowed
+  - `allowDynamic`: If federation strategy is `allowDynamic`, only backends that are listed can be reached by us and can reach us.
+  - `allowNone`: No domains are allowed to federate (federation disabled)
+- `remotes`: An array of configured remote domains. Entries have the following fields:
+  - `domain`: Remote backend domain name
+  - `restriction`: Either `allow_all` or `restrict_by_team` (see section on **Team restriction** below)
+  - `search_policy`: The search policy for a remote backend. Independently of the federation strategy, the list provides information about remote backends that may change dynamically (currently: `search_policy`). See [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and [User Searchability](searchability.md#user-searchability) for more context. Values:
     - `no_search`: No users are returned by federated searches. Default.
     - `exact_handle_search`: Only users where the handle exactly matches are returned.
     - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
@@ -520,7 +522,6 @@ The allowlist ensures that only the designated cloud team can find users on the 
   * Add or update the domain itself,
   * Add or update team restrictions for that domain.
     Changes require editing the config file and restarting the service.
-* In the future, the config file will be deprecated and all configuration will live in the database.
 * Private (non-team) users are not eligible for team-restricted federation. They will always be excluded if restrictions apply.
 * Removing a team from the allowlist **does not break existing connections** — users already connected or part of common conversations can still interact. Restrictions only apply to *new* searches and connection requests.
 
