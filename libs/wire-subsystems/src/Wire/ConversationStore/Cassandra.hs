@@ -28,9 +28,11 @@ import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
+import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
+import Data.Functor.Classes (Ord2 (liftCompare2))
 import Data.Id
 import Data.List.Extra qualified as List
 import Data.Map qualified as Map
@@ -578,8 +580,15 @@ removeRemoteMembersFromLocalConv cnv victims = do
 members :: ConvId -> Client [LocalMember]
 members conv = do
   parents <- retry x1 $ query Cql.selectConvParent (params LocalQuorum (Identity conv))
-  concatMap (nubBy ((==) `on` (.id_)) . mapMaybe toMember)
-    <$> UnliftIO.pooledMapConcurrentlyN 16 fetchMembers (conv : mapMaybe runIdentity parents)
+  -- map (nubBy ((==) `on` (.id_)) . mapMaybe toMember . map (either id id))
+  nubBy ((==) `on` (.id_))
+    . map (either id id)
+    . sortBy (liftCompare2 (comparing (.id_)) (comparing (.id_)))
+    . concatMap (bitraverse (mapMaybe toMember) (mapMaybe toMember)) -- put shadow conversations members, 'conv', first to use it in priority, when there are two
+    <$> UnliftIO.pooledMapConcurrentlyN
+      16
+      (bitraverse fetchMembers fetchMembers)
+      (Left conv : mapMaybe (fmap Right . runIdentity) parents)
   where
     fetchMembers convId =
       retry x1 $
