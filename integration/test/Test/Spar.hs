@@ -814,7 +814,7 @@ testIdpUpdate = do
     void $ loginWithSamlEmail True tid email idp3
 
 testAllowUpdatesBySCIMWhenE2EIdEnabled :: (HasCallStack) => App ()
-testAllowUpdatesBySCIMWhenE2EIdEnabled  = do
+testAllowUpdatesBySCIMWhenE2EIdEnabled = do
   (tok, uid, su) <- setup
 
   su1 <- checkUpdateHandle tok uid su
