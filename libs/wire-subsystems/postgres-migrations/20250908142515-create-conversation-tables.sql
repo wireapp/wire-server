@@ -9,6 +9,7 @@ CREATE TABLE conversation (
   creator uuid,
   deleted boolean,
   epoch bigint,
+  epoch_timestamp timestamp,
   group_conv_type integer,
   group_id bytea,
   message_timer bigint,
