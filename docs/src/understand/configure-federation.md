@@ -522,7 +522,7 @@ The allowlist ensures that only the designated cloud team can find users on the 
     Changes require editing the config file and restarting the service.
 * In the future, the config file will be deprecated and all configuration will live in the database.
 * Private (non-team) users are not eligible for team-restricted federation. They will always be excluded if restrictions apply.
-* Removing a team from the allowlist **does not break existing connections** — users already connected can still interact. Restrictions only apply to *new* searches and connection requests.
+* Removing a team from the allowlist **does not break existing connections** — users already connected or part of common conversations can still interact. Restrictions only apply to *new* searches and connection requests.
 
 **Behavior in federated search**
 
