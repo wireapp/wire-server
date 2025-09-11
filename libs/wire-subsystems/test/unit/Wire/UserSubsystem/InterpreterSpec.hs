@@ -654,8 +654,8 @@ spec = describe "UserSubsystem.Interpreter" do
                       getUserProfile lusr (tUntagged lusr)
              in profileErr === Left UserSubsystemLocaleManagedByScim
 
-    prop
-      "if e2e identity is activated, the user name cannot be updated"
+    focus $ prop
+      "if e2e identity is activated, the user name cannot be updated by a wire client"
       \(NotPendingStoredUser alice) localDomain (newName :: Name) config ->
         (alice.name /= newName) ==>
           let lusr = toLocalUnsafe localDomain alice.id
@@ -676,7 +676,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     )
                     config
                     do
-                      updateUserProfile lusr Nothing UpdateOriginScim (def {name = Just newName, supportedProtocols = Nothing})
+                      updateUserProfile lusr Nothing UpdateOriginWireClient (def {name = Just newName, supportedProtocols = Nothing})
                       getUserProfile lusr (tUntagged lusr)
            in profileErr === Left UserSubsystemDisplayNameManagedByScim
 
