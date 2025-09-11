@@ -55,6 +55,7 @@ import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.Map as Map
 import Data.Proxy
 import Data.Range
 import Data.Text.Encoding.Error
@@ -175,7 +176,7 @@ api ::
   ServerT SparAPI (Sem r)
 api opts =
   apiSSO opts
-    :<|> apiIDP
+    :<|> apiIDP opts
     :<|> apiScim
     :<|> apiINTERNAL
 
@@ -220,14 +221,15 @@ apiIDP ::
     Member SAMLUserStore r,
     Member (Error SparError) r
   ) =>
+  Opts ->
   ServerT APIIDP (Sem r)
-apiIDP =
+apiIDP opts =
   Named @"idp-get" idpGet -- get, json, captures idp id
     :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
     :<|> Named @"idp-get-all" idpGetAll -- get, json
-    :<|> Named @"idp-create@v7" idpCreateV7
-    :<|> Named @"idp-create" idpCreate -- post, created
-    :<|> Named @"idp-update" idpUpdate -- put, okay
+    :<|> Named @"idp-create@v7" (idpCreateV7 opts.saml)
+    :<|> Named @"idp-create" (idpCreate opts.saml) -- post, created
+    :<|> Named @"idp-update" (idpUpdate opts.saml) -- put, okay
     :<|> Named @"idp-delete" idpDelete -- delete, no content
 
 apiINTERNAL ::
@@ -632,6 +634,7 @@ idpCreate ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   TeamId ->
   Maybe ZHostValue ->
   IdPMetadataInfo ->
@@ -639,7 +642,8 @@ idpCreate ::
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate tid mbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+  let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
   GalleyAccess.assertSSOEnabled tid
   idp <-
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
@@ -649,6 +653,11 @@ idpCreate tid mbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMa
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
+
+-- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
+filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
+filterMultiIngressZHost (Right domainMap) (Just zHost) | (Domain zHost) `Map.member` domainMap = Just zHost
+filterMultiIngressZHost _ _ = Nothing
 
 idpCreateV7 ::
   ( Member Random r,
@@ -660,15 +669,16 @@ idpCreateV7 ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   TeamId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateV7 tid idpmeta mReplaces mApiversion mHandle = do
+idpCreateV7 samlConfig tid idpmeta mReplaces mApiversion mHandle = do
   assertNoScimOrNoIdP
-  idpCreate tid Nothing idpmeta mReplaces mApiversion mHandle
+  idpCreate samlConfig tid Nothing idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -761,13 +771,16 @@ idpUpdate ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   Maybe UserId ->
   Maybe ZHostValue ->
   IdPMetadataInfo ->
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdate zusr mbHost (IdPMetadataValue raw xml) = idpUpdateXML zusr mbHost raw xml
+idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
+  let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
+   in idpUpdateXML zusr mbHost raw xml
 
 idpUpdateXML ::
   ( Member Random r,
