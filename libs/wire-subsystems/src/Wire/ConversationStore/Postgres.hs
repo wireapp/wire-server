@@ -349,8 +349,18 @@ createMembersTransaction convId (UserList lusers rusers) = do
         [resultlessStatement|insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role)
                              values ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
 
-createMembersInRemoteConversationImpl :: Remote ConvId -> [UserId] -> Sem r ()
-createMembersInRemoteConversationImpl = undefined
+createMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
+createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users =
+  -- TODO: Use 'unnest' instead of multiple insert statements
+  runTransaction ReadCommitted Write $
+    for_ users $ \uid ->
+      Transaction.statement (uid, domain, cnv) insertMember
+  where
+    insertMember :: Hasql.Statement (UserId, Domain, ConvId) ()
+    insertMember =
+      lmapPG
+        [resultlessStatement|INSERT INTO user_remote_conv ("user", conv_remote_domain, conv_remote_id)
+                             VALUES ($1 :: uuid, $2 :: text, $3 :: uuid)|]
 
 createBotMemberImpl :: ServiceRef -> BotId -> ConvId -> Sem r BotMember
 createBotMemberImpl = undefined
