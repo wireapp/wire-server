@@ -645,6 +645,7 @@ idpCreate ::
 idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
   GalleyAccess.assertSSOEnabled tid
+  guardMultiIngressDuplicateDomain tid mbHost
   idp <-
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
       >>= validateNewIdP apiversion idpmeta tid mReplaces mbHost
@@ -653,6 +654,21 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
+  where
+    -- Ensure that the domain is not in use by an existing IDP
+    guardMultiIngressDuplicateDomain ::
+      ( Member (Error SparError) r,
+        Member IdPConfigStore r
+      ) =>
+      TeamId ->
+      Maybe ZHostValue ->
+      Sem r ()
+    guardMultiIngressDuplicateDomain _teamId Nothing = pure ()
+    guardMultiIngressDuplicateDomain teamId (Just zHost) = do
+      idps <- IdPConfigStore.getConfigsByTeam teamId
+      let domains = idps ^.. traverse . SAML.idpExtraInfo . domain . _Just
+      when (zHost `elem` domains) $
+        throwSparSem SparIdPDomainInUse
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
 filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
@@ -801,6 +817,8 @@ idpUpdateXML ::
 idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
+  -- TODO: Move this into validateIdPUpdate?
+  guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of
         Just idpHandle -> idp & (SAML.idpExtraInfo . handle) .~ IdPHandle (fromRange idpHandle)
@@ -817,6 +835,25 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   pure idp''
+  where
+    -- Ensure that the domain is not in use by an existing IDP
+    guardMultiIngressDuplicateDomain ::
+      ( Member (Error SparError) r,
+        Member IdPConfigStore r
+      ) =>
+      TeamId ->
+      Maybe ZHostValue ->
+      SAML.IdPId ->
+      Sem r ()
+    guardMultiIngressDuplicateDomain _teamId Nothing _ = pure ()
+    guardMultiIngressDuplicateDomain teamId (Just zHost) idpId = do
+      idps <- IdPConfigStore.getConfigsByTeam teamId
+      let otherIdpsOnSameDomain =
+            any
+              (\idp -> (idp ^. SAML.idpExtraInfo . domain) == (Just zHost) && (idp ^. SAML.idpId) /= idpId)
+              idps
+      when otherIdpsOnSameDomain $
+        throwSparSem SparIdPDomainInUse
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as
