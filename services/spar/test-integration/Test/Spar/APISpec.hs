@@ -866,7 +866,9 @@ specCRUDIdentityProvider = do
     context "bad xml" $ do
       it "responds with a 'client error'" $ do
         env <- ask
-        callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
+        (_owner, tid) <- callCreateUserWithTeam
+        admin <- mkUser RoleAdmin env tid
+        callIdpCreateRaw' (env ^. teSpar) (Just admin) "application/xml" "@@ bad xml ###"
           `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     context "no zuser" $ do
       it "responds with 'client error'" $ do
@@ -956,7 +958,9 @@ specCRUDIdentityProvider = do
       context "bad json" $ do
         it "responds with a 'client error'" $ do
           env <- ask
-          callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
+          (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          admin <- mkUser RoleAdmin env tid
+          callIdpCreateRaw' (env ^. teSpar) (Just admin) "application/json" "@@ bad json ###"
             `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
       context "good json" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
