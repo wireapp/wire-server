@@ -257,10 +257,42 @@ createMembersInRemoteConversationImpl = undefined
 createBotMemberImpl :: ServiceRef -> BotId -> ConvId -> Sem r BotMember
 createBotMemberImpl = undefined
 
-getLocalMemberImpl :: ConvId -> UserId -> Sem r (Maybe LocalMember)
-getLocalMemberImpl = undefined
+getLocalMemberImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Error Hasql.UsageError) r
+  ) =>
+  ConvId ->
+  UserId ->
+  Sem r (Maybe LocalMember)
+getLocalMemberImpl convId userId = do
+  mRow <- runStatement (convId, userId) selectMember
+  pure $ snd . mkMember <$> mRow
+  where
+    selectMember :: Hasql.Statement (ConvId, UserId) (Maybe (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
+    selectMember =
+      dimapPG
+        [maybeStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                        FROM conversation_member
+                        WHERE status != 0
+                        AND (conv = ($1 :: uuid)
+                             OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                        AND "user" = ($2 :: uuid)
+                        ORDER BY CASE
+                          WHEN conv = ($1 :: uuid) THEN 1
+                          ELSE 2
+                          END
+                        LIMIT 1
+                       |]
 
-getLocalMembersImpl :: (Member (Input Hasql.Pool) r, Member (Embed IO) r, Member (Error Hasql.UsageError) r) => ConvId -> Sem r [LocalMember]
+getLocalMembersImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Error Hasql.UsageError) r
+  ) =>
+  ConvId ->
+  Sem r [LocalMember]
 getLocalMembersImpl convId = do
   rows <- runStatement convId selectMembers
   pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkMember <$> rows))
@@ -279,21 +311,22 @@ getLocalMembersImpl convId = do
                            ELSE 2
                            END
                         |]
-    mkMember :: (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName) -> (ConvId, LocalMember)
-    mkMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
-      ( cid,
-        LocalMember
-          { id_ = uid,
-            status =
-              MemberStatus
-                { msOtrArchived = fromMaybe False archived,
-                  msHidden = fromMaybe False hidden,
-                  ..
-                },
-            service = ServiceRef <$> mServiceId <*> mProviderId,
-            convRoleName = fromMaybe roleNameWireAdmin mRole
-          }
-      )
+
+mkMember :: (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName) -> (ConvId, LocalMember)
+mkMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
+  ( cid,
+    LocalMember
+      { id_ = uid,
+        status =
+          MemberStatus
+            { msOtrArchived = fromMaybe False archived,
+              msHidden = fromMaybe False hidden,
+              ..
+            },
+        service = ServiceRef <$> mServiceId <*> mProviderId,
+        convRoleName = fromMaybe roleNameWireAdmin mRole
+      }
+  )
 
 getAllLocalMembersImpl :: Sem r [LocalMember]
 getAllLocalMembersImpl = undefined
