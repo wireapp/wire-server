@@ -395,6 +395,201 @@ instance PostgresMarshall Object Value where
 class PostgresUnmarshall a b where
   postgresUnmarshall :: a -> Either Text b
 
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2) => PostgresUnmarshall (a1, a2) (b1, b2) where
+  postgresUnmarshall (a1, a2) =
+    (,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3) => PostgresUnmarshall (a1, a2, a3) (b1, b2, b3) where
+  postgresUnmarshall (a1, a2, a3) =
+    (,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4) => PostgresUnmarshall (a1, a2, a3, a4) (b1, b2, b3, b4) where
+  postgresUnmarshall (a1, a2, a3, a4) =
+    (,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5) => PostgresUnmarshall (a1, a2, a3, a4, a5) (b1, b2, b3, b4, b5) where
+  postgresUnmarshall (a1, a2, a3, a4, a5) =
+    (,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6) (b1, b2, b3, b4, b5, b6) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6) =
+    (,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7) (b1, b2, b3, b4, b5, b6, b7) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7) =
+    (,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8) (b1, b2, b3, b4, b5, b6, b7, b8) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8) =
+    (,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9) (b1, b2, b3, b4, b5, b6, b7, b8, b9) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9) =
+    (,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) =
+    (,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) =
+    (,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) =
+    (,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) =
+    (,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) =
+    (,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14, PostgresUnmarshall a15 b15) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) =
+    (,,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+      <*> postgresUnmarshall a15
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14, PostgresUnmarshall a15 b15, PostgresUnmarshall a16 b16) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) =
+    (,,,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+      <*> postgresUnmarshall a15
+      <*> postgresUnmarshall a16
+
 instance PostgresUnmarshall UUID (Id a) where
   postgresUnmarshall = Right . Id
 
