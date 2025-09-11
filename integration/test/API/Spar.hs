@@ -161,11 +161,17 @@ mkScimUser scimUserId =
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
-createIdp user metadata = do
-  req <- baseRequest user Spar Versioned "/identity-providers"
-  submit "POST" $ req
-    & addQueryParams [("api_version", "v2")]
-    & addXML (fromLT $ SAML.encode metadata)
+createIdp = (flip createIdpWithZHost) Nothing
+
+createIdpWithZHost :: (HasCallStack, MakesValue user) => user -> Maybe String -> SAML.IdPMetadata -> App Response
+createIdpWithZHost user mbZHost metadata = do
+  bReq <- baseRequest user Spar Versioned "/identity-providers"
+  let req =
+        bReq
+          & addQueryParams [("api_version", "v2")]
+          & addXML (fromLT $ SAML.encode metadata)
+          & addHeader "Content-Type" "application/xml"
+  submit "POST" (req & maybe id zHost mbZHost)
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-update
 updateIdp :: (HasCallStack, MakesValue user) => user -> String -> SAML.IdPMetadata -> App Response

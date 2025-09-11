@@ -196,6 +196,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
     Test.Swagger
