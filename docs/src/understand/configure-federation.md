@@ -386,68 +386,202 @@ remote backends listed in cassandra.
 The update frequency determines how often other services will refresh
 the information about remote connections from brig.
 
-More information about individual remote connections is stored in
-brig’s cassandra, and maintained via internal brig api end-points by
-the sysadmin:
+#### Managing Remote Domains via internal API
 
-* [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
-  - after adding a new remote backend, wait for the other end to do
-    the same with you, and then wait a few moments for things to
-    stabilize (at least `update_interval * 2`; see below).
-* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
-  - this serves an object with 3 fields:
-    - `remotes` (from cassandra): the list of remote domains with search policy (and
-      possibly other information in the future);
-    - `strategy` (from config): federation strategy; one of `allowNone`, `allowDynamic`, `allowAll` (see above)
-    - `update_interval` (from config): the suggested update frequency with which calling
-      services should refresh their information.
-  - It doesn’t serve the local domain, which needs to be configured
-    for every service that needs to know it individually.  This may
-    change in the future.
-  - This end-point enjoys a comparably high amount of traffic.  If you
-    have many pods (a large instance with say, >100 pods), *and* you set a very
-    short update interval (<10s), you should monitor brig’s service and
-    database load closely in the beginning.
-* [`PUT`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_federation_remotes__domain_)
-* **NOTE:** De-federating (`DELETE`) has been removed from the API to
-  avoid a scalability issue.  Watch out for a fix in the changelog!
+Information about remote federation domains is stored in **brig’s Cassandra** and configured through the **internal brig API**.
 
-The `remotes` list looks like this:
+**Create a Remote Domain:**
 
-```default
-[
-  {
-    "domain": "wire.example.com",
-    "search_policy": "full_search"
-  },
-  {
-    "domain": "evil.example.com"
-    "search_policy": "no_search"
-  },
-  ...
-]
+```
+POST /i/federation/remotes
 ```
 
-It serves two purposes:
+Body Example (no restriction, allow all teams):
 
-1. If federation strategy is `allowDynamic`, only backends that are
-   listed can be reached by us and can reach us;
-2. Independently of the federation strategy, the list provides
-   information about remote backends that may change dynamically (at
-   the time of writing this: search policy, see
-   [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and
-   [User Searchability](searchability.md#user-searchability) for more context)
+```json
+{
+  "domain": "cloud.example.com",
+  "search_policy": "full_search",
+  "restriction": {
+    "tag": "allow_all",
+    "value": null
+  }
+}
+```
 
-The search policy for a remote backend can be:
+Body Example (restrict by team):
 
-- `no_search`: No users are returned by federated searches.  default.
-- `exact_handle_search`: Only users where the handle exactly matches are returned.
-- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+```json
+{
+  "domain": "cloud.example.com",
+  "search_policy": "full_search",
+  "restriction": {
+    "tag": "restrict_by_team",
+    "value": [
+      "aacea429-c8ba-4afc-9369-cae87404b820",
+      "bf82dca7-0916-42af-8f84-88a47b34521e"
+    ]
+  }
+}
+```
+
+*After adding a new remote backend, wait for the other end to do the same, and allow at least `update_interval * 2` (see below) for the federation state to stabilize.*
+
+**Get Federation Remotes:**
+
+```
+GET /i/federation/remotes
+```
+
+Returns a list of all configured federation remotes and strategy settings.
+
+Response Example:
+
+```json
+{
+  "remotes": [
+    {
+      "domain": "example.com",
+      "restriction": {
+        "tag": "restrict_by_team",
+        "value": [
+          "99db9768-04e3-4b5d-9268-831b6a25c4ab"
+        ]
+      },
+      "search_policy": "no_search"
+    }
+  ],
+  "strategy": "allowDynamic",
+  "update_interval": 30
+}
+```
+
+Fields:
+
+- `strategy`: federation strategy (`allowNone`, `allowDynamic`, `allowAll`)
+  If federation strategy is `allowDynamic`, only backends that are listed can be reached by us and can reach us
+- `remotes`: the configured remote domains
+  - `domain`: remote backend domain name
+  - `restriction`: either `allow_all` or `restrict_by_team` (see section on **Team Restriction** below)
+  - `search_policy`: the search policy for a remote backend. Independently of the federation strategy, the list provides information about remote backends that may change dynamically (at the time of writing this: search policy, see [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and [User Searchability](searchability.md#user-searchability) for more context)
+    - `no_search`: No users are returned by federated searches.  default.
+    - `exact_handle_search`: Only users where the handle exactly matches are returned.
+    - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+  - `update_interval`: suggested polling frequency (in seconds) for consuming services
 
 If federation strategy is `allowAll`, and there is no entry for a
 domain in the database, default is `no_search`.  The field in
 cassandra is not nullable, ie., you always have to explicitly name a
 search policy if you create an entry.
+
+
+> ⚠️ This endpoint may have relatively high traffic on large instances. If you run >100 pods and use a short update interval (<10s), monitor brig’s load and Cassandra performance closely.
+
+
+**Update a Remote Domain:**
+
+```
+PUT /i/federation/remotes/:domain
+```
+
+Use this to update the search policy or restriction mode of a given remote domain.
+
+**Example (switching a remote to team restriction mode):**
+
+```json
+{
+  "domain": "cloud.example.com",
+  "search_policy": "full_search",
+  "restriction": {
+    "tag": "restrict_by_team",
+    "value": [
+      "aacea429-c8ba-4afc-9369-cae87404b820",
+      "bf82dca7-0916-42af-8f84-88a47b34521e"
+    ]
+  }
+}
+```
+
+#### Team Restriction
+
+By default, federation can be configured at the **domain** level, but in some cases it is necessary to restrict communication further to specific **teams** within a remote domain.
+
+The **team restriction** mechanism lets you define an allowlist of remote teams that are permitted to **find users from your domain**. In practice, this means that only users belonging to those teams will be discoverable in federated search or connection requests.
+
+Typical deployment:
+
+A customer runs an **on-premise instance** that needs to federate with **their team on Wire Cloud**, but not with other cloud teams or users.
+The allow-list ensures that only the designated cloud team can find users on the on-prem instance.
+
+**Important Limitations:**
+
+* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users (e.g. via group conversations), even if those users are outside the allow-listed teams. In that case, communication is possible, but direct searchability remains restricted.
+* If a domain is configured via the **static federation config file**, it cannot be modified in the database. That means you cannot:
+  * Add or update the domain itself,
+  * Add or update team restrictions for that domain.
+    Changes require editing the config file and restarting the service.
+* In the future, the config file will be deprecated and all configuration will live in the database.
+* Private (non-team) users are not eligible for team-restricted federation. They will always be excluded if restrictions apply.
+* Removing a team from the allow-list **does not break existing connections** — users already connected can still interact. Restrictions only apply to *new* searches and connection requests.
+
+**Behavior in Federated Search**
+
+The team restriction impacts **federated user search** results. Two modes are possible:
+
+* `allow_all` (no restriction):
+  All teams from the remote domain are discoverable.
+
+* `restrict_by_teams` (allowlist):
+  Only users from explicitly allowed teams are discoverable.
+  You must add teams via `POST /i/federation/remotes/:domain/teams`.
+
+**Example:**
+
+* If `domain1` allows only `teamA` from `domain2`, then a user from `teamB` in `domain2` will **not** show up in `domain1`’s federated search.
+* Exact handle search and full search both respect these restrictions.
+
+The following internal API endpoints are available for team restrictions (applicable if `restriction.tag` is set to `restrict_by_teams`):
+
+**Add a Remote Team:**
+
+```
+POST /i/federation/remotes/:domain/teams
+```
+
+Allow federation with a specific team from the remote domain.
+
+Body:
+
+```json
+{
+  "team_id": "8bec1ed8-6ca8-4457-bd54-8a7f8a0a398a"
+}
+```
+
+**Get Allowed Remote Teams:**
+
+```
+GET /i/federation/remotes/:domain/teams
+```
+
+List all teams from the remote domain that are currently allowed to federate.
+
+Response Example:
+
+```json
+[
+  { "team_id": "2c41cd5a-6885-44c2-ae31-8d2bea5b59aa" },
+  { "team_id": "5c78b3fa-1acc-444a-9ca9-df8a4703e603" }
+]
+```
+
+**Delete a Remote Team:**
+
+```
+DELETE /i/federation/remotes/:domain/teams/:team_id
+```
+
+Remove a team from the allowlist. Once removed, users from that team will not be discoverable or accessible via federation.
 
 #### If your instance has been federating before
 
