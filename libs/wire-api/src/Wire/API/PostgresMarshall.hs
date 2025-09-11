@@ -8,12 +8,14 @@ module Wire.API.PostgresMarshall
 where
 
 import Data.Aeson
+import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
 import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Profunctor
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID
 import Data.Vector (Vector)
@@ -623,6 +625,9 @@ instance PostgresUnmarshall UUID (Id a) where
 instance PostgresUnmarshall Value Object where
   postgresUnmarshall (Object obj) = Right obj
   postgresUnmarshall v = Left $ "expected Object, got: " <> Text.decodeUtf8 (BS.toStrict (encode v))
+
+instance PostgresUnmarshall Text Domain where
+  postgresUnmarshall = first Text.pack . mkDomain
 
 instance (PostgresUnmarshall a b) => PostgresUnmarshall (Maybe a) (Maybe b) where
   postgresUnmarshall = mapM postgresUnmarshall
