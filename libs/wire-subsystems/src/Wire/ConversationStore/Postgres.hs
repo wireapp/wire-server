@@ -302,8 +302,16 @@ updateToMixedProtocolImpl convId gid epoch =
                              SET protocol = ($2 :: integer), group_id = ($3 :: bytea), epoch = ($4 :: bigint), epoch_timestamp = NOW()
                              WHERE conv = ($1 :: uuid)|]
 
-updateToMLSProtocolImpl :: ConvId -> Sem r ()
-updateToMLSProtocolImpl = undefined
+updateToMLSProtocolImpl :: (PGConstraints r) => ConvId -> Sem r ()
+updateToMLSProtocolImpl convId =
+  runStatement (convId, ProtocolMLSTag) update
+  where
+    update :: Hasql.Statement (ConvId, ProtocolTag) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                             SET protocol = ($2 :: integer), receipt_mode = 0
+                             WHERE conv = ($1 :: uuid)|]
 
 deleteTeamConversationImpl :: TeamId -> ConvId -> Sem r ()
 deleteTeamConversationImpl = undefined
