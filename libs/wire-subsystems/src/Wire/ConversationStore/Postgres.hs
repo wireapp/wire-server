@@ -72,7 +72,6 @@ interpretConversationStoreToPostgres = interpret $ \case
   CreateBotMember sr bid cid -> createBotMemberImpl sr bid cid
   GetLocalMember cid uid -> getLocalMemberImpl cid uid
   GetLocalMembers cid -> getLocalMembersImpl cid
-  GetAllLocalMembers -> getAllLocalMembersImpl
   GetRemoteMember cid uid -> getRemoteMemberImpl cid uid
   GetRemoteMembers rcid -> getRemoteMembersImpl rcid
   CheckLocalMemberRemoteConv uid rcnv -> checkLocalMemberRemoteConvImpl uid rcnv
@@ -327,9 +326,6 @@ mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRe
         convRoleName = fromMaybe roleNameWireAdmin mRole
       }
   )
-
-getAllLocalMembersImpl :: Sem r [LocalMember]
-getAllLocalMembersImpl = undefined
 
 getRemoteMemberImpl ::
   ( Member (Input Hasql.Pool) r,

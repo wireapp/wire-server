@@ -508,11 +508,6 @@ members conv = do
       retry x1 $
         query Cql.selectMembers (params LocalQuorum (Identity convId))
 
-allMembers :: Client [LocalMember]
-allMembers =
-  fmap (mapMaybe toMember) . retry x1 $
-    query Cql.selectAllMembers (params LocalQuorum ())
-
 toMemberStatus ::
   ( -- otr muted
     Maybe MutedStatus,
@@ -996,9 +991,6 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetLocalMembers cid -> do
     logEffect "ConversationStore.GetLocalMembers"
     runEmbedded (runClient client) $ embed $ members cid
-  GetAllLocalMembers -> do
-    logEffect "ConversationStore.GetAllLocalMembers"
-    runEmbedded (runClient client) $ embed $ allMembers
   GetRemoteMember cid uid -> do
     logEffect "ConversationStore.GetRemoteMember"
     runEmbedded (runClient client) $ embed $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)

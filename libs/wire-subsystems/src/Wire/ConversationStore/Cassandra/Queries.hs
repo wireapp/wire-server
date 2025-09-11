@@ -39,7 +39,6 @@ module Wire.ConversationStore.Cassandra.Queries
     removeRemoteMember,
     selectMember,
     selectMembers,
-    selectAllMembers,
     selectRemoteMember,
     selectRemoteMembers,
     selectRemoteConvMembers,
@@ -294,9 +293,6 @@ selectMember = "select user, service, provider, status, otr_muted_status, otr_mu
 
 selectMembers :: PrepQuery R (Identity ConvId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ?"
-
-selectAllMembers :: PrepQuery R () (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectAllMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member"
 
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"

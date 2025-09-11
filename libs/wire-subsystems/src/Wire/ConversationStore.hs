@@ -89,7 +89,6 @@ data ConversationStore m a where
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> ConversationStore m BotMember
   GetLocalMember :: ConvId -> UserId -> ConversationStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> ConversationStore m [LocalMember]
-  GetAllLocalMembers :: ConversationStore m [LocalMember]
   GetRemoteMember :: ConvId -> Remote UserId -> ConversationStore m (Maybe RemoteMember)
   GetRemoteMembers :: ConvId -> ConversationStore m [RemoteMember]
   CheckLocalMemberRemoteConv :: UserId -> Remote ConvId -> ConversationStore m Bool
