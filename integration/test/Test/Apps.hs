@@ -13,7 +13,7 @@ testCreateApp = do
 
   bindResponse (createApp bob tid new) $ \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "create-app-no-permission"
+    resp.json %. "label" `shouldMatch` "app-no-permission"
 
   (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
