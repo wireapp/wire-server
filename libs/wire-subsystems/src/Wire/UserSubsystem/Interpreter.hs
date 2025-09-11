@@ -513,11 +513,12 @@ guardLockedFields ::
 guardLockedFields user updateOrigin (MkUserProfileUpdate {..}) = do
   let idempName = isNothing name || name == Just user.name
       idempLocale = isNothing locale || locale == user.locale
-      scim = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      scimConflict = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      updateByScim = updateOrigin == UpdateOriginScim && user.managedBy == Just ManagedByScim
   e2eid <- hasE2EId user
-  when ((scim || e2eid) && not idempName) do
+  when ((scimConflict || (e2eid && not updateByScim)) && not idempName) do
     throw UserSubsystemDisplayNameManagedByScim
-  when (scim {- e2eid does not matter, it's not part of the e2eid cert! -} && not idempLocale) do
+  when (scimConflict {- e2eid does not matter, it's not part of the e2eid cert! -} && not idempLocale) do
     throw UserSubsystemLocaleManagedByScim
 
 guardLockedHandleField ::
@@ -530,10 +531,11 @@ guardLockedHandleField ::
   Sem r ()
 guardLockedHandleField user updateOrigin handle = do
   let idemp = Just handle == user.handle
-      scim = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      scimConflict = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      updateByScim = updateOrigin == UpdateOriginScim && user.managedBy == Just ManagedByScim
       hasHandle = isJust user.handle
   e2eid <- hasE2EId user
-  when ((scim || (e2eid && hasHandle)) && not idemp) do
+  when ((scimConflict || (e2eid && hasHandle && not updateByScim)) && not idemp) do
     throw UserSubsystemHandleManagedByScim
 
 updateUserProfileImpl ::

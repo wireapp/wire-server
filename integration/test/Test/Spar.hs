@@ -482,4 +482,95 @@ testIdpUpdate = do
     (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
   -- the SCIM users can still login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSaml True tid email idp3
+    void $ loginWithSamlEmail True tid email idp3
+
+testAllowUpdatesBySCIMWhenE2EIdEnabled :: (HasCallStack) => App ()
+testAllowUpdatesBySCIMWhenE2EIdEnabled = do
+  (tok, uid, su) <- setup
+
+  su1 <- checkUpdateHandle tok uid su
+  su2 <- checkUpdateDisplayName tok uid su1
+
+  -- the following should not be part of the e2eid certification, but are checked here anyway
+  su3 <- checkUpdateLocale tok uid su2
+  su4 <- checkUpdateEmail tok uid su3
+  void $ checkUpdateExternalId tok uid su4
+  where
+    setup :: App (String, String, Value)
+    setup = do
+      (owner, tid, _) <- createTeam OwnDomain 1
+      setTeamFeatureStatus owner tid "sso" "enabled" >>= assertSuccess
+      setTeamFeatureStatus owner tid "mlsE2EId" "enabled" >>= assertSuccess
+      void $ registerTestIdPWithMeta owner >>= getJSON 201
+      tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+      scimUser <- randomScimUser
+      email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+      uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+      activateEmail OwnDomain email
+      pure (tok, uid, scimUser)
+
+    checkUpdateHandle :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateHandle tok uid scimUser = do
+      newHandle <- randomHandle
+      su <- setField "userName" newHandle scimUser
+      bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
+        res.status `shouldMatchInt` 200
+        res.json %. "userName" `shouldMatch` newHandle
+      bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
+        res.status `shouldMatchInt` 200
+        u <- res.json >>= asList >>= assertOne
+        u %. "handle" `shouldMatch` newHandle
+      pure su
+
+    checkUpdateDisplayName :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateDisplayName tok uid scimUser = do
+      let displayName = "Alice in Wonderland"
+      su <- setField "displayName" displayName scimUser
+      bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
+        res.status `shouldMatchInt` 200
+        res.json %. "displayName" `shouldMatch` displayName
+      bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
+        res.status `shouldMatchInt` 200
+        u <- res.json >>= asList >>= assertOne
+        u %. "name" `shouldMatch` displayName
+      pure su
+
+    checkUpdateLocale :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateLocale tok uid scimUser = do
+      su <- setField "preferredLanguage" "fr" scimUser
+      bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
+        res.status `shouldMatchInt` 200
+        res.json %. "preferredLanguage" `shouldMatch` "fr"
+      bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
+        res.status `shouldMatchInt` 200
+        u <- res.json >>= asList >>= assertOne
+        u %. "locale" `shouldMatch` "fr"
+      pure su
+
+    checkUpdateEmail :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateEmail tok uid scimUser = do
+      newEmail <- randomEmail
+      su <- setField "emails" [object ["value" .= newEmail]] scimUser
+      bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
+        res.status `shouldMatchInt` 200
+        res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+      activateEmail OwnDomain newEmail
+      bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
+        res.status `shouldMatchInt` 200
+        u <- res.json >>= asList >>= assertOne
+        u %. "email" `shouldMatch` newEmail
+      pure su
+
+    checkUpdateExternalId :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateExternalId tok uid scimUser = do
+      newExtId <- randomUUIDString
+      su <- setField "externalId" newExtId scimUser
+      bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
+        res.status `shouldMatchInt` 200
+        res.json %. "externalId" `shouldMatch` newExtId
+      bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
+        res.status `shouldMatchInt` 200
+        u <- res.json >>= asList >>= assertOne
+        subject <- u %. "sso_id.subject" >>= asString
+        subject `shouldContainString` newExtId
+      pure su
