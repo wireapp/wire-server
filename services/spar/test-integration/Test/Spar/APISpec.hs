@@ -553,12 +553,8 @@ specCRUDIdentityProvider = do
         env <- ask
         (owner, tid) <- callCreateUserWithTeam
         ((^. idpId) -> idpid) <- registerTestIdP owner
-        let mkUser :: Role -> TestSpar UserId
-            mkUser role = do
-              let perms = rolePermissions role
-              call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-        admin <- mkUser RoleAdmin
-        member <- mkUser RoleMember
+        admin <- mkUser RoleAdmin env tid
+        member <- mkUser RoleMember env tid
         callIdpDelete' (env ^. teSpar) (Just member) idpid
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
         callIdpDelete' (env ^. teSpar) (Just admin) idpid
@@ -1824,3 +1820,8 @@ checkSamlFlow mkareq mkaresp submitaresp checkresp = do
         (Just authnreq)
   sparresp <- submitaresp teamid authnresp
   liftIO $ checkresp sparresp
+
+mkUser :: Role -> TestEnv -> TeamId -> TestSpar UserId
+mkUser role env tid = do
+  let perms = rolePermissions role
+  call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
