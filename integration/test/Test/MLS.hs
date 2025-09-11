@@ -764,38 +764,38 @@ testAddUserBareProposalCommit = do
 
 testShadowConversation :: (HasCallStack) => App ()
 testShadowConversation = do
-  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
   traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
-  convId <-
-    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
-      >>= getJSON 201
-      >>= objConvId
+  convId <- createNewGroup def alice1
 
-  shadowConv <- postConversation alice1 (defProteus {parent = Just convId, team = Just tid}) >>= getJSON 201
+  shadowConv <- postConversation alice1 (defMLS {parent = Just convId}) >>= getJSON 201
   shadowConvId <- objConvId shadowConv
+  createGroup def alice1 shadowConvId
 
-  let addMember = addMembers alice shadowConvId def {role = Just "adhoc_role", users = [charlie]}
-  bindResponse addMember $ \resp -> do
-    resp.status `shouldMatchInt` 200
+  withWebSockets [bob] $ \wss -> do
+    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) wss
 
-  fetchedConversation <- bindResponse (getConversationInternal alice1 shadowConvId) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
-  fetchedMembers <- fetchedConversation %. "members"
-  let extractId x = x %. "qualified_id"
-  fetchedOtherMembers <- fetchedMembers %. "others" & asList
-  fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
-  expectedMemberIds <- traverse extractId [alice, bob, charlie]
-  sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
+    void $ createAddCommit charlie1 shadowConvId [] >>= sendAndConsumeCommitBundle
 
-  extractedCharlieMembership <-
+    fetchedConversation <- bindResponse (getConversationInternal charlie1 shadowConvId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json
+    fetchedMembers <- fetchedConversation %. "members"
+    let extractId x = x %. "qualified_id"
+    fetchedOtherMembers <- fetchedMembers %. "others" & asList
+    fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
+    expectedMemberIds <- traverse extractId [alice, bob, charlie]
+    sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
+
+    extractedCharlieMembership <-
     flip filterM fetchedOtherMembers $ \membership -> do
       membershipId <- membership %. "qualified_id"
       charlieId <- charlie %. "qualified_id"
       pure $ membershipId == charlieId
   charlieMembership <- assertOne extractedCharlieMembership
-  charlieMembership %. "conversation_role" `shouldMatch` "adhoc_role"
+  charlieMembership %. "conversation_role" `shouldMatch` "wire_admin"
 
 testShadowConversationDenied :: (HasCallStack) => App ()
 testShadowConversationDenied = do
@@ -804,7 +804,7 @@ testShadowConversationDenied = do
   traverse_ (uploadNewKeyPackage def) [alice1, bob1]
   convId <- createNewGroup def alice1
 
-  bindResponse (postConversation bob1 (defMLS {parent = Just convId})) $ \resp -> do
+  bindResponse (postConversation bob1 (defMLS {parent = Just convId.id_})) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
 testPropExistingConv :: (HasCallStack) => App ()
