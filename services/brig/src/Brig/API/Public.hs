@@ -626,7 +626,9 @@ servantSitemap =
         :<|> Named @"verify-challenge" verifyChallenge
 
     appsAPI :: ServerT AppsAPI (Handler r)
-    appsAPI = Named @"create-app" createApp
+    appsAPI =
+      Named @"create-app" createApp
+        :<|> Named @"refresh-app-cookie" refreshAppCookie
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1717,6 +1719,13 @@ checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
+
+refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
+refreshAppCookie lusr tid appId = do
+  mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId
+  case mc of
+    Left delay -> throwE $ loginError (LoginThrottled delay)
+    Right c -> pure $ RefreshAppCookieResponse c
 
 -- Deprecated
 

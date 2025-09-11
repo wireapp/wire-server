@@ -2103,3 +2103,14 @@ type AppsAPI =
         :> ReqBody '[JSON] NewApp
         :> Post '[JSON] CreatedApp
     )
+    :<|> Named
+           "refresh-app-cookie"
+           ( Summary "Get a new app authentication token"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Capture "app" UserId
+               :> "cookie"
+               :> Get '[JSON] RefreshAppCookieResponse
+           )

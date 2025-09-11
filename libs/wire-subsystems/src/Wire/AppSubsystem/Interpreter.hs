@@ -3,6 +3,7 @@ module Wire.AppSubsystem.Interpreter where
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
+import Data.RetryAfter
 import Data.Set qualified as Set
 import Data.UUID.V4
 import Data.ZAuth.Token
@@ -49,6 +50,7 @@ runAppSubsystem ::
   Sem r a
 runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
+  RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
 
 createAppImpl ::
   ( Member UserStore r,
@@ -99,6 +101,28 @@ createAppImpl lusr tid new = do
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
         cookie = mkSomeToken c.cookieValue
       }
+
+refreshAppCookieImpl ::
+  ( Member AuthenticationSubsystem r,
+    Member AppStore r,
+    Member (Error RetryAfter) r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r SomeUserToken
+refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
+  mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
+  note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
+  app <- Store.getApp uid >>= note AppSubsystemErrorNoApp
+  note AppSubsystemErrorNoApp $ guard (app.teamId == tid)
+
+  c :: Cookie (Token U) <-
+    newCookieLimited appId Nothing PersistentCookie (Just "app")
+      >>= either throw pure
+  pure $ mkSomeToken c.cookieValue
 
 appNewStoredUser ::
   ( Member (Embed IO) r,
