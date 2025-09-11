@@ -43,6 +43,7 @@
 , ghc-prim
 , gitignoreSource
 , hashable
+, hasql
 , hex
 , hostname-validate
 , hscim
@@ -163,6 +164,7 @@ mkDerivation {
     generics-sop
     ghc-prim
     hashable
+    hasql
     hostname-validate
     hscim
     HsOpenSSL

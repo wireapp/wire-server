@@ -8,9 +8,14 @@ module Wire.API.PostgresMarshall
 where
 
 import Data.Aeson
+import Data.ByteString qualified as BS
 import Data.Id
 import Data.Profunctor
+import Data.Text.Encoding qualified as Text
 import Data.UUID
+import Data.Vector (Vector)
+import Data.Vector qualified as V
+import Hasql.Statement
 import Imports
 
 class PostgresMarshall a b where
@@ -388,28 +393,31 @@ instance PostgresMarshall Object Value where
 ---
 
 class PostgresUnmarshall a b where
-  postgresUnmarshall :: a -> Maybe b
+  postgresUnmarshall :: a -> Either Text b
 
 instance PostgresUnmarshall UUID (Id a) where
-  postgresUnmarshall = Just . Id
+  postgresUnmarshall = Right . Id
 
 instance PostgresUnmarshall Value Object where
-  postgresUnmarshall (Object obj) = Just obj
-  postgresUnmarshall _ = Nothing
+  postgresUnmarshall (Object obj) = Right obj
+  postgresUnmarshall v = Left $ "expected Object, got: " <> Text.decodeUtf8 (BS.toStrict (encode v))
 
 instance (PostgresUnmarshall a b) => PostgresUnmarshall (Maybe a) (Maybe b) where
-  postgresUnmarshall = fmap postgresUnmarshall
+  postgresUnmarshall = mapM postgresUnmarshall
+
+instance (PostgresUnmarshall a b) => PostgresUnmarshall (Vector a) (Vector b) where
+  postgresUnmarshall = V.mapM postgresUnmarshall
 
 ---
 
 lmapPG :: (PostgresMarshall a b, Profunctor p) => p b x -> p a x
 lmapPG = lmap postgresMarshall
 
-rmapPG :: (PostgresUnmarshall x y, Profunctor p) => p a (Maybe x) -> p a (Maybe y)
-rmapPG = rmap (postgresUnmarshall =<<)
+rmapPG :: (PostgresUnmarshall x y) => Statement a x -> Statement a y
+rmapPG = refineResult postgresUnmarshall
 
 dimapPG ::
-  (PostgresMarshall a b, PostgresUnmarshall x y, Profunctor p) =>
-  p b (Maybe x) ->
-  p a (Maybe y)
-dimapPG = dimap postgresMarshall (postgresUnmarshall =<<)
+  (PostgresMarshall a b, PostgresUnmarshall x y) =>
+  Statement b x ->
+  Statement a y
+dimapPG = refineResult postgresUnmarshall . lmapPG
