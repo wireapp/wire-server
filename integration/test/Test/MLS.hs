@@ -769,7 +769,7 @@ testShadowConversation = do
   traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
   convId <- createNewGroup def alice1
 
-  shadowConv <- postConversation alice1 (defMLS {parent = Just convId}) >>= getJSON 201
+  shadowConv <- postConversation alice1 (defMLS {parent = Just convId.id_}) >>= getJSON 201
   shadowConvId <- objConvId shadowConv
   createGroup def alice1 shadowConvId
 
