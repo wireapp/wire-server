@@ -36,7 +36,16 @@ jobs:
           sed -i "s|branch = clean-wire-server-docs|branch = ${CURRENT_BRANCH}|g" .gitmodules
           
           cat .gitmodules
-          make sanitize-pr
           make build
+
+      - name: Clone wire-server and `make sanitize-pr`
+        # if this fails, you need to run it on your PR and commit the changes it makes.
+        run: |
+          CURRENT_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          BRANCH_NAME=${GITHUB_REF##*/}
+
+          git clone --branch develop "$CURRENT_REPO_URL" wire-server -b "$BRANCH_NAME"
+          cd wire-server
+          make sanitize-pr
 
 # tasks to update the submodule reference in wire-docs repo are yet to be added
