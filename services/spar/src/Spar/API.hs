@@ -634,12 +634,11 @@ idpCreate ::
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate (zusr, _tid) (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- Brig.getZUsrCheckPerm (Just zusr) CreateUpdateDeleteIdp
-  GalleyAccess.assertSSOEnabled teamid
+idpCreate (zusr, tid) (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+  GalleyAccess.assertSSOEnabled tid
   idp <-
-    maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
-      >>= validateNewIdP apiversion idpmeta teamid mReplaces
+    maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
+      >>= validateNewIdP apiversion idpmeta tid mReplaces
   IdPRawMetadataStore.store (idp ^. SAML.idpId) rawIdpMetadata
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
