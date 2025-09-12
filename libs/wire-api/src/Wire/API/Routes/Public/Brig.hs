@@ -2111,6 +2111,6 @@ type AppsAPI =
                :> Capture "tid" TeamId
                :> "apps"
                :> Capture "app" UserId
-               :> "cookie"
-               :> Get '[JSON] RefreshAppCookieResponse
+               :> "cookies"
+               :> Post '[JSON] RefreshAppCookieResponse
            )

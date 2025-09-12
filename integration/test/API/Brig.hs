@@ -1187,3 +1187,8 @@ createApp creator tid new = do
           "accent_id" .= new.accentId,
           "metadata" .= new.meta
         ]
+
+refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
+refreshAppCookie u tid appId = do
+  req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
+  submit "POST" req
