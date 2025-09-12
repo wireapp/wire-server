@@ -128,10 +128,13 @@ getUserGroups ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupPageRequest ->
-  Sem r [UserGroupMeta]
+  Sem r UserGroupPage
 getUserGroups req = do
   pool <- input
-  eitherResult <- liftIO $ use pool session
+  eitherResult <- liftIO $ use pool $ do
+    results <- session
+    count <- getCount req.searchString
+    pure $ UserGroupPage results count
   either throw pure eitherResult
   where
     session = case (req.searchString, req.paginationState) of
@@ -167,6 +170,27 @@ getUserGroups req = do
         let encoder = divide5 id encodeId encodeTime encodeId encodeText encodeInt
             stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
         statement (req.team, timestamp, gid, fuzzy searchString, pageSizeInt) stmt
+
+    getCount :: Maybe Text -> Session Int
+    getCount = \case
+      Just searchString -> do
+        let stmt = refineResult parseCount $ Statement countBS (divide id encodeId encodeText) decodeCount True
+        statement (req.team, fuzzy searchString) stmt
+      Nothing -> do
+        let stmt = refineResult parseCount $ Statement countBS encodeId decodeCount True
+        statement (req.team) stmt
+      where
+        countBS :: ByteString
+        countBS = Text.encodeUtf8 $ paginationStateToTotalCountQuery req
+
+        decodeCount :: HD.Result Int64
+        decodeCount = HD.singleRow $ HD.column (HD.nonNullable HD.int8)
+
+        parseCount :: Int64 -> Either Text Int
+        parseCount = \case
+          n | n < 0 -> Left "Negative count from database"
+          n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
+          n -> Right $ fromIntegral n
 
     encodeId :: HE.Params (Id a)
     encodeId = contramap toUUID $ HE.param (HE.nonNullable HE.uuid)
@@ -254,6 +278,14 @@ paginationStateToSqlQuery UserGroupPageRequest {..} =
       where
         lhs = "(" <> sortColumnName sortColumn <> ", id)"
         mkQuery rhs = T.unwords ["and", lhs, sortOrderOperator sortOrder, rhs]
+
+paginationStateToTotalCountQuery :: UserGroupPageRequest -> Text
+paginationStateToTotalCountQuery UserGroupPageRequest {..} =
+  (T.unwords $ filter (not . T.null) [select, where_, like])
+  where
+    select = "select count(*) from user_group"
+    where_ = "where team_id = ($1 :: uuid)"
+    like = maybe "" (const $ "and name ilike ($2 :: text)") searchString
 
 createUserGroup ::
   forall r.

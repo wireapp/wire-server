@@ -80,6 +80,7 @@ testUserGroupSmoke = do
   bindResponse (getUserGroups owner def) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.name" `shouldMatch` "also good"
+    resp.json %. "total" `shouldMatchInt` 1
 
   bindResponse (deleteUserGroup owner badGid) $ \resp -> do
     resp.status `shouldMatchInt` 404
@@ -168,6 +169,7 @@ testUserGroupGetGroups = do
   (owner, _team, []) <- createTeam OwnDomain 1
 
   let groupNames = ["First group", "CC", "CCC"] <> ((: []) <$> ['A' .. 'G'])
+      totalCount = length groupNames
   forM_ groupNames $ \gname -> do
     let newGroup = object ["name" .= gname, "members" .= ([] :: [()])]
     bindResponse (createUserGroup owner newGroup) $ \resp -> do
@@ -176,10 +178,10 @@ testUserGroupGetGroups = do
       resp.json %. "members" `shouldMatch` ([] :: [()])
 
   -- Default sort by is createdAt, and sortOrder is DESC
-  _ <- runSearch owner def {q = Just "C"} ["C", "CCC", "CC"]
+  _ <- runSearch owner def {q = Just "C"} ["C", "CCC", "CC"] 3
 
   -- Default sortOrder is DESC, regardless of sortBy
-  _ <- runSearch owner def {q = Just "CC", sortByKeys = Just "name"} ["CCC", "CC"]
+  _ <- runSearch owner def {q = Just "CC", sortByKeys = Just "name"} ["CCC", "CC"] 2
 
   -- Test combinations of sortBy and sortOrder:
   _ <-
@@ -197,6 +199,7 @@ testUserGroupGetGroups = do
         "First group",
         "G"
       ]
+      totalCount
   _ <-
     runSearch
       owner
@@ -214,6 +217,7 @@ testUserGroupGetGroups = do
             "G"
           ]
       )
+      totalCount
   _ <-
     runSearch
       owner
@@ -229,6 +233,7 @@ testUserGroupGetGroups = do
         "F",
         "G"
       ]
+      totalCount
   _ <-
     runSearch
       owner
@@ -246,6 +251,7 @@ testUserGroupGetGroups = do
             "G"
           ]
       )
+      totalCount
 
   -- Test sorting and filtering works across pages
   let firstPageParams = def {sortByKeys = Just "name", sortOrder = Just "desc", pSize = Just 3}
@@ -257,6 +263,7 @@ testUserGroupGetGroups = do
         "First group",
         "F"
       ]
+      totalCount
   Just (name2, createdAt2, id2) <-
     runSearch
       owner
@@ -265,6 +272,7 @@ testUserGroupGetGroups = do
         "D",
         "CCC"
       ]
+      totalCount
   Just (name3, createdAt3, id3) <-
     runSearch
       owner
@@ -273,20 +281,23 @@ testUserGroupGetGroups = do
         "C",
         "B"
       ]
+      totalCount
 
   void
     $ runSearch
       owner
       firstPageParams {lastName = Just name3, lastCreatedAt = Just createdAt3, lastId = Just id3}
       ["A"]
+      totalCount
 
-runSearch :: (HasCallStack, MakesValue owner) => owner -> GetUserGroupsArgs -> [String] -> App (Maybe (String, String, String))
-runSearch owner args expected =
+runSearch :: (HasCallStack, MakesValue owner) => owner -> GetUserGroupsArgs -> [String] -> Int -> App (Maybe (String, String, String))
+runSearch owner args expected expectedCount =
   bindResponse (getUserGroups owner args) $ \resp -> do
     resp.status `shouldMatchInt` 200
     found <- ((%. "name") `mapM`) =<< asList =<< resp.json %. "page"
     found `shouldMatch` expected
     results <- asList $ resp.json %. "page"
+    resp.json %. "total" `shouldMatchInt` expectedCount
     for (lastMay results) $ \lastGroup ->
       (,,)
         <$> asString (lastGroup %. "name")
@@ -296,11 +307,12 @@ runSearch owner args expected =
 testUserGroupGetGroupsAllInputs :: (HasCallStack) => App ()
 testUserGroupGetGroupsAllInputs = do
   (owner, _team, []) <- createTeam OwnDomain 1
-  for_ ((: []) <$> ['A' .. 'Z']) $ \gname -> do
+  let gnames = ['A' .. 'Z']
+  for_ gnames $ \gname -> do
     let newGroup = object ["name" .= gname, "members" .= ([] :: [()])]
     createUserGroup owner newGroup >>= assertSuccess
 
-  Just (ln, ltz, lid) <- runSearch owner def {pSize = Just 3} ["Z", "Y", "X"]
+  Just (ln, ltz, lid) <- runSearch owner def {pSize = Just 3} ["Z", "Y", "X"] 26
   let getUserGroupArgs = getUserGroupArgsCombinations ln ltz lid
   for_ getUserGroupArgs $ \args -> do
     bindResponse (getUserGroups owner args) $ \resp -> do
@@ -309,8 +321,11 @@ testUserGroupGetGroupsAllInputs = do
       -- additionally we can check a few invariants
       groups <- resp.json %. "page" >>= asList
       case (args.q, args.lastName, args.lastCreatedAt, args.lastId) of
-        (Nothing, Nothing, Nothing, Nothing) -> length groups `shouldMatchInt` (fromMaybe 15 args.pSize)
-        (Just _, Nothing, Nothing, Nothing) -> length groups `shouldMatchInt` 1
+        (Nothing, Nothing, Nothing, Nothing) -> do
+          length groups `shouldMatchInt` (fromMaybe 15 args.pSize)
+          resp.json %. "total" `shouldMatchInt` (length gnames)
+        (Just _, Nothing, Nothing, Nothing) -> do
+          length groups `shouldMatchInt` 1
         _ -> pure ()
   where
     getUserGroupArgsCombinations :: String -> String -> String -> [GetUserGroupsArgs]
@@ -357,3 +372,4 @@ testUserGroupMembersCount = do
   bindResponse (getUserGroups owner (def {includeMemberCount = True})) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.membersCount" `shouldMatchInt` 2
+    resp.json %. "total" `shouldMatchInt` 1

@@ -22,6 +22,7 @@ import System.Random (StdGen, mkStdGen)
 import Wire.API.Pagination
 import Wire.API.User
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
 import Wire.Sem.Random qualified as Rnd
@@ -92,9 +93,10 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r [UserGroupMeta]
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
+  pure $ UserGroupPage meta (length meta)
   where
     sieve,
       dropAfterPageSize,

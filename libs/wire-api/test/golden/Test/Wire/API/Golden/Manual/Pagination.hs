@@ -65,14 +65,16 @@ ug3 =
     }
 
 testObject_UserGroupPage_1 :: UserGroupPage
-testObject_UserGroupPage_1 = UserGroupPage []
+testObject_UserGroupPage_1 = UserGroupPage [] 0
 
 testObject_UserGroupPage_2 :: UserGroupPage
 testObject_UserGroupPage_2 =
   UserGroupPage
     (userGroupToMeta <$> [ug1, ug2])
+    2
 
 testObject_UserGroupPage_3 :: UserGroupPage
 testObject_UserGroupPage_3 =
   UserGroupPage
     (userGroupToMeta <$> [ug2])
+    100

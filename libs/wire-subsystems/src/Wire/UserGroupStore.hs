@@ -31,7 +31,7 @@ toSortBy = \case
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe UserGroup)
-  GetUserGroups :: UserGroupPageRequest -> UserGroupStore m [UserGroupMeta]
+  GetUserGroups :: UserGroupPageRequest -> UserGroupStore m UserGroupPage
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe ())
   DeleteUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe ())
   AddUser :: UserGroupId -> UserId -> UserGroupStore m ()
