@@ -21,6 +21,7 @@ module Wire.AuthenticationSubsystem where
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.RetryAfter
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Polysemy
@@ -43,7 +44,21 @@ data AuthenticationSubsystem m a where
   VerifyUserPasswordError :: Local UserId -> PlainTextPassword6 -> AuthenticationSubsystem m ()
   VerifyProviderPassword :: ProviderId -> PlainTextPassword6 -> AuthenticationSubsystem r (Bool, PasswordStatus)
   -- Cookie Management
-  NewCookie :: (UserTokenLike t) => UserId -> Maybe ClientId -> CookieType -> Maybe CookieLabel -> AuthenticationSubsystem m (Cookie (ZAuth.Token t))
+  NewCookie ::
+    (UserTokenLike t) =>
+    UserId ->
+    Maybe ClientId ->
+    CookieType ->
+    Maybe CookieLabel ->
+    AuthenticationSubsystem m (Cookie (ZAuth.Token t))
+  NewCookieLimited ::
+    (UserTokenLike t) =>
+    UserId ->
+    Maybe ClientId ->
+    CookieType ->
+    Maybe CookieLabel ->
+    AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
+  RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 

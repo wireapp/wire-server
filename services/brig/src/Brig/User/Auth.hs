@@ -108,7 +108,6 @@ login ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -206,7 +205,13 @@ withRetryLimit action uid = do
     action bkey budget
 
 logout ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
+  ( ZAuth.UserTokenLike u,
+    ZAuth.AccessTokenLike a,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member AuthenticationSubsystem r,
+    Member CryptoSign r,
+    Member Now r
+  ) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
@@ -249,8 +254,7 @@ renewAccess uts at mcid = do
 revokeAccess ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->
@@ -275,7 +279,7 @@ catchSuspendInactiveUser ::
     Member UserSubsystem r,
     Member Events r,
     Member (Concurrency 'Unsafe) r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   e ->
@@ -305,7 +309,6 @@ newAccess ::
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -432,7 +435,6 @@ ssoLogin ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -471,7 +473,6 @@ legalHoldLogin ::
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r

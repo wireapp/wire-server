@@ -124,7 +124,6 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
-import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -174,7 +173,6 @@ servantSitemap ::
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
     Member RateLimit r,
-    Member SessionStore r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
@@ -243,7 +241,6 @@ accountAPI ::
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
-    Member SessionStore r,
     Member (Concurrency Unsafe) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -300,7 +297,7 @@ teamsAPI ::
     Member Events r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -331,7 +328,6 @@ authAPI ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -532,8 +528,7 @@ addClientInternalH ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -551,7 +546,13 @@ legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientReque
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r, Member SessionStore r) => UserId -> (Handler r) NoContent
+removeLegalHoldClientH ::
+  ( Member DeleteQueue r,
+    Member Events r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -624,7 +625,7 @@ deleteUserNoAuthH ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -779,7 +780,7 @@ changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatusUpdate ->

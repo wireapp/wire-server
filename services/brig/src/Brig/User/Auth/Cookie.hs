@@ -62,12 +62,10 @@ import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
-import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
-import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SessionStore qualified as Store
@@ -200,47 +198,8 @@ listCookies u ll = filter byLabel <$> adhocSessionStoreInterpreter (Store.listCo
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: (Member SessionStore r) => UserId -> Sem r ()
+revokeAllCookies :: (Member AuthenticationSubsystem r) => UserId -> Sem r ()
 revokeAllCookies u = revokeCookies u [] []
-
-revokeCookies :: (Member SessionStore r) => UserId -> [CookieId] -> [CookieLabel] -> Sem r ()
-revokeCookies u [] [] = Store.deleteAllCookies u
-revokeCookies u ids labels = do
-  cc <- filter matching <$> Store.listCookies u
-  Store.deleteCookies u cc
-  where
-    matching c =
-      cookieId c `elem` ids
-        || maybe False (`elem` labels) (cookieLabel c)
-
---------------------------------------------------------------------------------
--- Limited Cookies
-
-newCookieLimited ::
-  ( ZAuth.UserTokenLike t,
-    Member SessionStore r,
-    Member Now r,
-    Member (Input AuthenticationSubsystemConfig) r,
-    Member AuthenticationSubsystem r
-  ) =>
-  UserId ->
-  Maybe ClientId ->
-  CookieType ->
-  Maybe CookieLabel ->
-  Sem r (Either RetryAfter (Cookie (ZAuth.Token t)))
-newCookieLimited u c typ label = do
-  cs <- filter ((typ ==) . cookieType) <$> Store.listCookies u
-  now <- Now.get
-  lim <- CookieLimit <$> inputs (.userCookieLimit)
-  thr <- inputs (.userCookieThrottle)
-  let evict = map cookieId (limitCookies lim now cs)
-  if null evict
-    then Right <$> newCookie u c typ label
-    else case throttleCookies now thr cs of
-      Just wait -> pure (Left wait)
-      Nothing -> do
-        revokeCookies u evict []
-        Right <$> newCookie u c typ label
 
 --------------------------------------------------------------------------------
 -- HTTP

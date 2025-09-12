@@ -35,11 +35,11 @@ import Polysemy.Time
 import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
+import Wire.AuthenticationSubsystem
 import Wire.Events (Events)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Delay
-import Wire.SessionStore (SessionStore)
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
@@ -59,7 +59,7 @@ onEvent ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   InternalNotification ->
   Sem r ()

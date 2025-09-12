@@ -48,3 +48,12 @@ instance ToSchema CreatedApp where
       CreatedApp
         <$> (.user) .= field "user" schema
         <*> (.cookie) .= field "cookie" schema
+
+newtype RefreshAppCookieResponse = RefreshAppCookieResponse
+  {cookie :: SomeUserToken}
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RefreshAppCookieResponse
+
+instance ToSchema RefreshAppCookieResponse where
+  schema =
+    object "RefreshAppCookieResponse" $
+      RefreshAppCookieResponse <$> (.cookie) .= field "cookie" schema

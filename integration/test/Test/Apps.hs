@@ -13,7 +13,7 @@ testCreateApp = do
 
   bindResponse (createApp bob tid new) $ \resp -> do
     resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "create-app-no-permission"
+    resp.json %. "label" `shouldMatch` "app-no-permission"
 
   (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -37,3 +37,35 @@ testCreateApp = do
     resp.json %. "user" `shouldMatch` appId
     resp.json %. "token_type" `shouldMatch` "Bearer"
     resp.json %. "access_token" & asString
+
+testRefreshAppCookie :: (HasCallStack) => App ()
+testRefreshAppCookie = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  charlie <- randomUser OwnDomain def
+
+  let new = def {name = "flexo"} :: NewApp
+
+  (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    appId <- resp.json %. "user.id" & asString
+    cookie <- resp.json %. "cookie" & asString
+    pure (appId, cookie)
+
+  bindResponse (refreshAppCookie bob tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "app-no-permission"
+
+  bindResponse (refreshAppCookie charlie tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "app-no-permission"
+
+  cookie' <- bindResponse (refreshAppCookie alice tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "cookie" & asString
+
+  for_ [cookie, cookie'] $ \c ->
+    void $ bindResponse (renewToken OwnDomain c) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "user" `shouldMatch` appId
+      resp.json %. "token_type" `shouldMatch` "Bearer"
+      resp.json %. "access_token" & asString

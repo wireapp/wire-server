@@ -147,7 +147,6 @@ import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
-import Wire.SessionStore (SessionStore)
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -600,7 +599,7 @@ changeAccountStatus ::
     Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -622,7 +621,7 @@ changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatus ->
@@ -635,7 +634,14 @@ changeSingleAccountStatus uid status = do
     liftSem $ User.internalUpdateSearchIndex uid
     liftSem $ Events.generateUserEvent uid Nothing (ev uid)
 
-mkUserEvent :: (Traversable t, Member (Concurrency Unsafe) r, Member SessionStore r) => t UserId -> AccountStatus -> ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
+mkUserEvent ::
+  ( Traversable t,
+    Member (Concurrency Unsafe) r,
+    Member AuthenticationSubsystem r
+  ) =>
+  t UserId ->
+  AccountStatus ->
+  ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
@@ -843,7 +849,7 @@ changePassword ::
     Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   PasswordChange ->
@@ -897,7 +903,7 @@ deleteSelfUser ::
     Member PropertySubsystem r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -969,7 +975,7 @@ verifyDeleteUser ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -997,7 +1003,7 @@ ensureAccountDeleted ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1046,7 +1052,7 @@ deleteAccount ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   User ->
   Sem r ()
