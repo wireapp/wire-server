@@ -436,7 +436,7 @@ indexMapping =
               .= MappingProperty
                 { mpType = MPText,
                   mpStore = False,
-                  mpIndex = False,
+                  mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 }

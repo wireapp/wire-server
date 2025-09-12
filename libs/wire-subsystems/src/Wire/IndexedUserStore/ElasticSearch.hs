@@ -245,7 +245,7 @@ paginateTeamMembersImpl ::
   Sem r (SearchResult UserDoc)
 paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
   let (IndexQuery q f sortSpecs) =
-        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder
+        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder mEmailVerificationFilter
   let search =
         (ES.mkSearch (Just q) (Just f))
           { -- we are requesting one more result than the page size to determine if there is a next page
@@ -310,8 +310,9 @@ teamUserSearchQuery ::
   Maybe RoleFilter ->
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
+  Maybe EmailVerificationFilter ->
   IndexQuery TeamContact
-teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder =
+teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter =
   IndexQuery
     ( maybe
         (ES.MatchAllQuery Nothing)
@@ -367,7 +368,7 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder =
       ES.Filter $
         ES.QueryBoolQuery
           boolQuery
-            { ES.boolQueryMustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter
+            { ES.boolQueryMustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter <> emailFilter
             }
       where
         roleFilter :: [ES.Query]
@@ -376,6 +377,21 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder =
             Nothing -> []
             Just (RoleFilter []) -> []
             Just (RoleFilter (r : rs)) -> [ES.TermsQuery "role" (roleName <$> r :| rs)]
+
+        emailFilter :: [ES.Query]
+        emailFilter =
+          case mEmailFilter of
+            Nothing -> []
+            -- Verified: must have a verified email and must NOT have an unverified email
+            Just EmailVerified ->
+              [ ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryMustMatch = [ES.QueryExistsQuery (ES.FieldName "email")],
+                      ES.boolQueryMustNotMatch = [ES.QueryExistsQuery (ES.FieldName "email_unvalidated")]
+                    }
+              ]
+            -- Unverified: must have an unverified email, regardless of verified
+            Just EmailUnverified -> [ES.QueryExistsQuery (ES.FieldName "email_unvalidated")]
 
     defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
     defaultSort tuSortBy sortOrder =
