@@ -951,7 +951,7 @@ specCRUDIdentityProvider = do
       context "bad json" $ do
         it "responds with a 'client error'" $ do
           env <- ask
-          (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           admin <- mkUser RoleAdmin env tid
           callIdpCreateRaw' (env ^. teSpar) (Just admin) "application/json" "@@ bad json ###"
             `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
