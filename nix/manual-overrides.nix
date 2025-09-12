@@ -8,6 +8,9 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
+  # tests don't work, but only in a flake
+  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
+
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
