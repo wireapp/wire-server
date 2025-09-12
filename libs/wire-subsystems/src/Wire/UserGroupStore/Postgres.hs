@@ -190,7 +190,8 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
 
         countQuery :: ByteString
         countQuery =
-          "SELECT count(*) FROM user_group WHERE team_id = ($1 :: uuid)" <> maybe "" (const $ "AND name ILIKE ($2 :: text)") searchString
+          "SELECT count(*) FROM user_group WHERE team_id = ($1 :: uuid)"
+            <> maybe "" (const " AND name ILIKE ($2 :: text)") searchString
 
     encodeId :: HE.Params (Id a)
     encodeId = contramap toUUID $ HE.param (HE.nonNullable HE.uuid)
