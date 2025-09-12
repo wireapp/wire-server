@@ -128,7 +128,7 @@ type APIAuthResp =
         :> Post '[PlainText] Void
     )
 
-type instance AuthServerData (AuthProtect "TeamAdmin") = (UserId, TeamId)
+type instance AuthServerData (AuthProtect "TeamAdmin") = TeamId
 
 type APIIDP =
   Named "idp-get" (ZOptUser :> IdpGet)
