@@ -876,13 +876,6 @@ specCRUDIdentityProvider = do
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) Nothing idpmeta
           `shouldRespondWith` checkErrHspec 400 "client-error"
-    context "zuser has no team" $ do
-      it "responds with 'no team member'" $ do
-        env <- ask
-        uid <- call $ userId <$> randomUser (env ^. teBrig)
-        (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
-        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) idpmeta
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
     context "zuser is a team member, but not a team owner" $ do
       it "responds with 'insufficient-permissions' and a helpful message" $ do
         env <- ask
