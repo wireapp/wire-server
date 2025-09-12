@@ -1,0 +1,2 @@
+Elasticsearch mapping updated for team user search to support filtering by unverified email addresses.
+Without updating the mapping and reindexing, `email=verified|unverified` on `GET /teams/{tid}/search` will not work as intended.
