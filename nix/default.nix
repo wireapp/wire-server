@@ -1,15 +1,4 @@
-{
-  sources ? import ./sources.nix,
-
-  pkgs ? import sources.nixpkgs {
-    config.allowUnfree = true;
-    overlays = [
-      # All wire-server specific packages
-      (import ./overlay.nix)
-      (import ./overlay-docs.nix)
-    ];
-  }
-}:
+{pkgs}:
 let
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";

@@ -1,9 +1,6 @@
 [formatter.nix]
 command = "nixpkgs-fmt"
 includes = ["*.nix"]
-excludes = [
-  "nix/sources.nix" # managed by niv.
-]
 
 [formatter.cabal-fmt]
 command = "cabal-fmt"

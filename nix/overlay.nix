@@ -48,8 +48,6 @@ let
         chmod +x $out/bin/${binPath}
       '';
     };
-
-  sources = import ./sources.nix;
 in
 
 self: super: {
