@@ -157,8 +157,8 @@ testImplicitConnectionNoCollaborator = do
   -- Alice and Bob aren't connected at all.
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
 
-testRemoveMemberInO2O :: (HasCallStack) => App ()
-testRemoveMemberInO2O = do
+testRemoveMemberInTeamsO2O :: (HasCallStack) => App ()
+testRemoveMemberInTeamsO2O = do
   (owner0, team0, [alice]) <- createTeam OwnDomain 2
   (owner1, team1, [bob]) <- createTeam OwnDomain 2
 
@@ -197,6 +197,32 @@ testRemoveMemberInO2OConnected = do
 
   getMLSOne2OneConversation bob alice >>= assertSuccess
 
+testRemoveMemberInO2O :: (HasCallStack) => App ()
+testRemoveMemberInO2O = do
+  (owner0, team0, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator owner0 team0 bob ["implicit_connection"] >>= assertSuccess
+
+  teamConvId <-
+    postOne2OneConversation bob alice team0 "chit-chat" `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "qualified_id"
+  Internal.getConversation teamConvId >>= assertSuccess
+
+  connectTwoUsers alice bob
+  personalConvId <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  Internal.getConversation personalConvId >>= assertSuccess
+
+  removeTeamCollaborator owner0 team0 bob >>= assertSuccess
+
+  postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
+  Internal.getConversation teamConvId >>= assertLabel 404 "no-conversation"
+
+  getMLSOne2OneConversation bob alice >>= assertSuccess
+  Internal.getConversation personalConvId >>= assertSuccess
+
 testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
 testRemoveMemberInTeamConversation = do
   (owner, team, [alice, bob]) <- createTeam OwnDomain 3
@@ -210,8 +236,7 @@ testRemoveMemberInTeamConversation = do
   withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
     removeTeamCollaborator owner team bob >>= assertSuccess
 
-    bobId <- bob %. "qualified_id"
-    bobUnqualifiedId <- bobId %. "id"
+    bobUnqualifiedId <- bob %. "qualified_id.id"
     let checkEvent :: (MakesValue a) => a -> App ()
         checkEvent evt = do
           evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId

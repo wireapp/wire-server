@@ -1341,7 +1341,7 @@ removeTeamCollaborator lusr tid rusr = do
                 FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
             )
           . (.status)
-  uncheckedDeleteTeamMember lusr Nothing tid (tUnqualified lusr) toNotify
+  uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
   internalRemoveTeamCollaborator rusr tid
   where
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
