@@ -1,0 +1,1 @@
+Team user search role filter has been fixed and results now include each member's team role. Note: existing search index documents will only show roles after a reindex or when users get updated; newly created or updated users populate their role automatically.
