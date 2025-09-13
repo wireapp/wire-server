@@ -1,4 +1,4 @@
-{pkgs}:
+{ pkgs }:
 let
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
