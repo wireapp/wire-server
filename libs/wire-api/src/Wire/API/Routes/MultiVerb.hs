@@ -64,7 +64,7 @@ import Data.OpenApi qualified as S
 import Data.OpenApi.Declare qualified as S
 import Data.Proxy
 import Data.SOP
-import Data.Sequence (Seq, (<|), pattern (:<|))
+import Data.Sequence (Seq, (<|))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -326,11 +326,11 @@ data OptHeader h
 
 class ServantHeaders hs xs | hs -> xs where
   constructHeaders :: NP I xs -> [HTTP.Header]
-  extractHeaders :: Seq HTTP.Header -> Maybe (NP I xs)
+  extractHeaders :: Seq HTTP.Header -> Either Text (NP I xs)
 
 instance ServantHeaders '[] '[] where
   constructHeaders Nil = []
-  extractHeaders _ = Just Nil
+  extractHeaders _ = Right Nil
 
 headerName :: forall name. (KnownSymbol name) => HTTP.HeaderName
 headerName =
@@ -342,7 +342,6 @@ headerName =
 instance
   ( KnownSymbol name,
     ServantHeader h name x,
-    FromHttpApiData x,
     ServantHeaders hs xs
   ) =>
   ServantHeaders (h ': hs) (x ': xs)
@@ -355,30 +354,37 @@ instance
   -- taking the first one?
   extractHeaders hs = do
     let name' = headerName @name
-        (hs0, hs1) = Seq.partition (\(h, _) -> h == name') hs
-    x <- case hs0 of
-      Seq.Empty -> empty
-      ((_, h) :<| _) -> either (const empty) pure (parseHeader h)
-    xs <- extractHeaders @hs hs1
+        mHeaderVal = snd <$> find (\(h, _) -> h == name') hs
+    x <- extractHeader @h mHeaderVal
+    xs <- extractHeaders @hs hs
     pure (I x :* xs)
 
 class ServantHeader h (name :: Symbol) x | h -> name x where
   constructHeader :: x -> [HTTP.Header]
+  extractHeader :: Maybe ByteString -> Either Text x
 
 instance
-  (KnownSymbol name, ToHttpApiData x) =>
+  (KnownSymbol name, ToHttpApiData x, FromHttpApiData x) =>
   ServantHeader (Header' mods name x) name x
   where
   constructHeader x = [(headerName @name, toHeader x)]
 
+  extractHeader Nothing = Left $ "Header not found: " <> Text.pack (symbolVal (Proxy @name))
+  extractHeader (Just bs) = either (\err -> Left $ "Failed to parser header " <> Text.pack (symbolVal (Proxy @name)) <> " with: " <> err) pure $ parseHeader bs
+
 instance
-  (KnownSymbol name, ToHttpApiData x) =>
+  (KnownSymbol name, ToHttpApiData x, FromHttpApiData x) =>
   ServantHeader (DescHeader name desc x) name x
   where
-  constructHeader x = [(headerName @name, toHeader x)]
+  constructHeader = constructHeader @(Header' '[] name x)
+
+  extractHeader = extractHeader @(Header' '[] name x)
 
 instance (ServantHeader h name x) => ServantHeader (OptHeader h) name (Maybe x) where
   constructHeader = foldMap (constructHeader @h)
+
+  extractHeader Nothing = Right Nothing
+  extractHeader x = Just <$> extractHeader @h x
 
 instance
   (KnownSymbol name, KnownSymbol desc, S.ToParamSchema a) =>
@@ -416,8 +422,8 @@ instance
   responseUnrender c output = do
     x <- responseUnrender @cs @r c output
     case extractHeaders @hs (responseHeaders output) of
-      Nothing -> UnrenderError "Failed to parse headers"
-      Just hs -> pure $ fromHeaders @xs (hs, x)
+      Left err -> UnrenderError $ "Failed to parse headers: " <> Text.unpack err
+      Right hs -> pure $ fromHeaders @xs (hs, x)
 
 instance
   (AllToResponseHeader hs, IsSwaggerResponse r) =>
