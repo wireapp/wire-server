@@ -892,8 +892,10 @@ instance
           }
 
     c <- getResponseContentType response
-    unless (any (M.matches c) accept) $ do
-      throwClientError $ UnsupportedContentType c response
+
+    -- Doing this will cause RespondEmpty to be not supported
+    -- unless (any (M.matches c) accept) $ do
+    --   throwClientError $ UnsupportedContentType c response
 
     -- FUTUREWORK: support streaming
     let sresp =
