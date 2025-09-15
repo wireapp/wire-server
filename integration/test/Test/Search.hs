@@ -268,23 +268,22 @@ testSearchForTeamMembersWithRoles = do
           ("member", [m2Id]),
           ("partner", [m3Id])
         ]
-  let expectedUserToRoleMapping = expectedRoles >>= \(role, uids) -> [(uid, role) | uid <- uids]
+      expectedUserToRoleMapping = expectedRoles >>= \(role, uids) -> [(uid, role) | uid <- uids]
+      toUidRoleTuple doc = (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
 
   BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
-    actual <- for docs $ \doc ->
-      (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
+    actual <- for docs toUidRoleTuple
     actual `shouldMatchSet` expectedUserToRoleMapping
 
   for_ expectedRoles $ \(role, expectedIds) -> do
     bindResponse (BrigP.searchTeam owner [("frole", role)]) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
-      actual <- for docs $ \doc ->
-        (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
-      let expected = [(eid, role) | eid <- expectedIds]
+      actual <- for docs toUidRoleTuple
+      let expected = [(uid, role) | uid <- expectedIds]
       actual `shouldMatchSet` expected
 
   bindResponse (BrigP.searchTeam owner [("frole", "owner,admin,partner")]) $ \resp -> do
