@@ -580,15 +580,8 @@ removeRemoteMembersFromLocalConv cnv victims = do
 members :: ConvId -> Client [LocalMember]
 members conv = do
   parents <- retry x1 $ query Cql.selectConvParent (params LocalQuorum (Identity conv))
-  -- map (nubBy ((==) `on` (.id_)) . mapMaybe toMember . map (either id id))
-  nubBy ((==) `on` (.id_))
-    . map (either id id)
-    . sortBy (liftCompare2 (comparing (.id_)) (comparing (.id_)))
-    . concatMap (bitraverse (mapMaybe toMember) (mapMaybe toMember)) -- put shadow conversations members, 'conv', first to use it in priority, when there are two
-    <$> UnliftIO.pooledMapConcurrentlyN
-      16
-      (bitraverse fetchMembers fetchMembers)
-      (Left conv : mapMaybe (fmap Right . runIdentity) parents)
+  nubBy ((==) `on` (.id_)) . concatMap (mapMaybe toMember)
+    <$> UnliftIO.pooledMapConcurrentlyN 16 fetchMembers (conv : mapMaybe runIdentity parents)
   where
     fetchMembers convId =
       retry x1 $
