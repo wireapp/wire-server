@@ -107,6 +107,8 @@ import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar
+import Wire.API.Servant.Tentatively
+import qualified Wire.API.Servant.Tentatively as Tentatively
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
 import Wire.API.User.IdentityProvider
@@ -122,7 +124,9 @@ app ctx0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
   let ctx = ctx0 {sparCtxRequestId = rid}
   SAML.setHttpCachePolicy
-    ( serve
+    ( serve -- TODO: "instance MimeUnrender JSON (Tentatively IdPMetadataInfo)" missing,
+    -- probably because IdPMetadataInfo doesn't have one.  is this something we didn't
+    -- need before?
         (Proxy @SparAPI)
         (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
     )
@@ -607,13 +611,14 @@ idpCreate ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  IdPMetadataInfo ->
+  Tentatively IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate zusr tentativeMetaData mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
+  IdPMetadataValue rawIdpMetadata idpmeta <- forceIt tentativeMetaData
   GalleyAccess.assertSSOEnabled teamid
   idp <-
     maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
@@ -623,6 +628,10 @@ idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe de
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
+
+-- what should we give you, forceIt?  an error action?  a function that takes an http error and throws it in the locally appropriate fashion?
+forceIt :: (Applicative m) => Tentatively a -> m a
+forceIt = undefined --  t e = Tentatively.forceTentatively t & either e pure
 
 idpCreateV7 ::
   ( Member Random r,
@@ -635,7 +644,7 @@ idpCreateV7 ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  IdPMetadataInfo ->
+  Tentatively IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
@@ -724,9 +733,6 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog 
 
   pure SAML.IdPConfig {..}
 
--- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
--- 'idpCreate', which is not a good reason.  make this one function and pass around
--- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
   ( Member Random r,
     Member (Logger String) r,
@@ -737,31 +743,14 @@ idpUpdate ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  IdPMetadataInfo ->
+  Tentatively IdPMetadataInfo ->
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
-
-idpUpdateXML ::
-  ( Member Random r,
-    Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
-    Member IdPConfigStore r,
-    Member IdPRawMetadataStore r,
-    Member (Error SparError) r
-  ) =>
-  Maybe UserId ->
-  Text ->
-  SAML.IdPMetadata ->
-  SAML.IdPId ->
-  Maybe (Range 1 32 Text) ->
-  Sem r IdP
-idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
-  (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
+idpUpdate zusr idpmeta idpid mHandle = withDebugLog "idpUpdateCore" (Just . show . (^. SAML.idpId)) $ do
+  (idpText, teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
-  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) idpText
   let idp' :: IdP = case mHandle of
         Just idpHandle -> idp & (SAML.idpExtraInfo . handle) .~ IdPHandle (fromRange idpHandle)
         Nothing -> idp
@@ -792,12 +781,16 @@ validateIdPUpdate ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
-  SAML.IdPMetadata ->
+  Tentatively IdPMetadataInfo ->
   SAML.IdPId ->
-  m (TeamId, IdP)
-validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
+  m (Text, TeamId, IdP)
+validateIdPUpdate zusr tentativeIdpMeta _idpId = withDebugLog "validateIdPUpdate" (const $ Just $ show _idpId) $ do
+  -- access control
   previousIdP <- IdPConfigStore.getConfig _idpId
   (_, teamId) <- authorizeIdP zusr previousIdP
+
+  -- parse xml & continue with application logic.
+  IdPMetadataValue idpText _idpMetadata <- forceIt tentativeIdpMeta
   unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
     throw errUnknownIdP
   _idpExtraInfo <- do
@@ -827,7 +820,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
-  pure (teamId, SAML.IdPConfig {..})
+  pure (idpText, teamId, SAML.IdPConfig {..})
   where
     -- If the new issuer was previously used, it has to be removed from the list of old issuers,
     -- to prevent it from getting deleted in a later step
