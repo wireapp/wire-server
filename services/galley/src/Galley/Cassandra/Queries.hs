@@ -109,7 +109,6 @@ import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
-import Wire.UserStore.IndexUser (WithWritetime)
 
 -- Teams --------------------------------------------------------------------
 
