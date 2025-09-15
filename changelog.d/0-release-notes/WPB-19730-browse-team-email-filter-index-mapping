@@ -1,2 +1,1 @@
-Elasticsearch mapping updated for team user search to support filtering by unverified email addresses.
-Without updating the mapping and reindexing, `email=verified|unverified` on `GET /teams/{tid}/search` will not work as intended.
+Elasticsearch/OpenSearch mapping updated for team user search to support filtering by unverified email addresses. For the new filter `email=verified|unverified` on `GET /teams/{tid}/search` to work as intended, it is necessary to update the mapping and re-index the data either by [migrating to a new index](WPB-19730-add-email-verified-unverified-filter-in-team-search-endpoint) or by [recreating the index](WPB-19730-add-email-verified-unverified-filter-in-team-search-endpoint).
