@@ -31,14 +31,19 @@ import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
-newtype UserGroupPage = UserGroupPage {page :: [UserGroupMeta]}
+data UserGroupPage = UserGroupPage
+  { page :: [UserGroupMeta],
+    total :: Int
+  }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
 
 instance ToSchema UserGroupPage where
   schema =
     objectWithDocModifier "UserGroupPage" docs $
-      UserGroupPage <$> page .= field "page" (array schema)
+      UserGroupPage
+        <$> page .= field "page" (array schema)
+        <*> total .= field "total" schema
     where
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
@@ -47,7 +52,7 @@ instance ToSchema UserGroupPage where
              \may be 0 rows on a page."
 
 instance Arbitrary UserGroupPage where
-  arbitrary = UserGroupPage <$> arbitrary
+  arbitrary = UserGroupPage <$> arbitrary <*> arbitrary
 
 ------------------------------
 

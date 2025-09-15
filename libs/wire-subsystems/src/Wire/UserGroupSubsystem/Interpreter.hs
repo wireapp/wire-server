@@ -187,7 +187,7 @@ getUserGroups getter searchString sortBy' sortOrder' mPageSize mLastGroupName mL
             searchString = searchString,
             includeMemberCount = includeMemberCount'
           }
-  UserGroupPage <$> Store.getUserGroups pageReq
+  Store.getUserGroups pageReq
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
