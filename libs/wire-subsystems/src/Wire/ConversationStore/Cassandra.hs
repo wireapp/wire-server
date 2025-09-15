@@ -28,11 +28,9 @@ import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
-import Data.Bitraversable (Bitraversable (bitraverse))
-import Data.ByteString.Conversion
+import Data.BteString.Conversion
 import Data.Default
 import Data.Domain
-import Data.Functor.Classes (Ord2 (liftCompare2))
 import Data.Id
 import Data.List.Extra qualified as List
 import Data.Map qualified as Map
