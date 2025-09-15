@@ -363,6 +363,9 @@ lhDeviceIdOf bob = do
       >>= (%. "id")
       >>= asString
 
+randomUUIDString :: App String
+randomUUIDString = UUID.toString <$> liftIO nextRandom
+
 randomScimUser :: App Value
 randomScimUser = do
   email <- randomEmail
@@ -454,6 +457,10 @@ updateTestIdpWithMetaWithPrivateCreds owner idpId = do
 -- scim-provisioned users as well as saml auto-provisioning without scim.
 loginWithSaml :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
 loginWithSaml = loginWithSamlWithZHost Nothing OwnDomain
+
+loginWithSamlEmail :: (HasCallStack) => Bool -> String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> App (Maybe String, SAML.SignedAuthnResponse)
+loginWithSamlEmail expectSuccess tid email =
+  loginWithSamlWithZHost Nothing OwnDomain expectSuccess tid email
 
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test

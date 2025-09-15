@@ -482,7 +482,7 @@ testIdpUpdate = do
     (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
   -- the SCIM users can still login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSamlEmail True tid email idp3
+    void $ loginWithSaml True tid email idp3
 
 testAllowUpdatesBySCIMWhenE2EIdEnabled :: (HasCallStack) => App ()
 testAllowUpdatesBySCIMWhenE2EIdEnabled = do
