@@ -35,7 +35,7 @@ createAppImpl ::
   StoredApp ->
   Sem r ()
 createAppImpl app =
-  runResultlessStatement app $
+  runStatement app $
     lmapPG
       [resultlessStatement|
         insert into apps (user_id, team_id, metadata)
@@ -49,7 +49,7 @@ getAppImpl ::
   UserId ->
   Sem r (Maybe StoredApp)
 getAppImpl uid =
-  runMaybeStatement uid $
+  runStatement uid $
     dimapPG
       [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json) 
         from apps where user_id = ($1 :: uuid) |]
