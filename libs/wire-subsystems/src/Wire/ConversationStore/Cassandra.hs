@@ -28,7 +28,7 @@ import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
-import Data.BteString.Conversion
+import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
 import Data.Id
