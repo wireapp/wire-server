@@ -7,6 +7,7 @@ module Wire.UserSubsystem.Interpreter
   )
 where
 
+import Cassandra.Util (Writetime (Writetime))
 import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Maybe
@@ -42,8 +43,9 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..)
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info (TeamMemberInfo (..), TeamMemberInfoList (members))
 import Wire.API.Team.Permission qualified as Permission
-import Wire.API.Team.Role (defaultRole, permissionsToRole)
+import Wire.API.Team.Role (Role, defaultRole, permissionsToRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
@@ -704,12 +706,26 @@ syncUserIndex uid = do
           (pure defaultSearchVisibilityInbound)
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
-      tm <- maybe (pure Nothing) (getTeamMember uid . value) indexUser.teamId
-      let mRole = tm >>= permissionsToRole . (^. permissions)
-          userDoc = indexUserToDoc vis mRole indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
+      tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
+      let mRole = tm >>= mkRoleWithWriteTime
+          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
+
+    selectTeamMember :: TeamId -> Sem r (Maybe TeamMemberInfo)
+    selectTeamMember tid = do
+      listToMaybe . members <$> selectTeamMemberInfos tid [uid]
+
+    mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (WithWritetime Role)
+    mkRoleWithWriteTime info =
+      ( \role ->
+          WithWriteTime
+            { value = role,
+              writetime = Writetime $ fromUTCTimeMillis info.permissionsWriteTime
+            }
+      )
+        <$> permissionsToRole info.permissions
 
 updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
 updateTeamSearchVisibilityInboundImpl teamStatus =

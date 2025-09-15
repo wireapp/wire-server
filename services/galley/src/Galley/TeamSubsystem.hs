@@ -6,6 +6,7 @@ import Imports
 import Polysemy
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info (TeamMemberInfoList (TeamMemberInfoList))
 import Wire.TeamSubsystem
 
 -- This interpreter exists so galley code doesn't end up depending on
@@ -21,9 +22,7 @@ interpretTeamSubsystem = interpret $ \case
   InternalGetTeamMember uid tid -> E.getTeamMember tid uid
   InternalGetTeamMembers tid maxResults ->
     E.getTeamMembersWithLimit tid $ fromMaybe hardTruncationLimitRange maxResults
-  InternalGetTeamMembersByIds tid uids -> do
-    membs <- E.selectTeamMembers tid uids
-    pure $ newTeamMemberList membs ListComplete
+  InternalSelectTeamMemberInfos tid uids -> TeamMemberInfoList <$> E.selectTeamMemberInfos tid uids
   InternalGetTeamAdmins tid -> do
     admins <- E.getTeamAdmins tid
     membs <- E.selectTeamMembers tid admins

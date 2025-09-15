@@ -108,8 +108,8 @@ instance Record IndexUser where
         }
 {- ORMOLU_ENABLE -}
 
-indexUserToVersion :: IndexUser -> IndexVersion
-indexUserToVersion IndexUser {..} =
+indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
+indexUserToVersion role IndexUser {..} =
   mkIndexVersion
     [ const () <$$> Just name.writetime,
       const () <$$> fmap writetime teamId,
@@ -122,7 +122,8 @@ indexUserToVersion IndexUser {..} =
       const () <$$> fmap writetime managedBy,
       const () <$$> fmap writetime ssoId,
       const () <$$> fmap writetime unverifiedEmail,
-      const () <$$> writeTimeBumper
+      const () <$$> writeTimeBumper,
+      const () <$$> fmap writetime role
     ]
 
 indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc

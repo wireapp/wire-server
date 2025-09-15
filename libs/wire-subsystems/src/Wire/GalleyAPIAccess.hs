@@ -34,6 +34,7 @@ import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member qualified as Team
+import Wire.API.Team.Member.Info qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 
@@ -85,10 +86,10 @@ data GalleyAPIAccess m a where
     TeamId ->
     Maybe (Range 1 Team.HardTruncationLimit Int32) ->
     GalleyAPIAccess m Team.TeamMemberList
-  SelectTeamMembers ::
+  SelectTeamMemberInfos ::
     TeamId ->
     [UserId] ->
-    GalleyAPIAccess m Team.TeamMemberList
+    GalleyAPIAccess m Team.TeamMemberInfoList
   GetTeamId ::
     UserId ->
     GalleyAPIAccess m (Maybe TeamId)

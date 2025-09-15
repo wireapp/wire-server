@@ -49,6 +49,7 @@ import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
+import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User (UserIds (UserIds))
@@ -78,7 +79,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
-          SelectTeamMembers tid uids -> selectTeamMembers tid uids
+          SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -354,7 +355,7 @@ getTeamMembers tid maxResults = do
         . maybe id (queryItem "maxResults" . toByteString') maxResults
         . expect2xx
 
-selectTeamMembers ::
+selectTeamMemberInfos ::
   ( Member (Error ParseException) r,
     Member Rpc r,
     Member (Input Endpoint) r,
@@ -362,8 +363,8 @@ selectTeamMembers ::
   ) =>
   TeamId ->
   [UserId] ->
-  Sem r TeamMemberList
-selectTeamMembers tid uids = do
+  Sem r TeamMemberInfoList
+selectTeamMemberInfos tid uids = do
   debug $ remote "galley" . msg (val "Select team members")
   let bdy = UserIds uids
   galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"

@@ -109,6 +109,7 @@ import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
+import Wire.UserStore.IndexUser (WithWritetime)
 
 -- Teams --------------------------------------------------------------------
 
@@ -176,13 +177,14 @@ selectTeamMembers' ::
     (TeamId, [UserId])
     ( UserId,
       Permissions,
+      Writetime Permissions,
       Maybe UserId,
       Maybe UTCTimeMillis,
       Maybe UserLegalHoldStatus
     )
 selectTeamMembers' =
   [r|
-    select user, perms, invited_by, invited_at, legalhold_status
+    select user, perms, writetime(perms), invited_by, invited_at, legalhold_status
       from team_member
     where team = ? and user in ? order by user
     |]

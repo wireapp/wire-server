@@ -52,6 +52,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info
 import Wire.API.Team.SearchVisibility
 import Wire.API.User (UserIds)
 import Wire.API.User.Client
@@ -256,10 +257,10 @@ type ITeamsAPIBase =
                         :> Get '[JSON] TeamMemberList
                     )
              :<|> Named
-                    "unchecked-get-team-members-by-ids"
+                    "unchecked-select-team-member-infos"
                     ( "by-ids"
                         :> ReqBody '[JSON] UserIds
-                        :> Get '[JSON] TeamMemberList
+                        :> Get '[JSON] TeamMemberInfoList
                     )
              :<|> Named
                     "unchecked-get-team-member"
