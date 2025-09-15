@@ -174,7 +174,6 @@ data UserSubsystem m a where
   -- | The following "internal" functions exists to support migration in this susbystem, after the
   -- migration this would just be an internal detail of the subsystem
   InternalUpdateSearchIndex :: UserId -> UserSubsystem m ()
-  InternalForceUpdateSearchIndex :: UserId -> UserSubsystem m ()
   InternalFindTeamInvitation :: Maybe EmailKey -> InvitationCode -> UserSubsystem m StoredInvitation
   GetUserExportData :: UserId -> UserSubsystem m (Maybe TeamExportUser)
   RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())

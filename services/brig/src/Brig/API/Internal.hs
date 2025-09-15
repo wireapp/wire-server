@@ -490,7 +490,7 @@ getVerificationCode uid action = runMaybeT do
 internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
-    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalForceUpdateSearchIndex uid $> NoContent)
+    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,

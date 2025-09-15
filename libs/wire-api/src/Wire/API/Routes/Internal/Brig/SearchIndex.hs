@@ -33,7 +33,7 @@ type ISearchIndexAPI =
     )
     :<|> Named
            "update-search-index"
-           ( Summary "force update of search index for a single user"
+           ( Summary "updates the search index for a single user"
                :> "index"
                :> "update"
                :> Capture "userId" UserId
