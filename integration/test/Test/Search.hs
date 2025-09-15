@@ -241,8 +241,8 @@ testFederatedUserSearchForNonTeamUser = do
 --------------------------------------------------------------------------------
 -- TEAM SEARCH
 
-testSearchTeam :: (HasCallStack) => App ()
-testSearchTeam = do
+testSearchForTeamMembersWithRoles :: (HasCallStack) => App ()
+testSearchForTeamMembersWithRoles = do
   (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
   [ownerId, m1Id, m2Id, m3Id, m4Id] <- for [owner, m1, m2, m3, m4] objId
 
@@ -262,34 +262,30 @@ testSearchTeam = do
   updateTeamMember tid owner m3 Partner >>= assertSuccess
   updateTeamMember tid owner m4 Admin >>= assertSuccess
 
+  let expectedRoles =
+        [ ("owner", [ownerId, m1Id]),
+          ("admin", [m4Id]),
+          ("member", [m2Id]),
+          ("partner", [m3Id])
+        ]
+  let expectedUserToRoleMapping = expectedRoles >>= \(role, uids) -> [(uid, role) | uid <- uids]
+
   BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
-    length docs `shouldMatchInt` 5
-    for_ docs $ \doc -> do
-      uid <- doc %. "id" & asString
-      role <- doc %. "role" & asString
-      case uid of
-        _ | uid == ownerId -> role `shouldMatch` "owner"
-        _ | uid == m1Id -> role `shouldMatch` "owner"
-        _ | uid == m2Id -> role `shouldMatch` "member"
-        _ | uid == m3Id -> role `shouldMatch` "partner"
-        _ | uid == m4Id -> role `shouldMatch` "admin"
-        _ -> assertFailure $ "Unexpected user id in search results: " <> uid
-  for_
-    [ ("owner", [ownerId, m1Id]),
-      ("admin", [m4Id]),
-      ("member", [m2Id]),
-      ("partner", [m3Id])
-    ]
-    $ \(role, expectedIds) -> do
-      bindResponse (BrigP.searchTeam owner [("frole", role)]) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        docs <- resp.json %. "documents" >>= asList
-        length docs `shouldMatchInt` (length expectedIds)
-        for_ docs $ \doc -> do
-          doc %. "role" `shouldMatch` role
+    actual <- for docs $ \doc ->
+      (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
+    actual `shouldMatchSet` expectedUserToRoleMapping
+
+  for_ expectedRoles $ \(role, expectedIds) -> do
+    bindResponse (BrigP.searchTeam owner [("frole", role)]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      actual <- for docs $ \doc ->
+        (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
+      let expected = [(eid, role) | eid <- expectedIds]
+      actual `shouldMatchSet` expected
 
   bindResponse (BrigP.searchTeam owner [("frole", "owner,admin,partner")]) $ \resp -> do
     resp.status `shouldMatchInt` 200
