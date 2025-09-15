@@ -479,8 +479,20 @@ mkRemoteMember (convId, domain, uid, role) =
       }
   )
 
-checkLocalMemberRemoteConvImpl :: UserId -> Remote ConvId -> Sem r Bool
-checkLocalMemberRemoteConvImpl = undefined
+checkLocalMemberRemoteConvImpl :: (PGConstraints r) => UserId -> Remote ConvId -> Sem r Bool
+checkLocalMemberRemoteConvImpl uid (tUntagged -> Qualified convId domain) =
+  runStatement (domain, convId, uid) select
+  where
+    select :: Hasql.Statement (Domain, ConvId, UserId) Bool
+    select =
+      lmapPG
+        [singletonStatement|SELECT EXISTS(
+                              SELECT 1 FROM remote_conversation_local_member
+                              WHERE domain = ($1 :: text)
+                              AND conv_remote_domain = ($2 :: uuid)
+                              AND conv_remote_id = ($3 :: uuid)
+                            ) :: boolean
+                           |]
 
 selectRemoteMembersImpl :: [UserId] -> Remote ConvId -> Sem r ([UserId], Bool)
 selectRemoteMembersImpl = undefined
