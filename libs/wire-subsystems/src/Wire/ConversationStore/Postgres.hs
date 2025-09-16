@@ -497,8 +497,54 @@ checkLocalMemberRemoteConvImpl uid (tUntagged -> Qualified convId domain) =
 selectRemoteMembersImpl :: [UserId] -> Remote ConvId -> Sem r ([UserId], Bool)
 selectRemoteMembersImpl = undefined
 
-setSelfMemberImpl :: Qualified ConvId -> Local UserId -> MemberUpdate -> Sem r ()
-setSelfMemberImpl = undefined
+setSelfMemberImpl :: (PGConstraints r) => Qualified ConvId -> Local UserId -> MemberUpdate -> Sem r ()
+setSelfMemberImpl qcnv lusr =
+  foldQualified
+    lusr
+    (setSelfMemberLocalConv (tUnqualified lusr) . tUnqualified)
+    (setSelfMemberRemoteConv (tUnqualified lusr))
+    qcnv
+
+setSelfMemberLocalConv :: (PGConstraints r) => UserId -> ConvId -> MemberUpdate -> Sem r ()
+setSelfMemberLocalConv uid cid MemberUpdate {..} =
+  runStatement
+    (uid, cid, mupOtrMuteStatus, mupOtrMuteRef, mupOtrArchive, mupOtrArchiveRef, mupHidden, mupHiddenRef)
+    update
+  where
+    update :: Hasql.Statement (UserId, ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation_member
+                             SET otr_muted_status = COALESCE($3 :: integer?, otr_muted_status),
+                                 otr_muted_ref =    COALESCE($4 :: text?,    otr_muted_ref),
+                                 otr_archived =     COALESCE($5 :: boolean?, otr_archived),
+                                 otr_archived_ref = COALESCE($6 :: text?,    otr_archived_ref),
+                                 hidden =           COALESCE($7 :: boolean?, hidden),
+                                 hidden_ref =       COALESCE($8 :: text?,    hidden_ref)
+                             WHERE "user" = ($1 :: uuid)
+                             AND conv = ($2 :: uuid)
+                            |]
+
+setSelfMemberRemoteConv :: (PGConstraints r) => UserId -> Remote ConvId -> MemberUpdate -> Sem r ()
+setSelfMemberRemoteConv uid (tUntagged -> Qualified cid domain) MemberUpdate {..} =
+  runStatement
+    (uid, domain, cid, mupOtrMuteStatus, mupOtrMuteRef, mupOtrArchive, mupOtrArchiveRef, mupHidden, mupHiddenRef)
+    update
+  where
+    update :: Hasql.Statement (UserId, Domain, ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE remote_conversation_local_member
+                             SET otr_muted_status = COALESCE($4 :: integer?, otr_muted_status),
+                                 otr_muted_ref =    COALESCE($5 :: text?,    otr_muted_ref),
+                                 otr_archived =     COALESCE($6 :: boolean?, otr_archived),
+                                 otr_archived_ref = COALESCE($7 :: text?,    otr_archived_ref),
+                                 hidden =           COALESCE($8 :: boolean?, hidden),
+                                 hidden_ref =       COALESCE($9 :: text?,    hidden_ref)
+                             WHERE "user" = ($1 :: uuid)
+                             AND conv_remote_domain = ($2 :: text)
+                             AND conv_remote_id = ($3 :: uuid)
+                            |]
 
 setOtherMemberImpl :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> Sem r ()
 setOtherMemberImpl = undefined
