@@ -40,7 +40,7 @@ emptyIndex =
 storedUserToDoc :: StoredUser -> UserDoc
 storedUserToDoc user =
   let indexUser = storedUserToIndexUser user
-   in indexUserToDoc defaultSearchVisibilityInbound indexUser
+   in indexUserToDoc defaultSearchVisibilityInbound Nothing indexUser
 
 indexFromStoredUsers :: [StoredUser] -> UserIndex
 indexFromStoredUsers storedUsers = do

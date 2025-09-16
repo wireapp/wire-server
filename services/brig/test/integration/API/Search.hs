@@ -630,7 +630,7 @@ testSearchOtherDomain opts brig = do
 -- server. The proxy server ensures that only requests to the 'old' index go
 -- through.
 testMigrationToNewIndex ::
-  (TestConstraints m, MonadUnliftIO m) =>
+  (HasCallStack, TestConstraints m, MonadUnliftIO m) =>
   Opt.Opts ->
   Brig ->
   ES.Server ->

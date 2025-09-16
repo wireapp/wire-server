@@ -237,3 +237,58 @@ testFederatedUserSearchForNonTeamUser = do
         [] -> pure ()
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
+
+--------------------------------------------------------------------------------
+-- TEAM SEARCH
+
+testSearchForTeamMembersWithRoles :: (HasCallStack) => App ()
+testSearchForTeamMembersWithRoles = do
+  (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
+  [ownerId, m1Id, m2Id, m3Id, m4Id] <- for [owner, m1, m2, m3, m4] objId
+
+  BrigI.refreshIndex OwnDomain
+  bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 5
+    for_ docs $ \doc -> do
+      uid <- doc %. "id" & asString
+      if uid == ownerId
+        then doc %. "role" `shouldMatch` "owner"
+        else doc %. "role" `shouldMatch` "member"
+
+  updateTeamMember tid owner m1 Owner >>= assertSuccess
+  updateTeamMember tid owner m2 Member >>= assertSuccess
+  updateTeamMember tid owner m3 Partner >>= assertSuccess
+  updateTeamMember tid owner m4 Admin >>= assertSuccess
+
+  let expectedRoles =
+        [ ("owner", [ownerId, m1Id]),
+          ("admin", [m4Id]),
+          ("member", [m2Id]),
+          ("partner", [m3Id])
+        ]
+      expectedUserToRoleMapping = expectedRoles >>= \(role, uids) -> [(uid, role) | uid <- uids]
+      toUidRoleTuple doc = (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
+
+  BrigI.refreshIndex OwnDomain
+  bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    actual <- for docs toUidRoleTuple
+    actual `shouldMatchSet` expectedUserToRoleMapping
+
+  for_ expectedRoles $ \(role, expectedIds) -> do
+    bindResponse (BrigP.searchTeam owner [("frole", role)]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      actual <- for docs toUidRoleTuple
+      let expected = [(uid, role) | uid <- expectedIds]
+      actual `shouldMatchSet` expected
+
+  bindResponse (BrigP.searchTeam owner [("frole", "owner,admin,partner")]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 4
+    for_ docs $ \doc -> do
+      doc %. "role" `shouldNotMatch` "member"

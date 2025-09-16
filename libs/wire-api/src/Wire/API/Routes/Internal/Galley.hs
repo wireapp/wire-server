@@ -52,7 +52,9 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info
 import Wire.API.Team.SearchVisibility
+import Wire.API.User (UserIds)
 import Wire.API.User.Client
 
 type family IFeatureAPI1 cfg where
@@ -253,6 +255,12 @@ type ITeamsAPIBase =
                     "unchecked-get-team-members"
                     ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
                         :> Get '[JSON] TeamMemberList
+                    )
+             :<|> Named
+                    "unchecked-select-team-member-infos"
+                    ( "by-ids"
+                        :> ReqBody '[JSON] UserIds
+                        :> Get '[JSON] TeamMemberInfoList
                     )
              :<|> Named
                     "unchecked-get-team-member"

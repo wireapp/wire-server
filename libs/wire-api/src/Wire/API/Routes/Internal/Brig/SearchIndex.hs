@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Internal.Brig.SearchIndex where
 
+import Data.Id (UserId)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
@@ -30,3 +31,11 @@ type ISearchIndexAPI =
         :> "refresh"
         :> Post '[JSON] NoContent
     )
+    :<|> Named
+           "update-search-index"
+           ( Summary "updates the search index for a single user"
+               :> "index"
+               :> "update"
+               :> Capture "userId" UserId
+               :> Post '[JSON] NoContent
+           )

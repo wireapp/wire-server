@@ -125,6 +125,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
+import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ListItems qualified as E
@@ -669,6 +670,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
           transient = True
         }
     ]
+  Brig.updateSearchIndex targetId
 
 updateTeamMember ::
   forall r.

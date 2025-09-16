@@ -202,6 +202,7 @@ data BrowseTeamFilters = BrowseTeamFilters
     mSortBy :: Maybe TeamUserSearchSortBy,
     mSortOrder :: Maybe TeamUserSearchSortOrder
   }
+  deriving (Eq, Show)
 
 userIdToDocId :: UserId -> DocId
 userIdToDocId uid = DocId (idToText uid)

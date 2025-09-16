@@ -32,7 +32,7 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.Extra (ifM)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
-import Data.Json.Util (UTCTimeMillis (..))
+import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Map.Strict qualified as Map
 import Data.Range
@@ -59,6 +59,8 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info (TeamMemberInfo (TeamMemberInfo))
+import Wire.API.Team.Member.Info qualified as Info
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
@@ -115,6 +117,9 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   SelectTeamMembers tid uids -> do
     logEffect "TeamStore.SelectTeamMembers"
     embedClient (teamMembersLimited lh tid uids)
+  SelectTeamMemberInfos tid uids -> do
+    logEffect "TeamStore.SelectTeamMemberInfos"
+    embedClient (teamMemberInfos tid uids)
   GetUserTeams uid -> do
     logEffect "TeamStore.GetUserTeams"
     embedClient (userTeams uid)
@@ -386,8 +391,21 @@ teamMembersCollectedWithPagination lh tid = do
 -- and the target user)
 teamMembersLimited :: FeatureDefaults LegalholdConfig -> TeamId -> [UserId] -> Client [TeamMember]
 teamMembersLimited lh t u =
-  mapM (newTeamMember' lh t)
+  mapM (\(uid, perms, _, minvu, minvt, mlh) -> newTeamMember' lh t (uid, perms, minvu, minvt, mlh))
     =<< retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
+
+teamMemberInfos :: TeamId -> [UserId] -> Client [TeamMemberInfo]
+teamMemberInfos t u =
+  mkTeamMemberInfo
+    <$$> retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
+  where
+    mkTeamMemberInfo :: (UserId, Permissions, Writetime Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> TeamMemberInfo
+    mkTeamMemberInfo (uid, perms, permsWT, _, _, _) =
+      TeamMemberInfo
+        { Info.userId = uid,
+          Info.permissions = perms,
+          Info.permissionsWriteTime = toUTCTimeMillis $ writetimeToUTC permsWT
+        }
 
 userTeams :: UserId -> Client [TeamId]
 userTeams u =
@@ -540,5 +558,8 @@ selectSomeTeamMembersPaginated ::
   Client (PageWithState TeamMember)
 selectSomeTeamMembersPaginated lh tid uids pagingState (fromRange -> max) = do
   page <- paginateWithState Cql.selectTeamMembers' (paramsPagingState LocalQuorum (tid, uids) max pagingState)
-  members <- mapM (newTeamMember' lh tid) (pwsResults page)
+  members <- mapM mkTm (pwsResults page)
   pure $ PageWithState members (pwsState page)
+  where
+    mkTm (uid, perms, _, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) =
+      newTeamMember' lh tid (uid, perms, minvu, minvt, Just lhStatus)
