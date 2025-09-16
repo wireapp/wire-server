@@ -34,6 +34,7 @@ module Brig.User.Search.Index
     resetIndex,
     refreshIndexes,
     updateMapping,
+    indexMapping,
 
     -- * Re-exports
     ES.IndexSettings (..),

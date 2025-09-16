@@ -907,101 +907,132 @@ runBH opts action = do
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 
---- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
+-- | This was generated from Brig.User.Search.Index.indexMapping at commit 18885bc
+-- how to generate:
+-- - run `cabal repl brig`
+-- - ghci> import Brig.User.Search.Index
+--   ghci> import Data.Aeson
+--   ghci> import qualified Data.ByteString.Lazy.Char8 as BL
+--   ghci> BL.putStrLn $ encode indexMapping
+-- - copy the output, format and paste it here
 oldMapping :: Value
 oldMapping =
   fromJust $
     decode
       [r|
 {
-  "dynamic": "false",
+  "dynamic": false,
   "properties": {
     "accent_id": {
-      "type": "byte",
-      "index": false
+      "index": false,
+      "store": false,
+      "type": "byte"
     },
     "account_status": {
+      "index": true,
+      "store": false,
       "type": "keyword"
     },
     "created_at": {
-      "type": "date",
-      "index": false
+      "index": false,
+      "store": false,
+      "type": "date"
     },
     "email": {
-      "type": "text",
       "fields": {
         "keyword": {
           "type": "keyword"
         },
         "prefix": {
-          "type": "text",
           "analyzer": "prefix_index",
-          "search_analyzer": "prefix_search"
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
-      }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
     },
     "email_unvalidated": {
-      "type": "text",
-      "index": false
+      "index": false,
+      "store": false,
+      "type": "text"
     },
     "handle": {
-      "type": "text",
       "fields": {
         "keyword": {
           "type": "keyword"
         },
         "prefix": {
-          "type": "text",
           "analyzer": "prefix_index",
-          "search_analyzer": "prefix_search"
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
-      }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
     },
     "managed_by": {
+      "index": true,
+      "store": false,
       "type": "keyword"
     },
     "name": {
-      "type": "keyword",
-      "index": false
+      "index": false,
+      "store": false,
+      "type": "keyword"
     },
     "normalized": {
-      "type": "text",
       "fields": {
         "prefix": {
-          "type": "text",
           "analyzer": "prefix_index",
-          "search_analyzer": "prefix_search"
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
-      }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
     },
     "role": {
+      "index": true,
+      "store": false,
       "type": "keyword"
     },
     "saml_idp": {
-      "type": "keyword",
-      "index": false
+      "index": false,
+      "store": false,
+      "type": "keyword"
     },
     "scim_external_id": {
-      "type": "keyword",
-      "index": false
+      "index": false,
+      "store": false,
+      "type": "keyword"
     },
     "search_visibility_inbound": {
+      "index": true,
+      "store": false,
       "type": "keyword"
     },
     "sso": {
-      "type": "nested",
       "properties": {
         "issuer": {
-          "type": "keyword",
-          "index": false
+          "index": false,
+          "store": false,
+          "type": "keyword"
         },
         "nameid": {
-          "type": "keyword",
-          "index": false
+          "index": false,
+          "store": false,
+          "type": "keyword"
         }
-      }
+      },
+      "type": "nested"
     },
     "team": {
+      "index": true,
+      "store": false,
       "type": "keyword"
     }
   }
