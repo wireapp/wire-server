@@ -902,113 +902,94 @@ oldMapping =
     decode
       [r|
 {
-  "dynamic": false,
+  "dynamic": "false",
   "properties": {
     "accent_id": {
-      "index": false,
-      "store": false,
-      "type": "byte"
+      "type": "byte",
+      "index": false
     },
     "account_status": {
-      "index": true,
-      "store": false,
       "type": "keyword"
     },
     "created_at": {
-      "index": false,
-      "store": false,
-      "type": "date"
+      "type": "date",
+      "index": false
     },
     "email": {
+      "type": "text",
       "fields": {
         "keyword": {
           "type": "keyword"
         },
         "prefix": {
+          "type": "text",
           "analyzer": "prefix_index",
-          "search_analyzer": "prefix_search",
-          "type": "text"
+          "search_analyzer": "prefix_search"
         }
-      },
-      "index": true,
-      "store": false,
-      "type": "text"
+      }
+    },
+    "email_unvalidated": {
+      "type": "text",
+      "index": false
     },
     "handle": {
+      "type": "text",
       "fields": {
         "keyword": {
           "type": "keyword"
         },
         "prefix": {
+          "type": "text",
           "analyzer": "prefix_index",
-          "search_analyzer": "prefix_search",
-          "type": "text"
+          "search_analyzer": "prefix_search"
         }
-      },
-      "index": true,
-      "store": false,
-      "type": "text"
+      }
     },
     "managed_by": {
-      "index": true,
-      "store": false,
       "type": "keyword"
     },
     "name": {
-      "index": false,
-      "store": false,
-      "type": "keyword"
+      "type": "keyword",
+      "index": false
     },
     "normalized": {
+      "type": "text",
       "fields": {
         "prefix": {
+          "type": "text",
           "analyzer": "prefix_index",
-          "search_analyzer": "prefix_search",
-          "type": "text"
+          "search_analyzer": "prefix_search"
         }
-      },
-      "index": true,
-      "store": false,
-      "type": "text"
+      }
     },
     "role": {
-      "index": true,
-      "store": false,
       "type": "keyword"
     },
     "saml_idp": {
-      "index": false,
-      "store": false,
-      "type": "keyword"
+      "type": "keyword",
+      "index": false
     },
     "scim_external_id": {
-      "index": false,
-      "store": false,
-      "type": "keyword"
+      "type": "keyword",
+      "index": false
     },
     "search_visibility_inbound": {
-      "index": true,
-      "store": false,
       "type": "keyword"
     },
     "sso": {
+      "type": "nested",
       "properties": {
         "issuer": {
-          "index": false,
-          "store": false,
-          "type": "keyword"
+          "type": "keyword",
+          "index": false
         },
         "nameid": {
-          "index": false,
-          "store": false,
-          "type": "keyword"
+          "type": "keyword",
+          "index": false
         }
-      },
-      "type": "nested"
+      }
     },
     "team": {
-      "index": true,
-      "store": false,
       "type": "keyword"
     }
   }
