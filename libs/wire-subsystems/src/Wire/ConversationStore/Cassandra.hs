@@ -578,7 +578,7 @@ removeRemoteMembersFromLocalConv cnv victims = do
 members :: ConvId -> Client [LocalMember]
 members conv = do
   parents <- retry x1 $ query Cql.selectConvParent (params LocalQuorum (Identity conv))
-  concatMap (nubBy ((==) `on` (.id_)) . mapMaybe toMember)
+  nubBy ((==) `on` (.id_)) . concatMap (mapMaybe toMember)
     <$> UnliftIO.pooledMapConcurrentlyN 16 fetchMembers (conv : mapMaybe runIdentity parents)
   where
     fetchMembers convId =
