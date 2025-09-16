@@ -582,11 +582,43 @@ setOtherRemoteMember cid (tUntagged -> Qualified uid domain) upd =
                              AND user_remote_id = ($3 :: uuid)
                             |]
 
-deleteMembersImpl :: ConvId -> UserList UserId -> Sem r ()
-deleteMembersImpl = undefined
+deleteMembersImpl :: (PGConstraints r) => ConvId -> UserList UserId -> Sem r ()
+deleteMembersImpl cid users =
+  runTransaction ReadCommitted Write $ do
+    Transaction.statement (cid, users.ulLocals) deleteLocalsStmt
+    for_ (bucketRemote users.ulRemotes) $ \(tUntagged -> Qualified remotes domain) ->
+      Transaction.statement (cid, domain, remotes) deleteRemotesStmt
+  where
+    deleteLocalsStmt :: Hasql.Statement (ConvId, [UserId]) ()
+    deleteLocalsStmt =
+      lmapPG @_ @(_, Vector _)
+        [resultlessStatement|DELETE FROM conversation_member
+                             WHERE conv = ($1 :: uuid)
+                             AND users = ANY ($2 :: uuid[])
+                            |]
 
-deleteMembersInRemoteConversationImpl :: Remote ConvId -> [UserId] -> Sem r ()
-deleteMembersInRemoteConversationImpl = undefined
+    -- TODO: make this able to delete all remote users at once
+    deleteRemotesStmt :: Hasql.Statement (ConvId, Domain, [UserId]) ()
+    deleteRemotesStmt =
+      lmapPG @_ @(_, _, Vector _)
+        [resultlessStatement|DELETE FROM local_conversation_remote_member
+                             WHERE conv = ($1 :: uuid)
+                             AND user_remote_domain = ($2 :: text)
+                             AND user_remote_id = ANY ($3 :: uuid[])
+                            |]
+
+deleteMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
+deleteMembersInRemoteConversationImpl (tUntagged -> Qualified cid domain) uids =
+  runStatement (domain, cid, uids) delete
+  where
+    delete :: Hasql.Statement (Domain, ConvId, [UserId]) ()
+    delete =
+      lmapPG @_ @(_, _, Vector _)
+        [resultlessStatement|DELETE FROM remote_conversation_local_member
+                             WHERE conv_remote_domain = ($1 :: text)
+                             AND conv_remote_id = ($2 :: uuid)
+                             AND "user" = ($3 ::uuid[])
+                            |]
 
 addMLSClientsImpl :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> Sem r ()
 addMLSClientsImpl = undefined
