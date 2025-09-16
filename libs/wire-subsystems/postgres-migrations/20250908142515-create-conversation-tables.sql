@@ -1,7 +1,6 @@
 CREATE TABLE conversation (
   id uuid PRIMARY KEY,
   access integer[],
-  access_role integer,
   access_roles_v2 integer[],
   cells_state integer,
   channel_add_permission integer,
@@ -9,7 +8,7 @@ CREATE TABLE conversation (
   creator uuid,
   deleted boolean,
   epoch bigint,
-  epoch_timestamp timestamp,
+  epoch_timestamp timestamptz,
   group_conv_type integer,
   group_id bytea,
   message_timer bigint,
