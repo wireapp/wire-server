@@ -30,6 +30,7 @@ module Brig.User.Search.Index
     -- * Administrative
     createIndex,
     createIndexIfNotPresent,
+    createIndexWithoutMapping,
     resetIndex,
     refreshIndexes,
     updateMapping,
@@ -154,13 +155,13 @@ createIndex ::
   m ()
 createIndex = createIndex' True
 
-createIndex' ::
+createIndexWithoutMapping ::
   (MonadIndexIO m) =>
   -- | Fail if index alredy exists
   Bool ->
   CreateIndexSettings ->
   m ()
-createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = liftIndexIO $ do
+createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
@@ -189,6 +190,17 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError $ "Index creation failed: " <> Text.pack (show cr))
+
+createIndex' ::
+  (MonadIndexIO m) =>
+  -- | Fail if index alredy exists
+  Bool ->
+  CreateIndexSettings ->
+  m ()
+createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = do
+  idx <- liftIndexIO $ asks idxName
+  createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate)
+  liftIndexIO $ do
     mr <-
       traceES "Put mapping" $
         ES.putNamedMapping idx mappingName indexMapping
