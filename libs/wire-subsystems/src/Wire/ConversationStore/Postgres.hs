@@ -546,8 +546,41 @@ setSelfMemberRemoteConv uid (tUntagged -> Qualified cid domain) MemberUpdate {..
                              AND conv_remote_id = ($3 :: uuid)
                             |]
 
-setOtherMemberImpl :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> Sem r ()
-setOtherMemberImpl = undefined
+setOtherMemberImpl :: (PGConstraints r) => Local ConvId -> Qualified UserId -> OtherMemberUpdate -> Sem r ()
+setOtherMemberImpl lcnv =
+  foldQualified
+    lcnv
+    (setOtherLocalMember (tUnqualified lcnv) . tUnqualified)
+    (setOtherRemoteMember (tUnqualified lcnv))
+
+setOtherLocalMember :: (PGConstraints r) => ConvId -> UserId -> OtherMemberUpdate -> Sem r ()
+setOtherLocalMember cid uid upd =
+  for_ upd.omuConvRoleName $ \newRole ->
+    runStatement (cid, uid, newRole) update
+  where
+    update :: Hasql.Statement (ConvId, UserId, RoleName) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation_member
+                             SET conversation_role = ($3 :: text)
+                             WHERE conv = ($1 :: uuid)
+                             AND user = ($2 :: uuid)
+                            |]
+
+setOtherRemoteMember :: (PGConstraints r) => ConvId -> Remote UserId -> OtherMemberUpdate -> Sem r ()
+setOtherRemoteMember cid (tUntagged -> Qualified uid domain) upd =
+  for_ upd.omuConvRoleName $ \newRole ->
+    runStatement (cid, domain, uid, newRole) update
+  where
+    update :: Hasql.Statement (ConvId, Domain, UserId, RoleName) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE local_conversation_remote_member
+                             SET conversation_role = ($4 :: text)
+                             WHERE conv = ($1 :: uuid)
+                             AND user_remote_domain = ($2 :: text)
+                             AND user_remote_id = ($3 :: uuid)
+                            |]
 
 deleteMembersImpl :: ConvId -> UserList UserId -> Sem r ()
 deleteMembersImpl = undefined
