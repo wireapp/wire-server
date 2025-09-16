@@ -19,7 +19,6 @@
 
 module Wire.ConversationStore where
 
-import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -103,8 +102,6 @@ data ConversationStore m a where
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
-  GetRemoteMembersByDomain :: Domain -> ConversationStore m [(ConvId, RemoteMember)]
-  GetLocalMembersByDomain :: Domain -> ConversationStore m [(ConvId, UserId)]
   -- SUB CONVERSATION OPERATIONS
   CreateSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
   GetSubConversation :: ConvId -> SubConvId -> ConversationStore m (Maybe SubConversation)

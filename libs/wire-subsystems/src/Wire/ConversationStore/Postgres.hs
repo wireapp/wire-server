@@ -92,8 +92,6 @@ interpretConversationStoreToPostgres = interpret $ \case
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
-  GetRemoteMembersByDomain dom -> getRemoteMembersByDomainImpl dom
-  GetLocalMembersByDomain dom -> getLocalMembersByDomainImpl dom
   CreateSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
   GetSubConversationGroupInfo convId subConvId -> getSubConversationGroupInfoImpl convId subConvId
@@ -637,12 +635,6 @@ lookupMLSClientsImpl = undefined
 
 lookupMLSClientLeafIndicesImpl :: GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl = undefined
-
-getRemoteMembersByDomainImpl :: Domain -> Sem r [(ConvId, RemoteMember)]
-getRemoteMembersByDomainImpl = undefined
-
-getLocalMembersByDomainImpl :: Domain -> Sem r [(ConvId, UserId)]
-getLocalMembersByDomainImpl = undefined
 
 -- SUB CONVERSATION OPERATIONS
 createSubConversationImpl :: ConvId -> SubConvId -> GroupId -> Sem r SubConversation

@@ -576,16 +576,6 @@ lookupRemoteMembers conv = do
           convRoleName = role
         }
 
-lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
-lookupRemoteMembersByDomain dom = do
-  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
-  where
-    mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
-
-lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
-lookupLocalMembersByDomain dom = do
-  retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
-
 member ::
   ConvId ->
   UserId ->
@@ -1033,12 +1023,6 @@ interpretConversationStoreToCassandra client = interpret $ \case
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     runEmbedded (runClient client) $ embed $ lookupMLSClientLeafIndices lcnv
-  GetRemoteMembersByDomain dom -> do
-    logEffect "ConversationStore.GetRemoteMembersByDomain"
-    runEmbedded (runClient client) $ embed $ lookupRemoteMembersByDomain dom
-  GetLocalMembersByDomain dom -> do
-    logEffect "ConversationStore.GetLocalMembersByDomain"
-    runEmbedded (runClient client) $ embed $ lookupLocalMembersByDomain dom
   CreateSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
     runEmbedded (runClient client) $ embed $ insertSubConversation convId subConvId groupId
