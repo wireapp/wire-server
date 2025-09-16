@@ -161,7 +161,6 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
 type UserAPI =
-  -- See Note [ephemeral user sideeffect]
   Named
     "get-user-unqualified"
     ( Summary "Get a user by UserId"
@@ -172,7 +171,6 @@ type UserAPI =
         :> GetUserVerb
     )
     :<|>
-    -- See Note [ephemeral user sideeffect]
     Named
       "get-user-qualified"
       ( Summary "Get a user by Domain and UserId"
@@ -225,7 +223,6 @@ type UserAPI =
                     (Maybe UserProfile)
            )
     :<|>
-    -- See Note [ephemeral user sideeffect]
     Named
       "list-users-by-unqualified-ids-or-handles"
       ( Summary "List users (deprecated)"
@@ -248,7 +245,6 @@ type UserAPI =
                :> Post '[JSON] ListUsersById
            )
     :<|>
-    -- See Note [ephemeral user sideeffect]
     Named
       "list-users-by-ids-or-handles@V3"
       ( Summary "List users"
