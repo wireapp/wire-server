@@ -23,6 +23,9 @@ data UserGroupPageRequest = UserGroupPageRequest
 
 data PaginationState = PaginationSortByName (Maybe (UserGroupName, UserGroupId)) | PaginationSortByCreatedAt (Maybe (UTCTimeMillis, UserGroupId))
 
+userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTimeMillis, UserGroupId)
+userGroupCreatedAtPaginationState ug = (ug.createdAt, ug.id_)
+
 toSortBy :: PaginationState -> SortBy
 toSortBy = \case
   PaginationSortByName _ -> SortByName
