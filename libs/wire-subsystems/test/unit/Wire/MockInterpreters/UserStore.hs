@@ -160,5 +160,6 @@ newStoredUserToStoredUser new =
       handle = new.handle,
       teamId = new.teamId,
       managedBy = Just new.managedBy,
-      supportedProtocols = Just new.supportedProtocols
+      supportedProtocols = Just new.supportedProtocols,
+      searchable = Just new.searchable
     }

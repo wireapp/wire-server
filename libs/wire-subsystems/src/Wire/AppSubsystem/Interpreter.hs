@@ -156,7 +156,8 @@ appNewStoredUser creator new = do
         expires = Nothing,
         teamId = creator.teamId,
         managedBy = defaultManagedBy,
-        supportedProtocols = defAppSupportedProtocols
+        supportedProtocols = defAppSupportedProtocols,
+        searchable = True
       }
 
 defAppSupportedProtocols :: Set BaseProtocolTag

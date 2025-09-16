@@ -141,7 +141,8 @@ newStoredUser u inv tid mbHandle = do
           expires = e,
           teamId = tid,
           managedBy = managedBy,
-          supportedProtocols = prots
+          supportedProtocols = prots,
+          searchable = True -- NewUser doesn't have this field. TODO: should a defSearchable be added to Wire.API.User to be used everywhere?
         }
 
 newStoredUserViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m NewStoredUser
@@ -172,7 +173,8 @@ newStoredUserViaScim uid externalId tid locale name email = do
         expires = Nothing,
         teamId = Just tid,
         managedBy = ManagedByScim,
-        supportedProtocols = defSupportedProtocols
+        supportedProtocols = defSupportedProtocols,
+        searchable = True
       }
 
 updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
@@ -341,14 +343,15 @@ type UserRow =
     Maybe Handle,
     Maybe TeamId,
     Maybe ManagedBy,
-    Maybe (Set BaseProtocolTag)
+    Maybe (Set BaseProtocolTag),
+    Maybe Bool
   )
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
   "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
-  \handle, team, managed_by, supported_protocols \
+  \handle, team, managed_by, supported_protocols, searchable \
   \FROM user where id IN ?"
 
 idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
@@ -417,7 +420,8 @@ toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
                _handle,
                _tid,
                _managed_by,
-               _prots
+               _prots,
+               _searchable
                ) -> status /= Just PendingInvitation
           )
 
@@ -442,7 +446,8 @@ toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
         handle,
         tid,
         managed_by,
-        prots
+        prots,
+        searchable
         ) =
         let ident = toIdentity activated email ssoid
             expiration = if status == Just Ephemeral then expires else Nothing
@@ -465,6 +470,7 @@ toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
               tid
               (fromMaybe ManagedByWire managed_by)
               (fromMaybe defSupportedProtocols prots)
+              (fromMaybe True searchable)
 
     toLocaleWithDefault :: Locale -> (Maybe Language, Maybe Country) -> Locale
     toLocaleWithDefault _ (Just l, c) = Locale l c

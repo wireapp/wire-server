@@ -68,7 +68,8 @@ testObject_User_user_1 =
       userExpire = Nothing,
       userTeam = Nothing,
       userManagedBy = ManagedByWire,
-      userSupportedProtocols = defSupportedProtocols
+      userSupportedProtocols = defSupportedProtocols,
+      userSearchable = True
     }
 
 testObject_User_user_2 :: User
@@ -107,7 +108,8 @@ testObject_User_user_2 =
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-11T17:06:58.936Z")),
       userTeam = Nothing,
       userManagedBy = ManagedByWire,
-      userSupportedProtocols = mempty
+      userSupportedProtocols = mempty,
+      userSearchable = True
     }
 
 testObject_User_user_3 :: User
@@ -139,7 +141,8 @@ testObject_User_user_3 =
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T20:12:05.821Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))),
       userManagedBy = ManagedByWire,
-      userSupportedProtocols = defSupportedProtocols
+      userSupportedProtocols = defSupportedProtocols,
+      userSearchable = True
     }
 
 testObject_User_user_4 :: User
@@ -176,7 +179,8 @@ testObject_User_user_4 =
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
       userManagedBy = ManagedByScim,
-      userSupportedProtocols = defSupportedProtocols
+      userSupportedProtocols = defSupportedProtocols,
+      userSearchable = True
     }
 
 testObject_User_user_5 :: User
@@ -213,5 +217,6 @@ testObject_User_user_5 =
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
       userManagedBy = ManagedByScim,
-      userSupportedProtocols = defSupportedProtocols
+      userSupportedProtocols = defSupportedProtocols,
+      userSearchable = True
     }

@@ -242,7 +242,8 @@ alice =
       userExpire = Nothing,
       userTeam = Just $ Id (fromJust (UUID.fromString "bb843450-b2f5-4ec8-90bd-52c7d5f1d22e")),
       userManagedBy = ManagedByWire,
-      userSupportedProtocols = defSupportedProtocols
+      userSupportedProtocols = defSupportedProtocols,
+      userSearchable = True
     }
 
 bob :: User
@@ -271,5 +272,6 @@ bob =
       userExpire = Nothing,
       userTeam = Nothing,
       userManagedBy = ManagedByWire,
-      userSupportedProtocols = defSupportedProtocols
+      userSupportedProtocols = defSupportedProtocols,
+      userSearchable = True
     }
