@@ -200,13 +200,18 @@ createIndex' ::
   m ()
 createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = do
   idx <- liftIndexIO $ asks idxName
+  -- Check if the index already exists before attempting creation.
+  -- If it already exists, we should not update anything (including mappings).
+  existedBefore <- liftIndexIO $ ES.indexExists idx
   createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate)
-  liftIndexIO $ do
-    mr <-
-      traceES "Put mapping" $
-        ES.putNamedMapping idx mappingName indexMapping
-    unless (ES.isSuccess mr) $
-      throwM (IndexError $ "Put Mapping failed: " <> Text.pack (show mr))
+  -- Only put the mapping when we actually created the index above.
+  unless existedBefore $ do
+    liftIndexIO $ do
+      mr <-
+        traceES "Put mapping" $
+          ES.putNamedMapping idx mappingName indexMapping
+      unless (ES.isSuccess mr) $
+        throwM (IndexError $ "Put Mapping failed: " <> Text.pack (show mr))
 
 analysisSettings :: ES.Analysis
 analysisSettings =
