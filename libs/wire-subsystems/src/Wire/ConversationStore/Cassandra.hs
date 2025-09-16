@@ -30,7 +30,6 @@ import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
-import Data.Default
 import Data.Domain
 import Data.Id
 import Data.List.Extra qualified as List
@@ -60,8 +59,10 @@ import Wire.API.Provider.Service
 import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
+import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
 import Wire.StoredConversation
+import Wire.StoredConversation qualified as StoreConv
 import Wire.UserList
 import Wire.Util
 
@@ -113,13 +114,33 @@ deleteConversation cid = do
 
 conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
 conversationMeta conv =
-  (toConvMeta =<<)
+  fmap (toConvMeta . toStoredConvRow)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
-  where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct, mcap, mcs, mcp) = do
-      let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
-          accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct mcap (fromMaybe def mcs) mcp
+
+parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Imports.Set AccessRole) -> Maybe (Imports.Set AccessRole)
+parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
+
+toStoredConvRow :: Queries.ConvRow -> StoreConv.ConvRow
+toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
+  ( cty,
+    muid,
+    Cql.fromSet <$> acc,
+    parseAccessRoles role (Set.fromList . Cql.fromSet <$> roleV2),
+    nme,
+    ti,
+    del,
+    timer,
+    rm,
+    ptag,
+    mgid,
+    mep,
+    writetimeToUTC <$> mts,
+    mcs,
+    mgct,
+    mAp,
+    mcells,
+    mparent
+  )
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -202,7 +223,7 @@ getConversation conv = do
     toConv conv
       <$> members conv
       <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait cdata
+      <*> UnliftIO.wait (toStoredConvRow <$$> cdata)
   runMaybeT $ conversationGC =<< maybe mzero pure mbConv
 
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
@@ -227,7 +248,7 @@ localConversation cid =
       <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
       <*> UnliftIO.Concurrently
         ( retry x1 $
-            query1 Cql.selectConv (params LocalQuorum (Identity cid))
+            toStoredConvRow <$$> query1 Cql.selectConv (params LocalQuorum (Identity cid))
         )
 
 localConversations ::
@@ -275,64 +296,6 @@ remoteConversationStatusOnDomain uid rconvs =
       ( qualifyAs rconvs conv,
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
-
-toProtocol ::
-  Maybe ProtocolTag ->
-  Maybe GroupId ->
-  Maybe Epoch ->
-  Maybe UTCTime ->
-  Maybe CipherSuiteTag ->
-  Maybe Protocol
-toProtocol Nothing _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = ProtocolMLS <$> toConversationMLSData mgid mepoch mtimestamp mcs
-toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = ProtocolMixed <$> toConversationMLSData mgid mepoch mtimestamp mcs
-
-toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ConversationMLSData
-toConversationMLSData mgid mepoch mtimestamp mcs =
-  ConversationMLSData
-    <$> mgid
-    <*> pure
-      ( ActiveMLSConversationData
-          <$> mepoch
-          <*> mtimestamp
-          <*> mcs
-      )
-
-toConv ::
-  ConvId ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  Maybe Cql.ConvRow ->
-  Maybe StoredConversation
-toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) <- mconv
-  let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
-      accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
-  pure
-    StoredConversation
-      { id_ = cid,
-        deleted = fromMaybe False del,
-        localMembers = ms,
-        remoteMembers = remoteMems,
-        protocol = proto,
-        metadata =
-          ConversationMetadata
-            { cnvmType = cty,
-              cnvmCreator = muid,
-              cnvmAccess = defAccess cty acc,
-              cnvmAccessRoles = accessRoles,
-              cnvmName = nme,
-              cnvmTeam = ti,
-              cnvmMessageTimer = timer,
-              cnvmReceiptMode = rm,
-              cnvmGroupConvType = mgct,
-              cnvmCellsState = fromMaybe def mcells,
-              cnvmChannelAddPermission = mAp,
-              cnvmParent = mparent
-            }
-      }
 
 updateToMixedProtocol ::
   (Member (Embed IO) r) =>

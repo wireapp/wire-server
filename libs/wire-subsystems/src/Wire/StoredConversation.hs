@@ -3,17 +3,20 @@
 
 module Wire.StoredConversation where
 
-import Cassandra qualified as C
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time (UTCTime)
 import Data.UUID.Tagged qualified as U
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation qualified as MLS
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
@@ -32,6 +35,87 @@ data StoredConversation = StoredConversation
     protocol :: Protocol
   }
   deriving (Show)
+
+type ConvRow =
+  ( ConvType,
+    Maybe UserId,
+    Maybe [Access],
+    Maybe (Set AccessRole),
+    Maybe Text,
+    Maybe TeamId,
+    Maybe Bool,
+    Maybe Milliseconds,
+    Maybe ReceiptMode,
+    Maybe ProtocolTag,
+    Maybe GroupId,
+    Maybe Epoch,
+    Maybe UTCTime,
+    Maybe CipherSuiteTag,
+    Maybe GroupConvType,
+    Maybe AddPermission,
+    Maybe CellsState,
+    Maybe ConvId
+  )
+
+toProtocol ::
+  Maybe ProtocolTag ->
+  Maybe GroupId ->
+  Maybe Epoch ->
+  Maybe UTCTime ->
+  Maybe CipherSuiteTag ->
+  Maybe Protocol
+toProtocol Nothing _ _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = ProtocolMLS <$> toConversationMLSData mgid mepoch mtimestamp mcs
+toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = ProtocolMixed <$> toConversationMLSData mgid mepoch mtimestamp mcs
+
+toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ConversationMLSData
+toConversationMLSData mgid mepoch mtimestamp mcs =
+  ConversationMLSData
+    <$> mgid
+    <*> pure
+      ( ActiveMLSConversationData
+          <$> mepoch
+          <*> mtimestamp
+          <*> mcs
+      )
+
+toConv ::
+  ConvId ->
+  [LocalMember] ->
+  [RemoteMember] ->
+  Maybe ConvRow ->
+  Maybe StoredConversation
+toConv cid ms remoteMems mconv = do
+  row@(_, _, _, _, _, _, del, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _) <- mconv
+  proto <- toProtocol ptag mgid mep mts mcs
+  pure
+    StoredConversation
+      { id_ = cid,
+        deleted = fromMaybe False del,
+        localMembers = ms,
+        remoteMembers = remoteMems,
+        protocol = proto,
+        metadata = toConvMeta row
+      }
+
+toConvMeta :: ConvRow -> ConversationMetadata
+toConvMeta (cty, muid, acc, roleV2, nme, ti, _, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent) =
+  let accessRoles = maybeRole cty roleV2
+   in ConversationMetadata
+        { cnvmType = cty,
+          cnvmCreator = muid,
+          cnvmAccess = defAccess cty acc,
+          cnvmAccessRoles = accessRoles,
+          cnvmName = nme,
+          cnvmTeam = ti,
+          cnvmMessageTimer = timer,
+          cnvmReceiptMode = rm,
+          cnvmGroupConvType = mgct,
+          cnvmCellsState = fromMaybe def mcells,
+          cnvmChannelAddPermission = mAp,
+          cnvmParent = mparent
+        }
 
 newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation
 newStoredConversation lcnv nc =
@@ -111,9 +195,6 @@ convSetName n c = c {metadata = c.metadata {cnvmName = n}}
 
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
-
-parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRole) -> Maybe (Set AccessRole)
-parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
 convMessageTimer :: StoredConversation -> Maybe Milliseconds
 convMessageTimer c = c.metadata.cnvmMessageTimer
@@ -212,16 +293,16 @@ defMemberStatus =
       msHiddenRef = Nothing
     }
 
-defAccess :: ConvType -> Maybe (C.Set Access) -> [Access]
+defAccess :: ConvType -> Maybe [Access] -> [Access]
 defAccess SelfConv Nothing = [PrivateAccess]
 defAccess ConnectConv Nothing = [PrivateAccess]
 defAccess One2OneConv Nothing = [PrivateAccess]
 defAccess RegularConv Nothing = defRegularConvAccess
-defAccess SelfConv (Just (C.Set [])) = [PrivateAccess]
-defAccess ConnectConv (Just (C.Set [])) = [PrivateAccess]
-defAccess One2OneConv (Just (C.Set [])) = [PrivateAccess]
-defAccess RegularConv (Just (C.Set [])) = defRegularConvAccess
-defAccess _ (Just (C.Set (x : xs))) = x : xs
+defAccess SelfConv (Just []) = [PrivateAccess]
+defAccess ConnectConv (Just []) = [PrivateAccess]
+defAccess One2OneConv (Just []) = [PrivateAccess]
+defAccess RegularConv (Just []) = defRegularConvAccess
+defAccess _ (Just (x : xs)) = x : xs
 
 -- BotMember ------------------------------------------------------------------
 
