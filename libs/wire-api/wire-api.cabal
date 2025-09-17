@@ -308,6 +308,7 @@ library
     , generics-sop
     , ghc-prim
     , hashable
+    , hasql
     , hostname-validate
     , hscim
     , HsOpenSSL
