@@ -87,6 +87,7 @@ module Wire.API.Team.Feature
     DomainRegistrationConfig (..),
     CellsConfig (..),
     AllowedGlobalOperationsConfig (..),
+    AssetAuditLogConfig (..),
     ConsumableNotificationsConfig (..),
     ChatBubblesConfig (..),
     AppsConfig (..),
@@ -252,6 +253,7 @@ data FeatureSingleton cfg where
   FeatureSingletonChatBubblesConfig :: FeatureSingleton ChatBubblesConfig
   FeatureSingletonAppsConfig :: FeatureSingleton AppsConfig
   FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig :: FeatureSingleton SimplifiedUserConnectionRequestQRCodeConfig
+  FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1476,6 +1478,35 @@ instance IsFeatureConfig AllowedGlobalOperationsConfig where
   objectSchema = field "config" schema
 
 --------------------------------------------------------------------------------
+-- Asset Audit Log feature
+
+-- | This feature does not have a database state and does not carry a config
+-- payload. It is always locked; only its status can be toggled via server
+-- configuration (Helm values).
+data AssetAuditLogConfig = AssetAuditLogConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform AssetAuditLogConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName AssetAuditLogConfig)
+
+instance ParseDbFeature AssetAuditLogConfig where
+  parseDbConfig _ = fail "AssetAuditLogConfig cannot be parsed from the DB"
+  serialiseDbConfig = DbConfig . schemaToJSON
+
+instance ToSchema AssetAuditLogConfig where
+  schema = object "AssetAuditLogConfig" objectSchema
+
+instance Default AssetAuditLogConfig where
+  def = AssetAuditLogConfig
+
+instance Default (LockableFeature AssetAuditLogConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig AssetAuditLogConfig where
+  type FeatureSymbol AssetAuditLogConfig = "assetAuditLog"
+  featureSingleton = FeatureSingletonAssetAuditLogConfig
+  objectSchema = pure AssetAuditLogConfig
+
+--------------------------------------------------------------------------------
 -- ConsumableNotifications feature
 
 -- | This feature does not have a PUT endpoint. See Note [unsettable features].
@@ -1652,7 +1683,8 @@ type Features =
     ConsumableNotificationsConfig,
     ChatBubblesConfig,
     AppsConfig,
-    SimplifiedUserConnectionRequestQRCodeConfig
+    SimplifiedUserConnectionRequestQRCodeConfig,
+    AssetAuditLogConfig
   ]
 
 -- | list of available features as a record

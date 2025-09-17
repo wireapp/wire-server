@@ -210,6 +210,8 @@ config:
         status: enabled
         config:
           mlsConversationReset: false
+      assetAuditLog:
+        status: disabled
       consumableNotifications:
         defaults:
           status: disabled

@@ -187,6 +187,10 @@ data:
         allowedGlobalOperations:
           {{- toYaml .settings.featureFlags.allowedGlobalOperations | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.assetAuditLog }}
+        assetAuditLog:
+          {{- toYaml .settings.featureFlags.assetAuditLog | nindent 10 }}
+        {{- end }}
         {{- if .settings.featureFlags.consumableNotifications }}
         consumableNotifications:
           {{- toYaml .settings.featureFlags.consumableNotifications | nindent 10 }}

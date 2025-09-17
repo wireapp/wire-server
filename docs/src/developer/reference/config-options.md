@@ -600,6 +600,23 @@ config:
           mlsConversationReset: true
 ```
 
+### Asset Audit Log
+
+Feature toggle for `assetAuditLog`.
+
+This flag has no configuration payload and is always locked. It cannot be changed via public or internal feature endpoints and is not stored in the DB. It only applies globally and can only be toggled via Helm `values.yaml` for Galley.
+
+Example configuration:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      assetAuditLog:
+        status: enabled
+```
+
 ### Chat Bubbles
 
 Feature toggle for `chatBubbles`.
