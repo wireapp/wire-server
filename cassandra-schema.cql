@@ -2057,7 +2057,8 @@ CREATE TABLE spar_test.idp (
     public_key blob,
     replaced_by uuid,
     request_uri text,
-    team uuid
+    team uuid,
+    domain text
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
