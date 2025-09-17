@@ -583,16 +583,19 @@ instance C.Cql Access where
 
   toCql = C.CqlInt . accessToInt32
 
-  fromCql (C.CqlInt i) = case i of
-    1 -> pure PrivateAccess
-    2 -> pure InviteAccess
-    3 -> pure LinkAccess
-    4 -> pure CodeAccess
-    n -> Left $ "Unexpected Access value: " ++ show n
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
   fromCql _ = Left "Access value: int expected"
 
 instance PostgresMarshall Access Int32 where
   postgresMarshall = accessToInt32
+
+instance PostgresUnmarshall Int32 Access where
+  postgresUnmarshall = \case
+    1 -> pure PrivateAccess
+    2 -> pure InviteAccess
+    3 -> pure LinkAccess
+    4 -> pure CodeAccess
+    n -> Left $ "Unexpected Access value: " <> Text.pack (show n)
 
 accessToInt32 :: Access -> Int32
 accessToInt32 = \case
@@ -662,16 +665,19 @@ instance C.Cql AccessRole where
 
   toCql = C.CqlInt . accessRoleToInt32
 
-  fromCql (C.CqlInt i) = case i of
-    1 -> pure TeamMemberAccessRole
-    2 -> pure NonTeamMemberAccessRole
-    3 -> pure GuestAccessRole
-    4 -> pure ServiceAccessRole
-    n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
   fromCql _ = Left "AccessRoleV2 value: int expected"
 
 instance PostgresMarshall AccessRole Int32 where
   postgresMarshall = accessRoleToInt32
+
+instance PostgresUnmarshall Int32 AccessRole where
+  postgresUnmarshall = \case
+    1 -> pure TeamMemberAccessRole
+    2 -> pure NonTeamMemberAccessRole
+    3 -> pure GuestAccessRole
+    4 -> pure ServiceAccessRole
+    n -> Left $ "Unexpected AccessRoleV2 value: " <> Text.pack (show n)
 
 accessRoleToInt32 :: AccessRole -> Int32
 accessRoleToInt32 = \case
@@ -771,16 +777,14 @@ instance C.Cql ConvType where
 
   toCql = C.CqlInt . convTypeToInt32
 
-  fromCql (C.CqlInt i) = case i of
-    0 -> pure RegularConv
-    1 -> pure SelfConv
-    2 -> pure One2OneConv
-    3 -> pure ConnectConv
-    n -> Left $ "unexpected conversation-type: " ++ show n
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ convTypeFromInt32 i
   fromCql _ = Left "conv-type: int expected"
 
 instance PostgresMarshall ConvType Int32 where
   postgresMarshall = convTypeToInt32
+
+instance PostgresUnmarshall Int32 ConvType where
+  postgresUnmarshall = convTypeFromInt32
 
 convTypeToInt32 :: ConvType -> Int32
 convTypeToInt32 = \case
@@ -788,6 +792,14 @@ convTypeToInt32 = \case
   SelfConv -> 1
   One2OneConv -> 2
   ConnectConv -> 3
+
+convTypeFromInt32 :: Int32 -> Either Text ConvType
+convTypeFromInt32 = \case
+  0 -> pure RegularConv
+  1 -> pure SelfConv
+  2 -> pure One2OneConv
+  3 -> pure ConnectConv
+  n -> Left $ "unexpected conversation-type: " <> Text.pack (show n)
 
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not
@@ -799,7 +811,7 @@ convTypeToInt32 = \case
 --                              ...
 newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving stock (Eq, Ord, Show)
-  deriving newtype (Arbitrary, C.Cql)
+  deriving newtype (Arbitrary, C.Cql, PostgresUnmarshall Int32)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ReceiptMode
 
 instance Default ReceiptMode where
@@ -837,6 +849,9 @@ instance C.Cql GroupConvType where
 
 instance PostgresMarshall GroupConvType Int32 where
   postgresMarshall = fromIntegral . fromEnum
+
+instance PostgresUnmarshall Int32 GroupConvType where
+  postgresUnmarshall = Right . toEnum . fromIntegral
 
 data NewConv = NewConv
   { newConvUsers :: [UserId],
@@ -1255,6 +1270,9 @@ instance C.Cql AddPermission where
 
 instance PostgresMarshall AddPermission Int32 where
   postgresMarshall = fromIntegral . fromEnum
+
+instance PostgresUnmarshall Int32 AddPermission where
+  postgresUnmarshall = Right . toEnum . fromIntegral
 
 newtype AddPermissionUpdate = AddPermissionUpdate
   { addPermission :: AddPermission

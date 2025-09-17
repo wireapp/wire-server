@@ -22,6 +22,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Default
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as Text
 import Imports
 import Wire.API.PostgresMarshall
 import Wire.Arbitrary
@@ -54,15 +55,18 @@ instance Cql CellsState where
 
   toCql = CqlInt . cellsStateToInt32
 
-  fromCql (CqlInt i) = case i of
-    0 -> pure CellsDisabled
-    1 -> pure CellsPending
-    2 -> pure CellsReady
-    n -> Left $ "unexpected cells_state: " ++ show n
+  fromCql (CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
   fromCql _ = Left "cells_state: int expected"
 
 instance PostgresMarshall CellsState Int32 where
   postgresMarshall = cellsStateToInt32
+
+instance PostgresUnmarshall Int32 CellsState where
+  postgresUnmarshall = \case
+    0 -> pure CellsDisabled
+    1 -> pure CellsPending
+    2 -> pure CellsReady
+    n -> Left $ "unexpected cells_state: " <> Text.pack (show n)
 
 cellsStateToInt32 :: CellsState -> Int32
 cellsStateToInt32 = \case

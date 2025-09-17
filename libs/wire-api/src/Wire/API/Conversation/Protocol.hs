@@ -45,6 +45,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Time.Clock
 import Imports
 import Test.QuickCheck
@@ -67,16 +68,19 @@ instance C.Cql ProtocolTag where
 
   toCql = C.CqlInt . fromIntegral . fromEnum
 
-  fromCql (C.CqlInt i) = do
-    let i' = fromIntegral i
-    if i' < fromEnum @ProtocolTag minBound
-      || i' > fromEnum @ProtocolTag maxBound
-      then Left $ "unexpected protocol: " ++ show i
-      else Right $ toEnum i'
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
   fromCql _ = Left "protocol: int expected"
 
 instance PostgresMarshall ProtocolTag Int32 where
   postgresMarshall = fromIntegral . fromEnum
+
+instance PostgresUnmarshall Int32 ProtocolTag where
+  postgresUnmarshall i =
+    let i' = fromIntegral i
+     in if i' < fromEnum @ProtocolTag minBound
+          || i' > fromEnum @ProtocolTag maxBound
+          then Left $ "unexpected protocol: " <> Text.pack (show i)
+          else Right $ toEnum i'
 
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.

@@ -8,15 +8,15 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Time
 import Data.Vector (Vector)
-import Data.Vector qualified as V
 import Data.Vector qualified as Vector
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as Transaction
-import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write))
+import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (..))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -144,8 +144,28 @@ createConversationImpl lcnv nc = do
 deleteConversationImpl :: ConvId -> Sem r ()
 deleteConversationImpl = undefined
 
-getConversationImpl :: ConvId -> Sem r (Maybe StoredConversation)
-getConversationImpl = undefined
+getConversationImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe StoredConversation)
+getConversationImpl cid =
+  runTransaction ReadCommitted Read $ do
+    mConvRow <- Transaction.statement cid selectConvMetadata
+    case mConvRow of
+      Nothing -> pure Nothing
+      Just convRow -> do
+        localMembers <- Transaction.statement cid selectLocalMembersStmt
+        remoteMembers <- Transaction.statement cid selectRemoteMembersStmt
+        pure $ toConv cid localMembers remoteMembers (Just convRow)
+  where
+    selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
+    selectConvMetadata =
+      dimapPG @_ @_
+        @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _, _))
+        @(Maybe (ConvType, Maybe UserId, Maybe [Access], Maybe (Set AccessRole), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe UTCTime, Maybe CipherSuiteTag, Maybe GroupConvType, Maybe AddPermission, Maybe CellsState, Maybe ConvId))
+        [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
+                               (name :: text?), (team :: uuid?), (deleted :: boolean?), (message_timer :: bigint?), (receipt_mode :: integer?),
+                               (protocol :: integer?), (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
+                               (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                        FROM conversation where conv = ($1 :: uuid)
+                       |]
 
 getConversationEpochImpl :: ConvId -> Sem r (Maybe Epoch)
 getConversationEpochImpl = undefined
@@ -395,26 +415,35 @@ getLocalMemberImpl convId userId = do
                        |]
 
 getLocalMembersImpl :: (PGConstraints r) => ConvId -> Sem r [LocalMember]
-getLocalMembersImpl convId = do
-  rows <- runStatement convId selectMembers
-  pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkLocalMember <$> rows))
+getLocalMembersImpl convId =
+  runStatement convId selectLocalMembersStmt
+
+type LocalMemberRow = (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+
+selectLocalMembersStmt :: Hasql.Statement ConvId [LocalMember]
+selectLocalMembersStmt =
+  dedupMembers <$> select
   where
-    selectMembers :: Hasql.Statement ConvId (Vector (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
-    selectMembers =
+    dedupMembers rows =
+      let localMembers = mkLocalMember <$> rows
+       in map snd $ nubBy ((==) `on` ((.id_) . snd)) localMembers
+
+    select :: Hasql.Statement ConvId [LocalMemberRow]
+    select =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
-                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
-                         FROM conversation_member
-                         WHERE status != 0
-                         AND (conv = ($1 :: uuid)
-                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
-                         ORDER BY CASE
-                           WHEN conv = ($1 :: uuid) THEN 1
-                           ELSE 2
-                           END
-                        |]
+                            (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                     FROM conversation_member
+                     WHERE status != 0
+                     AND (conv = ($1 :: uuid)
+                          OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                     ORDER BY CASE
+                       WHEN conv = ($1 :: uuid) THEN 1
+                       ELSE 2
+                       END
+                    |]
 
-mkLocalMember :: (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName) -> (ConvId, LocalMember)
+mkLocalMember :: LocalMemberRow -> (ConvId, LocalMember)
 mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
   ( cid,
     LocalMember
@@ -451,22 +480,29 @@ getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
                         |]
 
 getRemoteMembersImpl :: (PGConstraints r) => ConvId -> Sem r [RemoteMember]
-getRemoteMembersImpl convId = do
-  rows <- runStatement convId selectMembers
-  pure . map snd $ nubBy ((==) `on` ((.id_) . snd)) (V.toList (mkRemoteMember <$> rows))
+getRemoteMembersImpl convId =
+  runStatement convId selectRemoteMembersStmt
+
+selectRemoteMembersStmt :: Hasql.Statement ConvId [RemoteMember]
+selectRemoteMembersStmt =
+  dedupMembers <$> select
   where
-    selectMembers :: Hasql.Statement ConvId (Vector (ConvId, Domain, UserId, RoleName))
-    selectMembers =
+    dedupMembers rows =
+      let localMembers = mkRemoteMember <$> rows
+       in map snd $ nubBy ((==) `on` ((.id_) . snd)) localMembers
+
+    select :: Hasql.Statement ConvId [(ConvId, Domain, UserId, RoleName)]
+    select =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
-                         FROM member_remote_user
-                         WHERE (conv = ($1 :: uuid)
-                                OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
-                         ORDER BY CASE
-                           WHEN conv = ($1 :: uuid) THEN 1
-                           ELSE 2
-                           END
-                        |]
+                     FROM member_remote_user
+                     WHERE (conv = ($1 :: uuid)
+                            OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                     ORDER BY CASE
+                       WHEN conv = ($1 :: uuid) THEN 1
+                       ELSE 2
+                       END
+                    |]
 
 mkRemoteMember :: (ConvId, Domain, UserId, RoleName) -> (ConvId, RemoteMember)
 mkRemoteMember (convId, domain, uid, role) =

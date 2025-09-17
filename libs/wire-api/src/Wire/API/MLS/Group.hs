@@ -32,6 +32,7 @@ import Wire.Arbitrary
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
   deriving (Eq, Show, Generic, Ord)
+  deriving newtype (PostgresUnmarshall ByteString)
   deriving (Arbitrary) via (GenericUniform GroupId)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
