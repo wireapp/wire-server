@@ -102,9 +102,8 @@ testMultiIngressIdp = do
         resp.status `shouldMatchInt` 200
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
--- TODO: Test creation of two IDPs for the same domain -> should fail
-testMultiIngressAtMostIdpPerDomain :: (HasCallStack) => App ()
-testMultiIngressAtMostIdpPerDomain = do
+testMultiIngressAtMostOneIdPPerDomain :: (HasCallStack) => App ()
+testMultiIngressAtMostOneIdPPerDomain = do
   withModifiedBackend
     def
       { sparCfg =
