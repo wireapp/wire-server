@@ -132,11 +132,11 @@ createConversationImpl lcnv nc = do
   where
     insertConvStatement =
       lmapPG @_ @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _)
-        [resultlessStatement|insert into conversation
+        [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
                               group_id, group_conv_type, channel_add_permission, cells_state, parent_conv)
-                             values
+                             VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)|]
@@ -359,13 +359,13 @@ createMembersTransaction convId (UserList lusers rusers) = do
     insertLocalStatement :: Hasql.Statement (ConvId, UserId, RoleName) ()
     insertLocalStatement =
       lmapPG
-        [resultlessStatement|insert into conversation_member (conv, "user", status, conversation_role)
-                             values ($1 :: uuid, $2 :: uuid, 0, $3 :: text)|]
+        [resultlessStatement|INSERT INTO conversation_member (conv, "user", status, conversation_role)
+                             VALUES ($1 :: uuid, $2 :: uuid, 0, $3 :: text)|]
     insertRemoteStatement :: Hasql.Statement (ConvId, Domain, UserId, RoleName) ()
     insertRemoteStatement =
       lmapPG
-        [resultlessStatement|insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role)
-                             values ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
+        [resultlessStatement|INSERT INTO member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role)
+                             VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
 
 createMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
 createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users =
@@ -433,15 +433,15 @@ selectLocalMembersStmt =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                             (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
-                     FROM conversation_member
-                     WHERE status != 0
-                     AND (conv = ($1 :: uuid)
-                          OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
-                     ORDER BY CASE
-                       WHEN conv = ($1 :: uuid) THEN 1
-                       ELSE 2
-                       END
-                    |]
+                         FROM conversation_member
+                         WHERE status != 0
+                         AND (conv = ($1 :: uuid)
+                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                         ORDER BY CASE
+                           WHEN conv = ($1 :: uuid) THEN 1
+                           ELSE 2
+                           END
+                        |]
 
 mkLocalMember :: LocalMemberRow -> (ConvId, LocalMember)
 mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef, mRole) =
@@ -495,14 +495,14 @@ selectRemoteMembersStmt =
     select =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
-                     FROM member_remote_user
-                     WHERE (conv = ($1 :: uuid)
-                            OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
-                     ORDER BY CASE
-                       WHEN conv = ($1 :: uuid) THEN 1
-                       ELSE 2
-                       END
-                    |]
+                         FROM member_remote_user
+                         WHERE (conv = ($1 :: uuid)
+                                OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                         ORDER BY CASE
+                           WHEN conv = ($1 :: uuid) THEN 1
+                           ELSE 2
+                           END
+                        |]
 
 mkRemoteMember :: (ConvId, Domain, UserId, RoleName) -> (ConvId, RemoteMember)
 mkRemoteMember (convId, domain, uid, role) =
