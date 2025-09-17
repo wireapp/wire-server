@@ -157,8 +157,8 @@ testImplicitConnectionNoCollaborator = do
   -- Alice and Bob aren't connected at all.
   postOne2OneConversation bob alice team0 "chit-chat" >>= assertLabel 403 "no-team-member"
 
-testRemoveMemberInTeamsO2O :: (HasCallStack) => App ()
-testRemoveMemberInTeamsO2O = do
+testRemoveCollaboratorInTeamsO2O :: (HasCallStack) => App ()
+testRemoveCollaboratorInTeamsO2O = do
   (owner0, team0, [alice]) <- createTeam OwnDomain 2
   (owner1, team1, [bob]) <- createTeam OwnDomain 2
 
@@ -181,8 +181,8 @@ testRemoveMemberInTeamsO2O = do
   Internal.getConversation convId >>= assertLabel 404 "no-conversation"
   getMLSOne2OneConversation charlie bob >>= assertSuccess
 
-testRemoveMemberInO2OConnected :: (HasCallStack) => App ()
-testRemoveMemberInO2OConnected = do
+testRemoveCollaboratorInO2OConnected :: (HasCallStack) => App ()
+testRemoveCollaboratorInO2OConnected = do
   (owner0, team0, [alice]) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
@@ -197,8 +197,8 @@ testRemoveMemberInO2OConnected = do
 
   getMLSOne2OneConversation bob alice >>= assertSuccess
 
-testRemoveMemberInO2O :: (HasCallStack) => App ()
-testRemoveMemberInO2O = do
+testRemoveCollaboratorInO2O :: (HasCallStack) => App ()
+testRemoveCollaboratorInO2O = do
   (owner0, team0, [alice]) <- createTeam OwnDomain 2
 
   -- At the time of writing, it wasn't clear if this should be a bot instead.
@@ -223,8 +223,8 @@ testRemoveMemberInO2O = do
   getMLSOne2OneConversation bob alice >>= assertSuccess
   Internal.getConversation personalConvId >>= assertSuccess
 
-testRemoveMemberInTeamConversation :: (HasCallStack) => App ()
-testRemoveMemberInTeamConversation = do
+testRemoveCollaboratorInTeamConversation :: (HasCallStack) => App ()
+testRemoveCollaboratorInTeamConversation = do
   (owner, team, [alice, bob]) <- createTeam OwnDomain 3
 
   conv <-
@@ -233,7 +233,7 @@ testRemoveMemberInTeamConversation = do
       defProteus {team = Just team, qualifiedUsers = [alice, bob]}
       >>= getJSON 201
 
-  withWebSockets [owner, alice] $ \[wsOwner, wsAlice] -> do
+  withWebSockets [owner, alice, bob] $ \[wsOwner, wsAlice, wsBob] -> do
     removeTeamCollaborator owner team bob >>= assertSuccess
 
     bobUnqualifiedId <- bob %. "qualified_id.id"
@@ -244,6 +244,7 @@ testRemoveMemberInTeamConversation = do
           evt %. "transient" `shouldMatch` True
 
     awaitMatch isTeamMemberLeaveNotif wsOwner >>= checkEvent
+    awaitMatch isTeamMemberLeaveNotif wsBob >>= checkEvent
     assertNoEvent 0 wsAlice
 
   getConversation alice conv `bindResponse` \resp -> do

@@ -210,7 +210,7 @@ type TeamMemberAPI =
     :<|> Named
            "remove-team-collaborator"
            ( Summary "Remove a collaborator from the team."
-               :> From 'V11
+               :> From 'V12
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

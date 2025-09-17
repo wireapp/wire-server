@@ -933,32 +933,31 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   for_ cc $ \c ->
     E.getConversation c >>= \conv ->
       for_ conv $ \dc ->
-        case () of
-          _
-            | dc.metadata.cnvmType == One2OneConv ->
-                E.deleteConversation dc.id_
-            | otherwise ->
-                when (remove `isMember` dc.localMembers) $ do
-                  E.deleteMembers c (UserList [remove] [])
-                  let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
-                      targets =
-                        BotsAndMembers
-                          (Set.fromList $ (.id_) <$> allLocUsers)
-                          (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                          (Set.fromList bots)
-                  void $
-                    notifyConversationAction
-                      (sing @'ConversationRemoveMembersTag)
-                      (tUntagged lusr)
-                      True
-                      zcon
-                      (qualifyAs lusr dc)
-                      targets
-                      ( ConversationRemoveMembers
-                          (pure . tUntagged . qualifyAs lusr $ remove)
-                          EdReasonDeleted
-                      )
-                      def
+        case dc.metadata.cnvmType of
+          One2OneConv ->
+            E.deleteConversation dc.id_
+          _ ->
+            when (remove `isMember` dc.localMembers) $ do
+              E.deleteMembers c (UserList [remove] [])
+              let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
+                  targets =
+                    BotsAndMembers
+                      (Set.fromList $ (.id_) <$> allLocUsers)
+                      (Set.fromList $ (.id_) <$> dc.remoteMembers)
+                      (Set.fromList bots)
+              void $
+                notifyConversationAction
+                  (sing @'ConversationRemoveMembersTag)
+                  (tUntagged lusr)
+                  True
+                  zcon
+                  (qualifyAs lusr dc)
+                  targets
+                  ( ConversationRemoveMembers
+                      (pure . tUntagged . qualifyAs lusr $ remove)
+                      EdReasonDeleted
+                  )
+                  def
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
@@ -1343,6 +1342,15 @@ removeTeamCollaborator lusr tid rusr = do
           . (.status)
   uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
   internalRemoveTeamCollaborator rusr tid
+  now <- Now.get
+  let e = newEvent tid now (EdCollaboratorRemove rusr)
+  pushNotifications
+    [ def
+        { origin = Just $ tUnqualified lusr,
+          json = toJSONObject e,
+          recipients = [userRecipient $ tUnqualified lusr]
+        }
+    ]
   where
     -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
     -- point: the user is a team member because we fetched the list of teams
