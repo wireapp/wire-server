@@ -148,3 +148,58 @@ testMultiIngressAtMostOneIdPPerDomain = do
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
 
 -- TODO: Test updating existing IDP such that two with the same domain would exist -> should fail
+
+testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain :: (HasCallStack) => App ()
+testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+  -- With Z-Host header
+  SampleIdP idpmeta1 _pCreds _ _ <- makeSampleIdPMetadata
+  idpId1 <-
+    createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+      resp.jsonBody %. "id" >>= asString
+
+  SampleIdP idpmeta2 _pCreds _ _ <- makeSampleIdPMetadata
+  idpId2 <-
+    createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+      resp.jsonBody %. "id" >>= asString
+
+  SampleIdP idpmeta3 _pCreds _ _ <- makeSampleIdPMetadata
+  updateIdpWithZHost owner (Just ernieZHost) idpId1 idpmeta3 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+
+  SampleIdP idpmeta4 _pCreds _ _ <- makeSampleIdPMetadata
+  updateIdpWithZHost owner (Just ernieZHost) idpId2 idpmeta4 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+
+  -- Without Z-Host header
+  SampleIdP idpmeta5 _pCreds _ _ <- makeSampleIdPMetadata
+  idpId5 <-
+    createIdpWithZHost owner Nothing idpmeta5 `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+      resp.jsonBody %. "id" >>= asString
+
+  SampleIdP idpmeta6 _pCreds _ _ <- makeSampleIdPMetadata
+  idpId6 <-
+    createIdpWithZHost owner Nothing idpmeta6 `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+      resp.jsonBody %. "id" >>= asString
+
+  SampleIdP idpmeta7 _pCreds _ _ <- makeSampleIdPMetadata
+  updateIdpWithZHost owner Nothing idpId5 idpmeta7 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+
+  SampleIdP idpmeta8 _pCreds _ _ <- makeSampleIdPMetadata
+  updateIdpWithZHost owner Nothing idpId6 idpmeta8 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
