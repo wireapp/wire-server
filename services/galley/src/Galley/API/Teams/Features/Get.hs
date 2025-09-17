@@ -401,6 +401,8 @@ instance GetFeatureConfig CellsConfig
 
 instance GetFeatureConfig AllowedGlobalOperationsConfig
 
+instance GetFeatureConfig AssetAuditLogConfig
+
 instance GetFeatureConfig ConsumableNotificationsConfig
 
 instance GetFeatureConfig ChatBubblesConfig

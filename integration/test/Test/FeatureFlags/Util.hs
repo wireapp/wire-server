@@ -149,6 +149,7 @@ defAllFeatures =
                 ]
           ],
       "cells" .= enabled,
+      "assetAuditLog" .= disabledLocked,
       "allowedGlobalOperations"
         .= object
           [ "lockStatus" .= "locked",

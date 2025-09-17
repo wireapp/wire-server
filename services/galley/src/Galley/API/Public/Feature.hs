@@ -69,6 +69,7 @@ featureAPI =
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", AllowedGlobalOperationsConfig) getFeature
+    <@> mkNamedAPI @'("get", AssetAuditLogConfig) getFeature
     <@> mkNamedAPI @'("get", ConsumableNotificationsConfig) getFeature
     <@> mkNamedAPI @'("get", ChatBubblesConfig) getFeature
     <@> mkNamedAPI @'("get", AppsConfig) getFeature

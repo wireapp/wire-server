@@ -68,6 +68,7 @@ type FeatureAPI =
     :<|> FeatureAPIGetPut ChannelsConfig
     :<|> FeatureAPIGetPut CellsConfig
     :<|> FeatureAPIGet AllowedGlobalOperationsConfig
+    :<|> FeatureAPIGet AssetAuditLogConfig
     :<|> FeatureAPIGet ConsumableNotificationsConfig
     :<|> FeatureAPIGet ChatBubblesConfig
     :<|> FeatureAPIGet AppsConfig

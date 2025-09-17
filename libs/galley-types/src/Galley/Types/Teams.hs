@@ -292,6 +292,13 @@ newtype instance FeatureDefaults AllowedGlobalOperationsConfig
   deriving (ParseFeatureDefaults) via OptionalField AllowedGlobalOperationsConfig
   deriving (GetFeatureDefaults) via Feature AllowedGlobalOperationsConfig
 
+newtype instance FeatureDefaults AssetAuditLogConfig
+  = AssetAuditLogDefaults (Feature AssetAuditLogConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, FromJSON)
+  deriving (ParseFeatureDefaults) via OptionalField AssetAuditLogConfig
+  deriving (GetFeatureDefaults) via Feature AssetAuditLogConfig
+
 newtype instance FeatureDefaults ConsumableNotificationsConfig
   = ConsumableNotificationsDefaults (LockableFeature ConsumableNotificationsConfig)
   deriving stock (Eq, Show)
