@@ -17,6 +17,7 @@
 
 module API.TeamUserSearch (tests) where
 
+import API.Search (testWithBothIndices)
 import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState, refreshIndex)
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (initiateEmailUpdateAutoActivate)
@@ -33,7 +34,7 @@ import Imports
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, (@?=))
-import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
+import Util (Brig, Galley, randomEmail)
 import Wire.API.User (User (..), userEmail, userId)
 import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Search
@@ -44,14 +45,12 @@ tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr _galley brig = do
   pure $
     testGroup "teams user search" $
-      [ testWithNewIndex "can find user by email" (testSearchByEmailSameTeam brig),
-        testWithNewIndex "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
-        testWithNewIndex "sorting by some properties works" (testSort brig),
-        testWithNewIndex "call to search with remaining properties succeeds" (testSortCallSucceeds brig),
-        testWithNewIndex "query with paging state" (testEmptyQuerySortedWithPagination brig)
+      [ testWithBothIndices opts mgr "can find user by email" (testSearchByEmailSameTeam brig),
+        testWithBothIndices opts mgr "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
+        testWithBothIndices opts mgr "sorting by some properties works" (testSort brig),
+        testWithBothIndices opts mgr "call to search with remaining properties succeeds" (testSortCallSucceeds brig),
+        testWithBothIndices opts mgr "query with paging state" (testEmptyQuerySortedWithPagination brig)
       ]
-  where
-    testWithNewIndex name f = test mgr name $ withSettingsOverrides opts f
 
 testSearchByEmail :: (HasCallStack, TestConstraints m) => Brig -> m (TeamId, UserId, User) -> Bool -> m ()
 testSearchByEmail brig mkSearcherAndSearchee canFind = do

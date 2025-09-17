@@ -1675,7 +1675,7 @@ type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 type SearchAPI =
   Named
     "browse-team"
-    ( Summary "[STUB] (email query param is ignored) - Browse team for members (requires add-user permission)"
+    ( Summary "Browse team for members (requires add-user permission)"
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId

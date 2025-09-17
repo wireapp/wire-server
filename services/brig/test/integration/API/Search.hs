@@ -26,6 +26,7 @@
 
 module API.Search
   ( tests,
+    testWithBothIndices,
   )
 where
 
@@ -35,12 +36,13 @@ import API.User.Util
 import Bilge
 import Bilge.Assert
 import Brig.App (initHttpManagerWithTLSConfig)
-import Brig.Index.Eval (runCommand)
+import Brig.Index.Eval (initIndex, runCommand)
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (ElasticSearchOpts)
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
+import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
 import Control.Lens ((.~), (?~), (^.))
@@ -792,8 +794,8 @@ withESProxy lg opts migrationIndexName f = do
   liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
   withESProxyOnly [indexName] opts $ flip f indexName
 
-createEsIndexCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
-createEsIndexCommand logger opts newIndexName migrationIndexName =
+mkElasticSettings :: Opts.Opts -> IndexName -> IndexName -> ElasticSettings
+mkElasticSettings opts newIndexName migrationIndexName =
   let esNewOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
       replicas = 2
       shards = 2
@@ -804,6 +806,11 @@ createEsIndexCommand logger opts newIndexName migrationIndexName =
           & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
           & IndexOpts.esIndexShardCount .~ shards
           & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+   in esSettings
+
+createEsIndexCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
+createEsIndexCommand logger opts newIndexName migrationIndexName =
+  let esSettings = mkElasticSettings opts newIndexName migrationIndexName
    in runCommand logger $ Create esSettings opts.galley
 
 -- | Gives a URL to a HTTP proxy server to the continuation. The proxy is only
@@ -877,7 +884,12 @@ optsForOldIndex opts migrationIndexName = do
 createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Text -> Value -> m ()
 createIndexWithMapping lg opts migrationIndexName name val = do
   let indexName = ES.IndexName name
-  liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
+  let elasticSettings = mkElasticSettings opts indexName migrationIndexName
+      settings = mkCreateIndexSettings elasticSettings
+      conn = elasticSettings ^. esConnection
+
+  e <- liftIO $ initIndex lg conn opts.galley
+  runIndexIO e $ createIndexWithoutMapping True settings
   mappingReply <- runBH opts $ ES.putNamedMapping indexName mappingName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply
@@ -895,7 +907,14 @@ runBH opts action = do
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 
---- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
+-- | This was generated from Brig.User.Search.Index.indexMapping at commit 18885bc
+-- how to generate:
+-- - run `cabal repl brig`
+-- - ghci> import Brig.User.Search.Index
+--   ghci> import Data.Aeson
+--   ghci> import qualified Data.ByteString.Lazy.Char8 as BL
+--   ghci> BL.putStrLn $ encode indexMapping
+-- - copy the output, format and paste it here
 oldMapping :: Value
 oldMapping =
   fromJust $
@@ -931,6 +950,11 @@ oldMapping =
         }
       },
       "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "email_unvalidated": {
+      "index": false,
       "store": false,
       "type": "text"
     },

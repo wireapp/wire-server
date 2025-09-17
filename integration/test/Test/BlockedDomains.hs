@@ -54,11 +54,11 @@ testCannotChangeOwnEmailWithBlockedDomain = do
           pure ("zuid=" <> cookie, token)
 
       username2 <- randomName
-      bindResponse (putSelfEmail validUser cookie token (username2 <> "@" <> blockedDomain)) $ \resp -> do
+      bindResponse (updateEmail validUser (username2 <> "@" <> blockedDomain) cookie token) $ \resp -> do
         resp.status `shouldMatchInt` 451
         resp.json %. "label" `shouldMatch` "domain-blocked-for-registration"
 
-      putSelfEmail validUser cookie token (username2 <> "@" <> validDomain) >>= assertSuccess
+      updateEmail validUser (username2 <> "@" <> validDomain) cookie token >>= assertSuccess
 
 testCannotChangeTeamMemberEmailWithBlockedDomain :: (HasCallStack) => App ()
 testCannotChangeTeamMemberEmailWithBlockedDomain = do
