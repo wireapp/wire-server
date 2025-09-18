@@ -17,6 +17,15 @@ bertZHost = "nginz-https.bert.example.com"
 kermitZHost :: String
 kermitZHost = "nginz-https.kermit.example.com"
 
+-- | Create a `MultiIngressDomainConfig` JSON object with the given @zhost@
+makeSpDomainConfig :: String -> Value
+makeSpDomainConfig zhost =
+  object
+    [ "spAppUri" .= ("https://webapp." ++ zhost),
+      "spSsoUri" .= ("https://nginz-https." ++ zhost ++ "/sso"),
+      "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+    ]
+
 testMultiIngressIdp :: (HasCallStack) => App ()
 testMultiIngressIdp = do
   withModifiedBackend
@@ -28,18 +37,8 @@ testMultiIngressIdp = do
             >=> setField
               "saml.spDomainConfigs"
               ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= "https://webapp.ernie.example.com",
-                          "spSsoUri" .= "https://nginz-https.ernie.example.com/sso",
-                          "contacts" .= [object ["type" .= "ContactTechnical"]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= "https://webapp.bert.example.com",
-                          "spSsoUri" .= "https://nginz-https.bert.example.com/sso",
-                          "contacts" .= [object ["type" .= "ContactTechnical"]]
-                        ]
+                  [ ernieZHost .= makeSpDomainConfig ernieZHost,
+                    bertZHost .= makeSpDomainConfig bertZHost
                   ]
               )
       }
@@ -115,18 +114,8 @@ testMultiIngressAtMostOneIdPPerDomain = do
             >=> setField
               "saml.spDomainConfigs"
               ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= "https://webapp.ernie.example.com",
-                          "spSsoUri" .= "https://nginz-https.ernie.example.com/sso",
-                          "contacts" .= [object ["type" .= "ContactTechnical"]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= "https://webapp.bert.example.com",
-                          "spSsoUri" .= "https://nginz-https.bert.example.com/sso",
-                          "contacts" .= [object ["type" .= "ContactTechnical"]]
-                        ]
+                  [ ernieZHost .= makeSpDomainConfig ernieZHost,
+                    bertZHost .= makeSpDomainConfig bertZHost
                   ]
               )
       }
