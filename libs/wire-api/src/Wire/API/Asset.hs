@@ -50,6 +50,9 @@ module Wire.API.Asset
     defAssetSettings,
     setAssetPublic,
     setAssetRetention,
+    setAssetFiletype,
+    setAssetConvId,
+    setAssetFilename,
     AssetRetention (..),
     assetRetentionSeconds,
     assetExpiringSeconds,
@@ -63,6 +66,7 @@ module Wire.API.Asset
 where
 
 import Cassandra qualified as C
+import Codec.MIME.Parse qualified as MIMEP
 import Codec.MIME.Type qualified as MIME
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -286,17 +290,20 @@ mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b))
 --------------------------------------------------------------------------------
 -- AssetSettings
 
--- | Settings provided during upload.
+-- \| Settings provided during upload.
 data AssetSettings = AssetSettings
   { _setAssetPublic :: Bool,
-    _setAssetRetention :: Maybe AssetRetention
+    _setAssetRetention :: Maybe AssetRetention,
+    _setAssetConvId :: Maybe (Qualified ConvId),
+    _setAssetFilename :: Maybe Text,
+    _setAssetFiletype :: Maybe AssetMIMEType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSettings)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetSettings)
 
 defAssetSettings :: AssetSettings
-defAssetSettings = AssetSettings False Nothing
+defAssetSettings = AssetSettings False Nothing Nothing Nothing Nothing
 
 instance ToSchema AssetSettings where
   schema =
@@ -304,6 +311,18 @@ instance ToSchema AssetSettings where
       AssetSettings
         <$> _setAssetPublic .= (fromMaybe False <$> optField "public" schema)
         <*> _setAssetRetention .= maybe_ (optField "retention" schema)
+        <*> _setAssetConvId .= maybe_ (optField "convId" schema)
+        <*> _setAssetFilename .= maybe_ (optField "filename" schema)
+        <*> _setAssetFiletype .= maybe_ (optField "filetype" schema)
+
+newtype AssetMIMEType = AssetMIMEType {getAssetMIMEType :: MIME.Type}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetMIMEType)
+
+instance ToSchema AssetMIMEType where
+  schema =
+    (MIME.showType . getAssetMIMEType) .= (AssetMIMEType <$> parsedText "MIMEType" (maybe (Left "Invalid MIME type") Right . MIMEP.parseMIMEType))
 
 --------------------------------------------------------------------------------
 -- AssetRetention
