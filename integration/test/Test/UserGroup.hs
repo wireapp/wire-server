@@ -390,3 +390,56 @@ testUserGroupRemovalOnDelete = do
   bindResponse (getUserGroup alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "members" `shouldMatch` [charlieId]
+
+testUserGroupUpdateChannels :: (HasCallStack) => App ()
+testUserGroupUpdateChannels = do
+  (alice, tid, [_bob]) <- createTeam OwnDomain 2
+
+  ug <-
+    createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
+      >>= getJSON 200
+  gid <- ug %. "id" & asString
+
+  convId <-
+    postConversation alice (defProteus {team = Just tid})
+      >>= getJSON 201
+      >>= objConvId
+  updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
+
+  -- bobId <- asString $ bob %. "id"
+  bindResponse (getUserGroup alice gid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+-- FUTUREWORK: check the actual associated channels
+--  resp.json %. "members" `shouldMatch` [bobId]
+
+testUserGroupUpdateChannelsNonAdmin :: (HasCallStack) => App ()
+testUserGroupUpdateChannelsNonAdmin = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  ug <-
+    createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
+      >>= getJSON 200
+  gid <- ug %. "id" & asString
+
+  convId <-
+    postConversation alice (defProteus {team = Just tid})
+      >>= getJSON 201
+      >>= objConvId
+  updateUserGroupChannels bob gid [convId.id_] >>= assertLabel 404 "user-group-not-found"
+
+testUserGroupUpdateChannelsNonExisting :: (HasCallStack) => App ()
+testUserGroupUpdateChannelsNonExisting = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  (bob, _, _) <- createTeam OwnDomain 1
+
+  ug <-
+    createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
+      >>= getJSON 200
+  gid <- ug %. "id" & asString
+
+  convId <-
+    postConversation alice (defProteus {team = Just tid})
+      >>= getJSON 201
+      >>= objConvId
+  updateUserGroupChannels bob gid [convId.id_] >>= assertLabel 404 "user-group-not-found"

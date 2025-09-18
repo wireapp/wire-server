@@ -7,9 +7,11 @@
 module Wire.MockInterpreters.UserGroupStore where
 
 import Control.Lens ((%~), _2)
+import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Qualified (Qualified (Qualified))
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (Vector, fromList)
@@ -21,7 +23,7 @@ import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Wire.API.Pagination
 import Wire.API.User
-import Wire.API.UserGroup
+import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
@@ -62,6 +64,7 @@ userGroupStoreTestInterpreter =
     AddUser gid uid -> addUserImpl gid uid
     UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
+    UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl gid convIds
 
 updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsersImpl gid uids = do
@@ -176,6 +179,25 @@ removeUserImpl gid uid = do
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
       f (Just g) = Just (g {members = Identity . fromList $ toList (runIdentity g.members) \\ [uid]} :: UserGroup)
+
+  modifyUserGroupsGidOnly gid (Map.alter f)
+
+updateUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r) =>
+  UserGroupId ->
+  Vector ConvId ->
+  Sem r ()
+updateUserGroupChannelsImpl gid convIds = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) =
+        Just
+          ( g
+              { channels = Identity $ Just $ flip Qualified (Domain "<local>") <$> convIds,
+                channelsCount = Just $ length convIds
+              } ::
+              UserGroup
+          )
 
   modifyUserGroupsGidOnly gid (Map.alter f)
 
