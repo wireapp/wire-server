@@ -30,6 +30,7 @@ config:
   settings:
     maxTotalBytes: 104857632 # limit to 100 MiB + 32 bytes
     downloadLinkTTL: 300 # Seconds
+    assetAuditLogEnabled: false
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     disabledAPIVersions: [ development ]
