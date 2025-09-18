@@ -1,0 +1,9 @@
+When a SAML IdP is created on a multi-ingress domain (implying that
+multi-ingress domains are configured in Spar) the domain is added as `domain`
+field to that IdP's `extraInfo` (`WireIdP` type in Haskell.) To avoid confusion
+in later lookups, at most one IdP can be configured per multi-ingress domain.
+If multi-ingress is not configured or it's not configured for the specific
+domain, no `domain` field gets added to the IdP. This guards against creating
+multiple IdPs and then assigning them to multi-ingress domains. Thus, users who
+don't use multi-ingress don't observe any change. This feature only opens the
+door to later provide an IdP for a multi-ingress domain.
