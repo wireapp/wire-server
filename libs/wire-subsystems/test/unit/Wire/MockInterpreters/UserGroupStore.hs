@@ -11,7 +11,7 @@ import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (Vector, fromList)
@@ -65,6 +65,7 @@ userGroupStoreTestInterpreter =
     UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl gid convIds
+    ListUserGroupChannels gid -> listUserGroupChannelsImpl gid
 
 updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsersImpl gid uids = do
@@ -200,6 +201,14 @@ updateUserGroupChannelsImpl gid convIds = do
           )
 
   modifyUserGroupsGidOnly gid (Map.alter f)
+
+listUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r) =>
+  UserGroupId ->
+  Sem r (Vector ConvId)
+listUserGroupChannelsImpl gid =
+  foldMap (fmap qUnqualified) . (runIdentity . (.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
+    <$> get @(Map (TeamId, UserGroupId) UserGroup)
 
 ----------------------------------------------------------------------
 

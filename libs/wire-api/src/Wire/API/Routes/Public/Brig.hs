@@ -314,7 +314,7 @@ type UserGroupAPI =
     )
     :<|> Named
            "get-user-group"
-           ( Summary "[STUB] (channels in response not implemented)"
+           ( Summary "Fetch a group accessible from the logged-in user"
                :> From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
@@ -331,7 +331,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "get-user-groups"
-           ( Summary "[STUB] (channelsCount not implemented)"
+           ( Summary "Fetch groups accessible from the logged-in user"
                :> From 'V10
                :> ZLocalUser
                :> "user-groups"
@@ -342,6 +342,7 @@ type UserGroupAPI =
                :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
                :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
                :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
+               :> QueryFlag "include_channels"
                :> QueryFlag "include_member_count"
                :> Get '[JSON] UserGroupPage
            )

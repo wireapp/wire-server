@@ -34,5 +34,6 @@ data UserGroupSubsystem m a where
   RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
   RemoveUserFromAllGroups :: UserId -> TeamId -> UserGroupSubsystem m ()
   UpdateChannels :: UserId -> UserGroupId -> Vector ConvId -> UserGroupSubsystem m ()
+  ListChannels :: UserId -> UserGroupId -> UserGroupSubsystem m (Vector ConvId)
 
 makeSem ''UserGroupSubsystem

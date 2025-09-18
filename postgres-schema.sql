@@ -104,6 +104,17 @@ CREATE TABLE public.user_group_channel (
 );
 
 
+
+--
+-- Name: user_group_channel; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_group_channel (
+    user_group_id uuid NOT NULL,
+    conv_id uuid NOT NULL
+);
+
+
 ALTER TABLE public.user_group_channel OWNER TO "wire-server";
 
 --

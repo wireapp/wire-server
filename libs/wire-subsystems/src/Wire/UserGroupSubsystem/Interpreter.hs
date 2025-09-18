@@ -55,6 +55,7 @@ interpretUserGroupSubsystem = interpret $ \case
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
   RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
   UpdateChannels performer groupId channelIds -> updateChannels performer groupId channelIds
+  ListChannels performer groupId -> listChannels performer groupId
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
@@ -397,3 +398,17 @@ updateChannels performer groupId channelIds = do
   pushNotifications
     [ mkEvent performer (UserGroupUpdated groupId) admins
     ]
+
+listChannels ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Sem r (Vector ConvId)
+listChannels performer groupId = do
+  void $ getUserGroup performer groupId >>= note UserGroupNotFound
+  void $ getUserTeam performer >>= note UserGroupNotATeamAdmin
+  Store.listUserGroupChannels groupId

@@ -423,8 +423,9 @@ testUserGroupUpdateChannels = do
     notif %. "payload.0.user_group.id" `shouldMatch` gid
 
   -- bobId <- asString $ bob %. "id"
-  bindResponse (getUserGroup alice gid) $ \resp -> do
+  bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    resp.json %. "channels" `shouldMatch` [object ["id" .= convId.id_, "domain" .= convId.domain]]
 
 -- FUTUREWORK: check the actual associated channels
 --  resp.json %. "members" `shouldMatch` [bobId]

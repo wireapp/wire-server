@@ -54,6 +54,7 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
+    ListUserGroupChannels gid -> listUserGroupChannels gid
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do
@@ -440,6 +441,28 @@ updateUserGroupChannels gid convIds = do
           insert into user_group_channel (user_group_id, conv_id)  select * from unnest ($1 :: uuid[], $2 :: uuid[])
           on conflict (user_group_id, conv_id) do nothing
           |]
+
+listUserGroupChannels ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
+  UserGroupId ->
+  Sem r (Vector ConvId)
+listUserGroupChannels gid = do
+  pool <- input
+  eitherErrorOrUnit <- liftIO $ use pool session
+  either throw pure eitherErrorOrUnit
+  where
+    session :: Session (Vector ConvId)
+    session = statement gid selectStatement
+
+    selectStatement :: Statement UserGroupId (Vector ConvId)
+    selectStatement =
+      dimap
+        toUUID
+        (fmap Id)
+        [vectorStatement|
+            select (conv_id :: uuid) from user_group_channel where user_group_id = ($1 :: uuid)
+            |]
 
 crudUser ::
   forall r.

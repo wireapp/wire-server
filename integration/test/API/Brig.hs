@@ -1061,6 +1061,11 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
+getUserGroupWithChannels :: (MakesValue user) => user -> String -> App Response
+getUserGroupWithChannels user gid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
+  submit "GET" $ req & addQueryParams [("include_channels", "true")]
+
 updateUserGroupChannels :: (MakesValue user) => user -> String -> [String] -> App Response
 updateUserGroupChannels user gid convIds = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "channels"]
