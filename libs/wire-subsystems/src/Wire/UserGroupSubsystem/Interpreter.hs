@@ -353,7 +353,7 @@ removeUserFromAllGroups uid tid = do
     go [] = pure ()
 
     nextPage mug =
-      Store.getUserGroups $
+      fmap (.page) . Store.getUserGroups $
         UserGroupPageRequest
           { pageSize = def,
             sortOrder = Desc,

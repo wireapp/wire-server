@@ -127,6 +127,7 @@ import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
@@ -148,6 +149,7 @@ servantSitemap ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserGroupSubsystem r,
     Member TeamSubsystem r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
@@ -222,6 +224,7 @@ accountAPI ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserGroupSubsystem r,
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member UserStore r,
@@ -627,7 +630,8 @@ deleteUserNoAuthH ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse

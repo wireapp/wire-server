@@ -150,6 +150,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
@@ -903,7 +904,8 @@ deleteSelfUser ::
     Member PropertySubsystem r,
     Member HashPassword r,
     Member RateLimit r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -975,7 +977,8 @@ verifyDeleteUser ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -1003,7 +1006,8 @@ ensureAccountDeleted ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1052,7 +1056,8 @@ deleteAccount ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   User ->
   Sem r ()
@@ -1064,8 +1069,9 @@ deleteAccount user = do
     for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
 
     PropertySubsystem.onUserDeleted uid
-
     UserStore.deleteUser user
+
+  traverse_ (removeUserFromAllGroups uid) user.userTeam
 
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))
