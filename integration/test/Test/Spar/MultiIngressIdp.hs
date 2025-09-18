@@ -83,6 +83,7 @@ testMultiIngressIdp = do
         resp.status `shouldMatchInt` 409
         resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
+      -- Delete the existing IdP, because there can only be one per domain
       deleteIdp owner idpId `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 204
 
