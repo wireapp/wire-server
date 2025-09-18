@@ -882,7 +882,7 @@ specCRUDIdentityProvider = do
         uid <- call $ userId <$> randomUser (env ^. teBrig)
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) idpmeta
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "zuser is a team member, but not a team owner" $ do
       it "responds with 'insufficient-permissions' and a helpful message" $ do
         env <- ask
