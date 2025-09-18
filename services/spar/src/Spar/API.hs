@@ -597,7 +597,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
     -- there is little to be gained here: we only use old issuers to find users that have not
     -- been migrated yet, and if an old user points to a deleted idp, it just means that we
-    -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
+    -- won't find any users to migrate.  still, doesn't hurt much to look either.  so we
     -- leave old issuers dangling for now.
 
     updateReplacingIdP :: IdP -> Sem r ()
