@@ -95,12 +95,74 @@ testMultiIngressIdp = do
         resp.status `shouldMatchInt` 200
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` bertZHost
 
-      -- From configured domain to unconfigured
-      updateIdpWithZHost owner (Just kermitZHost) idpId2 idpmeta2 `bindResponse` \resp -> do
+-- We must guard against domains being filled up with multiple IdPs and then
+-- being configured as multi-ingress domains. Then, we'd have multiple IdPs for
+-- a multi-ingress domain and cannot decide which to choose. The solution to
+-- this is that unconfigured domains' IdPs store no domain. I.e. the assignment
+-- of domains to IdPs begins when the domain is configured as multi-ingress
+-- domain.
+testUnconfiguredDomain :: (HasCallStack) => App ()
+testUnconfiguredDomain = do
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              (object [ernieZHost .= makeSpDomainConfig ernieZHost])
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      SAML.SampleIdP idpmeta1 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      idpId1 <-
+        createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
+          resp.jsonBody %. "id" >>= asString
+
+      -- From configured domain to unconfigured -> no multi-ingress domain
+      updateIdpWithZHost owner (Just kermitZHost) idpId1 idpmeta1 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
+      getIdp owner idpId1 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+
+      -- From unconfigured back to configured -> add multi-ingress domain
+      updateIdpWithZHost owner (Just ernieZHost) idpId1 idpmeta1 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
+
+      getIdp owner idpId1 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
+
+      -- Create unconfigured -> no multi-ingress domain
+      SAML.SampleIdP idpmeta2 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      idpId2 <-
+        createIdpWithZHost owner (Just kermitZHost) idpmeta2 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+          resp.jsonBody %. "id" >>= asString
+
       getIdp owner idpId2 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+
+      -- Create a second unconfigured -> no multi-ingress domain
+      SAML.SampleIdP idpmeta3 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      idpId3 <-
+        createIdpWithZHost owner (Just kermitZHost) idpmeta3 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
+          resp.jsonBody %. "id" >>= asString
+
+      getIdp owner idpId3 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
