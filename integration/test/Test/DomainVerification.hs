@@ -703,6 +703,67 @@ testScimOnlyWithRegisteredEmailDomain = do
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
+testScimAdminChangesEmail :: (HasCallStack) => App ()
+testScimAdminChangesEmail = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  emailDomain <- randomDomain
+
+  setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
+  setTeamFeatureStatus owner tid "domainRegistration" "enabled" >>= assertSuccess
+  setTeamFeatureStatus owner tid "sso" "enabled" >>= assertSuccess
+
+  setup <- setupOwnershipTokenForTeam owner emailDomain
+  authorizeTeam owner emailDomain setup.ownershipToken >>= assertSuccess
+
+  (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+
+  updateTeamInvite owner emailDomain (object ["team_invite" .= "not-allowed", "sso" .= idpId]) >>= assertSuccess
+
+  tok <- createScimToken owner def {idp = Just idpId} >>= getJSON 200 >>= (%. "token") >>= asString
+  let email = "user@" <> emailDomain
+      extId = email
+  scimUser <- randomScimUserWithEmail extId email
+  uid <- bindResponse (createScimUser owner tok scimUser) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "id" >>= asString
+
+  void $ loginWithSamlEmail True tid email (idpId, idpMeta)
+  getScimUser OwnDomain tok uid `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= email]]
+
+  newEmail <- randomEmail
+  updatedScimUser <- setField "emails" (toJSON [object ["value" .= newEmail]]) scimUser
+  bindResponse (updateScimUser OwnDomain tok uid updatedScimUser) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.jsonBody %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+  getScimUser OwnDomain tok uid `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+
+  void $ loginWithSamlEmail True tid email (idpId, idpMeta)
+  bindResponse (getDomainRegistrationFromEmail OwnDomain Versioned email) \resp -> do
+    resp.status `shouldMatchInt` 200
+    printJSON resp.jsonBody
+
+  updatedScimUser' <- setField "externalId" newEmail updatedScimUser
+  bindResponse (updateScimUser OwnDomain tok uid updatedScimUser') $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.jsonBody %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
+    resp.jsonBody %. "externalId" `shouldMatch` newEmail
+
+  getScimUser OwnDomain tok uid `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
+    res.json %. "externalId" `shouldMatch` newEmail
+
+  void $ loginWithSamlEmail True tid newEmail (idpId, idpMeta)
+  bindResponse (getDomainRegistrationFromEmail OwnDomain Versioned newEmail) \resp -> do
+    resp.status `shouldMatchInt` 200
+    print "XXX here"
+    printJSON resp.jsonBody
+
 testScimAndSamlWithRegisteredEmailDomain :: (HasCallStack) => App ()
 testScimAndSamlWithRegisteredEmailDomain = do
   (owner, tid, _) <- createTeam OwnDomain 1
