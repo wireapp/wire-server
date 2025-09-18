@@ -111,6 +111,7 @@ import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
@@ -933,11 +934,11 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   for_ cc $ \c ->
     E.getConversation c >>= \conv ->
       for_ conv $ \dc ->
-        case dc.metadata.cnvmType of
-          One2OneConv ->
-            E.deleteConversation dc.id_
-          _ ->
-            when (remove `isMember` dc.localMembers) $ do
+        when (remove `isMember` dc.localMembers) $
+          case dc.metadata.cnvmType of
+            One2OneConv ->
+              E.deleteConversation dc.id_
+            _ -> do
               E.deleteMembers c (UserList [remove] [])
               let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
                   targets =
@@ -1331,7 +1332,7 @@ removeTeamCollaborator lusr tid rusr = do
     Log.field "targets" (toByteString rusr)
       . Log.field "action" (Log.val "Teams.removeTeamCollaborator")
   zusrMember <- E.getTeamMember tid (tUnqualified lusr)
-  void $ permissionCheck RemoveTeamMember zusrMember
+  void $ permissionCheck RemoveTeamCollaborator zusrMember
   toNotify <-
     handleImpossibleErrors $
       getFeatureForTeam @LimitedEventFanoutConfig tid
@@ -1344,11 +1345,12 @@ removeTeamCollaborator lusr tid rusr = do
   internalRemoveTeamCollaborator rusr tid
   now <- Now.get
   let e = newEvent tid now (EdCollaboratorRemove rusr)
+  members <- E.getTeamMembers tid
   pushNotifications
     [ def
         { origin = Just $ tUnqualified lusr,
           json = toJSONObject e,
-          recipients = [userRecipient $ tUnqualified lusr]
+          recipients = members <&> \m -> Recipient (m ^. userId) RecipientClientsAll
         }
     ]
   where

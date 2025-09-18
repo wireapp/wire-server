@@ -4,7 +4,7 @@ import API.Brig
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
-import Notifications (isTeamCollaboratorAddedNotif, isTeamMemberLeaveNotif)
+import Notifications (isTeamCollaboratorAddedNotif, isTeamCollaboratorRemovededNotif, isTeamMemberLeaveNotif)
 import SetupHelpers
 import Testlib.Prelude
 
@@ -237,15 +237,21 @@ testRemoveCollaboratorInTeamConversation = do
     removeTeamCollaborator owner team bob >>= assertSuccess
 
     bobUnqualifiedId <- bob %. "qualified_id.id"
-    let checkEvent :: (MakesValue a) => a -> App ()
-        checkEvent evt = do
+    let checkLeaveEvent :: (MakesValue a) => a -> App ()
+        checkLeaveEvent evt = do
           evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId
           evt %. "payload.0.team" `shouldMatch` team
           evt %. "transient" `shouldMatch` True
+        checkRemoveEvent :: (MakesValue a) => a -> App ()
+        checkRemoveEvent evt = do
+          evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId
+          evt %. "payload.0.team" `shouldMatch` team
+          evt %. "transient" `shouldMatch` False
 
-    awaitMatch isTeamMemberLeaveNotif wsOwner >>= checkEvent
-    awaitMatch isTeamMemberLeaveNotif wsBob >>= checkEvent
-    assertNoEvent 0 wsAlice
+    awaitMatch isTeamMemberLeaveNotif wsOwner >>= checkLeaveEvent
+    awaitMatch isTeamMemberLeaveNotif wsBob >>= checkLeaveEvent
+    awaitMatch isTeamCollaboratorRemovededNotif wsOwner >>= checkRemoveEvent
+    awaitMatch isTeamCollaboratorRemovededNotif wsAlice >>= checkRemoveEvent
 
   getConversation alice conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
