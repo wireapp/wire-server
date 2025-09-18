@@ -100,11 +100,13 @@ uploadV3 ::
   V3.Principal ->
   V3.AssetKey ->
   V3.AssetHeaders ->
+  -- | Optional JSON with audit metadata to store as S3 metadata under 'wire-metadata'
+  Maybe Text ->
   Maybe V3.AssetToken ->
   -- | streaming payload
   ConduitM () ByteString (ResourceT IO) () ->
   ExceptT Error App ()
-uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
+uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mWireMetadata tok src = do
   Log.info $
     "remote" .= val "S3"
       ~~ "asset.owner" .= toByteString prc
@@ -119,7 +121,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
   let createReq =
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType ct
-          & createMultipartUpload_metadata .~ metaHeaders tok prc
+          & createMultipartUpload_metadata .~ metaHeadersWithWire tok prc mWireMetadata
 
   cntRef <- liftIO $ newIORef (0 :: Int)
 
@@ -314,6 +316,11 @@ metaHeaders tok prc =
         Just (setAmzMetaPrincipal prc)
       ]
 
+metaHeadersWithWire :: Maybe V3.AssetToken -> V3.Principal -> Maybe Text -> HML.HashMap Text Text
+metaHeadersWithWire tok prc wireMeta =
+  let base = metaHeaders tok prc
+   in maybe base (\wm -> HML.insert hAmzWireMetadata wm base) wireMeta
+
 -------------------------------------------------------------------------------
 -- S3 Metadata Headers
 
@@ -328,6 +335,9 @@ hAmzMetaProvider = "provider"
 
 hAmzMetaToken :: Text
 hAmzMetaToken = "token"
+
+hAmzWireMetadata :: Text
+hAmzWireMetadata = "wire-metadata"
 
 -------------------------------------------------------------------------------
 -- S3 Metadata Setters

@@ -45,7 +45,9 @@ import Control.Lens (set, (^.))
 import Control.Monad.Trans.Resource
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
+import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString.Char8
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
@@ -54,6 +56,7 @@ import qualified Data.List as List
 import Data.Qualified
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Data.UUID.V4
@@ -67,14 +70,20 @@ upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (A
 upload own bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
-  -- Enforce audit metadata when feature is enabled
   auditEnabled <- asks (.options.settings.assetAuditLogEnabled)
-  when auditEnabled $ do
-    let hasConv = isJust (sets ^. V3.setAssetConvId)
-        hasName = isJust (sets ^. V3.setAssetFilename)
-        hasType = isJust (sets ^. V3.setAssetFiletype)
-    unless (hasConv && hasName && hasType) $
-      throwE missingAuditMetadata
+  let mWireMetaText = do
+        guard auditEnabled
+        conv <- sets ^. V3.setAssetConvId
+        name <- sets ^. V3.setAssetFilename
+        typ <- sets ^. V3.setAssetFiletype
+        let val =
+              Aeson.object
+                [ "convId" Aeson..= conv,
+                  "filename" Aeson..= name,
+                  "filetype" Aeson..= typ
+                ]
+        pure (Text.decodeUtf8 (LBS.toStrict (Aeson.encode val)))
+  when (auditEnabled && isNothing mWireMetaText) $ throwE missingAuditMetadata
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength
@@ -85,7 +94,7 @@ upload own bdy = do
   tok <- if sets ^. V3.setAssetPublic then pure Nothing else Just <$> randToken
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
   key <- qualifyLocal (V3.AssetKeyV3 ast ret)
-  void $ S3.uploadV3 own (tUnqualified key) hdrs tok src
+  void $ S3.uploadV3 own (tUnqualified key) hdrs mWireMetaText tok src
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of
