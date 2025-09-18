@@ -37,5 +37,6 @@ data UserGroupStore m a where
   AddUser :: UserGroupId -> UserId -> UserGroupStore m ()
   UpdateUsers :: UserGroupId -> Vector UserId -> UserGroupStore m ()
   RemoveUser :: UserGroupId -> UserId -> UserGroupStore m ()
+  UpdateUserGroupChannels :: TeamId -> UserGroupId -> Vector ConvId -> UserGroupStore m ()
 
 makeSem ''UserGroupStore

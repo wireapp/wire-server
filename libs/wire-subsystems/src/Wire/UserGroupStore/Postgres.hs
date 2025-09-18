@@ -29,7 +29,7 @@ import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Pagination
 import Wire.API.User.Profile
-import Wire.API.UserGroup
+import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
 
@@ -53,6 +53,7 @@ interpretUserGroupStoreToPostgres =
     AddUser gid uid -> addUser gid uid
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
+    UpdateUserGroupChannels _ gid convIds -> updateUserGroupChannels gid convIds
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do
@@ -407,6 +408,29 @@ removeUser =
     [resultlessStatement|
       delete from user_group_member where user_group_id = ($1 :: uuid) and user_id = ($2 :: uuid)
       |]
+
+updateUserGroupChannels ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
+  UserGroupId ->
+  Vector ConvId ->
+  Sem r ()
+updateUserGroupChannels gid convIds = do
+  pool <- input
+  eitherErrorOrUnit <- liftIO $ use pool session
+  either throw pure eitherErrorOrUnit
+  where
+    session :: Session ()
+    session = statement (gid, convIds) upsertStatement
+
+    upsertStatement :: Statement (UserGroupId, Vector ConvId) ()
+    upsertStatement =
+      lmap
+        (bimap toUUID (fmap toUUID))
+        $ [resultlessStatement|
+          insert into user_group_channels (user_group_id, channel_ids) values(($1 :: uuid), ($2 :: uuid[]))
+          on conflict (user_group_id) do update set channel_ids = ($2 :: uuid[])
+          |]
 
 crudUser ::
   forall r.

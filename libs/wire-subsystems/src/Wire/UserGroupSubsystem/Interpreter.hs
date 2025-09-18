@@ -23,6 +23,7 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Error
+import Wire.GalleyAPIAccess (GalleyAPIAccess, getTeamConv)
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
@@ -36,7 +37,8 @@ interpretUserGroupSubsystem ::
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -50,11 +52,13 @@ interpretUserGroupSubsystem = interpret $ \case
   AddUsers adder groupId addeeIds -> addUsers adder groupId addeeIds
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
+  UpdateChannels remover groupId channelIds -> updateChannels remover groupId channelIds
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
+  | UserGroupChannelNotFound
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -63,6 +67,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
+    UserGroupChannelNotFound -> errorToWai @E.UserGroupChannelNotFound
 
 createUserGroup ::
   ( Member UserSubsystem r,
@@ -328,3 +333,20 @@ removeUser remover groupId removeeId = do
     pushNotifications
       [ mkEvent remover (UserGroupUpdated groupId) admins
       ]
+
+updateChannels ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Vector ConvId ->
+  Sem r ()
+updateChannels performer groupId channelIds = do
+  void $ getUserGroup performer groupId >>= note UserGroupNotFound
+  teamId <- getTeamAsAdmin performer >>= note UserGroupNotATeamAdmin
+  traverse_ (getTeamConv performer teamId >=> note UserGroupChannelNotFound) channelIds
+  Store.updateUserGroupChannels teamId groupId channelIds
