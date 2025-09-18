@@ -352,3 +352,15 @@ testAssetAuditLogUpload = do
     uploadSimple owner missingMetaSettings body `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
       resp.jsonBody %. "label" `shouldMatch` "missing-audit-metadata"
+    -- Now upload again with correct metadata and expect success (2xx)
+    convUuid <- randomId
+    dom <- owner %. "qualified_id.domain" & asString
+    let goodSettings =
+          object
+            [ "public" .= False,
+              "convId" .= object ["id" .= convUuid, "domain" .= dom],
+              "filename" .= "virus.js",
+              "filetype" .= "application/javascript"
+            ]
+    uploadSimple owner goodSettings body `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
