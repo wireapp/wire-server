@@ -222,7 +222,6 @@ testMultiIngressAtMostOneIdPPerDomain = do
 
       updateIdpWithZHost owner (Just ernieZHost) idpId3 idpmeta4 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
-        printJSON resp.jsonBody
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
 
 testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain :: (HasCallStack) => App ()
