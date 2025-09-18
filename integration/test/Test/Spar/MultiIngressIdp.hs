@@ -171,14 +171,12 @@ testMultiIngressAtMostOneIdPPerDomain = do
 
       -- The edIssuer needs to stay unchanged. Otherwise, deletion will fail
       -- with a 404 (see bug https://wearezeta.atlassian.net/browse/WPB-20407)
-      idpId2 <-
-        updateIdpWithZHost owner (Just ernieZHost) idpId1 (idpmeta2 & SAML.edIssuer .~ (idpmeta1 ^. SAML.edIssuer))
-          `bindResponse` \resp -> do
-            resp.status `shouldMatchInt` 200
-            resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
-            resp.jsonBody %. "id" >>= asString
+      updateIdpWithZHost owner (Just ernieZHost) idpId1 (idpmeta2 & SAML.edIssuer .~ (idpmeta1 ^. SAML.edIssuer))
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
 
-      deleteIdp owner idpId2 `bindResponse` \resp -> do
+      deleteIdp owner idpId1 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 204
 
       SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
