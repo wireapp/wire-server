@@ -24,6 +24,7 @@ import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding (sets, (.=))
 import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Pair)
+import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as LBS hiding (replicate)
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -352,7 +353,7 @@ testAssetAuditLogUpload = do
     uploadSimple owner missingMetaSettings body `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
       resp.jsonBody %. "label" `shouldMatch` "missing-audit-metadata"
-    -- Now upload again with correct metadata and expect success (2xx)
+    -- Now upload again with correct metadata and expect success 202
     convUuid <- randomId
     dom <- owner %. "qualified_id.domain" & asString
     let goodSettings =
@@ -362,5 +363,11 @@ testAssetAuditLogUpload = do
               "filename" .= "virus.js",
               "filetype" .= "application/javascript"
             ]
-    uploadSimple owner goodSettings body `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
+    key <-
+      uploadSimple owner goodSettings body `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 201
+        resp.json %. "key"
+
+    bindResponse (downloadAsset owner owner key "nginz-https.example.com" id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "Hello Audit Log"

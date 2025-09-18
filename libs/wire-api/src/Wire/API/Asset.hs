@@ -58,6 +58,7 @@ module Wire.API.Asset
     assetExpiringSeconds,
     assetVolatileSeconds,
     retentionToTextRep,
+    AssetMIMEType (..),
 
     -- * Streaming
     AssetLocation (..),

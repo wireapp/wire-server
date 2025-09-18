@@ -21,6 +21,7 @@
 module CargoHold.S3
   ( S3AssetKey,
     S3AssetMeta (..),
+    AssetAuditLogMetadata (..),
     uploadV3,
     downloadV3,
     getMetadataV3,
@@ -52,15 +53,19 @@ import Conduit
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Control.Monad.Catch (try)
+import qualified Data.Aeson as A
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
 import qualified Data.HashMap.Lazy as HML
 import Data.Id
+import Data.Qualified (Qualified)
+import qualified Data.Schema as S
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
@@ -72,15 +77,34 @@ import Network.Wai.Utilities.Error (Error (..))
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import URI.ByteString
+import Wire.API.Asset (AssetMIMEType)
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
+
+data AssetAuditLogMetadata = AssetAuditLogMetadata
+  -- todo rename
+  { convId :: Qualified ConvId,
+    filename :: Text,
+    filetype :: AssetMIMEType
+  }
+  deriving (Eq, Show)
+  deriving (A.FromJSON, A.ToJSON) via S.Schema AssetAuditLogMetadata
+
+instance S.ToSchema AssetAuditLogMetadata where
+  schema =
+    S.object "AssetAuditLogMetadata" $
+      AssetAuditLogMetadata
+        <$> convId S..= S.field "convId" S.schema
+        <*> filename S..= S.field "filename" S.schema
+        <*> filetype S..= S.field "filetype" S.schema
 
 -- | Asset metadata tracked in S3.
 data S3AssetMeta = S3AssetMeta
   { v3AssetOwner :: V3.Principal,
     v3AssetToken :: Maybe V3.AssetToken,
-    v3AssetType :: MIME.Type -- should be ignored, see note on overrideMimeTypeAsOctetStream. FUTUREWORK: remove entirely.
+    v3AssetType :: MIME.Type, -- should be ignored, see note on overrideMimeTypeAsOctetStream. FUTUREWORK: remove entirely.
+    v3AssetAuditLogMetadata :: Maybe AssetAuditLogMetadata
   }
   deriving (Show)
 
@@ -100,13 +124,12 @@ uploadV3 ::
   V3.Principal ->
   V3.AssetKey ->
   V3.AssetHeaders ->
-  -- | Optional JSON with audit metadata to store as S3 metadata under 'wire-metadata'
-  Maybe Text ->
+  Maybe AssetAuditLogMetadata ->
   Maybe V3.AssetToken ->
   -- | streaming payload
   ConduitM () ByteString (ResourceT IO) () ->
   ExceptT Error App ()
-uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mWireMetadata tok src = do
+uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src = do
   Log.info $
     "remote" .= val "S3"
       ~~ "asset.owner" .= toByteString prc
@@ -121,7 +144,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mWireMetadata tok src
   let createReq =
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType ct
-          & createMultipartUpload_metadata .~ metaHeadersWithWire tok prc mWireMetadata
+          & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
 
   cntRef <- liftIO $ newIORef (0 :: Int)
 
@@ -208,6 +231,7 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         <$> getAmzMetaPrincipal h
         <*> Just (getAmzMetaToken h)
         <*> Just ct
+        <*> Just (getAmzAuditLogMetadata h)
 
 deleteV3 :: V3.AssetKey -> ExceptT Error App ()
 deleteV3 (s3Key . mkKey -> key) = do
@@ -224,10 +248,10 @@ deleteV3 (s3Key . mkKey -> key) = do
     req b = newDeleteObject (BucketName b) (ObjectKey key)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
-updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
+updateMetadataV3 (s3Key . mkKey -> key) meta = do
   Log.debug $
     "remote" .= val "S3"
-      ~~ "asset.owner" .= show prc
+      ~~ "asset.owner" .= show (v3AssetOwner meta)
       ~~ "asset.key" .= key
       ~~ msg (val "Updating asset metadata")
   void $ exec req
@@ -242,7 +266,7 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
       newCopyObject (BucketName b) (copySrc b) (ObjectKey key)
         & copyObject_contentType ?~ MIME.showType ct
         & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
-        & copyObject_metadata .~ metaHeaders tok prc
+        & copyObject_metadata .~ metaHeaders (v3AssetToken meta) (v3AssetOwner meta) meta.v3AssetAuditLogMetadata
 
 -- | Generate an `URI` for asset download redirects
 --
@@ -308,18 +332,14 @@ mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
     key = UUID.toText (toUUID i)
     retention = V3.retentionToTextRep r
 
-metaHeaders :: Maybe V3.AssetToken -> V3.Principal -> HML.HashMap Text Text
-metaHeaders tok prc =
+metaHeaders :: Maybe V3.AssetToken -> V3.Principal -> Maybe AssetAuditLogMetadata -> HML.HashMap Text Text
+metaHeaders tok prc wireMeta =
   HML.fromList $
     catMaybes
       [ setAmzMetaToken <$> tok,
-        Just (setAmzMetaPrincipal prc)
+        Just (setAmzMetaPrincipal prc),
+        setAmzAuditLogMetadata <$> wireMeta
       ]
-
-metaHeadersWithWire :: Maybe V3.AssetToken -> V3.Principal -> Maybe Text -> HML.HashMap Text Text
-metaHeadersWithWire tok prc wireMeta =
-  let base = metaHeaders tok prc
-   in maybe base (\wm -> HML.insert hAmzWireMetadata wm base) wireMeta
 
 -------------------------------------------------------------------------------
 -- S3 Metadata Headers
@@ -359,6 +379,12 @@ setAmzMetaPrincipal (V3.UserPrincipal u) = setAmzMetaUser u
 setAmzMetaPrincipal (V3.BotPrincipal b) = setAmzMetaBot b
 setAmzMetaPrincipal (V3.ProviderPrincipal p) = setAmzMetaProvider p
 
+setAmzAuditLogMetadata :: AssetAuditLogMetadata -> (Text, Text)
+setAmzAuditLogMetadata t = (hAmzWireMetadata, encodeAuditLogMetadata t)
+  where
+    encodeAuditLogMetadata :: AssetAuditLogMetadata -> Text
+    encodeAuditLogMetadata meta = Text.decodeUtf8 (LBS.toStrict (A.encode meta))
+
 -------------------------------------------------------------------------------
 -- S3 Metadata Getters
 
@@ -387,6 +413,12 @@ getAmzMetaToken h =
 
 parseAmzMeta :: (FromByteString a) => Text -> [(Text, Text)] -> Maybe a
 parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
+
+getAmzAuditLogMetadata :: [(Text, Text)] -> Maybe AssetAuditLogMetadata
+getAmzAuditLogMetadata = lookupCI hAmzWireMetadata >=> parseAuditLogMetadata
+  where
+    parseAuditLogMetadata :: Text -> Maybe AssetAuditLogMetadata
+    parseAuditLogMetadata t = A.decode $ fromStrict $ encodeUtf8 t
 
 -------------------------------------------------------------------------------
 -- Utilities

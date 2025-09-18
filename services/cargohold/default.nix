@@ -47,6 +47,7 @@
 , prometheus-client
 , resourcet
 , retry
+, schema-profunctor
 , servant
 , servant-client
 , servant-server
@@ -112,6 +113,7 @@ mkDerivation {
     prometheus-client
     resourcet
     retry
+    schema-profunctor
     servant
     servant-client
     servant-server
