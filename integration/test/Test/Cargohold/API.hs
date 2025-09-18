@@ -343,17 +343,12 @@ remoteDownload content = do
 
 testAssetAuditLogUpload :: (HasCallStack) => App ()
 testAssetAuditLogUpload = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
-  convUuid <- randomId
-  domain <- owner %. "qualified_id.domain" & asString
-  let settings =
-        object
-          [ "public" .= False,
-            "convId" .= object ["id" .= convUuid, "domain" .= domain],
-            "filename" .= "virus.js",
-            "filetype" .= "application/javascript"
-          ]
-      body = (applicationText, cs "Hello Audit Log")
-  -- Upload should succeed and return 201 even with extra metadata fields
-  r <- uploadSimple owner settings body
-  r.status `shouldMatchInt` 201
+  let overrides = def {cargoholdCfg = setField "settings.assetAuditLogEnabled" True}
+  withModifiedBackend overrides $ \domain -> do
+    (owner, _tid, _members) <- createTeam domain 1
+    -- Missing audit metadata should cause the upload to fail when the setting is enabled
+    let missingMetaSettings = object ["public" .= False]
+        body = (applicationText, cs "Hello Audit Log")
+    uploadSimple owner missingMetaSettings body `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.jsonBody %. "label" `shouldMatch` "missing-audit-metadata"
