@@ -316,14 +316,14 @@ instance ToSchema AssetSettings where
         <*> _setAssetFilename .= maybe_ (optField "filename" schema)
         <*> _setAssetFiletype .= maybe_ (optField "filetype" schema)
 
-newtype AssetMIMEType = AssetMIMEType {getAssetMIMEType :: MIME.Type}
+newtype AssetMIMEType = AssetMIMEType {unAssetMIMEType :: MIME.Type}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetMIMEType)
 
 instance ToSchema AssetMIMEType where
   schema =
-    (MIME.showType . getAssetMIMEType) .= (AssetMIMEType <$> parsedText "MIMEType" (maybe (Left "Invalid MIME type") Right . MIMEP.parseMIMEType))
+    (MIME.showType . unAssetMIMEType) .= (AssetMIMEType <$> parsedText "MIMEType" (maybe (Left "Invalid MIME type") Right . MIMEP.parseMIMEType))
 
 --------------------------------------------------------------------------------
 -- AssetRetention
