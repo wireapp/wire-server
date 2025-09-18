@@ -52,3 +52,6 @@ clientError = mkError status400 "client-error"
 
 serverError :: Error
 serverError = mkError status500 "server-error" "Server Error."
+
+missingAuditMetadata :: Error
+missingAuditMetadata = errorToWai @'MissingAuditMetadata

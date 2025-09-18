@@ -67,6 +67,14 @@ upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (A
 upload own bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
+  -- Enforce audit metadata when feature is enabled
+  auditEnabled <- asks (.options.settings.assetAuditLogEnabled)
+  when auditEnabled $ do
+    let hasConv = isJust (sets ^. V3.setAssetConvId)
+        hasName = isJust (sets ^. V3.setAssetFilename)
+        hasType = isJust (sets ^. V3.setAssetFiletype)
+    unless (hasConv && hasName && hasType) $
+      throwE missingAuditMetadata
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength
