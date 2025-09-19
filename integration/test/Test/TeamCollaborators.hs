@@ -4,7 +4,7 @@ import API.Brig
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
-import Notifications (isTeamCollaboratorAddedNotif, isTeamCollaboratorRemovededNotif, isTeamMemberLeaveNotif)
+import Notifications (isTeamCollaboratorAddedNotif, isTeamCollaboratorRemovedNotif, isTeamMemberLeaveNotif)
 import SetupHelpers
 import Testlib.Prelude
 
@@ -250,8 +250,8 @@ testRemoveCollaboratorInTeamConversation = do
 
     awaitMatch isTeamMemberLeaveNotif wsOwner >>= checkLeaveEvent
     awaitMatch isTeamMemberLeaveNotif wsBob >>= checkLeaveEvent
-    awaitMatch isTeamCollaboratorRemovededNotif wsOwner >>= checkRemoveEvent
-    awaitMatch isTeamCollaboratorRemovededNotif wsAlice >>= checkRemoveEvent
+    awaitMatch isTeamCollaboratorRemovedNotif wsOwner >>= checkRemoveEvent
+    awaitMatch isTeamCollaboratorRemovedNotif wsAlice >>= checkRemoveEvent
 
   getConversation alice conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200

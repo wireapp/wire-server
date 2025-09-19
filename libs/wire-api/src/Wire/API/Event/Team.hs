@@ -220,11 +220,11 @@ parseEventData MemberLeave Nothing = fail "missing event data for type 'team.mem
 parseEventData MemberLeave (Just j) = do
   let f o = EdMemberLeave <$> o .: "user"
   withObject "member leave data" f j
-parseEventData ConvCreate Nothing = fail "missing event data for type 'team.conversation-create"
+parseEventData ConvCreate Nothing = fail "missing event data for type 'team.conversation-create'"
 parseEventData ConvCreate (Just j) = do
   let f o = EdConvCreate <$> o .: "conv"
   withObject "conversation create data" f j
-parseEventData ConvDelete Nothing = fail "missing event data for type 'team.conversation-delete"
+parseEventData ConvDelete Nothing = fail "missing event data for type 'team.conversation-delete'"
 parseEventData ConvDelete (Just j) = do
   let f o = EdConvDelete <$> o .: "conv"
   withObject "conversation delete data" f j

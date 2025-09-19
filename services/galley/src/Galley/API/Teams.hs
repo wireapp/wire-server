@@ -1310,7 +1310,6 @@ removeTeamCollaborator ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
-    Member (Error DynError) r,
     Member (Error FederationError) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS NotATeamMember) r,
@@ -1334,7 +1333,6 @@ removeTeamCollaborator lusr tid rusr = do
   zusrMember <- E.getTeamMember tid (tUnqualified lusr)
   void $ permissionCheck RemoveTeamCollaborator zusrMember
   toNotify <-
-    handleImpossibleErrors $
       getFeatureForTeam @LimitedEventFanoutConfig tid
         >>= ( \case
                 FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
@@ -1345,27 +1343,11 @@ removeTeamCollaborator lusr tid rusr = do
   internalRemoveTeamCollaborator rusr tid
   now <- Now.get
   let e = newEvent tid now (EdCollaboratorRemove rusr)
-  members <- E.getTeamMembers tid
+  admins <- E.getTeamAdmins tid
   pushNotifications
     [ def
         { origin = Just $ tUnqualified lusr,
           json = toJSONObject e,
-          recipients = members <&> \m -> Recipient (m ^. userId) RecipientClientsAll
+          recipients = userRecipient rusr : map (`Recipient` RecipientClientsAll) admins
         }
     ]
-  where
-    -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
-    -- point: the user is a team member because we fetched the list of teams
-    -- they are member of, and conversely the list of teams was fetched exactly
-    -- for this user so it cannot be that the team is not found. Therefore, this
-    -- helper just drops the errors.
-    handleImpossibleErrors ::
-      Sem
-        ( ErrorS 'NotATeamMember
-            ': ErrorS 'TeamNotFound
-            ': r
-        )
-        a ->
-      Sem r a
-    handleImpossibleErrors action =
-      mapToDynamicError @'TeamNotFound (mapToDynamicError @'NotATeamMember action)
