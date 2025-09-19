@@ -164,36 +164,86 @@ testMultiIngressAtMostOneIdPPerDomain = do
           resp.status `shouldMatchInt` 201
           resp.jsonBody %. "id" >>= asString
 
+      -- Creating a second IdP for the same domain -> failure
       SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
-      void $ createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 409
-        resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+      _idpId2 <-
+        createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 409
+          resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
-      -- The edIssuer needs to stay unchanged. Otherwise, deletion will fail
-      -- with a 404 (see bug https://wearezeta.atlassian.net/browse/WPB-20407)
-      updateIdpWithZHost owner (Just ernieZHost) idpId1 (idpmeta2 & SAML.edIssuer .~ (idpmeta1 ^. SAML.edIssuer))
+      -- Create an IdP for one domain and update it to another that already has one -> failure
+      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
+      idpId3 <-
+        createIdpWithZHost owner (Just bertZHost) idpmeta2 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "id" >>= asString
+
+      updateIdpWithZHost owner (Just ernieZHost) idpId3 idpmeta3
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 409
+          resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+
+      -- Create an IdP with no domain and update it to a domain that already has one -> failure
+      SAML.SampleIdP idpmeta4 _ _ _ <- SAML.makeSampleIdPMetadata
+      idpId4 <-
+        createIdpWithZHost owner Nothing idpmeta4 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "id" >>= asString
+
+      updateIdpWithZHost owner (Just ernieZHost) idpId4 idpmeta4
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 409
+          resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+
+      -- Updating an IdP itself should still work
+      updateIdpWithZHost
+        owner
+        (Just ernieZHost)
+        idpId1
+        -- The edIssuer needs to stay unchanged. Otherwise, deletion will fail
+        -- with a 404 (see bug https://wearezeta.atlassian.net/browse/WPB-20407)
+        (idpmeta2 & SAML.edIssuer .~ (idpmeta1 ^. SAML.edIssuer))
         `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
 
+      -- After deletion of the IdP of a domain, a new one can be created
       deleteIdp owner idpId1 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 204
 
-      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
-      idpId3 <-
-        createIdpWithZHost owner (Just ernieZHost) idpmeta3 `bindResponse` \resp -> do
+      SAML.SampleIdP idpmeta5 _ _ _ <- SAML.makeSampleIdPMetadata
+      idpId5 <-
+        createIdpWithZHost owner (Just ernieZHost) idpmeta5 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.jsonBody %. "id" >>= asString
 
-      SAML.SampleIdP idpmeta4 _ _ _ <- SAML.makeSampleIdPMetadata
-      void $ createIdpWithZHost owner (Just ernieZHost) idpmeta3 `bindResponse` \resp -> do
+      -- After deletion of the IdP of a domain, one can be moved from another domain
+      SAML.SampleIdP idpmeta6 _ _ _ <- SAML.makeSampleIdPMetadata
+      createIdpWithZHost owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 409
         resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
-      updateIdpWithZHost owner (Just ernieZHost) idpId3 idpmeta4 `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
+      deleteIdp owner idpId3 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 204
+
+      idpId6 <-
+        createIdpWithZHost owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "extraInfo.domain" `shouldMatch` bertZHost
+          resp.jsonBody %. "id" >>= asString
+
+      updateIdpWithZHost owner (Just ernieZHost) idpId6 idpmeta6 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.jsonBody %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+
+      deleteIdp owner idpId5 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 204
+
+      updateIdpWithZHost owner (Just ernieZHost) idpId6 idpmeta6
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
 
 -- We only record the domain for multi-ingress setups.
 testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain :: (HasCallStack) => App ()
