@@ -15,18 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.API.AuditLog
-  ( logUpload,
-  )
-where
+module CargoHold.API.AuditLog where
 
-import CargoHold.S3 (AssetAuditLogMetadata (..))
+import CargoHold.S3 (AssetAuditLogMetadata (..), S3AssetMeta (..))
 import qualified CargoHold.Types.V3 as V3
 import Codec.MIME.Type (showType)
 import Data.ByteString.Conversion.To (toByteString)
-import Data.Domain (Domain)
 import Data.Id (botUserId)
-import Data.Qualified (qDomain, qUnqualified)
+import Data.Qualified (Local, Qualified, qDomain, qUnqualified, tDomain, tUnqualified)
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
@@ -35,8 +31,8 @@ import Wire.API.Asset (unAssetMIMEType)
 -- | Emit an audit log entry for an asset upload event.
 --
 -- When metadata is present, enrich the log with conversation and file details.
-logUpload :: (Log.MonadLogger m) => Domain -> V3.Principal -> Maybe AssetAuditLogMetadata -> m ()
-logUpload domain own mMeta =
+logUpload :: (Log.MonadLogger m) => Local V3.Principal -> Maybe AssetAuditLogMetadata -> m ()
+logUpload lwon mMeta =
   Log.info $
     base
       ~~ principal
@@ -48,7 +44,7 @@ logUpload domain own mMeta =
       "audit" .= True
         ~~ "event" .= ("file-upload" :: Text)
     principal =
-      case own of
+      case tUnqualified lwon of
         V3.UserPrincipal u ->
           "uploader.type" .= ("user" :: Text)
             ~~ "uploader.id" .= toByteString u
@@ -58,7 +54,7 @@ logUpload domain own mMeta =
         V3.ProviderPrincipal p ->
           "uploader.type" .= ("provider" :: Text)
             ~~ "uploader.id" .= toByteString p
-    principalDomain = "uploader.domain" .= toByteString domain
+    principalDomain = "uploader.domain" .= toByteString (tDomain lwon)
     audit =
       case mMeta of
         Nothing -> id
@@ -67,3 +63,49 @@ logUpload domain own mMeta =
             ~~ "conversation.domain" .= toByteString (qDomain meta.convId)
             ~~ "file.name" .= meta.filename
             ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
+
+-- | Emit an audit log entry for an asset download event.
+logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> S3AssetMeta -> m ()
+logDownload mqDownloader s3 =
+  Log.info $
+    base
+      ~~ downloader
+      ~~ audit
+      ~~ msg (val "Asset audit log: download")
+  where
+    base =
+      "audit" .= True
+        ~~ "event" .= ("file-download" :: Text)
+    downloader =
+      case mqDownloader of
+        Just qDownloader ->
+          case qUnqualified qDownloader of
+            V3.UserPrincipal u ->
+              "downloader.type" .= ("user" :: Text)
+                ~~ "downloader.id" .= toByteString u
+                ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
+            V3.BotPrincipal b ->
+              "downloader.type" .= ("bot" :: Text)
+                ~~ "downloader.id" .= toByteString (botUserId b)
+                ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
+            V3.ProviderPrincipal p ->
+              "downloader.type" .= ("provider" :: Text)
+                ~~ "downloader.id" .= toByteString p
+                ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
+        Nothing ->
+          "downloader.type" .= ("N/A internal access" :: Text)
+            ~~ "downloader.id" .= ("N/A internal access" :: Text)
+            ~~ "downloader.domain" .= ("N/A internal access" :: Text)
+    audit =
+      case v3AssetAuditLogMetadata s3 of
+        Just meta ->
+          "conversation.id" .= toByteString (qUnqualified meta.convId)
+            ~~ "conversation.domain" .= toByteString (qDomain meta.convId)
+            ~~ "file.name" .= meta.filename
+            ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
+        Nothing ->
+          -- No audit metadata present; log expected fields with N/A placeholders.
+          "conversation.id" .= ("N/A" :: Text)
+            ~~ "conversation.domain" .= ("N/A" :: Text)
+            ~~ "file.name" .= ("N/A" :: Text)
+            ~~ "file.type" .= ("N/A" :: Text)

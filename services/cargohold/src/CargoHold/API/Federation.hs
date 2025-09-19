@@ -25,8 +25,10 @@ import CargoHold.API.Error
 import CargoHold.API.V3
 import CargoHold.App
 import qualified CargoHold.S3 as S3
+import CargoHold.Types.V3 (Principal (UserPrincipal))
 import Control.Error
 import Data.Domain
+import Data.Qualified (Qualified (Qualified))
 import Imports
 import Servant.API
 import Servant.Server hiding (Handler)
@@ -42,16 +44,16 @@ federationSitemap =
   Named @"get-asset" getAsset
     :<|> Named @"stream-asset" streamAsset
 
-checkAsset :: F.GetAsset -> Handler Bool
-checkAsset ga =
+checkAsset :: Domain -> F.GetAsset -> Handler Bool
+checkAsset remote ga =
   fmap isJust . runMaybeT $
-    checkMetadata Nothing (F.key ga) (F.token ga)
+    checkMetadata (Qualified (UserPrincipal ga.user) remote) (F.key ga) (F.token ga)
 
 streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
-streamAsset _ ga = do
-  available <- checkAsset ga
+streamAsset remote ga = do
+  available <- checkAsset remote ga
   unless available (throwE assetNotFound)
   AssetSource <$> S3.downloadV3 (F.key ga)
 
 getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse
-getAsset _ = fmap F.GetAssetResponse . checkAsset
+getAsset remote = fmap F.GetAssetResponse . (checkAsset remote)

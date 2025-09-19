@@ -342,32 +342,50 @@ remoteDownload content = do
 ------------------------------------------------------------------------
 -- Asset Audit Log
 
-testAssetAuditLogUpload :: (HasCallStack) => App ()
-testAssetAuditLogUpload = do
-  let overrides = def {cargoholdCfg = setField "settings.assetAuditLogEnabled" True}
-  withModifiedBackend overrides $ \domain -> do
-    (owner, _tid, _members) <- createTeam domain 1
+-- Upload and download audit logging scenarios across two backends (A and B).
+
+-- Case 1:
+--  - Uploader: on backend A (audit enabled)
+--  - Downloader: on backend A (same backend)
+--  Expected file-update and file-download logs on backend A
+testAssetAuditLogDownloadBackendALocal :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendALocal = do
+  startDynamicBackends [cargoholdAuditLogEnabled] $ \[domainA] -> do
+    (owner, _tid, _members) <- createTeam domainA 1
     -- Missing audit metadata should cause the upload to fail when the setting is enabled
     let missingMetaSettings = object ["public" .= False]
-        body = (applicationText, cs "Hello Audit Log")
+        body = (applicationText, cs "download-me")
     uploadSimple owner missingMetaSettings body `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
       resp.jsonBody %. "label" `shouldMatch` "missing-audit-metadata"
-    -- Now upload again with correct metadata and expect success 202
-    convUuid <- randomId
-    dom <- owner %. "qualified_id.domain" & asString
-    let goodSettings =
-          object
-            [ "public" .= False,
-              "convId" .= object ["id" .= convUuid, "domain" .= dom],
-              "filename" .= "virus.js",
-              "filetype" .= "application/javascript"
-            ]
+    -- Now upload again with correct metadata and expect success 201
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
     key <-
-      uploadSimple owner goodSettings body `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 201
-        resp.json %. "key"
-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        r.json %. "key"
+    -- Download by the owner (no token needed since same backend and owner).
     bindResponse (downloadAsset owner owner key "nginz-https.example.com" id) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      BC.unpack resp.body `shouldMatch` "Hello Audit Log"
+      BC.unpack resp.body `shouldMatch` "download-me"
+
+cargoholdAuditLogEnabled :: ServiceOverrides
+cargoholdAuditLogEnabled =
+  def
+    { cargoholdCfg =
+        setField "settings.assetAuditLogEnabled" True
+          . setField "logLevel" "Info"
+          . setField "logFormat" "StructuredJSON"
+    }
+
+validAssetMetadataSettings :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Value
+validAssetMetadataSettings convId dom =
+  object
+    [ "public" .= False,
+      "convId" .= object ["id" .= convId, "domain" .= dom],
+      "filename" .= "virus.js",
+      "filetype" .= "application/javascript"
+    ]
