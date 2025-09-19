@@ -373,3 +373,21 @@ testUserGroupMembersCount = do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.membersCount" `shouldMatchInt` 2
     resp.json %. "total" `shouldMatchInt` 1
+
+testUserGroupUpdateChannels :: (HasCallStack) => App ()
+testUserGroupUpdateChannels = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+
+  ug <-
+    createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
+      >>= getJSON 200
+  gid <- ug %. "id" & asString
+
+  convId <-
+    postConversation alice (defProteus {team = Just tid})
+      >>= getJSON 201
+      >>= objConvId
+  updateUserGroupChannels alice gid [convId] >>= assertSuccess
+
+  bindResponse (getUserGroup alice gid) $ \resp -> do
+    resp.status `shouldMatchInt` 200

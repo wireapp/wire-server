@@ -1061,6 +1061,11 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
+updateUserGroupChannels :: (MakesValue user) => user -> String -> [ConvId] -> App Response
+updateUserGroupChannels user gid convIds = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "channels"]
+  submit "PUT" $ req & addJSONObject ["channels" .= convIds]
+
 data GetUserGroupsArgs = GetUserGroupsArgs
   { q :: Maybe String,
     sortByKeys :: Maybe String,

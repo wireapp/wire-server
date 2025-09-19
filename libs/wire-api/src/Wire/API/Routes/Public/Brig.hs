@@ -418,7 +418,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "update-user-group-channels"
-           ( Summary "[STUB] Update user group channels. Replaces the channels with the given list."
+           ( Summary "Replaces the channels with the given list."
                :> From 'V12
                :> ZLocalUser
                :> "user-groups"

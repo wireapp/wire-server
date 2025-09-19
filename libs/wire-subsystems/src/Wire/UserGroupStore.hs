@@ -4,6 +4,7 @@ module Wire.UserGroupStore where
 
 import Data.Id
 import Data.Json.Util
+import Data.Qualified (Qualified)
 import Data.Vector
 import Imports
 import Polysemy
@@ -37,6 +38,6 @@ data UserGroupStore m a where
   AddUser :: UserGroupId -> UserId -> UserGroupStore m ()
   UpdateUsers :: UserGroupId -> Vector UserId -> UserGroupStore m ()
   RemoveUser :: UserGroupId -> UserId -> UserGroupStore m ()
-  UpdateUserGroupChannels :: TeamId -> UserGroupId -> Vector ConvId -> UserGroupStore m ()
+  UpdateUserGroupChannels :: TeamId -> UserGroupId -> Vector (Qualified ConvId) -> UserGroupStore m ()
 
 makeSem ''UserGroupStore
