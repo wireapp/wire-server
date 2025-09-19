@@ -1333,12 +1333,12 @@ removeTeamCollaborator lusr tid rusr = do
   zusrMember <- E.getTeamMember tid (tUnqualified lusr)
   void $ permissionCheck RemoveTeamCollaborator zusrMember
   toNotify <-
-      getFeatureForTeam @LimitedEventFanoutConfig tid
-        >>= ( \case
-                FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
-            )
-          . (.status)
+    getFeatureForTeam @LimitedEventFanoutConfig tid
+      >>= ( \case
+              FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+              FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+          )
+        . (.status)
   uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
   internalRemoveTeamCollaborator rusr tid
   now <- Now.get
