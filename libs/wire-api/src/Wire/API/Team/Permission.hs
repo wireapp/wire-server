@@ -128,6 +128,9 @@ serviceWhitelistPermissions =
 -- Perm
 
 -- | Team-level permission.  Analog to conversation-level 'Action'.
+--
+-- If you ever think about adding a new permission flag, read Note
+-- [team roles] first.
 data Perm
   = CreateConversation
   | -- NOTE: This may get overruled by conv level checks in case those are more restrictive
@@ -153,8 +156,6 @@ data Perm
   | DeleteTeam
   -- FUTUREWORK: make the verbs in the roles more consistent
   -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
-  -- If you ever think about adding a new permission flag,
-  -- read Note [team roles] first.
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Perm)
   deriving (FromJSON, ToJSON) via (CustomEncoded Perm)
