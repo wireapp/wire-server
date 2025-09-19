@@ -87,12 +87,16 @@ import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
+import Wire.API.Team.Member (rolePermissions)
+import Wire.API.Team.Member qualified as Team.Member
 import Wire.API.Team.Permission hiding (self)
+import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
+import Wire.API.User.Search
 
 tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
@@ -117,6 +121,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "get /users/<localdomain>/:uid - 404" $ testNonExistingUser b,
       test p "get /users/:domain/:uid - 422" $ testUserInvalidDomain b,
       test p "get /users/:uid - 200" $ testExistingUserUnqualified b,
+      test p "testUserSearchable" $ testUserSearchable b g,
       test p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
       test p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
       test p "head /users/:uid - 200" $ testUserExistsUnqualified b,
@@ -640,6 +645,89 @@ testExistingUserUnqualified brig = do
               b <- responseBody r
               b ^? key "id" >>= maybeFromJSON
           )
+
+testUserSearchable :: Brig -> Galley -> Http ()
+testUserSearchable brig galley = do
+  (owner, tid) <- createUserWithTeam brig
+
+  -- Make a member in the current team
+  let mkTeamMember :: Permissions -> Http User
+      mkTeamMember perms = do
+        member <- createTeamMember brig galley owner tid perms
+        selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
+
+      -- Helper to change user searchability.
+      setSearchable :: UserId -> UserId -> Bool -> Request -> Request
+      setSearchable byZuid uid searchable =
+        brig
+          . paths ["users", pack $ show uid, pack $ show tid, "searchable"]
+          . zUser byZuid
+          . toJsonBody searchable
+
+  -- Create user in team, default is searchable = True.
+  u1id <- userId <$> mkTeamMember (rolePermissions RoleMember)
+  u1p <- parseOrFail "UserProfile" (getProfile brig owner u1id)
+  liftIO $ assertBool "created users are searchable by default" $ profileSearchable u1p
+
+  -- Setting self to non-searchable won't work -- only admin can do it.
+  post (setSearchable u1id u1id False) !!! do
+    const 403 === statusCode
+    const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
+  liftIO . assertBool "Searchable is still True" . profileSearchable =<< parseOrFail "UserProfile" (getProfile brig owner u1id)
+
+  -- Team admin can set user to non-searchable.
+  admin <- userId <$> mkTeamMember (rolePermissions RoleAdmin)
+  post (setSearchable admin u1id False) !!! const 200 === statusCode
+  liftIO . assertBool "Searchable is now False" . not . profileSearchable =<< parseOrFail "UserProfile" (getProfile brig owner u1id)
+
+  -- Team owner can, too.
+  post (setSearchable owner u1id True) !!! const 200 === statusCode
+  post (setSearchable owner u1id False) !!! const 200 === statusCode
+
+  -- By default created team members are found.
+  u3 <- mkTeamMember (rolePermissions RoleMember)
+  Search.refreshIndex brig
+  s <- Search.executeSearch brig u1id $ fromName $ userDisplayName u3
+  liftIO $ assertBool "u1 must find u3 as they are searchable by default" $ uidsInResult [userId u3] s
+
+  -- Use set to non-searchable is not found by other team members.
+  u4 <- mkTeamMember (rolePermissions RoleMember)
+  post (setSearchable owner (userId u4) False) !!! const 200 === statusCode
+  Search.refreshIndex brig
+  s <- Search.executeSearch brig u1id $ fromName $ userDisplayName u4
+  liftIO $ assertBool "u1 must not find u4 as they are set non-searchable" $ not $ uidsInResult [userId u4] s
+
+  -- Even admin nor owner won't find non-searchable users via /search/contacts
+  sAdmin <- Search.executeSearch brig admin $ fromName $ userDisplayName u4
+  liftIO $ assertBool "Team admin won't find non-searchable user from /search/concatcs" $ not $ uidsInResult [userId u4] sAdmin
+  sOwner <- Search.executeSearch brig owner $ fromName $ userDisplayName u4
+  liftIO $ assertBool "Team owner won't find non-searchable user from /search/concatcs" $ not $ uidsInResult [userId u4] sOwner
+
+  -- Exact handle search with HTTP HEAD still works for non-searchable users
+  u4' <- setRandomHandle brig u4 -- Add handle to the non-searchable u4
+  let u4handle = fromJust $ userHandle u4'
+  Bilge.head (brig . paths ["handles", toByteString' u4handle] . zUser (userId u3))
+    !!! const 200 === statusCode
+
+  -- Regular user can't find non-searchable team member by exact handle.
+  s <- Search.executeSearch brig u1id $ fromHandle u4handle
+  liftIO $ assertBool "u1 must not find non-searchable u4 by exact handle" $ not $ uidsInResult [userId u4] s
+
+  -- /teams/:tid/members gets all fields
+  r :: Team.Member.TeamMembersPage <- parseOrFail "TeamMembersPage" $ get (galley . paths ["teams", toByteString' tid, "members"] . zUser u1id) <!! const 200 === statusCode
+  let teamMembers = mtpResults $ Team.Member.unTeamMembersPage r :: [Team.Member.TeamMemberOptPerms]
+      uids = map (^. Team.Member.userId) teamMembers
+  liftIO $ assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` uids) $ u1id : map userId [u3, u4]
+
+  pure ()
+  where
+    contactUid :: Contact -> UserId
+    contactUid = qUnqualified . contactQualifiedId
+
+    uidsInResult :: [UserId] -> SearchResult Contact -> Bool
+    uidsInResult uids r = all (`elem` foundUids) uids
+      where
+        foundUids = map contactUid (searchResults r)
 
 testExistingUser :: Brig -> Http ()
 testExistingUser brig = do
@@ -1589,3 +1677,10 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
 -- | Get user profile (while asserting that result is successful)
 getProfile :: Brig -> UserId -> UserId -> Http ResponseLBS
 getProfile b zusr uid = get (apiVersion "v1" . b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
+
+parseOrFail :: (FromJSON a, Typeable a) => String -> Http ResponseLBS -> Http a
+parseOrFail what action = maybe (liftIO $ assertFailure $ "Can't parse from JSON: " <> what) pure . responseJsonMaybe =<< action
+
+-- | Add any ToJSON value to request and set content-type to JSON as well.
+toJsonBody :: ToJSON a => a -> Request -> Request
+toJsonBody a req = contentJson $ body (RequestBodyLBS $ encode a) req
