@@ -291,7 +291,7 @@ mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b))
 --------------------------------------------------------------------------------
 -- AssetSettings
 
--- \| Settings provided during upload.
+-- | Settings provided during upload.
 data AssetSettings = AssetSettings
   { _setAssetPublic :: Bool,
     _setAssetRetention :: Maybe AssetRetention,
