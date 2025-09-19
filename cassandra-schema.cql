@@ -2050,6 +2050,7 @@ CREATE TABLE spar_test.issuer_idp (
 CREATE TABLE spar_test.idp (
     idp uuid PRIMARY KEY,
     api_version int,
+    domain text,
     extra_public_keys list<blob>,
     handle text,
     issuer text,
@@ -2057,8 +2058,7 @@ CREATE TABLE spar_test.idp (
     public_key blob,
     replaced_by uuid,
     request_uri text,
-    team uuid,
-    domain text
+    team uuid
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
