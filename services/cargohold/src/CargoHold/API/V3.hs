@@ -27,7 +27,7 @@ module CargoHold.API.V3
   )
 where
 
-import CargoHold.API.AudiLog (logUpload)
+import CargoHold.API.AuditLog (logUpload)
 import CargoHold.API.Error
 import CargoHold.API.Util
 import CargoHold.App

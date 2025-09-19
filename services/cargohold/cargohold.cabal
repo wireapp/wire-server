@@ -18,7 +18,7 @@ flag static
 
 library
   exposed-modules:
-    CargoHold.API.AudiLog
+    CargoHold.API.AuditLog
     CargoHold.API.Error
     CargoHold.API.Federation
     CargoHold.API.Legacy
