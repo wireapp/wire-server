@@ -55,6 +55,7 @@ data:
       {{- if .downloadLinkTTL }}
       downloadLinkTTL: {{ .downloadLinkTTL }}
       {{- end }}
+      assetAuditLogEnabled: {{ .assetAuditLogEnabled }}
       federationDomain: {{ .federationDomain }}
       disabledAPIVersions: {{ toJson .disabledAPIVersions }}
       {{- end }}

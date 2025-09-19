@@ -27,11 +27,13 @@ module CargoHold.API.V3
   )
 where
 
+import CargoHold.API.AuditLog (logUpload)
 import CargoHold.API.Error
 import CargoHold.API.Util
 import CargoHold.App
 import qualified CargoHold.Metrics as Metrics
 import CargoHold.Options
+import CargoHold.S3 (AssetAuditLogMetadata (AssetAuditLogMetadata))
 import qualified CargoHold.S3 as S3
 import CargoHold.Types.V3
 import qualified CargoHold.Types.V3 as V3
@@ -67,6 +69,14 @@ upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (A
 upload own bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
+  auditEnabled <- asks (.options.settings.assetAuditLogEnabled)
+  let mWireMetaText = do
+        guard auditEnabled
+        AssetAuditLogMetadata
+          <$> sets ^. V3.setAssetConvId
+          <*> sets ^. V3.setAssetFilename
+          <*> sets ^. V3.setAssetFiletype
+  when (auditEnabled && isNothing mWireMetaText) $ throwE missingAuditMetadata
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength
@@ -77,7 +87,9 @@ upload own bdy = do
   tok <- if sets ^. V3.setAssetPublic then pure Nothing else Just <$> randToken
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
   key <- qualifyLocal (V3.AssetKeyV3 ast ret)
-  void $ S3.uploadV3 own (tUnqualified key) hdrs tok src
+  void $ S3.uploadV3 own (tUnqualified key) hdrs mWireMetaText tok src
+  domain <- asks (.options.settings.federationDomain)
+  when auditEnabled $ logUpload domain own mWireMetaText
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of

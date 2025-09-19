@@ -24,7 +24,6 @@ import Crypto.Random (getRandomBytes)
 import Data.ByteString.Builder
 import Data.String.Conversions
 import SetupHelpers
-import Test.Cargohold.API.Util
 import Testlib.Prelude
 
 testGetAssetAvailablePublic :: (HasCallStack) => App ()
@@ -40,7 +39,7 @@ getAssetAvailable isPublicAsset = do
       settings = object ["public" .= isPublicAsset, "retention" .= "volatile"]
   uid1 <- randomUser OwnDomain def
   uid2 <- randomUser OtherDomain def
-  r1 <- uploadSimple uid1 settings bdy
+  r1 <- uploadSimpleV3 uid1 settings bdy
   r1.status `shouldMatchInt` 201
   ast <- maybe (error "No JSON in the response") pure r1.jsonBody
 
@@ -77,7 +76,7 @@ testGetAssetWrongToken = do
   uid2 <- randomUser OtherDomain def
   userId2 <- uid2 %. "id" & asString
   domain <- uid1 %. "qualified_id" %. "domain" & asString
-  r1 <- uploadSimple uid1 settings bdy
+  r1 <- uploadSimpleV3 uid1 settings bdy
   r1.status `shouldMatchInt` 201
   key <- r1.jsonBody %. "key" & asString
 
@@ -107,7 +106,7 @@ testLargeAsset = do
   let size = 1024 * 1024
   bs :: ByteString <- liftIO $ getRandomBytes size
   let body = toLazyByteString $ buildMultipartBody' settings applicationOctetStream' (cs bs)
-  r1 <- uploadRaw uid body
+  r1 <- uploadRawV3 uid body
   r1.status `shouldMatchInt` 201
   tok <- r1.jsonBody %. "token" & asString
   key <- r1.jsonBody %. "key" & asString
@@ -129,7 +128,7 @@ testStreamAsset = do
   uid2 <- randomUser OtherDomain def
   userId <- uid %. "id" & asString
   domain <- uid %. "qualified_id" %. "domain" & asString
-  r1 <- uploadSimple uid settings bdy
+  r1 <- uploadSimpleV3 uid settings bdy
   r1.status `shouldMatchInt` 201
 
   -- Call get-asset federation API
@@ -165,7 +164,7 @@ testStreamAssetWrongToken = do
   uid2 <- randomUser OtherDomain def
   userId2 <- uid2 %. "id" & asString
   domain <- uid %. "qualified_id" %. "domain" & asString
-  r1 <- uploadSimple uid settings bdy
+  r1 <- uploadSimpleV3 uid settings bdy
   r1.status `shouldMatchInt` 201
 
   -- Call get-asset federation API with wrong (random) token

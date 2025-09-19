@@ -134,6 +134,10 @@ data Settings = Settings
     maxTotalBytes :: !Int,
     -- | TTL for download links, in seconds
     downloadLinkTTL :: !Word,
+    -- | Enable audit logging for asset uploads/downloads.
+    -- When enabled, the backend will collect and log asset metadata
+    -- as part of the asset audit log feature.
+    assetAuditLogEnabled :: !Bool,
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,

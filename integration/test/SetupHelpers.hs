@@ -416,7 +416,7 @@ randomScimUserWith params = do
 uploadProfilePicture :: (HasCallStack, MakesValue usr) => usr -> App (String, String, String)
 uploadProfilePicture usr = do
   payload <- ("asset_contents=" <>) <$> randomId
-  asset <- bindResponse (uploadFreshAsset usr payload) (getJSON 201)
+  asset <- bindResponse (uploadAsset usr payload) (getJSON 201)
   dom <- asset %. "domain" & asString
   key <- asset %. "key" & asString
   Success (oldAssets :: [Value]) <- bindResponse (getSelf usr) $ \resp -> do

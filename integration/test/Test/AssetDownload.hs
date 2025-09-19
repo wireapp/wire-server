@@ -9,7 +9,7 @@ testDownloadAsset :: (HasCallStack) => App ()
 testDownloadAsset = do
   user <- randomUser OwnDomain def
 
-  key <- bindResponse (uploadAsset user) $ \resp -> do
+  key <- bindResponse (uploadSomeAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "key"
 
@@ -71,6 +71,6 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
         }
 
     doUploadAsset :: (HasCallStack) => Value -> App Value
-    doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do
+    doUploadAsset user = bindResponse (uploadSomeAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"

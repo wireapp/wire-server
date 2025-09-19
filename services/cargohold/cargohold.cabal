@@ -18,6 +18,7 @@ flag static
 
 library
   exposed-modules:
+    CargoHold.API.AuditLog
     CargoHold.API.Error
     CargoHold.API.Federation
     CargoHold.API.Legacy
@@ -118,6 +119,7 @@ library
     , prometheus-client
     , resourcet              >=1.1
     , retry                  >=0.5
+    , schema-profunctor
     , servant
     , servant-client
     , servant-server
