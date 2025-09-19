@@ -817,7 +817,6 @@ idpUpdateXML ::
 idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
-  -- TODO: Move this into validateIdPUpdate?
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of
