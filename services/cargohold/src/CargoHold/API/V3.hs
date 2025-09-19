@@ -27,6 +27,7 @@ module CargoHold.API.V3
   )
 where
 
+import CargoHold.API.AudiLog (logUpload)
 import CargoHold.API.Error
 import CargoHold.API.Util
 import CargoHold.App
@@ -38,7 +39,6 @@ import CargoHold.Types.V3
 import qualified CargoHold.Types.V3 as V3
 import CargoHold.Util
 import qualified Codec.MIME.Parse as MIME
-import Codec.MIME.Type (showType)
 import qualified Codec.MIME.Type as MIME
 import qualified Conduit
 import Control.Applicative (optional)
@@ -48,7 +48,6 @@ import Control.Monad.Trans.Resource
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
-import Data.ByteString.Conversion.To (toByteString)
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
@@ -63,8 +62,6 @@ import Data.UUID.V4
 import Imports hiding (take)
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
-import qualified System.Logger.Class as Log
-import System.Logger.Message (msg, val, (.=), (~~))
 import URI.ByteString
 import Wire.API.Asset
 
@@ -91,22 +88,8 @@ upload own bdy = do
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
   key <- qualifyLocal (V3.AssetKeyV3 ast ret)
   void $ S3.uploadV3 own (tUnqualified key) hdrs mWireMetaText tok src
-  when auditEnabled $ do
-    let base = "audit" .= True ~~ "event" .= ("file-upload" :: Text)
-        principalFields =
-          case own of
-            UserPrincipal u -> "uploader.type" .= ("user" :: Text) ~~ "uploader.id" .= toByteString u
-            BotPrincipal b -> "uploader.type" .= ("bot" :: Text) ~~ "uploader.id" .= toByteString (botUserId b)
-            ProviderPrincipal p -> "uploader.type" .= ("provider" :: Text) ~~ "uploader.id" .= toByteString p
-        auditFields =
-          case mWireMetaText of
-            Nothing -> id
-            Just meta ->
-              "conversation.id" .= toByteString (qUnqualified meta.convId)
-                ~~ "conversation.domain" .= toByteString (qDomain meta.convId)
-                ~~ "file.name" .= meta.filename
-                ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
-    Log.info $ base ~~ principalFields ~~ auditFields ~~ msg (val "Asset audit log: upload")
+  domain <- asks (.options.settings.federationDomain)
+  when auditEnabled $ logUpload domain own mWireMetaText
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of
