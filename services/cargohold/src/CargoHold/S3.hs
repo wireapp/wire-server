@@ -83,7 +83,6 @@ newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
 
 data AssetAuditLogMetadata = AssetAuditLogMetadata
-  -- todo rename
   { convId :: Qualified ConvId,
     filename :: Text,
     filetype :: AssetMIMEType
