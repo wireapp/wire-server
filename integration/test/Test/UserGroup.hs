@@ -373,3 +373,20 @@ testUserGroupMembersCount = do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.membersCount" `shouldMatchInt` 2
     resp.json %. "total" `shouldMatchInt` 1
+
+testUserGroupRemovalOnDelete :: (HasCallStack) => App ()
+testUserGroupRemovalOnDelete = do
+  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
+
+  bobId <- bob %. "id" & asString
+  charlieId <- charlie %. "id" & asString
+
+  ug <-
+    createUserGroup alice (object ["name" .= "none", "members" .= [bobId, charlieId]])
+      >>= getJSON 200
+  gid <- ug %. "id" & asString
+  void $ deleteTeamMember tid alice bob >>= getBody 202
+
+  bindResponse (getUserGroup alice gid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members" `shouldMatch` [charlieId]
