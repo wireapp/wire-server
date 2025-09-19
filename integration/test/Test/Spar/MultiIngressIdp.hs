@@ -47,7 +47,7 @@ testMultiIngressIdpSimpleCase = do
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
       -- Create IdP for one domain
-      SAML.SampleIdP idpmeta _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
       idpId <-
         createIdpWithZHost owner (Just ernieZHost) idpmeta `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -89,7 +89,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      SAML.SampleIdP idpmeta1 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId1 <-
         createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -115,7 +115,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
 
       -- Create unconfigured -> no multi-ingress domain
-      SAML.SampleIdP idpmeta2 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId2 <-
         createIdpWithZHost owner (unconfiguredZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -127,7 +127,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
         resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
       -- Create a second unconfigured -> no multi-ingress domain
-      SAML.SampleIdP idpmeta3 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId3 <-
         createIdpWithZHost owner (unconfiguredZHost) idpmeta3 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -202,51 +202,51 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
   -- With Z-Host header
-  SAML.SampleIdP idpmeta1 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId1 <-
     createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
       resp.jsonBody %. "id" >>= asString
 
-  SAML.SampleIdP idpmeta2 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId2 <-
     createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
       resp.jsonBody %. "id" >>= asString
 
-  SAML.SampleIdP idpmeta3 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
   updateIdpWithZHost owner (Just ernieZHost) idpId1 idpmeta3 `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
-  SAML.SampleIdP idpmeta4 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta4 _ _ _ <- SAML.makeSampleIdPMetadata
   updateIdpWithZHost owner (Just ernieZHost) idpId2 idpmeta4 `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
   -- Without Z-Host header
-  SAML.SampleIdP idpmeta5 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta5 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId5 <-
     createIdpWithZHost owner Nothing idpmeta5 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
       resp.jsonBody %. "id" >>= asString
 
-  SAML.SampleIdP idpmeta6 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta6 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId6 <-
     createIdpWithZHost owner Nothing idpmeta6 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
       resp.jsonBody %. "id" >>= asString
 
-  SAML.SampleIdP idpmeta7 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta7 _ _ _ <- SAML.makeSampleIdPMetadata
   updateIdpWithZHost owner Nothing idpId5 idpmeta7 `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
 
-  SAML.SampleIdP idpmeta8 _pCreds _ _ <- SAML.makeSampleIdPMetadata
+  SAML.SampleIdP idpmeta8 _ _ _ <- SAML.makeSampleIdPMetadata
   updateIdpWithZHost owner Nothing idpId6 idpmeta8 `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.jsonBody %. "extraInfo.domain" `shouldMatch` Null
