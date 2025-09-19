@@ -139,6 +139,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
   Named
     '("assets-upload-v3", tag)
     ( Summary "Upload an asset"
+        :> Description AuditUploadDescription
         :> CanThrow 'AssetTooLarge
         :> CanThrow 'InvalidLength
         :> CanThrow 'IncompleteBody
@@ -290,6 +291,7 @@ type MainAPI =
     :<|> Named
            "assets-upload"
            ( Summary "Upload an asset"
+               :> Description AuditUploadDescription
                :> From 'V2
                :> CanThrow 'AssetTooLarge
                :> CanThrow 'InvalidLength
@@ -351,3 +353,10 @@ data CargoholdAPITag
 
 instance ServiceAPI CargoholdAPITag v where
   type ServiceAPIRoutes CargoholdAPITag = CargoholdAPI
+
+type AuditUploadDescription =
+  "When asset audit logging is enabled on the backend, \
+  \the upload metadata must include `convId` (qualified conversation ID), `filename`, and `filetype` (MIME type). \
+  \Missing fields result in 400 missing-audit-metadata. \
+  \For profile picture and team icon uploads, where no conversation exists, \
+  \set `convId` to the null UUID (`00000000-0000-0000-0000-000000000000`) and use a random or hard-coded `filename`."
