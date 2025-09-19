@@ -210,7 +210,6 @@ type TeamMemberAPI =
     :<|> Named
            "remove-team-collaborator"
            ( Summary "Remove a collaborator from the team."
-               :> CanThrow 'OperationDenied
                :> CanThrow 'NotATeamMember
                :> From 'V12
                :> ZLocalUser
