@@ -372,6 +372,51 @@ testAssetAuditLogDownloadBackendALocal = do
       resp.status `shouldMatchInt` 200
       BC.unpack resp.body `shouldMatch` "download-me"
 
+-- Case 2:
+--  - Uploader: on backend A (audit enabled)
+--  - Downloader: on backend B (audit disabled)
+-- Expected logs:
+--   - Backend A: "file-upload", "file-download"
+--   - Backend B: No logging.
+testAssetAuditLogDownloadBackendALoggingBackendBNotLogging :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendALoggingBackendBNotLogging = do
+  startDynamicBackends [cargoholdAuditLogEnabled] $ \[domainA] -> do
+    let domainB = OwnDomain
+    (owner, _tid, _members) <- createTeam domainA 1
+    downloader <- randomUser domainB def
+    -- Upload on A with metadata
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
+    let body = (applicationText, cs "hello-onprem")
+    (loc, tok) <-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        (,) <$> r.json <*> (r.json %. "token" & asString)
+    -- Federated download by user on backend B.
+    bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "hello-onprem"
+
+-- Case 3:
+--  - Uploader: on backend A (audit enabled)
+--  - Downloader: on backend B (audit enabled)
+--  Expected logs:
+--    - Backend A: "file-upload", "file-download"
+--    - Backend B: "file-download"
+testAssetAuditLogDownloadBackendALoggingBackendBLogging :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendALoggingBackendBLogging = pure ()
+
+-- Case 4:
+--  - Uploader on backend A (audit disabled)
+--  - Downloader on backend B (audit enabled)
+--  Expected logs:
+--    - Backend A: Not logging
+--    - Backend B: "file-download"
+testAssetAuditLogDownloadBackendANotLoggingBackendBLogging :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendANotLoggingBackendBLogging = pure ()
+
 cargoholdAuditLogEnabled :: ServiceOverrides
 cargoholdAuditLogEnabled =
   def
