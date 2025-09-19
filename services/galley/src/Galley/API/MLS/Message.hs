@@ -29,7 +29,6 @@ module Galley.API.MLS.Message
   )
 where
 
-import Control.Lens (view)
 import Control.Monad.Codensity
 import Data.Domain
 import Data.Id
@@ -48,6 +47,7 @@ import Galley.API.MLS.Commit.ExternalCommit
 import Galley.API.MLS.Commit.InternalCommit
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
+import Galley.API.MLS.GroupInfoCheck
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Propagate
@@ -58,7 +58,6 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Effects.TeamStore qualified as TeamStore
-import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -78,12 +77,8 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Extension
 import Wire.API.MLS.GroupInfo
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
-import Wire.API.MLS.RatchetTree
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
@@ -165,6 +160,7 @@ postMLSCommitBundle ::
     Member (ErrorS MLSIdentityMismatch) r,
     Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -190,6 +186,7 @@ postMLSCommitBundleFromLocalUser ::
     Member (ErrorS MLSIdentityMismatch) r,
     Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -215,6 +212,7 @@ postMLSCommitBundleToLocalConv ::
     Member (ErrorS MLSIdentityMismatch) r,
     Member (ErrorS MLSGroupInfoMismatch) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -316,35 +314,6 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
   pure events
-
-checkGroupState ::
-  forall r.
-  ( Member (ErrorS MLSGroupInfoMismatch) r,
-    Member (Input Opts) r,
-    Member (Error MLSProtocolError) r
-  ) =>
-  IndexMap ->
-  GroupInfo ->
-  Sem r ()
-checkGroupState leaves groupInfo = do
-  check <- fromMaybe False <$> inputs (view $ settings . checkGroupInfo)
-  when check $ do
-    trees <-
-      either
-        (\_ -> throw (mlsProtocolError "Could not parse ratchet tree extension in GroupInfo"))
-        pure
-        $ findExtension groupInfo.tbs.extensions
-    tree :: RatchetTree <- case trees of
-      (tree : _) -> pure tree
-      _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
-    giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-    when (leaves /= giLeaves) $ do
-      throwS @MLSGroupInfoMismatch
-  where
-    getIdentity :: LeafNode -> Sem r ClientIdentity
-    getIdentity leaf = case credentialIdentityAndKey leaf.credential of
-      Left e -> throw (mlsProtocolError e)
-      Right (cid, _) -> pure cid
 
 postMLSCommitBundleToRemoteConv ::
   ( Member BrigAPIAccess r,

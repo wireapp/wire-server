@@ -615,6 +615,7 @@ sendMLSCommitBundle ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
+    Member TeamFeatureStore r,
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,

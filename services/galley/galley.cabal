@@ -99,6 +99,7 @@ library
     Galley.API.MLS.Conversation
     Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
+    Galley.API.MLS.GroupInfoCheck
     Galley.API.MLS.IncomingMessage
     Galley.API.MLS.Keys
     Galley.API.MLS.Message
