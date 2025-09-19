@@ -168,6 +168,7 @@ runUserSubsystem authInterpreter = interpret $
     RemoveEmailEither luid -> removeEmailEitherImpl luid
     UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
     CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
+    UserSubsystem.SetUserSearchable luid uid tid searchability -> setUserSearchableImpl luid uid tid searchability
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -1130,3 +1131,22 @@ checkUserIsAdminImpl uid = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions uid tid [CreateUpdateDeleteIdp]
   pure tid
+
+setUserSearchableImpl ::
+  ( Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
+  ) =>
+  Local UserId ->
+  UserId ->
+  TeamId ->
+  Bool ->
+  Sem r ()
+setUserSearchableImpl luid uid tid searchable = do
+  ensurePermissions (tUnqualified luid) tid [Permission.SetMemberSearchable]
+  UserStore.setUserSearchable uid searchable
+  -- TODO generate an event?
+  syncUserIndex uid

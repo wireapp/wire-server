@@ -290,6 +290,18 @@ type UserAPI =
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
            )
+    :<|> Named
+           "set-user-searchable"
+           ( Summary "Set user's visibility in search"
+               :> From 'V12
+               :> ZLocalUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> Capture "tid" TeamId
+               :> ReqBody '[JSON] Bool
+               :> "searchable"
+               :> Post '[JSON] ()
+           )
 
 type LastSeenNameDesc = Description "`name` of the last seen user group, used to get the next page when sorting by name."
 

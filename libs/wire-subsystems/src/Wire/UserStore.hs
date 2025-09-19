@@ -78,6 +78,7 @@ data UserStore m a where
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
   DeleteEmail :: UserId -> UserStore m ()
+  SetUserSearchable :: UserId -> Bool -> UserStore m ()
 
 makeSem ''UserStore
 

@@ -43,6 +43,7 @@ interpretUserStoreCassandra casClient =
       GetRichInfo uid -> getRichInfoImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
+      SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -233,6 +234,12 @@ getRichInfoImpl uid =
 
 deleteEmailImpl :: UserId -> Client ()
 deleteEmailImpl u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
+
+setUserSearchableImpl :: UserId -> Bool -> Client ()
+setUserSearchableImpl uid searchable = retry x5 $ write q (params LocalQuorum (searchable, uid))
+  where
+    q :: PrepQuery W (Bool, UserId) ()
+    q = "UPDATE user SET searchable = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- Queries

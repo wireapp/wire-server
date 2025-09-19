@@ -154,6 +154,7 @@ data Perm
   | SetMemberPermissions
   | GetTeamConversations
   | DeleteTeam
+  | SetMemberSearchable
   -- FUTUREWORK: make the verbs in the roles more consistent
   -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
@@ -184,6 +185,7 @@ permToInt GetMemberPermissions = 0x0200
 permToInt GetTeamConversations = 0x0400
 permToInt DeleteTeam = 0x0800
 permToInt SetMemberPermissions = 0x1000
+permToInt SetMemberSearchable = 0x2000
 
 intToPerm :: Word64 -> Maybe Perm
 intToPerm 0x0001 = Just CreateConversation
@@ -199,6 +201,7 @@ intToPerm 0x0200 = Just GetMemberPermissions
 intToPerm 0x0400 = Just GetTeamConversations
 intToPerm 0x0800 = Just DeleteTeam
 intToPerm 0x1000 = Just SetMemberPermissions
+intToPerm 0x2000 = Just SetMemberSearchable
 intToPerm _ = Nothing
 
 instance Cql.Cql Permissions where

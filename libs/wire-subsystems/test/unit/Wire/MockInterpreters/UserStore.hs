@@ -90,6 +90,12 @@ inMemoryUserStoreInterpreter = interpret $ \case
     gets $ \users -> do
       user <- find (\user -> user.id == uid) users
       user.teamId
+  SetUserSearchable uid searchable -> modify $ map f
+    where
+      f u =
+        if u.id == uid
+          then u {Wire.StoredUser.searchable = Just searchable} :: StoredUser
+          else u
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

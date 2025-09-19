@@ -533,7 +533,8 @@ rolePerms RoleAdmin =
       [ AddTeamMember,
         RemoveTeamMember,
         SetTeamData,
-        SetMemberPermissions
+        SetMemberPermissions,
+        SetMemberSearchable
       ]
 rolePerms RoleMember =
   rolePerms RoleExternalPartner
