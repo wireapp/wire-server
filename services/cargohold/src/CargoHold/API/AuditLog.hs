@@ -40,7 +40,7 @@ logUpload domain own mMeta =
   Log.info $
     base
       ~~ principal
-      ~~ principle
+      ~~ principalDomain
       ~~ audit
       ~~ msg (val "Asset audit log: upload")
   where
@@ -58,7 +58,7 @@ logUpload domain own mMeta =
         V3.ProviderPrincipal p ->
           "uploader.type" .= ("provider" :: Text)
             ~~ "uploader.id" .= toByteString p
-    principle = "uploader.domain" .= toByteString domain
+    principalDomain = "uploader.domain" .= toByteString domain
     audit =
       case mMeta of
         Nothing -> id
