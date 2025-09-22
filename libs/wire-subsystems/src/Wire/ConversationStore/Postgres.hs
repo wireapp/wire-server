@@ -5,6 +5,7 @@ module Wire.ConversationStore.Postgres where
 
 import Data.Domain
 import Data.Id
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -265,8 +266,33 @@ isConversationAliveImpl _ =
   -- Hence this always returns True.
   pure True
 
-getRemoteConversationStatusImpl :: UserId -> [Remote ConvId] -> Sem r (Map (Remote ConvId) MemberStatus)
-getRemoteConversationStatusImpl = undefined
+getRemoteConversationStatusImpl :: (PGConstraints r) => UserId -> [Remote ConvId] -> Sem r (Map (Remote ConvId) MemberStatus)
+getRemoteConversationStatusImpl uid remoteConvs = do
+  fmap Map.unions . runPipeline $
+    for (bucketRemote remoteConvs) $ \(tUntagged -> Qualified cids domain) ->
+      let mkMap (convId, msOtrMutedStatus, msOtrMutedRef, archived, msOtrArchivedRef, hidden, msHiddenRef) =
+            Map.singleton
+              (toRemoteUnsafe domain convId)
+              ( MemberStatus
+                  { msOtrArchived = fromMaybe False archived,
+                    msHidden = fromMaybe False hidden,
+                    ..
+                  }
+              )
+       in Map.unions <$> (mkMap <$$> Pipeline.statement (uid, domain, cids) select)
+  where
+    select :: Hasql.Statement (UserId, Domain, [ConvId]) [(ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)]
+    select =
+      dimapPG @_ @(_, _, Vector _)
+        [vectorStatement|SELECT (conv_remote_uid :: uuid),
+                                (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?),
+                                (hidden :: boolean?), (hidden_ref :: text?)
+                        FROM remote_conversation_local_member
+                        WHERE "user" = ($1 :: uuid)
+                        AND conv_remote_domain = ($2 :: text)
+                        AND conv_remote_id = ANY ($3 :: uuid[])
+                        |]
 
 selectConversationsImpl :: UserId -> [ConvId] -> Sem r [ConvId]
 selectConversationsImpl = undefined
