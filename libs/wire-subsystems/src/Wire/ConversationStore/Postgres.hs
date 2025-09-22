@@ -247,8 +247,14 @@ getConversationMetadataImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe Conve
 getConversationMetadataImpl cid =
   toConvMeta <$$> runStatement cid selectConvMetadata
 
-getGroupInfoImpl :: ConvId -> Sem r (Maybe GroupInfoData)
-getGroupInfoImpl = undefined
+getGroupInfoImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe GroupInfoData)
+getGroupInfoImpl cid =
+  join <$> runStatement cid select
+  where
+    select :: Hasql.Statement ConvId (Maybe (Maybe GroupInfoData))
+    select =
+      dimapPG
+        [maybeStatement|SELECT (public_group_state :: bytea?) FROM conversation where id = ($1 :: uuid)|]
 
 isConversationAliveImpl :: ConvId -> Sem r Bool
 isConversationAliveImpl = undefined
