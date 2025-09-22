@@ -59,6 +59,8 @@ data ConversationStore m a where
   GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
+  -- FUTUREWORK: This is only relevant for Convs in Cassandra, we can delete it
+  -- once we delete the Cassandra interpreter
   IsConversationAlive :: ConvId -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->

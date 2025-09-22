@@ -257,7 +257,13 @@ getGroupInfoImpl cid =
         [maybeStatement|SELECT (public_group_state :: bytea?) FROM conversation where id = ($1 :: uuid)|]
 
 isConversationAliveImpl :: ConvId -> Sem r Bool
-isConversationAliveImpl = undefined
+isConversationAliveImpl _ =
+  -- In cassandra this checks whether `deleted` is set to True. In postgres, we
+  -- don't need the `deleted` field as we can delete convs and associated data
+  -- in a transaction.
+  --
+  -- Hence this always returns True.
+  pure True
 
 getRemoteConversationStatusImpl :: UserId -> [Remote ConvId] -> Sem r (Map (Remote ConvId) MemberStatus)
 getRemoteConversationStatusImpl = undefined
