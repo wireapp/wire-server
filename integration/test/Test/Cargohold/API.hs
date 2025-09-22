@@ -434,7 +434,25 @@ testAssetAuditLogDownloadBackendALoggingBackendBLogging = do
 --    - Backend A: Not logging
 --    - Backend B: "file-download"
 testAssetAuditLogDownloadBackendANotLoggingBackendBLogging :: (HasCallStack) => App ()
-testAssetAuditLogDownloadBackendANotLoggingBackendBLogging = pure ()
+testAssetAuditLogDownloadBackendANotLoggingBackendBLogging = do
+  -- Start two backends: A without audit, B with audit.
+  startDynamicBackends [def, cargoholdAuditLogEnabled] $ \[domainA, domainB] -> do
+    (owner, _tid, _members) <- createTeam domainA 1
+    downloader <- randomUser domainB def
+    -- Upload on A with required metadata (no audit logging on A)
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
+    let body = (applicationText, cs "hello-onprem")
+    (loc, tok) <-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        (,) <$> r.json <*> (r.json %. "token" & asString)
+    -- Federated download by user on backend B (audit enabled on B).
+    bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "hello-onprem"
 
 cargoholdAuditLogEnabled :: ServiceOverrides
 cargoholdAuditLogEnabled =
