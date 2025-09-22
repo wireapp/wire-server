@@ -877,18 +877,20 @@ removeAllMLSClientsImpl gid =
 
 lookupMLSClientsImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex)
 lookupMLSClientsImpl gid = do
-  mkClientMap <$> runStatement gid select
-  where
-    select :: Hasql.Statement GroupId [(Domain, UserId, ClientId, Int32, Bool)]
-    select =
-      dimapPG
-        [vectorStatement|SELECT (user_domain :: text), ("user" :: uuid), (client :: text), (leaf_node_index :: integer), (removal_pending :: bool)
-                         FROM mls_group_member_client
-                         WHERE group_id = ($1 :: bytea)
-                        |]
+  mkClientMap <$> runStatement gid selectMLSClients
 
-lookupMLSClientLeafIndicesImpl :: GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
-lookupMLSClientLeafIndicesImpl = undefined
+selectMLSClients :: Hasql.Statement GroupId [(Domain, UserId, ClientId, Int32, Bool)]
+selectMLSClients =
+  dimapPG
+    [vectorStatement|SELECT (user_domain :: text), ("user" :: uuid), (client :: text), (leaf_node_index :: integer), (removal_pending :: bool)
+                     FROM mls_group_member_client
+                     WHERE group_id = ($1 :: bytea)
+                    |]
+
+lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
+lookupMLSClientLeafIndicesImpl gid = do
+  rows <- runStatement gid selectMLSClients
+  pure (mkClientMap rows, mkIndexMap rows)
 
 -- SUB CONVERSATION OPERATIONS
 createSubConversationImpl :: ConvId -> SubConvId -> GroupId -> Sem r SubConversation
