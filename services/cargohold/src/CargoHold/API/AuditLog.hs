@@ -19,6 +19,7 @@ module CargoHold.API.AuditLog
   ( logUpload,
     logDownload,
     logSignedURLCreation,
+    logDownloadRemoteAsset,
   )
 where
 
@@ -26,8 +27,8 @@ import CargoHold.S3 (AssetAuditLogMetadata (..), S3AssetMeta (..))
 import qualified CargoHold.Types.V3 as V3
 import Codec.MIME.Type (showType)
 import Data.ByteString.Conversion.To (toByteString)
-import Data.Id (botUserId)
-import Data.Qualified (Local, Qualified, qDomain, qUnqualified, tDomain, tUnqualified)
+import Data.Id (UserId, botUserId)
+import Data.Qualified (Local, Qualified, Remote, qDomain, qUnqualified, tDomain, tUnqualified)
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
@@ -61,6 +62,7 @@ logUpload lwon mMeta =
 
 logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> S3AssetMeta -> m ()
 logDownload mqDownloader s3 =
+  -- TODO: log path
   Log.info $
     auditTrue
       ~~ "event" .= ("file-download" :: Text)
@@ -70,12 +72,24 @@ logDownload mqDownloader s3 =
 
 logSignedURLCreation :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> m ()
 logSignedURLCreation mqCreator mMeta =
+  -- TODO: log path
   Log.info $
     auditTrue
       ~~ "event" .= ("download-url-creation" :: Text)
       ~~ downloaderFields mqCreator
       ~~ auditMetaFields (mMeta >>= v3AssetAuditLogMetadata)
       ~~ msg (val "Asset audit log: signed URL creation")
+
+logDownloadRemoteAsset :: (Log.MonadLogger m) => Local UserId -> Remote () -> m ()
+logDownloadRemoteAsset luid remote = do
+  Log.info $
+    auditTrue
+      ~~ "event" .= ("file-download" :: Text)
+      ~~ "downloader.type" .= ("user" :: Text)
+      ~~ "downloader.id" .= toByteString (tUnqualified luid)
+      ~~ "downloader.domain" .= toByteString (tDomain luid)
+      ~~ "remote.domain" .= toByteString (tDomain remote)
+      ~~ msg (val "Asset audit log: remote download")
 
 ------------------------------------------------------------------------------
 -- Internal helpers
