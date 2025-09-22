@@ -17,13 +17,13 @@ CREATE TABLE conversation (
   receipt_mode integer,
   team uuid,
   type integer NOT NULL,
-  parent_conv uuid REFERENCES conversation (id)
+  parent_conv uuid REFERENCES conversation (id) ON DELETE CASCADE
 );
 
 CREATE INDEX conversation_team_idx ON conversation (team);
 
 CREATE TABLE subconversation (
-  conv_id uuid NOT NULL REFERENCES conversation (id),
+  conv_id uuid NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
   subconv_id text NOT NULL,
   cipher_suite integer,
   epoch bigint,
@@ -33,7 +33,7 @@ CREATE TABLE subconversation (
 );
 
 CREATE TABLE conversation_member (
-  conv uuid NOT NULL REFERENCES conversation (id),
+  conv uuid NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
   "user" uuid NOT NULL,
   conversation_role text,
   hidden boolean,
@@ -65,7 +65,7 @@ CREATE TABLE remote_conversation_local_member (
 );
 
 CREATE TABLE local_conversation_remote_member (
-  conv uuid NOT NULL REFERENCES conversation (id),
+  conv uuid NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
   user_remote_domain text NOT NULL,
   user_remote_id uuid NOT NULL,
   conversation_role text,

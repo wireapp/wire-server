@@ -141,8 +141,17 @@ createConversationImpl lcnv nc = do
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)|]
 
-deleteConversationImpl :: ConvId -> Sem r ()
-deleteConversationImpl = undefined
+deleteConversationImpl :: (PGConstraints r) => ConvId -> Sem r ()
+deleteConversationImpl cid =
+  runStatement cid delete
+  where
+    delete :: Hasql.Statement ConvId ()
+    delete =
+      -- cascades to shadow convs, subconvs, local and remote members
+      lmapPG
+        [resultlessStatement|DELETE FROM conversation
+                             WHERE id = ($1 :: uuid)
+                            |]
 
 getConversationImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe StoredConversation)
 getConversationImpl cid =
