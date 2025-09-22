@@ -450,11 +450,22 @@ updateToMLSProtocolImpl convId =
                              SET protocol = ($2 :: integer), receipt_mode = 0
                              WHERE conv = ($1 :: uuid)|]
 
-deleteTeamConversationImpl :: TeamId -> ConvId -> Sem r ()
-deleteTeamConversationImpl = undefined
+-- This doesn't check whether the conv belongs to the team because the cassandra
+-- interpreter doesn't do that either.
+deleteTeamConversationImpl :: (PGConstraints r) => TeamId -> ConvId -> Sem r ()
+deleteTeamConversationImpl _ = deleteConversationImpl
 
-getTeamConversationImpl :: TeamId -> ConvId -> Sem r (Maybe ConvId)
-getTeamConversationImpl = undefined
+getTeamConversationImpl :: (PGConstraints r) => TeamId -> ConvId -> Sem r (Maybe ConvId)
+getTeamConversationImpl tid cid = runStatement (tid, cid) select
+  where
+    select :: Hasql.Statement (TeamId, ConvId) (Maybe ConvId)
+    select =
+      dimapPG
+        [maybeStatement|SELECT (id :: uuid)
+                         FROM conversation
+                         WHERE team = ($1 :: uuid)
+                         AND id = ($2 :: uuid)
+                        |]
 
 getTeamConversationsImpl :: TeamId -> Sem r [ConvId]
 getTeamConversationsImpl = undefined
