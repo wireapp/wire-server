@@ -848,8 +848,21 @@ planClientRemovalImpl gid clients =
                              AND client = ($4 :: text)
                             |]
 
-removeMLSClientsImpl :: GroupId -> Qualified UserId -> Set ClientId -> Sem r ()
-removeMLSClientsImpl = undefined
+removeMLSClientsImpl :: (PGConstraints r) => GroupId -> Qualified UserId -> Set ClientId -> Sem r ()
+removeMLSClientsImpl gid (Qualified uid domain) cids =
+  runPipeline $
+    for_ cids $ \cid ->
+      Pipeline.statement (gid, domain, uid, cid) delete
+  where
+    delete :: Hasql.Statement (GroupId, Domain, UserId, ClientId) ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM mls_group_member_client
+                             WHERE group_id = ($1 :: bytea)
+                             AND user_domain = ($2 :: text)
+                             AND user = ($3 :: uuid)
+                             AND client = ($4 :: text)
+                            |]
 
 removeAllMLSClientsImpl :: GroupId -> Sem r ()
 removeAllMLSClientsImpl = undefined
