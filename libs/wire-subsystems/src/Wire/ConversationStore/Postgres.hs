@@ -164,19 +164,19 @@ getConversationImpl cid =
         localMembers <- Transaction.statement cid selectLocalMembersStmt
         remoteMembers <- Transaction.statement cid selectRemoteMembersStmt
         pure $ toConv cid localMembers remoteMembers (Just convRow)
-  where
-    selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
-    selectConvMetadata =
-      dimapPG @_ @_
-        @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
-        @(Maybe ConvRow)
-        [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
-                               (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
-                               (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
-                               (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
-                        FROM conversation
-                        WHERE id = ($1 :: uuid)
-                       |]
+
+selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
+selectConvMetadata =
+  dimapPG @_ @_
+    @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+    @(Maybe ConvRow)
+    [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
+                           (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
+                           (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
+                           (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                    FROM conversation
+                    WHERE id = ($1 :: uuid)
+                   |]
 
 getConversationEpochImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe Epoch)
 getConversationEpochImpl cid = do
@@ -243,8 +243,9 @@ getConversationsImpl cids = do
           localMemsParent = map snd $ filter (\(memConvId, _) -> Just memConvId == parentConvId) allMembersWithConvId
        in nubBy ((==) `on` (.id_)) $ localMemsDirect <> localMemsParent
 
-getConversationMetadataImpl :: ConvId -> Sem r (Maybe ConversationMetadata)
-getConversationMetadataImpl = undefined
+getConversationMetadataImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationMetadata)
+getConversationMetadataImpl cid =
+  toConvMeta <$$> runStatement cid selectConvMetadata
 
 getGroupInfoImpl :: ConvId -> Sem r (Maybe GroupInfoData)
 getGroupInfoImpl = undefined
