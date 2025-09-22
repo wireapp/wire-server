@@ -173,11 +173,20 @@ getConversationImpl cid =
                                (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                                (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
-                        FROM conversation where conv = ($1 :: uuid)
+                        FROM conversation
+                        WHERE id = ($1 :: uuid)
                        |]
 
-getConversationEpochImpl :: ConvId -> Sem r (Maybe Epoch)
-getConversationEpochImpl = undefined
+getConversationEpochImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe Epoch)
+getConversationEpochImpl cid = do
+  join <$> runStatement cid select
+  where
+    select :: Hasql.Statement (ConvId) (Maybe (Maybe Epoch))
+    select =
+      dimapPG
+        [maybeStatement|SELECT (epoch :: bigint?)
+                        FROM conversation
+                        WHERE id = ($1 :: uuid) |]
 
 getConversationsImpl :: [ConvId] -> Sem r [StoredConversation]
 getConversationsImpl = undefined
