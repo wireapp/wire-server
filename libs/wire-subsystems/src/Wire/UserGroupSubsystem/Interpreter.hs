@@ -343,10 +343,10 @@ updateChannels ::
   ) =>
   UserId ->
   UserGroupId ->
-  Vector (Qualified ConvId) ->
+  Vector ConvId ->
   Sem r ()
 updateChannels performer groupId channelIds = do
   void $ getUserGroup performer groupId >>= note UserGroupNotFound
   teamId <- getTeamAsAdmin performer >>= note UserGroupNotATeamAdmin
-  traverse_ (getTeamConv performer teamId . qUnqualified >=> note UserGroupChannelNotFound) channelIds
+  traverse_ (getTeamConv performer teamId >=> note UserGroupChannelNotFound) channelIds
   Store.updateUserGroupChannels teamId groupId channelIds

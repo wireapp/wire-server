@@ -5,7 +5,6 @@ module Wire.UserGroupSubsystem where
 
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
-import Data.Qualified (Qualified)
 import Data.Vector (Vector)
 import Imports
 import Polysemy
@@ -33,6 +32,6 @@ data UserGroupSubsystem m a where
   AddUsers :: UserId -> UserGroupId -> Vector UserId -> UserGroupSubsystem m ()
   UpdateUsers :: UserId -> UserGroupId -> Vector UserId -> UserGroupSubsystem m ()
   RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
-  UpdateChannels :: UserId -> UserGroupId -> Vector (Qualified ConvId) -> UserGroupSubsystem m ()
+  UpdateChannels :: UserId -> UserGroupId -> Vector ConvId -> UserGroupSubsystem m ()
 
 makeSem ''UserGroupSubsystem

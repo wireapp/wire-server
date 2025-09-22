@@ -3,14 +3,12 @@
 module Wire.UserGroupStore.Postgres where
 
 import Control.Error (MaybeT (..))
-import Data.Aeson (ToJSON (toJSON))
 import Data.Bifunctor (second)
 import Data.Functor.Contravariant (Contravariant (..))
 import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
-import Data.Qualified (Qualified)
 import Data.Range
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
@@ -415,7 +413,7 @@ updateUserGroupChannels ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
   UserGroupId ->
-  Vector (Qualified ConvId) ->
+  Vector ConvId ->
   Sem r ()
 updateUserGroupChannels gid convIds = do
   pool <- input
@@ -423,15 +421,26 @@ updateUserGroupChannels gid convIds = do
   either throw pure eitherErrorOrUnit
   where
     session :: Session ()
-    session = statement (gid, convIds) upsertStatement
+    session = do
+      statement (gid, convIds) deleteStatement
+      forM_ convIds $ \convId ->
+        statement (gid, convId) insertStatement
 
-    upsertStatement :: Statement (UserGroupId, Vector (Qualified ConvId)) ()
-    upsertStatement =
+    deleteStatement :: Statement (UserGroupId, Vector ConvId) ()
+    deleteStatement =
       lmap
-        (bimap toUUID (fmap toJSON))
+        (bimap toUUID (fmap toUUID))
         $ [resultlessStatement|
-          insert into user_group_channels (user_group_id, channel_ids) values(($1 :: uuid), ($2 :: json[]))
-          on conflict (user_group_id) do update set channel_ids = ($2 :: json[])
+          delete from user_group_channel where user_group_id = ($1 :: uuid) and channel_id not in ($2 :: uuid[])
+          |]
+
+    insertStatement :: Statement (UserGroupId, ConvId) ()
+    insertStatement =
+      lmap
+        (bimap toUUID toUUID)
+        $ [resultlessStatement|
+          insert into user_group_channel (user_group_id, channel_ids) values(($1 :: uuid), ($2 :: uuid))
+          on conflict (user_group_id) do nothing
           |]
 
 crudUser ::

@@ -197,7 +197,7 @@ instance ToSchema UpdateUserGroupMembers where
         <$> (.members) .= field "members" (vector schema)
 
 newtype UpdateUserGroupChannels = UpdateUserGroupChannels
-  { channels :: Vector (Qualified ConvId)
+  { channels :: Vector ConvId
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UpdateUserGroupChannels

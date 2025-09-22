@@ -93,16 +93,16 @@ CREATE TABLE public.user_group_member (
 );
 
 --
--- Name: user_group_channels; Type: TABLE; Schema: public; Owner: wire-server
+-- Name: user_group_channel; Type: TABLE; Schema: public; Owner: wire-server
 --
 
-CREATE TABLE public.user_group_channels (
+CREATE TABLE public.user_group_channel (
     user_group_id uuid NOT NULL,
-    channel_ids json[] NOT NULL
+    conv_id uuid NOT NULL
 );
 
 
-ALTER TABLE public.user_group_channels OWNER TO "wire-server";
+ALTER TABLE public.user_group_channel OWNER TO "wire-server";
 
 --
 -- Name: collaborators collaborators_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -129,11 +129,11 @@ ALTER TABLE ONLY public.user_group_member
 
 
 --
--- Name: user_group_channels user_group_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+-- Name: user_group_channel user_group_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
-ALTER TABLE ONLY public.user_group_channels
-    ADD CONSTRAINT user_group_channels_pkey PRIMARY KEY (user_group_id);
+ALTER TABLE ONLY public.user_group_channel
+    ADD CONSTRAINT user_group_channel_pkey PRIMARY KEY (user_group_id, conv_id);
 
 
 --
@@ -167,11 +167,11 @@ ALTER TABLE ONLY public.user_group_member
 
 
 --
--- Name: user_group_channels fk_user_group; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+-- Name: user_group_channel fk_user_group; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
 --
 
-ALTER TABLE ONLY public.user_group_channels
-    ADD CONSTRAINT fk_user_group_channels FOREIGN KEY (user_group_id) REFERENCES public.user_group(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_group_channel
+    ADD CONSTRAINT fk_user_group_channel FOREIGN KEY (user_group_id) REFERENCES public.user_group(id) ON DELETE CASCADE;
 
 
 --
