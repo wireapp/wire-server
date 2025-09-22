@@ -864,8 +864,16 @@ removeMLSClientsImpl gid (Qualified uid domain) cids =
                              AND client = ($4 :: text)
                             |]
 
-removeAllMLSClientsImpl :: GroupId -> Sem r ()
-removeAllMLSClientsImpl = undefined
+removeAllMLSClientsImpl :: (PGConstraints r) => GroupId -> Sem r ()
+removeAllMLSClientsImpl gid =
+  runStatement gid delete
+  where
+    delete :: Hasql.Statement (GroupId) ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM mls_group_member_client
+                             WHERE group_id = ($1 :: bytea)
+                            |]
 
 lookupMLSClientsImpl :: GroupId -> Sem r (ClientMap LeafIndex)
 lookupMLSClientsImpl = undefined
