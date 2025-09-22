@@ -860,7 +860,7 @@ removeMLSClientsImpl gid (Qualified uid domain) cids =
         [resultlessStatement|DELETE FROM mls_group_member_client
                              WHERE group_id = ($1 :: bytea)
                              AND user_domain = ($2 :: text)
-                             AND user = ($3 :: uuid)
+                             AND "user" = ($3 :: uuid)
                              AND client = ($4 :: text)
                             |]
 
@@ -868,15 +868,24 @@ removeAllMLSClientsImpl :: (PGConstraints r) => GroupId -> Sem r ()
 removeAllMLSClientsImpl gid =
   runStatement gid delete
   where
-    delete :: Hasql.Statement (GroupId) ()
+    delete :: Hasql.Statement GroupId ()
     delete =
       lmapPG
         [resultlessStatement|DELETE FROM mls_group_member_client
                              WHERE group_id = ($1 :: bytea)
                             |]
 
-lookupMLSClientsImpl :: GroupId -> Sem r (ClientMap LeafIndex)
-lookupMLSClientsImpl = undefined
+lookupMLSClientsImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex)
+lookupMLSClientsImpl gid = do
+  mkClientMap <$> runStatement gid select
+  where
+    select :: Hasql.Statement GroupId [(Domain, UserId, ClientId, Int32, Bool)]
+    select =
+      dimapPG
+        [vectorStatement|SELECT (user_domain :: text), ("user" :: uuid), (client :: text), (leaf_node_index :: integer), (removal_pending :: bool)
+                         FROM mls_group_member_client
+                         WHERE group_id = ($1 :: bytea)
+                        |]
 
 lookupMLSClientLeafIndicesImpl :: GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl = undefined
