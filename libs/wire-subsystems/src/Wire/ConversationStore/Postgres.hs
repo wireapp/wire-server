@@ -468,9 +468,10 @@ getTeamConversationImpl tid cid = runStatement (tid, cid) select
                        |]
 
 getTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r [ConvId]
-getTeamConversationsImpl tid = runStatement (tid) select
+getTeamConversationsImpl tid =
+  runStatement tid select
   where
-    select :: Hasql.Statement (TeamId) [ConvId]
+    select :: Hasql.Statement TeamId [ConvId]
     select =
       dimapPG
         [vectorStatement|SELECT (id :: uuid)
@@ -478,8 +479,16 @@ getTeamConversationsImpl tid = runStatement (tid) select
                          WHERE team = ($1 :: uuid)
                         |]
 
-deleteTeamConversationsImpl :: TeamId -> Sem r ()
-deleteTeamConversationsImpl = undefined
+deleteTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r ()
+deleteTeamConversationsImpl tid =
+  runStatement tid delete
+  where
+    delete :: Hasql.Statement TeamId ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM conversation
+                                         WHERE team = ($1 :: uuid)
+                                        |]
 
 -- MEMBER OPERATIONS
 createMembersImpl :: (PGConstraints r) => ConvId -> UserList (UserId, RoleName) -> Sem r ([LocalMember], [RemoteMember])
