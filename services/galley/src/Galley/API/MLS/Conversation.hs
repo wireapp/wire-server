@@ -71,7 +71,6 @@ mcConv mlsConv =
     { id_ = mcId mlsConv,
       localMembers = mcLocalMembers mlsConv,
       remoteMembers = mcRemoteMembers mlsConv,
-      deleted = False,
       metadata = mcMetadata mlsConv,
       protocol = ProtocolMLS (mcMLSData mlsConv)
     }

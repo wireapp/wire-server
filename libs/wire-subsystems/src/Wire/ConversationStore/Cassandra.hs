@@ -114,32 +114,33 @@ deleteConversation cid = do
 
 conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
 conversationMeta conv =
-  fmap (toConvMeta . toStoredConvRow)
+  fmap (toConvMeta . snd . toStoredConvRow)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
 
 parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Imports.Set AccessRole) -> Maybe (Imports.Set AccessRole)
 parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
-toStoredConvRow :: Queries.ConvRow -> StoreConv.ConvRow
+toStoredConvRow :: Queries.ConvRow -> (Maybe Bool, StoreConv.ConvRow)
 toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
-  ( cty,
-    muid,
-    Cql.fromSet <$> acc,
-    parseAccessRoles role (Set.fromList . Cql.fromSet <$> roleV2),
-    nme,
-    ti,
-    del,
-    timer,
-    rm,
-    ptag,
-    mgid,
-    mep,
-    writetimeToUTC <$> mts,
-    mcs,
-    mgct,
-    mAp,
-    mcells,
-    mparent
+  ( del,
+    ( cty,
+      muid,
+      Cql.fromSet <$> acc,
+      parseAccessRoles role (Set.fromList . Cql.fromSet <$> roleV2),
+      nme,
+      ti,
+      timer,
+      rm,
+      ptag,
+      mgid,
+      mep,
+      writetimeToUTC <$> mts,
+      mcs,
+      mgct,
+      mAp,
+      mcells,
+      mparent
+    )
   )
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
@@ -219,37 +220,17 @@ getConversation :: ConvId -> Client (Maybe StoredConversation)
 getConversation conv = do
   cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   remoteMems <- UnliftIO.async $ lookupRemoteMembers conv
-  mbConv <-
-    toConv conv
-      <$> members conv
-      <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait (toStoredConvRow <$$> cdata)
-  runMaybeT $ conversationGC =<< maybe mzero pure mbConv
-
--- | "Garbage collect" a 'Conversation', i.e. if the conversation is
--- marked as deleted, actually remove it from the database and return
--- 'Nothing'.
-conversationGC ::
-  StoredConversation ->
-  MaybeT Client StoredConversation
-conversationGC conv =
-  asum
-    [ -- return conversation if not deleted
-      guard (not conv.deleted) $> conv,
-      -- actually delete it and fail
-      lift (deleteConversation conv.id_) *> mzero
-    ]
-
-localConversation :: ConvId -> Client (Maybe StoredConversation)
-localConversation cid =
-  UnliftIO.runConcurrently $
-    toConv cid
-      <$> UnliftIO.Concurrently (members cid)
-      <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
-      <*> UnliftIO.Concurrently
-        ( retry x1 $
-            toStoredConvRow <$$> query1 Cql.selectConv (params LocalQuorum (Identity cid))
-        )
+  mConvRow <- UnliftIO.wait (toStoredConvRow <$$> cdata)
+  case mConvRow of
+    Nothing -> pure Nothing
+    Just (Just True, _) -> do
+      deleteConversation conv
+      pure Nothing
+    Just (_, convRow) -> do
+      toConv conv
+        <$> members conv
+        <*> UnliftIO.wait remoteMems
+        <*> pure (Just convRow)
 
 localConversations ::
   ( Member (Embed IO) r,
@@ -268,7 +249,7 @@ localConversations client =
 
     localConversation' :: ConvId -> Client (Either ByteString StoredConversation)
     localConversation' cid =
-      note ("No conversation for: " <> toByteString' cid) <$> localConversation cid
+      note ("No conversation for: " <> toByteString' cid) <$> getConversation cid
 
 -- | Takes a list of conversation ids and returns those found for the given
 -- user.

@@ -158,11 +158,11 @@ getConversationImpl cid =
     selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
     selectConvMetadata =
       dimapPG @_ @_
-        @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _, _))
-        @(Maybe (ConvType, Maybe UserId, Maybe [Access], Maybe (Set AccessRole), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe UTCTime, Maybe CipherSuiteTag, Maybe GroupConvType, Maybe AddPermission, Maybe CellsState, Maybe ConvId))
+        @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+        @(Maybe (ConvType, Maybe UserId, Maybe [Access], Maybe (Set AccessRole), Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe UTCTime, Maybe CipherSuiteTag, Maybe GroupConvType, Maybe AddPermission, Maybe CellsState, Maybe ConvId))
         [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
-                               (name :: text?), (team :: uuid?), (deleted :: boolean?), (message_timer :: bigint?), (receipt_mode :: integer?),
-                               (protocol :: integer?), (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
+                               (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
+                               (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
                         FROM conversation where conv = ($1 :: uuid)
                        |]

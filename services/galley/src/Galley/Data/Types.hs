@@ -19,7 +19,6 @@
 
 module Galley.Data.Types
   ( StoredConversation (..),
-    isConvDeleted,
     selfConv,
     Code (..),
     Scope (..),

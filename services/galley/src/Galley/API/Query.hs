@@ -549,7 +549,6 @@ getConversationsInternal luser mids mstart msize = do
   let localConvIds = ids
   cs <-
     E.getConversations localConvIds
-      >>= filterM removeDeleted
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   pure $ Public.ConversationList cs more
   where
@@ -572,14 +571,6 @@ getConversationsInternal luser mids mstart msize = do
       let hasMore = resultSetType r == ResultSetTruncated
       pure (hasMore, resultSetResult r)
 
-    removeDeleted ::
-      (Member ConversationStore r) =>
-      StoredConversation ->
-      Sem r Bool
-    removeDeleted c
-      | Data.isConvDeleted c = E.deleteConversation c.id_ >> pure False
-      | otherwise = pure True
-
 listConversations ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
@@ -596,7 +587,6 @@ listConversations luser (Public.ListConversations ids) = do
 
   localInternalConversations <-
     E.getConversations foundLocalIds
-      >>= filterM removeDeleted
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   localConversations <- mapM (Mapping.conversationViewV9 luser) localInternalConversations
 
@@ -624,13 +614,6 @@ listConversations luser (Public.ListConversations ids) = do
         crFailed = failedConvsRemotely
       }
   where
-    removeDeleted ::
-      (Member ConversationStore r) =>
-      StoredConversation ->
-      Sem r Bool
-    removeDeleted c
-      | Data.isConvDeleted c = E.deleteConversation c.id_ >> pure False
-      | otherwise = pure True
     foundsAndNotFounds :: (Monad m, Eq a) => ([a] -> m [a]) -> [a] -> m ([a], [a])
     foundsAndNotFounds f xs = do
       founds <- f xs

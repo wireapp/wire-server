@@ -30,7 +30,6 @@ data StoredConversation = StoredConversation
   { id_ :: ConvId,
     localMembers :: [LocalMember],
     remoteMembers :: [RemoteMember],
-    deleted :: Bool,
     metadata :: ConversationMetadata,
     protocol :: Protocol
   }
@@ -43,7 +42,6 @@ type ConvRow =
     Maybe (Set AccessRole),
     Maybe Text,
     Maybe TeamId,
-    Maybe Bool,
     Maybe Milliseconds,
     Maybe ReceiptMode,
     Maybe ProtocolTag,
@@ -87,12 +85,11 @@ toConv ::
   Maybe ConvRow ->
   Maybe StoredConversation
 toConv cid ms remoteMems mconv = do
-  row@(_, _, _, _, _, _, del, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _) <- mconv
+  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _) <- mconv
   proto <- toProtocol ptag mgid mep mts mcs
   pure
     StoredConversation
       { id_ = cid,
-        deleted = fromMaybe False del,
         localMembers = ms,
         remoteMembers = remoteMems,
         protocol = proto,
@@ -100,7 +97,7 @@ toConv cid ms remoteMems mconv = do
       }
 
 toConvMeta :: ConvRow -> ConversationMetadata
-toConvMeta (cty, muid, acc, roleV2, nme, ti, _, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent) =
+toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent) =
   let accessRoles = maybeRole cty roleV2
    in ConversationMetadata
         { cnvmType = cty,
@@ -138,7 +135,6 @@ newStoredConversation lcnv nc =
         { id_ = tUnqualified lcnv,
           localMembers = newMemberWithRole <$> lmems,
           remoteMembers = newRemoteMemberWithRole <$> rmems,
-          deleted = False,
           metadata = meta,
           protocol = proto
         }
@@ -152,9 +148,6 @@ newRemoteMemberWithRole ur@(tUntagged -> (Qualified (u, r) _)) =
 
 convProtocolTag :: StoredConversation -> ProtocolTag
 convProtocolTag conv = protocolTag conv.protocol
-
-isConvDeleted :: StoredConversation -> Bool
-isConvDeleted = (.deleted)
 
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)

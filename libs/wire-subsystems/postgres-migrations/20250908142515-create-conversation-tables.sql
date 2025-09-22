@@ -6,7 +6,6 @@ CREATE TABLE conversation (
   channel_add_permission integer,
   cipher_suite integer,
   creator uuid,
-  deleted boolean,
   epoch bigint,
   epoch_timestamp timestamptz,
   group_conv_type integer,
