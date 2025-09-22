@@ -9,6 +9,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.Records (HasField)
@@ -671,14 +672,26 @@ checkLocalMemberRemoteConvImpl uid (tUntagged -> Qualified convId domain) =
       lmapPG
         [singletonStatement|SELECT EXISTS(
                               SELECT 1 FROM remote_conversation_local_member
-                              WHERE domain = ($1 :: text)
-                              AND conv_remote_domain = ($2 :: uuid)
-                              AND conv_remote_id = ($3 :: uuid)
+                              WHERE conv_remote_domain = ($1 :: text)
+                              AND conv_remote_id = ($2 :: uuid)
+                              AND "user" = ($3 :: uuid)
                             ) :: boolean
                            |]
 
-selectRemoteMembersImpl :: [UserId] -> Remote ConvId -> Sem r ([UserId], Bool)
-selectRemoteMembersImpl = undefined
+selectRemoteMembersImpl :: (PGConstraints r) => [UserId] -> Remote ConvId -> Sem r ([UserId], Bool)
+selectRemoteMembersImpl uids (tUntagged -> Qualified cid domain) = do
+  foundUids <- runStatement (domain, cid, uids) select
+  pure (foundUids, Set.fromList foundUids == Set.fromList uids)
+  where
+    select :: Hasql.Statement (Domain, ConvId, [UserId]) [UserId]
+    select =
+      dimapPG @_ @(_, _, Vector _)
+        [vectorStatement|SELECT ("user" :: uuid)
+                         FROM remote_conversation_local_member
+                         WHERE conv_remote_domain = ($1 :: text)
+                         AND conv_remote_id = ($2 :: uuid)
+                         AND "user" = ANY ($3 :: uuid[])
+                        |]
 
 setSelfMemberImpl :: (PGConstraints r) => Qualified ConvId -> Local UserId -> MemberUpdate -> Sem r ()
 setSelfMemberImpl qcnv lusr =
