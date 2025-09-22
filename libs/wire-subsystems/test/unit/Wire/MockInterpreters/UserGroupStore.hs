@@ -7,10 +7,11 @@
 module Wire.MockInterpreters.UserGroupStore where
 
 import Control.Lens ((%~), _2)
+import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified (Qualified))
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (Vector, fromList)
@@ -184,12 +185,19 @@ removeUserImpl gid uid = do
 updateUserGroupChannelsImpl ::
   (UserGroupStoreInMemEffectConstraints r) =>
   UserGroupId ->
-  Vector (Qualified ConvId) ->
+  Vector ConvId ->
   Sem r ()
 updateUserGroupChannelsImpl gid convIds = do
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
-      f (Just g) = Just (g {channels = Identity $ Just convIds, channelsCount = Just $ length convIds} :: UserGroup)
+      f (Just g) =
+        Just
+          ( g
+              { channels = Identity $ Just $ flip Qualified (Domain "<local>") <$> convIds,
+                channelsCount = Just $ length convIds
+              } ::
+              UserGroup
+          )
 
   modifyUserGroupsGidOnly gid (Map.alter f)
 
