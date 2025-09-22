@@ -109,8 +109,8 @@ library
     SetupHelpers
     Test.AccessUpdate
     Test.Apps
-    Test.AssetDownload
-    Test.AssetUpload
+    Test.Cargohold.AssetDownload
+    Test.Cargohold.AssetUpload
     Test.Auth
     Test.B2B
     Test.BlockedDomains

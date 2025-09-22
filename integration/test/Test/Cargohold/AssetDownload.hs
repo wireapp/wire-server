@@ -1,4 +1,4 @@
-module Test.AssetDownload where
+module Test.Cargohold.AssetDownload where
 
 import API.Cargohold
 import GHC.Stack
@@ -74,3 +74,4 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     doUploadAsset user = bindResponse (uploadSomeAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"
+
