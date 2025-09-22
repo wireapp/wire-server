@@ -45,11 +45,12 @@ checkGroupState ::
     Member (Error MLSProtocolError) r,
     Member TeamFeatureStore r
   ) =>
+  Maybe TeamId ->
   IndexMap ->
   GroupInfo ->
   Sem r ()
-checkGroupState leaves groupInfo = do
-  check <- isGroupInfoCheckEnabled Nothing
+checkGroupState mTid leaves groupInfo = do
+  check <- isGroupInfoCheckEnabled mTid
   when check $ do
     trees <-
       either

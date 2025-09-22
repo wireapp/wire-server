@@ -276,7 +276,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
-        lift $ checkGroupState newIndexMap bundle.groupInfo.value
+        lift $ checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
         events <-
@@ -295,7 +295,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         pure (events, newClients)
       Nothing -> do
         (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
-        lift $ checkGroupState newIndexMap bundle.groupInfo.value
+        lift $ checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
         let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
           senderIdentity'
