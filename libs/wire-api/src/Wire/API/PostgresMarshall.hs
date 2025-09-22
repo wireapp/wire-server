@@ -10,6 +10,7 @@ where
 import Data.Aeson
 import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
+import Data.ByteString.Conversion qualified as BSC
 import Data.Domain
 import Data.Id
 import Data.Misc
@@ -488,6 +489,9 @@ instance PostgresMarshall (Id a) UUID where
 instance PostgresMarshall BotId UUID where
   postgresMarshall = toUUID . botUserId
 
+instance PostgresMarshall ClientId Text where
+  postgresMarshall = clientToText
+
 instance PostgresMarshall Object Value where
   postgresMarshall = Object
 
@@ -807,6 +811,9 @@ instance PostgresUnmarshall UUID (Id a) where
 
 instance PostgresUnmarshall UUID BotId where
   postgresUnmarshall = Right . BotId . Id
+
+instance PostgresUnmarshall Text ClientId where
+  postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
 
 instance PostgresUnmarshall Value Object where
   postgresUnmarshall (Object obj) = Right obj

@@ -816,8 +816,21 @@ deleteMembersInRemoteConversationImpl (tUntagged -> Qualified cid domain) uids =
                              AND "user" = ($3 ::uuid[])
                             |]
 
-addMLSClientsImpl :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> Sem r ()
-addMLSClientsImpl = undefined
+addMLSClientsImpl :: (PGConstraints r) => GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> Sem r ()
+addMLSClientsImpl gid (Qualified uid domain) clients =
+  runPipeline $
+    for_ (Set.toList clients) $
+      \(cid, idx) ->
+        Pipeline.statement (gid, domain, uid, cid, fromIntegral idx) insert
+  where
+    insert :: Hasql.Statement (GroupId, Domain, UserId, ClientId, Int32) ()
+    insert =
+      lmapPG
+        [resultlessStatement|INSERT INTO mls_group_member_client
+                             (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
+                             VALUES
+                             ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
+                            |]
 
 planClientRemovalImpl :: (Foldable f) => GroupId -> f ClientIdentity -> Sem r ()
 planClientRemovalImpl = undefined
