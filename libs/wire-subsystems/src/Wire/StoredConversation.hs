@@ -35,6 +35,27 @@ data StoredConversation = StoredConversation
   }
   deriving (Show)
 
+type ConvRowWithId =
+  ( ConvId,
+    ConvType,
+    Maybe UserId,
+    Maybe [Access],
+    Maybe (Set AccessRole),
+    Maybe Text,
+    Maybe TeamId,
+    Maybe Milliseconds,
+    Maybe ReceiptMode,
+    Maybe ProtocolTag,
+    Maybe GroupId,
+    Maybe Epoch,
+    Maybe UTCTime,
+    Maybe CipherSuiteTag,
+    Maybe GroupConvType,
+    Maybe AddPermission,
+    Maybe CellsState,
+    Maybe ConvId
+  )
+
 type ConvRow =
   ( ConvType,
     Maybe UserId,
@@ -54,6 +75,10 @@ type ConvRow =
     Maybe CellsState,
     Maybe ConvId
   )
+
+splitIdFromRow :: ConvRowWithId -> (ConvId, ConvRow)
+splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
+  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent))
 
 toProtocol ::
   Maybe ProtocolTag ->

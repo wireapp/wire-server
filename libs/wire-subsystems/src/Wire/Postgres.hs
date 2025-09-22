@@ -1,7 +1,8 @@
 module Wire.Postgres where
 
+import Hasql.Pipeline
 import Hasql.Pool
-import Hasql.Session
+import Hasql.Session qualified as Session
 import Hasql.Statement
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction.Sessions
@@ -21,7 +22,7 @@ runStatement ::
   Sem r b
 runStatement a stmt = do
   pool <- input
-  liftIO (use pool (statement a stmt)) >>= either throw pure
+  liftIO (use pool (Session.statement a stmt)) >>= either throw pure
 
 runTransaction ::
   (Member (Input Pool) r, Member (Embed IO) r, Member (Error UsageError) r) =>
@@ -32,3 +33,14 @@ runTransaction ::
 runTransaction isolationLevel mode t = do
   pool <- input
   liftIO (use pool $ Transaction.transaction isolationLevel mode t) >>= either throw pure
+
+runPipeline ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  Pipeline a ->
+  Sem r a
+runPipeline p = do
+  pool <- input
+  liftIO (use pool $ Session.pipeline p) >>= either throw pure

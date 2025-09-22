@@ -8,9 +8,10 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
+import GHC.Records (HasField)
+import Hasql.Pipeline qualified as Pipeline
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -188,8 +189,59 @@ getConversationEpochImpl cid = do
                         FROM conversation
                         WHERE id = ($1 :: uuid) |]
 
-getConversationsImpl :: [ConvId] -> Sem r [StoredConversation]
-getConversationsImpl = undefined
+getConversationsImpl :: (PGConstraints r) => [ConvId] -> Sem r [StoredConversation]
+getConversationsImpl cids = do
+  (convRowsWithId, localMemRows, remoteMemRows) <-
+    runPipeline $
+      (,,)
+        <$> Pipeline.statement cids selectMetadata
+        <*> Pipeline.statement cids selectAllLocalMembers
+        <*> Pipeline.statement cids selectAllRemoteMembers
+  let localsWithConvId = mkLocalMember <$> localMemRows
+      remotesWithConvId = mkRemoteMember <$> remoteMemRows
+  mConvs <- for convRowsWithId $ \convRowWithId -> do
+    let (convId, convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent)) = splitIdFromRow convRowWithId
+        localMems = findMembers convId mParent localsWithConvId
+        remoteMems = findMembers convId mParent remotesWithConvId
+    pure $ toConv convId localMems remoteMems (Just convRow)
+  pure $ catMaybes mConvs
+  where
+    selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
+    selectMetadata =
+      dimapPG @[_] @(Vector _)
+        @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+        @[ConvRowWithId]
+        [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
+                                (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
+                                (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
+                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                         FROM conversation
+                         WHERE id = ANY($1 :: uuid[])
+                        |]
+    selectAllLocalMembers :: Hasql.Statement [ConvId] [LocalMemberRow]
+    selectAllLocalMembers =
+      dimapPG @[_] @(Vector _)
+        [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                         FROM conversation_member
+                         WHERE status != 0
+                         AND (conv = ANY ($1 :: uuid[])
+                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[])))
+                        |]
+    selectAllRemoteMembers :: Hasql.Statement [ConvId] [RemoteMemberRow]
+    selectAllRemoteMembers =
+      dimapPG @[_] @(Vector _)
+        [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
+                         FROM member_remote_user
+                         WHERE conv = ANY ($1 :: uuid[])
+                         OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
+                        |]
+
+    findMembers :: (HasField "id_" a b, Eq b) => ConvId -> Maybe ConvId -> [(ConvId, a)] -> [a]
+    findMembers convId parentConvId allMembersWithConvId =
+      let localMemsDirect = map snd $ filter (\(memConvId, _) -> memConvId == convId) allMembersWithConvId
+          localMemsParent = map snd $ filter (\(memConvId, _) -> Just memConvId == parentConvId) allMembersWithConvId
+       in nubBy ((==) `on` (.id_)) $ localMemsDirect <> localMemsParent
 
 getConversationMetadataImpl :: ConvId -> Sem r (Maybe ConversationMetadata)
 getConversationMetadataImpl = undefined
@@ -419,7 +471,7 @@ getLocalMemberImpl convId userId = do
     selectMember =
       dimapPG
         [maybeStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
-                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                               (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                         FROM conversation_member
                         WHERE status != 0
                         AND (conv = ($1 :: uuid)
@@ -450,7 +502,7 @@ selectLocalMembersStmt =
     select =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
-                            (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
                          WHERE status != 0
                          AND (conv = ($1 :: uuid)
@@ -477,11 +529,13 @@ mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRe
       }
   )
 
+type RemoteMemberRow = (ConvId, Domain, UserId, RoleName)
+
 getRemoteMemberImpl :: (PGConstraints r) => ConvId -> Remote UserId -> Sem r (Maybe RemoteMember)
 getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
   snd . mkRemoteMember <$$> runStatement (convId, domain, uid) selectMember
   where
-    selectMember :: Hasql.Statement (ConvId, Domain, UserId) (Maybe (ConvId, Domain, UserId, RoleName))
+    selectMember :: Hasql.Statement (ConvId, Domain, UserId) (Maybe RemoteMemberRow)
     selectMember =
       dimapPG
         [maybeStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
