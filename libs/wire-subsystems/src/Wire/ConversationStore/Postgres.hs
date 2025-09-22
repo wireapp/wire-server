@@ -462,13 +462,21 @@ getTeamConversationImpl tid cid = runStatement (tid, cid) select
     select =
       dimapPG
         [maybeStatement|SELECT (id :: uuid)
+                        FROM conversation
+                        WHERE team = ($1 :: uuid)
+                        AND id = ($2 :: uuid)
+                       |]
+
+getTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r [ConvId]
+getTeamConversationsImpl tid = runStatement (tid) select
+  where
+    select :: Hasql.Statement (TeamId) [ConvId]
+    select =
+      dimapPG
+        [vectorStatement|SELECT (id :: uuid)
                          FROM conversation
                          WHERE team = ($1 :: uuid)
-                         AND id = ($2 :: uuid)
                         |]
-
-getTeamConversationsImpl :: TeamId -> Sem r [ConvId]
-getTeamConversationsImpl = undefined
 
 deleteTeamConversationsImpl :: TeamId -> Sem r ()
 deleteTeamConversationsImpl = undefined
