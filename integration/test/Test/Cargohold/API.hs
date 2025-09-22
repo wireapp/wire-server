@@ -348,7 +348,7 @@ remoteDownload content = do
 --  - Uploader: on backend A (audit enabled)
 --  - Downloader: on backend A (same backend)
 -- Expected logs:
---   - Backend A: "file-upload", "file-download"
+--   - Backend A: "file-upload", "download-url-creation""
 testAssetAuditLogDownloadBackendALocal :: (HasCallStack) => App ()
 testAssetAuditLogDownloadBackendALocal = do
   startDynamicBackends [cargoholdAuditLogEnabled] $ \[domainA] -> do
@@ -372,6 +372,8 @@ testAssetAuditLogDownloadBackendALocal = do
     bindResponse (downloadAsset owner owner key "nginz-https.example.com" id) $ \resp -> do
       resp.status `shouldMatchInt` 200
       BC.unpack resp.body `shouldMatch` "download-me"
+
+    liftIO $ threadDelay 2000000 -- wait for logs to be written
 
 -- Case 2:
 --  - Uploader: on backend A (audit enabled)
@@ -400,6 +402,8 @@ testAssetAuditLogDownloadBackendALoggingBackendBNotLogging = do
       resp.status `shouldMatchInt` 200
       BC.unpack resp.body `shouldMatch` "hello-onprem"
 
+    liftIO $ threadDelay 2000000 -- wait for logs to be written
+
 -- Case 3:
 --  - Uploader: on backend A (audit enabled)
 --  - Downloader: on backend B (audit enabled)
@@ -407,7 +411,27 @@ testAssetAuditLogDownloadBackendALoggingBackendBNotLogging = do
 --    - Backend A: "file-upload", "file-download"
 --    - Backend B: "file-download"
 testAssetAuditLogDownloadBackendALoggingBackendBLogging :: (HasCallStack) => App ()
-testAssetAuditLogDownloadBackendALoggingBackendBLogging = pure ()
+testAssetAuditLogDownloadBackendALoggingBackendBLogging = do
+  -- Start two dynamic backends with audit logging enabled on both.
+  startDynamicBackends [cargoholdAuditLogEnabled, cargoholdAuditLogEnabled] $ \[domainA, domainB] -> do
+    (owner, _tid, _members) <- createTeam domainA 1
+    downloader <- randomUser domainB def
+    -- Upload on A with required metadata
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
+    let body = (applicationText, cs "hello-onprem")
+    (loc, tok) <-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        (,) <$> r.json <*> (r.json %. "token" & asString)
+    -- Federated download by user on backend B.
+    bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "hello-onprem"
+
+    liftIO $ threadDelay 2000000 -- wait for logs to be written
 
 -- Case 4:
 --  - Uploader on backend A (audit disabled)

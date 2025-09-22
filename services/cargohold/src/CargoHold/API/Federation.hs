@@ -21,9 +21,12 @@ module CargoHold.API.Federation
   )
 where
 
+import CargoHold.API.AuditLog (logDownload)
 import CargoHold.API.Error
 import CargoHold.API.V3
 import CargoHold.App
+import CargoHold.Options
+import CargoHold.S3 (S3AssetMeta)
 import qualified CargoHold.S3 as S3
 import CargoHold.Types.V3 (Principal (UserPrincipal))
 import Control.Error
@@ -44,16 +47,17 @@ federationSitemap =
   Named @"get-asset" getAsset
     :<|> Named @"stream-asset" streamAsset
 
-checkAsset :: Domain -> F.GetAsset -> Handler Bool
+checkAsset :: Domain -> F.GetAsset -> Handler (Maybe S3AssetMeta)
 checkAsset remote ga =
-  fmap isJust . runMaybeT $
+  runMaybeT $
     checkMetadata (Qualified (UserPrincipal ga.user) remote) (F.key ga) (F.token ga)
 
 streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
 streamAsset remote ga = do
-  available <- checkAsset remote ga
-  unless available (throwE assetNotFound)
+  meta <- checkAsset remote ga >>= maybe (throwE assetNotFound) pure
+  whenM (asks (.options.settings.assetAuditLogEnabled)) $
+    logDownload (Just $ Qualified (UserPrincipal ga.user) remote) meta
   AssetSource <$> S3.downloadV3 (F.key ga)
 
 getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse
-getAsset remote = fmap F.GetAssetResponse . (checkAsset remote)
+getAsset remote ga = F.GetAssetResponse . isJust <$> checkAsset remote ga

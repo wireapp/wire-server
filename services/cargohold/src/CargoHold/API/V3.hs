@@ -123,22 +123,20 @@ randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)
 download own key tok mbHost = runMaybeT $ do
   qown <- lift $ qualifyLocal own
-  checkMetadata (tUntagged qown) key tok
-  lift $ genSignedURL (S3.mkKey key) mbHost
+  meta <- checkMetadata (tUntagged qown) key tok
+  lift $ genSignedURL (Just $ tUntagged qown) (Just meta) (S3.mkKey key) mbHost
 
 downloadUnsafe :: V3.AssetKey -> Maybe Text -> Handler URI
 downloadUnsafe key mbHost = do
-  s3 <- S3.getMetadataV3 key
-  whenM (asks (.options.settings.assetAuditLogEnabled)) $
-    maybe (pure ()) (logDownload Nothing) s3
-  genSignedURL (S3.mkKey key) mbHost
+  meta <- S3.getMetadataV3 key
+  genSignedURL Nothing meta (S3.mkKey key) mbHost
 
-checkMetadata :: Qualified V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler ()
+checkMetadata :: Qualified V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler S3.S3AssetMeta
 checkMetadata qown key tok = do
   let own = qUnqualified qown
   s3 <- lift (S3.getMetadataV3 key) >>= maybe mzero pure
-  lift $ whenM (asks (.options.settings.assetAuditLogEnabled)) $ logDownload (Just qown) s3
   guard $ own == S3.v3AssetOwner s3 || tok == S3.v3AssetToken s3
+  pure s3
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do

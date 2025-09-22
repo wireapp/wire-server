@@ -15,7 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.API.AuditLog where
+module CargoHold.API.AuditLog
+  ( logUpload,
+    logDownload,
+    logSignedURLCreation,
+  )
+where
 
 import CargoHold.S3 (AssetAuditLogMetadata (..), S3AssetMeta (..))
 import qualified CargoHold.Types.V3 as V3
@@ -28,84 +33,88 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import Wire.API.Asset (unAssetMIMEType)
 
--- | Emit an audit log entry for an asset upload event.
---
--- When metadata is present, enrich the log with conversation and file details.
 logUpload :: (Log.MonadLogger m) => Local V3.Principal -> Maybe AssetAuditLogMetadata -> m ()
 logUpload lwon mMeta =
   Log.info $
-    base
-      ~~ principal
-      ~~ principalDomain
-      ~~ audit
+    auditTrue
+      ~~ "event" .= ("file-upload" :: Text)
+      ~~ uploaderFields
+      ~~ auditMetaFields mMeta
       ~~ msg (val "Asset audit log: upload")
   where
-    base =
-      "audit" .= True
-        ~~ "event" .= ("file-upload" :: Text)
-    principal =
-      case tUnqualified lwon of
-        V3.UserPrincipal u ->
-          "uploader.type" .= ("user" :: Text)
-            ~~ "uploader.id" .= toByteString u
-        V3.BotPrincipal b ->
-          "uploader.type" .= ("bot" :: Text)
-            ~~ "uploader.id" .= toByteString (botUserId b)
-        V3.ProviderPrincipal p ->
-          "uploader.type" .= ("provider" :: Text)
-            ~~ "uploader.id" .= toByteString p
-    principalDomain = "uploader.domain" .= toByteString (tDomain lwon)
-    audit =
-      case mMeta of
-        Nothing -> id
-        Just meta ->
-          "conversation.id" .= toByteString (qUnqualified meta.convId)
-            ~~ "conversation.domain" .= toByteString (qDomain meta.convId)
-            ~~ "file.name" .= meta.filename
-            ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
+    uploaderFields :: Log.Msg -> Log.Msg
+    uploaderFields =
+      principal ~~ principalDomain
+      where
+        principal =
+          case tUnqualified lwon of
+            V3.UserPrincipal u ->
+              "uploader.type" .= ("user" :: Text)
+                ~~ "uploader.id" .= toByteString u
+            V3.BotPrincipal b ->
+              "uploader.type" .= ("bot" :: Text)
+                ~~ "uploader.id" .= toByteString (botUserId b)
+            V3.ProviderPrincipal p ->
+              "uploader.type" .= ("provider" :: Text)
+                ~~ "uploader.id" .= toByteString p
+        principalDomain = "uploader.domain" .= toByteString (tDomain lwon)
 
--- | Emit an audit log entry for an asset download event.
 logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> S3AssetMeta -> m ()
 logDownload mqDownloader s3 =
   Log.info $
-    base
-      ~~ downloader
-      ~~ audit
+    auditTrue
+      ~~ "event" .= ("file-download" :: Text)
+      ~~ downloaderFields mqDownloader
+      ~~ auditMetaFields (v3AssetAuditLogMetadata s3)
       ~~ msg (val "Asset audit log: download")
-  where
-    base =
-      "audit" .= True
-        ~~ "event" .= ("file-download" :: Text)
-    downloader =
-      case mqDownloader of
-        Just qDownloader ->
-          case qUnqualified qDownloader of
-            V3.UserPrincipal u ->
-              "downloader.type" .= ("user" :: Text)
-                ~~ "downloader.id" .= toByteString u
-                ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
-            V3.BotPrincipal b ->
-              "downloader.type" .= ("bot" :: Text)
-                ~~ "downloader.id" .= toByteString (botUserId b)
-                ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
-            V3.ProviderPrincipal p ->
-              "downloader.type" .= ("provider" :: Text)
-                ~~ "downloader.id" .= toByteString p
-                ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
-        Nothing ->
-          "downloader.type" .= ("N/A internal access" :: Text)
-            ~~ "downloader.id" .= ("N/A internal access" :: Text)
-            ~~ "downloader.domain" .= ("N/A internal access" :: Text)
-    audit =
-      case v3AssetAuditLogMetadata s3 of
-        Just meta ->
-          "conversation.id" .= toByteString (qUnqualified meta.convId)
-            ~~ "conversation.domain" .= toByteString (qDomain meta.convId)
-            ~~ "file.name" .= meta.filename
-            ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
-        Nothing ->
-          -- No audit metadata present; log expected fields with N/A placeholders.
-          "conversation.id" .= ("N/A" :: Text)
-            ~~ "conversation.domain" .= ("N/A" :: Text)
-            ~~ "file.name" .= ("N/A" :: Text)
-            ~~ "file.type" .= ("N/A" :: Text)
+
+logSignedURLCreation :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> m ()
+logSignedURLCreation mqCreator mMeta =
+  Log.info $
+    auditTrue
+      ~~ "event" .= ("download-url-creation" :: Text)
+      ~~ downloaderFields mqCreator
+      ~~ auditMetaFields (mMeta >>= v3AssetAuditLogMetadata)
+      ~~ msg (val "Asset audit log: signed URL creation")
+
+------------------------------------------------------------------------------
+-- Internal helpers
+
+auditMetaFields :: Maybe AssetAuditLogMetadata -> Log.Msg -> Log.Msg
+auditMetaFields mMeta =
+  case mMeta of
+    Just meta ->
+      "conversation.id" .= toByteString (qUnqualified meta.convId)
+        ~~ "conversation.domain" .= toByteString (qDomain meta.convId)
+        ~~ "file.name" .= meta.filename
+        ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
+    Nothing ->
+      "conversation.id" .= ("N/A" :: Text)
+        ~~ "conversation.domain" .= ("N/A" :: Text)
+        ~~ "file.name" .= ("N/A" :: Text)
+        ~~ "file.type" .= ("N/A" :: Text)
+
+downloaderFields :: Maybe (Qualified V3.Principal) -> Log.Msg -> Log.Msg
+downloaderFields mqDownloader =
+  case mqDownloader of
+    Just qDownloader ->
+      case qUnqualified qDownloader of
+        V3.UserPrincipal u ->
+          "downloader.type" .= ("user" :: Text)
+            ~~ "downloader.id" .= toByteString u
+            ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
+        V3.BotPrincipal b ->
+          "downloader.type" .= ("bot" :: Text)
+            ~~ "downloader.id" .= toByteString (botUserId b)
+            ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
+        V3.ProviderPrincipal p ->
+          "downloader.type" .= ("provider" :: Text)
+            ~~ "downloader.id" .= toByteString p
+            ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
+    Nothing ->
+      "downloader.type" .= ("N/A internal access" :: Text)
+        ~~ "downloader.id" .= ("N/A internal access" :: Text)
+        ~~ "downloader.domain" .= ("N/A internal access" :: Text)
+
+auditTrue :: Log.Msg -> Log.Msg
+auditTrue = "audit" .= True

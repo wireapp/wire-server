@@ -63,8 +63,8 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     modifyConfig =
       def
         { cargoholdCfg =
-            setField "aws.multiIngress"
-              $ object
+            setField "aws.multiIngress" $
+              object
                 [ "red.example.com" .= "http://s3-download.red.example.com",
                   "green.example.com" .= "http://s3-download.green.example.com"
                 ]
@@ -74,4 +74,3 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     doUploadAsset user = bindResponse (uploadSomeAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"
-

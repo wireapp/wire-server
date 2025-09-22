@@ -109,8 +109,6 @@ library
     SetupHelpers
     Test.AccessUpdate
     Test.Apps
-    Test.Cargohold.AssetDownload
-    Test.Cargohold.AssetUpload
     Test.Auth
     Test.B2B
     Test.BlockedDomains
@@ -119,6 +117,8 @@ library
     Test.Cargohold.API
     Test.Cargohold.API.Federation
     Test.Cargohold.API.V3
+    Test.Cargohold.AssetDownload
+    Test.Cargohold.AssetUpload
     Test.Cargohold.Metrics
     Test.Cells
     Test.Channels
