@@ -347,7 +347,8 @@ remoteDownload content = do
 -- Case 1:
 --  - Uploader: on backend A (audit enabled)
 --  - Downloader: on backend A (same backend)
---  Expected file-update and file-download logs on backend A
+-- Expected logs:
+--   - Backend A: "file-upload", "file-download"
 testAssetAuditLogDownloadBackendALocal :: (HasCallStack) => App ()
 testAssetAuditLogDownloadBackendALocal = do
   startDynamicBackends [cargoholdAuditLogEnabled] $ \[domainA] -> do
