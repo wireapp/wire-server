@@ -387,7 +387,7 @@ testUserGroupUpdateChannels = do
     postConversation alice (defProteus {team = Just tid})
       >>= getJSON 201
       >>= objConvId
-  updateUserGroupChannels alice gid [convId] >>= assertSuccess
+  updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
 
   bindResponse (getUserGroup alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
