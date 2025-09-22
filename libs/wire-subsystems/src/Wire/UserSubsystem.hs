@@ -50,7 +50,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
-import Wire.API.User.IdentityProvider hiding (team)
+import Wire.API.User.IdentityProvider hiding (domain, team)
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
 import Wire.Arbitrary
