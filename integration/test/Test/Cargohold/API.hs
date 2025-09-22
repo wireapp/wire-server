@@ -373,8 +373,6 @@ testAssetAuditLogDownloadBackendALocal = do
       resp.status `shouldMatchInt` 200
       BC.unpack resp.body `shouldMatch` "download-me"
 
-    liftIO $ threadDelay 2000000 -- wait for logs to be written
-
 -- Case 2:
 --  - Uploader: on backend A (audit enabled)
 --  - Downloader: on backend B (audit disabled)
@@ -402,8 +400,6 @@ testAssetAuditLogDownloadBackendALoggingBackendBNotLogging = do
       resp.status `shouldMatchInt` 200
       BC.unpack resp.body `shouldMatch` "hello-onprem"
 
-    liftIO $ threadDelay 2000000 -- wait for logs to be written
-
 -- Case 3:
 --  - Uploader: on backend A (audit enabled)
 --  - Downloader: on backend B (audit enabled)
@@ -430,8 +426,6 @@ testAssetAuditLogDownloadBackendALoggingBackendBLogging = do
     bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
       resp.status `shouldMatchInt` 200
       BC.unpack resp.body `shouldMatch` "hello-onprem"
-
-    liftIO $ threadDelay 2000000 -- wait for logs to be written
 
 -- Case 4:
 --  - Uploader on backend A (audit disabled)
