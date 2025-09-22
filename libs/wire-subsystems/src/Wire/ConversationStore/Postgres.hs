@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.ConversationStore.Postgres where
 
@@ -832,8 +831,22 @@ addMLSClientsImpl gid (Qualified uid domain) clients =
                              ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
                             |]
 
-planClientRemovalImpl :: (Foldable f) => GroupId -> f ClientIdentity -> Sem r ()
-planClientRemovalImpl = undefined
+planClientRemovalImpl :: (PGConstraints r, Foldable f) => GroupId -> f ClientIdentity -> Sem r ()
+planClientRemovalImpl gid clients =
+  runPipeline $
+    for_ clients $ \ClientIdentity {..} ->
+      Pipeline.statement (gid, ciDomain, ciUser, ciClient) update
+  where
+    update :: Hasql.Statement (GroupId, Domain, UserId, ClientId) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE mls_group_member_client
+                             SET removal_pending = true
+                             WHERE group_id = ($1 :: bytea)
+                             AND user_domain = ($2 :: text)
+                             AND user = ($3 :: uuid)
+                             AND client = ($4 :: text)
+                            |]
 
 removeMLSClientsImpl :: GroupId -> Qualified UserId -> Set ClientId -> Sem r ()
 removeMLSClientsImpl = undefined
