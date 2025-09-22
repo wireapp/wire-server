@@ -21,7 +21,7 @@ module CargoHold.API.Federation
   )
 where
 
-import CargoHold.API.AuditLog (logDownload)
+import CargoHold.API.AuditLog
 import CargoHold.API.Error
 import CargoHold.API.V3
 import CargoHold.App
@@ -30,8 +30,10 @@ import CargoHold.S3 (S3AssetMeta)
 import qualified CargoHold.S3 as S3
 import CargoHold.Types.V3 (Principal (UserPrincipal))
 import Control.Error
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain
 import Data.Qualified (Qualified (Qualified))
+import Data.Text.Encoding (decodeLatin1)
 import Imports
 import Servant.API
 import Servant.Server hiding (Handler)
@@ -55,8 +57,9 @@ checkAsset remote ga =
 streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
 streamAsset remote ga = do
   meta <- checkAsset remote ga >>= maybe (throwE assetNotFound) pure
-  whenM (asks (.options.settings.assetAuditLogEnabled)) $
-    logDownload (Just $ Qualified (UserPrincipal ga.user) remote) meta
+  whenM (asks (.options.settings.assetAuditLogEnabled)) $ do
+    let pathTxt = decodeLatin1 (toByteString' (S3.mkKey (F.key ga)))
+    logDownload (Just $ Qualified (UserPrincipal ga.user) remote) meta pathTxt
   AssetSource <$> S3.downloadV3 (F.key ga)
 
 getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse

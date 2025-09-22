@@ -29,18 +29,21 @@ import Codec.MIME.Type (showType)
 import Data.ByteString.Conversion.To (toByteString)
 import Data.Id (UserId, botUserId)
 import Data.Qualified (Local, Qualified, Remote, qDomain, qUnqualified, tDomain, tUnqualified)
+import Data.Text.Encoding (decodeUtf8)
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
+import URI.ByteString
 import Wire.API.Asset (unAssetMIMEType)
 
-logUpload :: (Log.MonadLogger m) => Local V3.Principal -> Maybe AssetAuditLogMetadata -> m ()
-logUpload lwon mMeta =
+logUpload :: (Log.MonadLogger m) => Local V3.Principal -> Maybe AssetAuditLogMetadata -> Text -> m ()
+logUpload lwon mMeta pathTxt =
   Log.info $
     auditTrue
       ~~ "event" .= ("file-upload" :: Text)
       ~~ uploaderFields
       ~~ auditMetaFields mMeta
+      ~~ "upload.path" .= pathTxt
       ~~ msg (val "Asset audit log: upload")
   where
     uploaderFields :: Log.Msg -> Log.Msg
@@ -60,25 +63,30 @@ logUpload lwon mMeta =
                 ~~ "uploader.id" .= toByteString p
         principalDomain = "uploader.domain" .= toByteString (tDomain lwon)
 
-logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> S3AssetMeta -> m ()
-logDownload mqDownloader s3 =
-  -- TODO: log path
+logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> S3AssetMeta -> Text -> m ()
+logDownload mqDownloader s3 pathTxt =
   Log.info $
     auditTrue
       ~~ "event" .= ("file-download" :: Text)
       ~~ downloaderFields mqDownloader
       ~~ auditMetaFields (v3AssetAuditLogMetadata s3)
+      ~~ "download.path" .= pathTxt
       ~~ msg (val "Asset audit log: download")
 
-logSignedURLCreation :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> m ()
-logSignedURLCreation mqCreator mMeta =
-  -- TODO: log path
+logSignedURLCreation :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> URI -> m ()
+logSignedURLCreation mqCreator mMeta uri =
   Log.info $
     auditTrue
       ~~ "event" .= ("download-url-creation" :: Text)
       ~~ downloaderFields mqCreator
       ~~ auditMetaFields (mMeta >>= v3AssetAuditLogMetadata)
+      ~~ "download.url.host" .= renderHost (uriAuthority uri)
+      ~~ "download.url.path" .= decodeUtf8 (uriPath uri)
       ~~ msg (val "Asset audit log: signed URL creation")
+  where
+    renderHost :: Maybe Authority -> Text
+    renderHost = maybe ("" :: Text) (decodeUtf8 . hostBS . authorityHost)
+    hostBS (Host h) = h
 
 logDownloadRemoteAsset :: (Log.MonadLogger m) => Local UserId -> Remote () -> m ()
 logDownloadRemoteAsset luid remote = do

@@ -48,6 +48,7 @@ import Control.Monad.Trans.Resource
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
@@ -89,7 +90,9 @@ upload own bdy = do
   key <- qualifyLocal (V3.AssetKeyV3 ast ret)
   void $ S3.uploadV3 own (tUnqualified key) hdrs mWireMetaText tok src
   qown <- qualifyLocal own
-  when auditEnabled $ logUpload qown mWireMetaText
+  when auditEnabled $ do
+    let pathTxt = decodeLatin1 (toByteString' (S3.mkKey (tUnqualified key)))
+    logUpload qown mWireMetaText pathTxt
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of
