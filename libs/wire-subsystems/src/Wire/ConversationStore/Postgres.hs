@@ -294,8 +294,18 @@ getRemoteConversationStatusImpl uid remoteConvs = do
                         AND conv_remote_id = ANY ($3 :: uuid[])
                         |]
 
-selectConversationsImpl :: UserId -> [ConvId] -> Sem r [ConvId]
-selectConversationsImpl = undefined
+selectConversationsImpl :: (PGConstraints r) => UserId -> [ConvId] -> Sem r [ConvId]
+selectConversationsImpl uid cids =
+  runStatement (uid, cids) select
+  where
+    select :: Hasql.Statement (UserId, [ConvId]) [ConvId]
+    select =
+      dimapPG @_ @(_, Vector _)
+        [vectorStatement|SELECT (conv :: uuid) from conversation_member
+                         WHERE "user" = ($1 :: uuid)
+                         AND conv = ANY ($2 :: uuid[])
+                         ORDER BY conv
+                        |]
 
 setConversationTypeImpl :: (PGConstraints r) => ConvId -> ConvType -> Sem r ()
 setConversationTypeImpl convId typ =
