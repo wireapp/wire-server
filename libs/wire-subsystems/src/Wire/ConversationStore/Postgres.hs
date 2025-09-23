@@ -417,7 +417,7 @@ setGroupInfoImpl convId groupInfo =
     update =
       lmapPG
         [resultlessStatement|UPDATE conversation
-                             SET group_info = ($2 :: bytea)
+                             SET public_group_state = ($2 :: bytea)
                              WHERE id = ($1 :: uuid)|]
 
 updateChannelAddPermissionsImpl :: (PGConstraints r) => ConvId -> AddPermission -> Sem r ()
