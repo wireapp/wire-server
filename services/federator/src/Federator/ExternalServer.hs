@@ -27,6 +27,7 @@ where
 import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
+import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Sequence qualified as Seq
@@ -155,7 +156,16 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
   body <- embed $ Wai.lazyRequestBody wreq
-  let headers = filter ((== versionHeader) . fst) (Wai.requestHeaders wreq)
+  -- Build headers to forward internally: keep only API version and add Wire-Origin-IP if present
+  let reqHeaders = Wai.requestHeaders wreq
+      headersVersion = filter ((== versionHeader) . fst) reqHeaders
+      mXff = lookup "X-Forwarded-For" reqHeaders
+      firstIP = fmap (BS8.takeWhile (/= ',')) mXff
+      mXReal = lookup "X-Real-IP" reqHeaders
+      mOriginIp = case firstIP of
+        Just ip | not (BS.null ip) -> Just ip
+        _ -> mXReal
+      headers = maybe headersVersion (\ip -> ("Wire-Origin-IP", ip) : headersVersion) mOriginIp
   resp <- serviceCall component path headers body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
