@@ -170,10 +170,11 @@ getConversationImpl cid =
 
 selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
 selectConvMetadata =
+  -- TODO: Get rid of the `(NULL :: integer[]?)`
   dimapPG @_ @_
     @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
     @(Maybe ConvRow)
-    [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
+    [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (NULL :: integer[]?), (access_roles_v2 :: integer[]?),
                            (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                            (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
                            (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
@@ -211,10 +212,11 @@ getConversationsImpl cids = do
   where
     selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
     selectMetadata =
+      -- TODO: Get rid of the `(NULL :: integer[]?)`
       dimapPG @[_] @(Vector _)
         @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
         @[ConvRowWithId]
-        [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (access_role :: integer[]?), (access_roles_v2 :: integer[]?),
+        [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (NULL :: integer[]?), (access_roles_v2 :: integer[]?),
                                 (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                                 (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
                                 (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
@@ -224,7 +226,7 @@ getConversationsImpl cids = do
     selectAllLocalMembers :: Hasql.Statement [ConvId] [LocalMemberRow]
     selectAllLocalMembers =
       dimapPG @[_] @(Vector _)
-        [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+        [vectorStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
                          WHERE conv = ANY ($1 :: uuid[])
@@ -234,7 +236,7 @@ getConversationsImpl cids = do
     selectAllRemoteMembers =
       dimapPG @[_] @(Vector _)
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
-                         FROM member_remote_user
+                         FROM local_conversation_remote_member
                          WHERE conv = ANY ($1 :: uuid[])
                          OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
                         |]
@@ -285,7 +287,7 @@ getRemoteConversationStatusImpl uid remoteConvs = do
     select :: Hasql.Statement (UserId, Domain, [ConvId]) [(ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)]
     select =
       dimapPG @_ @(_, _, Vector _)
-        [vectorStatement|SELECT (conv_remote_uid :: uuid),
+        [vectorStatement|SELECT (conv_remote_id :: uuid),
                                 (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?),
                                 (hidden :: boolean?), (hidden_ref :: text?)
@@ -317,7 +319,7 @@ setConversationTypeImpl convId typ =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET type = ($2 :: integer)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationNameImpl :: (PGConstraints r) => ConvId -> Range 1 256 Text -> Sem r ()
 setConversationNameImpl convId (fromRange -> name) =
@@ -328,7 +330,7 @@ setConversationNameImpl convId (fromRange -> name) =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET name = ($2 :: text)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationAccessImpl :: (PGConstraints r) => ConvId -> ConversationAccessData -> Sem r ()
 setConversationAccessImpl convId accessData =
@@ -339,7 +341,7 @@ setConversationAccessImpl convId accessData =
       lmapPG @_ @(_, Vector _, Vector _)
         [resultlessStatement|UPDATE conversation
                              SET access = ($2 :: integer[]), access_roles_v2 = ($3 :: integer[])
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationReceiptModeImpl :: (PGConstraints r) => ConvId -> ReceiptMode -> Sem r ()
 setConversationReceiptModeImpl convId receiptMode =
@@ -350,7 +352,7 @@ setConversationReceiptModeImpl convId receiptMode =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET receipt_mode = ($2 :: integer)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationMessageTimerImpl :: (PGConstraints r) => ConvId -> Maybe Milliseconds -> Sem r ()
 setConversationMessageTimerImpl convId timer =
@@ -361,7 +363,7 @@ setConversationMessageTimerImpl convId timer =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET message_timer = ($2 :: bigint?)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationEpochImpl :: (PGConstraints r) => ConvId -> Epoch -> Sem r ()
 setConversationEpochImpl convId epoch =
@@ -372,7 +374,7 @@ setConversationEpochImpl convId epoch =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET epoch = ($2 :: bigint), epoch_timestamp = NOW()
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationCipherSuiteImpl :: (PGConstraints r) => ConvId -> CipherSuiteTag -> Sem r ()
 setConversationCipherSuiteImpl convId cs =
@@ -383,7 +385,7 @@ setConversationCipherSuiteImpl convId cs =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET cipher_suite = ($2 :: integer)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setConversationCellsStateImpl :: (PGConstraints r) => ConvId -> CellsState -> Sem r ()
 setConversationCellsStateImpl convId cells =
@@ -394,7 +396,7 @@ setConversationCellsStateImpl convId cells =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET cells_state = ($2 :: integer)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 resetConversationImpl :: (PGConstraints r) => ConvId -> GroupId -> Sem r ()
 resetConversationImpl convId groupId =
@@ -405,7 +407,7 @@ resetConversationImpl convId groupId =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET group_id = ($2 :: bytea), epoch = 0, epoch_timestamp = NOW()
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 setGroupInfoImpl :: (PGConstraints r) => ConvId -> GroupInfoData -> Sem r ()
 setGroupInfoImpl convId groupInfo =
@@ -416,7 +418,7 @@ setGroupInfoImpl convId groupInfo =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET group_info = ($2 :: bytea)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 updateChannelAddPermissionsImpl :: (PGConstraints r) => ConvId -> AddPermission -> Sem r ()
 updateChannelAddPermissionsImpl convId addPerm =
@@ -427,7 +429,7 @@ updateChannelAddPermissionsImpl convId addPerm =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET add_permission = ($2 :: integer)
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 updateToMixedProtocolImpl :: (PGConstraints r) => ConvId -> GroupId -> Epoch -> Sem r ()
 updateToMixedProtocolImpl convId gid epoch =
@@ -438,7 +440,7 @@ updateToMixedProtocolImpl convId gid epoch =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET protocol = ($2 :: integer), group_id = ($3 :: bytea), epoch = ($4 :: bigint), epoch_timestamp = NOW()
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 updateToMLSProtocolImpl :: (PGConstraints r) => ConvId -> Sem r ()
 updateToMLSProtocolImpl convId =
@@ -449,7 +451,7 @@ updateToMLSProtocolImpl convId =
       lmapPG
         [resultlessStatement|UPDATE conversation
                              SET protocol = ($2 :: integer), receipt_mode = 0
-                             WHERE conv = ($1 :: uuid)|]
+                             WHERE id = ($1 :: uuid)|]
 
 -- This doesn't check whether the conv belongs to the team because the cassandra
 -- interpreter doesn't do that either.
@@ -488,8 +490,8 @@ deleteTeamConversationsImpl tid =
     delete =
       lmapPG
         [resultlessStatement|DELETE FROM conversation
-                                         WHERE team = ($1 :: uuid)
-                                        |]
+                             WHERE team = ($1 :: uuid)
+                            |]
 
 -- MEMBER OPERATIONS
 createMembersImpl :: (PGConstraints r) => ConvId -> UserList (UserId, RoleName) -> Sem r ([LocalMember], [RemoteMember])
@@ -507,12 +509,12 @@ createMembersTransaction convId (UserList lusers rusers) = do
     insertLocalStatement :: Hasql.Statement (ConvId, UserId, RoleName) ()
     insertLocalStatement =
       lmapPG
-        [resultlessStatement|INSERT INTO conversation_member (conv, "user", status, conversation_role)
-                             VALUES ($1 :: uuid, $2 :: uuid, 0, $3 :: text)|]
+        [resultlessStatement|INSERT INTO conversation_member (conv, "user", conversation_role)
+                             VALUES ($1 :: uuid, $2 :: uuid, $3 :: text)|]
     insertRemoteStatement :: Hasql.Statement (ConvId, Domain, UserId, RoleName) ()
     insertRemoteStatement =
       lmapPG
-        [resultlessStatement|INSERT INTO member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role)
+        [resultlessStatement|INSERT INTO local_conversation_remote_member (conv, user_remote_domain, user_remote_id, conversation_role)
                              VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
 
 createMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
@@ -525,7 +527,7 @@ createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users 
     insertMember :: Hasql.Statement (UserId, Domain, ConvId) ()
     insertMember =
       lmapPG
-        [resultlessStatement|INSERT INTO user_remote_conv ("user", conv_remote_domain, conv_remote_id)
+        [resultlessStatement|INSERT INTO remote_conversation_local_member ("user", conv_remote_domain, conv_remote_id)
                              VALUES ($1 :: uuid, $2 :: text, $3 :: uuid)|]
 
 createBotMemberImpl :: (PGConstraints r) => ServiceRef -> BotId -> ConvId -> Sem r BotMember
@@ -578,7 +580,7 @@ selectLocalMembersStmt =
     select :: Hasql.Statement ConvId [LocalMemberRow]
     select =
       dimapPG
-        [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+        [vectorStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
                          WHERE conv = ($1 :: uuid)
@@ -615,7 +617,7 @@ getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
     selectMember =
       dimapPG
         [maybeStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
-                         FROM member_remote_user
+                         FROM local_conversation_remote_member
                          WHERE user_remote_domain = ($2 :: text)
                          AND user_remote_id = ($3 :: uuid)
                          AND (conv = ($1 :: uuid)
@@ -643,7 +645,7 @@ selectRemoteMembersStmt =
     select =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
-                         FROM member_remote_user
+                         FROM local_conversation_remote_member
                          WHERE (conv = ($1 :: uuid)
                                 OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
                          ORDER BY CASE
