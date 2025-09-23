@@ -50,7 +50,7 @@ CREATE TABLE conversation_member (
   PRIMARY KEY (conv, "user")
 );
 
-CREATE INDEX conversation_member_user_idx ON conversation_member (user)
+CREATE INDEX conversation_member_user_idx ON conversation_member ("user");
 
 CREATE TABLE remote_conversation_local_member (
   "user" uuid NOT NULL,
@@ -81,5 +81,5 @@ CREATE TABLE mls_group_member_client (
   key_package_ref bytea,
   leaf_node_index integer NOT NULL,
   removal_pending boolean NOT NULL,
-  PRIMARY KEY (group_id, user_domain, user, client)
+  PRIMARY KEY (group_id, user_domain, "user", client)
 );
