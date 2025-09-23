@@ -48,7 +48,6 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import Network.Wai.Utilities.Server (federationOriginIpHeaderName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -62,6 +61,7 @@ import Servant.Server.Generic (AsServerT)
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Endpoint (originIpHeaderName)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.VersionInfo
 
@@ -165,7 +165,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
           let fstHdr = BS8.takeWhile (/= ',') xff
           guard (not (BS8.null fstHdr)) $> fstHdr
       mXReal = lookup "X-Real-IP" reqHeaders
-      mOriginIp = (federationOriginIpHeaderName,) <$> (mFirstIP <|> mXReal)
+      mOriginIp = (originIpHeaderName,) <$> (mFirstIP <|> mXReal)
       -- FUTUREWORK: did we miss passing the request ID header?
       headers = maybeToList mOriginIp <> headersVersion
   resp <- serviceCall component path headers body validatedDomain

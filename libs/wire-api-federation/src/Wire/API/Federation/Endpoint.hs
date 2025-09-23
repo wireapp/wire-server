@@ -21,15 +21,26 @@ module Wire.API.Federation.Endpoint
   )
 where
 
+import Control.Lens ((?~))
 import Data.Kind
+import Data.Metrics.Servant
+import Data.OpenApi qualified as S
+import Data.Proxy (Proxy (..))
 import GHC.TypeLits
 import Imports
 import Servant.API
+import Servant.Client
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.Server
+import Servant.Server.Internal (MkContextWithErrorFormatter)
 import Wire.API.ApplyMods
+import Data.Misc (IpAddr)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.Routes.ClientAlgebra
 import Wire.API.Routes.Named
+import Wire.API.Routes.SpecialiseToVersion (SpecialiseToVersion)
 
 data Versioned v name
 
@@ -72,6 +83,7 @@ type StreamingFedEndpoint name input output =
     name
     ( name
         :> OriginDomainHeader
+        :> OriginIpHeader
         :> ReqBody '[JSON] input
         :> StreamPost NoFraming OctetStream output
     )
@@ -90,3 +102,44 @@ type instance
 type instance
   MkNotificationFedEndpoint m s ('Just v) p =
     NotificationFedEndpointWithMods m (Versioned v s) s p
+
+type OriginIpHeaderName = "Wire-Origin-IP" :: Symbol
+
+data OriginIpHeader
+
+instance (RoutesToPaths api) => RoutesToPaths (OriginIpHeader :> api) where
+  getRoutes = getRoutes @api
+
+type instance SpecialiseToVersion v (OriginIpHeader :> api) = OriginIpHeader :> SpecialiseToVersion v api
+
+instance (HasClient m api) => HasClient m (OriginIpHeader :> api) where
+  type Client m (OriginIpHeader :> api) = Client m api
+  clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
+
+instance (HasClientAlgebra m api) => HasClientAlgebra m (OriginIpHeader :> api) where
+  joinClient = joinClient @m @api
+  bindClient = bindClient @m @api
+
+type OriginIpHeaderHasServer = Header' '[Strict] OriginIpHeaderName IpAddr
+
+instance
+  ( HasServer api context,
+    HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters
+  ) =>
+  HasServer (OriginIpHeader :> api) context
+  where
+  type ServerT (OriginIpHeader :> api) m = Maybe IpAddr -> ServerT api m
+  route _pa = route (Proxy @(OriginIpHeaderHasServer :> api))
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+originIpHeaderName :: (IsString a) => a
+originIpHeaderName = fromString $ symbolVal (Proxy @OriginIpHeaderName)
+
+instance (HasOpenApi api) => HasOpenApi (OriginIpHeader :> api) where
+  toOpenApi _ = desc $ toOpenApi (Proxy @api)
+    where
+      desc =
+        S.allOperations
+          . S.description
+          ?~ ("Federated endpoints may include optional origin IP header: `" <> originIpHeaderName <> "`")
