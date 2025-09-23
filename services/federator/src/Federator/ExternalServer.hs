@@ -159,12 +159,12 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   -- Build headers to forward internally: keep only API version and add Wire-Origin-IP if present
   let reqHeaders = Wai.requestHeaders wreq
       headersVersion = filter ((== versionHeader) . fst) reqHeaders
-      mXff = lookup "X-Forwarded-For" reqHeaders
-      firstIP = fmap (BS8.takeWhile (/= ',')) mXff
+      mFirstIP =
+        lookup "X-Forwarded-For" reqHeaders >>= \xff -> do
+          let fstHdr = BS8.takeWhile (/= ',') xff
+          guard (not (BS8.null fstHdr)) $> fstHdr
       mXReal = lookup "X-Real-IP" reqHeaders
-      mOriginIp = case firstIP of
-        Just ip | not (BS.null ip) -> Just ip
-        _ -> mXReal
+      mOriginIp = mFirstIP <|> mXReal
       headers = maybe headersVersion (\ip -> ("Wire-Origin-IP", ip) : headersVersion) mOriginIp
   resp <- serviceCall component path headers body validatedDomain
   Log.debug $
