@@ -63,6 +63,9 @@ config:
     # tlsCaSecretRef:
     #   name: <secret-name>
     #   key: <ca-attribute>
+
+  postgresMigration:
+    conversation: cassandra
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000

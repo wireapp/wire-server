@@ -86,7 +86,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
@@ -147,7 +146,6 @@ type GalleyEffects1 =
      Input Opts,
      Now,
      Queue DeleteItem,
-     TinyLog,
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
