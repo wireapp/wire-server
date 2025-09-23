@@ -45,6 +45,7 @@
 , mtl
 , optparse-applicative
 , prometheus-client
+, QuickCheck
 , resourcet
 , retry
 , schema-profunctor
@@ -55,12 +56,14 @@
 , tasty
 , tasty-ant-xml
 , tasty-hunit
+, tasty-quickcheck
 , text
 , time
 , tinylog
 , transformers
 , types-common
 , types-common-aws
+, unix
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -111,6 +114,7 @@ mkDerivation {
     metrics-wai
     mime
     prometheus-client
+    QuickCheck
     resourcet
     retry
     schema-profunctor
@@ -168,6 +172,23 @@ mkDerivation {
     wire-api
     wire-api-federation
     yaml
+  ];
+  testHaskellDepends = [
+    aeson
+    base
+    bytestring
+    cargohold-types
+    extended
+    imports
+    mime
+    tasty
+    tasty-quickcheck
+    text
+    types-common
+    unix
+    unliftio
+    uri-bytestring
+    wire-api
   ];
   description = "Asset Storage API";
   license = lib.licenses.agpl3Only;

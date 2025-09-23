@@ -75,6 +75,7 @@ import qualified Data.UUID as UUID
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
+import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
 import Wire.API.Asset (AssetMIMEType)
 
@@ -474,3 +475,11 @@ getOtrMetadata cnv ast = do
   pure $ getAmzMetaUser . (HML.toList <$> view headObjectResponse_metadata) =<< r
   where
     req k b = newHeadObject (BucketName b) (ObjectKey k)
+
+-- Arbitrary instance for property-based testing
+instance Arbitrary AssetAuditLogMetadata where
+  arbitrary =
+    AssetAuditLogMetadata
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary

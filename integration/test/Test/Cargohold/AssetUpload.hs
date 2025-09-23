@@ -32,4 +32,3 @@ testAssetUploadUnknownUser = do
           ]
   bindResponse (uploadSomeAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 403
-
