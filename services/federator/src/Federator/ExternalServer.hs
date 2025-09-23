@@ -48,6 +48,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Server (federationOriginIpHeaderName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -164,8 +165,9 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
           let fstHdr = BS8.takeWhile (/= ',') xff
           guard (not (BS8.null fstHdr)) $> fstHdr
       mXReal = lookup "X-Real-IP" reqHeaders
-      mOriginIp = mFirstIP <|> mXReal
-      headers = maybe headersVersion (\ip -> ("Wire-Origin-IP", ip) : headersVersion) mOriginIp
+      mOriginIp = (federationOriginIpHeaderName,) <$> (mFirstIP <|> mXReal)
+      -- FUTUREWORK: did we miss passing the request ID header?
+      headers = maybeToList mOriginIp <> headersVersion
   resp <- serviceCall component path headers body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)

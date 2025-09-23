@@ -45,6 +45,7 @@ module Network.Wai.Utilities.Server
     -- * Constants
     defaultRequestIdHeaderName,
     federationRequestIdHeaderName,
+    federationOriginIpHeaderName,
   )
 where
 
@@ -379,6 +380,9 @@ defaultRequestIdHeaderName = "Request-Id"
 
 federationRequestIdHeaderName :: HeaderName
 federationRequestIdHeaderName = "Wire-Origin-Request-Id"
+
+federationOriginIpHeaderName :: HeaderName
+federationOriginIpHeaderName = "Wire-Origin-IP"
 
 -- | Log an 'Error' response for debugging purposes.
 --
