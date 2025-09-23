@@ -2,6 +2,7 @@
 
 module Wire.ConversationStore.Postgres where
 
+import Control.Monad.Trans.Maybe
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
@@ -9,6 +10,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Time
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.Records (HasField)
@@ -907,8 +909,37 @@ createSubConversationImpl cid subConvId gid = do
                              ($1 :: uuid, $2 :: text, 0, NOW(), $3 :: bytea)
                             |]
 
-getSubConversationImpl :: ConvId -> SubConvId -> Sem r (Maybe SubConversation)
-getSubConversationImpl = undefined
+getSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> Sem r (Maybe SubConversation)
+getSubConversationImpl cid subConvId = runMaybeT $ do
+  (mSuite, mEpoch, mEpochTimestamp, mGroupId) <- MaybeT $ runStatement (cid, subConvId) select
+  let activeData =
+        ActiveMLSConversationData
+          <$> mEpoch
+          <*> mEpochTimestamp
+          <*> mSuite
+  groupId <- hoistMaybe mGroupId
+  (cm, im) <- lift $ lookupMLSClientLeafIndicesImpl groupId
+  pure $
+    SubConversation
+      { scParentConvId = cid,
+        scSubConvId = subConvId,
+        scMLSData =
+          ConversationMLSData
+            { cnvmlsGroupId = groupId,
+              cnvmlsActiveData = activeData
+            },
+        scMembers = cm,
+        scIndexMap = im
+      }
+  where
+    select :: Hasql.Statement (ConvId, SubConvId) (Maybe (Maybe CipherSuiteTag, Maybe Epoch, Maybe UTCTime, Maybe GroupId))
+    select =
+      dimapPG
+        [maybeStatement|SELECT (cipher_suite :: integer?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (group_id :: bytea?)
+                        FROM subconversation
+                        WHERE conv_id = ($1 :: uuid)
+                        AND subconv_id = ($2 :: text)
+                       |]
 
 getSubConversationGroupInfoImpl :: ConvId -> SubConvId -> Sem r (Maybe GroupInfoData)
 getSubConversationGroupInfoImpl = undefined
