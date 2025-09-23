@@ -5,7 +5,9 @@ import API.BrigCommon
 import API.Common
 import API.GundeckInternal
 import Control.Concurrent
-import qualified Data.Map as Map
+import Control.Monad.Codensity (Codensity (..))
+import Control.Monad.Reader.Class (local)
+import qualified Data.Map.Strict as Map
 import Data.Time
 import GHC.Conc (numCapabilities)
 import GHC.Stack
@@ -13,6 +15,7 @@ import SetupHelpers
 import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Data.Stream.Prelude as Stream
 import System.Random
+import qualified Test.Events as TestEvents
 import Testlib.Prekeys
 import Testlib.Prelude
 
@@ -59,7 +62,8 @@ plusDelta timestamp deltaMilliSeconds = addUTCTime (fromIntegral deltaMilliSecon
 sendAndReceive :: Int -> Map Word TestRecipient -> App ()
 sendAndReceive userNo userMap = do
   print $ "pushing to user" ++ show userNo
-  let alice = (.user) $ userMap Map.! (fromIntegral userNo)
+  let testRecipient = userMap Map.! (fromIntegral userNo)
+      alice = testRecipient.user
   r <- recipient alice
   let push =
         object
@@ -69,8 +73,16 @@ sendAndReceive userNo userMap = do
 
   void $ postPush alice [push] >>= getBody 200
 
---  void $ withWebSocket alice $ \ws -> do
---    awaitMatch (\e -> printJSON e >> pure True) ws
+  forM_ (testRecipient.clientIds) $ \(cid :: String) ->
+    runCodensity (TestEvents.createEventsWebSocket alice (Just cid)) $ \ws -> do
+      -- TODO: Tweak this value to the least acceptable event delivery duration
+      local (setTimeoutTo 120) $ TestEvents.assertFindsEvent ws $ \e -> do
+        print "Event received"
+        printJSON e
+        e %. "payload" `shouldMatch` [object ["foo" .= "bar"]]
+
+setTimeoutTo :: Int -> Env -> Env
+setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
 
 generateTestRecipient :: (HasCallStack) => App TestRecipient
 generateTestRecipient = do
