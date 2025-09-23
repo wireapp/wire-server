@@ -52,7 +52,7 @@ interpretUserGroupSubsystem = interpret $ \case
   AddUsers adder groupId addeeIds -> addUsers adder groupId addeeIds
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
-  UpdateChannels remover groupId channelIds -> updateChannels remover groupId channelIds
+  UpdateChannels performer groupId channelIds -> updateChannels performer groupId channelIds
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
