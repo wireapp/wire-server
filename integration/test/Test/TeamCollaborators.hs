@@ -238,7 +238,7 @@ testRemoveCollaboratorInTeamConversation = do
 
     bobId <- bob %. "qualified_id"
     bobUnqualifiedId <- bobId %. "id"
-    let checkLeaveEvent :: (MakesValue a,  HasCallStack) => a -> App ()
+    let checkLeaveEvent :: (MakesValue a, HasCallStack) => a -> App ()
         checkLeaveEvent evt = do
           evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId
           evt %. "payload.0.team" `shouldMatch` team
