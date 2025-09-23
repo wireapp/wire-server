@@ -46,7 +46,6 @@ CREATE TABLE conversation_member (
   otr_muted_status integer,
   provider uuid,
   service uuid,
-  status integer,
   PRIMARY KEY (conv, "user")
 );
 

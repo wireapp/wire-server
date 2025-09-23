@@ -227,9 +227,8 @@ getConversationsImpl cids = do
         [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
-                         WHERE status != 0
-                         AND (conv = ANY ($1 :: uuid[])
-                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[])))
+                         WHERE conv = ANY ($1 :: uuid[])
+                         OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
                         |]
     selectAllRemoteMembers :: Hasql.Statement [ConvId] [RemoteMemberRow]
     selectAllRemoteMembers =
@@ -537,8 +536,8 @@ createBotMemberImpl serviceRef botId convId = do
     insert :: Hasql.Statement (ConvId, BotId, ServiceId, ProviderId) ()
     insert =
       lmapPG
-        [resultlessStatement|INSERT INTO member (conv, "user", service, provider, status)
-                             VALUES ($1 :: uuid, $2 :: uuid, $3 :: uuid, $4 :: uuid, 0)
+        [resultlessStatement|INSERT INTO member (conv, "user", service, provider)
+                             VALUES ($1 :: uuid, $2 :: uuid, $3 :: uuid, $4 :: uuid)
                             |]
 
 getLocalMemberImpl :: (PGConstraints r) => ConvId -> UserId -> Sem r (Maybe LocalMember)
@@ -552,8 +551,7 @@ getLocalMemberImpl convId userId = do
         [maybeStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                         FROM conversation_member
-                        WHERE status != 0
-                        AND (conv = ($1 :: uuid)
+                        WHERE (conv = ($1 :: uuid)
                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
                         AND "user" = ($2 :: uuid)
                         ORDER BY CASE
@@ -583,9 +581,8 @@ selectLocalMembersStmt =
         [vectorStatement|SELECT (conv :: uuid), (user :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
-                         WHERE status != 0
-                         AND (conv = ($1 :: uuid)
-                              OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                         WHERE conv = ($1 :: uuid)
+                         OR    conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid))
                          ORDER BY CASE
                            WHEN conv = ($1 :: uuid) THEN 1
                            ELSE 2
