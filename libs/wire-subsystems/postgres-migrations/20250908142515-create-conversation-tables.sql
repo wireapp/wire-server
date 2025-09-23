@@ -27,6 +27,7 @@ CREATE TABLE subconversation (
   subconv_id text NOT NULL,
   cipher_suite integer,
   epoch bigint,
+  epoch_timestamp timestamptz,
   group_id bytea,
   public_group_state bytea,
   PRIMARY KEY (conv_id, subconv_id)

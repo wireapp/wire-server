@@ -893,8 +893,19 @@ lookupMLSClientLeafIndicesImpl gid = do
   pure (mkClientMap rows, mkIndexMap rows)
 
 -- SUB CONVERSATION OPERATIONS
-createSubConversationImpl :: ConvId -> SubConvId -> GroupId -> Sem r SubConversation
-createSubConversationImpl = undefined
+createSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> GroupId -> Sem r SubConversation
+createSubConversationImpl cid subConvId gid = do
+  runStatement (cid, subConvId, gid) insert
+  pure $ newSubConversation cid subConvId gid
+  where
+    insert :: Hasql.Statement (ConvId, SubConvId, GroupId) ()
+    insert =
+      lmapPG
+        [resultlessStatement|INSERT INTO subconversation
+                             (conv_id, subconv_id, epoch, epoch_timestamp, group_id)
+                             VALUES
+                             ($1 :: uuid, $2 :: text, 0, NOW(), $3 :: bytea)
+                            |]
 
 getSubConversationImpl :: ConvId -> SubConvId -> Sem r (Maybe SubConversation)
 getSubConversationImpl = undefined
