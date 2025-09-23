@@ -941,23 +941,111 @@ getSubConversationImpl cid subConvId = runMaybeT $ do
                         AND subconv_id = ($2 :: text)
                        |]
 
-getSubConversationGroupInfoImpl :: ConvId -> SubConvId -> Sem r (Maybe GroupInfoData)
-getSubConversationGroupInfoImpl = undefined
+getSubConversationGroupInfoImpl :: (PGConstraints r) => ConvId -> SubConvId -> Sem r (Maybe GroupInfoData)
+getSubConversationGroupInfoImpl cid subConvId =
+  join <$> runStatement (cid, subConvId) select
+  where
+    select :: Hasql.Statement (ConvId, SubConvId) (Maybe (Maybe GroupInfoData))
+    select =
+      dimapPG
+        [maybeStatement|SELECT (public_group_state :: bytea?)
+                        FROM subconversation
+                        WHERE conv_id = ($1 :: uuid)
+                        AND subconv_id = ($2 :: text)
+                       |]
 
-getSubConversationEpochImpl :: ConvId -> SubConvId -> Sem r (Maybe Epoch)
-getSubConversationEpochImpl = undefined
+getSubConversationEpochImpl :: (PGConstraints r) => ConvId -> SubConvId -> Sem r (Maybe Epoch)
+getSubConversationEpochImpl cid subConvId =
+  join <$> runStatement (cid, subConvId) select
+  where
+    select :: Hasql.Statement (ConvId, SubConvId) (Maybe (Maybe Epoch))
+    select =
+      dimapPG
+        [maybeStatement|SELECT (epoch :: bigint?)
+                        FROM subconversation
+                        WHERE conv_id = ($1 :: uuid)
+                        AND subconv_id = ($2 :: text)
+                       |]
 
-setSubConversationGroupInfoImpl :: ConvId -> SubConvId -> Maybe GroupInfoData -> Sem r ()
-setSubConversationGroupInfoImpl = undefined
+setSubConversationGroupInfoImpl :: (PGConstraints r) => ConvId -> SubConvId -> Maybe GroupInfoData -> Sem r ()
+setSubConversationGroupInfoImpl cid subConvId mGroupInfo =
+  runStatement (cid, subConvId, mGroupInfo) update
+  where
+    update :: Hasql.Statement (ConvId, SubConvId, Maybe GroupInfoData) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE subconversation
+                             SET public_group_state = ($3 :: bytea?)
+                             WHERE conv_id = ($1 :: uuid)
+                             AND subconv_id = ($2 :: text)
+                            |]
 
-setSubConversationEpochImpl :: ConvId -> SubConvId -> Epoch -> Sem r ()
-setSubConversationEpochImpl = undefined
+setSubConversationEpochImpl :: (PGConstraints r) => ConvId -> SubConvId -> Epoch -> Sem r ()
+setSubConversationEpochImpl cid subConvId epoch =
+  runStatement (cid, subConvId, epoch) update
+  where
+    update :: Hasql.Statement (ConvId, SubConvId, Epoch) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE subconversation
+                             SET epoch = ($3 :: bigint), epoch_timestamp = NOW()
+                             WHERE conv_id = ($1 :: uuid)
+                             AND subconv_id = ($2 :: text)
+                            |]
 
-setSubConversationCipherSuiteImpl :: ConvId -> SubConvId -> CipherSuiteTag -> Sem r ()
-setSubConversationCipherSuiteImpl = undefined
+setSubConversationCipherSuiteImpl :: (PGConstraints r) => ConvId -> SubConvId -> CipherSuiteTag -> Sem r ()
+setSubConversationCipherSuiteImpl cid subConvId cs =
+  runStatement (cid, subConvId, cs) update
+  where
+    update :: Hasql.Statement (ConvId, SubConvId, CipherSuiteTag) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE subconversation
+                             SET cipher_suite = ($3 :: integer)
+                             WHERE conv_id = ($1 :: uuid)
+                             AND subconv_id = ($2 :: text)
+                            |]
 
-listSubConversationsImpl :: ConvId -> Sem r (Map SubConvId ConversationMLSData)
-listSubConversationsImpl = undefined
+listSubConversationsImpl :: (PGConstraints r) => ConvId -> Sem r (Map SubConvId ConversationMLSData)
+listSubConversationsImpl cid = do
+  subs <- runStatement cid select
+  pure . Map.fromList $ do
+    (subId, cs, epoch, ts, gid) <- subs
+    let activeData = case (epoch, ts) of
+          (Epoch 0, _) -> Nothing
+          (_, t) ->
+            Just
+              ActiveMLSConversationData
+                { epoch = epoch,
+                  epochTimestamp = t,
+                  ciphersuite = cs
+                }
 
-deleteSubConversationImpl :: ConvId -> SubConvId -> Sem r ()
-deleteSubConversationImpl = undefined
+    pure
+      ( subId,
+        ConversationMLSData
+          { cnvmlsGroupId = gid,
+            cnvmlsActiveData = activeData
+          }
+      )
+  where
+    -- TODO: Verify if none of these can actually not be null
+    select :: Hasql.Statement (ConvId) [(SubConvId, CipherSuiteTag, Epoch, UTCTime, GroupId)]
+    select =
+      dimapPG
+        [vectorStatement|SELECT (subconv_id :: text), (cipher_suite :: integer), (epoch :: bigint), (epoch_timestamp :: timestamptz), (group_id :: bytea)
+                         FROM subconversation
+                         WHERE conv_id = ($1 :: uuid)
+                        |]
+
+deleteSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> Sem r ()
+deleteSubConversationImpl cid subConvId =
+  runStatement (cid, subConvId) delete
+  where
+    delete :: Hasql.Statement (ConvId, SubConvId) ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM subconversation
+                             WHERE conv_id = ($1 :: uuid)
+                             AND subconv_id = ($2 :: text)
+                            |]
