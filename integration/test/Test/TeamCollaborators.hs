@@ -4,7 +4,7 @@ import API.Brig
 import API.Galley
 import qualified API.GalleyInternal as Internal
 import Data.Tuple.Extra
-import Notifications (isTeamCollaboratorAddedNotif, isTeamCollaboratorRemovedNotif, isTeamMemberLeaveNotif)
+import Notifications (isConvLeaveNotif, isTeamCollaboratorAddedNotif, isTeamCollaboratorRemovedNotif, isTeamMemberLeaveNotif)
 import SetupHelpers
 import Testlib.Prelude
 
@@ -236,22 +236,26 @@ testRemoveCollaboratorInTeamConversation = do
   withWebSockets [owner, alice, bob] $ \[wsOwner, wsAlice, wsBob] -> do
     removeTeamCollaborator owner team bob >>= assertSuccess
 
-    bobUnqualifiedId <- bob %. "qualified_id.id"
-    let checkLeaveEvent :: (MakesValue a) => a -> App ()
+    bobId <- bob %. "qualified_id"
+    bobUnqualifiedId <- bobId %. "id"
+    let checkLeaveEvent :: (MakesValue a,  HasCallStack) => a -> App ()
         checkLeaveEvent evt = do
           evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId
           evt %. "payload.0.team" `shouldMatch` team
-          evt %. "transient" `shouldMatch` True
-        checkRemoveEvent :: (MakesValue a) => a -> App ()
+        checkRemoveEvent :: (MakesValue a, HasCallStack) => a -> App ()
         checkRemoveEvent evt = do
           evt %. "payload.0.data.user" `shouldMatch` bobUnqualifiedId
           evt %. "payload.0.team" `shouldMatch` team
-          evt %. "transient" `shouldMatch` False
+        checkConvLeaveEvent :: (MakesValue a, HasCallStack) => a -> App ()
+        checkConvLeaveEvent evt = do
+          evt %. "payload.0.data.qualified_user_ids" `shouldMatch` [bobId]
+          evt %. "payload.0.team" `shouldMatch` team
 
     awaitMatch isTeamMemberLeaveNotif wsOwner >>= checkLeaveEvent
+    awaitMatch isTeamMemberLeaveNotif wsAlice >>= checkRemoveEvent
     awaitMatch isTeamMemberLeaveNotif wsBob >>= checkLeaveEvent
     awaitMatch isTeamCollaboratorRemovedNotif wsOwner >>= checkRemoveEvent
-    awaitMatch isTeamCollaboratorRemovedNotif wsAlice >>= checkRemoveEvent
+    awaitMatch isConvLeaveNotif wsAlice >>= checkConvLeaveEvent
 
   getConversation alice conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
