@@ -760,7 +760,7 @@ setOtherLocalMember cid uid upd =
         [resultlessStatement|UPDATE conversation_member
                              SET conversation_role = ($3 :: text)
                              WHERE conv = ($1 :: uuid)
-                             AND user = ($2 :: uuid)
+                             AND "user" = ($2 :: uuid)
                             |]
 
 setOtherRemoteMember :: (PGConstraints r) => ConvId -> Remote UserId -> OtherMemberUpdate -> Sem r ()
@@ -790,7 +790,7 @@ deleteMembersImpl cid users =
       lmapPG @_ @(_, Vector _)
         [resultlessStatement|DELETE FROM conversation_member
                              WHERE conv = ($1 :: uuid)
-                             AND users = ANY ($2 :: uuid[])
+                             AND "user" = ANY($2 :: uuid[])
                             |]
 
     -- TODO: make this able to delete all remote users at once
@@ -800,7 +800,7 @@ deleteMembersImpl cid users =
         [resultlessStatement|DELETE FROM local_conversation_remote_member
                              WHERE conv = ($1 :: uuid)
                              AND user_remote_domain = ($2 :: text)
-                             AND user_remote_id = ANY ($3 :: uuid[])
+                             AND user_remote_id = ANY($3 :: uuid[])
                             |]
 
 deleteMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
@@ -813,7 +813,7 @@ deleteMembersInRemoteConversationImpl (tUntagged -> Qualified cid domain) uids =
         [resultlessStatement|DELETE FROM remote_conversation_local_member
                              WHERE conv_remote_domain = ($1 :: text)
                              AND conv_remote_id = ($2 :: uuid)
-                             AND "user" = ($3 ::uuid[])
+                             AND "user" = ANY ($3 ::uuid[])
                             |]
 
 addMLSClientsImpl :: (PGConstraints r) => GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> Sem r ()
@@ -845,7 +845,7 @@ planClientRemovalImpl gid clients =
                              SET removal_pending = true
                              WHERE group_id = ($1 :: bytea)
                              AND user_domain = ($2 :: text)
-                             AND user = ($3 :: uuid)
+                             AND "user" = ($3 :: uuid)
                              AND client = ($4 :: text)
                             |]
 
