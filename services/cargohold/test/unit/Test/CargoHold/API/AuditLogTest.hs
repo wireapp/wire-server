@@ -57,15 +57,6 @@ propLogUpload dom princ meta pathTxt = QC.ioProperty $ do
               ]
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
-  where
-    uploaderType = \case
-      V3.UserPrincipal {} -> "user" :: T.Text
-      V3.BotPrincipal {} -> "bot"
-      V3.ProviderPrincipal {} -> "provider"
-    uploaderId = \case
-      V3.UserPrincipal u -> T.pack (show u)
-      V3.BotPrincipal b -> T.pack (show (botUserId b))
-      V3.ProviderPrincipal p -> T.pack (show p)
 
 propLogDownload :: Domain -> V3.Principal -> V3.Principal -> AssetAuditLogMetadata -> T.Text -> QC.Property
 propLogDownload dom owner downloader meta pathTxt = QC.ioProperty $ do
@@ -98,15 +89,6 @@ propLogDownload dom owner downloader meta pathTxt = QC.ioProperty $ do
               ]
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
-  where
-    uploaderType = \case
-      V3.UserPrincipal {} -> "user" :: T.Text
-      V3.BotPrincipal {} -> "bot"
-      V3.ProviderPrincipal {} -> "provider"
-    uploaderId = \case
-      V3.UserPrincipal u -> T.pack (show u)
-      V3.BotPrincipal b -> T.pack (show (botUserId b))
-      V3.ProviderPrincipal p -> T.pack (show p)
 
 propLogSignedURLCreation :: Qualified V3.Principal -> Maybe AssetAuditLogMetadata -> QC.Property
 propLogSignedURLCreation qDownloader mMeta = QC.ioProperty $ do
@@ -152,15 +134,6 @@ propLogSignedURLCreation qDownloader mMeta = QC.ioProperty $ do
               ]
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
-  where
-    uploaderType = \case
-      V3.UserPrincipal {} -> "user" :: T.Text
-      V3.BotPrincipal {} -> "bot"
-      V3.ProviderPrincipal {} -> "provider"
-    uploaderId = \case
-      V3.UserPrincipal u -> T.pack (show u)
-      V3.BotPrincipal b -> T.pack (show (botUserId b))
-      V3.ProviderPrincipal p -> T.pack (show p)
 
 propLogDownloadRemoteAsset :: Domain -> UserId -> Domain -> QC.Property
 propLogDownloadRemoteAsset domLocal uid domRemote = QC.ioProperty $ do
@@ -183,3 +156,15 @@ propLogDownloadRemoteAsset domLocal uid domRemote = QC.ioProperty $ do
               ]
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
+
+uploaderType :: V3.Principal -> T.Text
+uploaderType = \case
+  V3.UserPrincipal {} -> "user" :: T.Text
+  V3.BotPrincipal {} -> "bot"
+  V3.ProviderPrincipal {} -> "provider"
+
+uploaderId :: V3.Principal -> T.Text
+uploaderId = \case
+  V3.UserPrincipal u -> T.pack (show u)
+  V3.BotPrincipal b -> T.pack (show (botUserId b))
+  V3.ProviderPrincipal p -> T.pack (show p)

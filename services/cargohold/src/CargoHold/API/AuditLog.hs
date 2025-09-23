@@ -111,10 +111,10 @@ auditMetaFields mMeta =
         ~~ "file.name" .= meta.filename
         ~~ "file.type" .= showType (unAssetMIMEType meta.filetype)
     Nothing ->
-      "conversation.id" .= ("N/A" :: Text)
-        ~~ "conversation.domain" .= ("N/A" :: Text)
-        ~~ "file.name" .= ("N/A" :: Text)
-        ~~ "file.type" .= ("N/A" :: Text)
+      "conversation.id" .= notAvailable
+        ~~ "conversation.domain" .= notAvailable
+        ~~ "file.name" .= notAvailable
+        ~~ "file.type" .= notAvailable
 
 downloaderFields :: Maybe (Qualified V3.Principal) -> Log.Msg -> Log.Msg
 downloaderFields mqDownloader =
@@ -134,9 +134,15 @@ downloaderFields mqDownloader =
             ~~ "downloader.id" .= toByteString p
             ~~ "downloader.domain" .= toByteString (qDomain qDownloader)
     Nothing ->
-      "downloader.type" .= ("N/A internal access" :: Text)
-        ~~ "downloader.id" .= ("N/A internal access" :: Text)
-        ~~ "downloader.domain" .= ("N/A internal access" :: Text)
+      "downloader.type" .= notAvailableInternalAccess
+        ~~ "downloader.id" .= notAvailableInternalAccess
+        ~~ "downloader.domain" .= notAvailableInternalAccess
 
 auditTrue :: Log.Msg -> Log.Msg
 auditTrue = "audit" .= True
+
+notAvailable :: Text
+notAvailable = "N/A"
+
+notAvailableInternalAccess :: Text
+notAvailableInternalAccess = "N/A internal access"
