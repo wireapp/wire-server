@@ -29,6 +29,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Error ()
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 

@@ -70,7 +70,6 @@ module Wire.API.Team.Member
     rolePermissions,
     IsPerm (..),
     HiddenPerm (..),
-    HasPermError (..),
   )
 where
 
@@ -91,7 +90,7 @@ import Data.Range
 import Data.Schema
 import Data.Set qualified as Set
 import Imports
-import Wire.API.Error.Galley
+-- import Wire.API.Error.Galley
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
 import Wire.API.Routes.MultiTablePaging.State
 import Wire.API.Team.Collaborator (CollaboratorPermission, TeamCollaborator (..))
@@ -594,23 +593,12 @@ isAdminOrOwner perms =
     Just RoleExternalPartner -> False
     Nothing -> False
 
-class HasPermError perm where
-  type PermError (p :: perm) :: GalleyError
-
-instance HasPermError Perm where
-  type PermError p = 'MissingPermission ('Just p)
-
-instance HasPermError HiddenPerm where
-  type PermError p = OperationDenied
-
 -- | See Note [hidden team roles]
 class IsPerm teamAssociation perm where
-  -- type PermError teamAssociation (p :: perm) :: GalleyError
   hasPermission :: teamAssociation -> perm -> Bool
   mayGrantPermission :: teamAssociation -> perm -> Bool
 
 instance IsPerm Role Perm where
-  -- type PermError Role p = 'MissingPermission ('Just p)
   hasPermission r p = p `Set.member` ((rolePermissions r).self)
   mayGrantPermission r p = p `Set.member` ((rolePermissions r).copy)
 

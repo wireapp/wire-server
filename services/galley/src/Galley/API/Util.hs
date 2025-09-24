@@ -85,6 +85,7 @@ import Wire.API.Team.Collaborator qualified as CollaboratorPermission (Collabora
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
+import Wire.API.Team.Member.Error
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth

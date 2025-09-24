@@ -578,7 +578,8 @@ handleMLSMessageErrors ::
   ( r1
       ~ Append
           MLSBundleStaticErrors
-          ( Error UnreachableBackends
+          ( Error GroupInfoDiagnostics
+              ': Error UnreachableBackends
               ': Error NonFederatingBackends
               ': Error MLSProposalFailure
               ': Error GalleyError
@@ -599,6 +600,8 @@ handleMLSMessageErrors =
     . runError
     . fmap (either (MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) Imports.id)
     . runError @UnreachableBackends
+    . fmap (either MLSMessageResponseGroupInfoDiagnostics Imports.id)
+    . runError @GroupInfoDiagnostics
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::

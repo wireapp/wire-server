@@ -30,6 +30,7 @@ module Wire.API.Error.Galley
     UnreachableBackends (..),
     unreachableUsersToUnreachableBackends,
     UnreachableBackendsLegacy (..),
+    GroupInfoDiagnostics (..),
   )
 where
 
@@ -38,6 +39,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Containers.ListUtils
 import Data.Domain
 import Data.HashMap.Strict.InsOrd (singleton)
+import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
@@ -56,6 +58,9 @@ import Servant.API.ContentTypes (JSON, contentType)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Group
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.API
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
@@ -106,7 +111,6 @@ data GalleyError
   | MLSMigrationCriteriaNotSatisfied
   | MLSFederatedOne2OneNotSupported
   | MLSFederatedResetNotSupported
-  | MLSGroupInfoMismatch
   | GroupIdVersionNotSupported
   | -- | MLS and federation are incompatible with legalhold - this error is thrown if a user
     -- tries to create an MLS group while being under legalhold
@@ -268,8 +272,6 @@ type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls
 type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-federated-one2one-not-supported" "Federated One2One MLS conversations are only supported in API version >= 6"
 
 type instance MapError 'MLSFederatedResetNotSupported = 'StaticError 400 "mls-federated-reset-not-supported" "Reset is not supported by the owning backend of the conversation"
-
-type instance MapError 'MLSGroupInfoMismatch = 'StaticError 400 "mls-group-info-mismatch" "Ratchet tree mismatch in GroupInfo"
 
 type instance MapError 'GroupIdVersionNotSupported = 'StaticError 400 "mls-group-id-not-supported" "The group ID version of the conversation is not supported by one of the federated backends"
 
@@ -589,4 +591,58 @@ instance APIError UnreachableBackendsLegacy where
 type instance ErrorEffect UnreachableBackendsLegacy = Error UnreachableBackendsLegacy
 
 instance (Member (Error JSONResponse) r) => ServerEffect (Error UnreachableBackendsLegacy) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- Group info diagnostics
+
+data GroupInfoDiagnostics = GroupInfoDiagnostics
+  { commitBundle :: ByteString,
+    groupId :: GroupId,
+    clients :: [(Int, ClientIdentity)],
+    convId :: ConvOrSubConvId
+  }
+  deriving (Eq, Show, Generic)
+  deriving (S.ToSchema, FromJSON, ToJSON) via Schema GroupInfoDiagnostics
+
+groupInfoDiagnosticsStatus :: HTTP.Status
+groupInfoDiagnosticsStatus = HTTP.status400
+
+instance APIError GroupInfoDiagnostics where
+  toResponse e =
+    JSONResponse
+      { status = groupInfoDiagnosticsStatus,
+        value = toJSON e,
+        headers = []
+      }
+
+indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, ClientIdentity)
+indexedClientSchema =
+  object "IndexedClient" $
+    (,)
+      <$> fst .= field "index" schema
+      <*> snd .= field "id" schema
+
+instance ToSchema GroupInfoDiagnostics where
+  schema =
+    object "GroupInfoDiagnostics" $
+      GroupInfoDiagnostics
+        <$> (.commitBundle) .= field "commit_bundle" base64Schema
+        <*> (.groupId) .= field "group_id" schema
+        <*> (.clients) .= field "clients" (array indexedClientSchema)
+        <*> (.convId) .= convOrSubConvIdObjectSchema
+
+instance IsSwaggerError GroupInfoDiagnostics where
+  addToOpenApi =
+    addErrorResponseToSwagger (HTTP.statusCode groupInfoDiagnosticsStatus) $
+      mempty
+        & S.description .~ "Submitted group info is inconsistent with the backend group state"
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @GroupInfoDiagnostics))
+
+type instance ErrorEffect GroupInfoDiagnostics = Error GroupInfoDiagnostics
+
+instance (Member (Error JSONResponse) r) => ServerEffect (Error GroupInfoDiagnostics) r where
   interpretServerEffect = mapError toResponse

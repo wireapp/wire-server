@@ -119,8 +119,7 @@ type MLSBundleStaticErrors =
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature,
-       ErrorS 'MLSGroupInfoMismatch
+       ErrorS 'MLSInvalidLeafNodeSignature
      ]
 
 postMLSMessageFromLocalUser ::
@@ -138,7 +137,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (Error GroupInfoDiagnostics) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -158,7 +158,7 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 postMLSCommitBundle ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
-    Member (ErrorS MLSGroupInfoMismatch) r,
+    Member (Error GroupInfoDiagnostics) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member TeamFeatureStore r,
     Member Random r,
@@ -184,7 +184,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 postMLSCommitBundleFromLocalUser ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
-    Member (ErrorS MLSGroupInfoMismatch) r,
+    Member (Error GroupInfoDiagnostics) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member TeamFeatureStore r,
     Member Random r,
@@ -210,7 +210,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
-    Member (ErrorS MLSGroupInfoMismatch) r,
+    Member (Error GroupInfoDiagnostics) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member TeamFeatureStore r,
     Member Random r,
@@ -323,6 +323,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error MLSProposalFailure) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
+    Member (Error GroupInfoDiagnostics) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -359,6 +360,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
+    MLSMessageResponseGroupInfoDiagnostics e -> throw e
     MLSMessageResponseUpdates updates -> do
       fmap fst . runOutputList . runInputConst (void loc) $
         for_ updates $ \update -> do
@@ -381,7 +383,8 @@ postMLSMessage ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (Error GroupInfoDiagnostics) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -474,7 +477,8 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
-    HasProposalEffects r
+    HasProposalEffects r,
+    Member (Error GroupInfoDiagnostics) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -515,6 +519,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
     MLSMessageResponseNonFederatingBackends e -> throw e
+    MLSMessageResponseGroupInfoDiagnostics e -> throw e
 
 storeGroupInfo ::
   ( Member ConversationStore r

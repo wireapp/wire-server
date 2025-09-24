@@ -15,7 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.GroupInfoCheck (checkGroupState) where
+module Galley.API.MLS.GroupInfoCheck
+  ( checkGroupState,
+  )
+where
 
 import Control.Lens (view)
 import Data.Id
@@ -27,7 +30,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.NonDet
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
@@ -40,7 +42,7 @@ import Wire.ConversationStore.MLS.Types
 
 checkGroupState ::
   forall r.
-  ( Member (ErrorS MLSGroupInfoMismatch) r,
+  ( Member (Error GroupInfoDiagnostics) r,
     Member (Input Opts) r,
     Member (Error MLSProtocolError) r,
     Member TeamFeatureStore r
@@ -62,7 +64,10 @@ checkGroupState mTid leaves groupInfo = do
       _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
     giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
     when (leaves /= giLeaves) $ do
-      throwS @MLSGroupInfoMismatch
+      throw -- TODO
+        GroupInfoDiagnostics
+          {
+          }
   where
     getIdentity :: LeafNode -> Sem r ClientIdentity
     getIdentity leaf = case credentialIdentityAndKey leaf.credential of

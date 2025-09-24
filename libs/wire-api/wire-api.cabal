@@ -236,6 +236,7 @@ library
     Wire.API.Team.LegalHold.External
     Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
+    Wire.API.Team.Member.Error
     Wire.API.Team.Member.Info
     Wire.API.Team.Permission
     Wire.API.Team.Role
