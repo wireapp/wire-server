@@ -332,5 +332,4 @@ additionalElasticSearch: https://localhost:9201
 cellsEventQueue: cells_events
 
 shardingGroupCount: 1
-shardingGroup: 0
 maxUserNo: 1000

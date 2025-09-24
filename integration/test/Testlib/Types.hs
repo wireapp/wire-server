@@ -165,7 +165,6 @@ data IntegrationConfig = IntegrationConfig
     dnsMockServer :: DNSMockServerConfig,
     cellsEventQueue :: String,
     shardingGroupCount :: Word,
-    shardingGroup :: Word,
     maxUserNo :: Word
   }
   deriving (Show, Generic)
@@ -188,7 +187,6 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "dnsMockServer"
         <*> o .: fromString "cellsEventQueue"
         <*> o .: fromString "shardingGroupCount"
-        <*> o .: fromString "shardingGroup"
         <*> o .: fromString "maxUserNo"
 
 data ServiceMap = ServiceMap

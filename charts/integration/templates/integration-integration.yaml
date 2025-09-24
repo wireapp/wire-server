@@ -188,7 +188,7 @@ spec:
     - |
       set -euo pipefail
 
-      if TEST_INCLUDE=testBench integration --config /etc/wire/integration/integration.yaml; then
+      if TEST_INCLUDE=testBench integration --config /etc/wire/integration/integration.yaml --sharding-group {{ .Values.config.shardingGroup }}; then
         exit_code=$?
       else
         exit_code=$?

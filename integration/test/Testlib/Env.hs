@@ -62,8 +62,8 @@ serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
-mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
-mkGlobalEnv cfgFile = do
+mkGlobalEnv :: FilePath -> Word -> Codensity IO GlobalEnv
+mkGlobalEnv cfgFile shardingGroup = do
   eith <- liftIO $ Yaml.decodeFileEither cfgFile
   intConfig <- liftIO $ case eith of
     Left err -> do
@@ -147,7 +147,7 @@ mkGlobalEnv cfgFile = do
         gCellsEventWatchersLock,
         gCellsEventWatchers,
         gShardingGroupCount = intConfig.shardingGroupCount,
-        gShardingGroup = intConfig.shardingGroup,
+        gShardingGroup = shardingGroup,
         gMaxUserNo = intConfig.maxUserNo
       }
   where

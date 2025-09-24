@@ -311,5 +311,4 @@ data:
     integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local
     cellsEventQueue: cells_events
     shardingGroupCount: {{ .Values.config.shardingGroupCount }}
-    shardingGroup: {{ .Values.config.shardingGroup }}
     maxUserNo: {{ .Values.config.maxUserNo }}
