@@ -144,7 +144,10 @@ data GlobalEnv = GlobalEnv
     gDNSMockServerConfig :: DNSMockServerConfig,
     gCellsEventQueue :: String,
     gCellsEventWatchersLock :: MVar (),
-    gCellsEventWatchers :: IORef (Map String QueueWatcher)
+    gCellsEventWatchers :: IORef (Map String QueueWatcher),
+    gShardingGroupCount :: Word,
+    gShardingGroup :: Word,
+    gMaxUserNo :: Word
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -160,7 +163,10 @@ data IntegrationConfig = IntegrationConfig
     rabbitmqV1 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
     dnsMockServer :: DNSMockServerConfig,
-    cellsEventQueue :: String
+    cellsEventQueue :: String,
+    shardingGroupCount :: Word,
+    shardingGroup :: Word,
+    maxUserNo :: Word
   }
   deriving (Show, Generic)
 
@@ -181,6 +187,9 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
         <*> o .: fromString "cellsEventQueue"
+        <*> o .: fromString "shardingGroupCount"
+        <*> o .: fromString "shardingGroup"
+        <*> o .: fromString "maxUserNo"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -271,7 +280,10 @@ data Env = Env
     dnsMockServerConfig :: DNSMockServerConfig,
     cellsEventQueue :: String,
     cellsEventWatchersLock :: MVar (),
-    cellsEventWatchers :: IORef (Map String QueueWatcher)
+    cellsEventWatchers :: IORef (Map String QueueWatcher),
+    shardingGroupCount :: Word,
+    shardingGroup :: Word,
+    maxUserNo :: Word
   }
 
 data Response = Response

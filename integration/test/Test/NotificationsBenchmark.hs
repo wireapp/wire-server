@@ -6,6 +6,7 @@ import API.Common
 import API.GundeckInternal
 import Control.Concurrent
 import Control.Monad.Codensity (Codensity (..))
+import Control.Monad.Reader (asks)
 import Control.Monad.Reader.Class (local)
 import qualified Data.Map.Strict as Map
 import Data.Time
@@ -28,10 +29,9 @@ data TestRecipient = TestRecipient
 
 testBench :: (HasCallStack) => App ()
 testBench = do
-  -- TODO: Take this from config
-  let shardingGroupCount = 2 :: Word
-      shardingGroup = 0 :: Word
-      maxUserNo = 1000
+  shardingGroupCount <- asks (.shardingGroupCount)
+  shardingGroup <- asks (.shardingGroup)
+  maxUserNo <- asks (.maxUserNo)
 
   -- Preparation
   let parCfg = Stream.maxThreads (numCapabilities * 2) . Stream.ordered False

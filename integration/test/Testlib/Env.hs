@@ -145,7 +145,10 @@ mkGlobalEnv cfgFile = do
         gDNSMockServerConfig = intConfig.dnsMockServer,
         gCellsEventQueue = intConfig.cellsEventQueue,
         gCellsEventWatchersLock,
-        gCellsEventWatchers
+        gCellsEventWatchers,
+        gShardingGroupCount = intConfig.shardingGroupCount,
+        gShardingGroup = intConfig.shardingGroup,
+        gMaxUserNo = intConfig.maxUserNo
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -201,7 +204,10 @@ mkEnv currentTestName ge = do
           dnsMockServerConfig = ge.gDNSMockServerConfig,
           cellsEventQueue = ge.gCellsEventQueue,
           cellsEventWatchersLock = ge.gCellsEventWatchersLock,
-          cellsEventWatchers = ge.gCellsEventWatchers
+          cellsEventWatchers = ge.gCellsEventWatchers,
+          shardingGroupCount = ge.gShardingGroupCount,
+          shardingGroup = ge.gShardingGroup,
+          maxUserNo = ge.gMaxUserNo
         }
 
 allCiphersuites :: [Ciphersuite]
