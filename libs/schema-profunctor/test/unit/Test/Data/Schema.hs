@@ -65,6 +65,8 @@ tests =
       testNonEmptyToJSON,
       testNonEmptySchema,
       testRefField,
+      testObjectArray,
+      testGenericObject,
       testRmClientWrong,
       testRmClient,
       testEnumType,
@@ -300,6 +302,33 @@ testRefField =
     assertBool "Referenced schema should be declared" $
       not . nullOf (ix "Name") $
         defs
+
+testObjectArray :: TestTree
+testObjectArray =
+  testCase "Generic object array" $ do
+    let s = S.toSchema (Proxy @ObjectArray)
+    case (s ^. S.items) of
+      (Just (S.OpenApiItemsObject (S.Inline inner))) ->
+        assertEqual
+          "item type should be Object"
+          (Just S.OpenApiObject)
+          (inner ^. S.type_)
+      (Just (S.OpenApiItemsObject (S.Ref ref))) ->
+        assertEqual
+          "should refer to Object"
+          (Text.pack "Object")
+          (S.getReference ref)
+      (Just (S.OpenApiItemsArray _)) -> assertFailure "expected homogenious array item type"
+      Nothing -> assertFailure "not an array"
+
+testGenericObject :: TestTree
+testGenericObject =
+  testCase "Generic object" $ do
+    let s = S.toSchema (Proxy @GenericObject)
+    assertEqual
+      "type should be Object"
+      (Just S.OpenApiObject)
+      (s ^. S.type_)
 
 testRmClientWrong :: TestTree
 testRmClientWrong =
@@ -583,6 +612,24 @@ instance ToSchema RmClient where
     object "RmClient" $
       RmClient
         <$> rmPassword .= maybe_ (optField "password" passwordSchema)
+
+-- Generic Object
+newtype GenericObject = GenericObject {fromGenericObject :: A.Object}
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema GenericObject
+
+instance ToSchema GenericObject where
+  schema =
+    named "GenericObject" $
+      GenericObject <$> fromGenericObject .= jsonObject
+
+-- Array with generic object
+newtype ObjectArray = ObjectArray {fromObjectArray :: [A.Object]}
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ObjectArray
+
+instance ToSchema ObjectArray where
+  schema =
+    named "ObjectArray" $
+      ObjectArray <$> fromObjectArray .= array jsonObject
 
 -- examples from documentation (only type-checked)
 
