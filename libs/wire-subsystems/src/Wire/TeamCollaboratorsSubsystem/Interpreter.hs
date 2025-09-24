@@ -34,6 +34,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+  InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
   (Member Store.TeamCollaboratorsStore r) =>
@@ -89,6 +90,15 @@ internalGetTeamCollaboratorsWithIdsImpl ::
   Sem r [TeamCollaborator]
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
+
+internalRemoveTeamCollaboratorImpl ::
+  ( Member Store.TeamCollaboratorsStore r
+  ) =>
+  UserId ->
+  TeamId ->
+  Sem r ()
+internalRemoveTeamCollaboratorImpl user team = do
+  Store.removeTeamCollaborator user team
 
 -- This is of general usefulness. However, we cannot move this to wire-api as
 -- this would lead to a cyclic dependency.

@@ -88,6 +88,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
@@ -147,5 +148,7 @@ type GalleyEffects1 =
      Queue DeleteItem,
      TinyLog,
      Error DynError,
-     Error RateLimitExceeded
+     Error RateLimitExceeded,
+     ErrorS OperationDenied,
+     ErrorS 'NotATeamMember
    ]
