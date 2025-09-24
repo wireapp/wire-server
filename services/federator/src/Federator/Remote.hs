@@ -30,10 +30,14 @@ import Bilge.Request qualified as RPC
 import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
+import Data.IORef qualified as IORef
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
+import Data.Sequence qualified as Seq
+import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding qualified as TEnc
 import Federator.Discovery
 import Federator.Error
 import HTTP2.Client.Manager (Http2Manager)
@@ -41,6 +45,7 @@ import HTTP2.Client.Manager qualified as H2Manager
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
+import Network.Socket qualified as Sock
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -48,6 +53,7 @@ import Servant.Client.Core
 import System.Logger qualified as Log
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint (remoteIpHeaderName)
 import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV
 
@@ -106,10 +112,17 @@ interpretRemote = interpret $ \case
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input
+    ipRef <- embed @(Codensity IO) . liftIO $ IORef.newIORef Nothing
     resp <- mapError (RemoteError target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catches
-          (H2Manager.withHTTP2RequestOnSingleUseConn mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
+          (H2Manager.withHTTP2RequestOnSingleUseConnWithHook mgr (True, hostname, fromIntegral port) req'
+             (\peerAddr -> do
+                 (mhost, _) <- Sock.getNameInfo [Sock.NI_NUMERICHOST] True False peerAddr
+                 IORef.writeIORef ipRef mhost
+             )
+             (consumeStreamingResponseWith (k . Right))
+          )
           [ E.Handler $ k . Left,
             E.Handler $ k . Left . FederatorClientTLSException,
             E.Handler $ k . Left . FederatorClientHTTP2Exception,
@@ -124,4 +137,6 @@ interpretRemote = interpret $ \case
           pathT
           (responseStatusCode resp)
           (toLazyByteString bdy)
-    pure resp
+    mIpTxt <- embed @(Codensity IO) . liftIO $ IORef.readIORef ipRef
+    let mIpBS = fmap (TEnc.encodeUtf8 . T.pack) mIpTxt
+    pure $ maybe resp (\ipbs -> resp {responseHeaders = responseHeaders resp Seq.|> (remoteIpHeaderName, ipbs)}) mIpBS

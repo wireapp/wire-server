@@ -140,6 +140,14 @@ instance
 originIpHeaderName :: (IsString a) => a
 originIpHeaderName = fromString $ symbolVal (Proxy @OriginIpHeaderName)
 
+-- Header carrying the best-effort remote peer IP observed by our internal
+-- federator when calling a remote backend. Forensic metadata only; do not use
+-- for auth/policy or attribution.
+type RemoteIpHeaderName = "Wire-Remote-IP" :: Symbol
+
+remoteIpHeaderName :: (IsString a) => a
+remoteIpHeaderName = fromString $ symbolVal (Proxy @RemoteIpHeaderName)
+
 instance (HasOpenApi api) => HasOpenApi (OriginIpHeader :> api) where
   toOpenApi _ = desc $ toOpenApi (Proxy @api)
     where
