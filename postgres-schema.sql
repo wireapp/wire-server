@@ -92,6 +92,8 @@ CREATE TABLE public.user_group_member (
     user_id uuid NOT NULL
 );
 
+ALTER TABLE public.user_group_member OWNER TO "wire-server";
+
 --
 -- Name: user_group_channel; Type: TABLE; Schema: public; Owner: wire-server
 --

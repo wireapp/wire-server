@@ -431,7 +431,7 @@ updateUserGroupChannels gid convIds = do
       lmap
         (bimap toUUID (fmap toUUID))
         $ [resultlessStatement|
-          delete from user_group_channel where user_group_id = ($1 :: uuid) and conv_id <> any($2 :: uuid[])
+          delete from user_group_channel where user_group_id = ($1 :: uuid) and conv_id not in (SELECT unnest($2 :: uuid[]))
           |]
 
     insertStatement :: Statement (UserGroupId, ConvId) ()

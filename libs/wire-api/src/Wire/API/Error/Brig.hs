@@ -352,7 +352,7 @@ type instance MapError 'UserGroupNotFound = 'StaticError 404 "user-group-not-fou
 
 type instance MapError 'UserGroupNotATeamAdmin = 'StaticError 403 "user-group-write-forbidden" "Only team admins can create, update, or delete user groups."
 
-type instance MapError 'UserGroupChannelNotFound = 'StaticError 400 "user-group-channel-not-found" "Specified Channel does not exists or belongs to the team"
+type instance MapError 'UserGroupChannelNotFound = 'StaticError 404 "user-group-channel-not-found" "Specified Channel does not exists or belongs to the team"
 
 type instance MapError 'UserGroupMemberIsNotInTheSameTeam = 'StaticError 400 "user-group-invalid" "Only team members of the same team can be added to a user group."
 
