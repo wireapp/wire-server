@@ -9,6 +9,7 @@ import Control.Monad.Codensity (Codensity (..))
 import Control.Monad.Reader.Class (local)
 import qualified Data.Map.Strict as Map
 import Data.Time
+import Debug.Trace
 import GHC.Conc (numCapabilities)
 import GHC.Stack
 import SetupHelpers
@@ -27,19 +28,31 @@ data TestRecipient = TestRecipient
 
 testBench :: (HasCallStack) => App ()
 testBench = do
+  -- TODO: Take this from config
+  let shardingGroupCount = 2 :: Word
+      shardingGroup = 0 :: Word
+      maxUserNo = 1000
+
   -- Preparation
   let parCfg = Stream.maxThreads (numCapabilities * 2) . Stream.ordered False
       toMap = Fold.foldl' (\kv (k, v) -> Map.insert k v kv) Map.empty
   -- Later, we only read from this map. Thus, it doesn't have to be thread-safe.
-  userMap :: Map Word TestRecipient <- Stream.fromList [0 :: Word .. 1000] & Stream.parMapM parCfg (\i -> generateTestRecipient >>= \r -> pure (i, r)) & Stream.fold toMap
+  userMap :: Map Word TestRecipient <-
+    Stream.fromList [0 :: Word .. maxUserNo]
+      & Stream.filter (\uNo -> trace (show (uNo, shardingGroup, uNo `mod` shardingGroupCount, (uNo `mod` shardingGroupCount) == shardingGroup)) (uNo `mod` shardingGroupCount) == shardingGroup)
+      & Stream.parMapM parCfg (\i -> generateTestRecipient >>= \r -> pure (i, r))
+      & Stream.fold toMap
 
   now <- liftIO getCurrentTime
 
-  -- To be replaced with real data from the file. (See
+  -- TODO: To be replaced with real data from the file. (See
   -- https://wearezeta.atlassian.net/wiki/spaces/PET/pages/2118680620/Simulating+production-like+data)
   let fakeData = zip (plusDelta now <$> [0 :: Word ..]) (cycle [0 .. 1000])
 
-  Stream.fromList fakeData & Stream.parMapM parCfg (\(t, uNo) -> waitForTimeStamp t >> sendAndReceive uNo userMap) & Stream.fold Fold.drain
+  Stream.fromList fakeData
+    & Stream.filter (\(_t, uNo) -> (uNo `mod` shardingGroupCount) == shardingGroup)
+    & Stream.parMapM parCfg (\(t, uNo) -> waitForTimeStamp t >> sendAndReceive uNo userMap)
+    & Stream.fold Fold.drain
 
 -- TODO: Add a speed factor to the simulation as we want to simulate faster than real time
 waitForTimeStamp :: UTCTime -> App ()
@@ -59,7 +72,7 @@ waitForTimeStamp timestamp = liftIO $ do
 plusDelta :: UTCTime -> Word -> UTCTime
 plusDelta timestamp deltaMilliSeconds = addUTCTime (fromIntegral deltaMilliSeconds / 1000) timestamp
 
-sendAndReceive :: Int -> Map Word TestRecipient -> App ()
+sendAndReceive :: Word -> Map Word TestRecipient -> App ()
 sendAndReceive userNo userMap = do
   print $ "pushing to user" ++ show userNo
   let testRecipient = userMap Map.! (fromIntegral userNo)
@@ -86,6 +99,7 @@ setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
 
 generateTestRecipient :: (HasCallStack) => App TestRecipient
 generateTestRecipient = do
+  print "generateTestRecipient"
   user <- randomUser OwnDomain def
   r <- randomRIO @Word (0, 8)
   clientIds <- forM [0 .. r] $ \_ -> do
