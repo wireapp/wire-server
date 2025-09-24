@@ -18,6 +18,7 @@
 module Wire.API.Federation.Endpoint
   ( ApplyMods,
     module Wire.API.Federation.Endpoint,
+    OriginIpHeader,
   )
 where
 
@@ -105,6 +106,9 @@ type instance
 
 type OriginIpHeaderName = "Wire-Origin-IP" :: Symbol
 
+-- | The remote backend's origin IP is best-effort forensic metadata only.
+--   Do not use for auth, policy, or attribution; cert identity is authoritative.
+--   IP reflects only the socket peer at our edge (often LB/NAT/egress) and may be inaccurate.
 data OriginIpHeader
 
 instance (RoutesToPaths api) => RoutesToPaths (OriginIpHeader :> api) where
