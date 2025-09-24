@@ -170,11 +170,10 @@ getConversationImpl cid =
 
 selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
 selectConvMetadata =
-  -- TODO: Get rid of the `(NULL :: integer[]?)`
   dimapPG @_ @_
     @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
     @(Maybe ConvRow)
-    [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (NULL :: integer[]?), (access_roles_v2 :: integer[]?),
+    [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
                            (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                            (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
                            (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
@@ -212,11 +211,10 @@ getConversationsImpl cids = do
   where
     selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
     selectMetadata =
-      -- TODO: Get rid of the `(NULL :: integer[]?)`
       dimapPG @[_] @(Vector _)
         @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
         @[ConvRowWithId]
-        [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (NULL :: integer[]?), (access_roles_v2 :: integer[]?),
+        [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
                                 (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                                 (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
                                 (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
