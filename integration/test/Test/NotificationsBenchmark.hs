@@ -77,11 +77,13 @@ sendAndReceive userNo userMap = do
   print $ "pushing to user" ++ show userNo
   let testRecipient = userMap Map.! (fromIntegral userNo)
       alice = testRecipient.user
+
   r <- recipient alice
+  payload :: Value <- toJSON <$> liftIO randomPayload
   let push =
         object
           [ "recipients" .= [r],
-            "payload" .= [object ["foo" .= "bar"]]
+            "payload" .= [object ["foo" .= payload]]
           ]
 
   void $ postPush alice [push] >>= getBody 200
@@ -92,7 +94,14 @@ sendAndReceive userNo userMap = do
       local (setTimeoutTo 120) $ TestEvents.assertFindsEvent ws $ \e -> do
         print "Event received"
         printJSON e
-        e %. "payload" `shouldMatch` [object ["foo" .= "bar"]]
+        e %. "payload" `shouldMatch` [object ["foo" .= payload]]
+  where
+    -- \| Generate a random string with random length up to 2048 bytes
+    randomPayload :: IO String
+    randomPayload = do
+      -- TODO: 1 to 2028 chars is a guess. We could adjust it to the real distribution.
+      len <- randomRIO @Int (1, 2048) -- random length between 1 and 2048
+      mapM (\_ -> randomRIO ('\32', '\126')) [1 .. len] -- printable ASCII
 
 setTimeoutTo :: Int -> Env -> Env
 setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
