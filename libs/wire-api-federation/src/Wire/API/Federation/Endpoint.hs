@@ -24,6 +24,7 @@ where
 import Control.Lens ((?~))
 import Data.Kind
 import Data.Metrics.Servant
+import Data.Misc (IpAddr)
 import Data.OpenApi qualified as S
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
@@ -34,7 +35,6 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
 import Servant.Server.Internal (MkContextWithErrorFormatter)
 import Wire.API.ApplyMods
-import Data.Misc (IpAddr)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.HasNotificationEndpoint
