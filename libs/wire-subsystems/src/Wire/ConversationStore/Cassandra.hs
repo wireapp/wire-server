@@ -967,7 +967,7 @@ interpretConversationStoreToCassandra client = interpret $ \case
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     runEmbedded (runClient client) $ embed $ lookupMLSClientLeafIndices lcnv
-  CreateSubConversation convId subConvId groupId -> do
+  UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
     runEmbedded (runClient client) $ embed $ insertSubConversation convId subConvId groupId
   GetSubConversation convId subConvId -> do

@@ -222,7 +222,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
               msub' <- getSubConversation cnv sub
               when (isNothing msub') $
                 void $
-                  createSubConversation
+                  upsertSubConversation
                     cnv
                     sub
                     convOrSub.mlsMeta.cnvmlsGroupId

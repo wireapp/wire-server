@@ -96,7 +96,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
-  CreateSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
+  UpsertSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
   GetSubConversationGroupInfo convId subConvId -> getSubConversationGroupInfoImpl convId subConvId
   GetSubConversationEpoch convId subConvId -> getSubConversationEpochImpl convId subConvId
@@ -906,6 +906,12 @@ createSubConversationImpl cid subConvId gid = do
                              (conv_id, subconv_id, epoch, epoch_timestamp, group_id)
                              VALUES
                              ($1 :: uuid, $2 :: text, 0, NOW(), $3 :: bytea)
+                             ON CONFLICT (conv_id, subconv_id)
+                             DO UPDATE SET
+                                epoch = 0,
+                                epoch_timestamp = NOW(),
+                                group_id = ($3 :: bytea),
+                                public_group_state = NULL
                             |]
 
 getSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> Sem r (Maybe SubConversation)

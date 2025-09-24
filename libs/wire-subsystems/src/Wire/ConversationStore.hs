@@ -108,7 +108,7 @@ data ConversationStore m a where
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
   -- SUB CONVERSATION OPERATIONS
-  CreateSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
+  UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
   GetSubConversation :: ConvId -> SubConvId -> ConversationStore m (Maybe SubConversation)
   GetSubConversationGroupInfo :: ConvId -> SubConvId -> ConversationStore m (Maybe GroupInfoData)
   GetSubConversationEpoch :: ConvId -> SubConvId -> ConversationStore m (Maybe Epoch)

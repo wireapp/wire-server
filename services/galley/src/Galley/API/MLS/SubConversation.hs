@@ -414,4 +414,4 @@ resetLocalSubConversation qusr lcnvId scnvId reset = do
               $ nextGenGroupId gid
 
       -- the following overwrites any prior information about the subconversation
-      void $ Eff.createSubConversation cnvId scnvId newGid
+      void $ Eff.upsertSubConversation cnvId scnvId newGid
