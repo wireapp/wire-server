@@ -268,7 +268,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  (events, newClients) <- lowerCodensity $ do
+  (events, newClients) <- handleGroupInfoMismatch lConvOrSubId bundle $ lowerCodensity $ do
     (events, newClients) <- case senderIdentity.index of
       Just _ -> do
         -- extract added/removed clients from bundle
@@ -276,7 +276,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
-        lift $ checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
+        lift $
+          checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
         events <-
@@ -314,6 +315,25 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
   pure events
+
+handleGroupInfoMismatch ::
+  (Member (Error GroupInfoDiagnostics) r) =>
+  Local ConvOrSubConvId ->
+  IncomingBundle ->
+  InterpreterFor (Error GroupInfoMismatch) r
+handleGroupInfoMismatch lConvId bundle m =
+  runError m >>= \case
+    Right x -> pure x
+    Left mismatch -> do
+      throw
+        GroupInfoDiagnostics
+          { commit = bundle.rawMessage.raw,
+            groupInfo = bundle.groupInfo.raw,
+            groupId = bundle.groupId,
+            clients = mismatch.clients,
+            convId = tUnqualified lConvId,
+            domain = tDomain lConvId
+          }
 
 postMLSCommitBundleToRemoteConv ::
   ( Member BrigAPIAccess r,

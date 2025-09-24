@@ -597,10 +597,12 @@ instance (Member (Error JSONResponse) r) => ServerEffect (Error UnreachableBacke
 -- Group info diagnostics
 
 data GroupInfoDiagnostics = GroupInfoDiagnostics
-  { commitBundle :: ByteString,
+  { commit :: ByteString,
+    groupInfo :: ByteString,
     groupId :: GroupId,
     clients :: [(Int, ClientIdentity)],
-    convId :: ConvOrSubConvId
+    convId :: ConvOrSubConvId,
+    domain :: Domain
   }
   deriving (Eq, Show, Generic)
   deriving (S.ToSchema, FromJSON, ToJSON) via Schema GroupInfoDiagnostics
@@ -627,10 +629,12 @@ instance ToSchema GroupInfoDiagnostics where
   schema =
     object "GroupInfoDiagnostics" $
       GroupInfoDiagnostics
-        <$> (.commitBundle) .= field "commit_bundle" base64Schema
+        <$> (.commit) .= field "commit" base64Schema
+        <*> (.groupInfo) .= field "group_info" base64Schema
         <*> (.groupId) .= field "group_id" schema
         <*> (.clients) .= field "clients" (array indexedClientSchema)
         <*> (.convId) .= convOrSubConvIdObjectSchema
+        <*> (.domain) .= field "domain" schema
 
 instance IsSwaggerError GroupInfoDiagnostics where
   addToOpenApi =

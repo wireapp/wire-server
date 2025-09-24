@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.GroupInfoCheck
   ( checkGroupState,
+    GroupInfoMismatch (..),
   )
 where
 
@@ -40,9 +41,12 @@ import Wire.API.MLS.RatchetTree
 import Wire.API.Team.Feature
 import Wire.ConversationStore.MLS.Types
 
+data GroupInfoMismatch = GroupInfoMismatch
+  {clients :: [(Int, ClientIdentity)]}
+
 checkGroupState ::
   forall r.
-  ( Member (Error GroupInfoDiagnostics) r,
+  ( Member (Error GroupInfoMismatch) r,
     Member (Input Opts) r,
     Member (Error MLSProtocolError) r,
     Member TeamFeatureStore r
@@ -63,11 +67,7 @@ checkGroupState mTid leaves groupInfo = do
       (tree : _) -> pure tree
       _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
     giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-    when (leaves /= giLeaves) $ do
-      throw -- TODO
-        GroupInfoDiagnostics
-          {
-          }
+    when (leaves /= giLeaves) $ throw (GroupInfoMismatch (imAssocs leaves))
   where
     getIdentity :: LeafNode -> Sem r ClientIdentity
     getIdentity leaf = case credentialIdentityAndKey leaf.credential of
