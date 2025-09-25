@@ -909,7 +909,6 @@ deleteMembersImpl cid users =
                              AND "user" = ANY($2 :: uuid[])
                             |]
 
-    -- TODO: make this able to delete all remote users at once
     deleteRemotesStmt :: Hasql.Statement (ConvId, Domain, [UserId]) ()
     deleteRemotesStmt =
       lmapPG @_ @(_, _, Vector _)
