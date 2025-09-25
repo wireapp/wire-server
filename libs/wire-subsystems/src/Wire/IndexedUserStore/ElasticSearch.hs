@@ -222,7 +222,8 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
                 ],
-              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
+              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")],
+              ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing]
             }
       -- This reduces relevance on users not in team of search by 90% (no
       -- science behind that number). If the searcher is not part of a team the
