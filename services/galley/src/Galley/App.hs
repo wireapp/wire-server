@@ -300,8 +300,6 @@ evalGalley e =
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
         . interpretLegacyConversationListToCassandra
-        . interpretRemoteConversationListToCassandra
-        . interpretConversationListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . interpretTeamFeatureStoreToCassandra

@@ -29,6 +29,7 @@ import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
@@ -56,6 +57,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
+import Wire.API.Routes.MultiTablePaging
 import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
@@ -256,6 +258,55 @@ localConversations client =
 localConversationIdsOf :: UserId -> [ConvId] -> Client [ConvId]
 localConversationIdsOf usr cids = do
   runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params LocalQuorum (usr, cids)))
+
+getConvIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Client ConvIdsPage
+getConvIds lusr (fromRange -> maxIds) pagingState = do
+  let pagingTable = maybe PagingLocals (.mtpsTable) pagingState
+      cassPagingState = (PagingState . BS.fromStrict <$> (mtpsState =<< pagingState))
+
+  case pagingTable of
+    PagingLocals -> do
+      localPage <- getLocals cassPagingState
+      let remainingSize = maxIds - fromIntegral (length (localPage.mtpResults))
+      if localPage.mtpHasMore || remainingSize <= 0
+        then pure $ localPage {mtpHasMore = True}
+        else do
+          remotePage <- getRemotes remainingSize Nothing
+          pure $
+            remotePage {mtpResults = localPage.mtpResults <> remotePage.mtpResults}
+    PagingRemotes ->
+      getRemotes maxIds cassPagingState
+  where
+    getLocals :: Maybe PagingState -> Client ConvIdsPage
+    getLocals cassPagingState = do
+      page <-
+        fmap (runIdentity)
+          <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity (tUnqualified lusr)) maxIds cassPagingState)
+      pure $
+        MultiTablePage
+          { mtpResults = map (\cid -> Qualified cid (tDomain lusr)) page.pwsResults,
+            mtpHasMore = isJust page.pwsState,
+            mtpPagingState =
+              maybe
+                (MultiTablePagingState PagingRemotes Nothing)
+                (MultiTablePagingState PagingLocals . Just . BS.toStrict . unPagingState)
+                page.pwsState
+          }
+    getRemotes :: Int32 -> Maybe PagingState -> Client ConvIdsPage
+    getRemotes maxRemotes cassPagingState = do
+      page <-
+        uncurry (flip Qualified)
+          <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity (tUnqualified lusr)) maxRemotes cassPagingState)
+      pure $
+        MultiTablePage
+          { mtpResults = page.pwsResults,
+            mtpHasMore = isJust page.pwsState,
+            mtpPagingState =
+              maybe
+                (MultiTablePagingState PagingRemotes Nothing)
+                (MultiTablePagingState PagingLocals . Just . BS.toStrict . unPagingState)
+                page.pwsState
+          }
 
 -- | Takes a list of remote conversation ids and fetches member status flags
 -- for the given user
@@ -839,6 +890,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
     localConversations client cids
+  GetConversationIds uid maxIds pagingState -> do
+    logEffect "ConversationStore.GetConversationIds"
+    embedClient client $ getConvIds uid maxIds pagingState
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
     embedClient client $ conversationMeta cid

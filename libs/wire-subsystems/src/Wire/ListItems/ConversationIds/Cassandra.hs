@@ -16,15 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ListItems.ConversationIds.Cassandra
-  ( interpretConversationListToCassandra,
-    interpretRemoteConversationListToCassandra,
-    interpretLegacyConversationListToCassandra,
+  ( interpretLegacyConversationListToCassandra,
   )
 where
 
 import Cassandra
 import Data.Id
-import Data.Qualified
 import Data.Range
 import Imports hiding (max)
 import Polysemy
@@ -48,48 +45,6 @@ conversationIdsFrom usr start (fromRange -> max) =
     Nothing -> paginate Cql.selectUserConvs (paramsP LocalQuorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
-
-localConversationIdsPageFrom ::
-  UserId ->
-  Maybe PagingState ->
-  Range 1 1000 Int32 ->
-  Client (PageWithState ConvId)
-localConversationIdsPageFrom usr pagingState (fromRange -> max) =
-  fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
-
-remoteConversationIdsPageFrom ::
-  UserId ->
-  Maybe PagingState ->
-  Int32 ->
-  Client (PageWithState (Remote ConvId))
-remoteConversationIdsPageFrom usr pagingState max =
-  uncurry toRemoteUnsafe <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity usr) max pagingState)
-
-interpretConversationListToCassandra ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member TinyLog r
-  ) =>
-  Sem (ListItems CassandraPaging ConvId ': r) a ->
-  Sem r a
-interpretConversationListToCassandra = interpret $ \case
-  ListItems uid ps max -> do
-    client <- input
-    logEffect "ConversationList.ListItems"
-    embedClient client $ localConversationIdsPageFrom uid ps max
-
-interpretRemoteConversationListToCassandra ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member TinyLog r
-  ) =>
-  Sem (ListItems CassandraPaging (Remote ConvId) ': r) a ->
-  Sem r a
-interpretRemoteConversationListToCassandra = interpret $ \case
-  ListItems uid ps max -> do
-    client <- input
-    logEffect "RemoteConversationList.ListItems"
-    embedClient client $ remoteConversationIdsPageFrom uid ps (fromRange max)
 
 interpretLegacyConversationListToCassandra ::
   ( Member (Embed IO) r,

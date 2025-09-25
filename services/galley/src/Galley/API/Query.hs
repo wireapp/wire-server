@@ -50,11 +50,9 @@ module Galley.API.Query
   )
 where
 
-import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Extra
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy qualified as LBS
 import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
@@ -396,79 +394,14 @@ conversationIdsPageFromUnqualified lusr start msize = do
 -- FUTUREWORK: Move the body of this function to 'conversationIdsPageFrom' once
 -- support for V2 is dropped.
 conversationIdsPageFromV2 ::
-  forall p r.
-  ( p ~ CassandraPaging,
-    ( Member ConversationStore r,
-      Member (Error InternalError) r,
-      Member (Input Env) r,
-      Member (ListItems p ConvId) r,
-      Member (ListItems p (Remote ConvId)) r,
-      Member P.TinyLog r,
-      Member TeamCollaboratorsSubsystem r
-    )
-  ) =>
+  (Member ConversationStore r) =>
   ListGlobalSelfConvs ->
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
 conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
-  let localDomain = tDomain lusr
-  case gmtprState of
-    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
-      remotesOnly (mkState <$> stateBS) gmtprSize
-    _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
+  filterOut <$> E.getConversationIds lusr gmtprSize gmtprState
   where
-    mkState :: ByteString -> C.PagingState
-    mkState = C.PagingState . LBS.fromStrict
-
-    localsAndRemotes ::
-      Domain ->
-      Maybe C.PagingState ->
-      Range 1 1000 Int32 ->
-      Sem r Public.ConvIdsPage
-    localsAndRemotes localDomain pagingState size = do
-      localPage <- localsOnly localDomain pagingState size
-      let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
-      if Public.mtpHasMore localPage || remainingSize <= 0
-        then -- We haven't checked the remotes yet, so has_more must always be True here.
-          pure (filterOut localPage) {Public.mtpHasMore = True}
-        else do
-          -- remainingSize <= size and remainingSize >= 1, so it is safe to convert to Range
-          remotePage <- remotesOnly Nothing (unsafeRange remainingSize)
-          pure $
-            remotePage
-              { Public.mtpResults =
-                  Public.mtpResults (filterOut localPage)
-                    <> Public.mtpResults remotePage
-              }
-
-    localsOnly ::
-      Domain ->
-      Maybe C.PagingState ->
-      Range 1 1000 Int32 ->
-      Sem r Public.ConvIdsPage
-    localsOnly localDomain pagingState size =
-      pageToConvIdPage Public.PagingLocals
-        . fmap (`Qualified` localDomain)
-        <$> E.listItems (tUnqualified lusr) pagingState size
-
-    remotesOnly ::
-      Maybe C.PagingState ->
-      Range 1 1000 Int32 ->
-      Sem r Public.ConvIdsPage
-    remotesOnly pagingState size =
-      pageToConvIdPage Public.PagingRemotes
-        . fmap (tUntagged @'QRemote)
-        <$> E.listItems (tUnqualified lusr) pagingState size
-
-    pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
-    pageToConvIdPage table page@C.PageWithState {..} =
-      Public.MultiTablePage
-        { mtpResults = pwsResults,
-          mtpHasMore = C.pwsHasMore page,
-          mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
-        }
-
     -- MLS self-conversation of this user
     selfConvId = mlsSelfConvId (tUnqualified lusr)
     isNotSelfConv = (/= selfConvId) . qUnqualified
@@ -494,16 +427,11 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
 conversationIdsPageFrom ::
-  forall p r.
-  ( p ~ CassandraPaging,
-    ( Member ConversationStore r,
-      Member (Error InternalError) r,
-      Member (Input Env) r,
-      Member (ListItems p ConvId) r,
-      Member (ListItems p (Remote ConvId)) r,
-      Member P.TinyLog r,
-      Member TeamCollaboratorsSubsystem r
-    )
+  forall r.
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (Input Env) r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Public.GetPaginatedConversationIds ->

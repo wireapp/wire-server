@@ -102,7 +102,6 @@ import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
@@ -131,16 +130,12 @@ iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 -- EJPD reports.  Called locally with very little data for each conv, so we don't expect
 -- pagination to ever be needed.
 ejpdGetConvInfo ::
-  forall r p.
-  ( p ~ CassandraPaging,
-    Member ConversationStore r,
+  forall r.
+  ( Member ConversationStore r,
     Member (Error InternalError) r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
-    Member (ListItems p ConvId) r,
-    Member (ListItems p (Remote ConvId)) r,
-    Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member P.TinyLog r
   ) =>
   UserId ->
   Sem r [EJPDConvInfo]
@@ -320,9 +315,8 @@ cellsAPI :: API ICellsAPI GalleyEffects
 cellsAPI = mkNamedAPI @"set-cells-state" Update.updateCellsState
 
 rmUser ::
-  forall p1 p2 r.
-  ( p1 ~ CassandraPaging,
-    p2 ~ InternalPaging,
+  forall p2 r.
+  ( p2 ~ InternalPaging,
     Member BackendNotificationQueueAccess r,
     Member ClientStore r,
     Member ConversationStore r,
@@ -334,15 +328,12 @@ rmUser ::
     Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
-    Member (ListItems p1 ConvId) r,
-    Member (ListItems p1 (Remote ConvId)) r,
     Member (ListItems p2 TeamId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamFeatureStore r,
-    Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->

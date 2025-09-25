@@ -57,6 +57,7 @@ data ConversationStore m a where
   GetConversation :: ConvId -> ConversationStore m (Maybe StoredConversation)
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
+  GetConversationIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> ConversationStore m ConvIdsPage
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
   -- FUTUREWORK: This is only relevant for Convs in Cassandra, we can delete it
