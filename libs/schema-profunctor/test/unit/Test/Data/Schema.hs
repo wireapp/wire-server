@@ -65,6 +65,7 @@ tests =
       testNonEmptyToJSON,
       testNonEmptySchema,
       testRefField,
+      testGenericObject,
       testRmClientWrong,
       testRmClient,
       testEnumType,
@@ -300,6 +301,15 @@ testRefField =
     assertBool "Referenced schema should be declared" $
       not . nullOf (ix "Name") $
         defs
+
+testGenericObject :: TestTree
+testGenericObject =
+  testCase "Generic object" $ do
+    let s = S.toSchema (Proxy @GenericObject)
+    assertEqual
+      "type should be Object"
+      (Just S.OpenApiObject)
+      (s ^. S.type_)
 
 testRmClientWrong :: TestTree
 testRmClientWrong =
@@ -583,6 +593,15 @@ instance ToSchema RmClient where
     object "RmClient" $
       RmClient
         <$> rmPassword .= maybe_ (optField "password" passwordSchema)
+
+-- Generic Object
+newtype GenericObject = GenericObject {fromGenericObject :: A.Object}
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema GenericObject
+
+instance ToSchema GenericObject where
+  schema =
+    named "GenericObject" $
+      GenericObject <$> fromGenericObject .= jsonObject
 
 -- examples from documentation (only type-checked)
 
