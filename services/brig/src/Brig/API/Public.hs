@@ -1728,8 +1728,12 @@ removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqua
 updateUserGroupMembers :: (_) => Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
 updateUserGroupMembers lusr gid gupd = lift . liftSem $ UserGroup.updateUsers (tUnqualified lusr) gid gupd.members
 
-updateUserGroupChannels :: (_) => Local UserId -> UserGroupId -> UpdateUserGroupChannels -> Handler r ()
-updateUserGroupChannels lusr gid upd = lift . liftSem $ UserGroup.updateChannels (tUnqualified lusr) gid upd.channels
+updateUserGroupChannels :: (_) => Local UserId -> UserGroupId -> Bool -> UpdateUserGroupChannels -> Handler r ()
+updateUserGroupChannels lusr gid appendOnly upd =
+  lift . liftSem $
+    if appendOnly
+      then UserGroup.addChannels (tUnqualified lusr) gid upd.channels
+      else UserGroup.updateChannels (tUnqualified lusr) gid upd.channels
 
 checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
 checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True

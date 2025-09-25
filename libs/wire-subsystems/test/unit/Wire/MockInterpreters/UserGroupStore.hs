@@ -68,7 +68,8 @@ userGroupStoreTestInterpreter =
     AddUser gid uid -> addUserImpl gid uid
     UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
-    UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl gid convIds
+    AddUserGroupChannels gid convIds -> updateUserGroupChannelsImpl True gid convIds
+    UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl False gid convIds
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsersImpl uids
 
 getUserGroupIdsForUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
@@ -205,23 +206,24 @@ removeUserImpl gid uid = do
 
 updateUserGroupChannelsImpl ::
   (UserGroupStoreInMemEffectConstraints r, Member (Input (Local ())) r) =>
+  Bool ->
   UserGroupId ->
   Vector ConvId ->
   Sem r ()
-updateUserGroupChannelsImpl gid convIds = do
+updateUserGroupChannelsImpl appendOnly gid convIds = do
   qualifyLocal <- qualifyAs <$> input
-  let f :: Maybe UserGroup -> Maybe UserGroup
-      f Nothing = Nothing
-      f (Just g) =
-        Just
-          ( g
-              { channels = Just $ tUntagged . qualifyLocal <$> convIds,
-                channelsCount = Nothing
-              } ::
-              UserGroup
-          )
+  let f :: UserGroup -> UserGroup
+      f g =
+        g
+          { channels =
+              Just $
+                newQualifiedConvIds <> if appendOnly then fromMaybe mempty g.channels else mempty,
+            channelsCount = Just $ length convIds
+          } ::
+          UserGroup
+      newQualifiedConvIds = tUntagged . qualifyLocal <$> convIds
 
-  modifyUserGroupsGidOnly gid (Map.alter f)
+  modifyUserGroupsGidOnly gid (Map.alter $ fmap f)
 
 listUserGroupChannelsImpl ::
   (UserGroupStoreInMemEffectConstraints r) =>

@@ -1,0 +1,157 @@
+cabal-version: >=1.10
+name:          entreprise-provisioning
+version:       0.1.0
+synopsis:      CLI tool for provisioning user groups with channels
+description:   Create channels and associate them with user groups in bulk
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
+
+flag static
+  description: Enable static linking
+  default:     False
+
+executable entreprise-provisioning
+  main-is:            Main.hs
+  other-modules:
+    API
+    CLI
+    Types
+
+  hs-source-dirs:     src
+  build-depends:
+      aeson
+    , base                  >=4 && <5
+    , bytestring
+    , containers
+    , envparse
+    , http-client
+    , http-client-tls
+    , http-types
+    , imports
+    , optparse-applicative
+    , text
+    , types-common
+    , uuid
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
+    -Wredundant-constraints
+
+  if flag(static)
+    ld-options: -static
+
+  default-language:   GHC2021
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+test-suite spec
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
+  other-modules:      Types
+  hs-source-dirs:     test src
+  build-depends:
+      aeson
+    , aeson-pretty
+    , base          >=4 && <5
+    , bytestring
+    , containers
+    , imports
+    , tasty
+    , tasty-golden
+    , tasty-hunit
+    , types-common
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded "-with-rtsopts=-N -T" -rtsopts
+    -Wredundant-constraints
+
+  default-language:   GHC2021
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns

@@ -427,6 +427,7 @@ type UserGroupAPI =
                :> "user-groups"
                :> Capture "gid" UserGroupId
                :> "channels"
+               :> QueryFlag "append_only"
                :> ReqBody '[JSON] UpdateUserGroupChannels
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group channels updated")
            )

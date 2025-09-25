@@ -53,7 +53,8 @@ interpretUserGroupStoreToPostgres =
     AddUser gid uid -> addUser gid uid
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
-    UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
+    AddUserGroupChannels gid convIds -> updateUserGroupChannels True gid convIds
+    UpdateUserGroupChannels gid convIds -> updateUserGroupChannels False gid convIds
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsers uids
 
 getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
@@ -413,17 +414,19 @@ removeUser =
 updateUserGroupChannels ::
   forall r.
   (UserGroupStorePostgresEffectConstraints r) =>
+  Bool ->
   UserGroupId ->
   Vector ConvId ->
   Sem r ()
-updateUserGroupChannels gid convIds = do
+updateUserGroupChannels appendOnly gid convIds = do
   pool <- input
   eitherErrorOrUnit <- liftIO $ use pool session
   either throw pure eitherErrorOrUnit
   where
     session :: Session ()
     session = TxSessions.transaction TxSessions.Serializable TxSessions.Write $ do
-      Tx.statement (gid, convIds) deleteStatement
+      unless appendOnly $
+        Tx.statement (gid, convIds) deleteStatement
       Tx.statement (gid, convIds) insertStatement
 
     deleteStatement :: Statement (UserGroupId, Vector ConvId) ()
