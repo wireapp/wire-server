@@ -1,0 +1,3 @@
+Changed Swagger data type `Pict` from `{}` which is interpreted as `string` to
+`{"type":"object"}`. Also, static Swagger specifications of earlier API versions
+have been adapted.
