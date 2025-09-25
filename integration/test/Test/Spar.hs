@@ -4,7 +4,7 @@ module Test.Spar where
 
 import API.Brig as Brig
 import API.BrigInternal as BrigInternal
-import API.Common (randomDomain, randomEmail, randomExternalId, randomHandle)
+import API.Common (defPassword, randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
@@ -813,20 +813,29 @@ testIdpUpdate = do
   for_ uids $ \(_, email) -> do
     void $ loginWithSamlEmail True tid email idp3
 
-testAllowUpdatesBySCIMWhenE2EIdEnabled :: (HasCallStack) => App ()
-testAllowUpdatesBySCIMWhenE2EIdEnabled = do
-  (tok, uid, su) <- setup
+-- @SF.Provisioning @TSFI.RESTfulAPI @S2
+--
+-- Allow updates of E2EI enabled users only via SCIM
+testAllowUpdatesBySCIMWhenE2EIdEnabled :: (HasCallStack) => TaggedBool "sso-enabled" -> App ()
+testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
+  (tok, uid, su) <- if ssoEnabled then setupWithSSO else setupWithoutSSO
+  user <- getUsersId OwnDomain [uid] >>= getJSON 200 >>= asList >>= assertOne
 
-  su1 <- checkUpdateHandle tok uid su
-  su2 <- checkUpdateDisplayName tok uid su1
+  checkUpdateHandleByUserFails user
+  su1 <- checkUpdateHandleByScimSucceeds tok uid su
+  checkUpdateDisplayNameByUserFails user
+  su2 <- checkUpdateDisplayNameByScimSucceeds tok uid su1
 
   -- the following should not be part of the e2eid certification, but are checked here anyway
-  su3 <- checkUpdateLocale tok uid su2
-  su4 <- checkUpdateEmail tok uid su3
-  void $ checkUpdateExternalId tok uid su4
+  checkUpdateLocaleByUserFails user
+  su3 <- checkUpdateLocaleByScimSucceeds tok uid su2
+  unless ssoEnabled $ checkUpdateEmailByUserFails user
+  su4 <- checkUpdateEmailByScimSucceeds tok uid su3
+  -- external ID cannot be updated by the user, only by SCIM
+  void $ checkUpdateExternalIdByScimSucceeds tok uid su4
   where
-    setup :: App (String, String, Value)
-    setup = do
+    setupWithSSO :: App (String, String, Value)
+    setupWithSSO = do
       (owner, tid, _) <- createTeam OwnDomain 1
       setTeamFeatureStatus owner tid "sso" "enabled" >>= assertSuccess
       setTeamFeatureStatus owner tid "mlsE2EId" "enabled" >>= assertSuccess
@@ -838,8 +847,19 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled = do
       activateEmail OwnDomain email
       pure (tok, uid, scimUser)
 
-    checkUpdateHandle :: (HasCallStack) => String -> String -> Value -> App Value
-    checkUpdateHandle tok uid scimUser = do
+    setupWithoutSSO :: App (String, String, Value)
+    setupWithoutSSO = do
+      (owner, tid, _) <- createTeam OwnDomain 1
+      setTeamFeatureStatus owner tid "mlsE2EId" "enabled" >>= assertSuccess
+      tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+      scimUser <- randomScimUser
+      email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+      uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+      registerInvitedUser OwnDomain tid email
+      pure (tok, uid, scimUser)
+
+    checkUpdateHandleByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateHandleByScimSucceeds tok uid scimUser = do
       newHandle <- randomHandle
       su <- setField "userName" newHandle scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
@@ -851,8 +871,14 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled = do
         u %. "handle" `shouldMatch` newHandle
       pure su
 
-    checkUpdateDisplayName :: (HasCallStack) => String -> String -> Value -> App Value
-    checkUpdateDisplayName tok uid scimUser = do
+    checkUpdateHandleByUserFails :: (HasCallStack, MakesValue user) => user -> App ()
+    checkUpdateHandleByUserFails user = do
+      putHandle user "new-handle" `bindResponse` \res -> do
+        res.status `shouldMatchInt` 403
+        res.json %. "label" `shouldMatch` "managed-by-scim"
+
+    checkUpdateDisplayNameByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateDisplayNameByScimSucceeds tok uid scimUser = do
       let displayName = "Alice in Wonderland"
       su <- setField "displayName" displayName scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
@@ -864,8 +890,14 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled = do
         u %. "name" `shouldMatch` displayName
       pure su
 
-    checkUpdateLocale :: (HasCallStack) => String -> String -> Value -> App Value
-    checkUpdateLocale tok uid scimUser = do
+    checkUpdateDisplayNameByUserFails :: (HasCallStack, MakesValue user) => user -> App ()
+    checkUpdateDisplayNameByUserFails user = do
+      putSelf user def {name = Just "Bob the Builder"} `bindResponse` \res -> do
+        res.status `shouldMatchInt` 403
+        res.json %. "label" `shouldMatch` "managed-by-scim"
+
+    checkUpdateLocaleByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateLocaleByScimSucceeds tok uid scimUser = do
       su <- setField "preferredLanguage" "fr" scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
         res.status `shouldMatchInt` 200
@@ -876,8 +908,14 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled = do
         u %. "locale" `shouldMatch` "fr"
       pure su
 
-    checkUpdateEmail :: (HasCallStack) => String -> String -> Value -> App Value
-    checkUpdateEmail tok uid scimUser = do
+    checkUpdateLocaleByUserFails :: (HasCallStack, MakesValue user) => user -> App ()
+    checkUpdateLocaleByUserFails user = do
+      putSelfLocale user "de" `bindResponse` \res -> do
+        res.status `shouldMatchInt` 403
+        res.json %. "label" `shouldMatch` "managed-by-scim"
+
+    checkUpdateEmailByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateEmailByScimSucceeds tok uid scimUser = do
       newEmail <- randomEmail
       su <- setField "emails" [object ["value" .= newEmail]] scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
@@ -890,8 +928,22 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled = do
         u %. "email" `shouldMatch` newEmail
       pure su
 
-    checkUpdateExternalId :: (HasCallStack) => String -> String -> Value -> App Value
-    checkUpdateExternalId tok uid scimUser = do
+    checkUpdateEmailByUserFails :: (HasCallStack, MakesValue user) => user -> App ()
+    checkUpdateEmailByUserFails user = do
+      email <- make user %. "email" >>= asString
+      (cookie, token) <-
+        login OwnDomain email defPassword `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          token <- resp.json %. "access_token" & asString
+          let cookie = fromJust $ getCookie "zuid" resp
+          pure ("zuid=" <> cookie, token)
+      newEmail <- randomEmail
+      putSelfEmail user cookie token newEmail `bindResponse` \res -> do
+        res.status `shouldMatchInt` 403
+        res.json %. "label" `shouldMatch` "managed-by-scim"
+
+    checkUpdateExternalIdByScimSucceeds :: (HasCallStack) => String -> String -> Value -> App Value
+    checkUpdateExternalIdByScimSucceeds tok uid scimUser = do
       newExtId <- randomUUIDString
       su <- setField "externalId" newExtId scimUser
       bindResponse (updateScimUser OwnDomain tok uid su) $ \res -> do
@@ -900,6 +952,13 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled = do
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
         u <- res.json >>= asList >>= assertOne
-        subject <- u %. "sso_id.subject" >>= asString
+        subject <-
+          if ssoEnabled
+            then
+              u %. "sso_id.subject" >>= asString
+            else
+              u %. "sso_id.scim_external_id" >>= asString
         subject `shouldContainString` newExtId
       pure su
+
+-- @END
