@@ -634,17 +634,16 @@ createMembersTransaction convId (UserList lusers rusers) = do
                              VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
 
 createMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
-createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users =
-  -- TODO: Use 'unnest' instead of multiple insert statements
-  runTransaction ReadCommitted Write $
-    for_ users $ \uid ->
-      Transaction.statement (uid, domain, cnv) insertMember
+createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users = do
+  let domains = replicate (length users) domain
+      cnvs = replicate (length users) cnv
+  runStatement (users, domains, cnvs) insertMember
   where
-    insertMember :: Hasql.Statement (UserId, Domain, ConvId) ()
+    insertMember :: Hasql.Statement ([UserId], [Domain], [ConvId]) ()
     insertMember =
-      lmapPG
+      lmapPG @_ @(Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO remote_conversation_local_member ("user", conv_remote_domain, conv_remote_id)
-                             VALUES ($1 :: uuid, $2 :: text, $3 :: uuid)|]
+                             SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: uuid[])|]
 
 createBotMemberImpl :: (PGConstraints r) => ServiceRef -> BotId -> ConvId -> Sem r BotMember
 createBotMemberImpl serviceRef botId convId = do
