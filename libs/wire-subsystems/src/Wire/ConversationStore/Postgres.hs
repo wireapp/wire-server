@@ -43,6 +43,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.Postgres
+import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -58,6 +59,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   GetConversation cid -> getConversationImpl cid
   GetConversationEpoch cid -> getConversationEpochImpl cid
   GetConversations cids -> getConversationsImpl cids
+  GetLocalConversationIds uid lastConvId maxIds -> getLocalConversationIdsImpl uid lastConvId maxIds
   GetConversationIds uid maxIds pagingState -> getConversationIdsImpl uid maxIds pagingState
   GetConversationMetadata cid -> getConversationMetadataImpl cid
   GetGroupInfo cid -> getGroupInfoImpl cid
@@ -249,6 +251,33 @@ getConversationsImpl cids = do
       let localMemsDirect = map snd $ filter (\(memConvId, _) -> memConvId == convId) allMembersWithConvId
           localMemsParent = map snd $ filter (\(memConvId, _) -> Just memConvId == parentConvId) allMembersWithConvId
        in nubBy ((==) `on` (.id_)) $ localMemsDirect <> localMemsParent
+
+getLocalConversationIdsImpl :: (PGConstraints r) => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Sem r (ResultSet ConvId)
+getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
+  mkResultSetByLength (fromIntegral maxIds) <$> case start of
+    Just c -> runStatement (usr, c, maxIds) selectFrom
+    Nothing -> runStatement (usr, maxIds) selectStart
+  where
+    selectStart :: Hasql.Statement (UserId, Int32) [ConvId]
+    selectStart =
+      dimapPG
+        [vectorStatement|SELECT (conv :: uuid)
+                         FROM conversation_member
+                         WHERE "user" = ($1 :: uuid)
+                         ORDER BY conv
+                         LIMIT ($2 :: integer)
+                        |]
+
+    selectFrom :: Hasql.Statement (UserId, ConvId, Int32) [ConvId]
+    selectFrom =
+      dimapPG
+        [vectorStatement|SELECT (conv :: uuid)
+                         FROM conversation_member
+                         WHERE "user" = ($1 :: uuid)
+                         AND conv > ($2 :: uuid)
+                         ORDER BY conv
+                         LIMIT ($3 :: integer)
+                        |]
 
 getConversationIdsImpl :: forall r. (PGConstraints r) => Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Sem r ConvIdsPage
 getConversationIdsImpl lusr (fromRange -> maxIds) pagingState = do

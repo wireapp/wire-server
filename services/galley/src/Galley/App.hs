@@ -114,7 +114,6 @@ import Wire.ConversationStore.Postgres
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
-import Wire.ListItems.ConversationIds.Cassandra
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -299,7 +298,6 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
-        . interpretLegacyConversationListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
         . interpretTeamFeatureStoreToCassandra

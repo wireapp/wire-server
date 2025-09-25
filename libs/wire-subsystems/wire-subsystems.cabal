@@ -231,7 +231,6 @@ library
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
     Wire.ListItems
-    Wire.ListItems.ConversationIds.Cassandra
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException

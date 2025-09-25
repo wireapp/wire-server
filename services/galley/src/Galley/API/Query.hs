@@ -108,7 +108,6 @@ import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.HashPassword (HashPassword)
-import Wire.ListItems qualified as E
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -369,14 +368,14 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  (Member (ListItems LegacyPaging ConvId) r) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
-  ids <- E.listItems (tUnqualified lusr) start size
+  ids <- E.getLocalConversationIds (tUnqualified lusr) start size
   pure $
     Public.ConversationList
       (resultSetResult ids)
@@ -450,7 +449,6 @@ conversationIdsPageFrom lusr state = do
 
 getConversations ::
   ( Member (Error InternalError) r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ConversationStore r,
     Member P.TinyLog r
   ) =>
@@ -464,9 +462,7 @@ getConversations luser mids mstart msize = do
   flip ConversationList more <$> mapM (Mapping.conversationViewV9 luser) cs
 
 getConversationsInternal ::
-  ( Member ConversationStore r,
-    Member (ListItems LegacyPaging ConvId) r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -484,9 +480,7 @@ getConversationsInternal luser mids mstart msize = do
 
     -- get ids and has_more flag
     getIds ::
-      ( Member ConversationStore r,
-        Member (ListItems LegacyPaging ConvId) r
-      ) =>
+      (Member ConversationStore r) =>
       Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
       Sem r (Bool, [ConvId])
     getIds (Just ids) =
@@ -495,7 +489,7 @@ getConversationsInternal luser mids mstart msize = do
           (tUnqualified luser)
           (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
-      r <- E.listItems (tUnqualified luser) mstart (rcast size)
+      r <- E.getLocalConversationIds (tUnqualified luser) mstart (rcast size)
       let hasMore = resultSetType r == ResultSetTruncated
       pure (hasMore, resultSetResult r)
 
@@ -549,9 +543,7 @@ listConversations luser (Public.ListConversations ids) = do
       pure (founds, notFounds)
 
 iterateConversations ::
-  ( Member (ListItems LegacyPaging ConvId) r,
-    Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   Range 1 500 Int32 ->
   ([StoredConversation] -> Sem r a) ->

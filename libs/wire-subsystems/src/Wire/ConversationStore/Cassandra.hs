@@ -63,6 +63,7 @@ import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
+import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as StoreConv
 import Wire.UserList
@@ -258,6 +259,14 @@ localConversations client =
 localConversationIdsOf :: UserId -> [ConvId] -> Client [ConvId]
 localConversationIdsOf usr cids = do
   runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params LocalQuorum (usr, cids)))
+
+getLocalConvIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Client (ResultSet ConvId)
+getLocalConvIds usr start (fromRange -> maxIds) = do
+  mkResultSet . strip . fmap runIdentity <$> case start of
+    Just c -> paginate Cql.selectUserConvsFrom (paramsP LocalQuorum (usr, c) (maxIds + 1))
+    Nothing -> paginate Cql.selectUserConvs (paramsP LocalQuorum (Identity usr) (maxIds + 1))
+  where
+    strip p = p {result = take (fromIntegral maxIds) (result p)}
 
 getConvIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Client ConvIdsPage
 getConvIds lusr (fromRange -> maxIds) pagingState = do
@@ -890,6 +899,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
     localConversations client cids
+  GetLocalConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetLocalConversationIds"
+    embedClient client $ getLocalConvIds uid start maxIds
   GetConversationIds uid maxIds pagingState -> do
     logEffect "ConversationStore.GetConversationIds"
     embedClient client $ getConvIds uid maxIds pagingState

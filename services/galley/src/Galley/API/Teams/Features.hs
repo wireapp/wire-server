@@ -330,7 +330,6 @@ instance SetFeatureConfig LegalholdConfig where
         Member (Input Env) r,
         Member Now r,
         Member LegalHoldStore r,
-        Member (ListItems LegacyPaging ConvId) r,
         Member ProposalStore r,
         Member TeamFeatureStore r,
         Member TeamStore r,

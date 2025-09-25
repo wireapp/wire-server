@@ -135,7 +135,6 @@ type GalleyEffects1 =
      TeamFeatureStore,
      TeamMemberStore InternalPaging,
      TeamMemberStore CassandraPaging,
-     ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
      Input AllTeamFeatures,

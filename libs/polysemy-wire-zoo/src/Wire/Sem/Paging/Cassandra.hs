@@ -25,6 +25,7 @@ module Wire.Sem.Paging.Cassandra
     ipNext,
     ResultSet,
     mkResultSet,
+    mkResultSetByLength,
     resultSetResult,
     resultSetType,
     ResultSetType (..),
@@ -33,7 +34,6 @@ where
 
 import Cassandra
 import Data.Id
-import Data.Qualified
 import Data.Range
 import Imports
 import qualified Wire.Sem.Paging as E
@@ -47,10 +47,6 @@ type instance E.PagingState CassandraPaging a = PagingState
 
 type instance E.Page CassandraPaging a = PageWithState a
 
-type instance E.PagingBounds CassandraPaging ConvId = Range 1 1000 Int32
-
-type instance E.PagingBounds CassandraPaging (Remote ConvId) = Range 1 1000 Int32
-
 type instance E.PagingBounds CassandraPaging TeamId = Range 1 100 Int32
 
 -- | This paging system is based on ordering, and keeps track of state using
@@ -61,8 +57,6 @@ data LegacyPaging
 type instance E.PagingState LegacyPaging a = a
 
 type instance E.Page LegacyPaging a = ResultSet a
-
-type instance E.PagingBounds LegacyPaging ConvId = Range 1 1000 Int32
 
 type instance E.PagingBounds LegacyPaging TeamId = Range 1 100 Int32
 
@@ -125,4 +119,11 @@ mkResultSet page = ResultSet (result page) typ
   where
     typ
       | hasMore page = ResultSetTruncated
+      | otherwise = ResultSetComplete
+
+mkResultSetByLength :: Int -> [a] -> ResultSet a
+mkResultSetByLength maxResults xs = ResultSet xs typ
+  where
+    typ
+      | length xs >= maxResults = ResultSetTruncated
       | otherwise = ResultSetComplete

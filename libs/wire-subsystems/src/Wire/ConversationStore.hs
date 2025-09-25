@@ -37,6 +37,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
 import Wire.ConversationStore.MLS.Types
+import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -57,6 +58,7 @@ data ConversationStore m a where
   GetConversation :: ConvId -> ConversationStore m (Maybe StoredConversation)
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
+  GetLocalConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> ConversationStore m (ResultSet ConvId)
   GetConversationIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> ConversationStore m ConvIdsPage
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
