@@ -18,7 +18,6 @@
 module Wire.API.Federation.Endpoint
   ( ApplyMods,
     module Wire.API.Federation.Endpoint,
-    OriginIpHeader,
   )
 where
 
