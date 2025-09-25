@@ -475,7 +475,7 @@ data MappingField = MappingField
     mfSearchAnalyzer :: Maybe Text
   }
 
-data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate
+data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate | MPBoolean
   deriving (Eq)
 
 instance ToJSON MappingProperty where
@@ -494,6 +494,7 @@ instance ToJSON MappingPropertyType where
   toJSON MPKeyword = Aeson.String "keyword"
   toJSON MPByte = Aeson.String "byte"
   toJSON MPDate = Aeson.String "date"
+  toJSON MPBoolean = Aeson.String "boolean"
 
 instance ToJSON MappingField where
   toJSON mf =
