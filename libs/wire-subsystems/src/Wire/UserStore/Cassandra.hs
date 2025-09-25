@@ -103,6 +103,7 @@ getIndexUserBaseQuery =
     managed_by, writetime(managed_by),
     sso_id, writetime(sso_id),
     email_unvalidated, writetime(email_unvalidated),
+    searchable, writetime(searchable),
     writetime(write_time_bumper)
     FROM user
   |]

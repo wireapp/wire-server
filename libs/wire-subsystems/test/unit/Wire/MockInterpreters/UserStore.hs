@@ -115,6 +115,7 @@ storedUserToIndexUser storedUser =
           managedBy = withDefaultTime <$> storedUser.managedBy,
           ssoId = withDefaultTime <$> storedUser.ssoId,
           unverifiedEmail = Nothing,
+          searchable = withDefaultTime <$> storedUser.searchable,
           writeTimeBumper = Nothing
         }
 

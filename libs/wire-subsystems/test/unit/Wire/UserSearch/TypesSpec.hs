@@ -46,7 +46,8 @@ userDoc1 =
       udSearchVisibilityInbound = Nothing,
       udScimExternalId = Nothing,
       udSso = Nothing,
-      udEmailUnvalidated = Nothing
+      udEmailUnvalidated = Nothing,
+      udSearchable = Nothing -- TODO: or Just True?
     }
 
 -- Dont touch this. This represents serialized legacy data.
