@@ -250,7 +250,6 @@ getConversationsImpl cids = do
           localMemsParent = map snd $ filter (\(memConvId, _) -> Just memConvId == parentConvId) allMembersWithConvId
        in nubBy ((==) `on` (.id_)) $ localMemsDirect <> localMemsParent
 
--- TODO: Figure out if all of this would be better with a join
 getConversationIdsImpl :: forall r. (PGConstraints r) => Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Sem r ConvIdsPage
 getConversationIdsImpl lusr (fromRange -> maxIds) pagingState = do
   let pagingTable = maybe PagingLocals (.mtpsTable) pagingState
