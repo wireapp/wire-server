@@ -938,7 +938,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
           let cookie = fromJust $ getCookie "zuid" resp
           pure ("zuid=" <> cookie, token)
       newEmail <- randomEmail
-      putSelfEmail user cookie token newEmail `bindResponse` \res -> do
+      updateEmail user newEmail cookie token `bindResponse` \res -> do
         res.status `shouldMatchInt` 403
         res.json %. "label" `shouldMatch` "managed-by-scim"
 
