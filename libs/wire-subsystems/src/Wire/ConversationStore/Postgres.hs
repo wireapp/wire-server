@@ -1130,10 +1130,11 @@ listSubConversationsImpl :: (PGConstraints r) => ConvId -> Sem r (Map SubConvId 
 listSubConversationsImpl cid = do
   subs <- runStatement cid select
   pure . Map.fromList $ do
-    (subId, cs, epoch, ts, gid) <- subs
-    let activeData = case (epoch, ts) of
-          (Epoch 0, _) -> Nothing
-          (_, t) ->
+    (subId, mCipherSuite, epoch, ts, gid) <- subs
+    let activeData = case (epoch, ts, mCipherSuite) of
+          (Epoch 0, _, _) -> Nothing
+          (_, _, Nothing) -> Nothing
+          (_, t, Just cs) ->
             Just
               ActiveMLSConversationData
                 { epoch = epoch,
@@ -1149,11 +1150,10 @@ listSubConversationsImpl cid = do
           }
       )
   where
-    -- TODO: Verify if none of these can actually not be null
-    select :: Hasql.Statement (ConvId) [(SubConvId, CipherSuiteTag, Epoch, UTCTime, GroupId)]
+    select :: Hasql.Statement (ConvId) [(SubConvId, Maybe CipherSuiteTag, Epoch, UTCTime, GroupId)]
     select =
       dimapPG
-        [vectorStatement|SELECT (subconv_id :: text), (cipher_suite :: integer), (epoch :: bigint), (epoch_timestamp :: timestamptz), (group_id :: bytea)
+        [vectorStatement|SELECT (subconv_id :: text), (cipher_suite :: integer?), (epoch :: bigint), (epoch_timestamp :: timestamptz), (group_id :: bytea)
                          FROM subconversation
                          WHERE conv_id = ($1 :: uuid)
                         |]

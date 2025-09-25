@@ -26,9 +26,9 @@ CREATE TABLE subconversation (
   conv_id uuid NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
   subconv_id text NOT NULL,
   cipher_suite integer,
-  epoch bigint,
-  epoch_timestamp timestamptz,
-  group_id bytea,
+  epoch bigint NOT NULL,
+  epoch_timestamp timestamptz NOT NULL,
+  group_id bytea NOT NULL,
   public_group_state bytea,
   PRIMARY KEY (conv_id, subconv_id)
 );
