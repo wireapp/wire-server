@@ -544,7 +544,7 @@ updateChannelAddPermissionsImpl convId addPerm =
     update =
       lmapPG
         [resultlessStatement|UPDATE conversation
-                             SET add_permission = ($2 :: integer)
+                             SET channel_add_permission = ($2 :: integer)
                              WHERE id = ($1 :: uuid)|]
 
 updateToMixedProtocolImpl :: (PGConstraints r) => ConvId -> GroupId -> Epoch -> Sem r ()
@@ -653,7 +653,7 @@ createBotMemberImpl serviceRef botId convId = do
     insert :: Hasql.Statement (ConvId, BotId, ServiceId, ProviderId) ()
     insert =
       lmapPG
-        [resultlessStatement|INSERT INTO member (conv, "user", service, provider)
+        [resultlessStatement|INSERT INTO conversation_member (conv, "user", service, provider)
                              VALUES ($1 :: uuid, $2 :: uuid, $3 :: uuid, $4 :: uuid)
                             |]
 
