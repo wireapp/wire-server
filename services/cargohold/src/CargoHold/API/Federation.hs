@@ -56,7 +56,7 @@ checkAsset remote ga =
     checkMetadata (Qualified (UserPrincipal ga.user) remote) (F.key ga) (F.token ga)
 
 streamAsset :: Domain -> Maybe IpAddr -> F.GetAsset -> Handler AssetSource
-streamAsset _ _ ga = do
+streamAsset remote _ ga = do
   meta <- checkAsset remote ga >>= maybe (throwE assetNotFound) pure
   whenM (asks (.options.settings.assetAuditLogEnabled)) $ do
     let pathTxt = decodeLatin1 (toByteString' (S3.mkKey (F.key ga)))
