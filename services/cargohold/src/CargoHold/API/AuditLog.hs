@@ -70,7 +70,7 @@ logDownload mqDownloader mIp s3 pathTxt =
     auditTrue
       ~~ "event" .= ("file-download" :: Text)
       ~~ downloaderFields mqDownloader
-      ~~ ipaddr mIp
+      ~~ ipaddr "downloader.backend.ip" mIp
       ~~ auditMetaFields (v3AssetAuditLogMetadata s3)
       ~~ "download.path" .= pathTxt
       ~~ msg (val "Asset audit log: download")
@@ -90,8 +90,8 @@ logSignedURLCreation mqCreator mMeta uri =
     renderHost = maybe ("" :: Text) (decodeUtf8 . hostBS . authorityHost)
     hostBS (Host h) = h
 
-logDownloadRemoteAsset :: (Log.MonadLogger m) => Local UserId -> Remote () -> m ()
-logDownloadRemoteAsset luid remote = do
+logDownloadRemoteAsset :: (Log.MonadLogger m) => Local UserId -> Remote () -> Maybe IpAddr -> m ()
+logDownloadRemoteAsset luid remote mIp = do
   Log.info $
     auditTrue
       ~~ "event" .= ("file-download" :: Text)
@@ -99,6 +99,7 @@ logDownloadRemoteAsset luid remote = do
       ~~ "downloader.id" .= toByteString (tUnqualified luid)
       ~~ "downloader.domain" .= toByteString (tDomain luid)
       ~~ "remote.domain" .= toByteString (tDomain remote)
+      ~~ ipaddr "remote.backend.ip" mIp
       ~~ msg (val "Asset audit log: remote download")
 
 ------------------------------------------------------------------------------
@@ -149,6 +150,6 @@ notAvailable = "N/A"
 notAvailableInternalAccess :: Text
 notAvailableInternalAccess = "N/A internal access"
 
-ipaddr :: Maybe IpAddr -> Log.Msg -> Log.Msg
-ipaddr Nothing = "downloader.backend.ip" .= notAvailable
-ipaddr (Just ip) = "downloader.backend.ip" .= toByteString ip
+ipaddr :: ByteString -> Maybe IpAddr -> Log.Msg -> Log.Msg
+ipaddr field Nothing = field .= notAvailable
+ipaddr field (Just ip) = field .= toByteString ip

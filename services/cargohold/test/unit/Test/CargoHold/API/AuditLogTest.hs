@@ -152,12 +152,12 @@ propLogSignedURLCreation qDownloader mMeta = QC.ioProperty $ do
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
 
-propLogDownloadRemoteAsset :: Domain -> UserId -> Domain -> QC.Property
-propLogDownloadRemoteAsset domLocal uid domRemote = QC.ioProperty $ do
+propLogDownloadRemoteAsset :: Domain -> UserId -> Domain -> Maybe IpAddr -> QC.Property
+propLogDownloadRemoteAsset domLocal uid domRemote mIp = QC.ioProperty $ do
   let luid = toLocalUnsafe domLocal uid
       rmt = toRemoteUnsafe domRemote ()
   (_, logs) <- withStructuredJSONLogger $ \logger ->
-    runWithLogger logger (logDownloadRemoteAsset luid rmt :: LoggerT IO ())
+    runWithLogger logger (logDownloadRemoteAsset luid rmt mIp :: LoggerT IO ())
   pure $ case logs of
     (obj : _) ->
       let expected =
@@ -169,7 +169,8 @@ propLogDownloadRemoteAsset domLocal uid domRemote = QC.ioProperty $ do
                 "downloader.type" .= ("user" :: T.Text),
                 "downloader.id" .= T.pack (show uid),
                 "downloader.domain" .= domainText domLocal,
-                "remote.domain" .= domainText domRemote
+                "remote.domain" .= domainText domRemote,
+                "remote.backend.ip" .= maybe "N/A" (decodeUtf8 . toByteString') mIp
               ]
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
