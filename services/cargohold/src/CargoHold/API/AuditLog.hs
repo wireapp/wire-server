@@ -28,6 +28,7 @@ import qualified CargoHold.Types.V3 as V3
 import Codec.MIME.Type (showType)
 import Data.ByteString.Conversion.To (toByteString)
 import Data.Id (UserId, botUserId)
+import Data.Misc (IpAddr)
 import Data.Qualified (Local, Qualified, Remote, qDomain, qUnqualified, tDomain, tUnqualified)
 import Data.Text.Encoding (decodeUtf8)
 import Imports
@@ -63,12 +64,13 @@ logUpload lwon mMeta pathTxt =
                 ~~ "uploader.id" .= toByteString p
         principalDomain = "uploader.domain" .= toByteString (tDomain lwon)
 
-logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> S3AssetMeta -> Text -> m ()
-logDownload mqDownloader s3 pathTxt =
+logDownload :: (Log.MonadLogger m) => Maybe (Qualified V3.Principal) -> Maybe IpAddr -> S3AssetMeta -> Text -> m ()
+logDownload mqDownloader mIp s3 pathTxt =
   Log.info $
     auditTrue
       ~~ "event" .= ("file-download" :: Text)
       ~~ downloaderFields mqDownloader
+      ~~ ipaddr mIp
       ~~ auditMetaFields (v3AssetAuditLogMetadata s3)
       ~~ "download.path" .= pathTxt
       ~~ msg (val "Asset audit log: download")
@@ -146,3 +148,7 @@ notAvailable = "N/A"
 
 notAvailableInternalAccess :: Text
 notAvailableInternalAccess = "N/A internal access"
+
+ipaddr :: Maybe IpAddr -> Log.Msg -> Log.Msg
+ipaddr Nothing = "downloader.backend.ip" .= notAvailable
+ipaddr (Just ip) = "downloader.backend.ip" .= toByteString ip

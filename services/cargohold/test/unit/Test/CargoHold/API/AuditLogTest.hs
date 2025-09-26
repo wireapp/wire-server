@@ -23,10 +23,13 @@ import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..), domainText)
 import Data.Id (UserId, botUserId)
+import Data.Misc (IpAddr)
 import Data.Qualified
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import Imports
 import System.Logger.Extended (LoggerT, runWithLogger)
 import Test.CargoHold.API.LogJSON
@@ -71,8 +74,8 @@ propLogUpload dom princ meta pathTxt = QC.ioProperty $ do
        in obj QC.=== expected
     _ -> counterexample "No logs emitted" False
 
-propLogDownload :: Domain -> V3.Principal -> V3.Principal -> AssetAuditLogMetadata -> T.Text -> QC.Property
-propLogDownload dom owner downloader meta pathTxt = QC.ioProperty $ do
+propLogDownload :: Domain -> V3.Principal -> V3.Principal -> AssetAuditLogMetadata -> T.Text -> Maybe IpAddr -> QC.Property
+propLogDownload dom owner downloader meta pathTxt mIp = QC.ioProperty $ do
   let qDownloader = Qualified downloader dom
       s3meta =
         S3AssetMeta
@@ -82,7 +85,7 @@ propLogDownload dom owner downloader meta pathTxt = QC.ioProperty $ do
             v3AssetAuditLogMetadata = Just meta
           }
   (_, logs) <- withStructuredJSONLogger $ \logger ->
-    runWithLogger logger (logDownload (Just qDownloader) s3meta pathTxt :: LoggerT IO ())
+    runWithLogger logger (logDownload (Just qDownloader) mIp s3meta pathTxt :: LoggerT IO ())
   pure $ case logs of
     (obj : _) ->
       let expected =
@@ -94,6 +97,7 @@ propLogDownload dom owner downloader meta pathTxt = QC.ioProperty $ do
                 "downloader.type" .= uploaderType downloader,
                 "downloader.id" .= uploaderId downloader,
                 "downloader.domain" .= domainText dom,
+                "downloader.backend.ip" .= maybe "N/A" (decodeUtf8 . toByteString') mIp,
                 "conversation.id" .= T.pack (show (qUnqualified meta.convId)),
                 "conversation.domain" .= domainText (qDomain meta.convId),
                 "file.name" .= meta.filename,
