@@ -12,7 +12,7 @@ podSecurityContext:
     type: RuntimeDefault
 
 config:
-  dynamicBackendsPoolsize: 3
+  dynamicBackendsPoolsize: 0
   dynamicBackends:
     dynamic-backend-1:
       federatorExternalHostPrefix: dynamic-backend-1
