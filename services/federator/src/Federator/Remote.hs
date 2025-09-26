@@ -30,9 +30,9 @@ import Bilge.Request qualified as RPC
 import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
-import Data.IORef qualified as IORef
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.IORef qualified as IORef
 import Data.Id
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
@@ -116,12 +116,15 @@ interpretRemote = interpret $ \case
     resp <- mapError (RemoteError target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catches
-          (H2Manager.withHTTP2RequestOnSingleUseConnWithHook mgr (True, hostname, fromIntegral port) req'
-             (\peerAddr -> do
-                 (mhost, _) <- Sock.getNameInfo [Sock.NI_NUMERICHOST] True False peerAddr
-                 IORef.writeIORef ipRef mhost
-             )
-             (consumeStreamingResponseWith (k . Right))
+          ( H2Manager.withHTTP2RequestOnSingleUseConnWithHook
+              mgr
+              (True, hostname, fromIntegral port)
+              req'
+              ( \peerAddr -> do
+                  (mhost, _) <- Sock.getNameInfo [Sock.NI_NUMERICHOST] True False peerAddr
+                  IORef.writeIORef ipRef mhost
+              )
+              (consumeStreamingResponseWith (k . Right))
           )
           [ E.Handler $ k . Left,
             E.Handler $ k . Left . FederatorClientTLSException,

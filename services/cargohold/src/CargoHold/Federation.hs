@@ -71,8 +71,9 @@ downloadRemoteAsset usr rkey tok = do
       Just
         <$> executeFederatedStreaming
           rkey
-          ( toSourceIO
-              <$> fedClient @'Cargohold @"stream-asset" ga
+          ( do
+              (_mIp, resp) <- fedClient @'Cargohold @"stream-asset" ga
+              pure $ toSourceIO resp
           )
     else pure Nothing
 
