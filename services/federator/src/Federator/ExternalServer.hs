@@ -162,7 +162,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
       headersVersion = filter ((== versionHeader) . fst) reqHeaders
       mFirstIP =
         lookup "X-Forwarded-For" reqHeaders >>= \xff -> do
-          let fstHdr = BS8.takeWhile (/= ',') xff
+          let fstHdr = BS8.strip $ BS8.takeWhile (/= ',') xff
           guard (not (BS8.null fstHdr)) $> fstHdr
       mXReal = lookup "X-Real-IP" reqHeaders
       mOriginIp = (originIpHeaderName,) <$> (mFirstIP <|> mXReal)
