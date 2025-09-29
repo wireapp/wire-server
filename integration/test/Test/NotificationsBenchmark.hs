@@ -105,10 +105,11 @@ sendAndReceive userNo userMap = do
   where
     -- \| Generate a random string with random length up to 2048 bytes
     randomPayload :: IO String
-    randomPayload = do
-      -- TODO: 1 to 2028 chars is a guess. We could adjust it to the real distribution.
-      len <- randomRIO @Int (1, 2048) -- random length between 1 and 2048
-      mapM (\_ -> randomRIO ('\32', '\126')) [1 .. len] -- printable ASCII
+    randomPayload =
+      -- Measured with
+      -- `kubectl exec --namespace databases -it gundeck-gundeck-eks-eu-west-1a-sts-0 -- sh -c 'cqlsh -e "select  blobAsText(payload) from gundeck.notifications LIMIT 5000;" ' | sed 's/^[ \t]*//;s/[ \t]*$//' | wc`
+      let len :: Int = 884 -- measured in prod
+       in mapM (\_ -> randomRIO ('\32', '\126')) [1 .. len] -- printable ASCII
 
 setTimeoutTo :: Int -> Env -> Env
 setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
