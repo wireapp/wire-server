@@ -18,6 +18,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as ST
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import qualified SAML2.WebSSO.Test.Util as SAML
 import qualified SAML2.WebSSO.XML as SAMLXML
 import SetupHelpers
 import Testlib.JSON
@@ -429,6 +430,20 @@ testSparCreateTwoScimTokensForOneIdp = do
   createScimTokenV6 owner def >>= assertStatus 400
   tokens <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList
   length tokens `shouldMatchInt` 0
+
+testCheckAdminGetTeamId :: (HasCallStack) => App ()
+testCheckAdminGetTeamId = do
+  (owner :: Value, tid :: String, [regular] :: [Value]) <- createTeam OwnDomain 2
+  void $ setTeamFeatureStatus owner tid "sso" "enabled" -- required for the next request
+  SAML.SampleIdP idpMeta _ _ _ <- SAML.makeSampleIdPMetadata
+  createIdp owner idpMeta >>= assertSuccess -- Successful API response for owner (admin),
+  createIdp regular idpMeta `bindResponse` \resp -> do
+    -- insuficient permissions for non-admin, both as expected.
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "insufficient-permissions"
+
+testCheckAdminGetTeamIdV7 :: App ()
+testCheckAdminGetTeamIdV7 = withAPIVersion 7 testCheckAdminGetTeamId
 
 testSsoLoginAndEmailVerification :: (HasCallStack) => App ()
 testSsoLoginAndEmailVerification = do

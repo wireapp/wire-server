@@ -40,6 +40,7 @@ module Spar.Sem.BrigAccess
     getStatusMaybe,
     setStatus,
     getDefaultUserLocale,
+    checkAdminGetTeamId,
   )
 where
 
@@ -80,5 +81,6 @@ data BrigAccess m a where
   GetStatusMaybe :: UserId -> BrigAccess m (Maybe AccountStatus)
   SetStatus :: UserId -> AccountStatus -> BrigAccess m ()
   GetDefaultUserLocale :: BrigAccess m Locale
+  CheckAdminGetTeamId :: UserId -> BrigAccess m TeamId
 
 makeSem ''BrigAccess

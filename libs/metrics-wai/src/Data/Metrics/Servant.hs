@@ -134,6 +134,9 @@ instance RoutesToPaths (NoContentVerb method) where
 instance RoutesToPaths (Stream method status framing ct a) where
   getRoutes = []
 
+instance (RoutesToPaths rest) => RoutesToPaths (AuthProtect _tag :> rest) where
+  getRoutes = getRoutes @rest
+
 -- route :<|> routes
 instance
   ( RoutesToPaths route,

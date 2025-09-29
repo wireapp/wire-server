@@ -91,6 +91,7 @@ updateScimUser domain scimToken userId scimUser = do
     & addJSON body . addHeader "Authorization" ("Bearer " <> scimToken)
     & addHeader "Accept" "application/scim+json"
 
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
 createIdp user metadata = do
   req <- baseRequest user Spar Versioned "/identity-providers"
