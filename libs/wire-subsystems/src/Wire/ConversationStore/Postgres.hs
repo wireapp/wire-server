@@ -224,13 +224,17 @@ getConversationsImpl cids = do
         <$> Pipeline.statement cids selectMetadata
         <*> Pipeline.statement cids selectAllLocalMembers
         <*> Pipeline.statement cids selectAllRemoteMembers
-  let localsWithConvId = mkLocalMember <$> localMemRows
+  let convRowMap = Map.fromList $ map splitIdFromRow convRowsWithId
+      localsWithConvId = mkLocalMember <$> localMemRows
       remotesWithConvId = mkRemoteMember <$> remoteMemRows
-  mConvs <- for convRowsWithId $ \convRowWithId -> do
-    let (convId, convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent)) = splitIdFromRow convRowWithId
-        localMems = findMembers convId mParent localsWithConvId
-        remoteMems = findMembers convId mParent remotesWithConvId
-    pure $ toConv convId localMems remoteMems (Just convRow)
+      -- Here we cannot loop over `convRowsWithId` to do this because the result
+      -- is expected to be in same order as `cids` but the expressing that in
+      -- the SQL query is tough.
+      mConvs = flip map cids $ \convId -> do
+        convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent) <- Map.lookup convId convRowMap
+        let localMems = findMembers convId mParent localsWithConvId
+            remoteMems = findMembers convId mParent remotesWithConvId
+        toConv convId localMems remoteMems (Just convRow)
   pure $ catMaybes mConvs
   where
     selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
