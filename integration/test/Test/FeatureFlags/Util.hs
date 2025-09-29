@@ -157,7 +157,8 @@ defAllFeatures =
             "ttl" .= "unlimited",
             "config"
               .= object
-                [ "mlsConversationReset" .= False
+                [ "mlsConversationReset" .= False,
+                  "mlsGroupInfoDiagnostics" .= False
                 ]
           ],
       "consumableNotifications" .= disabledLocked,
