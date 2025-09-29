@@ -753,7 +753,7 @@ createMLSSelfConversation lusr = do
             protocol = BaseProtocolMLSTag,
             groupId = Nothing
           }
-  E.createConversation lcnv nc
+  E.upsertConversation lcnv nc
 
 -- | Get an MLS 1-1 conversation. If not already existing, the conversation
 -- object is created on the fly, but not persisted. The conversation will only

@@ -53,7 +53,7 @@ data MLSCommitLockStore m a where
 makeSem ''MLSCommitLockStore
 
 data ConversationStore m a where
-  CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
+  UpsertConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe StoredConversation)
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)

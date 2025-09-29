@@ -131,7 +131,7 @@ createMLSOne2OneConversation ::
   Sem r StoredConversation
 createMLSOne2OneConversation self other lconv = do
   let conv = tUnqualified lconv
-  createConversation
+  upsertConversation
     (fmap mcId lconv)
     NewConversation
       { metadata = mcMetadata conv,

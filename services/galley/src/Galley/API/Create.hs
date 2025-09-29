@@ -323,7 +323,7 @@ createGroupConversationGeneric lusr conn newConv joinType = do
     assertMLSEnabled
 
   lcnv <- traverse (const $ Id <$> Random.uuid) lusr
-  conv <- E.createConversation lcnv nc
+  conv <- E.upsertConversation lcnv nc
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation lusr conn conv joinType
   sendCellsNotification conv
@@ -474,7 +474,7 @@ createProteusSelfConversation lusr = do
                 protocol = BaseProtocolProteusTag,
                 groupId = Nothing
               }
-      c <- E.createConversation lcnv nc
+      c <- E.upsertConversation lcnv nc
       conversationCreated lusr c
 
 createOne2OneConversation ::
@@ -607,7 +607,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   case mc of
     Just c -> conversationExisted self c
     Nothing -> do
-      c <- E.createConversation lcnv nc
+      c <- E.upsertConversation lcnv nc
       runError @UnreachableBackends (notifyCreatedConversation self (Just zcon) c def)
         >>= \case
           Left _ -> do
@@ -676,7 +676,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 protocol = BaseProtocolProteusTag,
                 groupId = Nothing
               }
-      c <- E.createConversation lcnv nc
+      c <- E.upsertConversation lcnv nc
       notifyCreatedConversation self (Just zcon) c def
       conversationCreated self c
 
@@ -732,7 +732,7 @@ createConnectConversation lusr conn j = do
     >>= maybe (create lcnv nc) (update n)
   where
     create lcnv nc = do
-      c <- E.createConversation lcnv nc
+      c <- E.upsertConversation lcnv nc
       now <- Now.get
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConnect j)
       notifyCreatedConversation lusr conn c def

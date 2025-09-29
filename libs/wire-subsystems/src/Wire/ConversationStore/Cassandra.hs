@@ -887,7 +887,7 @@ interpretConversationStoreToCassandra ::
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra client = interpret $ \case
-  CreateConversation lcnv nc -> do
+  UpsertConversation lcnv nc -> do
     logEffect "ConversationStore.CreateConversation"
     embedClient client $ createConversation lcnv nc
   GetConversation cid -> do

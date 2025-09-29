@@ -55,7 +55,7 @@ type PGConstraints r =
 
 interpretConversationStoreToPostgres :: (PGConstraints r) => InterpreterFor ConversationStore r
 interpretConversationStoreToPostgres = interpret $ \case
-  CreateConversation lcnv nc -> createConversationImpl lcnv nc
+  UpsertConversation lcnv nc -> upsertConversationImpl lcnv nc
   GetConversation cid -> getConversationImpl cid
   GetConversationEpoch cid -> getConversationEpochImpl cid
   GetConversations cids -> getConversationsImpl cids
@@ -113,8 +113,8 @@ interpretConversationStoreToPostgres = interpret $ \case
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
 
-createConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
-createConversationImpl lcnv nc = do
+upsertConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
+upsertConversationImpl lcnv nc = do
   let storedConv = newStoredConversation lcnv nc
       meta = storedConv.metadata
       localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
@@ -150,7 +150,24 @@ createConversationImpl lcnv nc = do
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
-                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)|]
+                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)
+                             ON CONFLICT (id)
+                             DO UPDATE
+                                SET type = ($2 :: integer),
+                                    creator = ($3 :: uuid?),
+                                    access = ($4 :: integer[]),
+                                    access_roles_v2 = ($5 :: integer[]),
+                                    name = ($6 :: text?),
+                                    team = ($7 :: uuid?),
+                                    message_timer = ($8 :: bigint?),
+                                    receipt_mode =  ($9 :: integer?),
+                                    protocol = ($10 :: integer),
+                                    group_id =  ($11 :: bytea?),
+                                    group_conv_type =  ($12 :: integer?),
+                                    channel_add_permission =  ($13 :: integer?),
+                                    cells_state =  ($14 :: integer),
+                                    parent_conv =  ($15 :: uuid?)
+                            |]
 
 deleteConversationImpl :: (PGConstraints r) => ConvId -> Sem r ()
 deleteConversationImpl cid =

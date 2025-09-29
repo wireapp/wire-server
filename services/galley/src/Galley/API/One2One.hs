@@ -69,7 +69,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                     (RemoteActor, Included) -> ulFromRemotes [uooRemoteUser]
                     (RemoteActor, Excluded) -> mempty
             unless (null members) . void $
-              createConversation
+              upsertConversation
                 lconvId
                 (newConnectConversationWithRemote uooLocalUser members)
           Just conv -> do
