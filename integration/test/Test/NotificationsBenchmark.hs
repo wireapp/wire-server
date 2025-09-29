@@ -55,7 +55,6 @@ testBench = do
     & Stream.parMapM parCfg (\(t, uNo) -> waitForTimeStamp t >> sendAndReceive uNo userMap)
     & Stream.fold Fold.drain
 
--- TODO: Add a speed factor to the simulation as we want to simulate faster than real time
 waitForTimeStamp :: UTCTime -> App ()
 waitForTimeStamp timestamp = liftIO $ do
   now <- getCurrentTime
