@@ -47,7 +47,7 @@ testBench = do
 
   -- TODO: To be replaced with real data from the file. (See
   -- https://wearezeta.atlassian.net/wiki/spaces/PET/pages/2118680620/Simulating+production-like+data)
-  let fakeData = zip (plusDelta now <$> [0 :: Word ..]) (cycle [0 .. 1000])
+  let fakeData = zip (plusDelta now <$> [0 :: Word ..]) (cycle [0 .. maxUserNo])
 
   Stream.fromList fakeData
     & Stream.filter (\(_t, uNo) -> (uNo `mod` shardingGroupCount) == shardingGroup)
