@@ -276,8 +276,8 @@ getConversationsImpl cids = do
 getLocalConversationIdsImpl :: (PGConstraints r) => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Sem r (ResultSet ConvId)
 getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
   mkResultSetByLength (fromIntegral maxIds) <$> case start of
-    Just c -> runStatement (usr, c, maxIds) selectFrom
-    Nothing -> runStatement (usr, maxIds) selectStart
+    Just c -> runStatement (usr, c, maxIds + 1) selectFrom
+    Nothing -> runStatement (usr, maxIds + 1) selectStart
   where
     selectStart :: Hasql.Statement (UserId, Int32) [ConvId]
     selectStart =

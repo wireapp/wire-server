@@ -122,8 +122,8 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 mkResultSetByLength :: Int -> [a] -> ResultSet a
-mkResultSetByLength maxResults xs = ResultSet xs typ
+mkResultSetByLength maxResults xs = ResultSet (take maxResults xs) typ
   where
     typ
-      | length xs >= maxResults = ResultSetTruncated
+      | length xs > maxResults = ResultSetTruncated
       | otherwise = ResultSetComplete
