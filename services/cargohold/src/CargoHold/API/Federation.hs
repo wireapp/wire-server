@@ -32,6 +32,7 @@ import CargoHold.Types.V3 (Principal (UserPrincipal))
 import Control.Error
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
+import Data.Misc (IpAddr)
 import Data.Qualified (Qualified (Qualified))
 import Data.Text.Encoding (decodeLatin1)
 import Imports
@@ -54,12 +55,12 @@ checkAsset remote ga =
   runMaybeT $
     checkMetadata (Qualified (UserPrincipal ga.user) remote) (F.key ga) (F.token ga)
 
-streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
-streamAsset remote ga = do
-  meta <- checkAsset remote ga >>= maybe (throwE assetNotFound) pure
+streamAsset :: Domain -> Maybe IpAddr -> F.GetAsset -> Handler AssetSource
+streamAsset remoteDomain remoteIp ga = do
+  meta <- checkAsset remoteDomain ga >>= maybe (throwE assetNotFound) pure
   whenM (asks (.options.settings.assetAuditLogEnabled)) $ do
     let pathTxt = decodeLatin1 (toByteString' (S3.mkKey (F.key ga)))
-    logDownload (Just $ Qualified (UserPrincipal ga.user) remote) meta pathTxt
+    logDownload (Just $ Qualified (UserPrincipal ga.user) remoteDomain) remoteIp meta pathTxt
   AssetSource <$> S3.downloadV3 (F.key ga)
 
 getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse

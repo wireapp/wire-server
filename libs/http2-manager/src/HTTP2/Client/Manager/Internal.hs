@@ -168,9 +168,19 @@ withHTTP2Request mgr target req k = do
 
 -- | Temporary workaround for https://github.com/kazu-yamamoto/http2/issues/102
 withHTTP2RequestOnSingleUseConn :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-withHTTP2RequestOnSingleUseConn Http2Manager {..} target req k = do
+withHTTP2RequestOnSingleUseConn mgr target req k =
+  withHTTP2RequestOnSingleUseConnWithHook mgr target req (\_ -> pure ()) k
+
+withHTTP2RequestOnSingleUseConnWithHook ::
+  Http2Manager ->
+  Target ->
+  HTTP2.Request ->
+  (NS.SockAddr -> IO ()) ->
+  (HTTP2.Response -> IO a) ->
+  IO a
+withHTTP2RequestOnSingleUseConnWithHook Http2Manager {..} target req onConnect k = do
   sendReqMVar <- newEmptyMVar
-  thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
+  thread <- liftIO . async $ startPersistentHTTP2ConnectionWithHook sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout onConnect sendReqMVar
   let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
   sendRequestWithConnection newConn req $ \resp -> do
     k resp <* disconnect newConn
@@ -278,18 +288,30 @@ disconnectTargetWithTimeout mgr target microSeconds = do
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
   Target ->
+  Int ->
+  Bool ->
+  Int ->
+  MVar ConnectionAction ->
+  IO ()
+startPersistentHTTP2Connection ctx target cl removeTrailingDot tcpConnectTimeout sendReqMVar =
+  startPersistentHTTP2ConnectionWithHook ctx target cl removeTrailingDot tcpConnectTimeout (\_ -> pure ()) sendReqMVar
+
+startPersistentHTTP2ConnectionWithHook ::
+  SSL.SSLContext ->
+  Target ->
   -- cacheLimit
   Int ->
   -- sslRemoveTrailingDot
   Bool ->
   -- | TCP connect timeout in microseconds
   Int ->
+  (NS.SockAddr -> IO ()) ->
   -- MVar used to communicate requests or the need to close the connection.  (We could use a
   -- queue here to queue several requests, but since the requestor has to wait for the
   -- response, it might as well block before sending off the request.)
   MVar ConnectionAction ->
   IO ()
-startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout sendReqMVar = do
+startPersistentHTTP2ConnectionWithHook ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout onConnect sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.defaultClientConfig
@@ -332,6 +354,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
 
   handle cleanupThreadsWith $
     bracket connectTCPWithTimeout NS.close $ \sock -> do
+      onConnect =<< NS.getPeerName sock
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
           let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq _aux -> do
