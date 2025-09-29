@@ -1,4 +1,4 @@
-module Test.AssetUpload where
+module Test.Cargohold.AssetUpload where
 
 import API.BrigInternal
 import API.Cargohold

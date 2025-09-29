@@ -27,7 +27,7 @@ module CargoHold.API.V3
   )
 where
 
-import CargoHold.API.AuditLog (logUpload)
+import CargoHold.API.AuditLog
 import CargoHold.API.Error
 import CargoHold.API.Util
 import CargoHold.App
@@ -48,6 +48,7 @@ import Control.Monad.Trans.Resource
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
@@ -88,8 +89,10 @@ upload own bdy = do
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
   key <- qualifyLocal (V3.AssetKeyV3 ast ret)
   void $ S3.uploadV3 own (tUnqualified key) hdrs mWireMetaText tok src
-  domain <- asks (.options.settings.federationDomain)
-  when auditEnabled $ logUpload domain own mWireMetaText
+  qown <- qualifyLocal own
+  when auditEnabled $ do
+    let pathTxt = decodeLatin1 (toByteString' (S3.mkKey (tUnqualified key)))
+    logUpload qown mWireMetaText pathTxt
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of
@@ -122,16 +125,21 @@ randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)
 download own key tok mbHost = runMaybeT $ do
-  checkMetadata (Just own) key tok
-  lift $ genSignedURL (S3.mkKey key) mbHost
+  qown <- lift $ qualifyLocal own
+  meta <- checkMetadata (tUntagged qown) key tok
+  lift $ genSignedURL (Just $ tUntagged qown) (Just meta) (S3.mkKey key) mbHost
 
 downloadUnsafe :: V3.AssetKey -> Maybe Text -> Handler URI
-downloadUnsafe key mbHost = genSignedURL (S3.mkKey key) mbHost
+downloadUnsafe key mbHost = do
+  meta <- S3.getMetadataV3 key
+  genSignedURL Nothing meta (S3.mkKey key) mbHost
 
-checkMetadata :: Maybe V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler ()
-checkMetadata mown key tok = do
+checkMetadata :: Qualified V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler S3.S3AssetMeta
+checkMetadata qown key tok = do
+  let own = qUnqualified qown
   s3 <- lift (S3.getMetadataV3 key) >>= maybe mzero pure
-  guard $ mown == Just (S3.v3AssetOwner s3) || tok == S3.v3AssetToken s3
+  guard $ own == S3.v3AssetOwner s3 || tok == S3.v3AssetToken s3
+  pure s3
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do

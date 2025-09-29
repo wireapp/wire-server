@@ -342,32 +342,132 @@ remoteDownload content = do
 ------------------------------------------------------------------------
 -- Asset Audit Log
 
-testAssetAuditLogUpload :: (HasCallStack) => App ()
-testAssetAuditLogUpload = do
-  let overrides = def {cargoholdCfg = setField "settings.assetAuditLogEnabled" True}
-  withModifiedBackend overrides $ \domain -> do
-    (owner, _tid, _members) <- createTeam domain 1
+-- Upload and download audit logging scenarios across two backends (A and B).
+
+-- Case 1:
+--  - Uploader: on backend A (audit enabled)
+--  - Downloader: on backend A (same backend)
+-- Expected logs:
+--   - Backend A: "file-upload", "download-url-creation""
+testAssetAuditLogDownloadBackendALocal :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendALocal = do
+  startDynamicBackends [cargoholdAuditLogEnabled] $ \[domainA] -> do
+    (owner, _tid, _members) <- createTeam domainA 1
     -- Missing audit metadata should cause the upload to fail when the setting is enabled
     let missingMetaSettings = object ["public" .= False]
-        body = (applicationText, cs "Hello Audit Log")
+        body = (applicationText, cs "download-me")
     uploadSimple owner missingMetaSettings body `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
       resp.jsonBody %. "label" `shouldMatch` "missing-audit-metadata"
-    -- Now upload again with correct metadata and expect success 202
-    convUuid <- randomId
-    dom <- owner %. "qualified_id.domain" & asString
-    let goodSettings =
-          object
-            [ "public" .= False,
-              "convId" .= object ["id" .= convUuid, "domain" .= dom],
-              "filename" .= "virus.js",
-              "filetype" .= "application/javascript"
-            ]
+    -- Now upload again with correct metadata and expect success 201
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
     key <-
-      uploadSimple owner goodSettings body `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 201
-        resp.json %. "key"
-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        r.json %. "key"
+    -- Download by the owner (no token needed since same backend and owner).
     bindResponse (downloadAsset owner owner key "nginz-https.example.com" id) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      BC.unpack resp.body `shouldMatch` "Hello Audit Log"
+      BC.unpack resp.body `shouldMatch` "download-me"
+
+-- Case 2:
+--  - Uploader: on backend A (audit enabled)
+--  - Downloader: on backend B (audit disabled)
+-- Expected logs:
+--   - Backend A: "file-upload", "file-download"
+--   - Backend B: No logging.
+testAssetAuditLogDownloadBackendALoggingBackendBNotLogging :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendALoggingBackendBNotLogging = do
+  startDynamicBackends [cargoholdAuditLogEnabled] $ \[domainA] -> do
+    let domainB = OwnDomain
+    (owner, _tid, _members) <- createTeam domainA 1
+    downloader <- randomUser domainB def
+    -- Upload on A with metadata
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
+    let body = (applicationText, cs "hello-onprem")
+    (loc, tok) <-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        (,) <$> r.json <*> (r.json %. "token" & asString)
+    -- Federated download by user on backend B.
+    bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "hello-onprem"
+
+-- Case 3:
+--  - Uploader: on backend A (audit enabled)
+--  - Downloader: on backend B (audit enabled)
+--  Expected logs:
+--    - Backend A: "file-upload", "file-download"
+--    - Backend B: "file-download"
+testAssetAuditLogDownloadBackendALoggingBackendBLogging :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendALoggingBackendBLogging = do
+  -- Start two dynamic backends with audit logging enabled on both.
+  startDynamicBackends [cargoholdAuditLogEnabled, cargoholdAuditLogEnabled] $ \[domainA, domainB] -> do
+    (owner, _tid, _members) <- createTeam domainA 1
+    downloader <- randomUser domainB def
+    -- Upload on A with required metadata
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
+    let body = (applicationText, cs "hello-onprem")
+    (loc, tok) <-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        (,) <$> r.json <*> (r.json %. "token" & asString)
+    -- Federated download by user on backend B.
+    bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "hello-onprem"
+
+-- Case 4:
+--  - Uploader on backend A (audit disabled)
+--  - Downloader on backend B (audit enabled)
+--  Expected logs:
+--    - Backend A: Not logging
+--    - Backend B: "file-download"
+testAssetAuditLogDownloadBackendANotLoggingBackendBLogging :: (HasCallStack) => App ()
+testAssetAuditLogDownloadBackendANotLoggingBackendBLogging = do
+  -- Start two backends: A without audit, B with audit.
+  startDynamicBackends [def, cargoholdAuditLogEnabled] $ \[domainA, domainB] -> do
+    (owner, _tid, _members) <- createTeam domainA 1
+    downloader <- randomUser domainB def
+    -- Upload on A with required metadata (no audit logging on A)
+    settings <-
+      validAssetMetadataSettings
+        <$> randomId
+        <*> (owner %. "qualified_id.domain" & asString)
+    let body = (applicationText, cs "hello-onprem")
+    (loc, tok) <-
+      uploadSimple owner settings body `bindResponse` \r -> do
+        r.status `shouldMatchInt` 201
+        (,) <$> r.json <*> (r.json %. "token" & asString)
+    -- Federated download by user on backend B (audit enabled on B).
+    bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      BC.unpack resp.body `shouldMatch` "hello-onprem"
+
+cargoholdAuditLogEnabled :: ServiceOverrides
+cargoholdAuditLogEnabled =
+  def
+    { cargoholdCfg =
+        setField "settings.assetAuditLogEnabled" True
+          . setField "logLevel" "Info"
+          . setField "logFormat" "StructuredJSON"
+    }
+
+validAssetMetadataSettings :: (ToJSON a1, ToJSON a2) => a1 -> a2 -> Value
+validAssetMetadataSettings convId dom =
+  object
+    [ "public" .= False,
+      "convId" .= object ["id" .= convId, "domain" .= dom],
+      "filename" .= "virus.js",
+      "filetype" .= "application/javascript"
+    ]

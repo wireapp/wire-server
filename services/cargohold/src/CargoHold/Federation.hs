@@ -17,6 +17,7 @@
 
 module CargoHold.Federation where
 
+import CargoHold.API.AuditLog (logDownloadRemoteAsset)
 import CargoHold.App
 import CargoHold.Options
 import Control.Error
@@ -64,7 +65,9 @@ downloadRemoteAsset usr rkey tok = do
     fmap available . executeFederated rkey $
       fedClient @'Cargohold @"get-asset" ga
   if exists
-    then
+    then do
+      whenM (asks (.options.settings.assetAuditLogEnabled)) $
+        logDownloadRemoteAsset usr (void rkey)
       Just
         <$> executeFederatedStreaming
           rkey

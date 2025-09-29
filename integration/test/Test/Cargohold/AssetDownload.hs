@@ -1,4 +1,4 @@
-module Test.AssetDownload where
+module Test.Cargohold.AssetDownload where
 
 import API.Cargohold
 import GHC.Stack

@@ -44,13 +44,13 @@ import qualified Amazonka.S3.StreamingUpload as SU
 import CargoHold.API.Error
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
-import CargoHold.App hiding (Env, Handler)
+import CargoHold.App hiding (Env)
 import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Conduit
-import Control.Error (ExceptT, throwE)
+import Control.Error (throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Control.Monad.Catch (try)
 import qualified Data.Aeson as A
@@ -73,9 +73,9 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
-import Network.Wai.Utilities.Error (Error (..))
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
+import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
 import Wire.API.Asset (AssetMIMEType)
 
@@ -127,7 +127,7 @@ uploadV3 ::
   Maybe V3.AssetToken ->
   -- | streaming payload
   ConduitM () ByteString (ResourceT IO) () ->
-  ExceptT Error App ()
+  Handler ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src = do
   Log.info $
     "remote" .= val "S3"
@@ -201,7 +201,7 @@ flattenResourceT = join . lift
 
 downloadV3 ::
   V3.AssetKey ->
-  ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
+  Handler (ConduitM () ByteString (ResourceT IO) ())
 downloadV3 (s3Key . mkKey -> key) = do
   env <- asks (.aws)
   pure . flattenResourceT $ view (getObjectResponse_body . _ResponseBody) <$> AWS.execStream env req
@@ -211,7 +211,7 @@ downloadV3 (s3Key . mkKey -> key) = do
       newGetObject (BucketName b) (ObjectKey key)
         & getObject_responseContentType ?~ MIME.showType octets
 
-getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
+getMetadataV3 :: V3.AssetKey -> Handler (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
   Log.debug $
     "remote" .= val "S3"
@@ -232,7 +232,7 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         <*> Just ct
         <*> Just (getAmzAuditLogMetadata h)
 
-deleteV3 :: V3.AssetKey -> ExceptT Error App ()
+deleteV3 :: V3.AssetKey -> Handler ()
 deleteV3 (s3Key . mkKey -> key) = do
   Log.debug $
     "remote" .= val "S3"
@@ -246,7 +246,7 @@ deleteV3 (s3Key . mkKey -> key) = do
   where
     req b = newDeleteObject (BucketName b) (ObjectKey key)
 
-updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
+updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> Handler ()
 updateMetadataV3 (s3Key . mkKey -> key) meta = do
   Log.debug $
     "remote" .= val "S3"
@@ -273,7 +273,7 @@ updateMetadataV3 (s3Key . mkKey -> key) meta = do
 -- `Map` with the @Z-Host@ header's value as key. Otherwise (the default case
 -- that applies to most deployments), use the default AWS environment; i.e. the
 -- environment with @aws.s3DownloadEndpoint@.
-signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
+signedURL :: (ToByteString p) => p -> Maybe Text -> Handler URI
 signedURL path mbHost = do
   e <- awsEnvForHost
   now <- liftIO getCurrentTime
@@ -292,14 +292,14 @@ signedURL path mbHost = do
         throwE serverError
       Right u -> pure u
 
-    awsEnvForHost :: ExceptT Error App AWS.Env
+    awsEnvForHost :: Handler AWS.Env
     awsEnvForHost = do
       multiIngressConf <- asks (.multiIngress)
       if null multiIngressConf
         then asks (.aws)
         else awsEnvForHost' mbHost multiIngressConf
       where
-        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> ExceptT Error App AWS.Env
+        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> Handler AWS.Env
         awsEnvForHost' Nothing _ = do
           Log.debug $
             msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
@@ -432,7 +432,7 @@ exec ::
     Show r
   ) =>
   (Text -> r) ->
-  ExceptT Error App (AWSResponse r)
+  Handler (AWSResponse r)
 exec req = do
   env <- asks (.aws)
   AWS.exec env req
@@ -444,7 +444,7 @@ execCatch ::
     Show r
   ) =>
   (Text -> r) ->
-  ExceptT Error App (Maybe (AWSResponse r))
+  Handler (Maybe (AWSResponse r))
 execCatch req = do
   env <- asks (.aws)
   AWS.execCatch env req
@@ -458,7 +458,7 @@ plainKey a = S3AssetKey $ Text.pack (show a)
 otrKey :: ConvId -> AssetId -> S3AssetKey
 otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show a)
 
-getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
+getMetadata :: AssetId -> Handler (Maybe Bool)
 getMetadata ast = do
   r <- execCatch req
   pure $ (parse <$> HML.toList) . view headObjectResponse_metadata <$> r
@@ -468,10 +468,18 @@ getMetadata ast = do
       maybe False (Text.isInfixOf "public=true" . Text.toLower)
         . lookupCI "zasset"
 
-getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
+getOtrMetadata :: ConvId -> AssetId -> Handler (Maybe UserId)
 getOtrMetadata cnv ast = do
   let S3AssetKey key = otrKey cnv ast
   r <- execCatch (req key)
   pure $ getAmzMetaUser . (HML.toList <$> view headObjectResponse_metadata) =<< r
   where
     req k b = newHeadObject (BucketName b) (ObjectKey k)
+
+-- Arbitrary instance for property-based testing
+instance Arbitrary AssetAuditLogMetadata where
+  arbitrary =
+    AssetAuditLogMetadata
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary

@@ -24,26 +24,30 @@ where
 
 import CargoHold.App
 import qualified CargoHold.S3 as S3
-import CargoHold.Util
+import CargoHold.Types.V3 (Principal (UserPrincipal))
+import CargoHold.Util (genSignedURL)
 import Data.Id
+import Data.Qualified (Local, QualifiedWithTag (tUntagged))
 import Imports
 import URI.ByteString
 
-download :: UserId -> ConvId -> AssetId -> Handler (Maybe URI)
-download _ _ ast = S3.getMetadata ast >>= maybe notFound found
+download :: Local UserId -> ConvId -> AssetId -> Handler (Maybe URI)
+download luid _cnv ast = S3.getMetadata ast >>= maybe notFound found
   where
     notFound = pure Nothing
-    found public =
-      if not public
+    found isPublic =
+      if not isPublic
         then pure Nothing
         else do
-          url <- genSignedURL (S3.plainKey ast) Nothing
-          pure $! Just $! url
+          let principal = UserPrincipal <$> tUntagged luid
+          url <- genSignedURL (Just principal) Nothing (S3.plainKey ast) Nothing
+          pure (Just url)
 
-downloadOtr :: UserId -> ConvId -> AssetId -> Handler (Maybe URI)
-downloadOtr _ cnv ast = S3.getOtrMetadata cnv ast >>= maybe notFound found
+downloadOtr :: Local UserId -> ConvId -> AssetId -> Handler (Maybe URI)
+downloadOtr luid cnv ast = S3.getOtrMetadata cnv ast >>= maybe notFound found
   where
     notFound = pure Nothing
     found _ = do
-      url <- genSignedURL (S3.otrKey cnv ast) Nothing
-      pure $! Just $! url
+      let principal = UserPrincipal <$> tUntagged luid
+      url <- genSignedURL (Just principal) Nothing (S3.otrKey cnv ast) Nothing
+      pure (Just url)
