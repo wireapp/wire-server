@@ -129,47 +129,62 @@ type ConvOrSubConvId = ConvOrSubChoice ConvId SubConvId
 
 makePrisms ''ConvOrSubChoice
 
+convOrSubToPair :: ConvOrSubChoice c s -> (c, Maybe s)
+convOrSubToPair (Conv c) = (c, Nothing)
+convOrSubToPair (SubConv c s) = (c, Just s)
+
+convOrSubFromPair :: (c, Maybe s) -> ConvOrSubChoice c s
+convOrSubFromPair (c, Nothing) = Conv c
+convOrSubFromPair (c, Just s) = SubConv c s
+
 convOrSubConvIdObjectSchema :: ObjectSchema SwaggerDoc ConvOrSubConvId
 convOrSubConvIdObjectSchema =
-  fromTagged
-    <$> toTagged
-      .= bind
-        (fst .= field "tag" tagSchema)
-        (snd .= fieldOver _1 "value" untaggedSchema)
-  where
-    toTagged :: ConvOrSubConvId -> (ConvOrSubTag, ConvOrSubConvId)
-    toTagged c@(Conv _) = (ConvTag, c)
-    toTagged c@(SubConv _ _) = (SubConvTag, c)
-
-    fromTagged :: (ConvOrSubTag, ConvOrSubConvId) -> ConvOrSubConvId
-    fromTagged = snd
-
-    untaggedSchema = dispatch $ \case
-      ConvTag ->
-        tag
-          _Conv
-          (unnamed $ object "" $ field "conv_id" schema)
-      SubConvTag ->
-        tag
-          _SubConv
-          ( unnamed $
-              object "" $
-                ( (,)
-                    <$> fst .= field "conv_id" schema
-                    <*> snd .= field "subconv_id" schema
-                )
-          )
-
-    tagSchema :: ValueSchema NamedSwaggerDoc ConvOrSubTag
-    tagSchema =
-      enum @Text "ConvOrSubTag" $
-        mconcat
-          [ element "conv" ConvTag,
-            element "subconv" SubConvTag
-          ]
+  convOrSubFromPair
+    <$> convOrSubToPair
+      .= ( (,)
+             <$> fst .= field "conv_id" schema
+             <*> snd .= maybe_ (optField "subconv_id" schema)
+         )
 
 instance ToSchema ConvOrSubConvId where
-  schema = object "ConvOrSubConvId" convOrSubConvIdObjectSchema
+  schema =
+    object "ConvOrSubConvId" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: ConvOrSubConvId -> (ConvOrSubTag, ConvOrSubConvId)
+      toTagged c@(Conv _) = (ConvTag, c)
+      toTagged c@(SubConv _ _) = (SubConvTag, c)
+
+      fromTagged :: (ConvOrSubTag, ConvOrSubConvId) -> ConvOrSubConvId
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        ConvTag ->
+          tag
+            _Conv
+            (unnamed $ object "" $ field "conv_id" schema)
+        SubConvTag ->
+          tag
+            _SubConv
+            ( unnamed $
+                object "" $
+                  ( (,)
+                      <$> fst .= field "conv_id" schema
+                      <*> snd .= field "subconv_id" schema
+                  )
+            )
+
+      tagSchema :: ValueSchema NamedSwaggerDoc ConvOrSubTag
+      tagSchema =
+        enum @Text "ConvOrSubTag" $
+          mconcat
+            [ element "conv" ConvTag,
+              element "subconv" SubConvTag
+            ]
 
 deriving via Schema ConvOrSubConvId instance FromJSON ConvOrSubConvId
 

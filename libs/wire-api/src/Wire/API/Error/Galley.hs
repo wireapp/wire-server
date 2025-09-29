@@ -623,7 +623,7 @@ indexedClientSchema =
   object "IndexedClient" $
     (,)
       <$> fst .= field "index" schema
-      <*> snd .= field "id" schema
+      <*> snd .= field "client" schema
 
 instance ToSchema GroupInfoDiagnostics where
   schema =

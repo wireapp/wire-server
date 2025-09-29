@@ -1013,38 +1013,56 @@ testInvalidLeafNodeSignature = do
 
 testGroupInfoMismatch :: (HasCallStack) => App ()
 testGroupInfoMismatch = withModifiedBackend
-  (def {galleyCfg = setField "settings.checkGroupInfo" True})
+  ( def
+      { galleyCfg =
+          setField "settings.checkGroupInfo" True
+            >=> setField
+              "settings.featureFlags.allowedGlobalOperations"
+              ( object
+                  [ "status" .= "enabled",
+                    "config"
+                      .= object
+                        [ "mlsConversationReset" .= True,
+                          "mlsGroupInfoDiagnostics" .= True
+                        ]
+                  ]
+              )
+      }
+  )
   $ \domain -> do
-    [alice, bob, charlie] <- createAndConnectUsers [domain, domain, domain]
+    (alice, tid, [bob, charlie]) <- createTeam domain 3
     [alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
-    conv <- createNewGroup def alice1
 
-    mp1 <- createAddCommit alice1 conv [bob]
+    conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
+    convId <- objConvId conv
+    createGroup def alice1 convId
+
+    mp1 <- createAddCommit alice1 convId [bob]
     void $ sendAndConsumeCommitBundle mp1
 
     -- attempt a commit with an old group info
-    mp2 <- createAddCommit alice1 conv [charlie]
+    mp2 <- createAddCommit alice1 convId [charlie]
     bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
       $ \resp -> do
         resp.status `shouldMatchInt` 400
         resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
 
     -- check that epoch is still 1
-    bindResponse (getConversation alice conv) $ \resp -> do
+    bindResponse (getConversation alice convId) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "epoch" `shouldMatchInt` 1
 
     -- attempt an external commit with an old group info
     void $ uploadNewKeyPackage def bob2
-    mp3 <- createExternalCommit conv bob2 Nothing
+    mp3 <- createExternalCommit convId bob2 Nothing
     bindResponse (postMLSCommitBundle bob2 (mkBundle mp3 {groupInfo = mp1.groupInfo}))
       $ \resp -> do
         resp.status `shouldMatchInt` 400
         resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
 
     -- check that epoch is still 1
-    bindResponse (getConversation alice conv) $ \resp -> do
+    bindResponse (getConversation alice convId) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "epoch" `shouldMatchInt` 1
 
