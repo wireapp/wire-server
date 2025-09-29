@@ -40,9 +40,7 @@ import Wire.API.ApplyMods
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.HasNotificationEndpoint
-import Wire.API.Routes.ClientAlgebra
 import Wire.API.Routes.Named
-import Wire.API.Routes.SpecialiseToVersion (SpecialiseToVersion)
 
 data Versioned v name
 
@@ -115,16 +113,10 @@ data OriginIpHeader
 instance (RoutesToPaths api) => RoutesToPaths (OriginIpHeader :> api) where
   getRoutes = getRoutes @api
 
-type instance SpecialiseToVersion v (OriginIpHeader :> api) = OriginIpHeader :> SpecialiseToVersion v api
-
 instance (HasClient m api) => HasClient m (OriginIpHeader :> api) where
   type Client m (OriginIpHeader :> api) = Client m api
   clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
-
-instance (HasClientAlgebra m api) => HasClientAlgebra m (OriginIpHeader :> api) where
-  joinClient = joinClient @m @api
-  bindClient = bindClient @m @api
 
 type OriginIpHeaderHasServer = Header' '[Strict] OriginIpHeaderName IpAddr
 
@@ -175,8 +167,6 @@ instance
 -- OpenAPI, metrics and path routing can delegate to the underlying StreamPost
 instance (RoutesToPaths (StreamPost framing ct a)) => RoutesToPaths (StreamPostWithRemoteIp framing ct a) where
   getRoutes = getRoutes @(StreamPost framing ct a)
-
-type instance SpecialiseToVersion v (StreamPostWithRemoteIp framing ct a) = StreamPostWithRemoteIp framing ct (SpecialiseToVersion v a)
 
 instance (HasOpenApi (StreamPost framing ct a)) => HasOpenApi (StreamPostWithRemoteIp framing ct a) where
   toOpenApi _ = toOpenApi (Proxy @(StreamPost framing ct a))
