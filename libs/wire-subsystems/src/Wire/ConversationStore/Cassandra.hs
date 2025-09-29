@@ -313,7 +313,7 @@ getConvIds lusr (fromRange -> maxIds) pagingState = do
             mtpPagingState =
               maybe
                 (MultiTablePagingState PagingRemotes Nothing)
-                (MultiTablePagingState PagingLocals . Just . BS.toStrict . unPagingState)
+                (MultiTablePagingState PagingRemotes . Just . BS.toStrict . unPagingState)
                 page.pwsState
           }
 
