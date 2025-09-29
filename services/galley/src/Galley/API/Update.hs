@@ -252,7 +252,7 @@ unblockRemoteConv ::
   Remote ConvId ->
   Sem r ()
 unblockRemoteConv lusr rcnv = do
-  E.createMembersInRemoteConversation rcnv [tUnqualified lusr]
+  E.upsertMembersInRemoteConversation rcnv [tUnqualified lusr]
 
 -- conversation updates
 

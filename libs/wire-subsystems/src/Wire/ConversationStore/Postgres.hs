@@ -85,7 +85,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   GetTeamConversations tid -> getTeamConversationsImpl tid
   DeleteTeamConversations tid -> deleteTeamConversationsImpl tid
   CreateMembers cid ul -> createMembersImpl cid ul
-  CreateMembersInRemoteConversation rcid uids -> createMembersInRemoteConversationImpl rcid uids
+  UpsertMembersInRemoteConversation rcid uids -> upsertMembersInRemoteConversationImpl rcid uids
   CreateBotMember sr bid cid -> createBotMemberImpl sr bid cid
   GetLocalMember cid uid -> getLocalMemberImpl cid uid
   GetLocalMembers cid -> getLocalMembersImpl cid
@@ -662,17 +662,19 @@ createMembersTransaction convId (UserList lusers rusers) = do
         [resultlessStatement|INSERT INTO local_conversation_remote_member (conv, user_remote_domain, user_remote_id, conversation_role)
                              VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
 
-createMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
-createMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users = do
+upsertMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
+upsertMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users = do
   let domains = replicate (length users) domain
       cnvs = replicate (length users) cnv
-  runStatement (users, domains, cnvs) insertMember
+  runStatement (users, domains, cnvs) upsert
   where
-    insertMember :: Hasql.Statement ([UserId], [Domain], [ConvId]) ()
-    insertMember =
+    upsert :: Hasql.Statement ([UserId], [Domain], [ConvId]) ()
+    upsert =
       lmapPG @_ @(Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO remote_conversation_local_member ("user", conv_remote_domain, conv_remote_id)
-                             SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: uuid[])|]
+                             SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: uuid[])
+                             ON CONFLICT DO NOTHING
+                             |]
 
 createBotMemberImpl :: (PGConstraints r) => ServiceRef -> BotId -> ConvId -> Sem r BotMember
 createBotMemberImpl serviceRef botId convId = do

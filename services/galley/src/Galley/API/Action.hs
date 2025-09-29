@@ -1078,7 +1078,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  E.createMembersInRemoteConversation remoteConvId connectedList
+  E.upsertMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
 notifyTypingIndicator ::

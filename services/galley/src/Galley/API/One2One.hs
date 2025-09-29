@@ -94,7 +94,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
       doremote rconvId =
         case (uooActor, uooActorDesiredMembership) of
           (LocalActor, Included) -> do
-            createMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
+            upsertMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (LocalActor, Excluded) -> do
             deleteMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (RemoteActor, _) -> pure ()

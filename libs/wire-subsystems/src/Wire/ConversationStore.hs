@@ -92,7 +92,7 @@ data ConversationStore m a where
   DeleteTeamConversations :: TeamId -> ConversationStore m ()
   -- MEMBER OPERATIONS
   CreateMembers :: ConvId -> UserList (UserId, RoleName) -> ConversationStore m ([LocalMember], [RemoteMember])
-  CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
+  UpsertMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> ConversationStore m BotMember
   GetLocalMember :: ConvId -> UserId -> ConversationStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> ConversationStore m [LocalMember]

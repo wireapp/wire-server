@@ -977,7 +977,7 @@ interpretConversationStoreToCassandra client = interpret $ \case
   CreateMembers cid ul -> do
     logEffect "ConversationStore.CreateMembers"
     runEmbedded (runClient client) $ embed $ addMembers cid ul
-  CreateMembersInRemoteConversation rcid uids -> do
+  UpsertMembersInRemoteConversation rcid uids -> do
     logEffect "ConversationStore.CreateMembersInRemoteConversation"
     runEmbedded (runClient client) $ embed $ addLocalMembersToRemoteConv rcid uids
   CreateBotMember sr bid cid -> do
