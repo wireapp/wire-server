@@ -10,6 +10,7 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Reader.Class (local)
 import Control.Retry
 import qualified Data.Map.Strict as Map
+import Data.String.Conversions (cs)
 import Data.Time
 import GHC.Conc (numCapabilities)
 import GHC.Stack
@@ -58,7 +59,6 @@ testBench = do
 waitForTimeStamp :: UTCTime -> App ()
 waitForTimeStamp timestamp = liftIO $ do
   now <- getCurrentTime
-  print $ "(timestamp, now)" ++ show (timestamp, now)
   when (now < timestamp)
     $
     -- Event comes from the simulated future: Wait here until now and timestamp are aligned.
@@ -80,10 +80,16 @@ sendAndReceive userNo userMap = do
 
   r <- recipient alice
   payload :: Value <- toJSON <$> liftIO randomPayload
+  now <- liftIO $ getCurrentTime
   let push =
         object
           [ "recipients" .= [r],
-            "payload" .= [object ["foo" .= payload]]
+            "payload"
+              .= [ object
+                     [ "foo" .= payload,
+                       "sent_at" .= now
+                     ]
+                 ]
           ]
 
   void $ postPush alice [push] >>= getBody 200
@@ -92,8 +98,10 @@ sendAndReceive userNo userMap = do
     runCodensity (TestEvents.createEventsWebSocket alice (Just cid)) $ \ws -> do
       -- TODO: Tweak this value to the least acceptable event delivery duration
       local (setTimeoutTo 120) $ TestEvents.assertFindsEvent ws $ \e -> do
-        print "Event received"
-        printJSON e
+        receivedAt <- liftIO getCurrentTime
+        sentAt :: UTCTime <- (e %. "payload.sent_at" >>= asByteString) <&> fromJust . decode . cs
+        print $ "Message sent/receive delta: " ++ show (diffUTCTime receivedAt sentAt)
+
         e %. "payload" `shouldMatch` [object ["foo" .= payload]]
   where
     -- \| Generate a random string with random length up to 2048 bytes
