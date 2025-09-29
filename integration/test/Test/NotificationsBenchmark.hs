@@ -110,7 +110,7 @@ generateTestRecipient :: (HasCallStack) => App TestRecipient
 generateTestRecipient = do
   print "generateTestRecipient"
   user <- randomUser OwnDomain def
-  r <- randomRIO @Word (0, 8)
+  r <- randomRIO @Word (1, 8)
   clientIds <- forM [0 .. r] $ \_ -> do
     client <-
       addClient
