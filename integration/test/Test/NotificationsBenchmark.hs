@@ -39,7 +39,7 @@ testBench = do
   -- Later, we only read from this map. Thus, it doesn't have to be thread-safe.
   userMap :: Map Word TestRecipient <-
     Stream.fromList [0 :: Word .. maxUserNo]
-      & Stream.filter (\uNo -> trace (show (uNo, shardingGroup, uNo `mod` shardingGroupCount, (uNo `mod` shardingGroupCount) == shardingGroup)) (uNo `mod` shardingGroupCount) == shardingGroup)
+      & Stream.filter ((shardingGroup ==) . (`mod` shardingGroupCount))
       & Stream.parMapM parCfg (\i -> generateTestRecipient >>= \r -> pure (i, r))
       & Stream.fold toMap
 
