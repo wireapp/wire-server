@@ -8,9 +8,9 @@ import Control.Concurrent
 import Control.Monad.Codensity (Codensity (..))
 import Control.Monad.Reader (asks)
 import Control.Monad.Reader.Class (local)
+import Control.Retry
 import qualified Data.Map.Strict as Map
 import Data.Time
-import Debug.Trace
 import GHC.Conc (numCapabilities)
 import GHC.Stack
 import SetupHelpers
@@ -109,18 +109,22 @@ setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
 generateTestRecipient :: (HasCallStack) => App TestRecipient
 generateTestRecipient = do
   print "generateTestRecipient"
-  user <- randomUser OwnDomain def
+  user <- recover $ (randomUser OwnDomain def)
   r <- randomRIO @Word (1, 8)
   clientIds <- forM [0 .. r] $ \_ -> do
     client <-
-      addClient
-        user
-        def
-          { acapabilities = Just ["consumable-notifications"],
-            prekeys = Just $ take 10 somePrekeysRendered,
-            lastPrekey = Just $ head someLastPrekeysRendered
-          }
+      recover
+        $ addClient
+          user
+          def
+            { acapabilities = Just ["consumable-notifications"],
+              prekeys = Just $ take 10 somePrekeysRendered,
+              lastPrekey = Just $ head someLastPrekeysRendered
+            }
         >>= getJSON 201
     objId client
 
   pure $ TestRecipient user clientIds
+  where
+    recover :: App a -> App a
+    recover = recoverAll (limitRetriesByCumulativeDelay 300 (exponentialBackoff 1_000_000)) . const
