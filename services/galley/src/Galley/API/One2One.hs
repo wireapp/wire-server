@@ -75,7 +75,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
           Just conv -> do
             case (uooActor, uooActorDesiredMembership) of
               (LocalActor, Included) -> do
-                void $ createMember lconvId uooLocalUser
+                void $ upsertMember lconvId uooLocalUser
                 unless (null conv.remoteMembers) $
                   acceptConnectConversation (tUnqualified lconvId)
               (LocalActor, Excluded) -> do
@@ -83,7 +83,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
               (RemoteActor, Included) -> do
-                void $ createMembers (tUnqualified lconvId) (UserList [] [(,roleNameWireAdmin) <$> uooRemoteUser])
+                void $ upsertMembers (tUnqualified lconvId) (UserList [] [(,roleNameWireAdmin) <$> uooRemoteUser])
                 unless (null conv.localMembers) $
                   acceptConnectConversation (tUnqualified lconvId)
               (RemoteActor, Excluded) ->

@@ -755,7 +755,7 @@ createConnectConversation lusr conn j = do
                 connect n conv
               else do
                 let lcid = qualifyAs lusr conv.id_
-                mm <- E.createMember lcid lusr
+                mm <- E.upsertMember lcid lusr
                 let conv' =
                       conv
                         { localMembers = conv.localMembers <> toList mm

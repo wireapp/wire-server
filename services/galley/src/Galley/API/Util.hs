@@ -413,7 +413,7 @@ acceptOne2One lusr conv conn = do
       if tUnqualified lusr `isMember` mems
         then pure conv
         else do
-          mm <- createMember lcid lusr
+          mm <- upsertMember lcid lusr
           pure conv {localMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | tUnqualified lusr `isMember` mems -> promote
@@ -423,7 +423,7 @@ acceptOne2One lusr conv conn = do
           throw . BadConvState $
             cid
         now <- Now.get
-        mm <- createMember lcid lusr
+        mm <- upsertMember lcid lusr
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find (\m -> tUnqualified lusr /= m.id_) mems) then promote else pure conv
         let mems' = mems <> toList mm

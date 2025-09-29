@@ -949,7 +949,7 @@ addMembersToLocalConversation ::
   JoinType ->
   Sem r (BotsAndMembers, ConversationJoin)
 addMembersToLocalConversation lcnv users role joinType = do
-  (lmems, rmems) <- E.createMembers (tUnqualified lcnv) (fmap (,role) users)
+  (lmems, rmems) <- E.upsertMembers (tUnqualified lcnv) (fmap (,role) users)
   neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
   let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)

@@ -84,7 +84,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   GetTeamConversation tid cid -> getTeamConversationImpl tid cid
   GetTeamConversations tid -> getTeamConversationsImpl tid
   DeleteTeamConversations tid -> deleteTeamConversationsImpl tid
-  CreateMembers cid ul -> createMembersImpl cid ul
+  UpsertMembers cid ul -> upsertMembersImpl cid ul
   UpsertMembersInRemoteConversation rcid uids -> upsertMembersInRemoteConversationImpl rcid uids
   CreateBotMember sr bid cid -> createBotMemberImpl sr bid cid
   GetLocalMember cid uid -> getLocalMemberImpl cid uid
@@ -138,7 +138,7 @@ createConversationImpl lcnv nc = do
         )
   runTransaction ReadCommitted Write $ do
     Transaction.statement convRow insertConvStatement
-    createMembersTransaction storedConv.id_ $ UserList localUsers remoteUsers
+    upsertMembersTransaction storedConv.id_ $ UserList localUsers remoteUsers
   pure storedConv
   where
     insertConvStatement =
@@ -639,13 +639,13 @@ deleteTeamConversationsImpl tid =
                             |]
 
 -- MEMBER OPERATIONS
-createMembersImpl :: (PGConstraints r) => ConvId -> UserList (UserId, RoleName) -> Sem r ([LocalMember], [RemoteMember])
-createMembersImpl convId users@(UserList lusers rusers) = do
-  runTransaction ReadCommitted Write $ createMembersTransaction convId users
+upsertMembersImpl :: (PGConstraints r) => ConvId -> UserList (UserId, RoleName) -> Sem r ([LocalMember], [RemoteMember])
+upsertMembersImpl convId users@(UserList lusers rusers) = do
+  runTransaction ReadCommitted Write $ upsertMembersTransaction convId users
   pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
 
-createMembersTransaction :: ConvId -> UserList (UserId, RoleName) -> Transaction ()
-createMembersTransaction convId (UserList lusers rusers) = do
+upsertMembersTransaction :: ConvId -> UserList (UserId, RoleName) -> Transaction ()
+upsertMembersTransaction convId (UserList lusers rusers) = do
   for_ lusers $ \(u, r) ->
     Transaction.statement (convId, u, r) insertLocalStatement
   for_ rusers $ \(tUntagged -> Qualified (uid, role) domain) ->
@@ -655,12 +655,18 @@ createMembersTransaction convId (UserList lusers rusers) = do
     insertLocalStatement =
       lmapPG
         [resultlessStatement|INSERT INTO conversation_member (conv, "user", conversation_role)
-                             VALUES ($1 :: uuid, $2 :: uuid, $3 :: text)|]
+                             VALUES ($1 :: uuid, $2 :: uuid, $3 :: text)
+                             ON CONFLICT (conv, "user")
+                             DO UPDATE SET conversation_role = ($3 :: text)
+                             |]
     insertRemoteStatement :: Hasql.Statement (ConvId, Domain, UserId, RoleName) ()
     insertRemoteStatement =
       lmapPG
         [resultlessStatement|INSERT INTO local_conversation_remote_member (conv, user_remote_domain, user_remote_id, conversation_role)
-                             VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)|]
+                             VALUES ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: text)
+                             ON CONFLICT (conv, user_remote_domain, user_remote_id)
+                             DO UPDATE SET conversation_role = ($4 :: text)
+                             |]
 
 upsertMembersInRemoteConversationImpl :: (PGConstraints r) => Remote ConvId -> [UserId] -> Sem r ()
 upsertMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users = do
@@ -673,7 +679,7 @@ upsertMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users 
       lmapPG @_ @(Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO remote_conversation_local_member ("user", conv_remote_domain, conv_remote_id)
                              SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: uuid[])
-                             ON CONFLICT DO NOTHING
+                             ON CONFLICT ("user", conv_remote_domain, conv_remote_id) DO NOTHING
                              |]
 
 createBotMemberImpl :: (PGConstraints r) => ServiceRef -> BotId -> ConvId -> Sem r BotMember
