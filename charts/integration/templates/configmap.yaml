@@ -78,7 +78,8 @@ data:
       dohPort: 5381
 
     # originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
-    originDomain: sven-test.wire.link
+    # sven-test.wire.link
+    originDomain: dev.zinfra.io
 
     rabbitmq:
       host: rabbitmq
