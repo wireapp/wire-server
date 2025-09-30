@@ -40,7 +40,6 @@
 , metrics-core
 , metrics-wai
 , mtl
-, network
 , optparse-applicative
 , pem
 , polysemy
@@ -109,7 +108,6 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
-    network
     pem
     polysemy
     polysemy-wire-zoo

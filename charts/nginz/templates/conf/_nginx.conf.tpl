@@ -322,10 +322,6 @@ http {
         proxy_pass         http://{{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}};
         proxy_http_version 1.1;
 
-        # Forward client IP information to upstreams
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Real-IP       $remote_addr;
-
             {{- if ($location.disable_request_buffering) }}
         proxy_request_buffering off;
             {{ end -}}
