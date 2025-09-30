@@ -47,7 +47,7 @@ module Galley.Options
     gundeck,
     spar,
     federator,
-    rabbitmq,
+    nats,
     discoUrl,
     settings,
     journal,
@@ -73,7 +73,7 @@ import Data.Range
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
-import Network.AMQP.Extended
+import Network.NATS.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
 import Util.Options.Common
@@ -199,8 +199,8 @@ data Opts = Opts
     _spar :: !Endpoint,
     -- | Federator endpoint
     _federator :: !(Maybe Endpoint),
-    -- | RabbitMQ settings, required when federation is enabled.
-    _rabbitmq :: !(Maybe AmqpEndpoint),
+    -- | NATS settings, required when federation is enabled.
+    _nats :: !(Maybe NatsEndpoint),
     -- | Disco URL
     _discoUrl :: !(Maybe Text),
     -- | Other settings

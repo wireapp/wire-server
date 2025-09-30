@@ -67,7 +67,7 @@ module Brig.App
     indexEnvLens,
     randomPrekeyLocalLockLens,
     keyPackageLocalLockLens,
-    rabbitmqChannelLens,
+    natsChannelLens,
     disabledVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
@@ -139,8 +139,8 @@ import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended
 import Imports
-import Network.AMQP qualified as Q
-import Network.AMQP.Extended qualified as Q
+import Network.NATS.Client qualified as NATS
+import Network.NATS.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -215,7 +215,7 @@ data Env = Env
     indexEnv :: IndexEnv,
     randomPrekeyLocalLock :: Maybe (MVar ()),
     keyPackageLocalLock :: MVar (),
-    rabbitmqChannel :: Maybe (MVar Q.Channel),
+    natsChannel :: Maybe (MVar NATS.NatsChannel),
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv
@@ -225,9 +225,9 @@ makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
 validateOptions :: Opts -> IO ()
 validateOptions o =
-  case (o.federatorInternal, o.rabbitmq) of
-    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
-    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+  case (o.federatorInternal, o.nats) of
+    (Nothing, Just _) -> error "NATS config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and NATS config is not, please specify both or none"
     _ -> pure ()
 
 newEnv :: Opts -> IO Env
@@ -275,7 +275,7 @@ newEnv opts = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr (Just "brig")) opts.rabbitmq
+  natsChan <- traverse (Q.mkNatsChannelMVar lgr (Just "brig")) opts.nats
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
@@ -316,7 +316,7 @@ newEnv opts = do
         indexEnv = idxEnv,
         randomPrekeyLocalLock = prekeyLocalLock,
         keyPackageLocalLock = kpLock,
-        rabbitmqChannel = rabbitChan,
+        natsChannel = natsChan,
         disabledVersions = allDisabledVersions,
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv

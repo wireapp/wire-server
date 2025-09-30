@@ -31,10 +31,10 @@ module Cannon.Options
     logFormat,
     drainOpts,
     wSOpts,
-    rabbitmq,
+    nats,
     cassandraOpts,
-    rabbitMqMaxConnections,
-    rabbitMqMaxChannels,
+    natsMaxConnections,
+    natsMaxChannels,
     notificationTTL,
     Opts (..),
     gracePeriodSeconds,
@@ -53,7 +53,7 @@ import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
 import Data.Default
 import Imports
-import Network.AMQP.Extended (AmqpEndpoint)
+import Network.NATS.Extended (NatsEndpoint)
 import System.Logger.Extended (Level, LogFormat)
 import Wire.API.Routes.Version
 
@@ -118,7 +118,7 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
-    _optsRabbitmq :: !AmqpEndpoint,
+    _optsNats :: !NatsEndpoint,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
@@ -126,10 +126,10 @@ data Opts = Opts
     _optsWSOpts :: WSOpts,
     _optsDisabledAPIVersions :: !(Set VersionExp),
     _optsCassandraOpts :: !CassandraOpts,
-    -- | Maximum number of rabbitmq connections. Must be strictly positive.
-    _optsRabbitMqMaxConnections :: Int,
-    -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
-    _optsRabbitMqMaxChannels :: Int,
+    -- | Maximum number of NATS connections. Must be strictly positive.
+    _optsNatsMaxConnections :: Int,
+    -- | Maximum number of NATS channels per connection. Must be strictly positive.
+    _optsNatsMaxChannels :: Int,
     _optsNotificationTTL :: Int
   }
   deriving (Show, Generic)
@@ -148,7 +148,7 @@ instance FromJSON Opts where
     Opts
       <$> o .: "cannon"
       <*> o .: "gundeck"
-      <*> o .: "rabbitmq"
+      <*> o .: "nats"
       <*> o .: "logLevel"
       <*> o .:? "logNetStrings"
       <*> o .:? "logFormat"
@@ -156,6 +156,6 @@ instance FromJSON Opts where
       <*> o .:? "wsOpts" .!= def
       <*> o .: "disabledAPIVersions"
       <*> o .: "cassandra"
-      <*> o .:? "rabbitMqMaxConnections" .!= 1000
-      <*> o .:? "rabbitMqMaxChannels" .!= 300
+      <*> o .:? "natsMaxConnections" .!= 1000
+      <*> o .:? "natsMaxChannels" .!= 300
       <*> o .: "notificationTTL"

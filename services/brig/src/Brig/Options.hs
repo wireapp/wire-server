@@ -43,7 +43,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound.Types qualified as ES
 import Imports
-import Network.AMQP.Extended
+import Network.NATS.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -397,8 +397,8 @@ data Opts = Opts
     postgresqlPassword :: !(Maybe FilePathSecrets),
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
-    -- | RabbitMQ settings, required when federation is enabled.
-    rabbitmq :: !(Maybe AmqpEndpoint),
+    -- | NATS settings, required when federation is enabled.
+    nats :: !(Maybe NatsEndpoint),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy

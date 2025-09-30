@@ -82,7 +82,7 @@ import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
 import Imports hiding (forkIO)
-import Network.AMQP.Extended (mkRabbitMqChannelMVar)
+import Network.NATS.Extended (mkNatsChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities.JSONResponse
@@ -157,9 +157,9 @@ validateOptions o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
-  case (o ^. O.federator, o ^. rabbitmq) of
-    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
-    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+  case (o ^. O.federator, o ^. nats) of
+    (Nothing, Just _) -> error "NATS config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and NATS config is not, please specify both or none"
     _ -> pure ()
   let mlsFlag = settings' ^. featureFlags . to (featureDefaults @MLSConfig)
       mlsConfig = mlsFlag.config
@@ -187,7 +187,7 @@ createEnv o l = do
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
-    <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
+    <*> traverse (mkNatsChannelMVar l (Just "galley")) (o ^. nats)
     <*> pure codeURIcfg
     <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
 

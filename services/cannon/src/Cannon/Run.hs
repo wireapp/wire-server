@@ -89,7 +89,7 @@ run o = lowerCodensity $ do
     man <- lift $ newManager defaultManagerSettings {managerConnCount = 128}
     rnd <- lift createSystemRandom
     clk <- lift mkClock
-    mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq)
+    mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.nats)
 
   void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
   let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)

@@ -11,6 +11,7 @@ module Network.NATS.Extended
     openConnectionWithRetries,
     mkNatsChannelMVar,
     defaultNatsOpts,
+    demoteNatsOpts,
     readCredsFromEnv,
   )
 where
@@ -187,3 +188,7 @@ readCredsFromEnv =
     lookupEnv name = try @IOException (getEnv name) >>= \case
       Left _ -> pure Nothing
       Right v -> pure (Just v)
+
+-- | Demote NatsAdminOpts to NatsEndpoint (for compatibility with RabbitMQ demoteOpts)
+demoteNatsOpts :: NatsAdminOpts -> NatsEndpoint
+demoteNatsOpts NatsAdminOpts {..} = NatsEndpoint {..}

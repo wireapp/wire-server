@@ -2,7 +2,7 @@ module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
 import Imports
-import Network.AMQP.Extended
+import Network.NATS.Extended
 import System.Logger.Extended
 import Util.Options
 
@@ -11,7 +11,7 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
-    rabbitmq :: !RabbitMqOpts,
+    nats :: !NatsOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig,
@@ -39,12 +39,12 @@ data BackendNotificationsConfig = BackendNotificationsConfig
 
 instance FromJSON BackendNotificationsConfig
 
-newtype RabbitMqOpts = RabbitMqOpts {unRabbitMqOpts :: Either AmqpEndpoint RabbitMqAdminOpts}
+newtype NatsOpts = NatsOpts {unNatsOpts :: Either NatsEndpoint NatsAdminOpts}
   deriving (Show)
 
-instance FromJSON RabbitMqOpts where
+instance FromJSON NatsOpts where
   parseJSON v =
-    RabbitMqOpts
+    NatsOpts
       <$> ( (Right <$> parseJSON v)
               <|> (Left <$> parseJSON v)
           )

@@ -11,7 +11,7 @@ import Control.Monad.Trans.Control
 import Data.Map.Strict qualified as Map
 import HTTP2.Client.Manager
 import Imports
-import Network.AMQP.Extended
+import Network.NATS.Extended
 import Network.HTTP.Client
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
@@ -39,8 +39,8 @@ workerName = \case
 
 data Env = Env
   { http2Manager :: Http2Manager,
-    rabbitmqAdminClient :: Maybe (RabbitMqAdmin.AdminAPI (Servant.AsClientT IO)),
-    rabbitmqVHost :: Text,
+    -- natsAdminClient :: Maybe (NatsAdmin.AdminAPI (Servant.AsClientT IO)),  -- TODO: Implement NATS admin client
+    natsNamespace :: Text,
     logger :: Logger,
     federatorInternal :: Endpoint,
     httpManager :: Manager,
@@ -81,8 +81,8 @@ mkEnv opts = do
           responseTimeoutNone
           (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
           opts.defederationTimeout
-      rabbitmqVHost = either (.vHost) (.vHost) opts.rabbitmq.unRabbitMqOpts
-  rabbitmqAdminClient <- for (rightToMaybe opts.rabbitmq.unRabbitMqOpts) mkRabbitMqAdminClientEnv
+      natsNamespace = either (.namespace) (.namespace) opts.nats.unNatsOpts
+  -- natsAdminClient <- for (rightToMaybe opts.nats.unNatsOpts) mkNatsAdminClientEnv  -- TODO: Implement NATS admin client
   statuses <-
     newIORef $
       Map.fromList
