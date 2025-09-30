@@ -1,3 +1,7 @@
 redis-cluster:
   usePassword: false
   fullnameOverride: "redis-cluster"
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis-cluster
+    tag: 6.2.7-debian-11-r9
