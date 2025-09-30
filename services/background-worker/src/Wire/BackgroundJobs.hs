@@ -30,39 +30,38 @@ import Servant.Client qualified as Servant
 import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.API
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.RawJson
+import Wire.API.UserGroup.BackgroundJobs
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
-startPushingNotifications ::
+startConsumeSyncUserGroupAndChannel ::
   MVar () ->
   Q.Channel ->
-  Domain ->
   AppT IO Q.ConsumerTag
-startPushingNotifications runningFlag chan domain = do
-  lift $ ensureQueue chan domain._domainText
+startConsumeSyncUserGroupAndChannel runningFlag chan = do
+  lift $ ensureQueue chan routingKeySyncUserGroupAndChannel
   QL.consumeMsgs'
     chan
-    (routingKey domain._domainText)
+    routingKeySyncUserGroupAndChannel
     Q.Ack
-    (void . pushNotification runningFlag domain)
+    (void . consumeSyncUserGroupAndChannel runningFlag)
     ( \consumerTag ->
         Log.err
           ( Log.msg (Log.val "Got basic.cancel message for queue. Cancel queue consumer.")
-              . Log.field "domain" (domainText domain)
               . Log.field "consumer" consumerTag
+              . Log.field "job" "sync-user-group-and-channel"
           )
     )
     (QL.FieldTable M.empty)
 
-pushNotification :: (RabbitMQEnvelope e) => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
-pushNotification runningFlag targetDomain (msg, envelope) = do
-  cfg <- asks (.backendNotificationsConfig)
+consumeSyncUserGroupAndChannel :: (RabbitMQEnvelope e) => MVar () -> (Q.Message, e) -> AppT IO (Async ())
+consumeSyncUserGroupAndChannel runningFlag (msg, envelope) = do
+  cfg <- asks (.backendNotificationsConfig) -- TODO: refactor, extracting jitter params
   -- Jittered exponential backoff with 10ms as starting delay and 300s as max
   -- delay. When 300s is reached, every retry will happen after 300s.
   --
@@ -74,33 +73,19 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")
             . Log.field "error" (displayException e)
-            . Log.field "domain" (domainText targetDomain)
+            . Log.field "job" "sync-user-group-and-channel"
             . Log.field "willRetry" willRetry
             . Log.field "retryCount" rs.rsIterNumber
-        metrics <- asks backendNotificationMetrics
-        withLabel metrics.errorCounter (domainText targetDomain) incCounter
-        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge (if willRetry then 1 else 0))
+        metrics <- asks (.workerRunningGauge)
+        withLabel metrics.errorCounter "sync-user-group-and-channel" incCounter
 
       skipChanThreadKilled :: RetryStatus -> Handler (AppT IO) Bool
       skipChanThreadKilled _ = Handler $ \(_ :: Q.ChanThreadKilledException) -> pure False
 
-      shouldRetry :: SomeException -> AppT IO Bool
-      shouldRetry e = do
-        case fromException @FederatorClientError e of
-          Just (FederatorClientError err) -> do
-            case err.innerError of
-              -- if a message cannot be parsed by the receiving backend, we should not retry because we cannot recover from this
-              Just innerError | isBadRequest innerError && innerError.label == "bad-request" -> do
-                Log.err $ Log.msg (Log.val "Dropping notification due to bad request")
-                lift $ reject envelope False
-                pure False
-              _ -> pure True
-          _ -> pure True
-
       handlers =
         skipAsyncExceptions
           <> [ skipChanThreadKilled,
-               logRetries shouldRetry logErr
+               logRetries (const $ pure True) logErr
              ]
   -- The revcovering policy where it can loop forever effectively blocks the consumer thread.
   -- This isn't a problem for single active consumer with single message delivery, however it
@@ -122,118 +107,21 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
   where
     go :: AppT IO ()
-    go = case A.eitherDecode @(PayloadBundle _) (Q.msgBody msg) of
-      Left e -> do
-        case A.eitherDecode @BackendNotification (Q.msgBody msg) of
-          Left eBN -> do
-            Log.err $
-              Log.msg
-                ( Log.val "Cannot parse a queued message as a notification "
-                    <> "nor as a bundle; the message will be ignored"
-                )
-                . Log.field "domain" (domainText targetDomain)
-                . Log.field "error-notification" eBN
-                . Log.field
-                  "error-bundle"
-                  e
-            -- FUTUREWORK: This rejects the message without any requeueing. This is
-            -- dangerous as it could happen that a new type of notification is
-            -- introduced and an old instance of this worker is running, in which case
-            -- the notification will just get dropped. On the other hand not dropping
-            -- this message blocks the whole queue. Perhaps there is a better way to
-            -- deal with this.
-            lift $ reject envelope False
-          Right notif -> do
-            -- FUTUREWORK: Drop support for parsing it as a
-            -- single notification as soon as we can guarantee
-            -- that the message queue does not contain any
-            -- 'BackendNotification's anymore.
-            ceFederator <- asks (.federatorInternal)
-            ceHttp2Manager <- asks http2Manager
-            let ceOriginDomain = notif.ownDomain
-                ceTargetDomain = targetDomain
-                ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
-                cveEnv = FederatorClientEnv {..}
-                cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
-                fcEnv = FederatorClientVersionedEnv {..}
-            sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
-            lift $ ack envelope
-            metrics <- asks backendNotificationMetrics
-            withLabel metrics.pushedCounter (domainText targetDomain) incCounter
-            withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
-      Right bundle -> do
-        federator <- asks (.federatorInternal)
-        manager <- asks http2Manager
-        let env =
-              FederatorClientEnv
-                { ceOriginDomain = ownDomain . NE.head $ bundle.notifications,
-                  ceTargetDomain = targetDomain,
-                  ceFederator = federator,
-                  ceHttp2Manager = manager,
-                  ceOriginRequestId =
-                    fromMaybe (RequestId defRequestId) . (.requestId) . NE.head $ bundle.notifications
-                }
-        remoteVersions :: Set Int <-
-          liftIO
-            -- use versioned client with no version set: since we are manually
-            -- performing version negotiation, we don't want the client to
-            -- negotiate a version for us
-            ( runVersionedFederatorClient @'Brig (unversionedEnv env) $
-                fedClientIn @'Brig @"api-version" ()
-            )
-            >>= \case
-              Left e -> do
-                Log.err $
-                  Log.msg (Log.val "Failed to get supported API versions")
-                    . Log.field "domain" (domainText targetDomain)
-                    . Log.field "error" (displayException e)
-                throwM e
-              Right vi -> pure . Set.fromList . vinfoSupported $ vi
+    go =
+      case A.eitherDecode @SyncUserGroupAndChannel (Q.msgBody msg) of
+        Left e -> do
+          Log.err $
+            Log.msg
+              (Log.val "Cannot parse a queued sync-user-group-and-channel; the message will be ignored")
+              . Log.field "error" e
+              . Log.field "job" "sync-user-group-and-channel"
+          lift $ reject envelope False
+        Right job -> do
+          -- TODO: do the work
+          lift $ ack envelope
+          metrics <- asks backgroundJobsMetrics
+          withLabel metrics.processedCounter "sync-user-group-and-channel" incCounter
 
-        -- compute the best usable version in a notification
-        let bestVersion = bodyVersions >=> flip latestCommonVersion remoteVersions
-        case pairedMaximumOn bestVersion (toList (notifications bundle)) of
-          (_, Nothing) ->
-            Log.fatal $
-              Log.msg (Log.val "No federation API version in common, the notification will be ignored")
-                . Log.field "domain" (domainText targetDomain)
-          (notif, cveVersion) -> do
-            ceFederator <- asks (.federatorInternal)
-            ceHttp2Manager <- asks http2Manager
-            let ceOriginDomain = notif.ownDomain
-                ceTargetDomain = targetDomain
-                ceOriginRequestId = fromMaybe (RequestId defRequestId) notif.requestId
-                cveEnv = FederatorClientEnv {..}
-                fcEnv = FederatorClientVersionedEnv {..}
-            sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
-            lift $ ack envelope
-            metrics <- asks backendNotificationMetrics
-            withLabel metrics.pushedCounter (domainText targetDomain) incCounter
-            withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
-
-sendNotificationIgnoringVersionMismatch ::
-  FederatorClientVersionedEnv ->
-  Component ->
-  Text ->
-  RawJson ->
-  AppT IO ()
-sendNotificationIgnoringVersionMismatch env comp path body =
-  liftIO (sendNotification env comp path body) >>= \case
-    Left (FederatorClientVersionNegotiationError v) -> do
-      Log.fatal $
-        Log.msg (Log.val "Federator version negotiation error")
-          . Log.field "domain" (domainText env.cveEnv.ceTargetDomain)
-          . Log.field "error" (show v)
-      pure ()
-    Left e -> throwM e
-    Right () -> pure ()
-
--- | Find the pair that maximises b.
-pairedMaximumOn :: (Ord b) => (a -> b) -> [a] -> (a, b)
-pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
-
--- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
--- for a handful of remote domains.
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
 startPusher :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO) -> IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
 startPusher adminClient consumersRef chan = do
@@ -291,7 +179,7 @@ ensureConsumer consumers chan domain = do
     -- The cleanup code that runs when the service receives a SIGTERM or SIGINT will wait on these MVars
     -- to allow current messages to finish processing before we close AMQP connections.
     runningFlag <- newMVar ()
-    tag <- startPushingNotifications runningFlag chan domain
+    tag <- startConsumeSyncUserGroupAndChannel runningFlag chan domain
     oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain (tag, runningFlag) c, Map.lookup domain c)
     -- This isn't strictly nessacary. `unless consumerExists` won't
     -- let us come down this path if there is an old consumer.

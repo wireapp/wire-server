@@ -51,7 +51,7 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
-    backgroundJobsMetrics :: Vector Text Counter,
+    backgroundJobsMetrics :: BackgroundJobsMetrics,
     workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
     cassandra :: ClientState
@@ -74,9 +74,16 @@ mkWorkerRunningGauge :: IO (Vector Text Gauge)
 mkWorkerRunningGauge =
   register (vector "worker" $ gauge $ Prometheus.Info "wire_background_worker_running_workers" "Set to 1 when a worker is running")
 
-mkBackgroundJobsMetrics :: IO (Vector Text Counter)
+data BackgroundJobsMetrics = BackgroundJobsMetrics
+  { processedCounter :: Vector Text Counter,
+    errorCounter :: Vector Text Counter
+  }
+
+mkBackgroundJobsMetrics :: IO BackgroundJobsMetrics
 mkBackgroundJobsMetrics =
-  register (vector "job" $ gauge $ Prometheus.Info "wire_background_jobs_processed" "Number of processed jobs")
+  BackgroundJobsMetrics
+    <$> register (vector "job" $ counter $ Prometheus.Info "wire_background_jobs_processed" "Number of processed jobs")
+    <*> register (vector "job" $ counter $ Prometheus.Info "wire_background_jobs_error" "Number of failed jobs")
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
