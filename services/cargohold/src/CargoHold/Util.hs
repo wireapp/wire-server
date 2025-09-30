@@ -17,18 +17,25 @@
 
 module CargoHold.Util where
 
+import CargoHold.API.AuditLog
 import CargoHold.AWS
 import CargoHold.App
 import qualified CargoHold.CloudFront as CloudFront
+import CargoHold.Options
+import CargoHold.S3 (S3AssetMeta)
 import qualified CargoHold.S3 as S3
+import qualified CargoHold.Types as V3
 import Data.ByteString.Conversion
+import Data.Qualified (Qualified)
 import Imports
 import URI.ByteString hiding (urlEncode)
 
-genSignedURL :: (ToByteString p) => p -> Maybe Text -> Handler URI
-genSignedURL path mbHost = do
+genSignedURL :: (ToByteString p) => Maybe (Qualified V3.Principal) -> Maybe S3AssetMeta -> p -> Maybe Text -> Handler URI
+genSignedURL quid mMeta path mbHost = do
   uri <-
     asks (.aws.cloudFront) >>= \case
       Nothing -> S3.signedURL path mbHost
       Just cf -> CloudFront.signedURL cf path
+  whenM (asks (.options.settings.assetAuditLogEnabled)) $
+    logSignedURLCreation quid mMeta uri
   pure $! uri

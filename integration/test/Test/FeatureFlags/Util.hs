@@ -149,6 +149,7 @@ defAllFeatures =
                 ]
           ],
       "cells" .= enabled,
+      "assetAuditLog" .= disabledLocked,
       "allowedGlobalOperations"
         .= object
           [ "lockStatus" .= "locked",
@@ -161,7 +162,8 @@ defAllFeatures =
           ],
       "consumableNotifications" .= disabledLocked,
       "chatBubbles" .= disabledLocked,
-      "apps" .= disabledLocked
+      "apps" .= disabledLocked,
+      "simplifiedUserConnectionRequestQRCode" .= enabled
     ]
 
 hasExplicitLockStatus :: String -> Bool

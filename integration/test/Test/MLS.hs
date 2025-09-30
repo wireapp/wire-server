@@ -769,25 +769,28 @@ testShadowConversation = do
   traverse_ (uploadNewKeyPackage def) [alice1, bob1, charlie1]
   convId <- createNewGroup def alice1
 
-  shadowConv <- postConversation alice1 (defMLS {parent = Just convId.id_}) >>= getJSON 201
+  void $ createAddCommit alice1 convId [bob, charlie] >>= sendAndConsumeCommitBundle
+
+  shadowConv <- postConversation charlie1 (defProteus {parent = Just convId.id_}) >>= getJSON 201
   shadowConvId <- objConvId shadowConv
-  createGroup def alice1 shadowConvId
 
-  withWebSockets [bob] $ \wss -> do
-    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch isMemberJoinNotif) wss
+  fetchedConversation <- bindResponse (getConversationInternal charlie1 shadowConvId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  fetchedMembers <- fetchedConversation %. "members"
+  let extractId x = x %. "qualified_id"
+  fetchedOtherMembers <- fetchedMembers %. "others" & asList
+  fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
+  expectedMemberIds <- traverse extractId [alice, bob, charlie]
+  sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
 
-    void $ createAddCommit alice1 shadowConvId [charlie] >>= sendAndConsumeCommitBundle
-
-    fetchedConversation <- bindResponse (getConversationInternal alice1 shadowConvId) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json
-    fetchedMembers <- fetchedConversation %. "members"
-    let extractId x = x %. "qualified_id"
-    fetchedOtherMembers <- fetchedMembers %. "others" & asList
-    fetchedOtherMemberIds <- traverse extractId fetchedOtherMembers
-    expectedMemberIds <- traverse extractId [alice, bob, charlie]
-    sort (nub fetchedOtherMemberIds) `shouldMatch` sort expectedMemberIds
+  extractedCharlieMembership <-
+    flip filterM fetchedOtherMembers $ \membership -> do
+      membershipId <- membership %. "qualified_id"
+      charlieId <- charlie %. "qualified_id"
+      pure $ membershipId == charlieId
+  charlieMembership <- assertOne extractedCharlieMembership
+  charlieMembership %. "conversation_role" `shouldMatch` "wire_admin"
 
 testShadowConversationDenied :: (HasCallStack) => App ()
 testShadowConversationDenied = do

@@ -1,0 +1,14 @@
+The blocked domains feature
+(`optSettings.setCustomerExtensions.domainsBlockedForRegistration`) is now
+stricter: It is not only forbidden to register users with these domains in
+their email addresses, but also to change a user's email address to one of
+these domains.
+
+This affects the endpoints:
+- `/register` (as before)
+- `/activate/send`
+- `/users/{uid}/email`
+- `/i/self/email` (internal endpoint)
+- `/access/self/email`
+- `/i/teams/{tid}/invitations` (internal endpoint)
+- `/teams/{tid}/invitations`

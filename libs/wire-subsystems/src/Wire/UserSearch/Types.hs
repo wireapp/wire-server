@@ -200,8 +200,10 @@ data BrowseTeamFilters = BrowseTeamFilters
     mQuery :: Maybe Text,
     mRoleFilter :: Maybe RoleFilter,
     mSortBy :: Maybe TeamUserSearchSortBy,
-    mSortOrder :: Maybe TeamUserSearchSortOrder
+    mSortOrder :: Maybe TeamUserSearchSortOrder,
+    mEmailVerificationFilter :: Maybe EmailVerificationFilter
   }
+  deriving (Eq, Show)
 
 userIdToDocId :: UserId -> DocId
 userIdToDocId uid = DocId (idToText uid)

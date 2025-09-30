@@ -142,7 +142,6 @@ login ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -156,7 +155,11 @@ login l (fromMaybe False -> persist) = do
   traverse mkUserTokenCookie c
 
 logoutH ::
-  (Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) =>
+  ( Member (Input AuthenticationSubsystemConfig) r,
+    Member AuthenticationSubsystem r,
+    Member CryptoSign r,
+    Member Now r
+  ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r ()
@@ -166,7 +169,17 @@ logoutH uts' mat' = do
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
-logout :: (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member SessionStore r, Member CryptoSign r, Member Now r) => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout ::
+  ( UserTokenLike u,
+    AccessTokenLike a,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member AuthenticationSubsystem r,
+    Member CryptoSign r,
+    Member Now r
+  ) =>
+  NonEmpty (Token u) ->
+  Maybe (Token a) ->
+  Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = Auth.logout (List1 uts) at !>> StdError . zauthError
 
@@ -217,8 +230,7 @@ listCookies lusr (fold -> labels) =
 removeCookies ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   Local UserId ->
   RemoveCookies ->
@@ -234,7 +246,6 @@ legalHoldLogin ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -253,7 +264,6 @@ ssoLogin ::
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r

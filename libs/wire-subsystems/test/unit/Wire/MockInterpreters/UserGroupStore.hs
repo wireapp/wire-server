@@ -12,13 +12,14 @@ import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Time.Clock
-import Data.Vector (fromList)
+import Data.Vector (Vector, fromList)
 import GHC.Stack
 import Imports
 import Polysemy
 import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
+import Wire.API.Pagination
 import Wire.API.User
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -59,7 +60,16 @@ userGroupStoreTestInterpreter =
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
+    UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
+
+updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
+updateUsersImpl gid uids = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = Identity . fromList . nub $ toList uids} :: UserGroup)
+
+  modifyUserGroupsGidOnly gid (Map.alter f)
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
@@ -70,7 +80,9 @@ createUserGroupImpl tid nug managedBy = do
           { id_ = gid,
             name = nug.name,
             members = Identity nug.members,
+            channels = mempty,
             membersCount = Nothing,
+            channelsCount = Nothing,
             managedBy = managedBy,
             createdAt = toUTCTimeMillis now
           }
@@ -81,9 +93,10 @@ createUserGroupImpl tid nug managedBy = do
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
 getUserGroupImpl tid gid = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r [UserGroupMeta]
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
+  pure $ UserGroupPage meta (length meta)
   where
     sieve,
       dropAfterPageSize,

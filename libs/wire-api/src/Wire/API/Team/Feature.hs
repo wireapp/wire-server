@@ -87,9 +87,11 @@ module Wire.API.Team.Feature
     DomainRegistrationConfig (..),
     CellsConfig (..),
     AllowedGlobalOperationsConfig (..),
+    AssetAuditLogConfig (..),
     ConsumableNotificationsConfig (..),
     ChatBubblesConfig (..),
     AppsConfig (..),
+    SimplifiedUserConnectionRequestQRCodeConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -250,6 +252,8 @@ data FeatureSingleton cfg where
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
   FeatureSingletonChatBubblesConfig :: FeatureSingleton ChatBubblesConfig
   FeatureSingletonAppsConfig :: FeatureSingleton AppsConfig
+  FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig :: FeatureSingleton SimplifiedUserConnectionRequestQRCodeConfig
+  FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1474,6 +1478,35 @@ instance IsFeatureConfig AllowedGlobalOperationsConfig where
   objectSchema = field "config" schema
 
 --------------------------------------------------------------------------------
+-- Asset Audit Log feature
+
+-- | This feature does not have a database state and does not carry a config
+-- payload. It is always locked; only its status can be toggled via server
+-- configuration (Helm values).
+data AssetAuditLogConfig = AssetAuditLogConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform AssetAuditLogConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName AssetAuditLogConfig)
+
+instance ParseDbFeature AssetAuditLogConfig where
+  parseDbConfig _ = fail "AssetAuditLogConfig cannot be parsed from the DB"
+  serialiseDbConfig = DbConfig . schemaToJSON
+
+instance ToSchema AssetAuditLogConfig where
+  schema = object "AssetAuditLogConfig" objectSchema
+
+instance Default AssetAuditLogConfig where
+  def = AssetAuditLogConfig
+
+instance Default (LockableFeature AssetAuditLogConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig AssetAuditLogConfig where
+  type FeatureSymbol AssetAuditLogConfig = "assetAuditLog"
+  featureSingleton = FeatureSingletonAssetAuditLogConfig
+  objectSchema = pure AssetAuditLogConfig
+
+--------------------------------------------------------------------------------
 -- ConsumableNotifications feature
 
 -- | This feature does not have a PUT endpoint. See Note [unsettable features].
@@ -1535,6 +1568,30 @@ instance IsFeatureConfig AppsConfig where
   featureSingleton = FeatureSingletonAppsConfig
 
   objectSchema = pure AppsConfig
+
+--------------------------------------------------------------------------------
+-- "Simplified User Connection Request QR Code" Feature
+--
+-- If it's enabled, clients render QR codes in the user profile pages to
+-- simplify connection requests by other users.
+
+data SimplifiedUserConnectionRequestQRCodeConfig = SimplifiedUserConnectionRequestQRCodeConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform SimplifiedUserConnectionRequestQRCodeConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName SimplifiedUserConnectionRequestQRCodeConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature SimplifiedUserConnectionRequestQRCodeConfig
+
+instance ToSchema SimplifiedUserConnectionRequestQRCodeConfig where
+  schema = object "SimplifiedUserConnectionRequestQRCode" objectSchema
+
+instance Default (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig where
+  type FeatureSymbol SimplifiedUserConnectionRequestQRCodeConfig = "simplifiedUserConnectionRequestQRCode"
+  featureSingleton = FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig
+
+  objectSchema = pure SimplifiedUserConnectionRequestQRCodeConfig
 
 ---------------------------------------------------------------------------------
 -- FeatureStatus
@@ -1625,7 +1682,9 @@ type Features =
     AllowedGlobalOperationsConfig,
     ConsumableNotificationsConfig,
     ChatBubblesConfig,
-    AppsConfig
+    AppsConfig,
+    SimplifiedUserConnectionRequestQRCodeConfig,
+    AssetAuditLogConfig
   ]
 
 -- | list of available features as a record

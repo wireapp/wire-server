@@ -15,6 +15,7 @@ import Database.CQL.Protocol
 import Imports
 import SAML2.WebSSO qualified as SAML
 import URI.ByteString
+import Wire.API.Team.Role (Role)
 import Wire.API.User hiding (userId)
 import Wire.API.User.Search
 import Wire.UserSearch.Types
@@ -107,8 +108,8 @@ instance Record IndexUser where
         }
 {- ORMOLU_ENABLE -}
 
-indexUserToVersion :: IndexUser -> IndexVersion
-indexUserToVersion IndexUser {..} =
+indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
+indexUserToVersion role IndexUser {..} =
   mkIndexVersion
     [ const () <$$> Just name.writetime,
       const () <$$> fmap writetime teamId,
@@ -121,11 +122,12 @@ indexUserToVersion IndexUser {..} =
       const () <$$> fmap writetime managedBy,
       const () <$$> fmap writetime ssoId,
       const () <$$> fmap writetime unverifiedEmail,
-      const () <$$> writeTimeBumper
+      const () <$$> writeTimeBumper,
+      const () <$$> fmap writetime role
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
@@ -133,8 +135,7 @@ indexUserToDoc searchVisInbound IndexUser {..} =
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
-          -- FUTUREWORK: This is a bug: https://wearezeta.atlassian.net/browse/WPB-11124
-          udRole = Nothing,
+          udRole = mRole,
           udCreatedAt = Just . toUTCTimeMillis $ writetimeToUTC activated.writetime,
           udManagedBy = value <$> managedBy,
           udSAMLIdP = idpUrl . value =<< ssoId,

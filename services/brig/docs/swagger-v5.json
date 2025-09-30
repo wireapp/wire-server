@@ -4095,7 +4095,7 @@
         "type": "object"
       },
       "Pict": {
-        "items": {},
+        "items": { "type": "object" },
         "maxItems": 10,
         "minItems": 0,
         "type": "array"

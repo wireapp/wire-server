@@ -108,16 +108,17 @@ library
     RunAllTests
     SetupHelpers
     Test.AccessUpdate
-    Test.AssetDownload
-    Test.AssetUpload
+    Test.Apps
     Test.Auth
     Test.B2B
+    Test.BlockedDomains
     Test.Bot
     Test.Brig
     Test.Cargohold.API
     Test.Cargohold.API.Federation
-    Test.Cargohold.API.Util
     Test.Cargohold.API.V3
+    Test.Cargohold.AssetDownload
+    Test.Cargohold.AssetUpload
     Test.Cargohold.Metrics
     Test.Cells
     Test.Channels
@@ -136,6 +137,7 @@ library
     Test.FeatureFlags.AllowedGlobalOperations
     Test.FeatureFlags.AppLock
     Test.FeatureFlags.Apps
+    Test.FeatureFlags.AssetAuditLog
     Test.FeatureFlags.Cells
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ChatBubbles
@@ -155,6 +157,7 @@ library
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound
     Test.FeatureFlags.SelfDeletingMessages
+    Test.FeatureFlags.SimplifiedUserConnectionRequestQRCode
     Test.FeatureFlags.SndFactorPasswordChallenge
     Test.FeatureFlags.SSO
     Test.FeatureFlags.User

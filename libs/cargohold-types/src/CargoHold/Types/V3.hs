@@ -33,6 +33,9 @@ module CargoHold.Types.V3
     defAssetSettings,
     setAssetPublic,
     setAssetRetention,
+    setAssetConvId,
+    setAssetFilename,
+    setAssetFiletype,
     AssetRetention (..),
     assetRetentionSeconds,
     assetExpiringSeconds,
@@ -58,6 +61,7 @@ where
 import Data.ByteString.Conversion
 import Data.Id
 import Imports
+import Test.QuickCheck (Arbitrary (..), oneof)
 import Wire.API.Asset
 
 --------------------------------------------------------------------------------
@@ -76,3 +80,12 @@ instance ToByteString Principal where
   builder (UserPrincipal u) = builder u
   builder (BotPrincipal b) = builder b
   builder (ProviderPrincipal p) = builder p
+
+-- Arbitrary instance for property-based testing
+instance Arbitrary Principal where
+  arbitrary =
+    oneof
+      [ UserPrincipal <$> arbitrary,
+        BotPrincipal <$> arbitrary,
+        ProviderPrincipal <$> arbitrary
+      ]

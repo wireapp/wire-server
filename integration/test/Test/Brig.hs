@@ -251,7 +251,7 @@ testDeleteEmail = do
       searchShouldBe :: (HasCallStack) => String -> App ()
       searchShouldBe expected = do
         BrigI.refreshIndex OwnDomain
-        bindResponse (BrigP.searchTeam owner email) $ \resp -> do
+        bindResponse (BrigP.searchTeamWithSearchTerm owner email) $ \resp -> do
           resp.status `shouldMatchInt` 200
           numDocs <- length <$> (resp.json %. "documents" >>= asList)
           case expected of

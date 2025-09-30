@@ -30,9 +30,11 @@ module Brig.User.Search.Index
     -- * Administrative
     createIndex,
     createIndexIfNotPresent,
+    createIndexWithoutMapping,
     resetIndex,
     refreshIndexes,
     updateMapping,
+    indexMapping,
 
     -- * Re-exports
     ES.IndexSettings (..),
@@ -154,13 +156,13 @@ createIndex ::
   m ()
 createIndex = createIndex' True
 
-createIndex' ::
+createIndexWithoutMapping ::
   (MonadIndexIO m) =>
   -- | Fail if index alredy exists
   Bool ->
   CreateIndexSettings ->
   m ()
-createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = liftIndexIO $ do
+createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
@@ -189,11 +191,27 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError $ "Index creation failed: " <> Text.pack (show cr))
-    mr <-
-      traceES "Put mapping" $
-        ES.putNamedMapping idx mappingName indexMapping
-    unless (ES.isSuccess mr) $
-      throwM (IndexError $ "Put Mapping failed: " <> Text.pack (show mr))
+
+createIndex' ::
+  (MonadIndexIO m) =>
+  -- | Fail if index alredy exists
+  Bool ->
+  CreateIndexSettings ->
+  m ()
+createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = do
+  idx <- liftIndexIO $ asks idxName
+  -- Check if the index already exists before attempting creation.
+  -- If it already exists, we should not update anything (including mappings).
+  existedBefore <- liftIndexIO $ ES.indexExists idx
+  createIndexWithoutMapping failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate)
+  -- Only put the mapping when we actually created the index above.
+  unless existedBefore $ do
+    liftIndexIO $ do
+      mr <-
+        traceES "Put mapping" $
+          ES.putNamedMapping idx mappingName indexMapping
+      unless (ES.isSuccess mr) $
+        throwM (IndexError $ "Put Mapping failed: " <> Text.pack (show mr))
 
 analysisSettings :: ES.Analysis
 analysisSettings =
@@ -436,7 +454,7 @@ indexMapping =
               .= MappingProperty
                 { mpType = MPText,
                   mpStore = False,
-                  mpIndex = False,
+                  mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 }

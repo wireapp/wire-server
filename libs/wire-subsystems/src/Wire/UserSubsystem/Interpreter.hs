@@ -7,6 +7,7 @@ module Wire.UserSubsystem.Interpreter
   )
 where
 
+import Cassandra.Util (Writetime (Writetime))
 import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Maybe
@@ -42,14 +43,16 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..)
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info (TeamMemberInfo (..), TeamMemberInfoList (members))
 import Wire.API.Team.Permission qualified as Permission
-import Wire.API.Team.Role (defaultRole)
+import Wire.API.Team.Role (Role, defaultRole, permissionsToRole)
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.DeleteQueue
@@ -83,6 +86,7 @@ import Witherable (wither)
 
 runUserSubsystem ::
   ( Member UserStore r,
+    Member AppStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -160,6 +164,7 @@ runUserSubsystem authInterpreter = interpret $
     GetUserExportData uid -> getUserExportDataImpl uid
     RemoveEmailEither luid -> removeEmailEitherImpl luid
     UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
+    CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -292,6 +297,7 @@ lookupLocaleOrDefaultImpl luid = do
 getUserProfilesImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
+    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
@@ -317,6 +323,7 @@ getUserProfilesImpl self others =
 getLocalUserProfilesImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
@@ -334,6 +341,7 @@ getUserProfilesFromDomain ::
     Member DeleteQueue r,
     Member Now r,
     Member UserStore r,
+    Member AppStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
@@ -364,6 +372,7 @@ getUserProfilesRemotePart ruids = do
 getUserProfilesLocalPart ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
@@ -403,6 +412,7 @@ getUserProfilesLocalPart requestingUser luids = do
 getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member DeleteQueue r,
     Member Now r,
     Member (Input UserSubsystemConfig) r,
@@ -422,8 +432,11 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
+    app <- lift $ getApp storedUser.id
     lift $ deleteLocalIfExpired user
-    pure usrProfile
+    pure $ case app of
+      Nothing -> usrProfile
+      Just _ -> usrProfile {profileType = UserTypeApp}
 
 getSelfProfileImpl ::
   ( Member (Input UserSubsystemConfig) r,
@@ -467,6 +480,7 @@ deleteLocalIfExpired user =
 getUserProfilesWithErrorsImpl ::
   forall r fedM.
   ( Member UserStore r,
+    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
@@ -516,11 +530,12 @@ guardLockedFields ::
 guardLockedFields user updateOrigin (MkUserProfileUpdate {..}) = do
   let idempName = isNothing name || name == Just user.name
       idempLocale = isNothing locale || locale == user.locale
-      scim = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      scimConflict = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      updateByScim = updateOrigin == UpdateOriginScim && user.managedBy == Just ManagedByScim
   e2eid <- hasE2EId user
-  when ((scim || e2eid) && not idempName) do
+  when ((scimConflict || (e2eid && not updateByScim)) && not idempName) do
     throw UserSubsystemDisplayNameManagedByScim
-  when (scim {- e2eid does not matter, it's not part of the e2eid cert! -} && not idempLocale) do
+  when (scimConflict {- e2eid does not matter, it's not part of the e2eid cert! -} && not idempLocale) do
     throw UserSubsystemLocaleManagedByScim
 
 guardLockedHandleField ::
@@ -533,10 +548,11 @@ guardLockedHandleField ::
   Sem r ()
 guardLockedHandleField user updateOrigin handle = do
   let idemp = Just handle == user.handle
-      scim = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      scimConflict = updateOrigin == UpdateOriginWireClient && user.managedBy == Just ManagedByScim
+      updateByScim = updateOrigin == UpdateOriginScim && user.managedBy == Just ManagedByScim
       hasHandle = isJust user.handle
   e2eid <- hasE2EId user
-  when ((scim || (e2eid && hasHandle)) && not idemp) do
+  when ((scimConflict || (e2eid && hasHandle && not updateByScim)) && not idemp) do
     throw UserSubsystemHandleManagedByScim
 
 updateUserProfileImpl ::
@@ -693,10 +709,26 @@ syncUserIndex uid = do
           (pure defaultSearchVisibilityInbound)
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
-      let userDoc = indexUserToDoc vis indexUser
-          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion indexUser
+      tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
+      let mRole = tm >>= mkRoleWithWriteTime
+          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
+
+    selectTeamMember :: TeamId -> Sem r (Maybe TeamMemberInfo)
+    selectTeamMember tid = do
+      listToMaybe . members <$> selectTeamMemberInfos tid [uid]
+
+    mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (WithWritetime Role)
+    mkRoleWithWriteTime info =
+      ( \role ->
+          WithWriteTime
+            { value = role,
+              writetime = Writetime $ fromUTCTimeMillis info.permissionsWriteTime
+            }
+      )
+        <$> permissionsToRole info.permissions
 
 updateTeamSearchVisibilityInboundImpl :: (Member IndexedUserStore r) => TeamStatus SearchVisibilityInboundConfig -> Sem r ()
 updateTeamSearchVisibilityInboundImpl teamStatus =
@@ -1079,3 +1111,12 @@ removeEmailEitherImpl lusr = runError $ do
 
 getUserTeamImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamId)
 getUserTeamImpl = UserStore.getUserTeam
+
+checkUserIsAdminImpl ::
+  (Member TeamSubsystem r, Member UserStore r, Member (Error UserSubsystemError) r) =>
+  UserId ->
+  Sem r TeamId
+checkUserIsAdminImpl uid = do
+  tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
+  ensurePermissions uid tid [CreateUpdateDeleteIdp]
+  pure tid

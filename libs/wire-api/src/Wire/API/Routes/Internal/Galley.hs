@@ -52,13 +52,16 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info
 import Wire.API.Team.SearchVisibility
+import Wire.API.User (UserIds)
 import Wire.API.User.Client
 
 type family IFeatureAPI1 cfg where
   -- special case for classified domains, since it cannot be set
   IFeatureAPI1 ClassifiedDomainsConfig = IFeatureStatusGet ClassifiedDomainsConfig
   IFeatureAPI1 AllowedGlobalOperationsConfig = IFeatureStatusGet AllowedGlobalOperationsConfig
+  IFeatureAPI1 AssetAuditLogConfig = IFeatureStatusGet AssetAuditLogConfig
   IFeatureAPI1 cfg = IFeatureAPI1Full cfg
 
 type IFeatureAPI1Full cfg =
@@ -89,6 +92,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut ConsumableNotificationsConfig
     :<|> IFeatureStatusLockStatusPut ChatBubblesConfig
     :<|> IFeatureStatusLockStatusPut AppsConfig
+    :<|> IFeatureStatusLockStatusPut SimplifiedUserConnectionRequestQRCodeConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -252,6 +256,12 @@ type ITeamsAPIBase =
                     "unchecked-get-team-members"
                     ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
                         :> Get '[JSON] TeamMemberList
+                    )
+             :<|> Named
+                    "unchecked-select-team-member-infos"
+                    ( "by-ids"
+                        :> ReqBody '[JSON] UserIds
+                        :> Get '[JSON] TeamMemberInfoList
                     )
              :<|> Named
                     "unchecked-get-team-member"

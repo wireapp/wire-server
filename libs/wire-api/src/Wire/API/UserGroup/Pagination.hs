@@ -20,36 +20,39 @@ module Wire.API.UserGroup.Pagination where
 
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson qualified as A
-import Data.Bifunctor (first)
 import Data.Default
 import Data.OpenApi qualified as S
-import Data.Range as Range
 import Data.Schema
-import Data.Text qualified as T
 import GHC.Generics
 import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
+import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
-newtype UserGroupPage = UserGroupPage {page :: [UserGroupMeta]}
+data UserGroupPage = UserGroupPage
+  { page :: [UserGroupMeta],
+    total :: Int
+  }
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
 
 instance ToSchema UserGroupPage where
   schema =
     objectWithDocModifier "UserGroupPage" docs $
-      UserGroupPage <$> page .= field "page" (array schema)
+      UserGroupPage
+        <$> page .= field "page" (array schema)
+        <*> total .= field "total" schema
     where
       docs :: NamedSwaggerDoc -> NamedSwaggerDoc
       docs =
         description
-          ?~ "This is the last page iff it contains fewer rows than requested. There \
-             \may return 0 rows on a page."
+          ?~ "This is the last page if it contains fewer rows than requested. There \
+             \may be 0 rows on a page."
 
 instance Arbitrary UserGroupPage where
-  arbitrary = UserGroupPage <$> arbitrary
+  arbitrary = UserGroupPage <$> arbitrary <*> arbitrary
 
 ------------------------------
 
@@ -89,81 +92,8 @@ instance S.ToParamSchema SortBy where
 
 ------------------------------
 
-data SortOrder = Asc | Desc
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortOrder
-
-sortOrderClause :: SortOrder -> Text
-sortOrderClause = \case
-  Asc -> "asc"
-  Desc -> "desc"
-
-sortOrderOperator :: SortOrder -> Text
-sortOrderOperator = \case
-  Asc -> ">"
-  Desc -> "<"
-
-instance Arbitrary SortOrder where
-  arbitrary = Arbitrary.elements [minBound ..]
-
 defaultSortOrder :: SortBy -> SortOrder
 defaultSortOrder SortByName = Asc
 defaultSortOrder SortByCreatedAt = Desc
-
-instance ToSchema SortOrder where
-  schema =
-    enum @Text "SortOrder" $
-      mconcat
-        [ element "asc" Asc,
-          element "desc" Desc
-        ]
-
-instance FromHttpApiData SortOrder where
-  parseUrlPiece "asc" = pure Asc
-  parseUrlPiece "desc" = pure Desc
-  parseUrlPiece bad = Left $ "SortOrder: could not parse " <> bad
-
-instance S.ToParamSchema SortOrder where
-  toParamSchema _ =
-    mempty
-      & S.type_ ?~ S.OpenApiString
-      & S.enum_ ?~ ["asc", "desc"]
-
-------------------------------
-
-newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int32}
-  deriving (Eq, Show, Ord, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
-
-pageSizeToInt :: PageSize -> Int
-pageSizeToInt = fromIntegral . pageSizeToInt32
-
-pageSizeToInt32 :: PageSize -> Int32
-pageSizeToInt32 = fromRange . fromPageSize
-
-pageSizeFromInt :: Int32 -> Either Text PageSize
-pageSizeFromInt = fmap PageSize . first T.pack . Range.checkedEither
-
--- | Doesn't crash on bad input, but shrinks it into the allowed range.
-pageSizeFromIntUnsafe :: Int32 -> PageSize
-pageSizeFromIntUnsafe = PageSize . unsafeRange . (+ 1) . (`mod` 500) . (+ (-1))
-
-instance Arbitrary PageSize where
-  arbitrary = pageSizeFromIntUnsafe <$> arbitrary
-
-instance ToSchema PageSize where
-  schema = PageSize <$> fromPageSize .= schema
-
-instance FromHttpApiData PageSize where
-  parseUrlPiece = parseUrlPiece >=> pageSizeFromInt
-
-instance S.ToParamSchema PageSize where
-  toParamSchema _ =
-    mempty
-      & S.type_ ?~ S.OpenApiNumber
-      & S.description ?~ "integer from [1..500]"
-
-instance Default PageSize where
-  def = PageSize (unsafeRange 15)
 
 makePrisms ''UserGroupPage

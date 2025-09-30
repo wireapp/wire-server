@@ -19,6 +19,7 @@ module Wire.BrigAPIAccess
     getContactList,
     getRichInfoMultiUser,
     getUserExportData,
+    updateSearchIndex,
 
     -- * Teams
     getSize,
@@ -122,6 +123,7 @@ data BrigAPIAccess m a where
     BrigAPIAccess m ()
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
+  UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 

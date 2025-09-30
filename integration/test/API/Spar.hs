@@ -91,13 +91,13 @@ updateScimUser domain scimToken userId scimUser = do
     & addJSON body . addHeader "Authorization" ("Bearer " <> scimToken)
     & addHeader "Accept" "application/scim+json"
 
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
 createIdp user metadata = do
   req <- baseRequest user Spar Versioned "/identity-providers"
   submit "POST" $ req
     & addQueryParams [("api_version", "v2")]
     & addXML (fromLT $ SAML.encode metadata)
-    & addHeader "Content-Type" "application/xml"
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-update
 updateIdp :: (HasCallStack, MakesValue user) => user -> String -> SAML.IdPMetadata -> App Response
@@ -105,7 +105,6 @@ updateIdp user idpId metadata = do
   req <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
   submit "PUT" $ req
     & addXML (fromLT $ SAML.encode metadata)
-    & addHeader "Content-Type" "application/xml"
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-get-all
 getIdps :: (HasCallStack, MakesValue user) => user -> App Response

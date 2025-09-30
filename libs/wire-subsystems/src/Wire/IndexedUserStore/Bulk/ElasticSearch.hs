@@ -1,11 +1,12 @@
 module Wire.IndexedUserStore.Bulk.ElasticSearch where
 
 import Cassandra.Exec (paginateWithStateC)
+import Cassandra.Util (Writetime (Writetime))
 import Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.Combinators qualified as Conduit
 import Data.Id
+import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 import Database.Bloodhound qualified as ES
 import Imports
 import Polysemy
@@ -14,6 +15,8 @@ import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Team.Feature
+import Wire.API.Team.Member.Info
+import Wire.API.Team.Role
 import Wire.GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
@@ -88,15 +91,29 @@ syncAllUsersWithVersion mkVersion =
 
     mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] (Sem r) ()
     mkUserDocs = Conduit.mapM $ \page -> do
-      let teamIds =
-            Set.fromList $
-              mapMaybe (fmap value . ((.teamId))) page
+      let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) . value <$> u.teamId) page
+          teamIds = Map.keys teams
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
         (t,) <$> teamSearchVisibilityInbound t
+      roles :: Map UserId (WithWritetime Role) <- fmap (Map.fromList . concat) . unsafePooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) -> do
+        tms <- (.members) <$> selectTeamMemberInfos t (fmap (.userId) us)
+        pure $ mapMaybe mkRoleWithWriteTime tms
       let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ (flip Map.lookup visMap . value =<< indexUser.teamId)
-          mkUserDoc indexUser = indexUserToDoc (vis indexUser) indexUser
-          mkDocVersion = mkVersion . ES.ExternalDocVersion . docVersion . indexUserToVersion
+          mkUserDoc indexUser = indexUserToDoc (vis indexUser) ((.value) <$> Map.lookup indexUser.userId roles) indexUser
+          mkDocVersion u = mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion (Map.lookup u.userId roles) u
       pure $ map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
+
+    mkRoleWithWriteTime :: TeamMemberInfo -> Maybe (UserId, WithWritetime Role)
+    mkRoleWithWriteTime tmi =
+      ( \role ->
+          ( tmi.userId,
+            WithWriteTime
+              { value = role,
+                writetime = Writetime $ fromUTCTimeMillis tmi.permissionsWriteTime
+              }
+          )
+      )
+        <$> permissionsToRole tmi.permissions
 
 migrateDataImpl ::
   ( Member IndexedUserStore r,

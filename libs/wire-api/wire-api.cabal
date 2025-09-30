@@ -69,6 +69,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.API.Allowlists
+    Wire.API.App
     Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.Bot
@@ -84,6 +85,7 @@ library
     Wire.API.Conversation.CellsState
     Wire.API.Conversation.Code
     Wire.API.Conversation.Member
+    Wire.API.Conversation.Pagination
     Wire.API.Conversation.Protocol
     Wire.API.Conversation.Role
     Wire.API.Conversation.Typing
@@ -142,9 +144,11 @@ library
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
+    Wire.API.Pagination
     Wire.API.Password
     Wire.API.Password.Argon2id
     Wire.API.Password.Scrypt
+    Wire.API.PostgresMarshall
     Wire.API.Presence
     Wire.API.Properties
     Wire.API.Provider
@@ -232,6 +236,7 @@ library
     Wire.API.Team.LegalHold.External
     Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
+    Wire.API.Team.Member.Info
     Wire.API.Team.Permission
     Wire.API.Team.Role
     Wire.API.Team.SearchVisibility
@@ -303,6 +308,7 @@ library
     , generics-sop
     , ghc-prim
     , hashable
+    , hasql
     , hostname-validate
     , hscim
     , HsOpenSSL

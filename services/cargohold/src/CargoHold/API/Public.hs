@@ -236,9 +236,9 @@ deleteTokenV3 :: Local UserId -> AssetKey -> Handler ()
 deleteTokenV3 (tUnqualified -> usr) = V3.deleteToken (V3.UserPrincipal usr)
 
 legacyDownloadPlain :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
-legacyDownloadPlain (tUnqualified -> usr) cnv ast =
-  AssetLocation <$$> LegacyAPI.download usr cnv ast
+legacyDownloadPlain lusr cnv ast =
+  AssetLocation <$$> LegacyAPI.download lusr cnv ast
 
 legacyDownloadOtr :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
-legacyDownloadOtr (tUnqualified -> usr) cnv ast =
-  AssetLocation <$$> LegacyAPI.downloadOtr usr cnv ast
+legacyDownloadOtr lusr cnv ast =
+  AssetLocation <$$> LegacyAPI.downloadOtr lusr cnv ast

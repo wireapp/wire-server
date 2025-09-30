@@ -1,0 +1,1 @@
+charts/{redis-ephemeral,reaper}: switch away from non-working bitnami registry

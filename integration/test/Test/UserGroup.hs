@@ -11,7 +11,7 @@ import Testlib.Prelude
 
 testUserGroupSmoke :: (HasCallStack) => App ()
 testUserGroupSmoke = do
-  (owner, team, [mem1, mem2, mem3, mem4, mem5, mem6, admin2]) <- createTeam OwnDomain 8
+  (owner, team, [mem1, mem2, mem3, mem4, mem5, mem6, admin2, mem8, mem9]) <- createTeam OwnDomain 10
   updateTeamMember team owner admin2 Admin >>= assertSuccess
   mem1id <- asString $ mem1 %. "id"
   mem2id <- asString $ mem2 %. "id"
@@ -19,12 +19,14 @@ testUserGroupSmoke = do
   mem4id <- asString $ mem4 %. "id"
   mem5id <- asString $ mem5 %. "id"
   mem6id <- asString $ mem6 %. "id"
+  mem8id <- asString $ mem8 %. "id"
+  mem9id <- asString $ mem9 %. "id"
 
   let badGid = "225c4d54-1ae7-11f0-8e9c-cbb31865d602"
       badMemid = "7bf23c0b-0be6-4432-bc5d-ab301bf75a99"
 
   gid <- withWebSockets [owner, admin2] $ \wss -> do
-    gid <- bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= ([mem1id, mem2id])])) $ \resp -> do
+    gid <- bindResponse (createUserGroup owner (object ["name" .= "none", "members" .= [mem1id, mem2id]])) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "name" `shouldMatch` "none"
       resp.json %. "members" `shouldMatch` [mem1id, mem2id]
@@ -78,6 +80,7 @@ testUserGroupSmoke = do
   bindResponse (getUserGroups owner def) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.name" `shouldMatch` "also good"
+    resp.json %. "total" `shouldMatchInt` 1
 
   bindResponse (deleteUserGroup owner badGid) $ \resp -> do
     resp.status `shouldMatchInt` 404
@@ -96,6 +99,43 @@ testUserGroupSmoke = do
 
   bindResponse (removeUserFromGroup owner gid mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 404
+
+  withWebSockets [owner, admin2] $ \wssAdmins -> do
+    ug2Id <- bindResponse (createUserGroup owner (object ["name" .= "ug 2", "members" .= [mem1id]])) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      ug2Id <- asString $ (resp.json %. "id")
+
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupCreatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` ug2Id
+
+      pure ug2Id
+
+    bindResponse (getUserGroup owner ug2Id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members" `shouldMatch` [mem1id]
+
+    bindResponse (updateUserGroupUsers owner ug2Id [mem8id, mem9id]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupUpdatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` ug2Id
+
+    bindResponse (getUserGroup owner ug2Id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members" `shouldMatch` [mem8id, mem9id]
+
+    bindResponse (updateUserGroupUsers owner ug2Id []) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+      for_ wssAdmins $ \ws -> do
+        notif <- awaitMatch isUserGroupUpdatedNotif ws
+        notif %. "payload.0.user_group.id" `shouldMatch` ug2Id
+
+    bindResponse (getUserGroup owner ug2Id) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members" `shouldMatch` ([] :: [()])
 
 testUserGroupAddGroupDenied :: (HasCallStack) => App ()
 testUserGroupAddGroupDenied = do
@@ -129,6 +169,7 @@ testUserGroupGetGroups = do
   (owner, _team, []) <- createTeam OwnDomain 1
 
   let groupNames = ["First group", "CC", "CCC"] <> ((: []) <$> ['A' .. 'G'])
+      totalCount = length groupNames
   forM_ groupNames $ \gname -> do
     let newGroup = object ["name" .= gname, "members" .= ([] :: [()])]
     bindResponse (createUserGroup owner newGroup) $ \resp -> do
@@ -137,10 +178,10 @@ testUserGroupGetGroups = do
       resp.json %. "members" `shouldMatch` ([] :: [()])
 
   -- Default sort by is createdAt, and sortOrder is DESC
-  _ <- runSearch owner def {q = Just "C"} ["C", "CCC", "CC"]
+  _ <- runSearch owner def {q = Just "C"} ["C", "CCC", "CC"] 3
 
   -- Default sortOrder is DESC, regardless of sortBy
-  _ <- runSearch owner def {q = Just "CC", sortByKeys = Just "name"} ["CCC", "CC"]
+  _ <- runSearch owner def {q = Just "CC", sortByKeys = Just "name"} ["CCC", "CC"] 2
 
   -- Test combinations of sortBy and sortOrder:
   _ <-
@@ -158,6 +199,7 @@ testUserGroupGetGroups = do
         "First group",
         "G"
       ]
+      totalCount
   _ <-
     runSearch
       owner
@@ -175,6 +217,7 @@ testUserGroupGetGroups = do
             "G"
           ]
       )
+      totalCount
   _ <-
     runSearch
       owner
@@ -190,6 +233,7 @@ testUserGroupGetGroups = do
         "F",
         "G"
       ]
+      totalCount
   _ <-
     runSearch
       owner
@@ -207,6 +251,7 @@ testUserGroupGetGroups = do
             "G"
           ]
       )
+      totalCount
 
   -- Test sorting and filtering works across pages
   let firstPageParams = def {sortByKeys = Just "name", sortOrder = Just "desc", pSize = Just 3}
@@ -218,6 +263,7 @@ testUserGroupGetGroups = do
         "First group",
         "F"
       ]
+      totalCount
   Just (name2, createdAt2, id2) <-
     runSearch
       owner
@@ -226,6 +272,7 @@ testUserGroupGetGroups = do
         "D",
         "CCC"
       ]
+      totalCount
   Just (name3, createdAt3, id3) <-
     runSearch
       owner
@@ -234,20 +281,23 @@ testUserGroupGetGroups = do
         "C",
         "B"
       ]
+      totalCount
 
   void
     $ runSearch
       owner
       firstPageParams {lastName = Just name3, lastCreatedAt = Just createdAt3, lastId = Just id3}
       ["A"]
+      totalCount
 
-runSearch :: (HasCallStack, MakesValue owner) => owner -> GetUserGroupsArgs -> [String] -> App (Maybe (String, String, String))
-runSearch owner args expected =
+runSearch :: (HasCallStack, MakesValue owner) => owner -> GetUserGroupsArgs -> [String] -> Int -> App (Maybe (String, String, String))
+runSearch owner args expected expectedCount =
   bindResponse (getUserGroups owner args) $ \resp -> do
     resp.status `shouldMatchInt` 200
     found <- ((%. "name") `mapM`) =<< asList =<< resp.json %. "page"
     found `shouldMatch` expected
     results <- asList $ resp.json %. "page"
+    resp.json %. "total" `shouldMatchInt` expectedCount
     for (lastMay results) $ \lastGroup ->
       (,,)
         <$> asString (lastGroup %. "name")
@@ -257,11 +307,12 @@ runSearch owner args expected =
 testUserGroupGetGroupsAllInputs :: (HasCallStack) => App ()
 testUserGroupGetGroupsAllInputs = do
   (owner, _team, []) <- createTeam OwnDomain 1
-  for_ ((: []) <$> ['A' .. 'Z']) $ \gname -> do
+  let gnames = ['A' .. 'Z']
+  for_ gnames $ \gname -> do
     let newGroup = object ["name" .= gname, "members" .= ([] :: [()])]
     createUserGroup owner newGroup >>= assertSuccess
 
-  Just (ln, ltz, lid) <- runSearch owner def {pSize = Just 3} ["Z", "Y", "X"]
+  Just (ln, ltz, lid) <- runSearch owner def {pSize = Just 3} ["Z", "Y", "X"] 26
   let getUserGroupArgs = getUserGroupArgsCombinations ln ltz lid
   for_ getUserGroupArgs $ \args -> do
     bindResponse (getUserGroups owner args) $ \resp -> do
@@ -270,8 +321,11 @@ testUserGroupGetGroupsAllInputs = do
       -- additionally we can check a few invariants
       groups <- resp.json %. "page" >>= asList
       case (args.q, args.lastName, args.lastCreatedAt, args.lastId) of
-        (Nothing, Nothing, Nothing, Nothing) -> length groups `shouldMatchInt` (fromMaybe 15 args.pSize)
-        (Just _, Nothing, Nothing, Nothing) -> length groups `shouldMatchInt` 1
+        (Nothing, Nothing, Nothing, Nothing) -> do
+          length groups `shouldMatchInt` (fromMaybe 15 args.pSize)
+          resp.json %. "total" `shouldMatchInt` (length gnames)
+        (Just _, Nothing, Nothing, Nothing) -> do
+          length groups `shouldMatchInt` 1
         _ -> pure ()
   where
     getUserGroupArgsCombinations :: String -> String -> String -> [GetUserGroupsArgs]
@@ -318,3 +372,4 @@ testUserGroupMembersCount = do
   bindResponse (getUserGroups owner (def {includeMemberCount = True})) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "page.0.membersCount" `shouldMatchInt` 2
+    resp.json %. "total" `shouldMatchInt` 1

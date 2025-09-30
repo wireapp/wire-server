@@ -600,6 +600,23 @@ config:
           mlsConversationReset: true
 ```
 
+### Asset Audit Log
+
+Feature toggle for `assetAuditLog`.
+
+This flag has no configuration payload and is always locked. It cannot be changed via public or internal feature endpoints and is not stored in the DB. It only applies globally and can only be toggled via Helm `values.yaml` for Galley.
+
+Example configuration:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      assetAuditLog:
+        status: enabled
+```
+
 ### Chat Bubbles
 
 Feature toggle for `chatBubbles`.
@@ -633,6 +650,26 @@ config:
           status: disabled
           lockStatus: locked
 ```
+
+### Simplified User Connection Request QR-Code
+
+This feature flag is only used by clients. It does not change any behaviour of
+the backend itself. If it is enabled (the default) some clients render a QR
+code in the profile pages of a user to simplify issuing connection requests.
+
+Example configuration which reflects the default:
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      simplifiedUserConnectionRequestQRCode:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+```
+
 
 ## Settings in brig
 
@@ -1193,6 +1230,10 @@ Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
 Link to diagram:
 https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
 -->
+
+Audit logging
+
+- `settings.assetAuditLogEnabled` (boolean): enables asset upload/download audit logging and metadata collection on the backend. Intended for enterprise/on‑prem deployments; should remain disabled on cloud. Default: `false`.
 
 ### Galley
 

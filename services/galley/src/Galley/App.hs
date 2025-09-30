@@ -274,6 +274,8 @@ evalGalley e =
     . runInputConst e
     . runInputConst (e ^. hasqlPool)
     . runInputConst (e ^. cstate)
+    . mapError toResponse
+    . mapError toResponse
     . mapError rateLimitExceededToHttpError
     . mapError toResponse -- DynError
     . interpretTinyLog e

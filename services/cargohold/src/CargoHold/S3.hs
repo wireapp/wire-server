@@ -21,6 +21,7 @@
 module CargoHold.S3
   ( S3AssetKey,
     S3AssetMeta (..),
+    AssetAuditLogMetadata (..),
     uploadV3,
     downloadV3,
     getMetadataV3,
@@ -43,24 +44,28 @@ import qualified Amazonka.S3.StreamingUpload as SU
 import CargoHold.API.Error
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
-import CargoHold.App hiding (Env, Handler)
+import CargoHold.App hiding (Env)
 import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Conduit
-import Control.Error (ExceptT, throwE)
+import Control.Error (throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Control.Monad.Catch (try)
+import qualified Data.Aeson as A
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
 import qualified Data.HashMap.Lazy as HML
 import Data.Id
+import Data.Qualified (Qualified)
+import qualified Data.Schema as S
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
@@ -68,19 +73,37 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
-import Network.Wai.Utilities.Error (Error (..))
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
+import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
+import Wire.API.Asset (AssetMIMEType)
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
+
+data AssetAuditLogMetadata = AssetAuditLogMetadata
+  { convId :: Qualified ConvId,
+    filename :: Text,
+    filetype :: AssetMIMEType
+  }
+  deriving (Eq, Show)
+  deriving (A.FromJSON, A.ToJSON) via S.Schema AssetAuditLogMetadata
+
+instance S.ToSchema AssetAuditLogMetadata where
+  schema =
+    S.object "AssetAuditLogMetadata" $
+      AssetAuditLogMetadata
+        <$> convId S..= S.field "convId" S.schema
+        <*> filename S..= S.field "filename" S.schema
+        <*> filetype S..= S.field "filetype" S.schema
 
 -- | Asset metadata tracked in S3.
 data S3AssetMeta = S3AssetMeta
   { v3AssetOwner :: V3.Principal,
     v3AssetToken :: Maybe V3.AssetToken,
-    v3AssetType :: MIME.Type -- should be ignored, see note on overrideMimeTypeAsOctetStream. FUTUREWORK: remove entirely.
+    v3AssetType :: MIME.Type, -- should be ignored, see note on overrideMimeTypeAsOctetStream. FUTUREWORK: remove entirely.
+    v3AssetAuditLogMetadata :: Maybe AssetAuditLogMetadata
   }
   deriving (Show)
 
@@ -100,11 +123,12 @@ uploadV3 ::
   V3.Principal ->
   V3.AssetKey ->
   V3.AssetHeaders ->
+  Maybe AssetAuditLogMetadata ->
   Maybe V3.AssetToken ->
   -- | streaming payload
   ConduitM () ByteString (ResourceT IO) () ->
-  ExceptT Error App ()
-uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
+  Handler ()
+uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) mAuditLogMeta tok src = do
   Log.info $
     "remote" .= val "S3"
       ~~ "asset.owner" .= toByteString prc
@@ -119,7 +143,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders _ cl) tok src = do
   let createReq =
         newCreateMultipartUpload (BucketName awsEnv.s3Bucket) (ObjectKey key)
           & createMultipartUpload_contentType ?~ MIME.showType ct
-          & createMultipartUpload_metadata .~ metaHeaders tok prc
+          & createMultipartUpload_metadata .~ metaHeaders tok prc mAuditLogMeta
 
   cntRef <- liftIO $ newIORef (0 :: Int)
 
@@ -177,7 +201,7 @@ flattenResourceT = join . lift
 
 downloadV3 ::
   V3.AssetKey ->
-  ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
+  Handler (ConduitM () ByteString (ResourceT IO) ())
 downloadV3 (s3Key . mkKey -> key) = do
   env <- asks (.aws)
   pure . flattenResourceT $ view (getObjectResponse_body . _ResponseBody) <$> AWS.execStream env req
@@ -187,7 +211,7 @@ downloadV3 (s3Key . mkKey -> key) = do
       newGetObject (BucketName b) (ObjectKey key)
         & getObject_responseContentType ?~ MIME.showType octets
 
-getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
+getMetadataV3 :: V3.AssetKey -> Handler (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
   Log.debug $
     "remote" .= val "S3"
@@ -206,8 +230,9 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         <$> getAmzMetaPrincipal h
         <*> Just (getAmzMetaToken h)
         <*> Just ct
+        <*> Just (getAmzAuditLogMetadata h)
 
-deleteV3 :: V3.AssetKey -> ExceptT Error App ()
+deleteV3 :: V3.AssetKey -> Handler ()
 deleteV3 (s3Key . mkKey -> key) = do
   Log.debug $
     "remote" .= val "S3"
@@ -221,11 +246,11 @@ deleteV3 (s3Key . mkKey -> key) = do
   where
     req b = newDeleteObject (BucketName b) (ObjectKey key)
 
-updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
-updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
+updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> Handler ()
+updateMetadataV3 (s3Key . mkKey -> key) meta = do
   Log.debug $
     "remote" .= val "S3"
-      ~~ "asset.owner" .= show prc
+      ~~ "asset.owner" .= show (v3AssetOwner meta)
       ~~ "asset.key" .= key
       ~~ msg (val "Updating asset metadata")
   void $ exec req
@@ -240,7 +265,7 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
       newCopyObject (BucketName b) (copySrc b) (ObjectKey key)
         & copyObject_contentType ?~ MIME.showType ct
         & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
-        & copyObject_metadata .~ metaHeaders tok prc
+        & copyObject_metadata .~ metaHeaders (v3AssetToken meta) (v3AssetOwner meta) meta.v3AssetAuditLogMetadata
 
 -- | Generate an `URI` for asset download redirects
 --
@@ -248,7 +273,7 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
 -- `Map` with the @Z-Host@ header's value as key. Otherwise (the default case
 -- that applies to most deployments), use the default AWS environment; i.e. the
 -- environment with @aws.s3DownloadEndpoint@.
-signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
+signedURL :: (ToByteString p) => p -> Maybe Text -> Handler URI
 signedURL path mbHost = do
   e <- awsEnvForHost
   now <- liftIO getCurrentTime
@@ -267,14 +292,14 @@ signedURL path mbHost = do
         throwE serverError
       Right u -> pure u
 
-    awsEnvForHost :: ExceptT Error App AWS.Env
+    awsEnvForHost :: Handler AWS.Env
     awsEnvForHost = do
       multiIngressConf <- asks (.multiIngress)
       if null multiIngressConf
         then asks (.aws)
         else awsEnvForHost' mbHost multiIngressConf
       where
-        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> ExceptT Error App AWS.Env
+        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> Handler AWS.Env
         awsEnvForHost' Nothing _ = do
           Log.debug $
             msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
@@ -306,12 +331,13 @@ mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
     key = UUID.toText (toUUID i)
     retention = V3.retentionToTextRep r
 
-metaHeaders :: Maybe V3.AssetToken -> V3.Principal -> HML.HashMap Text Text
-metaHeaders tok prc =
+metaHeaders :: Maybe V3.AssetToken -> V3.Principal -> Maybe AssetAuditLogMetadata -> HML.HashMap Text Text
+metaHeaders tok prc wireMeta =
   HML.fromList $
     catMaybes
       [ setAmzMetaToken <$> tok,
-        Just (setAmzMetaPrincipal prc)
+        Just (setAmzMetaPrincipal prc),
+        setAmzAuditLogMetadata <$> wireMeta
       ]
 
 -------------------------------------------------------------------------------
@@ -328,6 +354,9 @@ hAmzMetaProvider = "provider"
 
 hAmzMetaToken :: Text
 hAmzMetaToken = "token"
+
+hAmzWireMetadata :: Text
+hAmzWireMetadata = "wire-metadata"
 
 -------------------------------------------------------------------------------
 -- S3 Metadata Setters
@@ -348,6 +377,12 @@ setAmzMetaPrincipal :: V3.Principal -> (Text, Text)
 setAmzMetaPrincipal (V3.UserPrincipal u) = setAmzMetaUser u
 setAmzMetaPrincipal (V3.BotPrincipal b) = setAmzMetaBot b
 setAmzMetaPrincipal (V3.ProviderPrincipal p) = setAmzMetaProvider p
+
+setAmzAuditLogMetadata :: AssetAuditLogMetadata -> (Text, Text)
+setAmzAuditLogMetadata t = (hAmzWireMetadata, encodeAuditLogMetadata t)
+  where
+    encodeAuditLogMetadata :: AssetAuditLogMetadata -> Text
+    encodeAuditLogMetadata meta = Text.decodeUtf8 (LBS.toStrict (A.encode meta))
 
 -------------------------------------------------------------------------------
 -- S3 Metadata Getters
@@ -378,6 +413,12 @@ getAmzMetaToken h =
 parseAmzMeta :: (FromByteString a) => Text -> [(Text, Text)] -> Maybe a
 parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 
+getAmzAuditLogMetadata :: [(Text, Text)] -> Maybe AssetAuditLogMetadata
+getAmzAuditLogMetadata = lookupCI hAmzWireMetadata >=> parseAuditLogMetadata
+  where
+    parseAuditLogMetadata :: Text -> Maybe AssetAuditLogMetadata
+    parseAuditLogMetadata t = A.decode $ fromStrict $ encodeUtf8 t
+
 -------------------------------------------------------------------------------
 -- Utilities
 
@@ -391,7 +432,7 @@ exec ::
     Show r
   ) =>
   (Text -> r) ->
-  ExceptT Error App (AWSResponse r)
+  Handler (AWSResponse r)
 exec req = do
   env <- asks (.aws)
   AWS.exec env req
@@ -403,7 +444,7 @@ execCatch ::
     Show r
   ) =>
   (Text -> r) ->
-  ExceptT Error App (Maybe (AWSResponse r))
+  Handler (Maybe (AWSResponse r))
 execCatch req = do
   env <- asks (.aws)
   AWS.execCatch env req
@@ -417,7 +458,7 @@ plainKey a = S3AssetKey $ Text.pack (show a)
 otrKey :: ConvId -> AssetId -> S3AssetKey
 otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show a)
 
-getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
+getMetadata :: AssetId -> Handler (Maybe Bool)
 getMetadata ast = do
   r <- execCatch req
   pure $ (parse <$> HML.toList) . view headObjectResponse_metadata <$> r
@@ -427,10 +468,18 @@ getMetadata ast = do
       maybe False (Text.isInfixOf "public=true" . Text.toLower)
         . lookupCI "zasset"
 
-getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
+getOtrMetadata :: ConvId -> AssetId -> Handler (Maybe UserId)
 getOtrMetadata cnv ast = do
   let S3AssetKey key = otrKey cnv ast
   r <- execCatch (req key)
   pure $ getAmzMetaUser . (HML.toList <$> view headObjectResponse_metadata) =<< r
   where
     req k b = newHeadObject (BucketName b) (ObjectKey k)
+
+-- Arbitrary instance for property-based testing
+instance Arbitrary AssetAuditLogMetadata where
+  arbitrary =
+    AssetAuditLogMetadata
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary

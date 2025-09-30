@@ -1,12 +1,10 @@
 module API.Nginz where
 
+import API.Cargohold
 import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC
-import qualified Data.Text as T
 import qualified Network.HTTP.Client as HTTP
-import Test.Cargohold.API.Util (buildMultipartBody, multipartBoundary)
 import Testlib.Prelude
 
 getSystemSettingsUnAuthorized :: (HasCallStack, MakesValue domain) => domain -> App Response
@@ -57,22 +55,6 @@ uploadProviderAsset domain cookie payload = do
     $ req
     & setCookie cookie
     & addBody bdy multipartMixedMime
-
-txtAsset :: (HasCallStack) => String -> App HTTP.RequestBody
-txtAsset payload =
-  buildUploadAssetRequestBody
-    True
-    (Nothing :: Maybe String)
-    (LBSC.pack payload)
-    textPlainMime
-
-textPlainMime :: MIME.MIMEType
-textPlainMime = MIME.Text $ T.pack "plain"
-
--- This case is a bit special and doesn't fit to MIMEType: We need to define
--- the boundary.
-multipartMixedMime :: String
-multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
 buildUploadAssetRequestBody ::
   (HasCallStack, MakesValue assetRetention) =>

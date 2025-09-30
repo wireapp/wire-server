@@ -58,6 +58,7 @@ module Galley.Effects.TeamStore
     getBillingTeamMembers,
     getTeamAdmins,
     selectTeamMembers,
+    selectTeamMemberInfos,
     selectTeamMembersPaginated,
 
     -- ** Update team members
@@ -87,6 +88,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
+import Wire.API.Team.Member.Info (TeamMemberInfo)
 import Wire.API.Team.Permission
 import Wire.ListItems
 import Wire.Sem.Paging
@@ -113,6 +115,7 @@ data TeamStore m a where
   GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
   GetTeamMembers :: TeamId -> TeamStore m [TeamMember]
   SelectTeamMembers :: TeamId -> [UserId] -> TeamStore m [TeamMember]
+  SelectTeamMemberInfos :: TeamId -> [UserId] -> TeamStore m [TeamMemberInfo]
   SelectTeamMembersPaginated ::
     TeamId ->
     [UserId] ->

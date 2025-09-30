@@ -71,6 +71,7 @@ import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
+import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
@@ -223,6 +224,7 @@ type MiniBackendLowerEffects =
      ActivationCodeStore,
      BlockListStore,
      UserStore,
+     AppStore,
      TeamCollaboratorsStore,
      UserKeyStore,
      IndexedUserStore,
@@ -273,6 +275,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryIndexedUserStoreInterpreter
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
+    . inMemoryAppStoreInterpreter
     . inMemoryUserStoreInterpreter
     . inMemoryBlockListStoreInterpreter
     . inMemoryActivationCodeStoreInterpreter
@@ -292,6 +295,7 @@ type StateEffects =
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
      State [StoredUser],
+     State [StoredApp],
      State UserIndex,
      State (Map EmailKey UserId),
      State [DRS.StoredDomainRegistration],
@@ -308,6 +312,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . evalState []
     . liftUserKeyStoreState
     . liftIndexedUserStoreState
+    . liftAppStoreState
     . liftUserStoreState
     . liftBlockListStoreState
     . liftActivationCodeStoreState
@@ -374,6 +379,7 @@ data MiniBackend = MkMiniBackend
   { -- | this is morally the same as the users stored in the actual backend
     --   invariant: for each key, the user.id and the key are the same
     users :: [StoredUser],
+    apps :: [StoredApp],
     userIndex :: UserIndex,
     userKeys :: Map EmailKey UserId,
     passwordResetCodes :: Map PasswordResetKey (PRQueryData Identity),
@@ -391,6 +397,7 @@ instance Default MiniBackend where
   def =
     MkMiniBackend
       { users = mempty,
+        apps = mempty,
         userIndex = emptyIndex,
         userKeys = mempty,
         passwordResetCodes = mempty,
@@ -667,6 +674,11 @@ liftUserStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredUser] 
 liftUserStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.users)
   Put newUsers -> modify $ \b -> (b :: MiniBackend) {users = newUsers}
+
+liftAppStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredApp] : r) a -> Sem r a
+liftAppStoreState = interpret $ \case
+  Polysemy.State.Get -> gets (.apps)
+  Put newApps -> modify $ \b -> (b :: MiniBackend) {apps = newApps}
 
 liftIndexedUserStoreState :: (Member (State MiniBackend) r) => Sem (State UserIndex : r) a -> Sem r a
 liftIndexedUserStoreState = interpret $ \case

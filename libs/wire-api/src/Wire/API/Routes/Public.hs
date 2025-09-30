@@ -237,6 +237,8 @@ instance (HasOpenApi api) => HasOpenApi (ZHostOpt :> api) where
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
 
+type instance SpecialiseToVersion v (AuthProtect tag :> api) = AuthProtect tag :> SpecialiseToVersion v api
+
 addZAuthSwagger :: OpenApi -> OpenApi
 addZAuthSwagger s =
   s
@@ -257,6 +259,9 @@ instance (HasOpenApi api) => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) w
   toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
 instance (HasOpenApi api) => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
+  toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
+
+instance (HasOpenApi api) => HasOpenApi (AuthProtect _tag :> api) where
   toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
 instance (HasLink endpoint) => HasLink (ZAuthServant usr opts :> endpoint) where

@@ -14,6 +14,7 @@ import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as TM
@@ -26,7 +27,7 @@ import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
-import Wire.UserGroupSubsystem
+import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
@@ -39,15 +40,16 @@ interpretUserGroupSubsystem ::
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
-  CreateGroup creator newGroup -> createUserGroupImpl creator newGroup
-  GetGroup getter gid -> getUserGroupImpl getter gid
+  CreateGroup creator newGroup -> createUserGroup creator newGroup
+  GetGroup getter gid -> getUserGroup getter gid
   GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount ->
-    getUserGroupsImpl getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount
-  UpdateGroup updater groupId groupUpdate -> updateGroupImpl updater groupId groupUpdate
-  DeleteGroup deleter groupId -> deleteGroupImpl deleter groupId
-  AddUser adder groupId addeeId -> addUserImpl adder groupId addeeId
-  AddUsers adder groupId addeeIds -> addUsersImpl adder groupId addeeIds
-  RemoveUser remover groupId removeeId -> removeUserImpl remover groupId removeeId
+    getUserGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount
+  UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
+  DeleteGroup deleter groupId -> deleteGroup deleter groupId
+  AddUser adder groupId addeeId -> addUser adder groupId addeeId
+  AddUsers adder groupId addeeIds -> addUsers adder groupId addeeIds
+  UpdateUsers updater groupId uids -> updateUsers updater groupId uids
+  RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
@@ -62,7 +64,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
 
-createUserGroupImpl ::
+createUserGroup ::
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
@@ -73,7 +75,7 @@ createUserGroupImpl ::
   UserId ->
   NewUserGroup ->
   Sem r UserGroup
-createUserGroupImpl creator newGroup = do
+createUserGroup creator newGroup = do
   let managedBy = ManagedByWire
   team <- getTeamAsAdmin creator >>= note UserGroupNotATeamAdmin
   luids <- qualifyLocal $ toList newGroup.members
@@ -127,7 +129,7 @@ qualifyLocal a = do
   l <- input
   pure $ qualifyAs l a
 
-getUserGroupImpl ::
+getUserGroup ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member TeamSubsystem r
@@ -135,7 +137,7 @@ getUserGroupImpl ::
   UserId ->
   UserGroupId ->
   Sem r (Maybe UserGroup)
-getUserGroupImpl getter gid = runMaybeT $ do
+getUserGroup getter gid = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid
@@ -153,7 +155,7 @@ mkGetterCanSeeAll getter team = do
   creatorTeamMember <- MaybeT $ internalGetTeamMember getter team
   pure . isAdminOrOwner $ creatorTeamMember ^. permissions
 
-getUserGroupsImpl ::
+getUserGroups ::
   forall r.
   ( Member UserSubsystem r,
     Member TeamSubsystem r,
@@ -170,7 +172,7 @@ getUserGroupsImpl ::
   Maybe UserGroupId ->
   Bool ->
   Sem r UserGroupPage
-getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount' = do
+getUserGroups getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount' = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
@@ -185,12 +187,12 @@ getUserGroupsImpl getter searchString sortBy' sortOrder' mPageSize mLastGroupNam
             searchString = searchString,
             includeMemberCount = includeMemberCount'
           }
-  UserGroupPage <$> Store.getUserGroups pageReq
+  Store.getUserGroups pageReq
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
 
-updateGroupImpl ::
+updateGroup ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
@@ -201,7 +203,7 @@ updateGroupImpl ::
   UserGroupId ->
   UserGroupUpdate ->
   Sem r ()
-updateGroupImpl updater groupId groupUpdate = do
+updateGroup updater groupId groupUpdate = do
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
   found <- isJust <$> Store.updateUserGroup team groupId groupUpdate
   if found
@@ -210,7 +212,7 @@ updateGroupImpl updater groupId groupUpdate = do
       pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
     else throw UserGroupNotFound
 
-deleteGroupImpl ::
+deleteGroup ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
@@ -220,7 +222,7 @@ deleteGroupImpl ::
   UserId ->
   UserGroupId ->
   Sem r ()
-deleteGroupImpl deleter groupId =
+deleteGroup deleter groupId =
   getTeamAsMember deleter >>= \case
     Nothing -> throw UserGroupNotFound
     Just (team, member) -> do
@@ -236,7 +238,7 @@ deleteGroupImpl deleter groupId =
         else do
           throw UserGroupNotATeamAdmin
 
-addUserImpl ::
+addUser ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
@@ -247,8 +249,8 @@ addUserImpl ::
   UserGroupId ->
   UserId ->
   Sem r ()
-addUserImpl adder groupId addeeId = do
-  ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
+addUser adder groupId addeeId = do
+  ug <- getUserGroup adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   unless (addeeId `elem` runIdentity ug.members) $ do
@@ -258,7 +260,7 @@ addUserImpl adder groupId addeeId = do
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
-addUsersImpl ::
+addUsers ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
@@ -269,8 +271,8 @@ addUsersImpl ::
   UserGroupId ->
   Vector UserId ->
   Sem r ()
-addUsersImpl adder groupId addeeIds = do
-  ug <- getUserGroupImpl adder groupId >>= note UserGroupNotFound
+addUsers adder groupId addeeIds = do
+  ug <- getUserGroup adder groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   forM_ addeeIds $ \addeeId ->
     internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
@@ -283,7 +285,29 @@ addUsersImpl adder groupId addeeIds = do
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
-removeUserImpl ::
+updateUsers ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Vector UserId ->
+  Sem r ()
+updateUsers updater groupId uids = do
+  void $ getUserGroup updater groupId >>= note UserGroupNotFound
+  team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
+  forM_ uids $ \uid ->
+    internalGetTeamMember uid team >>= note UserGroupMemberIsNotInTheSameTeam
+  Store.updateUsers groupId uids
+  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+  pushNotifications
+    [ mkEvent updater (UserGroupUpdated groupId) admins
+    ]
+
+removeUser ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
@@ -294,8 +318,8 @@ removeUserImpl ::
   UserGroupId ->
   UserId ->
   Sem r ()
-removeUserImpl remover groupId removeeId = do
-  ug <- getUserGroupImpl remover groupId >>= note UserGroupNotFound
+removeUser remover groupId removeeId = do
+  ug <- getUserGroup remover groupId >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   when (removeeId `elem` runIdentity ug.members) $ do

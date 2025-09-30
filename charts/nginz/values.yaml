@@ -62,7 +62,7 @@ nginx_conf:
   #     apiProxy: # (optional)
   #       host: "socks5.proxy.com"
   #       port: 1080
-  #       needsAuthentication: true   
+  #       needsAuthentication: true
 
   disabled_paths:
   - /conversations/last-events
@@ -425,6 +425,9 @@ nginx_conf:
     - path: /teams/([^/]*)/collaborators$
       envs:
       - all
+    - path: /teams/([^/]*)/apps
+      envs:
+      - all
     - path: /teams/([^/]*)/invitations(.*)
       envs:
       - all
@@ -530,6 +533,24 @@ nginx_conf:
     - path: /bot/conversations/(.+)
       envs:
       - all
+    - path: /user-groups$
+      envs:
+        - all
+    - path: /user-groups/([^/]*)
+      envs:
+        - all
+    - path: /user-groups/([^/]*)/users$
+      envs:
+        - all
+    - path: /user-groups/([^/]*)/users/([^/]*)
+      envs:
+        - all
+    - path: /user-groups/([^/]*)/channels$
+      envs:
+        - all
+    - path: /user-groups/check-name$
+      envs:
+        - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -689,6 +710,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /search/channels$
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:

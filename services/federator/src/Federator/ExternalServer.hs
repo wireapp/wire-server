@@ -27,6 +27,7 @@ where
 import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
+import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Sequence qualified as Seq
@@ -60,6 +61,7 @@ import Servant.Server.Generic (AsServerT)
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Endpoint (originIpHeaderName)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.VersionInfo
 
@@ -155,7 +157,17 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
   body <- embed $ Wai.lazyRequestBody wreq
-  let headers = filter ((== versionHeader) . fst) (Wai.requestHeaders wreq)
+  -- Build headers to forward internally: keep only API version and add Wire-Origin-IP if present
+  let reqHeaders = Wai.requestHeaders wreq
+      headersVersion = filter ((== versionHeader) . fst) reqHeaders
+      mFirstIP =
+        lookup "X-Forwarded-For" reqHeaders >>= \xff -> do
+          let fstHdr = BS8.strip $ BS8.takeWhile (/= ',') xff
+          guard (not (BS8.null fstHdr)) $> fstHdr
+      mXReal = lookup "X-Real-IP" reqHeaders
+      mOriginIp = (originIpHeaderName,) <$> (mFirstIP <|> mXReal)
+      -- FUTUREWORK: did we miss passing the request ID header?
+      headers = maybeToList mOriginIp <> headersVersion
   resp <- serviceCall component path headers body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)

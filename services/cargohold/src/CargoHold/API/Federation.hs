@@ -21,12 +21,20 @@ module CargoHold.API.Federation
   )
 where
 
+import CargoHold.API.AuditLog
 import CargoHold.API.Error
 import CargoHold.API.V3
 import CargoHold.App
+import CargoHold.Options
+import CargoHold.S3 (S3AssetMeta)
 import qualified CargoHold.S3 as S3
+import CargoHold.Types.V3 (Principal (UserPrincipal))
 import Control.Error
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain
+import Data.Misc (IpAddr)
+import Data.Qualified (Qualified (Qualified))
+import Data.Text.Encoding (decodeLatin1)
 import Imports
 import Servant.API
 import Servant.Server hiding (Handler)
@@ -42,16 +50,18 @@ federationSitemap =
   Named @"get-asset" getAsset
     :<|> Named @"stream-asset" streamAsset
 
-checkAsset :: F.GetAsset -> Handler Bool
-checkAsset ga =
-  fmap isJust . runMaybeT $
-    checkMetadata Nothing (F.key ga) (F.token ga)
+checkAsset :: Domain -> F.GetAsset -> Handler (Maybe S3AssetMeta)
+checkAsset remote ga =
+  runMaybeT $
+    checkMetadata (Qualified (UserPrincipal ga.user) remote) (F.key ga) (F.token ga)
 
-streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
-streamAsset _ ga = do
-  available <- checkAsset ga
-  unless available (throwE assetNotFound)
+streamAsset :: Domain -> Maybe IpAddr -> F.GetAsset -> Handler AssetSource
+streamAsset remoteDomain remoteIp ga = do
+  meta <- checkAsset remoteDomain ga >>= maybe (throwE assetNotFound) pure
+  whenM (asks (.options.settings.assetAuditLogEnabled)) $ do
+    let pathTxt = decodeLatin1 (toByteString' (S3.mkKey (F.key ga)))
+    logDownload (Just $ Qualified (UserPrincipal ga.user) remoteDomain) remoteIp meta pathTxt
   AssetSource <$> S3.downloadV3 (F.key ga)
 
 getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse
-getAsset _ = fmap F.GetAssetResponse . checkAsset
+getAsset remote ga = F.GetAssetResponse . isJust <$> checkAsset remote ga

@@ -17,6 +17,7 @@
 
 module Brig.Index.Eval
   ( runCommand,
+    initIndex,
   )
 where
 
@@ -155,10 +156,10 @@ throwErrorToIOFinal action = do
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es galley -> do
-    e <- initIndex (es ^. esConnection) galley
+    e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
   Reset es galley -> do
-    e <- initIndex (es ^. esConnection) galley
+    e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
     runSem (es ^. esConnection) cas galley l $
@@ -167,7 +168,7 @@ runCommand l = \case
     runSem (es ^. esConnection) cas galley l $
       IndexedUserStoreBulk.forceSyncAllUsers
   UpdateMapping esConn galley -> do
-    e <- initIndex esConn galley
+    e <- initIndex l esConn galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
     runSem (es ^. esConnection) cas galley l $
@@ -201,28 +202,28 @@ runCommand l = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initIndex :: ESConnectionSettings -> Endpoint -> IO IndexEnv
-    initIndex esConn gly = do
-      mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
-      let esOpts =
-            ElasticSearchOpts
-              { url = toESServer esConn.esServer,
-                index = esConn.esIndex,
-                credentials = esConn.esCredentials,
-                insecureSkipVerifyTls = esConn.esInsecureSkipVerifyTls,
-                caCert = esConn.esCaCert,
-                additionalWriteIndex = Nothing,
-                additionalWriteIndexUrl = Nothing,
-                additionalCredentials = Nothing,
-                additionalInsecureSkipVerifyTls = False,
-                additionalCaCert = Nothing
-              }
-
-      mkIndexEnv esOpts l gly mgr
-
     initES esURI mgr mCreds =
       let env = ES.mkBHEnv (toESServer esURI) mgr
        in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+
+initIndex :: Logger -> ESConnectionSettings -> Endpoint -> IO IndexEnv
+initIndex l esConn gly = do
+  mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
+  let esOpts =
+        ElasticSearchOpts
+          { url = toESServer esConn.esServer,
+            index = esConn.esIndex,
+            credentials = esConn.esCredentials,
+            insecureSkipVerifyTls = esConn.esInsecureSkipVerifyTls,
+            caCert = esConn.esCaCert,
+            additionalWriteIndex = Nothing,
+            additionalWriteIndexUrl = Nothing,
+            additionalCredentials = Nothing,
+            additionalInsecureSkipVerifyTls = False,
+            additionalCaCert = Nothing
+          }
+
+  mkIndexEnv esOpts l gly mgr
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

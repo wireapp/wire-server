@@ -29,6 +29,7 @@ import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll), Route (RouteAny))
 import Wire.API.Team.Member as TM
 import Wire.API.Team.Role
