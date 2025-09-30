@@ -17,14 +17,13 @@
 
 module CargoHold.Federation where
 
-import CargoHold.API.AuditLog
+import CargoHold.API.AuditLog (logDownloadRemoteAsset)
 import CargoHold.App
 import CargoHold.Options
 import Control.Error
 import Control.Exception (throw)
 import Control.Monad.Codensity
 import Data.Id
-import Data.Misc
 import Data.Qualified
 import Imports hiding (head)
 import Servant.API
@@ -67,15 +66,14 @@ downloadRemoteAsset usr rkey tok = do
       fedClient @'Cargohold @"get-asset" ga
   if exists
     then do
-      auditEnabled <- asks (.options.settings.assetAuditLogEnabled)
+      whenM (asks (.options.settings.assetAuditLogEnabled)) $
+        logDownloadRemoteAsset usr (void rkey)
       Just
         <$> executeFederatedStreaming
           rkey
-          ( do
-              (mIp, resp) <- fedClient @'Cargohold @"stream-asset" ga
-              pure (mIp, toSourceIO resp)
+          ( toSourceIO
+              <$> fedClient @'Cargohold @"stream-asset" ga
           )
-          (\mIp -> when auditEnabled $ logDownloadRemoteAsset usr (void rkey) mIp)
     else pure Nothing
 
 mkFederatorClientEnv :: Remote x -> Handler FederatorClientEnv
@@ -103,13 +101,10 @@ executeFederated remote c = do
 
 executeFederatedStreaming ::
   Remote x ->
-  FederatorClient 'Cargohold (Maybe IpAddr, SourceIO ByteString) ->
-  -- hook to run when the optional remote IP is available (used for audit logging)
-  (Maybe IpAddr -> Handler ()) ->
+  FederatorClient 'Cargohold (SourceIO ByteString) ->
   Handler (SourceIO ByteString)
-executeFederatedStreaming remote c onRemoteIp = do
+executeFederatedStreaming remote c = do
   env <- mkFederatorClientEnv remote
-  appEnv <- ask
   -- To clean up resources correctly, we exploit the Codensity wrapper around
   -- StepT to embed the result of @runFederatorClientToCodensity@. This works, but
   -- using this within a Servant handler has the effect of delaying exceptions to
@@ -123,7 +118,4 @@ executeFederatedStreaming remote c onRemoteIp = do
     SourceT $ \k ->
       runCodensity
         (runFederatorClientToCodensity @'Cargohold env c)
-        ( either
-            (throw . federationErrorToWai . FederationCallFailure)
-            (\(mIp, src) -> (runAppT appEnv $ (runExceptT (onRemoteIp mIp))) *> unSourceT src k)
-        )
+        (either (throw . federationErrorToWai . FederationCallFailure) (flip unSourceT k))

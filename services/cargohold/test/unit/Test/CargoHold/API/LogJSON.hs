@@ -17,6 +17,8 @@
 
 module Test.CargoHold.API.LogJSON
   ( withStructuredJSONLogger,
+    lookupText,
+    lookupBool,
   )
 where
 
@@ -24,6 +26,8 @@ import qualified Control.Concurrent as CC
 import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
 import Data.Aeson (Value)
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import qualified GHC.IO.Handle as IOH
@@ -91,3 +95,15 @@ withStructuredJSONLogger action = bracket acquire release use
               Just v -> drain (v : acc)
       logs <- drain []
       pure (r, logs)
+
+lookupText :: Text -> Value -> Maybe Text
+lookupText k (A.Object o) = case KM.lookup (Key.fromText k) o of
+  Just (A.String t) -> Just t
+  _ -> Nothing
+lookupText _ _ = Nothing
+
+lookupBool :: Text -> Value -> Maybe Bool
+lookupBool k (A.Object o) = case KM.lookup (Key.fromText k) o of
+  Just (A.Bool b) -> Just b
+  _ -> Nothing
+lookupBool _ _ = Nothing

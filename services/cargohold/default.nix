@@ -177,7 +177,6 @@ mkDerivation {
     aeson
     base
     bytestring
-    bytestring-conversion
     cargohold-types
     extended
     imports

@@ -127,7 +127,6 @@ requestBrigSuccess =
             { Wai.requestHeaders =
                 ("Invalid-Header", "foo")
                   : ("X-Wire-API-Version", "v0")
-                  : ("X-Forwarded-For", "<first-ip>, <second-ip>")
                   : Wai.requestHeaders request0
             }
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
@@ -153,14 +152,7 @@ requestBrigSuccess =
         $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request (saveResponse resRef)
 
     Just res <- readIORef resRef
-    let expectedCall =
-          Call
-            { cComponent = Brig,
-              cPath = "/federation/get-user-by-handle",
-              cHeaders = [("Wire-Origin-IP", "<first-ip>"), ("X-Wire-API-Version", "v0")],
-              cBody = "\"foo\"",
-              cDomain = aValidDomain
-            }
+    let expectedCall = Call Brig "/federation/get-user-by-handle" [("X-Wire-API-Version", "v0")] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res

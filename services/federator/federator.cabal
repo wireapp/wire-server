@@ -134,7 +134,6 @@ library
     , metrics-core
     , metrics-wai
     , mtl
-    , network
     , pem
     , polysemy
     , polysemy-wire-zoo
