@@ -28,7 +28,6 @@ import Galley.API.Push
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Imports
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog hiding (trace)
@@ -98,7 +97,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
 
   -- send to remotes
   void $
-    enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems) $
+    enqueueNotificationsConcurrently (map remoteMemberQualify rmems) $
       \rs ->
         fedQueueClient
           @'OnMLSMessageSentTag

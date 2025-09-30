@@ -448,7 +448,7 @@ rmUser lusr conn = do
                 action = SomeConversationAction (sing @'ConversationLeaveTag) (),
                 extraConversationData = def
               }
-      enqueueNotification Q.Persistent remotes $ do
+      enqueueNotification remotes $ do
         makeConversationUpdateBundle convUpdate
           >>= sendBundle
 
@@ -457,7 +457,7 @@ rmUser lusr conn = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = fedQueueClient @'OnUserDeletedConversationsTag userDelete
-        enqueueNotification Q.Persistent remoteConvs rpc
+        enqueueNotification remoteConvs rpc
 
 deleteLoop :: App ()
 deleteLoop = do

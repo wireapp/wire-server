@@ -60,7 +60,6 @@ import Galley.Effects.TeamStore
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
-import Network.AMQP qualified as Q
 import Polysemy hiding (send)
 import Polysemy.Error
 import Polysemy.Input
@@ -697,7 +696,7 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages =
               transient = mmTransient metadata,
               recipients = UserClientMap rcpts
             }
-    enqueueNotification Q.Persistent domain (fedQueueClient @'OnMessageSentTag rm)
+    enqueueNotification domain (fedQueueClient @'OnMessageSentTag rm)
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
     handle (Right _) = pure mempty

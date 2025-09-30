@@ -58,7 +58,6 @@ import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports hiding (forkIO)
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -1005,7 +1004,7 @@ registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable
           )
           joined
 
-  void $ enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
+  void $ enqueueNotificationsConcurrentlyBuckets joinedCoupled $ \z ->
     makeConversationUpdateBundle (convUpdateJoin z) >>= sendBundle
   where
     creator :: Maybe UserId

@@ -35,7 +35,6 @@ import Galley.Effects.ClientStore qualified as E
 import Galley.Env
 import Galley.Types.Clients (clientIds)
 import Imports
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -124,4 +123,4 @@ rmClient usr cid = do
               fedQueueClient
                 @'OnClientRemovedTag
                 (ClientRemovedRequest usr cid (tUnqualified remoteConvs))
-         in enqueueNotification Q.Persistent remoteConvs rpc
+         in enqueueNotification remoteConvs rpc

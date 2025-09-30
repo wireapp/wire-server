@@ -7,7 +7,6 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Imports hiding ((\\))
-import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -61,7 +60,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action extr
           }
   update <-
     fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified) $
-      enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets)) $
+      enqueueNotificationsConcurrently (toList (bmRemotes targets)) $
         \ruids -> do
           let update = mkUpdate (tUnqualified ruids)
           -- if notifyOrigDomain is false, filter out user from quid's domain,
