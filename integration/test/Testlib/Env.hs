@@ -190,7 +190,7 @@ mkEnv currentTestName ge = do
           apiVersionByDomain =
             Map.fromList
               [ (gDomain1 ge, 11),
-                (gDomain1 ge, 11),
+                (gDomain2 ge, 11),
                 (gFederationV0Domain ge, 4),
                 (gFederationV1Domain ge, 5),
                 (gFederationV2Domain ge, 8)
