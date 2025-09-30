@@ -122,6 +122,7 @@ config:
   shardingGroupCount: 1
   shardingGroup: 0
   maxUserNo: 1000
+  maxDeliveryDelay: 120
 tls:
   verify_depth: 1
   # Namespace from which to obtain the secret containing the CA trusted by

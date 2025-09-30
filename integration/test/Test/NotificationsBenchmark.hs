@@ -93,10 +93,11 @@ sendAndReceive userNo userMap = do
 
   void $ postPush alice [push] >>= getBody 200
 
+  messageDeliveryTimeout <- asks $ fromIntegral . (.maxDeliveryDelay)
   forM_ (testRecipient.clientIds) $ \(cid :: String) ->
     runCodensity (TestEvents.createEventsWebSocket alice (Just cid)) $ \ws -> do
       -- TODO: Tweak this value to the least acceptable event delivery duration
-      local (setTimeoutTo 120) $ TestEvents.assertFindsEvent ws $ \e -> do
+      local (setTimeoutTo messageDeliveryTimeout) $ TestEvents.assertFindsEvent ws $ \e -> do
         receivedAt <- liftIO getCurrentTime
         sentAt :: UTCTime <- (e %. "payload.sent_at" >>= asByteString) <&> fromJust . decode . cs
         print $ "Message sent/receive delta: " ++ show (diffUTCTime receivedAt sentAt)

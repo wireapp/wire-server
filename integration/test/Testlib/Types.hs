@@ -147,7 +147,8 @@ data GlobalEnv = GlobalEnv
     gCellsEventWatchers :: IORef (Map String QueueWatcher),
     gShardingGroupCount :: Word,
     gShardingGroup :: Word,
-    gMaxUserNo :: Word
+    gMaxUserNo :: Word,
+    gMaxDeliveryDelay :: Word
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -165,7 +166,8 @@ data IntegrationConfig = IntegrationConfig
     dnsMockServer :: DNSMockServerConfig,
     cellsEventQueue :: String,
     shardingGroupCount :: Word,
-    maxUserNo :: Word
+    maxUserNo :: Word,
+    maxDeliveryDelay :: Word
   }
   deriving (Show, Generic)
 
@@ -188,6 +190,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "cellsEventQueue"
         <*> o .: fromString "shardingGroupCount"
         <*> o .: fromString "maxUserNo"
+        <*> o .: fromString "maxDeliveryDelay"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -281,7 +284,8 @@ data Env = Env
     cellsEventWatchers :: IORef (Map String QueueWatcher),
     shardingGroupCount :: Word,
     shardingGroup :: Word,
-    maxUserNo :: Word
+    maxUserNo :: Word,
+    maxDeliveryDelay :: Word
   }
 
 data Response = Response

@@ -333,3 +333,4 @@ cellsEventQueue: cells_events
 
 shardingGroupCount: 1
 maxUserNo: 1000
+maxDeliveryDelay: 120

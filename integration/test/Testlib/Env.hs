@@ -148,7 +148,8 @@ mkGlobalEnv cfgFile shardingGroup = do
         gCellsEventWatchers,
         gShardingGroupCount = intConfig.shardingGroupCount,
         gShardingGroup = shardingGroup,
-        gMaxUserNo = intConfig.maxUserNo
+        gMaxUserNo = intConfig.maxUserNo,
+        gMaxDeliveryDelay = intConfig.maxDeliveryDelay
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -209,7 +210,8 @@ mkEnv currentTestName ge = do
           cellsEventWatchers = ge.gCellsEventWatchers,
           shardingGroupCount = ge.gShardingGroupCount,
           shardingGroup = ge.gShardingGroup,
-          maxUserNo = ge.gMaxUserNo
+          maxUserNo = ge.gMaxUserNo,
+          maxDeliveryDelay = ge.gMaxDeliveryDelay
         }
 
 allCiphersuites :: [Ciphersuite]
