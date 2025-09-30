@@ -1,4 +1,9 @@
 {-# LANGUAGE BlockArguments #-}
+-- NOTE: This file needs substantial rework for NATS
+-- RabbitMQ consumer logic (Q.consumeMsgs, Q.ConsumerTag, etc.) 
+-- needs to be replaced with NATS subscription logic
+-- NATS.subscribe returns a subscription ID, and messages are received differently
+-- TODO: Implement NATS-based message consumption
 {-# LANGUAGE RecordWildCards #-}
 
 module Wire.BackendNotificationPusher where
@@ -15,10 +20,10 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Imports
-import Network.AMQP qualified as Q
-import Network.AMQP.Extended
-import Network.AMQP.Lifted qualified as QL
-import Network.AMQP.Types qualified as QL
+import Network.NATS.Client qualified as NATS
+import Network.NATS.Extended
+
+
 import Network.RabbitMqAdmin hiding (adminClient)
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import Network.Wai.Utilities.Error

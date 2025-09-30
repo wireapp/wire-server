@@ -1,4 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+-- NOTE: This file needs substantial rework for NATS
+-- RabbitMQ consumer logic (Q.consumeMsgs, Q.ConsumerTag, etc.) 
+-- needs to be replaced with NATS subscription logic
+-- NATS.subscribe returns a subscription ID, and messages are received differently
+-- TODO: Implement NATS-based message consumption
 
 module Cannon.RabbitMq
   ( RabbitMqPoolException (..),
@@ -32,8 +37,8 @@ import Data.Text qualified as T
 import Data.Timeout
 import Data.Unique
 import Imports hiding (threadDelay)
-import Network.AMQP qualified as Q
-import Network.AMQP.Extended
+import Network.NATS.Client qualified as Q
+import Network.NATS.Client.Extended
 import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO (pooledMapConcurrentlyN_)
@@ -68,7 +73,7 @@ data RabbitMqPool = RabbitMqPool
 data RabbitMqPoolOptions = RabbitMqPoolOptions
   { maxConnections :: Int,
     maxChannels :: Int,
-    endpoint :: AmqpEndpoint,
+    endpoint :: NatsEndpoint,
     retryEnabled :: Bool
   }
 

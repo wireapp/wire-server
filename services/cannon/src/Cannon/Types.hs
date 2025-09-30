@@ -1,4 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- NOTE: This file needs substantial rework for NATS
+-- RabbitMQ consumer logic (Q.consumeMsgs, Q.ConsumerTag, etc.) 
+-- needs to be replaced with NATS subscription logic
+-- NATS.subscribe returns a subscription ID, and messages are received differently
+-- TODO: Implement NATS-based message consumption
 
 -- This file is part of the Wire Server implementation.
 --
@@ -46,8 +51,8 @@ import Data.Id
 import Data.Text.Encoding
 import Data.Unique
 import Imports
-import Network.AMQP qualified as Q
-import Network.AMQP.Extended (AmqpEndpoint)
+import Network.NATS.Client qualified as Q
+import Network.NATS.Client.Extended (NatsEndpoint)
 import Prometheus
 import Servant qualified
 import System.Logger qualified as Logger
@@ -108,7 +113,7 @@ mkEnv ::
   Manager ->
   GenIO ->
   Clock ->
-  AmqpEndpoint ->
+  NatsEndpoint ->
   Codensity IO Env
 mkEnv external o cs l d conns p g t endpoint = do
   let poolOpts =

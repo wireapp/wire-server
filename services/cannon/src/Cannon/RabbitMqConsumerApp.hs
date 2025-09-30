@@ -1,4 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+-- NOTE: This file needs substantial rework for NATS
+-- RabbitMQ consumer logic (Q.consumeMsgs, Q.ConsumerTag, etc.) 
+-- needs to be replaced with NATS subscription logic
+-- NATS.subscribe returns a subscription ID, and messages are received differently
+-- TODO: Implement NATS-based message consumption
 
 module Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp) where
 
@@ -18,8 +23,8 @@ import Data.Text qualified as Text
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
 import Imports hiding (min, threadDelay)
-import Network.AMQP (newQueue)
-import Network.AMQP qualified as Q
+import Network.NATS.Client (newQueue)
+import Network.NATS.Client qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection

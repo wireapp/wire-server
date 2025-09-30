@@ -1,4 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- NOTE: This file needs substantial rework for NATS
+-- RabbitMQ consumer logic (Q.consumeMsgs, Q.ConsumerTag, etc.) 
+-- needs to be replaced with NATS subscription logic
+-- NATS.subscribe returns a subscription ID, and messages are received differently
+-- TODO: Implement NATS-based message consumption
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -72,7 +77,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.Unique
 import Imports hiding (threadDelay)
-import Network.AMQP qualified as Q
+import Network.NATS.Client qualified as Q
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
