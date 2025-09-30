@@ -34,7 +34,7 @@ import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Hasql.Pool
 import Imports
-import Network.AMQP qualified as Q
+import Network.NATS.Client qualified as NATS
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
@@ -65,7 +65,7 @@ data Env = Env
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
-    _rabbitmqChannel :: Maybe (MVar Q.Channel),
+    _natsChannel :: Maybe (MVar NATS.NatsChannel),
     _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
     _passwordHashingRateLimitEnv :: RateLimitEnv
   }

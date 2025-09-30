@@ -14,7 +14,7 @@ import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Imports
-import Network.AMQP qualified as Q
+import Network.NATS.Client qualified as NATS
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
@@ -31,21 +31,21 @@ interpretBackendNotificationQueueAccess ::
   Sem (BackendNotificationQueueAccess ': r) a ->
   Sem r a
 interpretBackendNotificationQueueAccess = interpret $ \case
-  EnqueueNotification deliveryMode remote action -> do
+  EnqueueNotification remote action -> do
     logEffect "BackendNotificationQueueAccess.EnqueueNotification"
-    embedApp . runExceptT $ enqueueNotification deliveryMode (tDomain remote) action
-  EnqueueNotificationsConcurrently m xs rpc -> do
+    embedApp . runExceptT $ enqueueNotification (tDomain remote) action
+  EnqueueNotificationsConcurrently xs rpc -> do
     logEffect "BackendNotificationQueueAccess.EnqueueNotificationsConcurrently"
-    embedApp . runExceptT $ enqueueNotificationsConcurrently m xs rpc
-  EnqueueNotificationsConcurrentlyBuckets m xs rpc -> do
+    embedApp . runExceptT $ enqueueNotificationsConcurrently xs rpc
+  EnqueueNotificationsConcurrentlyBuckets xs rpc -> do
     logEffect "BackendNotificationQueueAccess.EnqueueNotificationsConcurrentlyBuckets"
-    embedApp . runExceptT $ enqueueNotificationsConcurrentlyBuckets m xs rpc
+    embedApp . runExceptT $ enqueueNotificationsConcurrentlyBuckets xs rpc
 
-getChannel :: ExceptT FederationError App (MVar Q.Channel)
-getChannel = view rabbitmqChannel >>= maybe (throwE FederationNotConfigured) pure
+getChannel :: ExceptT FederationError App (MVar NATS.NatsChannel)
+getChannel = view natsChannel >>= maybe (throwE FederationNotConfigured) pure
 
-enqueueSingleNotification :: Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c a -> App a
-enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
+enqueueSingleNotification :: Domain -> MVar NATS.NatsChannel -> FedQueueClient c a -> App a
+enqueueSingleNotification remoteDomain chanVar action = do
   ownDomain <- view (options . settings . federationDomain)
   let policy = limitRetries 3 <> constantDelay 1_000_000
       handlers =
@@ -56,7 +56,7 @@ enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
     logError willRetry (SomeException e) status = do
       rid <- view reqId
       Log.err $
-        Log.msg @Text "failed to enqueue notification in RabbitMQ"
+        Log.msg @Text "failed to enqueue notification in NATS"
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
@@ -65,31 +65,29 @@ enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
       rid <- view reqId
       mChan <- timeout 1_000_000 (readMVar chanVar)
       case mChan of
-        Nothing -> throwM NoRabbitMqChannel
+        Nothing -> throwM NoNatsChannel
         Just chan -> do
-          liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
+          liftIO $ enqueue chan rid ownDomain remoteDomain action
 
-enqueueNotification :: Q.DeliveryMode -> Domain -> FedQueueClient c a -> ExceptT FederationError App a
-enqueueNotification deliveryMode remoteDomain action = do
+enqueueNotification :: Domain -> FedQueueClient c a -> ExceptT FederationError App a
+enqueueNotification remoteDomain action = do
   chanVar <- getChannel
-  lift $ enqueueSingleNotification remoteDomain deliveryMode chanVar action
+  lift $ enqueueSingleNotification remoteDomain chanVar action
 
 enqueueNotificationsConcurrently ::
   (Foldable f, Functor f) =>
-  Q.DeliveryMode ->
   f (Remote x) ->
   (Remote [x] -> FedQueueClient c a) ->
   ExceptT FederationError App [Remote a]
-enqueueNotificationsConcurrently m xs f =
-  enqueueNotificationsConcurrentlyBuckets m (bucketRemote xs) f
+enqueueNotificationsConcurrently xs f =
+  enqueueNotificationsConcurrentlyBuckets (bucketRemote xs) f
 
 enqueueNotificationsConcurrentlyBuckets ::
   (Foldable f) =>
-  Q.DeliveryMode ->
   f (Remote x) ->
   (Remote x -> FedQueueClient c a) ->
   ExceptT FederationError App [Remote a]
-enqueueNotificationsConcurrentlyBuckets m xs f = do
+enqueueNotificationsConcurrentlyBuckets xs f = do
   case toList xs of
     -- only attempt to get a channel if there is at least one notification to send
     [] -> pure []
@@ -97,9 +95,9 @@ enqueueNotificationsConcurrentlyBuckets m xs f = do
       chanVar <- getChannel
       lift $ pooledForConcurrentlyN 8 (toList xs) $ \r ->
         qualifyAs r
-          <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
+          <$> enqueueSingleNotification (tDomain r) chanVar (f r)
 
-data NoRabbitMqChannel = NoRabbitMqChannel
+data NoNatsChannel = NoNatsChannel
   deriving (Show)
 
-instance Exception NoRabbitMqChannel
+instance Exception NoNatsChannel
