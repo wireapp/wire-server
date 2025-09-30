@@ -317,35 +317,26 @@ services:
     networks:
       - demo_wire
 
-  rabbitmq:
-    container_name: rabbitmq
-    image: rabbitmq:4.1.4-management-alpine
+  nats:
+    container_name: nats
+    image: nats:2.10-alpine
+    command: >
+      -js
+      -m 8222
     environment:
-      - RABBITMQ_USERNAME
-      - RABBITMQ_PASSWORD
+      - NATS_USERNAME=${NATS_USERNAME:-guest}
+      - NATS_PASSWORD=${NATS_PASSWORD:-guest}
     ports:
-      - "127.0.0.1:5671:5671"
-      - "127.0.0.1:15671:15671"
-      - "127.0.0.1:15672:15672"
-    volumes:
-      - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/20-wire.conf
-      - ./rabbitmq-config/certificates:/etc/rabbitmq/certificates
+      - "127.0.0.1:4222:4222"  # NATS client port
+      - "127.0.0.1:8222:8222"  # NATS monitoring port
+      - "127.0.0.1:6222:6222"  # NATS cluster port
     networks:
       - demo_wire
-
-  init_vhosts:
-    image: alpine/curl:3.14
-    environment:
-      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
-    depends_on:
-      - rabbitmq
-    entrypoint: /scripts/init_vhosts.sh
-    volumes:
-      - ./:/scripts
-      - ./rabbitmq-config/certificates/ca.pem:/etc/rabbitmq-ca.pem
-    networks:
-      - demo_wire
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # FIXME: replace aws_cli with an image that we build.
   aws_cli:

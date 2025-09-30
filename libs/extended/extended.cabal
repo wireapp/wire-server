@@ -22,6 +22,8 @@ library
     Data.Time.Clock.DiffTime
     Hasql.Pool.Extended
     Network.AMQP.Extended
+    Network.NATS.Client
+    Network.NATS.Extended
     Network.RabbitMqAdmin
     Servant.API.Extended
     Servant.API.Extended.Endpath
@@ -97,6 +99,8 @@ library
     , imports
     , metrics-wai
     , monad-control
+    , network
+    , random
     , retry
     , servant
     , servant-client

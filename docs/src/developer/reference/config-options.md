@@ -1579,6 +1579,41 @@ gundeck:
       insecureSkipVerifyTls: true
 ```
 
+## Configure Messaging (NATS)
+
+**Note:** Wire server is migrating from RabbitMQ to NATS. This section documents the new NATS configuration.
+
+NATS authentication must be configured on brig, galley, gundeck, cannon, and background-worker. For example:
+
+```yaml
+nats:
+  host: localhost
+  port: 4222
+  namespace: ""  # Optional subject prefix
+  adminHost: localhost
+  adminPort: 8222 # for background-worker
+```
+
+The `adminHost` and `adminPort` settings are only needed by background-worker for monitoring.
+
+### Environment Variables
+
+NATS credentials are read from environment variables:
+
+```bash
+export NATS_USERNAME=guest
+export NATS_PASSWORD=guest
+```
+
+### Migration from RabbitMQ
+
+If you are migrating from RabbitMQ, note the following changes:
+
+1. **Subject-based routing**: NATS uses subjects instead of exchanges/queues
+2. **No vHost**: NATS uses a `namespace` prefix instead
+3. **Simpler configuration**: Fewer options needed
+4. **Different port**: Default is 4222 instead of 5672
+
 ## Configure RabbitMQ
 
 RabbitMQ authentication must be configured on brig, galley and background-worker. For example:
