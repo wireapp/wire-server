@@ -43,8 +43,8 @@ import Gundeck.React
 import Gundeck.Schema.Run (lastSchemaVersion)
 import Gundeck.ThreadBudget
 import Imports
-import Network.AMQP
-import Network.AMQP.Types
+import Network.NATS.Client qualified as NATS
+import Network.NATS.Extended qualified as NATS
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
@@ -97,38 +97,9 @@ run opts = withTracer \tracer -> do
     setUpRabbitMqExchangesAndQueues = do
       chan <- getRabbitMqChan
       MonadLogger.info $ Log.msg (Log.val "setting up RabbitMQ exchanges and queues")
-      liftIO $ createUserNotificationsExchange chan
-      liftIO $ createDeadUserNotificationsExchange chan
-      liftIO $ createCellsNotificationsQueue chan
-
-    createUserNotificationsExchange :: Channel -> IO ()
-    createUserNotificationsExchange chan = do
-      declareExchange chan newExchange {exchangeName = userNotificationExchangeName, exchangeType = "direct"}
-
-    createDeadUserNotificationsExchange :: Channel -> IO ()
-    createDeadUserNotificationsExchange chan = do
-      declareExchange chan newExchange {exchangeName = userNotificationDlxName, exchangeType = "direct"}
-
-      let routingKey = userNotificationDlqName
-      void $
-        declareQueue
-          chan
-          newQueue
-            { queueName = userNotificationDlqName,
-              queueHeaders = FieldTable $ Map.fromList [("x-queue-type", FVString "quorum")]
-            }
-      bindQueue chan userNotificationDlqName userNotificationDlxName routingKey
-
-    createCellsNotificationsQueue :: Channel -> IO ()
-    createCellsNotificationsQueue chan = for_
-      (opts ^. (settings . cellsEventQueue))
-      $ \name ->
-        declareQueue
-          chan
-          newQueue
-            { queueName = name,
-              queueHeaders = FieldTable $ Map.fromList [("x-queue-type", FVString "quorum")]
-            }
+      -- NATS doesn't require upfront exchange/queue declarations
+      -- Subjects are created dynamically when publishers/subscribers connect
+      pure ()
 
     middleware :: Env -> IO Middleware
     middleware env = do

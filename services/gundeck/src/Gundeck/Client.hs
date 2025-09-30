@@ -24,7 +24,7 @@ import Gundeck.Notification.Data qualified as Notifications
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
-import Network.AMQP
+import Network.NATS.Client qualified as NATS
 import Wire.API.Notification
 
 unregister :: UserId -> ClientId -> Gundeck ()
@@ -42,16 +42,12 @@ removeUser user = do
   Notifications.deleteAll user
 
 setupConsumableNotifications ::
-  Channel ->
+  NATS.NatsChannel ->
   UserId ->
   ClientId ->
   IO Text
 setupConsumableNotifications chan uid cid = do
   let qName = clientNotificationQueueName uid cid
-  void $
-    declareQueue
-      chan
-      (queueOpts qName)
-  for_ [userRoutingKey uid, clientRoutingKey uid cid] $
-    bindQueue chan qName userNotificationExchangeName
+  -- NATS subscriptions are created dynamically when clients connect
+  -- No need to declare queues upfront like in RabbitMQ
   pure qName

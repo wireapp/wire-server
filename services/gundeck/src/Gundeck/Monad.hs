@@ -32,7 +32,7 @@ module Gundeck.Monad
     runDirect,
     runGundeck,
     posixTime,
-    getRabbitMqChan,
+    getNatsChan,
 
     -- * Select which redis to target
     runWithDefaultRedis,
@@ -57,7 +57,7 @@ import Database.Redis qualified as Redis
 import Gundeck.Env
 import Gundeck.Redis qualified as Redis
 import Imports
-import Network.AMQP
+import Network.NATS.Client qualified as NATS
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities.Error
@@ -208,12 +208,12 @@ posixTime = view time >>= liftIO
 msToUTCSecs :: Milliseconds -> UTCTime
 msToUTCSecs = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
 
-getRabbitMqChan :: Gundeck Channel
-getRabbitMqChan = do
-  chanMVar <- view rabbitMqChannel
+getNatsChan :: Gundeck NATS.NatsChannel
+getNatsChan = do
+  chanMVar <- view natsChannel
   mChan <- liftIO $ System.Timeout.timeout 1_000_000 $ readMVar chanMVar
   case mChan of
     Nothing -> do
-      Log.err $ Log.msg (Log.val "Could not retrieve RabbitMQ channel")
-      throwM $ mkError status500 "internal-server-error" "Could not retrieve RabbitMQ channel"
+      Log.err $ Log.msg (Log.val "Could not retrieve NATS channel")
+      throwM $ mkError status500 "internal-server-error" "Could not retrieve NATS channel"
     Just chan -> pure chan

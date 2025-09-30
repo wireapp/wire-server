@@ -63,8 +63,8 @@ import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
 import Gundeck.Util
 import Imports
-import Network.AMQP (Message (..))
-import Network.AMQP qualified as Q
+import Network.NATS.Client qualified as NATS
+import Network.NATS.Client (NatsMessage (..))
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
@@ -97,7 +97,7 @@ class (MonadThrow m) => MonadPushAll m where
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
-  mpaPublishToRabbitMq :: Text -> Text -> Q.Message -> m ()
+  mpaPublishToNats :: Text -> NATS.NatsMessage -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
@@ -110,12 +110,12 @@ instance MonadPushAll Gundeck where
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
   mpaGetClients = getClients
-  mpaPublishToRabbitMq = publishToRabbitMq
+  mpaPublishToNats = publishToNats
 
-publishToRabbitMq :: Text -> Text -> Q.Message -> Gundeck ()
-publishToRabbitMq exchangeName routingKey qMsg = do
-  chan <- getRabbitMqChan
-  void $ liftIO $ Q.publishMsg chan exchangeName routingKey qMsg
+publishToNats :: Text -> NATS.NatsMessage -> Gundeck ()
+publishToNats subject natsMsg = do
+  chan <- getNatsChan
+  void $ liftIO $ NATS.publish chan subject (NATS.msgBody natsMsg)
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -292,7 +292,7 @@ pushAllViaRabbitMq newNotifs userClientsFull = do
 pushViaRabbitMq :: (MonadPushAll m) => NewNotification -> m ()
 pushViaRabbitMq newNotif = do
   qMsg <- mkMessage newNotif.nnNotification
-  let routingKeys =
+  let subjects =
         Set.unions $
           flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
             case r._recipientClients of
@@ -300,8 +300,8 @@ pushViaRabbitMq newNotif = do
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
                 Set.fromList $ map (clientRoutingKey r._recipientId) cs
-  for_ routingKeys $ \routingKey ->
-    mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
+  for_ subjects $ \subject ->
+    mpaPublishToNats subject qMsg
 
 pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m ()
 pushAllToCells newNotifs = do
@@ -317,41 +317,20 @@ pushAllToCells newNotifs = do
 pushToCells :: (MonadPushAll m) => Text -> NewNotification -> m ()
 pushToCells queue newNotif = do
   qMsg <- mkMessage newNotif.nnNotification
-  mpaPublishToRabbitMq "" queue qMsg
+  mpaPublishToNats queue qMsg
 
-mkMessage :: (MonadPushAll m) => Notification -> m Message
+mkMessage :: (MonadPushAll m) => Notification -> m NATS.NatsMessage
 mkMessage notif = do
   NotificationTTL ttl <- mpaNotificationTTL
   pure $
-    Q.newMsg
-      { msgBody =
+    NATS.NatsMessage
+      { NATS.msgSubject = "",  -- Will be set by caller
+        NATS.msgBody =
           Aeson.encode
             . queuedNotification notif.ntfId
             $ toNonEmpty notif.ntfPayload,
-        msgContentType = Just "application/json",
-        msgDeliveryMode =
-          -- Non-persistent messages never hit the disk and so do not
-          -- survive RabbitMQ node restarts, this is great for transient
-          -- notifications.
-          Just
-            ( if notif.ntfTransient
-                then Q.NonPersistent
-                else Q.Persistent
-            ),
-        msgExpiration =
-          Just
-            ( if notif.ntfTransient
-                then
-                  ( -- Means that if there is no active consumer, this
-                    -- message will never be delivered to anyone. It can
-                    -- still take some time before RabbitMQ forgets about
-                    -- this message because the expiration is only
-                    -- considered for messages which are at the head of a
-                    -- queue. See docs: https://www.rabbitmq.com/docs/ttl
-                    "0"
-                  )
-                else showT $ fromIntegral ttl # Second #> MilliSecond
-            )
+        NATS.msgReplyTo = Nothing,
+        NATS.msgHeaders = Map.empty
       }
 
 -- | A new notification to be stored in C* and pushed over websockets
