@@ -1,0 +1,96 @@
+# Example NATS configuration for Wire services
+#
+# This file shows how to configure Wire services to use NATS
+# instead of RabbitMQ for messaging.
+
+# Gundeck configuration
+gundeck:
+  settings:
+    # NATS configuration replaces rabbitmq configuration
+    nats:
+      host: nats.example.com
+      port: 4222
+      namespace: "wire"  # Optional: prefix all subjects with "wire."
+    
+    # Optional: Keep for backward compatibility during migration
+    # rabbitmq:
+    #   host: rabbitmq.example.com
+    #   port: 5672
+    #   vHost: /
+
+# Cannon configuration
+cannon:
+  # NATS configuration
+  nats:
+    host: nats.example.com
+    port: 4222
+    namespace: "wire"
+
+# Background Worker configuration
+background-worker:
+  nats:
+    host: nats.example.com
+    port: 4222
+    namespace: "wire"
+    # Admin endpoints for monitoring
+    adminHost: nats.example.com
+    adminPort: 8222
+
+# Brig configuration
+brig:
+  nats:
+    host: nats.example.com
+    port: 4222
+    namespace: "wire"
+
+# Galley configuration
+galley:
+  nats:
+    host: nats.example.com
+    port: 4222
+    namespace: "wire"
+
+# Environment variables (alternative to config file)
+# export NATS_USERNAME=wire-server
+# export NATS_PASSWORD=secure-password
+# export NATS_HOST=nats.example.com
+# export NATS_PORT=4222
+
+---
+# For Kubernetes/Helm deployments
+
+# values.yaml example:
+nats:
+  enabled: true
+  host: wire-nats
+  port: 4222
+  namespace: "wire"
+  
+  # Connection credentials (from secret)
+  auth:
+    username: wire-server
+    passwordSecret:
+      name: nats-credentials
+      key: password
+
+# NATS Helm chart values (if using NATS Helm chart)
+nats:
+  nats:
+    jetstream:
+      enabled: true
+      memoryStore:
+        enabled: true
+        maxSize: 1Gi
+      fileStore:
+        enabled: true
+        size: 10Gi
+  
+  auth:
+    enabled: true
+    basic:
+      username: wire-server
+      password: changeme  # Use sealed secrets in production!
+  
+  monitoring:
+    enabled: true
+    port: 8222
