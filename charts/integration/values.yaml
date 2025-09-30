@@ -119,8 +119,8 @@ config:
   sesEndpointUrl: http://fake-aws-ses:4569
   s3EndpointUrl: http://fake-aws-s3:9000
   rabbitmqPutVHostUrl: http://rabbitmq:15672/api/vhosts
-  shardingGroupCount: 1
   shardingGroup: 0
+  shardingGroupCount: 3
   maxUserNo: 1000
   maxDeliveryDelay: 120
 tls:

@@ -123,11 +123,12 @@ spec:
         cpu: "2"
 
   containers:
-  - name: integration
-    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        {{- if eq (include "includeSecurityContext" .) "true" }}
+  {{- range $i := until (int .Values.config.shardingGroupCount) }}
+  - name: "integration-{{ int $i}}"
+    image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" $) "true" }}
     securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+      {{- toYaml $.Values.podSecurityContext | nindent 6 }}
         {{- end }}
     command:
     - /bin/bash
@@ -135,13 +136,13 @@ spec:
     - |
       set -euo pipefail
 
-      if TEST_INCLUDE=testBench integration --config /etc/wire/integration/integration.yaml --sharding-group {{ .Values.config.shardingGroup }}; then
+      if TEST_INCLUDE=testBench integration --config /etc/wire/integration/integration.yaml --sharding-group {{ $i }}; then
         exit_code=$?
       else
         exit_code=$?
       fi
 
-      {{- if .Values.config.uploadXml }}
+      {{- if $.Values.config.uploadXml }}
       # In case a different S3 compliant storage is used to upload test result.
       if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
         export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
@@ -193,7 +194,7 @@ spec:
     - name: nginz-secrets
       mountPath: /etc/wire/nginz/secrets
 
-    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    {{- if eq (include "useCassandraTLS" $.Values.config) "true" }}
     - name: "integration-cassandra"
       mountPath: "/certs"
 
@@ -228,14 +229,14 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
-    {{- if hasKey .Values.secrets "redisUsername" }}
+    {{- if hasKey $.Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:
         secretKeyRef:
           name: integration
           key: redisUsername
     {{- end }}
-    {{- if hasKey .Values.secrets "redisPassword" }}
+    {{- if hasKey $.Values.secrets "redisPassword" }}
     - name: REDIS_PASSWORD
       valueFrom:
         secretKeyRef:
@@ -244,10 +245,10 @@ spec:
     {{- end }}
     - name: TEST_XML
       value: /tmp/result.xml
-    {{- if .Values.config.uploadXml }}
+    {{- if $.Values.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
-      value: {{ .Values.config.uploadXml.baseUrl }}
-    {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
+      value: {{ $.Values.config.uploadXml.baseUrl }}
+    {{- if $.Values.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
@@ -266,3 +267,4 @@ spec:
       value: "0"
     - name: ENABLE_FEDERATION_V2
       value: "0"
+  {{- end }}
