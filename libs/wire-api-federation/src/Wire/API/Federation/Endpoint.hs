@@ -165,7 +165,7 @@ instance
   hoistServerWithContext _ = hoistServerWithContext (Proxy @(StreamPost framing ct a))
 
 -- OpenAPI, metrics and path routing can delegate to the underlying StreamPost
-instance (RoutesToPaths (StreamPost framing ct a)) => RoutesToPaths (StreamPostWithRemoteIp framing ct a) where
+instance RoutesToPaths (StreamPostWithRemoteIp (framing :: Type) (ct :: Type) (a :: Type)) where
   getRoutes = getRoutes @(StreamPost framing ct a)
 
 instance (HasOpenApi (StreamPost framing ct a)) => HasOpenApi (StreamPostWithRemoteIp framing ct a) where
