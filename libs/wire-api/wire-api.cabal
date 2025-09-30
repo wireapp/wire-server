@@ -265,6 +265,7 @@ library
     Wire.API.User.Search
     Wire.API.UserEvent
     Wire.API.UserGroup
+    Wire.API.UserGroup.BackgroundJobs
     Wire.API.UserGroup.Pagination
     Wire.API.UserMap
     Wire.API.Util.Aeson

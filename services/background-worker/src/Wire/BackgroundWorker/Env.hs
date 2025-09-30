@@ -30,12 +30,16 @@ type IsWorking = Bool
 data Worker
   = BackendNotificationPusher
   | DeadUserNotificationWatcher
+  | BackgroundJobsSyncUserGroupAndChannel
+  | BackgroundJobsSyncUserGroup
   deriving (Eq, Ord)
 
 workerName :: Worker -> Text
 workerName = \case
   BackendNotificationPusher -> "backend-notification-pusher"
   DeadUserNotificationWatcher -> "dead-user-notification-watcher"
+  BackgroundJobsSyncUserGroupAndChannel -> "background-jobs-sync-user-group-and-channel"
+  BackgroundJobsSyncUserGroup -> "background-jobs-sync-user-group"
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -47,6 +51,7 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
+    backgroundJobsMetrics :: Vector Text Counter,
     workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
     cassandra :: ClientState
@@ -68,6 +73,10 @@ mkBackendNotificationMetrics =
 mkWorkerRunningGauge :: IO (Vector Text Gauge)
 mkWorkerRunningGauge =
   register (vector "worker" $ gauge $ Prometheus.Info "wire_background_worker_running_workers" "Set to 1 when a worker is running")
+
+mkBackgroundJobsMetrics :: IO (Vector Text Counter)
+mkBackgroundJobsMetrics =
+  register (vector "job" $ gauge $ Prometheus.Info "wire_background_jobs_processed" "Number of processed jobs")
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
@@ -91,6 +100,7 @@ mkEnv opts = do
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
   workerRunningGauge <- mkWorkerRunningGauge
+  backgroundJobsMetrics <- mkBackgroundJobsMetrics
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

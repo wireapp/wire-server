@@ -13,6 +13,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.BackendNotificationPusher
+    Wire.BackgroundJobs
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Health
