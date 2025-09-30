@@ -32,7 +32,7 @@ import Data.Range (Range)
 import Data.Text qualified as T
 import Data.Time.Units
 import Imports
-import Network.AMQP qualified as Q
+import Network.NATS.Client qualified as NATS
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
@@ -142,9 +142,9 @@ notifyUserDeleted self remotes = do
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
       remoteDomain = tDomain remotes
 
-  asks (.rabbitmqChannel) >>= \case
+  asks (.natsChannel) >>= \case
     Just chanVar -> do
-      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
+      enqueueNotification (tDomain self) remoteDomain chanVar $
         fedQueueClient @'OnUserDeletedConnectionsTag notif
     Nothing ->
       Log.err $
@@ -153,16 +153,16 @@ notifyUserDeleted self remotes = do
           . Log.field "domain" (domainText remoteDomain)
           . Log.field "error" (show FederationNotConfigured)
 
--- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
-enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
+-- | Enqueues notifications in NATS. Retries 3 times with a delay of 1s.
+enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> MVar NATS.NatsChannel -> FedQueueClient c () -> m ()
+enqueueNotification ownDomain remoteDomain chanVar action = do
   let policy = limitRetries 3 <> constantDelay 1_000_000
   recovering policy [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
       rid <- asks (.requestId)
       Log.err $
-        Log.msg @Text "failed to enqueue notification in RabbitMQ"
+        Log.msg @Text "failed to enqueue notification in NATS"
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
@@ -171,13 +171,13 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
       rid <- asks (.requestId)
       mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
-        Nothing -> throwM NoRabbitMqChannel
-        Just chan -> liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
+        Nothing -> throwM NoNatsChannel
+        Just chan -> liftIO $ enqueue chan rid ownDomain remoteDomain action
 
-data NoRabbitMqChannel = NoRabbitMqChannel
+data NoNatsChannel = NoNatsChannel
   deriving (Show)
 
-instance Exception NoRabbitMqChannel
+instance Exception NoNatsChannel
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
