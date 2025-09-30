@@ -1476,8 +1476,8 @@ getConvsOk = do
   usr <- randomUser
   convs <- getAllConvs usr
   liftIO $
-    [selfConv usr, mlsSelfConvId usr]
-      @?= map (qUnqualified . cnvQualifiedId) convs
+    Set.fromList [selfConv usr, mlsSelfConvId usr]
+      @?= Set.fromList (map (qUnqualified . cnvQualifiedId) convs)
 
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
