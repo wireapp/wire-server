@@ -29,10 +29,6 @@ spec:
       secret:
         secretName: "brig"
 
-    - name: "turn-servers"
-      configMap:
-        name: "turn"
-
     - name: "cannon-config"
       configMap:
         name: "cannon"
@@ -179,9 +175,6 @@ spec:
     - name: brig-secrets
       mountPath: /etc/wire/brig/secrets
 
-    - name: turn-servers
-      mountPath: /etc/wire/brig/turn
-
     - name: cannon-config
       mountPath: /etc/wire/cannon/conf
 
@@ -193,18 +186,6 @@ spec:
 
     - name: spar-config
       mountPath: /etc/wire/spar/conf
-
-    - name: federator-config
-      mountPath: /etc/wire/federator/conf
-
-    - name: federator-secrets
-      mountPath: /etc/wire/federator/secrets
-
-    - name: federator-ca
-      mountPath: /etc/wire/federator/ca
-
-    - name: background-worker-config
-      mountPath: /etc/wire/background-worker/conf
 
     - name: nginz-config
       mountPath: /etc/wire/nginz/conf
@@ -280,8 +261,8 @@ spec:
     {{- end }}
     {{- end }}
     - name: ENABLE_FEDERATION_V0
-      value: "1"
+      value: "0"
     - name: ENABLE_FEDERATION_V1
-      value: "1"
+      value: "0"
     - name: ENABLE_FEDERATION_V2
-      value: "1"
+      value: "0"
