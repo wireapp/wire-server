@@ -366,10 +366,10 @@ getConversationIdsImpl lusr (fromRange -> maxIds) pagingState = do
                   { mtpsTable = PagingRemotes,
                     mtpsState = Nothing
                   }
-              Just newLastId ->
+              Just (newLastDomain, newLastId) ->
                 MultiTablePagingState
                   { mtpsTable = PagingRemotes,
-                    mtpsState = Just . BS.toStrict $ Aeson.encode newLastId
+                    mtpsState = Just . BS.toStrict $ Aeson.encode $ Qualified newLastId newLastDomain
                   }
         }
 
