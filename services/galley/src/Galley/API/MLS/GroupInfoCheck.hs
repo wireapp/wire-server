@@ -84,5 +84,5 @@ isGroupInfoCheckEnabled Nothing = pure False
 isGroupInfoCheckEnabled (Just tid) = fmap isJust . runNonDetMaybe $ do
   global <- inputs (view $ settings . checkGroupInfo)
   guard (global == Just True)
-  ops <- getFeatureForTeam @AllowedGlobalOperationsConfig tid
-  guard ops.config.mlsGroupInfoDiagnostics
+  mls <- getFeatureForTeam @MLSConfig tid
+  guard (getAny mls.config.mlsGroupInfoDiagnostics)

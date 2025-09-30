@@ -310,6 +310,7 @@ writeFeatures
                             (fmap C.fromSet mls_allowed_ciphersuites)
                             mls_default_ciphersuite
                             (fmap C.fromSet mls_supported_protocols)
+                            (Any False)
                         )
                   }
 
