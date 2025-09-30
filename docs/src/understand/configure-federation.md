@@ -644,3 +644,134 @@ Create user accounts on both backends.
 
 With one user, search for the other user using the
 `@username-1@example.com` syntax in the UI search field of the webapp.
+
+### Federated Calling
+
+To begin with, you need to make a few decisions:
+ * How paranoid am I (separation of sensitive content) -- Do I want separation between "local" calling traffic between my backend and it's users, from the calling traffic to and from a remote (trusted) backend?
+ * How paranoid am I (traffic across the internet) -- Do you want the extra security / simplified routing / greater maintainence of using DTLS for your federated calling traffic? This gives you the benefit of being simpler to route across a network and enhanced security with certificate checking between backend calling components.
+
+To begin with, we are going to assume you have calling working "properly". that means your users can use both wire calling services, and can find direct calling routes to the calling services. If this is not you, or if you are unsure, contact wire support to schedule a checkup of your calling services.
+
+For this document, we are going to assume "not that paranoid" and "simplify networking, please."
+
+We will also assume you have a working non-federated calling infrastructure (because you should).
+
+#### Federated Calling Traffic
+
+In order for users on both federated backends to communicate, calling traffic needs to travel between your wire calling environment and the calling environment of your federation partner.
+
+There are two options for how calling traffic is transfered between federating backends: with, or without DTLS.
+If you have chosen DTLS, you need to have incoming port 9191 between your calling clusters. Federated calling traffic will be transmitted between federated environments on this port.
+
+#### Configure Coturn
+
+To set up federated 1on1 calling, coturn will need to be reconfigured and the following should be added to your coturn `values.yaml` file:
+
+```yaml
+coturnFederationListeningIP: '__COTURN_HOST_IP__'
+federate:
+  enabled: true
+  port: 9191
+```
+
+If you are using DTLS (with `cert-manager`)
+
+```yaml
+coturnFederationListeningIP: '__COTURN_HOST_IP__'
+federate:
+  enabled: true
+  port: 9191
+  dtls:
+    enabled: true
+    tls:
+      issuerRef:
+        name: letsencrypt-http01
+      certificate:
+        dnsNames:
+          - coturn.b0.wire-demo.site
+```
+
+or with your own certificates:
+
+```yaml
+coturnTurnRelayIP: "__COTURN_HOST_IP__" # set relay and
+coturnTurnListenIP: "__COTURN_HOST_IP__" # listen IP to HOST_IP
+coturnFederationListeningIP: '__COTURN_HOST_IP__'
+federate:
+  enabled: true
+  port: 9191
+  dtls:
+    enabled: true
+    tls:
+      key: |
+        -----BEGIN PRIVATE KEY-----
+      crt: |
+       ...
+```
+
+Then redeploy `coturn`
+
+```bash
+d helm upgrade --install coturn charts/coturn -f values/coturn/values.yaml -f values/coturn/secrets.yaml
+```
+
+If running into error with YAML and spacing (it happens), you can supply the certificate and key directly from the CLI like so:
+
+```bash
+d helm upgrade --install coturn charts/coturn -f values/coturn/values.yaml -f values/coturn/secrets.yaml --set-file federate.dtls.tls.key=key.pem --set-file federate.dtls.tls.crt=crt.pem
+```
+
+#### Configure SFTD (Federated Conference Calling)
+
+To understand more on the architecture, read [Federated Conference Calling](https://docs.wire.com/latest/understand/sft.html#federated-conference-calling)
+
+For setup of federated conference calling, a prerequisite should be met (not required, but recommended) of designating a coturn server that will be used exclusively for federated calls. 
+
+To configure SFTD, in `values/sftd/values.yaml`: 
+- `multiSFT` will have to be enabled 
+- wildcard CORS rule for SFTD
+- turn secret from `brig`
+
+```yaml
+allowOrigin: "*"
+multiSFT:
+  enabled: true
+  discoveryRequired: false
+  turnServerURI: "turn:federation.or.local.coturnIP:3478?transport=udp"
+  secret: "turnSecretFromBrig"
+```
+
+Federated calls between SFT servers will also need to be enabled in the `brig` section of `wire-server/values.yaml` file.
+
+```yaml
+brig:
+  config:
+    multiSFT:
+      enabled: true
+```
+
+Redeploy `sftd`
+```bash
+d helm upgrade --install sftd charts/sftd -f values/sftd/values.yaml
+```
+
+Redeploy `wire-server`
+```bash
+d helm upgrade --install wire-server ./charts/wire-server --timeout=15m0s --values ./values/wire-server/values.yaml --values ./values/wire-server/secrets.yaml
+```
+
+#### Configure Webapp to use federating SFTs
+
+Domains of the federating backends will have to be added to the current list of webapp CSP headers for https and wss protocols.
+
+```yaml
+envVars:
+  CSP_EXTRA_CONNECT_SRC: "https:*.example.org, wss://*.example.org"
+```
+
+Redeploy `webapp`:
+
+```bash
+d helm upgrade --install webapp charts/webapp -f values/webapp/values.yaml
+```
