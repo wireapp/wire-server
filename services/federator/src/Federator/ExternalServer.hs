@@ -21,6 +21,7 @@ module Federator.ExternalServer
     RPC (..),
     CertHeader (..),
     server,
+    extractIp,
   )
 where
 
@@ -181,11 +182,28 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   where
     tryGetOriginIp :: RequestHeaders -> Maybe ByteString
     tryGetOriginIp headers =
-      let isIpAddr = isJust . fromByteString @IpAddr
-          firstFrom hdr =
-            lookup hdr headers >>= \val -> do
-              find isIpAddr $ BS8.strip <$> BS8.split ',' val
+      let firstFrom hdr =
+            lookup hdr headers >>= \val -> listToMaybe $ mapMaybe extractIp (BS8.split ',' val)
        in firstFrom "X-Wire-Forwarded-For" <|> firstFrom "X-Forwarded-For" <|> firstFrom "X-Real-IP"
+
+-- | Extract the IPv4/IPv6 portion from a host[:port] or [host]:port.
+extractIp :: ByteString -> Maybe ByteString
+extractIp str =
+  verify stripWs <|> verify stripPort <|> verify stripBrackets
+  where
+    stripBrackets :: ByteString
+    stripBrackets = BS8.dropWhile (== '[') . BS8.dropWhileEnd (== ']') $ stripPort
+
+    stripPort :: ByteString
+    stripPort = BS8.dropWhileEnd (== ':') . BS8.dropWhileEnd isDigit $ stripWs
+
+    stripWs :: ByteString
+    stripWs = BS8.strip str
+
+    verify :: ByteString -> Maybe ByteString
+    verify bs = case fromByteString @IpAddr bs of
+      Just _ -> Just bs
+      Nothing -> Nothing
 
 serveInward :: Env -> Int -> IORef [IO ()] -> IO ()
 serveInward env port cleanupsRef =
