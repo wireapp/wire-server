@@ -855,7 +855,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
           isContactVisible =
             (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
-      if isContactVisible
+      if isContactVisible && fromMaybe True storedUser.searchable
         then pure contact
         else MaybeT $ pure Nothing
 
