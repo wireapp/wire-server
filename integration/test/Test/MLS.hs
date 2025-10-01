@@ -16,6 +16,7 @@ import qualified Data.Text.Read as T
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.FeatureFlags.Util
 import Test.Version
 import Testlib.Prelude
 import Testlib.VersionedFed
@@ -1012,47 +1013,74 @@ testInvalidLeafNodeSignature = do
         Nothing -> bs
 
 testGroupInfoMismatch :: (HasCallStack) => App ()
-testGroupInfoMismatch = withModifiedBackend
-  ( def
-      { galleyCfg = setField "settings.checkGroupInfo" True
-      }
-  )
-  $ \domain -> do
-    (alice, tid, [bob, charlie]) <- createTeam domain 3
-    [alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
-    traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+testGroupInfoMismatch = do
+  mls <-
+    defAllFeatures
+      %. "mls.config"
+      >>= setField "groupInfoDiagnostics" True
+  withModifiedBackend
+    ( def
+        { galleyCfg =
+            setField "settings.checkGroupInfo" True
+              >=> setField
+                "settings.featureFlags.mls.defaults"
+                ( object
+                    [ "status" .= "enabled",
+                      "lockStatus" .= "unlocked",
+                      "config" .= mls
+                    ]
+                )
+        }
+    )
+    $ \domain -> do
+      (alice, tid, [bob, charlie]) <- createTeam domain 3
+      [alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
+      traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
 
-    conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
-    convId <- objConvId conv
-    createGroup def alice1 convId
+      conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
+      convId <- objConvId conv
+      createGroup def alice1 convId
 
-    mp1 <- createAddCommit alice1 convId [bob]
-    void $ sendAndConsumeCommitBundle mp1
+      mp1 <- createAddCommit alice1 convId [bob]
+      void $ sendAndConsumeCommitBundle mp1
 
-    -- attempt a commit with an old group info
-    mp2 <- createAddCommit alice1 convId [charlie]
-    bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
-      $ \resp -> do
-        resp.status `shouldMatchInt` 400
-        resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
+      -- attempt a commit with an old group info
+      mp2 <- createAddCommit alice1 convId [charlie]
+      bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
+        $ \resp -> do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "conv_id" `shouldMatch` (convId %. "id")
+          resp.json %. "group_id" `shouldMatch` (convId %. "group_id")
+          resp.json %. "domain" `shouldMatch` domain
+          clients <- resp.json %. "clients" & asList
+          length clients `shouldMatchInt` 3
+          resp.json %. "commit" `shouldMatchBase64` mp2.message
+          resp.json %. "group_info" `shouldMatchBase64` (fromJust mp1.groupInfo)
 
-    -- check that epoch is still 1
-    bindResponse (getConversation alice convId) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "epoch" `shouldMatchInt` 1
+      -- check that epoch is still 1
+      bindResponse (getConversation alice convId) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "epoch" `shouldMatchInt` 1
 
-    -- attempt an external commit with an old group info
-    void $ uploadNewKeyPackage def bob2
-    mp3 <- createExternalCommit convId bob2 Nothing
-    bindResponse (postMLSCommitBundle bob2 (mkBundle mp3 {groupInfo = mp1.groupInfo}))
-      $ \resp -> do
-        resp.status `shouldMatchInt` 400
-        resp.json %. "label" `shouldMatch` "mls-group-info-mismatch"
+      -- attempt an external commit with an old group info
+      void $ uploadNewKeyPackage def bob2
+      mp3 <- createExternalCommit convId bob2 Nothing
+      let bundle = mkBundle mp3 {groupInfo = mp1.groupInfo}
+      bindResponse (postMLSCommitBundle bob2 bundle)
+        $ \resp -> do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "conv_id" `shouldMatch` (convId %. "id")
+          resp.json %. "group_id" `shouldMatch` (convId %. "group_id")
+          resp.json %. "domain" `shouldMatch` domain
+          clients <- resp.json %. "clients" & asList
+          length clients `shouldMatchInt` 3
+          resp.json %. "commit" `shouldMatchBase64` mp3.message
+          resp.json %. "group_info" `shouldMatchBase64` (fromJust mp1.groupInfo)
 
-    -- check that epoch is still 1
-    bindResponse (getConversation alice convId) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "epoch" `shouldMatchInt` 1
+      -- check that epoch is still 1
+      bindResponse (getConversation alice convId) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "epoch" `shouldMatchInt` 1
 
 testGroupInfoCheckDisabled :: (HasCallStack) => App ()
 testGroupInfoCheckDisabled = do

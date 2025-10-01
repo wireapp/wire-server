@@ -206,7 +206,7 @@ testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
   runCodensity (createEventsWebSocket bob (Just bobClientId)) $ \ws -> do
     assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.otr-message-add"
-      e %. "data.event.payload.0.data.text" `shouldMatchBase64` "hello, bob"
+      e %. "data.event.payload.0.data.text" `shouldMatchBase64` fromString "hello, bob"
       ackEvent ws e
 
   runCodensity (createEventsWebSocket alice (Just aliceClientId)) $ \ws -> do

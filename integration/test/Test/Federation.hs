@@ -105,7 +105,7 @@ testNotificationsForOfflineBackends = do
       do
         newMsgNotif <- awaitMatch isNewMessageNotif ws
         newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
-        newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for other user"
+        newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` fromString "success message for other user"
 
         void $ awaitMatch isOtherUser2LeaveUpConvNotif ws
         void $ awaitMatch isDelUserLeaveUpConvNotif ws
@@ -116,7 +116,7 @@ testNotificationsForOfflineBackends = do
     runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       newMsgNotif <- awaitNotificationClient downUser1 downClient1 noValue isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
-      newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for down user"
+      newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` fromString "success message for down user"
 
       let isDelUserLeaveDownConvNotif =
             allPreds
