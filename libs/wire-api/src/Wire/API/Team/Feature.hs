@@ -1066,7 +1066,7 @@ instance (FieldF f) => ToSchema (MLSConfigB Covered f) where
         <*> mlsDefaultCipherSuite .= fieldF "defaultCipherSuite" schema
         <*> mlsSupportedProtocols .= fieldF "supportedProtocols" (array schema)
         <*> (getAny . mlsGroupInfoDiagnostics)
-          .= fmap (Any . fromMaybe False) (optField "mlsGroupInfoDiagnostics" schema)
+          .= fmap (Any . fromMaybe False) (optField "groupInfoDiagnostics" schema)
 
 instance Default (LockableFeature MLSConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}

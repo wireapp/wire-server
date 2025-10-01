@@ -1014,19 +1014,7 @@ testInvalidLeafNodeSignature = do
 testGroupInfoMismatch :: (HasCallStack) => App ()
 testGroupInfoMismatch = withModifiedBackend
   ( def
-      { galleyCfg =
-          setField "settings.checkGroupInfo" True
-            >=> setField
-              "settings.featureFlags.allowedGlobalOperations"
-              ( object
-                  [ "status" .= "enabled",
-                    "config"
-                      .= object
-                        [ "mlsConversationReset" .= True,
-                          "mlsGroupInfoDiagnostics" .= True
-                        ]
-                  ]
-              )
+      { galleyCfg = setField "settings.checkGroupInfo" True
       }
   )
   $ \domain -> do

@@ -211,7 +211,6 @@ config:
         status: enabled
         config:
           mlsConversationReset: false
-          mlsGroupInfoDiagnostics: false
       assetAuditLog:
         status: disabled
       consumableNotifications:
