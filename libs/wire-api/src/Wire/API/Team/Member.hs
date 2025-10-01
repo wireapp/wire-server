@@ -90,7 +90,6 @@ import Data.Range
 import Data.Schema
 import Data.Set qualified as Set
 import Imports
--- import Wire.API.Error.Galley
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
 import Wire.API.Routes.MultiTablePaging.State
 import Wire.API.Team.Collaborator (CollaboratorPermission, TeamCollaborator (..))
