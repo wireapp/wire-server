@@ -1,0 +1,1 @@
+registry.k8s.io uses a v prefix with image tag and does not have any kubectl image tag for version `1.24.12`, So falling back to bitnamilegacy

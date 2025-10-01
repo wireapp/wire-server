@@ -1,7 +1,7 @@
 image:
   registry: registry.k8s.io
   repository: kubectl
-  tag: 1.32.9
+  tag: v1.32.9
 podSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
