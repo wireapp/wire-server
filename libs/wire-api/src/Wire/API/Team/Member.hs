@@ -654,7 +654,7 @@ makeLenses ''TeamMemberList'
 makeLenses ''NewTeamMember'
 makeLenses ''TeamMemberDeleteData
 
-userId :: Lens' TeamMember UserId
+userId :: Lens' (TeamMember' tag) UserId
 userId = newTeamMember . nUserId
 
 permissions :: Lens (TeamMember' tag1) (TeamMember' tag2) (PermissionType tag1) (PermissionType tag2)
