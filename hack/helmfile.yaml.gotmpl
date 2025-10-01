@@ -117,6 +117,9 @@ releases:
     values:
       - './helm_vars/bitnami.yaml'
       - redis-ephemeral:
+          image:
+            # public.ecr.aws doesn't host bitnamilegacy/redis
+            repository: bitnami/redis
           fullnameOverride: databases-ephemeral-redis-ephemeral
           auth:
             enabled: true
@@ -161,6 +164,9 @@ releases:
     values:
       - './helm_vars/bitnami.yaml'
       - redis-ephemeral:
+          image:
+            # public.ecr.aws doesn't host bitnamilegacy/redis
+            repository: bitnami/redis
           fullnameOverride: databases-ephemeral-redis-ephemeral
           auth:
             enabled: true
@@ -238,6 +244,9 @@ releases:
     values:
       - './helm_vars/bitnami.yaml'
       - redis-ephemeral:
+          image:
+            # public.ecr.aws doesn't host bitnamilegacy/redis
+            repository: bitnami/redis
           fullnameOverride: redis-ephemeral-2
           auth:
             enabled: true
