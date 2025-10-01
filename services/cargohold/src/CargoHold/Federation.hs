@@ -125,5 +125,5 @@ executeFederatedStreaming remote c onRemoteIp = do
         (runFederatorClientToCodensity @'Cargohold env c)
         ( either
             (throw . federationErrorToWai . FederationCallFailure)
-            (\(mIp, src) -> (runAppT appEnv $ (runExceptT (onRemoteIp mIp))) *> unSourceT src k)
+            (\(mIp, src) -> runAppT appEnv (runExceptT (onRemoteIp mIp)) *> unSourceT src k)
         )
