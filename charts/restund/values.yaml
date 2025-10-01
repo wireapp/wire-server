@@ -10,6 +10,11 @@ image:
   # overwrite the tag here, otherwise `appVersion` of the chart will be used
   tag: ""
 
+kubectlImage:
+  registry: registry.k8s.io
+  repository: kubectl
+  tag: v1.32.9
+
 # If you have multiple deployments of Restund running in one cluster, it is
 # important that they run on disjoint sets of nodes, you can use nodeSelector to enforce this
 nodeSelector: {}
