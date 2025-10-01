@@ -192,7 +192,7 @@ instance FromJSON StorageLocation where
   parseJSON = withText "StorageLocation" $ \case
     "cassandra" -> pure CassandraStorage
     "postgresql" -> pure PostgresqlStorage
-    x -> fail $ "Invalid storage location: " <> Text.unpack x
+    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql"
 
 data PostgresMigrationOpts = PostgresMigrationOpts
   { conversation :: StorageLocation
