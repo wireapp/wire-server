@@ -28,8 +28,10 @@ import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Char8 qualified as BS8
+import Data.ByteString.Conversion (fromByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Misc
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -46,6 +48,7 @@ import Federator.Service
 import Federator.Validation
 import Imports
 import Network.HTTP.Client (Manager)
+import Network.HTTP.Types (RequestHeaders)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Polysemy
@@ -160,12 +163,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   -- Build headers to forward internally: keep only API version and add Wire-Origin-IP if present
   let reqHeaders = Wai.requestHeaders wreq
       headersVersion = filter ((== versionHeader) . fst) reqHeaders
-      mFirstIP =
-        lookup "X-Forwarded-For" reqHeaders >>= \xff -> do
-          let fstHdr = BS8.strip $ BS8.takeWhile (/= ',') xff
-          guard (not (BS8.null fstHdr)) $> fstHdr
-      mXReal = lookup "X-Real-IP" reqHeaders
-      mOriginIp = (originIpHeaderName,) <$> (mFirstIP <|> mXReal)
+      mOriginIp = (originIpHeaderName,) <$> tryGetOriginIp reqHeaders
       -- FUTUREWORK: did we miss passing the request ID header?
       headers = maybeToList mOriginIp <> headersVersion
   resp <- serviceCall component path headers body validatedDomain
@@ -180,6 +178,14 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
               (\(name, _) -> name == "Content-Type")
               (responseHeaders resp)
         }
+  where
+    tryGetOriginIp :: RequestHeaders -> Maybe ByteString
+    tryGetOriginIp headers =
+      let isIpAddr = isJust . fromByteString @IpAddr
+          firstFrom hdr =
+            lookup hdr headers >>= \val -> do
+              find isIpAddr $ BS8.strip <$> BS8.split ',' val
+       in firstFrom "X-Wire-Forwarded-For" <|> firstFrom "X-Forwarded-For" <|> firstFrom "X-Real-IP"
 
 serveInward :: Env -> Int -> IORef [IO ()] -> IO ()
 serveInward env port cleanupsRef =
