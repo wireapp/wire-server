@@ -1658,6 +1658,21 @@ parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEY
 The `postgresqlPassword` file is read by `brig` and `galley`. Its content is
 used as `password` field.
 
+### Using PostgreSQL for storing conversation data
+
+This is currently not the default and is experimental.
+The migration path from Cassandra is yet to be programmed.
+
+However, new installations can use this by configuring the wire-server helm
+chart like this:
+
+```yaml
+galley:
+  config:
+    postgresqlMigration:
+      conversation: postgresql
+```
+
 ## Configure Cells
 
 If Cells integration is enabled, gundeck must be configured with the name of
