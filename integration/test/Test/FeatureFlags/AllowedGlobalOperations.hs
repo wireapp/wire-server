@@ -19,9 +19,7 @@ testAllowedGlobalOperations (TaggedBool isSet) = do
         object
           [ "status" .= "enabled",
             "config"
-              .= object
-                [ "mlsConversationReset" .= False
-                ]
+              .= object ["mlsConversationReset" .= False]
           ]
   let galleyConf =
         if isSet
