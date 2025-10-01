@@ -92,6 +92,7 @@ module Wire.API.Team.Feature
     ChatBubblesConfig (..),
     AppsConfig (..),
     SimplifiedUserConnectionRequestQRCodeConfig (..),
+    StealthUsersConfig (..),
     Features,
     AllFeatures,
     NpProject (..),

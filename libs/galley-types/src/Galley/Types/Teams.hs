@@ -327,6 +327,13 @@ newtype instance FeatureDefaults SimplifiedUserConnectionRequestQRCodeConfig
   deriving (FromJSON) via Defaults (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig)
   deriving (ParseFeatureDefaults) via OptionalField SimplifiedUserConnectionRequestQRCodeConfig
 
+newtype instance FeatureDefaults StealthUsersConfig
+  = StealthUsersDefaults (LockableFeature StealthUsersConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature StealthUsersConfig)
+  deriving (ParseFeatureDefaults) via OptionalField StealthUsersConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
