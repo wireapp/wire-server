@@ -190,6 +190,8 @@ library
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
     Wire.ConversationStore.Cassandra.Queries
+    Wire.ConversationStore.Migration
+    Wire.ConversationStore.MigrationLock
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.DeleteQueue

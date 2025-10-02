@@ -303,7 +303,7 @@ checkGroupIdSupport ::
   Sem r ()
 checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- if it is an MLS conversation
-  d <- MaybeT (pure (getMLSData conv))
+  d <- MaybeT (pure (getMLSData conv.protocol))
 
   -- if the group ID version is not 1
   (v, _) <-
@@ -321,12 +321,6 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   where
     failOnFirstError :: (Member (ErrorS GroupIdVersionNotSupported) r) => [Either e x] -> Sem r ()
     failOnFirstError = traverse_ $ either (\_ -> throwS @GroupIdVersionNotSupported) pure
-
-getMLSData :: StoredConversation -> Maybe ConversationMLSData
-getMLSData conv = case conv.protocol of
-  ProtocolMLS d -> Just d
-  ProtocolMixed d -> Just d
-  ProtocolProteus -> Nothing
 
 -- | Same as 'permissionCheck', but for a statically known permission.
 permissionCheckS ::
