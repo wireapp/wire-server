@@ -196,7 +196,7 @@ http {
 
 {{- $validUpstreams := include "valid_upstreams" . | fromJson }}
 {{- range $name, $_ := $validUpstreams }}
-  upstream {{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}} {
+  upstream {{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}} { 
       zone {{ $name }} 64k; # needed for dynamic DNS updates
       least_conn;
       keepalive 32;
@@ -321,14 +321,6 @@ http {
 
         proxy_pass         http://{{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}};
         proxy_http_version 1.1;
-
-        # Forward client IP information to upstreams
-        # NOTE: Do NOT override X-Forwarded-For here.
-        # - We intentionally leave X-Forwarded-For as received from upstreams
-        #   to preserve existing semantics (e.g., brig expects a single IP).
-        # - For components that need the full chain, we add X-Wire-Forwarded-For.
-        proxy_set_header   X-Wire-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Real-IP            $remote_addr;
 
             {{- if ($location.disable_request_buffering) }}
         proxy_request_buffering off;

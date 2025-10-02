@@ -181,10 +181,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
         }
   where
     tryGetOriginIp :: RequestHeaders -> Maybe ByteString
-    tryGetOriginIp headers =
-      let firstFrom hdr =
-            lookup hdr headers >>= \val -> listToMaybe $ mapMaybe extractIp (BS8.split ',' val)
-       in firstFrom "X-Wire-Forwarded-For" <|> firstFrom "X-Forwarded-For" <|> firstFrom "X-Real-IP"
+    tryGetOriginIp headers = lookup "X-Forwarded-For" headers >>= listToMaybe . mapMaybe extractIp . BS8.split ','
 
 -- | Extract the IPv4/IPv6 portion from a host[:port] or [host]:port.
 extractIp :: ByteString -> Maybe ByteString
