@@ -207,5 +207,9 @@ data:
         simplifiedUserConnectionRequestQRCode:
           {{- toYaml .settings.featureFlags.simplifiedUserConnectionRequestQRCode | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.stealthUsers }}
+        stealthUsers:
+          {{- toYaml .settings.featureFlags.stealthUsers | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
