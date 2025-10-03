@@ -455,3 +455,5 @@ instance SetFeatureConfig ChatBubblesConfig
 instance SetFeatureConfig AppsConfig
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
+
+instance SetFeatureConfig StealthUsersConfig

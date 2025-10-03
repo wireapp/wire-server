@@ -188,6 +188,8 @@ sitemap' =
     :<|> Named @"put-route-chat-bubbles-config" (mkFeatureStatusPutRoute @ChatBubblesConfig)
     :<|> Named @"get-route-apps-config" (mkFeatureGetRoute @AppsConfig)
     :<|> Named @"put-route-apps-config" (mkFeatureStatusPutRoute @AppsConfig)
+    :<|> Named @"get-route-stealth-users-config" (mkFeatureGetRoute @StealthUsersConfig)
+    :<|> Named @"put-route-stealth-users-config" (mkFeatureStatusPutRoute @StealthUsersConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo

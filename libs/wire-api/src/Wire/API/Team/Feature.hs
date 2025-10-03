@@ -92,6 +92,7 @@ module Wire.API.Team.Feature
     ChatBubblesConfig (..),
     AppsConfig (..),
     SimplifiedUserConnectionRequestQRCodeConfig (..),
+    StealthUsersConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -254,6 +255,7 @@ data FeatureSingleton cfg where
   FeatureSingletonAppsConfig :: FeatureSingleton AppsConfig
   FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig :: FeatureSingleton SimplifiedUserConnectionRequestQRCodeConfig
   FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
+  FeatureSingletonStealthUsersConfig :: FeatureSingleton StealthUsersConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1593,6 +1595,27 @@ instance IsFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig where
 
   objectSchema = pure SimplifiedUserConnectionRequestQRCodeConfig
 
+--------------------------------------------------------------------------------
+-- Stealth Users
+
+data StealthUsersConfig = StealthUsersConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform StealthUsersConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName StealthUsersConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature StealthUsersConfig
+
+instance ToSchema StealthUsersConfig where
+  schema = object "StealthUsersConfig" objectSchema
+
+instance Default (LockableFeature StealthUsersConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig StealthUsersConfig where
+  type FeatureSymbol StealthUsersConfig = "stealthUsers"
+  featureSingleton = FeatureSingletonStealthUsersConfig
+
+  objectSchema = pure StealthUsersConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1684,7 +1707,8 @@ type Features =
     ChatBubblesConfig,
     AppsConfig,
     SimplifiedUserConnectionRequestQRCodeConfig,
-    AssetAuditLogConfig
+    AssetAuditLogConfig,
+    StealthUsersConfig
   ]
 
 -- | list of available features as a record
@@ -1740,7 +1764,7 @@ instance {-# OVERLAPPING #-} NpProject x (x : xs) where
 instance (NpProject x xs) => NpProject x (y : xs) where
   npProject' p (_ :* xs) = npProject' p xs
 
-instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpProject x '[] where
+instance (TypeError ('ShowType x :<>: 'Text " not found in the Features list")) => NpProject x '[] where
   npProject' = error "npProject': someone naughty removed the type error constraint"
 
 -- | Get the first field of a given type out of an @'NP' f xs@.
@@ -1756,7 +1780,7 @@ instance {-# OVERLAPPING #-} NpUpdate x (x : xs) where
 instance (NpUpdate x xs) => NpUpdate x (y : xs) where
   npUpdate' p x (y :* xs) = y :* npUpdate' p x xs
 
-instance (TypeError ('ShowType x :<>: 'Text " not found")) => NpUpdate x '[] where
+instance (TypeError ('ShowType x :<>: 'Text " not found in the Features list")) => NpUpdate x '[] where
   npUpdate' = error "npUpdate': someone naughty removed the type error constraint"
 
 -- | Update the first field of a given type in an @'NP' f xs@.

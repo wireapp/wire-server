@@ -228,6 +228,10 @@ config:
         defaults:
           status: enabled
           lockStatus: unlocked
+      stealthUsers:
+        defaults:
+          status: disabled
+          lockStatus: locked
   aws:
     region: "eu-west-1"
   proxy: {}
