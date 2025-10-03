@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.TeamMember where
 
+import Data.Bool
 import Data.Id
 import Data.Int
 import Data.Range
@@ -60,6 +61,13 @@ type TeamMemberAPI =
              ]
              "pagingState"
              TeamMembersPagingState
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Optional, return only non-seacrhable members when false."
+             ]
+             "searchable"
+             Bool
         :> Get '[JSON] TeamMembersPage
     )
     :<|> Named

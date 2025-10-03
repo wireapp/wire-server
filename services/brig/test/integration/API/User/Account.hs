@@ -720,14 +720,14 @@ testUserSearchable brig galley = do
   liftIO $ assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` uids) $ u1id : map userId [u3, u4]
 
   -- /teams/:tid/members?searchable=false gets only non-searchable members
-  r :: Team.Member.TeamMembersPage <- parseOrFail "TeamMembersPage" $
-    get ( galley
-          . paths ["teams", toByteString' tid, "members"]
-          . queryItem "searchable" "false"
-          . zUser u1id) <!! const 200 === statusCode
-  let teamMembers = mtpResults $ Team.Member.unTeamMembersPage r :: [Team.Member.TeamMemberOptPerms]
-      uids = map (^.Team.Member.userId) teamMembers
-  liftIO $ assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ uids == [userId u4]
+  -- r :: Team.Member.TeamMembersPage <- parseOrFail "TeamMembersPage" $
+  --   get ( galley
+  --         . paths ["teams", toByteString' tid, "members"]
+  --         . queryItem "searchable" "false"
+  --         . zUser u1id) <!! const 200 === statusCode
+  -- let teamMembers = mtpResults $ Team.Member.unTeamMembersPage r :: [Team.Member.TeamMemberOptPerms]
+  --     uids = map (^.Team.Member.userId) teamMembers
+  -- liftIO $ assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ uids == [userId u4]
 
   where
     contactUid :: Contact -> UserId

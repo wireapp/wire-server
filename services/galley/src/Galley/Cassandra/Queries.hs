@@ -74,6 +74,7 @@ module Galley.Cassandra.Queries
     selectTeam,
     selectUserTeamsIn,
     selectTeamMembers,
+    selectTeamMembersSearchable,
     selectOneUserTeam,
     selectTeamBindingWritetime,
     selectTeamBinding,
@@ -154,6 +155,23 @@ selectTeamMembers ::
     )
 selectTeamMembers = selectTeamMembersBase []
 
+selectTeamMembersNonSearchable ::
+  PrepQuery
+    R
+    (TeamId, Bool)
+    ( UserId,
+      Permissions,
+      Maybe UserId,
+      Maybe UTCTimeMillis,
+      Maybe UserLegalHoldStatus
+    )
+selectTeamMembersNonSearchable =
+  [r|
+    select user, perms, invited_by, invited_at, legalhold_status
+      from team_member
+    where team = ? and searchable = false order by user
+    |]
+
 selectTeamMembersFrom ::
   PrepQuery
     R
@@ -183,6 +201,18 @@ selectTeamMembers' =
       from team_member
     where team = ? and user in ? order by user
     |]
+
+selectTeamMembersSearchable ::
+  PrepQuery
+    R
+    (TeamId, Bool)
+    ( UserId,
+      Permissions,
+      Maybe UserId,
+      Maybe UTCTimeMillis,
+      Maybe UserLegalHoldStatus
+    )
+selectTeamMembersSearchable = selectTeamMembersBase ["searchable = ?"]
 
 selectUserTeams :: PrepQuery R (Identity UserId) (Identity TeamId)
 selectUserTeams = "select team from user_team where user = ? order by team"

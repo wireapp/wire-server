@@ -477,20 +477,23 @@ getTeamMembers ::
   TeamId ->
   Maybe (Range 1 Public.HardTruncationLimit Int32) ->
   Maybe TeamMembersPagingState ->
+  Maybe Bool ->
   Sem r TeamMembersPage
-getTeamMembers lzusr tid mbMaxResults mbPagingState = do
+getTeamMembers lzusr tid mbMaxResults mbPagingState mbSearchable = do
   let uid = tUnqualified lzusr
   member <- E.getTeamMember tid uid >>= noteS @'NotATeamMember
   let mState = C.PagingState . LBS.fromStrict <$> (mbPagingState >>= mtpsState)
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
   if member `hasPermission` SearchContacts
-    then E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
+    then case mbSearchable of
+      Just False -> E.listTeamMembers @CassandraPaging tid mState mLimit mbSearchable <&> toTeamMembersPage member
+      _ -> E.listTeamMembers @CassandraPaging tid mState mLimit mbSearchable <&> toTeamMembersPage member
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
       -- we only return the person who invited them and the self user.
       let invitee = member ^. invitation <&> fst
       let uids = uid : maybeToList invitee
-      E.selectTeamMembersPaginated tid uids mState mLimit <&> toTeamMembersPage member
+      E.selectTeamMembersPaginated tid uids mState mLimit <&> toTeamMembersPage member -- TODO_searchable: Use `mbSearchable` in this branch of the if as well?
   where
     toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
     toTeamMembersPage member p =

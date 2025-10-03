@@ -37,6 +37,7 @@ data TeamMemberStore p m a where
     TeamId ->
     Maybe (PagingState p TeamMember) ->
     PagingBounds p TeamMember ->
+    Maybe Bool ->
     TeamMemberStore p m (Page p TeamMember)
 
 makeSem ''TeamMemberStore
