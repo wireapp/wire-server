@@ -71,6 +71,7 @@ tests =
       requestInvalidCertificate,
       requestNoDomain,
       testInvalidPaths,
+      testExtractIp,
       testMethod
     ]
 
@@ -127,6 +128,7 @@ requestBrigSuccess =
             { Wai.requestHeaders =
                 ("Invalid-Header", "foo")
                   : ("X-Wire-API-Version", "v0")
+                  : ("X-Forwarded-For", "unknown, [2001:db8::1]:443, 127.0.0.43")
                   : Wai.requestHeaders request0
             }
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
@@ -152,11 +154,40 @@ requestBrigSuccess =
         $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request (saveResponse resRef)
 
     Just res <- readIORef resRef
-    let expectedCall = Call Brig "/federation/get-user-by-handle" [("X-Wire-API-Version", "v0")] "\"foo\"" aValidDomain
+    let expectedCall =
+          Call
+            { cComponent = Brig,
+              cPath = "/federation/get-user-by-handle",
+              cHeaders = [("Wire-Origin-IP", "2001:db8::1"), ("X-Wire-API-Version", "v0")],
+              cBody = "\"foo\"",
+              cDomain = aValidDomain
+            }
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
+
+testExtractIp :: TestTree
+testExtractIp =
+  testGroup
+    "extractIp"
+    [ testCase "trims whitespace and parses IPv4" $ do
+        extractIp " 127.0.0.1 " @?= Just "127.0.0.1",
+      testCase "parses IPv4 with port" $ do
+        extractIp "192.0.2.10:8443" @?= Just "192.0.2.10",
+      testCase "parses bracketed IPv6" $ do
+        extractIp "[2001:db8::1]" @?= Just "2001:db8::1",
+      testCase "parses bracketed IPv6 with port" $ do
+        extractIp "[2001:db8::2]:443" @?= Just "2001:db8::2",
+      testCase "parses bare IPv6" $ do
+        extractIp "2001:db8::3" @?= Just "2001:db8::3",
+      testCase "parses IPv4-mapped IPv6" $ do
+        extractIp "[::ffff:192.168.0.1]:123" @?= Just "::ffff:192.168.0.1",
+      testCase "rejects unknown" $ do
+        extractIp "unknown" @?= Nothing,
+      testCase "rejects invalid" $ do
+        extractIp "not-an-ip" @?= Nothing
+    ]
 
 requestBrigFailure :: TestTree
 requestBrigFailure =
