@@ -41,6 +41,7 @@
 , servant-conduit
 , servant-server
 , strict
+, supernova
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -100,6 +101,7 @@ mkDerivation {
     servant-conduit
     servant-server
     strict
+    supernova
     text
     tinylog
     transformers
