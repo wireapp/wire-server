@@ -276,7 +276,7 @@ removeSettings' ::
   Sem r ()
 removeSettings' tid =
   withChunks
-    (\mps -> listTeamMembers @p tid mps maxBound Nothing) -- TODO_searchable: Pass Nothing here?
+    (\mps -> listTeamMembers @p tid mps maxBound)
     action
   where
     action :: [TeamMember] -> Sem r ()

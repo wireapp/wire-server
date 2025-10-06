@@ -199,13 +199,13 @@ interpretTeamMemberStoreToCassandra ::
   Sem (TeamMemberStore InternalPaging ': r) a ->
   Sem r a
 interpretTeamMemberStoreToCassandra lh = interpret $ \case
-  ListTeamMembers tid mps lim ms -> do
+  ListTeamMembers tid mps lim -> do
     logEffect "TeamMemberStore.ListTeamMembers"
     embedClient $ case mps of
       Nothing -> do
-        page <- teamMembersForPagination tid Nothing lim ms
+        page <- teamMembersForPagination tid Nothing lim
         mkInternalPage page (newTeamMember' lh tid)
-      Just ps -> ipNext ps -- TODO_searchable: do I need to pass ms (Maybe Bool) to here as well?
+      Just ps -> ipNext ps
 
 interpretTeamMemberStoreToCassandraWithPaging ::
   ( Member (Embed IO) r,
@@ -216,9 +216,9 @@ interpretTeamMemberStoreToCassandraWithPaging ::
   Sem (TeamMemberStore CassandraPaging ': r) a ->
   Sem r a
 interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
-  ListTeamMembers tid mps lim ms -> do
+  ListTeamMembers tid mps lim -> do
     logEffect "TeamMemberStore.ListTeamMembers"
-    embedClient $ teamMembersPageFrom lh tid mps lim ms
+    embedClient $ teamMembersPageFrom lh tid mps lim
 
 createTeam ::
   ( Member (Input ClientState) r,
@@ -377,7 +377,7 @@ teamMembersWithLimit lh t (fromRange -> limit) = do
 --       Maybe should be left explicitly for the caller?
 teamMembersCollectedWithPagination :: FeatureDefaults LegalholdConfig -> TeamId -> Client [TeamMember]
 teamMembersCollectedWithPagination lh tid = do
-  mems <- teamMembersForPagination tid Nothing (unsafeRange 2000) Nothing -- TODO_searchable: pass Nothing (the last argument to the call)?
+  mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   collectTeamMembersPaginated [] mems
   where
     collectTeamMembersPaginated acc mems = do
@@ -458,7 +458,7 @@ markTeamDeletedAndRemoveTeamMembers :: TeamId -> Client ()
 markTeamDeletedAndRemoveTeamMembers tid = do
   -- TODO: delete service_whitelist records that mention this team
   retry x5 $ write Cql.markTeamDeleted (params LocalQuorum (PendingDelete, tid))
-  mems <- teamMembersForPagination tid Nothing (unsafeRange 2000) Nothing -- TODO_searchable: pass Nothing?
+  mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   removeTeamMembers mems
   where
     removeTeamMembers ::
@@ -532,30 +532,20 @@ type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Ma
 -- have a pure function of type RawTeamMember -> TeamMember so we cannot fmap
 -- over the ResultSet. We don't want to mess around with the Result size
 -- nextPage either otherwise
-teamMembersForPagination :: TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> Maybe Bool -> Client (Page RawTeamMember)
-teamMembersForPagination tid start (fromRange -> max) ms =
+teamMembersForPagination :: TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> Client (Page RawTeamMember)
+teamMembersForPagination tid start (fromRange -> max) =
   case start of
     Just u -> paginate Cql.selectTeamMembersFrom (paramsP LocalQuorum (tid, u) max)
-    Nothing -> case ms of
-      Just searchable -> paginate Cql.selectTeamMembersSearchable (paramsP LocalQuorum (tid, searchable) max)
-      Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)
+    Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)
 
 teamMembersPageFrom ::
   FeatureDefaults LegalholdConfig ->
   TeamId ->
   Maybe PagingState ->
   Range 1 HardTruncationLimit Int32 ->
-  Maybe Bool ->
   Client (PageWithState TeamMember)
-teamMembersPageFrom lh tid pagingState (fromRange -> max) ms = do
-  page <- case ms of
-    Just searchable -> paginateWithState Cql.selectTeamMembersSearchable (paramsPagingState LocalQuorum (tid, searchable) max pagingState)
-    -- WIP_searchable: This is what is called from
-    -- /team/:tid/members?searchable=true. The issue is that this
-    -- queries the team_members table from cassandra and not the
-    -- users' table where the searchable field is. Cassandra doesn't
-    -- seem to support joins, so am currently stomped on how to proceed.
-    Nothing -> paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState)
+teamMembersPageFrom lh tid pagingState (fromRange -> max) = do
+  page <- paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState)
   members <- mapM (newTeamMember' lh tid) (pwsResults page)
   pure $ PageWithState members (pwsState page)
 

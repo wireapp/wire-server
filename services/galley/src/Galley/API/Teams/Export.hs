@@ -122,7 +122,7 @@ getTeamMembersCSV lusr tid = do
   let encodeRow r = encodeDefaultOrderedByNameWith customEncodeOptions [r]
   let produceTeamExportUsers = do
         embedFinal $ writeChan chan (Just headerLine)
-        E.withChunks (\mps -> listTeamMembers @InternalPaging tid mps maxBound Nothing) $ -- TODO_searchable: Pass Nothing here?
+        E.withChunks (\mps -> listTeamMembers @InternalPaging tid mps maxBound) $
           \members -> unsafePooledForConcurrentlyN_ 8 members $ \member -> do
             mRecord <-
               runErrorS @TeamMemberNotFound $
