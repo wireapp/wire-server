@@ -1,1 +1,1 @@
-registry.k8s.io uses a v prefix with image tag and does not have any kubectl image tag for version `1.24.12`, So updating image version for restund to get the same image are reaper from registry.k8s.io .
+Switch reaper and restund kubectl images to bitnamilegacy registry to ensure shell access compatibility
