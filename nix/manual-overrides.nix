@@ -8,6 +8,9 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
+  # Tests require a running Pulsar instance
+  supernova = hlib.dontCheck hsuper.supernova;
+
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 

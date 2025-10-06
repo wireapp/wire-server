@@ -289,6 +289,18 @@ let
         amazonka-test = "lib/amazonka-test";
       };
     };
+
+    supernova = {
+      src = fetchgit {
+        url = "https://github.com/supersven/supernova";
+        rev = "d0fd48f28e51984b02692a08074bf013de2f0312";
+        hash = "sha256-v86yyPLuKYDPL3ulk/E/Ydfua1aBFxylR+q6GLzaxA0=";
+      };
+      packages = {
+        supernova = "lib/";
+        proto = "proto/";
+      };
+    };
   };
 
   hackagePins = {

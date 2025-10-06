@@ -113,6 +113,7 @@ library
     , servant-conduit
     , servant-server
     , strict                                >=0.3.2
+    , supernova
     , text                                  >=1.1
     , tinylog                               >=0.10
     , transformers
