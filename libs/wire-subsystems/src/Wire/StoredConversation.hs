@@ -320,7 +320,7 @@ defAccess SelfConv (Just []) = [PrivateAccess]
 defAccess ConnectConv (Just []) = [PrivateAccess]
 defAccess One2OneConv (Just []) = [PrivateAccess]
 defAccess RegularConv (Just []) = defRegularConvAccess
-defAccess _ (Just (x : xs)) = x : xs
+defAccess _ (Just xs@(_ : _)) = xs
 
 -- BotMember ------------------------------------------------------------------
 
