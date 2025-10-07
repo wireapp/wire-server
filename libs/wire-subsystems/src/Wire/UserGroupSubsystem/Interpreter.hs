@@ -50,6 +50,7 @@ interpretUserGroupSubsystem = interpret $ \case
   AddUsers adder groupId addeeIds -> addUsers adder groupId addeeIds
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
+  RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
@@ -328,3 +329,38 @@ removeUser remover groupId removeeId = do
     pushNotifications
       [ mkEvent remover (UserGroupUpdated groupId) admins
       ]
+
+removeUserFromAllGroups ::
+  ( Member Store.UserGroupStore r,
+    Member TeamSubsystem r,
+    Member (Error UserGroupSubsystemError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Sem r ()
+removeUserFromAllGroups uid tid = do
+  void $ internalGetTeamMember uid tid >>= note UserGroupMemberIsNotInTheSameTeam
+  nextPage Nothing >>= go
+  where
+    go (ug : ugs) = do
+      Store.removeUser ug.id_ uid
+      -- when we get to the last item, get a new page
+      ugs' <- case ugs of
+        [] -> nextPage (Just ug)
+        _ -> pure ugs
+      go ugs'
+    -- no more items, terminate
+    go [] = pure ()
+
+    nextPage mug =
+      fmap (.page) . Store.getUserGroups $
+        UserGroupPageRequest
+          { pageSize = def,
+            sortOrder = Desc,
+            paginationState =
+              PaginationSortByCreatedAt $
+                fmap Store.userGroupCreatedAtPaginationState mug,
+            team = tid,
+            searchString = Nothing,
+            includeMemberCount = False
+          }

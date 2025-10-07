@@ -8,26 +8,14 @@ import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
 
-runResultlessStatement ::
+runStatement ::
   ( Member (Input Pool) r,
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
   a ->
-  Statement a () ->
-  Sem r ()
-runResultlessStatement a stmt = do
-  pool <- input
-  liftIO (use pool (statement a stmt)) >>= either throw pure
-
-runMaybeStatement ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
-  a ->
-  Statement a (Maybe b) ->
-  Sem r (Maybe b)
-runMaybeStatement a stmt = do
+  Statement a b ->
+  Sem r b
+runStatement a stmt = do
   pool <- input
   liftIO (use pool (statement a stmt)) >>= either throw pure

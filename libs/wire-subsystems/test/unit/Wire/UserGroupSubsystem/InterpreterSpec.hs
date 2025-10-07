@@ -2,6 +2,7 @@
 
 module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
 
+import Control.Error.Util (hush)
 import Control.Lens ((.~), (^.))
 import Control.Monad
 import Data.Aeson qualified as A
@@ -266,13 +267,13 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
     prop "team members can only get user groups from their own team" $
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
-       userGroupName1
-       (WithMods team2 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
-       userGroupName2 ->
+       (WithMods team2 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) ->
           expectRight
             . runDependencies (allUsers team1 <> allUsers team2) (galleyTeam team1 <> galleyTeam team2)
             . interpretUserGroupSubsystem
             $ do
+              let userGroupName1 = fromJust . hush $ userGroupNameFromText "first"
+              let userGroupName2 = fromJust . hush $ userGroupNameFromText "second"
               let newUserGroup1 =
                     NewUserGroup
                       { name = userGroupName1,

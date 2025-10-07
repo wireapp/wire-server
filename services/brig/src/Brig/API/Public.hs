@@ -1418,7 +1418,8 @@ deleteSelfUser ::
     Member Events r,
     Member HashPassword r,
     Member RateLimit r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1436,7 +1437,8 @@ verifyDeleteUser ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
