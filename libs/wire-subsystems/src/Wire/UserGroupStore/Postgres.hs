@@ -9,6 +9,7 @@ import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
+import Data.Qualified (Local, QualifiedWithTag (tUntagged), qualifyAs)
 import Data.Range
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
@@ -42,7 +43,7 @@ type UserGroupStorePostgresEffectConstraints r =
 
 interpretUserGroupStoreToPostgres ::
   forall r.
-  (UserGroupStorePostgresEffectConstraints r) =>
+  (UserGroupStorePostgresEffectConstraints r, Member (Input (Local ())) r) =>
   InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
@@ -74,33 +75,41 @@ updateUsers gid uids = do
           delete from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
+-- TODO: move to a shared place
+qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
+qualifyLocal a = do
+  l <- input
+  pure $ qualifyAs l a
+
 getUserGroup ::
   forall r.
-  (UserGroupStorePostgresEffectConstraints r) =>
+  (UserGroupStorePostgresEffectConstraints r, Member (Input (Local ())) r) =>
   TeamId ->
   UserGroupId ->
   Bool ->
   Sem r (Maybe UserGroup)
 getUserGroup team id_ includeChannels = do
   pool <- input
-  eitherUserGroup <- liftIO $ use pool (if includeChannels then sessionWithChannels else session)
+  loc <- qualifyLocal ()
+  eitherUserGroup <- liftIO $ use pool (if includeChannels then sessionWithChannels loc else session)
   either throw pure eitherUserGroup
   where
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ Identity <$> statement id_ getGroupMembersStatement
+      -- TODO: add counts
       let membersCount = Nothing
           channelsCount = Nothing
           channels = mempty
       pure $ UserGroup_ {..}
 
-    sessionWithChannels :: Session (Maybe UserGroup)
-    sessionWithChannels = runMaybeT do
+    sessionWithChannels :: Local a -> Session (Maybe UserGroup)
+    sessionWithChannels loc = runMaybeT do
       (name, managedBy, createdAt, memberIds, channelIds) <- MaybeT $ statement (id_, team) getGroupWithMembersAndChannelsStatement
       let members = Identity (fmap Id memberIds)
           membersCount = Just (fromIntegral (V.length memberIds))
-          channels = Identity (Just (fmap (todo "qualify channel" . Id) channelIds))
+          channels = Identity (Just (fmap (tUntagged . qualifyAs loc . Id) channelIds))
           channelsCount = Just (fromIntegral (V.length channelIds))
       pure $ UserGroup_ {..}
 
@@ -250,20 +259,34 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
     encodeTime :: HE.Params UTCTimeMillis
     encodeTime = contramap fromUTCTimeMillis $ HE.param $ HE.nonNullable HE.timestamptz
 
-    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32, Maybe Int32)]
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID))]
     decodeRow =
       HD.rowList
-        ( (,,,,,)
+        ( (,,,,,,)
             <$> HD.column (HD.nonNullable HD.uuid)
             <*> HD.column (HD.nonNullable HD.text)
             <*> HD.column (HD.nonNullable HD.int4)
             <*> HD.column (HD.nonNullable HD.timestamptz)
             <*> (if req.includeMemberCount then Just <$> HD.column (HD.nonNullable HD.int4) else pure Nothing)
-            <*> (if req.includeChannels then Just <$> HD.column (HD.nonNullable HD.int4) else pure Nothing)
+            <*> HD.column (HD.nonNullable HD.int4)
+            <*> ( if req.includeChannels
+                    then
+                      Just
+                        <$> HD.column
+                          ( HD.nonNullable
+                              ( HD.array
+                                  ( HD.dimension
+                                      V.replicateM
+                                      (HD.element (HD.nonNullable HD.uuid))
+                                  )
+                              )
+                          )
+                    else pure Nothing
+                )
         )
 
-    parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32, Maybe Int32) -> Either Text UserGroupMeta
-    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw, channelsCountRaw) = do
+    parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID)) -> Either Text UserGroupMeta
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw, channelsCountRaw, _maybeChannels) = do
       managedBy <- case managedByPre of
         0 -> pure ManagedByWire
         1 -> pure ManagedByScim
@@ -271,7 +294,8 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
       name <- userGroupNameFromText namePre
       let members = Const ()
           membersCount = fromIntegral <$> membersCountRaw
-          channelsCount = fromIntegral <$> channelsCountRaw
+          channelsCount = Just (fromIntegral channelsCountRaw)
+          -- TODO: process channels
           channels = mempty
       pure $ UserGroup_ {..}
 
@@ -287,7 +311,8 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
             filter (not . T.null) $
               ["id", "name", "managed_by", "created_at"]
                 <> ["(select count(*) from user_group_member as ugm where ugm.user_group_id = ug.id) as members" | includeMemberCount]
-                <> ["(select count(*) from user_group_channel as ugc where ugc.user_group_id = ug.id) as channels" | includeChannels]
+                <> ["(select count(*) from user_group_channel as ugc where ugc.user_group_id = ug.id) as channels"]
+                <> ["coalesce((select array_agg(ugc.conv_id) from user_group_channel as ugc where ugc.user_group_id = ug.id), array[]::uuid[]) as channel_ids" | includeChannels]
         whr = "where team_id = ($1 :: uuid)"
         sortColumn = toSortBy paginationState
         orderBy = T.unwords ["order by", sortColumnName sortColumn, sortOrderClause sortOrder <> ", id", sortOrderClause sortOrder]

@@ -57,7 +57,7 @@ userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r) => Int
 userGroupStoreTestInterpreter =
   interpret $ \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
-    GetUserGroup tid gid -> getUserGroupImpl tid gid
+    GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
@@ -65,7 +65,6 @@ userGroupStoreTestInterpreter =
     UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl gid convIds
-    ListUserGroupChannels gid -> listUserGroupChannelsImpl gid
 
 updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsersImpl gid uids = do
@@ -94,8 +93,8 @@ createUserGroupImpl tid nug managedBy = do
   modify (Map.insert (tid, gid) ug)
   pure ug
 
-getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
+getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Bool -> Sem r (Maybe UserGroup)
+getUserGroupImpl tid gid _includeChannels = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
 getUserGroupsImpl UserGroupPageRequest {..} = do
@@ -153,7 +152,7 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
 
 updateUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
-  exists <- getUserGroupImpl tid gid
+  exists <- getUserGroupImpl tid gid False
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
       f (Just g) = Just (g {name = newName} :: UserGroup)
@@ -163,7 +162,7 @@ updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
 
 deleteUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
 deleteUserGroupImpl tid gid = do
-  exists <- getUserGroupImpl tid gid
+  exists <- getUserGroupImpl tid gid False
   modify (Map.delete (tid, gid))
   pure $ exists $> ()
 
