@@ -371,7 +371,8 @@ removeUserFromAllGroups uid tid = do
                 fmap Store.userGroupCreatedAtPaginationState mug,
             team = tid,
             searchString = Nothing,
-            includeMemberCount = False
+            includeMemberCount = False,
+            includeChannels = False
           }
 
 updateChannels ::
