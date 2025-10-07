@@ -1743,6 +1743,13 @@ type SearchAPI =
              ]
              "email"
              EmailVerificationFilter
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Optional, return only non-seacrhable members when false."
+             ]
+             "searchable"
+             Bool
         :> MultiVerb
              'GET
              '[JSON]

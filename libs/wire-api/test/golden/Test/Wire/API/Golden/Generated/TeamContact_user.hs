@@ -41,7 +41,8 @@ testObject_TeamContact_user_1 =
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_2 :: TeamContact
@@ -60,7 +61,8 @@ testObject_TeamContact_user_2 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_3 :: TeamContact
@@ -79,7 +81,8 @@ testObject_TeamContact_user_3 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_4 :: TeamContact
@@ -98,7 +101,8 @@ testObject_TeamContact_user_4 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_5 :: TeamContact
@@ -117,7 +121,8 @@ testObject_TeamContact_user_5 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_6 :: TeamContact
@@ -136,7 +141,8 @@ testObject_TeamContact_user_6 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_7 :: TeamContact
@@ -155,7 +161,8 @@ testObject_TeamContact_user_7 =
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_8 :: TeamContact
@@ -174,7 +181,8 @@ testObject_TeamContact_user_8 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_9 :: TeamContact
@@ -193,7 +201,8 @@ testObject_TeamContact_user_9 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_10 :: TeamContact
@@ -212,7 +221,8 @@ testObject_TeamContact_user_10 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_11 :: TeamContact
@@ -231,7 +241,8 @@ testObject_TeamContact_user_11 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_12 :: TeamContact
@@ -250,7 +261,8 @@ testObject_TeamContact_user_12 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_13 :: TeamContact
@@ -269,7 +281,8 @@ testObject_TeamContact_user_13 =
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_14 :: TeamContact
@@ -288,7 +301,8 @@ testObject_TeamContact_user_14 =
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_15 :: TeamContact
@@ -307,7 +321,8 @@ testObject_TeamContact_user_15 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_16 :: TeamContact
@@ -326,7 +341,8 @@ testObject_TeamContact_user_16 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_17 :: TeamContact
@@ -345,7 +361,8 @@ testObject_TeamContact_user_17 =
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_18 :: TeamContact
@@ -364,7 +381,8 @@ testObject_TeamContact_user_18 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_19 :: TeamContact
@@ -383,7 +401,8 @@ testObject_TeamContact_user_19 =
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }
 
 testObject_TeamContact_user_20 :: TeamContact
@@ -402,5 +421,6 @@ testObject_TeamContact_user_20 =
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
-      teamContactUserGroups = []
+      teamContactUserGroups = [],
+      teamContactSearchable = Nothing
     }

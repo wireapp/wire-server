@@ -193,7 +193,8 @@ data TeamContact = TeamContact
     teamContactScimExternalId :: Maybe Text,
     teamContactSso :: Maybe Sso,
     teamContactEmailUnvalidated :: Maybe EmailAddress,
-    teamContactUserGroups :: [UserGroupId]
+    teamContactUserGroups :: [UserGroupId],
+    teamContactSearchable :: Maybe Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -217,6 +218,7 @@ instance ToSchema TeamContact where
         <*> teamContactSso .= optField "sso" (maybeWithDefault Aeson.Null schema)
         <*> teamContactEmailUnvalidated .= optField "email_unvalidated" (maybeWithDefault Aeson.Null schema)
         <*> teamContactUserGroups .= fieldWithDocModifier "user_groups" (S.description ?~ "List of user group ids the user is a member of") (array schema)
+        <*> teamContactSearchable .= optField "searchable" (maybeWithDefault Aeson.Null schema)
 
 data TeamUserSearchSortBy
   = SortByName

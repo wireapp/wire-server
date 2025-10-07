@@ -126,7 +126,8 @@ userDocToTeamContact userGroups UserDoc {..} =
       teamContactEmail = udEmail,
       teamContactCreatedAt = udCreatedAt,
       teamContactColorId = fromIntegral . fromColourId <$> udColourId,
-      teamContactUserGroups = userGroups
+      teamContactUserGroups = userGroups,
+      teamContactSearchable = udSearchable
     }
 
 -- | Outbound search restrictions configured by team admin of the searcher. This
@@ -205,7 +206,8 @@ data BrowseTeamFilters = BrowseTeamFilters
     mRoleFilter :: Maybe RoleFilter,
     mSortBy :: Maybe TeamUserSearchSortBy,
     mSortOrder :: Maybe TeamUserSearchSortOrder,
-    mEmailVerificationFilter :: Maybe EmailVerificationFilter
+    mEmailVerificationFilter :: Maybe EmailVerificationFilter,
+    mSearchable :: Maybe Bool
   }
   deriving (Eq, Show)
 
