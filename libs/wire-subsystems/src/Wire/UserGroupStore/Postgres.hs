@@ -15,6 +15,7 @@ import Data.Text.Encoding qualified as TE
 import Data.Time
 import Data.UUID as UUID
 import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Hasql.Decoders qualified as HD
 import Hasql.Encoders qualified as HE
 import Hasql.Pool
@@ -81,9 +82,8 @@ getUserGroup ::
   Bool ->
   Sem r (Maybe UserGroup)
 getUserGroup team id_ includeChannels = do
-  todo "implement includeChannels" includeChannels
   pool <- input
-  eitherUserGroup <- liftIO $ use pool session
+  eitherUserGroup <- liftIO $ use pool (if includeChannels then sessionWithChannels else session)
   either throw pure eitherUserGroup
   where
     session :: Session (Maybe UserGroup)
@@ -95,11 +95,26 @@ getUserGroup team id_ includeChannels = do
           channels = mempty
       pure $ UserGroup_ {..}
 
+    sessionWithChannels :: Session (Maybe UserGroup)
+    sessionWithChannels = runMaybeT do
+      (name, managedBy, createdAt, memberIds, channelIds) <- MaybeT $ statement (id_, team) getGroupWithMembersAndChannelsStatement
+      let members = Identity (fmap Id memberIds)
+          membersCount = Just (fromIntegral (V.length memberIds))
+          channels = Identity (Just (fmap (todo "qualify channel" . Id) channelIds))
+          channelsCount = Just (fromIntegral (V.length channelIds))
+      pure $ UserGroup_ {..}
+
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (name, managedByInt, utcTime) =
       (,,toUTCTimeMillis utcTime)
         <$> userGroupNameFromText name
         <*> managedByFromInt32 managedByInt
+
+    decodeWithArrays :: (Text, Int32, UTCTime, Vector UUID, Vector UUID) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis, Vector UUID, Vector UUID)
+    decodeWithArrays (name, managedByInt, utcTime, membs, chans) = do
+      n <- userGroupNameFromText name
+      m <- managedByFromInt32 managedByInt
+      pure (n, m, toUTCTimeMillis utcTime, membs, chans)
 
     getGroupMetadataStatement :: Statement (UserGroupId, TeamId) (Maybe (UserGroupName, ManagedBy, UTCTimeMillis))
     getGroupMetadataStatement =
@@ -117,6 +132,21 @@ getUserGroup team id_ includeChannels = do
           select (user_id :: uuid) from user_group_member where user_group_id = ($1 :: uuid)
           |]
 
+    getGroupWithMembersAndChannelsStatement :: Statement (UserGroupId, TeamId) (Maybe (UserGroupName, ManagedBy, UTCTimeMillis, Vector UUID, Vector UUID))
+    getGroupWithMembersAndChannelsStatement =
+      lmap (\(gid, tid) -> (gid.toUUID, tid.toUUID))
+        . refineResult (mapM decodeWithArrays)
+        $ [maybeStatement|
+            select
+              (name :: text),
+              (managed_by :: int),
+              (created_at :: timestamptz),
+              coalesce((select array_agg(ugm.user_id) from user_group_member ugm where ugm.user_group_id = ug.id), array[]::uuid[]) :: uuid[],
+              coalesce((select array_agg(ugc.conv_id) from user_group_channel ugc where ugc.user_group_id = ug.id), array[]::uuid[]) :: uuid[]
+            from user_group ug
+            where ug.id = ($1 :: uuid) and ug.team_id = ($2 :: uuid)
+          |]
+
 divide3 :: (Divisible f) => (p -> (a, b, c)) -> f a -> f b -> f c -> f p
 divide3 f a b c = divide (\p -> let (x, y, z) = f p in (x, (y, z))) a (divide id b c)
 
@@ -132,7 +162,6 @@ getUserGroups ::
   UserGroupPageRequest ->
   Sem r UserGroupPage
 getUserGroups req@(UserGroupPageRequest {..}) = do
-  todo "implement includeChannels" includeChannels
   pool <- input
   eitherResult <- liftIO $ use pool do
     TxSessions.transaction TxSessions.ReadCommitted TxSessions.Read do
@@ -221,19 +250,20 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
     encodeTime :: HE.Params UTCTimeMillis
     encodeTime = contramap fromUTCTimeMillis $ HE.param $ HE.nonNullable HE.timestamptz
 
-    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32)]
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32, Maybe Int32)]
     decodeRow =
       HD.rowList
-        ( (,,,,)
+        ( (,,,,,)
             <$> HD.column (HD.nonNullable HD.uuid)
             <*> HD.column (HD.nonNullable HD.text)
             <*> HD.column (HD.nonNullable HD.int4)
             <*> HD.column (HD.nonNullable HD.timestamptz)
             <*> (if req.includeMemberCount then Just <$> HD.column (HD.nonNullable HD.int4) else pure Nothing)
+            <*> (if req.includeChannels then Just <$> HD.column (HD.nonNullable HD.int4) else pure Nothing)
         )
 
-    parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32) -> Either Text UserGroupMeta
-    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw) = do
+    parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32, Maybe Int32) -> Either Text UserGroupMeta
+    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw, channelsCountRaw) = do
       managedBy <- case managedByPre of
         0 -> pure ManagedByWire
         1 -> pure ManagedByScim
@@ -241,7 +271,7 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
       name <- userGroupNameFromText namePre
       let members = Const ()
           membersCount = fromIntegral <$> membersCountRaw
-          channelsCount = Nothing
+          channelsCount = fromIntegral <$> channelsCountRaw
           channels = mempty
       pure $ UserGroup_ {..}
 
@@ -257,6 +287,7 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
             filter (not . T.null) $
               ["id", "name", "managed_by", "created_at"]
                 <> ["(select count(*) from user_group_member as ugm where ugm.user_group_id = ug.id) as members" | includeMemberCount]
+                <> ["(select count(*) from user_group_channel as ugc where ugc.user_group_id = ug.id) as channels" | includeChannels]
         whr = "where team_id = ($1 :: uuid)"
         sortColumn = toSortBy paginationState
         orderBy = T.unwords ["order by", sortColumnName sortColumn, sortOrderClause sortOrder <> ", id", sortOrderClause sortOrder]
