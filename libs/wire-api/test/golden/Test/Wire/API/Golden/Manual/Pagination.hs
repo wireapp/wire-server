@@ -19,24 +19,22 @@ Just someOtherUTCTime = readUTCTimeMillis "2021-12-12T00:00:00.000Z"
 
 ug1 :: UserGroup
 ug1 =
-  UserGroup_
+  UserGroup
     { id_ = Id UUID.nil,
       name = either (error . show) id (userGroupNameFromText "*"),
       members = mempty,
       channels = mempty,
-      membersCount = Nothing,
-      channelsCount = Just 1,
       managedBy = ManagedByWire,
       createdAt = someUTCTime
     }
 
 ug2 :: UserGroup
 ug2 =
-  UserGroup_
+  UserGroup
     { id_ = Id . fromJust $ UUID.fromString "63dd98c0-552d-11f0-8df7-b3e03cd56036",
       name = either (error . show) id (userGroupNameFromText "##name1##"),
       members =
-        Identity . Vec.fromList $
+        Vec.fromList $
           ( Id . fromJust . UUID.fromString
               <$> [ "1f815fa2-552f-11f0-8642-77f29e68cbc9",
                     "28a9c560-552f-11f0-9082-97e15e952720",
@@ -44,22 +42,18 @@ ug2 =
                   ]
           ),
       channels = mempty,
-      membersCount = Nothing,
-      channelsCount = Just 1,
       managedBy = ManagedByWire,
       createdAt = someUTCTime
     }
 
 ug3 :: UserGroup
 ug3 =
-  UserGroup_
+  UserGroup
     { id_ = Id . fromJust $ UUID.fromString "60278b50-552d-11f0-892b-ebd66f6c2c30",
       name = either (error . show) id (userGroupNameFromText "!! user group !!"),
       members =
-        Identity $ Vec.fromList (Id . fromJust . UUID.fromString <$> ["37b636e2-552f-11f0-abe8-5bf7b2ad08c9"]),
+        Vec.fromList (Id . fromJust . UUID.fromString <$> ["37b636e2-552f-11f0-abe8-5bf7b2ad08c9"]),
       channels = mempty,
-      membersCount = Nothing,
-      channelsCount = Nothing,
       managedBy = ManagedByScim,
       createdAt = someOtherUTCTime
     }

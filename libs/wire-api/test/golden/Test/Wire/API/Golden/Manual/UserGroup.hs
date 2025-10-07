@@ -40,11 +40,9 @@ testObject_UserGroupUpdate_2 = UserGroupUpdate (unsafeToUserGroupName "some name
 
 testObject_UserGroup_1 :: UserGroupMeta
 testObject_UserGroup_1 =
-  UserGroup_
+  UserGroupMeta
     { id_ = userGroupId1,
       name = (unsafeToUserGroupName "name"),
-      members = (Const ()),
-      channels = (Const ()),
       membersCount = Nothing,
       channelsCount = Just 0,
       managedBy = ManagedByWire,
@@ -53,16 +51,14 @@ testObject_UserGroup_1 =
 
 testObject_UserGroup_2 :: UserGroup
 testObject_UserGroup_2 =
-  UserGroup_
+  UserGroup
     { id_ = userGroupId2,
       name = (unsafeToUserGroupName "yet another one"),
-      members = (Identity $ fromList [userId1, userId2]),
+      members = fromList [userId1, userId2],
       channels =
-        Identity . Just . fromList $
+        Just . fromList $
           [ Qualified (Id (fromJust (UUID.fromString "445c08d2-a16b-49ea-a274-4208bb2efe8f"))) (Domain "example.com")
           ],
-      membersCount = Nothing,
-      channelsCount = Just 1,
       managedBy = ManagedByScim,
       createdAt = someUTCTime
     }

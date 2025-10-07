@@ -342,7 +342,7 @@ type UserGroupAPI =
                :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
                :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
                :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
-               :> QueryFlag "include_channels"
+               :> QueryFlag "include_channels_count"
                :> QueryFlag "include_member_count"
                :> Get '[JSON] UserGroupPage
            )

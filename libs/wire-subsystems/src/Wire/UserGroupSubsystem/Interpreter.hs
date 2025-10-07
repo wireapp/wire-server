@@ -149,7 +149,7 @@ getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ Store.getUserGroup team gid includeChannels
-  if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
+  if getterCanSeeAll || getter `elem` toList userGroup.members
     then pure userGroup
     else MaybeT $ pure Nothing
 
@@ -263,7 +263,7 @@ addUser adder groupId addeeId = do
   ug <- getUserGroup adder groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  unless (addeeId `elem` runIdentity ug.members) $ do
+  unless (addeeId `elem` ug.members) $ do
     Store.addUser groupId addeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
@@ -287,7 +287,7 @@ addUsers adder groupId addeeIds = do
   forM_ addeeIds $ \addeeId ->
     internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
 
-  let missingAddeeIds = toList addeeIds \\ toList (runIdentity ug.members)
+  let missingAddeeIds = toList addeeIds \\ toList ug.members
   unless (null missingAddeeIds) $ do
     mapM_ (Store.addUser groupId) missingAddeeIds
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
@@ -332,7 +332,7 @@ removeUser remover groupId removeeId = do
   ug <- getUserGroup remover groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
-  when (removeeId `elem` runIdentity ug.members) $ do
+  when (removeeId `elem` ug.members) $ do
     Store.removeUser groupId removeeId
     admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
     pushNotifications
