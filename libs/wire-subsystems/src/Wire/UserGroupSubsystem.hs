@@ -14,7 +14,7 @@ import Wire.API.UserGroup.Pagination
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
-  GetGroup :: UserId -> UserGroupId -> UserGroupSubsystem m (Maybe UserGroup)
+  GetGroup :: UserId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
   GetGroups ::
     UserId ->
     Maybe Text ->
@@ -25,6 +25,7 @@ data UserGroupSubsystem m a where
     Maybe UTCTimeMillis ->
     Maybe UserGroupId ->
     Bool ->
+    Bool ->
     UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
@@ -34,6 +35,5 @@ data UserGroupSubsystem m a where
   RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
   RemoveUserFromAllGroups :: UserId -> TeamId -> UserGroupSubsystem m ()
   UpdateChannels :: UserId -> UserGroupId -> Vector ConvId -> UserGroupSubsystem m ()
-  ListChannels :: UserId -> UserGroupId -> UserGroupSubsystem m (Vector ConvId)
 
 makeSem ''UserGroupSubsystem

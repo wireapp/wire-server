@@ -46,7 +46,7 @@ interpretUserGroupStoreToPostgres ::
 interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroup team newUserGroup managedBy
-    GetUserGroup team userGroupId -> getUserGroup team userGroupId
+    GetUserGroup team userGroupId includeChannels -> getUserGroup team userGroupId includeChannels
     GetUserGroups req -> getUserGroups req
     UpdateUserGroup tid gid gup -> updateGroup tid gid gup
     DeleteUserGroup tid gid -> deleteGroup tid gid
@@ -54,7 +54,6 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
-    ListUserGroupChannels gid -> listUserGroupChannels gid
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do
@@ -79,8 +78,10 @@ getUserGroup ::
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupId ->
+  Bool ->
   Sem r (Maybe UserGroup)
-getUserGroup team id_ = do
+getUserGroup team id_ includeChannels = do
+  todo "implement includeChannels" includeChannels
   pool <- input
   eitherUserGroup <- liftIO $ use pool session
   either throw pure eitherUserGroup
@@ -131,6 +132,7 @@ getUserGroups ::
   UserGroupPageRequest ->
   Sem r UserGroupPage
 getUserGroups req@(UserGroupPageRequest {..}) = do
+  todo "implement includeChannels" includeChannels
   pool <- input
   eitherResult <- liftIO $ use pool do
     TxSessions.transaction TxSessions.ReadCommitted TxSessions.Read do

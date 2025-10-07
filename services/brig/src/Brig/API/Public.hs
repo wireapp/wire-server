@@ -85,7 +85,6 @@ import Data.Qualified
 import Data.Range
 import Data.Schema ()
 import Data.Text.Encoding qualified as Text
-import Data.Vector qualified as Vector
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
@@ -1680,19 +1679,7 @@ createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnq
 
 getUserGroup :: (_) => Local UserId -> UserGroupId -> Bool -> Handler r (Maybe UserGroup)
 getUserGroup lusr ugid includeChannels =
-  lift . liftSem $ do
-    mUserGroup <- UserGroup.getGroup (tUnqualified lusr) ugid
-    if includeChannels
-      then forM mUserGroup $ \userGroup -> do
-        fetchedChannels <-
-          fmap (tUntagged . qualifyAs lusr)
-            <$> UserGroup.listChannels (tUnqualified lusr) userGroup.id_
-        pure
-          userGroup
-            { channels = Identity $ Just fetchedChannels,
-              channelsCount = Just $ Vector.length fetchedChannels
-            }
-      else pure mUserGroup
+  lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid includeChannels
 
 getUserGroups ::
   (_) =>
@@ -1708,19 +1695,7 @@ getUserGroups ::
   Bool ->
   Handler r UserGroupPage
 getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeChannels includeMemberCount =
-  lift . liftSem $ do
-    userGroups <- UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount
-    if includeChannels
-      then do
-        newPage <-
-          forM userGroups.page $ \userGroup -> do
-            fetchedChannels <- UserGroup.listChannels (tUnqualified lusr) userGroup.id_
-            pure
-              userGroup
-                { channelsCount = Just $ Vector.length fetchedChannels
-                }
-        pure userGroups {page = newPage}
-      else pure userGroups
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount includeChannels
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd

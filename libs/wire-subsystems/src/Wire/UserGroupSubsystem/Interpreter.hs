@@ -44,9 +44,9 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
-  GetGroup getter gid -> getUserGroup getter gid
-  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount ->
-    getUserGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount
+  GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
+  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount includeChannels ->
+    getUserGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount includeChannels
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
   AddUser adder groupId addeeId -> addUser adder groupId addeeId
@@ -55,7 +55,6 @@ interpretUserGroupSubsystem = interpret $ \case
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
   RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
   UpdateChannels performer groupId channelIds -> updateChannels performer groupId channelIds
-  ListChannels performer groupId -> listChannels performer groupId
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
@@ -144,11 +143,12 @@ getUserGroup ::
   ) =>
   UserId ->
   UserGroupId ->
+  Bool ->
   Sem r (Maybe UserGroup)
-getUserGroup getter gid = runMaybeT $ do
+getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
-  userGroup <- MaybeT $ Store.getUserGroup team gid
+  userGroup <- MaybeT $ Store.getUserGroup team gid includeChannels
   if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
@@ -179,8 +179,9 @@ getUserGroups ::
   Maybe UTCTimeMillis ->
   Maybe UserGroupId ->
   Bool ->
+  Bool ->
   Sem r UserGroupPage
-getUserGroups getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount' = do
+getUserGroups getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount' includeChannels' = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
@@ -193,7 +194,8 @@ getUserGroups getter searchString sortBy' sortOrder' mPageSize mLastGroupName mL
               SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> mLastCreatedAt <*> mLastGroupId,
             team = team,
             searchString = searchString,
-            includeMemberCount = includeMemberCount'
+            includeMemberCount = includeMemberCount',
+            includeChannels = includeChannels'
           }
   Store.getUserGroups pageReq
   where
@@ -258,7 +260,7 @@ addUser ::
   UserId ->
   Sem r ()
 addUser adder groupId addeeId = do
-  ug <- getUserGroup adder groupId >>= note UserGroupNotFound
+  ug <- getUserGroup adder groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   unless (addeeId `elem` runIdentity ug.members) $ do
@@ -280,7 +282,7 @@ addUsers ::
   Vector UserId ->
   Sem r ()
 addUsers adder groupId addeeIds = do
-  ug <- getUserGroup adder groupId >>= note UserGroupNotFound
+  ug <- getUserGroup adder groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin adder >>= note UserGroupNotATeamAdmin
   forM_ addeeIds $ \addeeId ->
     internalGetTeamMember addeeId team >>= note UserGroupMemberIsNotInTheSameTeam
@@ -305,7 +307,7 @@ updateUsers ::
   Vector UserId ->
   Sem r ()
 updateUsers updater groupId uids = do
-  void $ getUserGroup updater groupId >>= note UserGroupNotFound
+  void $ getUserGroup updater groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
   forM_ uids $ \uid ->
     internalGetTeamMember uid team >>= note UserGroupMemberIsNotInTheSameTeam
@@ -327,7 +329,7 @@ removeUser ::
   UserId ->
   Sem r ()
 removeUser remover groupId removeeId = do
-  ug <- getUserGroup remover groupId >>= note UserGroupNotFound
+  ug <- getUserGroup remover groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin remover >>= note UserGroupNotATeamAdmin
   void $ internalGetTeamMember removeeId team >>= note UserGroupMemberIsNotInTheSameTeam
   when (removeeId `elem` runIdentity ug.members) $ do
@@ -385,7 +387,7 @@ updateChannels ::
   Vector ConvId ->
   Sem r ()
 updateChannels performer groupId channelIds = do
-  void $ getUserGroup performer groupId >>= note UserGroupNotFound
+  void $ getUserGroup performer groupId False >>= note UserGroupNotFound
   teamId <- getTeamAsAdmin performer >>= note UserGroupNotATeamAdmin
   for_ channelIds $ \channelId -> do
     conv <- internalGetConversation channelId >>= note UserGroupChannelNotFound
@@ -398,17 +400,3 @@ updateChannels performer groupId channelIds = do
   pushNotifications
     [ mkEvent performer (UserGroupUpdated groupId) admins
     ]
-
-listChannels ::
-  ( Member UserSubsystem r,
-    Member Store.UserGroupStore r,
-    Member (Error UserGroupSubsystemError) r,
-    Member TeamSubsystem r
-  ) =>
-  UserId ->
-  UserGroupId ->
-  Sem r (Vector ConvId)
-listChannels performer groupId = do
-  void $ getUserGroup performer groupId >>= note UserGroupNotFound
-  void $ getUserTeam performer >>= note UserGroupNotATeamAdmin
-  Store.listUserGroupChannels groupId
