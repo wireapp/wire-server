@@ -97,16 +97,21 @@ getUserGroup team id_ includeChannels = do
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
-      members <- lift $ statement id_ getGroupMembersStatement
-      let channels = mempty
-      pure $ UserGroup {..}
+      members <- lift $ Identity <$> statement id_ getGroupMembersStatement
+      -- TODO: add counts
+      let membersCount = Nothing
+          channelsCount = Nothing
+          channels = mempty
+      pure $ UserGroup_ {..}
 
     sessionWithChannels :: Local a -> Session (Maybe UserGroup)
     sessionWithChannels loc = runMaybeT do
       (name, managedBy, createdAt, memberIds, channelIds) <- MaybeT $ statement (id_, team) getGroupWithMembersAndChannelsStatement
-      let members = fmap Id memberIds
-          channels = Just (fmap (tUntagged . qualifyAs loc . Id) channelIds)
-      pure $ UserGroup {..}
+      let members = Identity (fmap Id memberIds)
+          membersCount = Just (fromIntegral (V.length memberIds))
+          channels = Identity (Just (fmap (tUntagged . qualifyAs loc . Id) channelIds))
+          channelsCount = Just (fromIntegral (V.length channelIds))
+      pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (name, managedByInt, utcTime) =
@@ -287,9 +292,12 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
         1 -> pure ManagedByScim
         bad -> Left $ "Could not parse managedBy value: " <> T.pack (show bad)
       name <- userGroupNameFromText namePre
-      let membersCount = fromIntegral <$> membersCountRaw
+      let members = Const ()
+          membersCount = fromIntegral <$> membersCountRaw
           channelsCount = Just (fromIntegral channelsCountRaw)
-      pure $ UserGroupMeta {..}
+          -- TODO: process channels
+          channels = mempty
+      pure $ UserGroup_ {..}
 
     -- \| Compile a pagination state into select query to return the next page.  Result is the
     -- query string and the search string (which needs escaping).
@@ -350,10 +358,12 @@ createUserGroup team newUserGroup managedBy = do
       (id_, name, managedBy_, createdAt) <- Tx.statement (newUserGroup.name, team, managedBy) insertGroupStatement
       Tx.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
       pure
-        UserGroup
-          { members = newUserGroup.members,
+        UserGroup_
+          { membersCount = Nothing,
+            members = Identity newUserGroup.members,
             channels = mempty,
             managedBy = managedBy_,
+            channelsCount = Nothing,
             id_,
             name,
             createdAt

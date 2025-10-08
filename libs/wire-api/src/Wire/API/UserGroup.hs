@@ -25,6 +25,7 @@ import Control.Applicative
 import Data.Aeson qualified as A
 import Data.Id
 import Data.Json.Util
+import Data.Kind
 import Data.OpenApi qualified as OpenApi
 import Data.Qualified (Qualified)
 import Data.Range
@@ -99,60 +100,86 @@ instance ToSchema UserGroupAddUsers where
       UserGroupAddUsers
         <$> (.members) .= field "members" (vector schema)
 
-data UserGroup = UserGroup
-  { id_ :: UserGroupId,
-    name :: UserGroupName,
-    members :: Vector UserId,
-    channels :: Maybe (Vector (Qualified ConvId)),
-    managedBy :: ManagedBy,
-    createdAt :: UTCTimeMillis
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroup
-  deriving (Arbitrary) via GenericUniform UserGroup
+type UserGroup = UserGroup_ Identity
 
-data UserGroupMeta = UserGroupMeta
+type UserGroupMeta = UserGroup_ (Const ())
+
+userGroupToMeta :: UserGroup -> UserGroupMeta
+userGroupToMeta ug =
+  UserGroup_
+    { id_ = ug.id_,
+      name = ug.name,
+      members = Const (),
+      channels = Const (),
+      membersCount = ug.membersCount,
+      channelsCount = ug.channelsCount,
+      managedBy = ug.managedBy,
+      createdAt = ug.createdAt
+    }
+
+data UserGroup_ (f :: Type -> Type) = UserGroup_
   { id_ :: UserGroupId,
     name :: UserGroupName,
+    members :: f (Vector UserId),
+    channels :: f (Maybe (Vector (Qualified ConvId))),
     membersCount :: Maybe Int,
     channelsCount :: Maybe Int,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
   }
-  deriving (Eq, Ord, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupMeta
-  deriving (Arbitrary) via GenericUniform UserGroupMeta
+  deriving (Generic)
 
-userGroupToMeta :: UserGroup -> UserGroupMeta
-userGroupToMeta ug =
-  UserGroupMeta
-    { id_ = ug.id_,
-      name = ug.name,
-      membersCount = Just $ length ug.members,
-      channelsCount = length <$> ug.channels,
-      managedBy = ug.managedBy,
-      createdAt = ug.createdAt
-    }
+deriving instance Eq (UserGroup_ (Const ()))
 
-instance ToSchema UserGroupMeta where
+deriving instance Ord (UserGroup_ (Const ()))
+
+deriving instance Show (UserGroup_ (Const ()))
+
+deriving via GenericUniform (UserGroup_ (Const ())) instance Arbitrary (UserGroup_ (Const ()))
+
+deriving via Schema (UserGroup_ (Const ())) instance A.ToJSON (UserGroup_ (Const ()))
+
+deriving via Schema (UserGroup_ (Const ())) instance A.FromJSON (UserGroup_ (Const ()))
+
+deriving via Schema (UserGroup_ (Const ())) instance OpenApi.ToSchema (UserGroup_ (Const ()))
+
+instance ToSchema (UserGroup_ (Const ())) where
   schema =
     object "UserGroupMeta" $
-      UserGroupMeta
+      UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
+        <*> (.members) .= pure mempty
+        <*> (.channels) .= pure mempty
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
         <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
-instance ToSchema UserGroup where
+deriving instance Eq (UserGroup_ Identity)
+
+deriving instance Ord (UserGroup_ Identity)
+
+deriving instance Show (UserGroup_ Identity)
+
+deriving via GenericUniform (UserGroup_ Identity) instance Arbitrary (UserGroup_ Identity)
+
+deriving via Schema (UserGroup_ Identity) instance A.ToJSON (UserGroup_ Identity)
+
+deriving via Schema (UserGroup_ Identity) instance A.FromJSON (UserGroup_ Identity)
+
+deriving via Schema (UserGroup_ Identity) instance OpenApi.ToSchema (UserGroup_ Identity)
+
+instance ToSchema (UserGroup_ Identity) where
   schema =
     object "UserGroup" $
-      UserGroup
+      UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
-        <*> (.members) .= field "members" (vector schema)
-        <*> (.channels) .= (maybe_ (optField "channels" (vector schema)))
+        <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
+        <*> (runIdentity . (.channels)) .= (Identity <$> maybe_ (optField "channels" (vector schema)))
+        <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 

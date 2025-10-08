@@ -1,17 +1,17 @@
 {
     "page": [
         {
+            "channelsCount": 1,
             "createdAt": "2025-04-16T16:22:21.703Z",
             "id": "00000000-0000-0000-0000-000000000000",
             "managedBy": "wire",
-            "membersCount": 0,
             "name": "*"
         },
         {
+            "channelsCount": 1,
             "createdAt": "2025-04-16T16:22:21.703Z",
             "id": "63dd98c0-552d-11f0-8df7-b3e03cd56036",
             "managedBy": "wire",
-            "membersCount": 3,
             "name": "##name1##"
         }
     ],
