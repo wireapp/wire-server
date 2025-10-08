@@ -288,7 +288,7 @@ removeSettings' tid =
       spawnMany (map removeLHForUser lhMembers)
     removeLHForUser :: TeamMember -> Sem r ()
     removeLHForUser member = do
-      luid <- inputQualifyLocal (member ^. userId)
+      luid <- qualifyLocal (member ^. userId)
       removeLegalHoldClientFromUser (tUnqualified luid)
       LHService.removeLegalHold tid luid
       changeLegalholdStatusAndHandlePolicyConflicts tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
@@ -375,7 +375,7 @@ requestDevice ::
   Sem r RequestDeviceResult
 requestDevice lzusr tid uid = do
   let zusr = tUnqualified lzusr
-  luid <- inputQualifyLocal uid
+  luid <- qualifyLocal uid
   assertLegalHoldEnabledForTeam tid
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
@@ -470,7 +470,7 @@ approveDevice ::
   Sem r ()
 approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassword) = do
   let zusr = tUnqualified lzusr
-  luid <- inputQualifyLocal uid
+  luid <- qualifyLocal uid
   assertLegalHoldEnabledForTeam tid
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
@@ -544,7 +544,7 @@ disableForUser ::
   Public.DisableLegalHoldForUserRequest ->
   Sem r DisableLegalHoldForUserResponse
 disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = do
-  luid <- inputQualifyLocal uid
+  luid <- qualifyLocal uid
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.disableForUser")

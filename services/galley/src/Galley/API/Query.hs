@@ -127,8 +127,8 @@ getBotConversation ::
   ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot cnv = do
-  lcnv <- inputQualifyLocal cnv
-  botQuid <- tUntagged <$> inputQualifyLocal (botUserId zbot)
+  lcnv <- qualifyLocal cnv
+  botQuid <- tUntagged <$> qualifyLocal (botUserId zbot)
   c <- maskConvAccessDenied $ getConversationAsMember botQuid lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList c.localMembers)
@@ -253,7 +253,7 @@ getLocalConversationInternal ::
   ConvId ->
   Sem r Conversation
 getLocalConversationInternal cid = do
-  lcid <- inputQualifyLocal cid
+  lcid <- qualifyLocal cid
   conv <- getConversationWithError lcid
   pure $ conversationView (qualifyAs lcid ()) Nothing conv
 
@@ -666,7 +666,7 @@ internalGetMember ::
   UserId ->
   Sem r (Maybe Public.Member)
 internalGetMember qcnv usr = do
-  lusr <- inputQualifyLocal usr
+  lusr <- qualifyLocal usr
   lcnv <- ensureLocal lusr qcnv
   getLocalSelf lusr (tUnqualified lcnv)
 

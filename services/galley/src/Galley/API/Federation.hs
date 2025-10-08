@@ -154,7 +154,7 @@ onClientRemoved domain req = do
     for_ req.convs $ \convId -> do
       mConv <- E.getConversation convId
       for mConv $ \conv -> do
-        lconv <- inputQualifyLocal conv
+        lconv <- qualifyLocal conv
         removeClient lconv qusr (req.client)
   pure EmptyResponse
 
@@ -171,7 +171,7 @@ onConversationCreated ::
   Sem r EmptyResponse
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
-  loc <- inputQualifyLocal ()
+  loc <- qualifyLocal ()
   let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (nonCreatorMembers rc)))
 
   addedUserIds <-
@@ -223,7 +223,7 @@ getConversations ::
   Sem r GetConversationsResponseV2
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
-  loc <- inputQualifyLocal ()
+  loc <- qualifyLocal ()
   GetConversationsResponseV2
     . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
@@ -282,7 +282,7 @@ leaveConversation ::
   Sem r LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified lc.leaver requestingDomain
-  lcnv <- inputQualifyLocal lc.convId
+  lcnv <- qualifyLocal lc.convId
 
   res <-
     runError
@@ -371,7 +371,7 @@ onMessageSent domain rmUnqualified = do
             \ users not in the conversation" ::
               ByteString
           )
-  loc <- inputQualifyLocal ()
+  loc <- qualifyLocal ()
   void $
     sendLocalMessages
       loc
@@ -406,7 +406,7 @@ sendMessage ::
 sendMessage originDomain msr = do
   let sender = Qualified msr.sender originDomain
   msg <- either throwErr pure (fromProto (fromBase64ByteString msr.rawMessage))
-  lcnv <- inputQualifyLocal msr.convId
+  lcnv <- qualifyLocal msr.convId
   MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing lcnv msg
   where
     throwErr = throw . InvalidPayload . LT.pack
@@ -435,7 +435,7 @@ onUserDeleted origDomain udcn = do
 
   E.spawnMany $
     fromRange convIds <&> \c -> do
-      lc <- inputQualifyLocal c
+      lc <- qualifyLocal c
       mconv <- E.getConversation c
       E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
@@ -498,7 +498,7 @@ updateConversation ::
   ConversationUpdateRequest ->
   Sem r ConversationUpdateResponse
 updateConversation origDomain updateRequest = do
-  loc <- inputQualifyLocal ()
+  loc <- qualifyLocal ()
   let rusr = toRemoteUnsafe origDomain updateRequest.user
       lcnv = qualifyAs loc updateRequest.convId
 
@@ -627,7 +627,7 @@ sendMLSCommitBundle ::
   Sem r MLSMessageResponse
 sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
   assertMLSEnabled
-  loc <- inputQualifyLocal ()
+  loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
   bundle <-
     either (throw . mlsProtocolError) pure $
@@ -680,7 +680,7 @@ sendMLSMessage ::
   Sem r MLSMessageResponse
 sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   assertMLSEnabled
-  loc <- inputQualifyLocal ()
+  loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
   raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString msr.rawMessage)
   msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
@@ -710,7 +710,7 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
     . mapToGalleyError @MLSGetSubConvStaticErrors
     $ do
       let qusr = Qualified gsreqUser domain
-      lconv <- inputQualifyLocal gsreqConv
+      lconv <- qualifyLocal gsreqConv
       getLocalSubConversation qusr lconv gsreqSubConv
 
 leaveSubConversation ::
@@ -726,7 +726,7 @@ leaveSubConversation ::
 leaveSubConversation domain lscr = do
   let rusr = toRemoteUnsafe domain (lscrUser lscr)
       cid = mkClientIdentity (tUntagged rusr) (lscrClient lscr)
-  lcnv <- inputQualifyLocal (lscrConv lscr)
+  lcnv <- qualifyLocal (lscrConv lscr)
   fmap (either (LeaveSubConversationResponseProtocolError . unTagged) Imports.id)
     . runError @MLSProtocolError
     . fmap (either LeaveSubConversationResponseError Imports.id)
@@ -755,7 +755,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
     $ do
       let qusr = Qualified dscreqUser domain
           dsc = MLSReset dscreqGroupId dscreqEpoch
-      lconv <- inputQualifyLocal dscreqConv
+      lconv <- qualifyLocal dscreqConv
       resetLocalSubConversation qusr lconv dscreqSubConv dsc
 
 getOne2OneConversationV1 ::
@@ -770,7 +770,7 @@ getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
   fmap (Imports.fromRight GetOne2OneConversationNotConnected)
     . runError @(Tagged 'NotConnected ())
     $ do
-      lother <- inputQualifyLocal other
+      lother <- qualifyLocal other
       let rself = toRemoteUnsafe domain self
       ensureConnectedToRemotes lother [rself]
       foldQualified
@@ -795,7 +795,7 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
     . fmap (Imports.fromRight GetOne2OneConversationV2NotConnected)
     . runError @(Tagged 'NotConnected ())
     $ do
-      lother <- inputQualifyLocal other
+      lother <- qualifyLocal other
       let rself = toRemoteUnsafe domain self
       let getLocal lconv = do
             mconv <- E.getConversation (tUnqualified lconv)
@@ -859,7 +859,7 @@ onMLSMessageSent domain rmm =
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
-      loc <- inputQualifyLocal ()
+      loc <- qualifyLocal ()
       let rcnv = toRemoteUnsafe domain rmm.conversation
       let users = Map.keys rmm.recipients
       (members, allMembers) <-
@@ -913,7 +913,7 @@ mlsSendWelcome origDomain req = do
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
-      loc <- inputQualifyLocal ()
+      loc <- qualifyLocal ()
       now <- Now.get
       welcome <-
         either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
@@ -937,10 +937,10 @@ queryGroupInfo origDomain req =
       let sender = toRemoteUnsafe origDomain . (.sender) $ req
       state <- case req.conv of
         Conv convId -> do
-          lconvId <- inputQualifyLocal convId
+          lconvId <- qualifyLocal convId
           getGroupInfoFromLocalConv (tUntagged sender) lconvId
         SubConv convId subConvId -> do
-          lconvId <- inputQualifyLocal convId
+          lconvId <- qualifyLocal convId
           getSubConversationGroupInfoFromLocalConv (tUntagged sender) subConvId lconvId
       pure
         . Base64ByteString
@@ -960,7 +960,7 @@ updateTypingIndicator ::
   Sem r TypingDataUpdateResponse
 updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   let qusr = Qualified userId origDomain
-  lcnv <- inputQualifyLocal convId
+  lcnv <- qualifyLocal convId
 
   ret <- runError
     . mapToRuntimeError @'ConvNotFound ConvNotFound

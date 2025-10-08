@@ -90,7 +90,7 @@ rmClient usr cid = do
   clients <- E.getClients [usr]
   if (cid `elem` clientIds usr clients)
     then do
-      lusr <- inputQualifyLocal usr
+      lusr <- qualifyLocal usr
       let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
       firstConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
       goConvs nRange1000 firstConvIds lusr
@@ -108,7 +108,7 @@ rmClient usr cid = do
       for_ localConvs $ \convId -> do
         mConv <- getConversation convId
         for_ mConv $ \conv -> do
-          lconv <- inputQualifyLocal conv
+          lconv <- qualifyLocal conv
           removeClient lconv (tUntagged lusr) cid
       traverse_ removeRemoteMLSClients (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do

@@ -145,7 +145,7 @@ ejpdGetConvInfo ::
   UserId ->
   Sem r [EJPDConvInfo]
 ejpdGetConvInfo uid = do
-  luid <- inputQualifyLocal uid
+  luid <- qualifyLocal uid
   firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
   getPages luid firstPage
   where
@@ -478,7 +478,7 @@ deleteLoop = do
       liftIO $ threadDelay 1000000
 
     doDelete usr con tid = do
-      lusr <- inputQualifyLocal usr
+      lusr <- qualifyLocal usr
       Teams.uncheckedDeleteTeam lusr con tid
 
 safeForever :: String -> App () -> App ()
