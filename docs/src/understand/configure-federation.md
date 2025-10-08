@@ -687,16 +687,15 @@ federate:
     tls:
       issuerRef:
         name: letsencrypt-http01
+        kind: ClusterIssuer
       certificate:
         dnsNames:
-          - coturn.b0.wire-demo.site
+          - coturn.example.com
 ```
 
 or with your own certificates:
 
 ```yaml
-coturnTurnRelayIP: "__COTURN_HOST_IP__" # set relay and
-coturnTurnListenIP: "__COTURN_HOST_IP__" # listen IP to HOST_IP
 coturnFederationListeningIP: '__COTURN_HOST_IP__'
 federate:
   enabled: true
@@ -729,12 +728,11 @@ To understand more on the architecture, read [Federated Conference Calling](http
 For setup of federated conference calling, a prerequisite should be met (not required, but recommended) of designating a coturn server that will be used exclusively for federated calls. 
 
 To configure SFTD, in `values/sftd/values.yaml`: 
-- `multiSFT` will have to be enabled 
-- wildcard CORS rule for SFTD
+- `multiSFT` will have to be enabled
 - turn secret from `brig`
 
 ```yaml
-allowOrigin: "*"
+allowOrigin: "https://webapp.example.com"
 multiSFT:
   enabled: true
   discoveryRequired: false
@@ -742,13 +740,22 @@ multiSFT:
   secret: "turnSecretFromBrig"
 ```
 
-Federated calls between SFT servers will also need to be enabled in the `brig` section of `wire-server/values.yaml` file.
+Calls between federated SFT servers can be enabled using the optional boolean `multiSFT.enabled`. If provided, the field `is_federating` in the response of `/calls/config/v2` will reflect `multiSFT.enabled`’s value.
 
 ```yaml
 brig:
   config:
     multiSFT:
       enabled: true
+```
+
+Additionally `setSftListAllServers` should be set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is also required to enable calls between federated instances of Wire.
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setSftListAllServers: enabled
 ```
 
 Redeploy `sftd`
@@ -759,19 +766,4 @@ d helm upgrade --install sftd charts/sftd -f values/sftd/values.yaml
 Redeploy `wire-server`
 ```bash
 d helm upgrade --install wire-server ./charts/wire-server --timeout=15m0s --values ./values/wire-server/values.yaml --values ./values/wire-server/secrets.yaml
-```
-
-#### Configure Webapp to use federating SFTs
-
-Domains of the federating backends will have to be added to the current list of webapp CSP headers for https and wss protocols.
-
-```yaml
-envVars:
-  CSP_EXTRA_CONNECT_SRC: "https:*.example.org, wss://*.example.org"
-```
-
-Redeploy `webapp`:
-
-```bash
-d helm upgrade --install webapp charts/webapp -f values/webapp/values.yaml
 ```
