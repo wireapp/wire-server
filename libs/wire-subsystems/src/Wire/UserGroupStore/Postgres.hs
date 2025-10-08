@@ -33,6 +33,7 @@ import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
+import Wire.Qualified.Utils
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
 
 type UserGroupStorePostgresEffectConstraints r =
@@ -74,12 +75,6 @@ updateUsers gid uids = do
         [resultlessStatement|
           delete from user_group_member where user_group_id = ($1 :: uuid)
           |]
-
--- TODO: move to a shared place
-qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
-qualifyLocal a = do
-  l <- input
-  pure $ qualifyAs l a
 
 getUserGroup ::
   forall r.

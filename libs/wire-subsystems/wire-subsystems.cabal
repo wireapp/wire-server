@@ -244,6 +244,7 @@ library
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
+    Wire.Qualified.Utils
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
