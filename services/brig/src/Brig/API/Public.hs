@@ -143,7 +143,6 @@ import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), TeamMember, hasPermission)
-import Wire.API.Team.Permission (Perm (SetMemberSearchable))
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public

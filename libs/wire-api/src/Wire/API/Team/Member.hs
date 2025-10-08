@@ -483,6 +483,7 @@ data HiddenPerm
   | CreateApp
   | ManageApps
   | RemoveTeamCollaborator
+  | SetMemberSearchable
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -533,8 +534,7 @@ rolePerms RoleAdmin =
       [ AddTeamMember,
         RemoveTeamMember,
         SetTeamData,
-        SetMemberPermissions,
-        SetMemberSearchable
+        SetMemberPermissions
       ]
 rolePerms RoleMember =
   rolePerms RoleExternalPartner
@@ -571,7 +571,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             NewTeamCollaborator,
             CreateApp,
             ManageApps,
-            RemoveTeamCollaborator
+            RemoveTeamCollaborator,
+            SetMemberSearchable
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $

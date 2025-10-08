@@ -1146,6 +1146,6 @@ setUserSearchableImpl ::
   Sem r ()
 setUserSearchableImpl luid uid searchable = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
-  ensurePermissions (tUnqualified luid) tid [Permission.SetMemberSearchable]
+  ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
