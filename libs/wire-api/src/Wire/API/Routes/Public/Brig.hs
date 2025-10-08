@@ -422,7 +422,6 @@ type UserGroupAPI =
                :> From 'V12
                :> CanThrow 'UserGroupNotFound
                :> CanThrow 'UserGroupNotATeamAdmin
-               :> CanThrow 'UserGroupNotFound
                :> ZLocalUser
                :> "user-groups"
                :> Capture "gid" UserGroupId
