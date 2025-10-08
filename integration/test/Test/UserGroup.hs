@@ -405,7 +405,7 @@ testUserGroupUpdateChannels = do
                   "allowed_to_open_channels" .= "team-members"
                 ]
           ]
-  void $ setTeamFeatureConfig alice tid "channels" config
+  setTeamFeatureConfig alice tid "channels" config >>= assertSuccess
 
   ug <-
     createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
@@ -416,7 +416,11 @@ testUserGroupUpdateChannels = do
     postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"})
       >>= getJSON 201
       >>= objConvId
-  updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
+  withWebSocket alice $ \wsAlice -> do
+    updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
+
+    notif <- awaitMatch isUserGroupUpdatedNotif wsAlice
+    notif %. "payload.0.user_group.id" `shouldMatch` gid
 
   -- bobId <- asString $ bob %. "id"
   bindResponse (getUserGroup alice gid) $ \resp -> do
