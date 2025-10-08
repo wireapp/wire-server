@@ -863,10 +863,9 @@ setUserSearchableH ::
   (Member UserSubsystem r) =>
   Local UserId ->
   UserId ->
-  TeamId ->
   Bool ->
   Handler r ()
-setUserSearchableH zusr uid tid searchable = lift $ liftSem $ User.setUserSearchable zusr uid tid searchable
+setUserSearchableH zusr uid searchable = lift $ liftSem $ User.setUserSearchable zusr uid searchable
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)

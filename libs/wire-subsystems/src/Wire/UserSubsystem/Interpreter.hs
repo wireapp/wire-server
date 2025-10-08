@@ -168,7 +168,7 @@ runUserSubsystem authInterpreter = interpret $
     RemoveEmailEither luid -> removeEmailEitherImpl luid
     UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
     CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
-    UserSubsystem.SetUserSearchable luid uid tid searchability -> setUserSearchableImpl luid uid tid searchability
+    UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -1142,10 +1142,10 @@ setUserSearchableImpl ::
   ) =>
   Local UserId ->
   UserId ->
-  TeamId ->
   Bool ->
   Sem r ()
-setUserSearchableImpl luid uid tid searchable = do
+setUserSearchableImpl luid uid searchable = do
+  tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions (tUnqualified luid) tid [Permission.SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
