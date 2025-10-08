@@ -832,7 +832,7 @@ addBot zuid zcon cid add = do
             teamId = Nothing,
             managedBy = ManagedByWire,
             supportedProtocols = defSupportedProtocols,
-            searchable = True -- TODO: what is the default for bots?
+            searchable = True
           }
 
   let newClt =
