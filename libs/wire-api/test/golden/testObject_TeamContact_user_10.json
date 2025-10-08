@@ -14,5 +14,6 @@
         "issuer": "https://example.com/issuer/123",
         "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
     },
-    "team": null
+    "team": null,
+    "user_group_count": 0
 }

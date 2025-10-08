@@ -40,7 +40,8 @@ testObject_TeamContact_user_1 =
       teamContactRole = Just RoleAdmin,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_2 :: TeamContact
@@ -58,7 +59,8 @@ testObject_TeamContact_user_2 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_3 :: TeamContact
@@ -76,7 +78,8 @@ testObject_TeamContact_user_3 =
       teamContactRole = Just RoleMember,
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_4 :: TeamContact
@@ -94,7 +97,8 @@ testObject_TeamContact_user_4 =
       teamContactRole = Nothing,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
+      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_5 :: TeamContact
@@ -112,7 +116,8 @@ testObject_TeamContact_user_5 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_6 :: TeamContact
@@ -130,7 +135,8 @@ testObject_TeamContact_user_6 =
       teamContactRole = Nothing,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_7 :: TeamContact
@@ -148,7 +154,8 @@ testObject_TeamContact_user_7 =
       teamContactRole = Just RoleAdmin,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
+      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_8 :: TeamContact
@@ -166,7 +173,8 @@ testObject_TeamContact_user_8 =
       teamContactRole = Just RoleMember,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_9 :: TeamContact
@@ -184,7 +192,8 @@ testObject_TeamContact_user_9 =
       teamContactRole = Just RoleAdmin,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_10 :: TeamContact
@@ -202,7 +211,8 @@ testObject_TeamContact_user_10 =
       teamContactRole = Just RoleMember,
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_11 :: TeamContact
@@ -220,7 +230,8 @@ testObject_TeamContact_user_11 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_12 :: TeamContact
@@ -238,7 +249,8 @@ testObject_TeamContact_user_12 =
       teamContactRole = Nothing,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_13 :: TeamContact
@@ -256,7 +268,8 @@ testObject_TeamContact_user_13 =
       teamContactRole = Just RoleMember,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_14 :: TeamContact
@@ -274,7 +287,8 @@ testObject_TeamContact_user_14 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_15 :: TeamContact
@@ -292,7 +306,8 @@ testObject_TeamContact_user_15 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
+      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_16 :: TeamContact
@@ -310,7 +325,8 @@ testObject_TeamContact_user_16 =
       teamContactRole = Nothing,
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
+      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_17 :: TeamContact
@@ -328,7 +344,8 @@ testObject_TeamContact_user_17 =
       teamContactRole = Just RoleOwner,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_18 :: TeamContact
@@ -346,7 +363,8 @@ testObject_TeamContact_user_18 =
       teamContactRole = Just RoleOwner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_19 :: TeamContact
@@ -364,7 +382,8 @@ testObject_TeamContact_user_19 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Nothing
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroupCount = 0
     }
 
 testObject_TeamContact_user_20 :: TeamContact
@@ -382,5 +401,6 @@ testObject_TeamContact_user_20 =
       teamContactRole = Just RoleOwner,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
+      teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
+      teamContactUserGroupCount = 0
     }
