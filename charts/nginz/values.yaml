@@ -425,7 +425,13 @@ nginx_conf:
     - path: /teams/([^/]*)/collaborators$
       envs:
       - all
+    - path: /teams/([^/]*)/collaborators/([^/]*)
+      envs:
+      - all
     - path: /teams/([^/]*)/apps
+      envs:
+      - all
+    - path: /teams/([^/]*)/apps/([^/]*)/cookies
       envs:
       - all
     - path: /teams/([^/]*)/invitations(.*)
