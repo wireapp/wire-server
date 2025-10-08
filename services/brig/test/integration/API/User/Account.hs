@@ -660,7 +660,7 @@ testUserSearchable brig galley = do
       setSearchable :: UserId -> UserId -> Bool -> Request -> Request
       setSearchable byZuid uid searchable =
         brig
-          . paths ["users", pack $ show uid, pack $ show tid, "searchable"]
+          . paths ["users", pack $ show uid, "searchable"]
           . zUser byZuid
           . toJsonBody searchable
 
