@@ -56,6 +56,10 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
+    GetUserGroupCount team uid -> getUserGroupCount team uid
+
+getUserGroupCount :: TeamId -> UserId -> Sem r Int
+getUserGroupCount = todo
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do

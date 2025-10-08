@@ -73,6 +73,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.TeamSubsystem
+import Wire.UserGroupStore (UserGroupStore, getUserGroupCount)
 import Wire.UserKeyStore
 import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
@@ -107,7 +108,8 @@ runUserSubsystem ::
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserGroupStore r
   ) =>
   InterpreterFor AuthenticationSubsystem r ->
   Sem (UserSubsystem ': r) a ->
@@ -910,7 +912,8 @@ searchRemotely rDom mTid searchTerm = do
 browseTeamImpl ::
   ( Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserGroupStore r
   ) =>
   UserId ->
   BrowseTeamFilters ->
@@ -924,7 +927,10 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   ensurePermissions uid filters.teamId [Permission.AddTeamMember]
 
   let maxResults = maybe 15 fromRange mMaxResults
-  userDocToTeamContact <$$> IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
+  result <- IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
+  for result $ \userDoc -> do
+    ugc <- getUserGroupCount filters.teamId userDoc.udId
+    pure $ userDocToTeamContact ugc userDoc
 
 getAccountNoFilterImpl ::
   forall r.
