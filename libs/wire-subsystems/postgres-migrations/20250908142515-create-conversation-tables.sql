@@ -77,7 +77,6 @@ CREATE TABLE mls_group_member_client (
   user_domain text NOT NULL,
   "user" uuid NOT NULL,
   client text NOT NULL,
-  key_package_ref bytea,
   leaf_node_index integer NOT NULL,
   removal_pending boolean NOT NULL,
   PRIMARY KEY (group_id, user_domain, "user", client)
