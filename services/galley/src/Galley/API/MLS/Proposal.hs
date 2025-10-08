@@ -40,7 +40,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
-import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ProposalStore
 import Galley.Env
@@ -293,7 +292,7 @@ checkExternalProposalUser ::
   Proposal ->
   Sem r ()
 checkExternalProposalUser qusr prop = do
-  loc <- qualifyLocal ()
+  loc <- inputQualifyLocal ()
   foldQualified
     loc
     ( \lusr -> case prop of

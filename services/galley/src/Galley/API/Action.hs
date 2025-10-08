@@ -961,7 +961,7 @@ updateLocalStateOfRemoteConv ::
   Maybe ConnId ->
   Sem r (Maybe Event)
 updateLocalStateOfRemoteConv rcu con = do
-  loc <- qualifyLocal ()
+  loc <- inputQualifyLocal ()
   let cu = tUnqualified rcu
       rconvId = fmap (.convId) rcu
       qconvId = tUntagged rconvId
@@ -1087,7 +1087,7 @@ notifyTypingIndicator ::
   Sem r TypingDataUpdated
 notifyTypingIndicator conv qusr mcon ts = do
   now <- Now.get
-  lconv <- qualifyLocal conv.id_
+  lconv <- inputQualifyLocal conv.id_
   let origDomain = qDomain qusr
       (remoteMemsOrig, remoteMemsOther) = List.partition (\m -> origDomain == tDomain m.id_) conv.remoteMembers
       localMembers = fmap (.id_) (tryRemoveSelfFromLocalUsers lconv conv.localMembers)

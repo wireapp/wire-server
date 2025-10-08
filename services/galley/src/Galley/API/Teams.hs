@@ -1283,7 +1283,7 @@ userIsTeamOwner ::
   UserId ->
   Sem r ()
 userIsTeamOwner tid uid = do
-  asking <- qualifyLocal uid
+  asking <- inputQualifyLocal uid
   mem <- getTeamMember asking tid uid
   unless (isTeamOwner mem) $ throwS @'AccessDenied
 

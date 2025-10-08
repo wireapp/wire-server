@@ -550,8 +550,8 @@ addCodeUnqualified ::
   ConvId ->
   Sem r AddCodeResult
 addCodeUnqualified mReq usr mbZHost mZcon cnv = do
-  lusr <- qualifyLocal usr
-  lcnv <- qualifyLocal cnv
+  lusr <- inputQualifyLocal usr
+  lcnv <- inputQualifyLocal cnv
   addCode lusr mbZHost mZcon lcnv mReq
 
 addCode ::
@@ -626,7 +626,7 @@ rmCodeUnqualified ::
   ConvId ->
   Sem r Event
 rmCodeUnqualified lusr zcon cnv = do
-  lcnv <- qualifyLocal cnv
+  lcnv <- inputQualifyLocal cnv
   rmCode lusr zcon lcnv
 
 rmCode ::
@@ -1475,8 +1475,8 @@ postBotMessageUnqualified ::
   NewOtrMessage ->
   Sem r (PostOtrResponse ClientMismatch)
 postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
-  lusr <- qualifyLocal (botUserId sender)
-  lcnv <- qualifyLocal cnv
+  lusr <- inputQualifyLocal (botUserId sender)
+  lcnv <- inputQualifyLocal cnv
   unqualifyEndpoint
     lusr
     (runLocalInput lusr . postQualifiedOtrMessage Bot (tUntagged lusr) Nothing lcnv)
@@ -1660,7 +1660,7 @@ memberTypingUnqualified ::
   TypingStatus ->
   Sem r ()
 memberTypingUnqualified lusr zcon cnv ts = do
-  lcnv <- qualifyLocal cnv
+  lcnv <- inputQualifyLocal cnv
   memberTyping lusr zcon (tUntagged lcnv) ts
 
 addBot ::

@@ -9,7 +9,7 @@ import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
 import Data.Profunctor
-import Data.Qualified (Local, QualifiedWithTag (tUntagged), qualifyAs)
+import Data.Qualified (Local, QualifiedWithTag (tUntagged), inputQualifyLocal, qualifyAs)
 import Data.Range
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
@@ -33,7 +33,6 @@ import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
-import Wire.Qualified.Utils
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
 
 type UserGroupStorePostgresEffectConstraints r =
@@ -85,7 +84,7 @@ getUserGroup ::
   Sem r (Maybe UserGroup)
 getUserGroup team id_ includeChannels = do
   pool <- input
-  loc <- qualifyLocal ()
+  loc <- inputQualifyLocal ()
   eitherUserGroup <- liftIO $ use pool (if includeChannels then sessionWithChannels loc else session)
   either throw pure eitherUserGroup
   where
@@ -168,7 +167,7 @@ getUserGroups ::
   Sem r UserGroupPage
 getUserGroups req@(UserGroupPageRequest {..}) = do
   pool <- input
-  loc <- qualifyLocal ()
+  loc <- inputQualifyLocal ()
   eitherResult <- liftIO $ use pool do
     TxSessions.transaction TxSessions.ReadCommitted TxSessions.Read do
       UserGroupPage <$> getUserGroupsSession loc <*> getCountSession
