@@ -1148,5 +1148,4 @@ setUserSearchableImpl ::
 setUserSearchableImpl luid uid tid searchable = do
   ensurePermissions (tUnqualified luid) tid [Permission.SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
-  -- TODO generate an event?
   syncUserIndex uid
