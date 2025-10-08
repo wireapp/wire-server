@@ -419,6 +419,49 @@ services:
       # - DNS_SERVER_RECURSION_ALLOWED_NETWORKS=127.0.0.1, 192.168.1.0/24 #Comma separated list of IP addresses or network addresses to allow recursion. Valid only for `UseSpecifiedNetworkACL` recursion option.  This option is obsolete and DNS_SERVER_RECURSION_NETWORK_ACL should be used instead.
       # - DNS_SERVER_ENABLE_BLOCKING=false #Sets the DNS server to block domain names using Blocked Zone and Block List Zone.
 
+  pulsar:
+    image: apachepulsar/pulsar:latest
+    container_name: pulsar
+    ports:
+      - 6650:6650
+      - 8080:8080
+    networks:
+      - demo_wire
+    command: bin/pulsar standalone
+
+  # Admin GUI
+  # Url: http://localhost:9527
+  # Username: pulsar
+  # Password: walter-frosch
+  pulsar-manager:
+    image: apachepulsar/pulsar-manager:latest
+    container_name: pulsar-manager
+    ports:
+      - 9527:9527
+      - 7750:7750
+    networks:
+      - demo_wire
+    environment:
+      - "SPRING_CONFIGURATION_FILE=/pulsar-manager/pulsar-manager/application.properties"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl http://127.0.0.1:7750/actuator/health || exit 1 "]
+      interval: 3s
+      timeout: 5s
+      retries: 100
+
+  pulsar-manager-init:
+    container_name: pulsar-manager-init
+    image: curlimages/curl:latest
+    networks:
+      - demo_wire
+    command: create-superuser
+    volumes:
+      - ./pulsar-config/create-superuser.sh:/bin/create-superuser
+    depends_on:
+      pulsar-manager:
+        condition: service_healthy
+
 volumes:
   redis-node-1-data:
   redis-node-2-data:
