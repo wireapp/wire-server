@@ -446,12 +446,15 @@ testUserGroupUpdateChannelsSucceeds = do
 =======
 >>>>>>> more test cases
 
-  -- TODO: also check the user-groups search endpoint reflects the channels
   updateUserGroupChannels alice gid ((.id_) <$> take 2 convs) >>= assertSuccess
 
   bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (take 2 convs) objQid
+
+  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (take 2 convs) objQid
 
   updateUserGroupChannels alice gid ((.id_) <$> drop 1 convs) >>= assertSuccess
 
@@ -459,11 +462,19 @@ testUserGroupUpdateChannelsSucceeds = do
     resp.status `shouldMatchInt` 200
     (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (drop 1 convs) objQid
 
+  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (drop 1 convs) objQid
+
   updateUserGroupChannels alice gid [] >>= assertSuccess
 
   bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "channels" >>= fmap length . asList) `shouldMatchInt` 0
+
+  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "page.0.channels" >>= fmap length . asList) `shouldMatchInt` 0
 
 testUserGroupUpdateChannelsNonAdmin :: (HasCallStack) => App ()
 testUserGroupUpdateChannelsNonAdmin = do

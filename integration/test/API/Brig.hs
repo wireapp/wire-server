@@ -1111,7 +1111,8 @@ getUserGroups user GetUserGroupsArgs {..} = do
               ("last_seen_name",) <$> lastName,
               ("last_seen_created_at",) <$> lastCreatedAt,
               ("last_seen_id",) <$> lastId,
-              (if includeMemberCount then Just ("include_member_count", "true") else Nothing)
+              (if includeMemberCount then Just ("include_member_count", "true") else Nothing),
+              (if includeChannels then Just ("include_channels", "true") else Nothing)
             ]
         )
 
