@@ -97,20 +97,17 @@ createUserGroupImpl tid nug managedBy = do
   pure ug
 
 getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Bool -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid includeChannels = fmap filterChannels . Map.lookup (tid, gid) <$> get @UserGroupInMemState
-  where
-    filterChannels ug =
-      if includeChannels
-        then ug
-        else (ug :: UserGroup) {channels = mempty}
+getUserGroupImpl tid gid includeChannels = fmap (filterChannels includeChannels) . Map.lookup (tid, gid) <$> get @UserGroupInMemState
+
+filterChannels :: Bool -> UserGroup -> UserGroup
+filterChannels includeChannels ug =
+  if includeChannels
+    then (ug :: UserGroup) {channelsCount = Just $ maybe 0 length ug.channels}
+    else (ug :: UserGroup) {channels = mempty}
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  let filterChannels ug =
-        if includeChannels
-          then (ug :: UserGroup) {channels = mempty, channelsCount = Just $ maybe 0 length ug.channels}
-          else (ug :: UserGroup) {channels = mempty}
-  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . filterChannels) . Map.toList) <$> get @UserGroupInMemState
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
   where
     sieve,
