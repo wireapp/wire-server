@@ -377,7 +377,6 @@ testUserGroupMembersCount = do
     resp.json %. "page.0.membersCount" `shouldMatchInt` 2
     resp.json %. "total" `shouldMatchInt` 1
 
-<<<<<<< HEAD
 testUserGroupRemovalOnDelete :: (HasCallStack) => App ()
 testUserGroupRemovalOnDelete = do
   (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
@@ -395,15 +394,8 @@ testUserGroupRemovalOnDelete = do
     resp.status `shouldMatchInt` 200
     resp.json %. "members" `shouldMatch` [charlieId]
 
-testUserGroupUpdateChannels :: (HasCallStack) => App ()
-testUserGroupUpdateChannels = do
-||||||| constructed merge base
-testUserGroupUpdateChannels :: (HasCallStack) => App ()
-testUserGroupUpdateChannels = do
-=======
 testUserGroupUpdateChannelsSucceeds :: (HasCallStack) => App ()
 testUserGroupUpdateChannelsSucceeds = do
->>>>>>> more test cases
   (alice, tid, [_bob]) <- createTeam OwnDomain 2
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   let config =
@@ -422,31 +414,13 @@ testUserGroupUpdateChannelsSucceeds = do
       >>= getJSON 200
   gid <- ug %. "id" & asString
 
-<<<<<<< HEAD
-  convId <-
-    postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"})
-||||||| constructed merge base
-  convId <-
-    postConversation alice (defProteus {team = Just tid})
-=======
-  convs <-
-    replicateM 5
-      $ postConversation alice (defProteus {team = Just tid})
->>>>>>> more test cases
-      >>= getJSON 201
-      >>= objConvId
-<<<<<<< HEAD
+  convs <- replicateM 5 $ postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"}) >>= getJSON 201 >>= objConvId
+
   withWebSocket alice $ \wsAlice -> do
-    updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
+    updateUserGroupChannels alice gid ((.id_) <$> take 2 convs) >>= assertSuccess
 
     notif <- awaitMatch isUserGroupUpdatedNotif wsAlice
     notif %. "payload.0.user_group.id" `shouldMatch` gid
-||||||| constructed merge base
-  updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
-=======
->>>>>>> more test cases
-
-  updateUserGroupChannels alice gid ((.id_) <$> take 2 convs) >>= assertSuccess
 
   bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -456,15 +430,15 @@ testUserGroupUpdateChannelsSucceeds = do
     resp.status `shouldMatchInt` 200
     (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (take 2 convs) objQid
 
-  updateUserGroupChannels alice gid ((.id_) <$> drop 1 convs) >>= assertSuccess
+  updateUserGroupChannels alice gid ((.id_) <$> tail convs) >>= assertSuccess
 
   bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (drop 1 convs) objQid
+    (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (tail convs) objQid
 
   bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (drop 1 convs) objQid
+    (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (tail convs) objQid
 
   updateUserGroupChannels alice gid [] >>= assertSuccess
 
