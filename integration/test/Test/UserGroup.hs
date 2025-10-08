@@ -4,6 +4,7 @@ module Test.UserGroup where
 
 import API.Brig
 import API.Galley
+import API.GalleyInternal (setTeamFeatureLockStatus)
 import Control.Error (lastMay)
 import Notifications (isUserGroupCreatedNotif, isUserGroupUpdatedNotif)
 import SetupHelpers
@@ -394,6 +395,17 @@ testUserGroupRemovalOnDelete = do
 testUserGroupUpdateChannels :: (HasCallStack) => App ()
 testUserGroupUpdateChannels = do
   (alice, tid, [_bob]) <- createTeam OwnDomain 2
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  let config =
+        object
+          [ "status" .= "enabled",
+            "config"
+              .= object
+                [ "allowed_to_create_channels" .= "team-members",
+                  "allowed_to_open_channels" .= "team-members"
+                ]
+          ]
+  void $ setTeamFeatureConfig alice tid "channels" config
 
   ug <-
     createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
@@ -401,7 +413,7 @@ testUserGroupUpdateChannels = do
   gid <- ug %. "id" & asString
 
   convId <-
-    postConversation alice (defProteus {team = Just tid})
+    postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"})
       >>= getJSON 201
       >>= objConvId
   updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
@@ -443,3 +455,18 @@ testUserGroupUpdateChannelsNonExisting = do
       >>= getJSON 201
       >>= objConvId
   updateUserGroupChannels bob gid [convId.id_] >>= assertLabel 404 "user-group-not-found"
+
+testUserGroupUpdateChannelsNonChannel :: (HasCallStack) => App ()
+testUserGroupUpdateChannelsNonChannel = do
+  (alice, tid, [_bob]) <- createTeam OwnDomain 2
+
+  ug <-
+    createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
+      >>= getJSON 200
+  gid <- ug %. "id" & asString
+
+  convId <-
+    postConversation alice (defProteus {team = Just tid})
+      >>= getJSON 201
+      >>= objConvId
+  updateUserGroupChannels alice gid [convId.id_] >>= assertLabel 404 "user-group-channel-not-found"
