@@ -29,7 +29,7 @@ import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Pagination
 import Wire.API.User.Profile
-import Wire.API.UserGroup
+import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
 
@@ -53,6 +53,7 @@ interpretUserGroupStoreToPostgres =
     AddUser gid uid -> addUser gid uid
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
+    UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do
@@ -407,6 +408,38 @@ removeUser =
     [resultlessStatement|
       delete from user_group_member where user_group_id = ($1 :: uuid) and user_id = ($2 :: uuid)
       |]
+
+updateUserGroupChannels ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
+  UserGroupId ->
+  Vector ConvId ->
+  Sem r ()
+updateUserGroupChannels gid convIds = do
+  pool <- input
+  eitherErrorOrUnit <- liftIO $ use pool session
+  either throw pure eitherErrorOrUnit
+  where
+    session :: Session ()
+    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write $ do
+      Tx.statement (gid, convIds) deleteStatement
+      Tx.statement (gid, convIds) insertStatement
+
+    deleteStatement :: Statement (UserGroupId, Vector ConvId) ()
+    deleteStatement =
+      lmap
+        (bimap toUUID (fmap toUUID))
+        $ [resultlessStatement|
+          delete from user_group_channel where user_group_id = ($1 :: uuid) and conv_id not in (SELECT unnest($2 :: uuid[]))
+          |]
+
+    insertStatement :: Statement (UserGroupId, Vector ConvId) ()
+    insertStatement =
+      lmap (bimap (fmap (.toUUID)) (fmap (.toUUID)) . uncurry toRelationTable) $
+        [resultlessStatement|
+          insert into user_group_channel (user_group_id, conv_id)  select * from unnest ($1 :: uuid[], $2 :: uuid[])
+          on conflict (user_group_id, conv_id) do nothing
+          |]
 
 crudUser ::
   forall r.

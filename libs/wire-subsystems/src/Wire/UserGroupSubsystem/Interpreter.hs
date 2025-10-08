@@ -12,6 +12,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
+import Wire.API.Conversation qualified as Conversation
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Pagination
@@ -23,6 +24,7 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Error
+import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
@@ -36,7 +38,8 @@ interpretUserGroupSubsystem ::
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -51,11 +54,13 @@ interpretUserGroupSubsystem = interpret $ \case
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
   RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
+  UpdateChannels performer groupId channelIds -> updateChannels performer groupId channelIds
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
+  | UserGroupChannelNotFound
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -64,6 +69,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupNotATeamAdmin -> errorToWai @E.UserGroupNotATeamAdmin
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
+    UserGroupChannelNotFound -> errorToWai @E.UserGroupChannelNotFound
 
 createUserGroup ::
   ( Member UserSubsystem r,
@@ -364,3 +370,30 @@ removeUserFromAllGroups uid tid = do
             searchString = Nothing,
             includeMemberCount = False
           }
+
+updateChannels ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member TeamSubsystem r,
+    Member NotificationSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Vector ConvId ->
+  Sem r ()
+updateChannels performer groupId channelIds = do
+  void $ getUserGroup performer groupId >>= note UserGroupNotFound
+  teamId <- getTeamAsAdmin performer >>= note UserGroupNotATeamAdmin
+  for_ channelIds $ \channelId -> do
+    conv <- internalGetConversation channelId >>= note UserGroupChannelNotFound
+    let meta = conv.metadata
+    unless (meta.cnvmTeam == Just teamId && meta.cnvmGroupConvType == Just Conversation.Channel) $
+      throw UserGroupChannelNotFound
+  Store.updateUserGroupChannels groupId channelIds
+
+  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
+  pushNotifications
+    [ mkEvent performer (UserGroupUpdated groupId) admins
+    ]
