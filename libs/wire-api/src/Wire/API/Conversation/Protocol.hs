@@ -68,19 +68,22 @@ instance C.Cql ProtocolTag where
 
   toCql = C.CqlInt . fromIntegral . fromEnum
 
-  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ protocolTagFromInt32 i
   fromCql _ = Left "protocol: int expected"
 
 instance PostgresMarshall ProtocolTag Int32 where
   postgresMarshall = fromIntegral . fromEnum
 
 instance PostgresUnmarshall Int32 ProtocolTag where
-  postgresUnmarshall i =
-    let i' = fromIntegral i
-     in if i' < fromEnum @ProtocolTag minBound
-          || i' > fromEnum @ProtocolTag maxBound
-          then Left $ "unexpected protocol: " <> Text.pack (show i)
-          else Right $ toEnum i'
+  postgresUnmarshall = protocolTagFromInt32
+
+protocolTagFromInt32 :: Int32 -> Either Text ProtocolTag
+protocolTagFromInt32 i =
+  let i' = fromIntegral i
+   in if i' < fromEnum @ProtocolTag minBound
+        || i' > fromEnum @ProtocolTag maxBound
+        then Left $ "unexpected protocol: " <> Text.pack (show i)
+        else Right $ toEnum i'
 
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.

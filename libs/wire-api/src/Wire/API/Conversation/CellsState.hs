@@ -55,18 +55,21 @@ instance Cql CellsState where
 
   toCql = CqlInt . cellsStateToInt32
 
-  fromCql (CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
+  fromCql (CqlInt i) = mapLeft Text.unpack $ cellsStateFromInt32 i
   fromCql _ = Left "cells_state: int expected"
 
 instance PostgresMarshall CellsState Int32 where
   postgresMarshall = cellsStateToInt32
 
 instance PostgresUnmarshall Int32 CellsState where
-  postgresUnmarshall = \case
-    0 -> pure CellsDisabled
-    1 -> pure CellsPending
-    2 -> pure CellsReady
-    n -> Left $ "unexpected cells_state: " <> Text.pack (show n)
+  postgresUnmarshall = cellsStateFromInt32
+
+cellsStateFromInt32 :: Int32 -> Either Text CellsState
+cellsStateFromInt32 = \case
+  0 -> pure CellsDisabled
+  1 -> pure CellsPending
+  2 -> pure CellsReady
+  n -> Left $ "unexpected cells_state: " <> Text.pack (show n)
 
 cellsStateToInt32 :: CellsState -> Int32
 cellsStateToInt32 = \case

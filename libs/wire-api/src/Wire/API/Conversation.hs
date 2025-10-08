@@ -583,19 +583,22 @@ instance C.Cql Access where
 
   toCql = C.CqlInt . accessToInt32
 
-  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ accessFromInt32 i
   fromCql _ = Left "Access value: int expected"
 
 instance PostgresMarshall Access Int32 where
   postgresMarshall = accessToInt32
 
 instance PostgresUnmarshall Int32 Access where
-  postgresUnmarshall = \case
-    1 -> pure PrivateAccess
-    2 -> pure InviteAccess
-    3 -> pure LinkAccess
-    4 -> pure CodeAccess
-    n -> Left $ "Unexpected Access value: " <> Text.pack (show n)
+  postgresUnmarshall = accessFromInt32
+
+accessFromInt32 :: Int32 -> Either Text Access
+accessFromInt32 = \case
+  1 -> pure PrivateAccess
+  2 -> pure InviteAccess
+  3 -> pure LinkAccess
+  4 -> pure CodeAccess
+  n -> Left $ "Unexpected Access value: " <> Text.pack (show n)
 
 accessToInt32 :: Access -> Int32
 accessToInt32 = \case
@@ -665,19 +668,22 @@ instance C.Cql AccessRole where
 
   toCql = C.CqlInt . accessRoleToInt32
 
-  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ accessRoleFromInt32 i
   fromCql _ = Left "AccessRoleV2 value: int expected"
 
 instance PostgresMarshall AccessRole Int32 where
   postgresMarshall = accessRoleToInt32
 
 instance PostgresUnmarshall Int32 AccessRole where
-  postgresUnmarshall = \case
-    1 -> pure TeamMemberAccessRole
-    2 -> pure NonTeamMemberAccessRole
-    3 -> pure GuestAccessRole
-    4 -> pure ServiceAccessRole
-    n -> Left $ "Unexpected AccessRoleV2 value: " <> Text.pack (show n)
+  postgresUnmarshall = accessRoleFromInt32
+
+accessRoleFromInt32 :: Int32 -> Either Text AccessRole
+accessRoleFromInt32 = \case
+  1 -> pure TeamMemberAccessRole
+  2 -> pure NonTeamMemberAccessRole
+  3 -> pure GuestAccessRole
+  4 -> pure ServiceAccessRole
+  n -> Left $ "Unexpected AccessRoleV2 value: " <> Text.pack (show n)
 
 accessRoleToInt32 :: AccessRole -> Int32
 accessRoleToInt32 = \case
