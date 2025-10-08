@@ -335,3 +335,24 @@ testTeamSearchEmailFilter = do
     ownerId <- objId owner
     memberId <- objId mem
     uids `shouldMatchSet` [ownerId, memberId]
+
+testTeamSearchUserGroupCount :: (HasCallStack) => App ()
+testTeamSearchUserGroupCount = do
+  (owner, _team, [mem1, mem2, mem3, mem4]) <- createTeam OwnDomain 4
+  ownerId <- asString $ owner %. "id"
+  mem1id <- asString $ mem1 %. "id"
+  mem2id <- asString $ mem2 %. "id"
+  mem3id <- asString $ mem3 %. "id"
+  mem4id <- asString $ mem4 %. "id"
+
+  BrigP.createUserGroup owner (object ["name" .= "group 1", "members" .= [mem1id, mem2id]]) >>= assertSuccess
+  BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id, mem4id]]) >>= assertSuccess
+  BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id]]) >>= assertSuccess
+
+  bindResponse (BrigP.searchTeamAll owner) \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 5
+    actual <- for docs $ \doc -> (,) <$> (doc %. "id" & asString) <*> (doc %. "user_group_count" & asInt)
+    let expected = [(mem1id, 1 :: Int), (mem2id, 3), (mem3id, 2), (mem4id, 1), (ownerId, 0)]
+    actual `shouldMatchSet` expected
