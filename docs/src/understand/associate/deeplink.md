@@ -128,12 +128,29 @@ Now both static files should become accessible at the backend domain under `/dee
 
 #### Host deeplinks for a multi ingress setup
 
-This configuration is necessary only when using a [Multi-Ingress Setup](../../developer/reference/config-options.md#multi-ingress-setup). To enable deeplink URLs on different domains configured under `nginx_conf.additional_external_env_domains`, use the following configuration:
+This configuration is necessary only when using a [Multi-Ingress Setup](../../developer/reference/config-options.md#multi-ingress-setup). To enable the deeplink for a default domain in the case of multi-ingress, the default config i.e. `nginx_conf.external_env_domain` and `nginx_conf.deeplink` should be kept. To enable deeplink URLs for rest of the domains configure the `nginx_conf.additional_external_env_domains` and `nginx_conf.multi_ingress_deeplink`. Example configuration:
 
 ```
 nginz:
   nginx_conf:
-    ...
+    external_env_domain: default.example.com
+    deeplink:
+      endpoints:
+        backendURL: "https://nginz-https.default.example.com"
+        backendWSURL: "https://nginz-ssl.default.example.com"
+        teamsURL: "https://teams.default.example.com"
+        accountsURL: "https://account.default.example.com"
+        blackListURL: "https://clientblacklist.default.example.com/prod"
+        websiteURL: "https://default.example.com"
+      apiProxy: # (optional)
+        host: "socks5.proxy.com"
+        port: 1080
+        needsAuthentication: true
+      title: "Example Backend"
+    additional_external_env_domains:
+      - red.example.com
+      - green.example.org      
+      - blue.example.net
     multi_ingress_deeplink:
       red.example.com:
         endpoints:
