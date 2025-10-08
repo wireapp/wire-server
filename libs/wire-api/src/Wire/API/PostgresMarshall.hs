@@ -27,7 +27,7 @@ import Imports
 class PostgresMarshall a b where
   postgresMarshall :: a -> b
 
-instance {-# OVERLAPS #-} (a ~ b) => PostgresMarshall a b where
+instance {-# OVERLAPPABLE #-} (a ~ b) => PostgresMarshall a b where
   postgresMarshall = id
 
 instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2) => PostgresMarshall (a1, a2) (b1, b2) where
@@ -518,7 +518,7 @@ instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
 class PostgresUnmarshall a b where
   postgresUnmarshall :: a -> Either Text b
 
-instance {-# OVERLAPS #-} (a ~ b) => PostgresUnmarshall a b where
+instance {-# OVERLAPPABLE #-} (a ~ b) => PostgresUnmarshall a b where
   postgresUnmarshall = Right
 
 instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2) => PostgresUnmarshall (a1, a2) (b1, b2) where
