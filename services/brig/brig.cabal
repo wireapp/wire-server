@@ -215,7 +215,6 @@ library
     , amazonka-dynamodb                     >=2
     , amazonka-ses                          >=2
     , amazonka-sqs                          >=2
-    , amqp
     , async                                 >=2.1
     , auto-update                           >=0.1
     , base                                  >=4       && <5
@@ -298,6 +297,7 @@ library
     , split                                 >=0.2
     , ssl-util
     , stomp-queue                           >=0.3
+    , supernova
     , template                              >=0.2
     , template-haskell
     , text                                  >=0.11

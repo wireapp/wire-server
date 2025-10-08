@@ -10,13 +10,11 @@ import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id (RequestId)
 import Data.List.NonEmpty qualified as NE
-import Data.Map qualified as Map
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
-import Network.AMQP qualified as Q
-import Network.AMQP.Types qualified as Q
+import Pulsar qualified as P
 import Servant
 import Servant.Client.Core
 import Wire.API.Federation.API.Common
@@ -148,8 +146,8 @@ sendNotification env component path body = case someComponent component of
         . void
         $ clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
 
-enqueue :: Q.Channel -> RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
-enqueue channel requestId originDomain targetDomain deliveryMode (FedQueueClient action) =
+enqueue :: P.PulsarConnection -> RequestId -> Domain -> Domain -> P.TopicType -> FedQueueClient c a -> IO a
+enqueue connection requestId originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
 routingKey :: Text -> Text
@@ -160,32 +158,34 @@ routingKey t = "backend-notifications." <> t
 -- they are stored in Rabbit.
 type DefederationDomain = Domain
 
+-- TODO: Do we still need to ensure subsriptions?
+
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.
-ensureQueue :: Q.Channel -> Text -> IO ()
-ensureQueue chan queue = do
-  let opts =
-        Q.QueueOpts
-          { Q.queueName = routingKey queue,
-            Q.queuePassive = False,
-            Q.queueDurable = True,
-            Q.queueExclusive = False,
-            Q.queueAutoDelete = False,
-            Q.queueHeaders =
-              Q.FieldTable $
-                Map.fromList
-                  -- single-active-consumer is used because it is order
-                  -- preserving, especially into databases and to remote servers,
-                  -- exactly what we are doing here!
-                  -- Without single active consumer, messages will be delivered
-                  -- round-robbin to all consumers, but then we lose effect-ordering
-                  -- due to processing and network times.
-                  [ ("x-single-active-consumer", Q.FVBool True),
-                    ("x-queue-type", Q.FVString "quorum")
-                  ]
-          }
-  void $ Q.declareQueue chan opts
+-- ensureQueue :: Q.Channel -> Text -> IO ()
+-- ensureQueue chan queue = do
+--  let opts =
+--        Q.QueueOpts
+--          { Q.queueName = routingKey queue,
+--            Q.queuePassive = False,
+--            Q.queueDurable = True,
+--            Q.queueExclusive = False,
+--            Q.queueAutoDelete = False,
+--            Q.queueHeaders =
+--              Q.FieldTable $
+--                Map.fromList
+--                  -- single-active-consumer is used because it is order
+--                  -- preserving, especially into databases and to remote servers,
+--                  -- exactly what we are doing here!
+--                  -- Without single active consumer, messages will be delivered
+--                  -- round-robbin to all consumers, but then we lose effect-ordering
+--                  -- due to processing and network times.
+--                  [ ("x-single-active-consumer", Q.FVBool True),
+--                    ("x-queue-type", Q.FVString "quorum")
+--                  ]
+--          }
+--  void $ Q.declareQueue chan opts
 
 -- * Internal machinery
 
@@ -199,10 +199,10 @@ newtype FedQueueClient c a = FedQueueClient (ReaderT FedQueueEnv IO a)
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader FedQueueEnv)
 
 data FedQueueEnv = FedQueueEnv
-  { channel :: Q.Channel,
+  { connection :: P.PulsarConnection,
     originDomain :: Domain,
     targetDomain :: Domain,
-    deliveryMode :: Q.DeliveryMode,
+    deliveryMode :: P.TopicType,
     requestId :: RequestId
   }
 

@@ -42,7 +42,8 @@ startPushingNotifications ::
   Domain ->
   AppT IO Q.ConsumerTag
 startPushingNotifications runningFlag chan domain = do
-  lift $ ensureQueue chan domain._domainText
+  -- TODO: Do we still need to ensure subsriptions?
+  -- lift $ ensureQueue chan domain._domainText
   QL.consumeMsgs'
     chan
     (routingKey domain._domainText)

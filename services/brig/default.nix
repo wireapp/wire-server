@@ -9,7 +9,6 @@
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
-, amqp
 , async
 , attoparsec
 , auto-update
@@ -118,6 +117,7 @@
 , stomp-queue
 , streaming-commons
 , string-conversions
+, supernova
 , tasty
 , tasty-ant-xml
 , tasty-cannon
@@ -167,7 +167,6 @@ mkDerivation {
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
-    amqp
     async
     auto-update
     base
@@ -250,6 +249,7 @@ mkDerivation {
     split
     ssl-util
     stomp-queue
+    supernova
     template
     template-haskell
     text

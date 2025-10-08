@@ -32,7 +32,7 @@ import Data.Range (Range)
 import Data.Text qualified as T
 import Data.Time.Units
 import Imports
-import Network.AMQP qualified as Q
+import Pulsar qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
@@ -142,9 +142,9 @@ notifyUserDeleted self remotes = do
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
       remoteDomain = tDomain remotes
 
-  asks (.rabbitmqChannel) >>= \case
+  asks (.pulsarConnection) >>= \case
     Just chanVar -> do
-      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
+      enqueueNotification (tDomain self) remoteDomain P.Persistent chanVar $
         fedQueueClient @'OnUserDeletedConnectionsTag notif
     Nothing ->
       Log.err $
@@ -154,7 +154,7 @@ notifyUserDeleted self remotes = do
           . Log.field "error" (show FederationNotConfigured)
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
+enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> P.TopicType -> MVar P.PulsarConnection -> FedQueueClient c () -> m ()
 enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
   let policy = limitRetries 3 <> constantDelay 1_000_000
   recovering policy [logRetries (const $ pure True) logError] (const go)

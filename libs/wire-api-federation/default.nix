@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , aeson-pretty
-, amqp
 , async
 , base
 , bytestring
@@ -39,6 +38,7 @@
 , servant-server
 , singletons
 , singletons-base
+, supernova
 , text
 , time
 , transformers
@@ -53,7 +53,6 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
-    amqp
     async
     base
     bytestring
@@ -80,6 +79,7 @@ mkDerivation {
     servant-openapi3
     servant-server
     singletons-base
+    supernova
     text
     time
     transformers

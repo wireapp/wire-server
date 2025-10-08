@@ -67,7 +67,7 @@ module Brig.App
     indexEnvLens,
     randomPrekeyLocalLockLens,
     keyPackageLocalLockLens,
-    rabbitmqChannelLens,
+    pulsarConnectionLens,
     disabledVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
@@ -139,8 +139,6 @@ import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended
 import Imports
-import Network.AMQP qualified as Q
-import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -151,6 +149,7 @@ import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
 import Prometheus
+import Pulsar qualified as P
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
@@ -215,7 +214,7 @@ data Env = Env
     indexEnv :: IndexEnv,
     randomPrekeyLocalLock :: Maybe (MVar ()),
     keyPackageLocalLock :: MVar (),
-    rabbitmqChannel :: Maybe (MVar Q.Channel),
+    pulsarConnection :: Maybe (MVar P.PulsarConnection),
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv
@@ -275,7 +274,9 @@ newEnv opts = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr (Just "brig")) opts.rabbitmq
+  -- TODO: The connection target should be configurable.
+  let pulsarCon :: P.PulsarConnection = P.connect P.defaultConnectData
+  pulsarConnection <- Just <$> newMVar pulsarCon
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
@@ -316,7 +317,7 @@ newEnv opts = do
         indexEnv = idxEnv,
         randomPrekeyLocalLock = prekeyLocalLock,
         keyPackageLocalLock = kpLock,
-        rabbitmqChannel = rabbitChan,
+        pulsarConnection = pulsarConnection,
         disabledVersions = allDisabledVersions,
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv

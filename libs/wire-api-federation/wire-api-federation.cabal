@@ -85,7 +85,6 @@ library
 
   build-depends:
       aeson                  >=2.0.1.0
-    , amqp
     , async
     , base                   >=4.6     && <5.0
     , bytestring
@@ -118,6 +117,7 @@ library
     , types-common
     , wai-utilities
     , wire-api
+    , supernova
 
   default-language:   GHC2021
 

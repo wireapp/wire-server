@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -45,7 +46,7 @@ import Data.Singletons
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
-import Network.AMQP
+import Pulsar qualified as P
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Component as X
@@ -133,17 +134,20 @@ sendBundle ::
   FedQueueClient c ()
 sendBundle bundle = do
   env <- ask
-  let msg =
-        newMsg
-          { msgBody = encode bundle,
-            msgDeliveryMode = Just (env.deliveryMode),
-            msgContentType = Just "application/json"
-          }
-      -- Empty string means default exchange
-      exchange = ""
-  liftIO $ do
-    ensureQueue env.channel env.targetDomain._domainText
-    void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
+  liftIO $
+    -- TODO: Do we still need to ensure subsriptions?
+    -- ensureQueue env.connection env.targetDomain._domainText
+    -- void $ publishMsg env.connection exchange (routingKey env.targetDomain._domainText) msg
+    let topic =
+          P.Topic
+            { P.type' = env.deliveryMode,
+              P.tenant = P.Tenant "default",
+              P.namespace = P.NameSpace "default",
+              P.name = P.TopicName (routingKey env.targetDomain._domainText)
+            }
+     in P.runPulsar env.connection $ do
+          P.Producer {..} <- P.newProducer topic
+          send . P.PulsarMessage . encode $ bundle
 
 fedQueueClient ::
   forall {k} (tag :: k) c.
