@@ -229,27 +229,6 @@ http {
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
     oauth_pub_key  {{ .Values.nginx_conf.oauth_pub_key }};
 
-    # bypass wire-server-enterprise requirement for new login UI
-
-    location = /v8/get-domain-registration {
-        zauth off;
-        
-        if ($request_method = 'OPTIONS') {
-            add_header 'Access-Control-Allow-Origin' "$http_origin" always;
-            add_header 'Access-Control-Allow-Methods' "GET, OPTIONS" always;
-            add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers" always;
-            add_header 'Content-Length' 0;
-            add_header 'Content-Type' 'text/plain; charset=UTF-8';
-            return 204;
-        }
-
-        add_header 'Access-Control-Allow-Origin' "$http_origin" always;
-        add_header 'Access-Control-Allow-Credentials' 'true' always;
-        add_header 'Content-Type' 'application/json' always;
-        default_type application/json;
-        return 200 '{\"domain_redirect\": \"none\"}';
-    }
-
     location /status {
         zauth off;
         access_log off;
