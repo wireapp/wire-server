@@ -98,8 +98,7 @@ getUserGroup team id_ includeChannels = do
     session = runMaybeT do
       (name, managedBy, createdAt) <- MaybeT $ statement (id_, team) getGroupMetadataStatement
       members <- lift $ Identity <$> statement id_ getGroupMembersStatement
-      -- TODO: add counts
-      let membersCount = Nothing
+      let membersCount = Just . V.length $ runIdentity members
           channelsCount = Nothing
           channels = mempty
       pure $ UserGroup_ {..}
@@ -108,9 +107,9 @@ getUserGroup team id_ includeChannels = do
     sessionWithChannels loc = runMaybeT do
       (name, managedBy, createdAt, memberIds, channelIds) <- MaybeT $ statement (id_, team) getGroupWithMembersAndChannelsStatement
       let members = Identity (fmap Id memberIds)
-          membersCount = Just (fromIntegral (V.length memberIds))
-          channels = Identity (Just (fmap (tUntagged . qualifyAs loc . Id) channelIds))
-          channelsCount = Just (fromIntegral (V.length channelIds))
+          membersCount = Just $ V.length memberIds
+          channels = Just (fmap (tUntagged . qualifyAs loc . Id) channelIds)
+          channelsCount = Just $ V.length channelIds
       pure $ UserGroup_ {..}
 
     decodeMetadataRow :: (Text, Int32, UTCTime) -> Either Text (UserGroupName, ManagedBy, UTCTimeMillis)
@@ -167,49 +166,52 @@ divide5 f a b c d e = divide (\p -> let (v, w, x, y, z) = f p in (v, (w, x, y, z
 
 getUserGroups ::
   forall r.
-  (UserGroupStorePostgresEffectConstraints r) =>
+  ( UserGroupStorePostgresEffectConstraints r,
+    Member (Input (Local ())) r
+  ) =>
   UserGroupPageRequest ->
   Sem r UserGroupPage
 getUserGroups req@(UserGroupPageRequest {..}) = do
   pool <- input
+  loc <- qualifyLocal ()
   eitherResult <- liftIO $ use pool do
     TxSessions.transaction TxSessions.ReadCommitted TxSessions.Read do
-      UserGroupPage <$> getUserGroupsSession <*> getCountSession
+      UserGroupPage <$> getUserGroupsSession loc <*> getCountSession
   either throw pure eitherResult
   where
-    getUserGroupsSession :: Tx.Transaction [UserGroupMeta]
-    getUserGroupsSession = case (req.searchString, req.paginationState) of
+    getUserGroupsSession :: Local a -> Tx.Transaction [UserGroupMeta]
+    getUserGroupsSession loc = case (req.searchString, req.paginationState) of
       (Nothing, PaginationSortByName Nothing) -> do
         let encoder = divide id encodeId encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, pageSizeInt) stmt
       (Nothing, PaginationSortByCreatedAt Nothing) -> do
         let encoder = divide id encodeId encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, pageSizeInt) stmt
       (Nothing, PaginationSortByName (Just (name, gid))) -> do
         let encoder = divide4 id encodeId encodeGroupName encodeId encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, name, gid, pageSizeInt) stmt
       (Nothing, PaginationSortByCreatedAt (Just (timestamp, gid))) -> do
         let encoder = divide4 id encodeId encodeTime encodeId encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, timestamp, gid, pageSizeInt) stmt
       (Just st, PaginationSortByName Nothing) -> do
         let encoder = divide3 id encodeId encodeText encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, fuzzy st, pageSizeInt) stmt
       (Just st, PaginationSortByCreatedAt Nothing) -> do
         let encoder = divide3 id encodeId encodeText encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, fuzzy st, pageSizeInt) stmt
       (Just st, PaginationSortByName (Just (name, gid))) -> do
         let encoder = divide5 id encodeId encodeGroupName encodeId encodeText encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, name, gid, fuzzy st, pageSizeInt) stmt
       (Just st, PaginationSortByCreatedAt (Just (timestamp, gid))) -> do
         let encoder = divide5 id encodeId encodeTime encodeId encodeText encodeInt
-            stmt = refineResult (mapM parseRow) $ Statement queryBS encoder decodeRow True
+            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
         Tx.statement (req.team, timestamp, gid, fuzzy st, pageSizeInt) stmt
 
     getCountSession :: Tx.Transaction Int
@@ -285,8 +287,8 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
                 )
         )
 
-    parseRow :: (UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID)) -> Either Text UserGroupMeta
-    parseRow (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw, channelsCountRaw, _maybeChannels) = do
+    parseRow :: Local a -> (UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID)) -> Either Text UserGroupMeta
+    parseRow loc (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw, channelsCountRaw, maybeChannels) = do
       managedBy <- case managedByPre of
         0 -> pure ManagedByWire
         1 -> pure ManagedByScim
@@ -295,8 +297,7 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
       let members = Const ()
           membersCount = fromIntegral <$> membersCountRaw
           channelsCount = Just (fromIntegral channelsCountRaw)
-          -- TODO: process channels
-          channels = mempty
+          channels = fmap (fmap (tUntagged . qualifyAs loc . Id)) maybeChannels
       pure $ UserGroup_ {..}
 
     -- \| Compile a pagination state into select query to return the next page.  Result is the

@@ -1079,11 +1079,23 @@ data GetUserGroupsArgs = GetUserGroupsArgs
     lastName :: Maybe String,
     lastCreatedAt :: Maybe String,
     lastId :: Maybe String,
-    includeMemberCount :: Bool
+    includeMemberCount :: Bool,
+    includeChannels :: Bool
   }
 
 instance Default GetUserGroupsArgs where
-  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing False
+  def =
+    GetUserGroupsArgs
+      { q = Nothing,
+        sortByKeys = Nothing,
+        sortOrder = Nothing,
+        pSize = Nothing,
+        lastName = Nothing,
+        lastCreatedAt = Nothing,
+        lastId = Nothing,
+        includeMemberCount = False,
+        includeChannels = False
+      }
 
 getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
 getUserGroups user GetUserGroupsArgs {..} = do

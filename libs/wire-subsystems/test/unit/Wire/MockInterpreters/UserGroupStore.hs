@@ -108,7 +108,7 @@ getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRe
 getUserGroupsImpl UserGroupPageRequest {..} = do
   let filterChannels ug =
         if includeChannels
-          then (ug :: UserGroup) {channels = mempty, channelsCount = Just $ maybe 0 length ug.channels.runIdentity}
+          then (ug :: UserGroup) {channels = mempty, channelsCount = Just $ maybe 0 length ug.channels}
           else (ug :: UserGroup) {channels = mempty}
   meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . filterChannels) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
@@ -206,7 +206,7 @@ updateUserGroupChannelsImpl gid convIds = do
       f (Just g) =
         Just
           ( g
-              { channels = Identity $ Just $ tUntagged . qualifyLocal <$> convIds,
+              { channels = Just $ tUntagged . qualifyLocal <$> convIds,
                 channelsCount = Nothing
               } ::
               UserGroup
@@ -219,7 +219,7 @@ listUserGroupChannelsImpl ::
   UserGroupId ->
   Sem r (Vector ConvId)
 listUserGroupChannelsImpl gid =
-  foldMap (fmap qUnqualified) . (runIdentity . (.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
+  foldMap (fmap qUnqualified) . ((.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
     <$> get @(Map (TeamId, UserGroupId) UserGroup)
 
 ----------------------------------------------------------------------

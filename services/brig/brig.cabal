@@ -218,7 +218,7 @@ library
     , amqp
     , async                                 >=2.1
     , auto-update                           >=0.1
-    , base                                  >=4        && <5
+    , base                                  >=4       && <5
     , base-prelude
     , base16-bytestring                     >=0.1
     , base64-bytestring                     >=1.0
@@ -314,7 +314,6 @@ library
     , uri-bytestring                        >=0.2
     , utf8-string
     , uuid                                  >=1.3.5
-    , vector                                >=0.13.2.0
     , wai                                   >=3.0
     , wai-extra                             >=3.0
     , wai-middleware-gunzip                 >=0.0.2

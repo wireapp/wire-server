@@ -339,7 +339,8 @@ testUserGroupGetGroupsAllInputs = do
             lastName = lastName',
             lastCreatedAt = lastCreatedAt',
             lastId = lastId',
-            includeMemberCount = includeMemberCount'
+            includeMemberCount = includeMemberCount',
+            includeChannels = includeChannels'
           }
         | q' <- qs,
           sortBy' <- sortByKeysList,
@@ -348,7 +349,8 @@ testUserGroupGetGroupsAllInputs = do
           lastName' <- lastNames,
           lastCreatedAt' <- lastCreatedAts,
           lastId' <- lastIds,
-          includeMemberCount' <- [False, True]
+          includeMemberCount' <- [False, True],
+          includeChannels' <- [False, True]
       ]
       where
         qs = [Nothing, Just "A"]
