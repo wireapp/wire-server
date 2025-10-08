@@ -12,6 +12,7 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
+import Data.Set qualified as Set
 
 --------------------------------------------------------------------------------
 -- LOCAL SEARCH
@@ -358,3 +359,112 @@ testTeamSearchUserIncludesUserGroups = do
       let expectedUgs = fromMaybe [] (lookup uid expected)
       actualUgs <- for ugs asString
       actualUgs `shouldMatchSet` expectedUgs
+
+withFoundDocs ::
+  (MakesValue user, MakesValue searchTerm) =>
+  user ->
+  searchTerm ->
+  ([Value] -> App a) ->
+  App a
+withFoundDocs self term f = do
+  BrigP.searchContacts self term OwnDomain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    f docs
+
+testUserSearchable :: App ()
+testUserSearchable = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+
+  let -- Helper to change user searchability.
+      setSearchable self uid searchable = do
+        req <- baseRequest self Brig Versioned $ joinHttpPath ["users", uid, "searchable"]
+        submit "POST" $ addJSON searchable req
+
+  -- Create user in team, default is searchable = True.
+  u1 <- createTeamMember owner def
+  assertBool "created users are searchable by default" =<< (u1 %. "searchable" & asBool)
+
+  -- Setting self to non-searchable won't work -- only admin can do it.
+  u1id <- u1 %. "id" & asString
+  setSearchable u1 u1id False `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "insufficient-permissions"
+
+  u1' <- BrigP.getUser u1 u1 >>= getJSON 200
+  assertBool "Searchable is still True" =<< (u1' %. "searchable" & asBool)
+
+  -- Team admin can set user to non-searchable.
+  admin <- createTeamMember owner def {role = "admin"}
+  setSearchable admin u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  u1'' <- BrigP.getUser u1 u1 >>= getJSON 200
+  assertBool "Searchable is now False" . (False ==) =<< (u1'' %. "searchable" & asBool)
+
+  -- Team owner can, too.
+  setSearchable owner u1id True `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  setSearchable owner u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+
+  -- By default created team members are found.
+  u3 <- createTeamMember owner def
+  u3id <- u3 %. "id" & asString
+  BrigI.refreshIndex OwnDomain
+  withFoundDocs u1 (u3 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "u1 must find u3 as they are searchable by default" $ u3id `elem` foundUids
+
+  -- User set to non-searchable is not found by other team members.
+  u4 <- createTeamMember owner def
+  u4id <- u4 %. "id" & asString
+  setSearchable owner u4id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigI.refreshIndex OwnDomain
+  withFoundDocs u1 (u4 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "u1 must not find u4 as they are set non-searchable" $ notElem u4id foundUids
+
+  -- Even admin nor owner won't find non-searchable users via /search/contacts
+  withFoundDocs admin (u4 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "Team admin won't find non-searchable user" $ notElem u4id foundUids
+  withFoundDocs owner (u4 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "Team owner won't find non-searchable user from /search/concatcs" $ notElem u4id foundUids
+
+  -- Exact handle search with HTTP HEAD still works for non-searchable users
+  u4handle <- API.randomHandle
+  bindResponse (BrigP.putHandle u4 u4handle) assertSuccess
+  req <- baseRequest u3 Brig Versioned $ joinHttpPath ["handles", u4handle]
+  submit "HEAD" req `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    -- TODO: what is HEAD's API -- test for "u4handle is taken"
+
+  -- Handle for POST /handles still works for non-searchable users
+  u3handle <- API.randomHandle
+  bindResponse (BrigP.putHandle u3 u3handle) assertSuccess
+  req <- baseRequest u1 Brig Versioned $ joinHttpPath ["handles"]
+  let req' = req & addJSONObject ["handles" .= [u4handle, u3handle]]
+  submit "POST" req' `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList
+    assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
+
+  -- Regular user can't find non-searchable team member by exact handle.
+  withFoundDocs u1 u4handle $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "u1 must not find non-searchable u4 by exact handle" $ notElem u4id foundUids
+
+  -- /teams/:tid/members gets all members, both searchable and non-searchable
+  req <- baseRequest u1 Galley Versioned $ joinHttpPath ["teams", tid, "members"]
+  submit "GET" req `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "members" >>= asList
+    foundUids <- mapM (\m -> m %. "user" & asString) docs
+    assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u3id, u4id]
+
+  -- /teams/:tid/search?searchable=false gets only non-searchable members
+  req <- baseRequest admin Brig Versioned $ joinHttpPath ["teams", tid, "search"]
+  let req' = addQueryParams [("searchable", "false")]
+  submit "GET" req `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "members" >>= asList
+    foundUids <- mapM (\m -> m %. "user" & asString) docs
+    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u4id]
