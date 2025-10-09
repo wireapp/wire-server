@@ -107,8 +107,8 @@ instance FromJSON UserDoc where
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
 
-userDocToTeamContact :: Int -> UserDoc -> TeamContact
-userDocToTeamContact userGroupCount UserDoc {..} =
+userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
+userDocToTeamContact userGroups UserDoc {..} =
   TeamContact
     { teamContactUserId = udId,
       teamContactTeam = udTeam,
@@ -123,7 +123,7 @@ userDocToTeamContact userGroupCount UserDoc {..} =
       teamContactEmail = udEmail,
       teamContactCreatedAt = udCreatedAt,
       teamContactColorId = fromIntegral . fromColourId <$> udColourId,
-      teamContactUserGroupCount = userGroupCount
+      teamContactUserGroups = userGroups
     }
 
 -- | Outbound search restrictions configured by team admin of the searcher. This

@@ -56,33 +56,28 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
-    GetUserGroupCount team uid -> getUserGroupCount team uid
+    GetUserGroupIds team uid -> getUserGroupIds team uid
 
-getUserGroupCount :: (UserGroupStorePostgresEffectConstraints r) => TeamId -> UserId -> Sem r Int
-getUserGroupCount team uid = do
+getUserGroupIds :: (UserGroupStorePostgresEffectConstraints r) => TeamId -> UserId -> Sem r [UserGroupId]
+getUserGroupIds team uid = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
-    session :: Session Int
+    session :: Session [UserGroupId]
     session = statement (team, uid) stmt
 
-    stmt :: Statement (TeamId, UserId) Int
+    stmt :: Statement (TeamId, UserId) [UserGroupId]
     stmt =
       lmap (\(t, u) -> (t.toUUID, u.toUUID))
-        . refineResult parseCount
-        $ [singletonStatement|
-            select (count(*) :: int8)
+        . rmap (fmap Id)
+        . refineResult (Right . toList)
+        $ [vectorStatement|
+            select (ug.id :: uuid)
               from user_group_member as ugm
               join user_group as ug on ug.id = ugm.user_group_id
               where ug.team_id = ($1 :: uuid) and ugm.user_id = ($2 :: uuid)
           |]
-
-    parseCount :: Int64 -> Either Text Int
-    parseCount = \case
-      n | n < 0 -> Left "Negative count from database"
-      n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
-      n -> Right $ fromIntegral n
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do

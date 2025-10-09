@@ -67,13 +67,13 @@ userGroupStoreTestInterpreter =
     UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl gid convIds
-    GetUserGroupCount tid uid -> getUserGroupCountImpl tid uid
+    GetUserGroupIds tid uid -> getUserGroupIdsImpl tid uid
 
-getUserGroupCountImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserId -> Sem r Int
-getUserGroupCountImpl tid uid = do
+getUserGroupIdsImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserId -> Sem r [UserGroupId]
+getUserGroupIdsImpl tid uid = do
   st <- get @UserGroupInMemState
-  let belongs (_, ug) = uid `elem` toList (runIdentity ug.members)
-  pure . length . filter belongs . filter ((== tid) . fst . fst) $ Map.toList st
+  let f ((tid', gid), ug) = [gid | tid' == tid, uid `elem` toList (runIdentity ug.members)]
+  pure $ concatMap f (Map.toList st)
 
 updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsersImpl gid uids = do

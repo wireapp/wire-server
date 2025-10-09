@@ -336,14 +336,14 @@ testTeamSearchEmailFilter = do
     memberId <- objId mem
     uids `shouldMatchSet` [ownerId, memberId]
 
-testTeamSearchUserGroupCount :: (HasCallStack) => App ()
-testTeamSearchUserGroupCount = do
+testTeamSearchUserIncludesUserGroups :: (HasCallStack) => App ()
+testTeamSearchUserIncludesUserGroups = do
   (owner, _team, mems) <- createTeam OwnDomain 5
   [ownerId, mem1id, mem2id, mem3id, mem4id] <- for (owner : mems) ((%. "id") >=> asString)
 
-  BrigP.createUserGroup owner (object ["name" .= "group 1", "members" .= [mem1id, mem2id]]) >>= assertSuccess
-  BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id, mem4id]]) >>= assertSuccess
-  BrigP.createUserGroup owner (object ["name" .= "group 3", "members" .= [mem2id, mem3id]]) >>= assertSuccess
+  ug1 <- BrigP.createUserGroup owner (object ["name" .= "group 1", "members" .= [mem1id, mem2id]]) >>= getJSON 200 >>= objId
+  ug2 <- BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id, mem4id]]) >>= getJSON 200 >>= objId
+  ug3 <- BrigP.createUserGroup owner (object ["name" .= "group 3", "members" .= [mem2id, mem3id]]) >>= getJSON 200 >>= objId
 
   BrigI.refreshIndex OwnDomain
 
@@ -351,6 +351,10 @@ testTeamSearchUserGroupCount = do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     length docs `shouldMatchInt` 5
-    actual <- for docs $ \doc -> (,) <$> (doc %. "id" & asString) <*> (doc %. "user_group_count" & asInt)
-    let expected = [(mem1id, 1 :: Int), (mem2id, 3), (mem3id, 2), (mem4id, 1), (ownerId, 0)]
-    actual `shouldMatchSet` expected
+    actual <- for docs $ \doc -> (,) <$> (doc %. "id" & asString) <*> (doc %. "user_groups" & asList)
+    let expected = [(mem1id, [ug1]), (mem2id, [ug1, ug2, ug3]), (mem3id, [ug2, ug3]), (mem4id, [ug2]), (ownerId, [])]
+    (fst <$> actual) `shouldMatchSet` (fst <$> expected)
+    for_ actual $ \(uid, ugs) -> do
+      let expectedUgs = fromMaybe [] (lookup uid expected)
+      actualUgs <- for ugs asString
+      actualUgs `shouldMatchSet` expectedUgs

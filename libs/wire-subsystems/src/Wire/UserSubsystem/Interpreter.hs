@@ -73,7 +73,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.TeamSubsystem
-import Wire.UserGroupStore (UserGroupStore, getUserGroupCount)
+import Wire.UserGroupStore (UserGroupStore, getUserGroupIds)
 import Wire.UserKeyStore
 import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
@@ -929,8 +929,8 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   let maxResults = maybe 15 fromRange mMaxResults
   result <- IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
   for result $ \userDoc -> do
-    ugc <- getUserGroupCount filters.teamId userDoc.udId
-    pure $ userDocToTeamContact ugc userDoc
+    ugids <- getUserGroupIds filters.teamId userDoc.udId
+    pure $ userDocToTeamContact ugids userDoc
 
 getAccountNoFilterImpl ::
   forall r.

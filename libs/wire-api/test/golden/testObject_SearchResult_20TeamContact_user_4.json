@@ -17,7 +17,7 @@
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": "00000001-0000-0000-0000-000000000001",
-            "user_group_count": 0
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -36,7 +36,7 @@
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": null,
-            "user_group_count": 0
+            "user_groups": []
         },
         {
             "accent_id": null,
@@ -55,7 +55,7 @@
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": "00000001-0000-0000-0000-000100000000",
-            "user_group_count": 0
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -74,7 +74,7 @@
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": null,
-            "user_group_count": 0
+            "user_groups": []
         }
     ],
     "found": -2,

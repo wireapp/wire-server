@@ -12,5 +12,5 @@
     "scim_external_id": null,
     "sso": null,
     "team": "00000002-0000-0000-0000-000200000001",
-    "user_group_count": 0
+    "user_groups": []
 }

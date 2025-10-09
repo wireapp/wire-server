@@ -14,7 +14,7 @@
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
             "team": null,
-            "user_group_count": 0
+            "user_groups": []
         }
     ],
     "found": -2,
