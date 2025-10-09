@@ -8,6 +8,7 @@ import Data.Functor.Contravariant (Contravariant (..))
 import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
+import Data.Map.Monoidal.Strict qualified as MM
 import Data.Profunctor
 import Data.Qualified (Local, QualifiedWithTag (tUntagged), inputQualifyLocal, qualifyAs)
 import Data.Range
@@ -56,27 +57,27 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
-    GetUserGroupIds team uid -> getUserGroupIds team uid
+    GetUserGroupIdsForUsers team uids -> getUserGroupIdsForUsers team uids
 
-getUserGroupIds :: (UserGroupStorePostgresEffectConstraints r) => TeamId -> UserId -> Sem r [UserGroupId]
-getUserGroupIds team uid = do
+getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => TeamId -> [UserId] -> Sem r (Map UserId [UserGroupId])
+getUserGroupIdsForUsers team uidsList = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
-    session :: Session [UserGroupId]
-    session = statement (team, uid) stmt
+    session :: Session (Map UserId [UserGroupId])
+    session = do
+      rows <- statement (team, V.fromList (toUUID <$> uidsList)) stmt
+      pure $ MM.getMonoidalMap $ MM.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
 
-    stmt :: Statement (TeamId, UserId) [UserGroupId]
+    stmt :: Statement (TeamId, Vector UUID) (Vector (UUID, UUID))
     stmt =
-      lmap (\(t, u) -> (t.toUUID, u.toUUID))
-        . rmap (fmap Id)
-        . refineResult (Right . toList)
-        $ [vectorStatement|
-            select (ug.id :: uuid)
+      lmap (\(t, vs) -> (t.toUUID, vs)) $
+        [vectorStatement|
+            select (ugm.user_id :: uuid), (ug.id :: uuid)
               from user_group_member as ugm
               join user_group as ug on ug.id = ugm.user_group_id
-              where ug.team_id = ($1 :: uuid) and ugm.user_id = ($2 :: uuid)
+              where ug.team_id = ($1 :: uuid) and ugm.user_id = ANY (($2 :: uuid[]))
           |]
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()

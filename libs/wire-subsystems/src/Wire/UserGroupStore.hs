@@ -42,6 +42,6 @@ data UserGroupStore m a where
   UpdateUsers :: UserGroupId -> Vector UserId -> UserGroupStore m ()
   RemoveUser :: UserGroupId -> UserId -> UserGroupStore m ()
   UpdateUserGroupChannels :: UserGroupId -> Vector ConvId -> UserGroupStore m ()
-  GetUserGroupIds :: TeamId -> UserId -> UserGroupStore m [UserGroupId]
+  GetUserGroupIdsForUsers :: TeamId -> [UserId] -> UserGroupStore m (Map UserId [UserGroupId])
 
 makeSem ''UserGroupStore
