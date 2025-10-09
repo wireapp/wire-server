@@ -332,7 +332,8 @@ type InputEffects =
   '[ Input UserSubsystemConfig,
      Input (Maybe AllowlistEmailDomains),
      Input (Map TeamId IdPList),
-     Input AuthenticationSubsystemConfig
+     Input AuthenticationSubsystemConfig,
+     Input (Local ())
    ]
 
 defaultZAuthSettings :: ZAuthSettings
@@ -374,7 +375,8 @@ defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
 
 inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Map TeamId IdPList -> Sem (InputEffects `Append` r) a -> Sem r a
 inputEffectsInterpreters cfg teamIdps =
-  runInputConst defaultAuthenticationSubsystemConfig
+  runInputConst defaultLocalDomain
+    . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst teamIdps
     . runInputConst Nothing
     . runInputConst cfg
