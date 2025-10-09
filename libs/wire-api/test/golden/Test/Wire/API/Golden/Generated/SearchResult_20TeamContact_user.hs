@@ -48,7 +48,10 @@ testObject_SearchResult_20TeamContact_user_1 =
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
               teamContactSso = Nothing,
               teamContactEmailUnvalidated = Nothing,
-              teamContactUserGroups = []
+              teamContactUserGroups =
+                [ Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
+                  Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))
+                ]
             },
           TeamContact
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
