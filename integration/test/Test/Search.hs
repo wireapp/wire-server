@@ -338,16 +338,14 @@ testTeamSearchEmailFilter = do
 
 testTeamSearchUserGroupCount :: (HasCallStack) => App ()
 testTeamSearchUserGroupCount = do
-  (owner, _team, [mem1, mem2, mem3, mem4]) <- createTeam OwnDomain 4
-  ownerId <- asString $ owner %. "id"
-  mem1id <- asString $ mem1 %. "id"
-  mem2id <- asString $ mem2 %. "id"
-  mem3id <- asString $ mem3 %. "id"
-  mem4id <- asString $ mem4 %. "id"
+  (owner, _team, mems) <- createTeam OwnDomain 5
+  [ownerId, mem1id, mem2id, mem3id, mem4id] <- for (owner : mems) ((%. "id") >=> asString)
 
   BrigP.createUserGroup owner (object ["name" .= "group 1", "members" .= [mem1id, mem2id]]) >>= assertSuccess
   BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id, mem4id]]) >>= assertSuccess
-  BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id]]) >>= assertSuccess
+  BrigP.createUserGroup owner (object ["name" .= "group 3", "members" .= [mem2id, mem3id]]) >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
 
   bindResponse (BrigP.searchTeamAll owner) \resp -> do
     resp.status `shouldMatchInt` 200
