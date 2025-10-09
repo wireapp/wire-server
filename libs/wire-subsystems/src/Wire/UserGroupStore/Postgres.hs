@@ -8,7 +8,7 @@ import Data.Functor.Contravariant (Contravariant (..))
 import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
-import Data.Map.Monoidal.Strict qualified as MM
+import Data.Map qualified as Map
 import Data.Profunctor
 import Data.Qualified (Local, QualifiedWithTag (tUntagged), inputQualifyLocal, qualifyAs)
 import Data.Range
@@ -68,7 +68,7 @@ getUserGroupIdsForUsers team uidsList = do
     session :: Session (Map UserId [UserGroupId])
     session = do
       rows <- statement (team, V.fromList (toUUID <$> uidsList)) stmt
-      pure $ MM.getMonoidalMap $ MM.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
+      pure $ Map.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
 
     stmt :: Statement (TeamId, Vector UUID) (Vector (UUID, UUID))
     stmt =

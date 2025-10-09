@@ -119,7 +119,6 @@ common common-all
     , memory
     , mime
     , mime-mail
-    , monoidal-containers
     , network
     , network-conduit-tls
     , polysemy

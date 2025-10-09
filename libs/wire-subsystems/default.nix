@@ -62,7 +62,6 @@
 , memory
 , mime
 , mime-mail
-, monoidal-containers
 , network
 , network-conduit-tls
 , polysemy
@@ -173,7 +172,6 @@ mkDerivation {
     memory
     mime
     mime-mail
-    monoidal-containers
     network
     network-conduit-tls
     polysemy
@@ -273,7 +271,6 @@ mkDerivation {
     memory
     mime
     mime-mail
-    monoidal-containers
     network
     network-conduit-tls
     polysemy
