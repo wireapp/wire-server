@@ -1061,6 +1061,11 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
+getUserGroupWithChannels :: (MakesValue user) => user -> String -> App Response
+getUserGroupWithChannels user gid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
+  submit "GET" $ req & addQueryParams [("include_channels", "true")]
+
 updateUserGroupChannels :: (MakesValue user) => user -> String -> [String] -> App Response
 updateUserGroupChannels user gid convIds = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "channels"]
@@ -1074,11 +1079,23 @@ data GetUserGroupsArgs = GetUserGroupsArgs
     lastName :: Maybe String,
     lastCreatedAt :: Maybe String,
     lastId :: Maybe String,
-    includeMemberCount :: Bool
+    includeMemberCount :: Bool,
+    includeChannels :: Bool
   }
 
 instance Default GetUserGroupsArgs where
-  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing False
+  def =
+    GetUserGroupsArgs
+      { q = Nothing,
+        sortByKeys = Nothing,
+        sortOrder = Nothing,
+        pSize = Nothing,
+        lastName = Nothing,
+        lastCreatedAt = Nothing,
+        lastId = Nothing,
+        includeMemberCount = False,
+        includeChannels = False
+      }
 
 getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
 getUserGroups user GetUserGroupsArgs {..} = do
@@ -1094,7 +1111,8 @@ getUserGroups user GetUserGroupsArgs {..} = do
               ("last_seen_name",) <$> lastName,
               ("last_seen_created_at",) <$> lastCreatedAt,
               ("last_seen_id",) <$> lastId,
-              (if includeMemberCount then Just ("include_member_count", "true") else Nothing)
+              (if includeMemberCount then Just ("include_member_count", "true") else Nothing),
+              (if includeChannels then Just ("include_channels", "true") else Nothing)
             ]
         )
 

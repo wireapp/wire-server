@@ -1678,7 +1678,8 @@ createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
 createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
 
 getUserGroup :: (_) => Local UserId -> UserGroupId -> Bool -> Handler r (Maybe UserGroup)
-getUserGroup lusr ugid _ = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+getUserGroup lusr ugid includeChannels =
+  lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid includeChannels
 
 getUserGroups ::
   (_) =>
@@ -1691,9 +1692,10 @@ getUserGroups ::
   Maybe UTCTimeMillis ->
   Maybe UserGroupId ->
   Bool ->
+  Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount
+getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeChannels includeMemberCount =
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount includeChannels
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd

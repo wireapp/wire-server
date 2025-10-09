@@ -138,7 +138,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                           members = User.userId <$> V.fromList members
                         }
                 createdGroup <- createGroup (ownerId team) newUserGroup
-                retrievedGroup <- getGroup (ownerId team) createdGroup.id_
+                retrievedGroup <- getGroup (ownerId team) createdGroup.id_ False
                 now <- toUTCTimeMillis <$> get
                 let assert =
                       createdGroup.name === newUserGroupName
@@ -238,7 +238,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         . runDependencies (allUsers team) (galleyTeam team)
         . interpretUserGroupSubsystem
         $ do
-          mGroup <- getGroup (ownerId team) groupId
+          mGroup <- getGroup (ownerId team) groupId False
           pure $ mGroup === Nothing
 
     prop "team admins can get all groups in their team; outsiders can see nothing" $ \team otherTeam userGroupName ->
@@ -253,11 +253,11 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   }
           group1 <- createGroup (ownerId team) newUserGroup
 
-          getGroupAdmin <- getGroup (ownerId team) group1.id_
-          getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_
+          getGroupAdmin <- getGroup (ownerId team) group1.id_ False
+          getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_ False
 
-          getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing False
-          getGroupsOutsider <- try $ getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing False
+          getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing False False
+          getGroupsOutsider <- try $ getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing False False
 
           pure $
             getGroupAdmin === Just group1
@@ -288,10 +288,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               group1 <- createGroup (ownerId team1) newUserGroup1
               group2 <- createGroup (ownerId team2) newUserGroup2
 
-              getOwnGroup <- getGroup (ownerId team1) group1.id_
-              getOtherGroup <- getGroup (ownerId team1) group2.id_
-              getOwnGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName1)) Nothing Nothing Nothing Nothing Nothing Nothing False
-              getOtherGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName2)) Nothing Nothing Nothing Nothing Nothing Nothing False
+              getOwnGroup <- getGroup (ownerId team1) group1.id_ False
+              getOtherGroup <- getGroup (ownerId team1) group2.id_ False
+              getOwnGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName1)) Nothing Nothing Nothing Nothing Nothing Nothing False False
+              getOtherGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName2)) Nothing Nothing Nothing Nothing Nothing Nothing False False
 
               pure $
                 getOwnGroup === Just group1
@@ -305,10 +305,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
-        get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing Nothing False
-        get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing Nothing False
-        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing Nothing Nothing False
-        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing Nothing Nothing False
+        get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing Nothing False False
+        get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing Nothing False False
+        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing Nothing Nothing False False
+        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing Nothing Nothing False False
 
         pure do
           get0.page `shouldBe` []
@@ -336,7 +336,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
                   results :: [UserGroupPage] <- do
                     let fetch mLastName mLastCreatedAt mLastGroupId = do
-                          p <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) Nothing (Just pageSize) mLastName mLastCreatedAt mLastGroupId False
+                          p <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) Nothing (Just pageSize) mLastName mLastCreatedAt mLastGroupId False False
                           if length p.page < pageSizeToInt pageSize
                             then pure [p]
                             else do
@@ -377,9 +377,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         group1b <- mkGroup "1"
         group3b <- mkGroup "3"
 
-        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing Nothing Nothing False
-        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing Nothing Nothing False
-        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing Nothing Nothing False
+        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False
+        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing Nothing Nothing False False
+        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing Nothing Nothing False False
 
         let expectSortByDefaults = [[group1b, group2b, group3b], [group1a, group2a, group3a]]
             expectSortByNameDesc = [[group3a, group3b], [group2a, group2b], [group1a, group1b]]
@@ -409,9 +409,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . interpretUserGroupSubsystem
           $ do
             ug0 :: UserGroup <- createGroup (ownerId team) (NewUserGroup originalName mempty)
-            ug1 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_
+            ug1 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_ False
             updateGroup (ownerId team) ug0.id_ userGroupUpdate
-            ug2 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_
+            ug2 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_ False
             pure $
               (ug1 === Just ug0)
                 .&&. (ug2 === Just (ug0 {name = userGroupUpdate.name} :: UserGroup))
@@ -475,9 +475,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           ug <- createGroup (ownerId team) (NewUserGroup name mempty)
           ug2 <- createGroup (ownerId team) (NewUserGroup name2 mempty)
 
-          mUg <- getGroup (ownerId team) ug.id_
-          isDeleted <- isNothing <$> (deleteGroup (ownerId team) ug.id_ >> getGroup (ownerId team) ug.id_)
-          mUg2 <- getGroup (ownerId team) ug2.id_
+          mUg <- getGroup (ownerId team) ug.id_ False
+          isDeleted <- isNothing <$> (deleteGroup (ownerId team) ug.id_ >> getGroup (ownerId team) ug.id_ False)
+          mUg2 <- getGroup (ownerId team) ug2.id_ False
           e1 <- catchExpectedError $ deleteGroup (ownerId team2) ug.id_
           e2 <- catchExpectedError $ deleteGroup (ownerId team) (Id UUID.nil)
 
@@ -544,16 +544,16 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   ug :: UserGroup <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
 
                   addUser (ownerId team) ug.id_ (User.userId mbr1)
-                  ugWithFirst <- getGroup (ownerId team) ug.id_
+                  ugWithFirst <- getGroup (ownerId team) ug.id_ False
 
                   addUser (ownerId team) ug.id_ (User.userId mbr1)
-                  ugWithIdemP <- getGroup (ownerId team) ug.id_
+                  ugWithIdemP <- getGroup (ownerId team) ug.id_ False
 
                   addUser (ownerId team) ug.id_ (User.userId mbr2)
-                  ugWithSecond <- getGroup (ownerId team) ug.id_
+                  ugWithSecond <- getGroup (ownerId team) ug.id_ False
 
                   removeUser (ownerId team) ug.id_ (User.userId mbr1)
-                  ugWithoutFirst <- getGroup (ownerId team) ug.id_
+                  ugWithoutFirst <- getGroup (ownerId team) ug.id_ False
                   removeUser (ownerId team) ug.id_ (User.userId mbr1) -- idemp
                   let propertyCheck =
                         ((.members) <$> ugWithFirst) === Just (Identity $ V.fromList [User.userId mbr1])

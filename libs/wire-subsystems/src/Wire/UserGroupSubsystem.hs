@@ -14,7 +14,7 @@ import Wire.API.UserGroup.Pagination
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
-  GetGroup :: UserId -> UserGroupId -> UserGroupSubsystem m (Maybe UserGroup)
+  GetGroup :: UserId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
   GetGroups ::
     UserId ->
     Maybe Text ->
@@ -24,6 +24,7 @@ data UserGroupSubsystem m a where
     Maybe UserGroupName ->
     Maybe UTCTimeMillis ->
     Maybe UserGroupId ->
+    Bool ->
     Bool ->
     UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()

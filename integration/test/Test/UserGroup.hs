@@ -339,7 +339,8 @@ testUserGroupGetGroupsAllInputs = do
             lastName = lastName',
             lastCreatedAt = lastCreatedAt',
             lastId = lastId',
-            includeMemberCount = includeMemberCount'
+            includeMemberCount = includeMemberCount',
+            includeChannels = includeChannels'
           }
         | q' <- qs,
           sortBy' <- sortByKeysList,
@@ -348,7 +349,8 @@ testUserGroupGetGroupsAllInputs = do
           lastName' <- lastNames,
           lastCreatedAt' <- lastCreatedAts,
           lastId' <- lastIds,
-          includeMemberCount' <- [False, True]
+          includeMemberCount' <- [False, True],
+          includeChannels' <- [False, True]
       ]
       where
         qs = [Nothing, Just "A"]
@@ -392,8 +394,8 @@ testUserGroupRemovalOnDelete = do
     resp.status `shouldMatchInt` 200
     resp.json %. "members" `shouldMatch` [charlieId]
 
-testUserGroupUpdateChannels :: (HasCallStack) => App ()
-testUserGroupUpdateChannels = do
+testUserGroupUpdateChannelsSucceeds :: (HasCallStack) => App ()
+testUserGroupUpdateChannelsSucceeds = do
   (alice, tid, [_bob]) <- createTeam OwnDomain 2
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   let config =
@@ -412,22 +414,41 @@ testUserGroupUpdateChannels = do
       >>= getJSON 200
   gid <- ug %. "id" & asString
 
-  convId <-
-    postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"})
-      >>= getJSON 201
-      >>= objConvId
+  convs <- replicateM 5 $ postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"}) >>= getJSON 201 >>= objConvId
+
   withWebSocket alice $ \wsAlice -> do
-    updateUserGroupChannels alice gid [convId.id_] >>= assertSuccess
+    updateUserGroupChannels alice gid ((.id_) <$> take 2 convs) >>= assertSuccess
 
     notif <- awaitMatch isUserGroupUpdatedNotif wsAlice
     notif %. "payload.0.user_group.id" `shouldMatch` gid
 
-  -- bobId <- asString $ bob %. "id"
-  bindResponse (getUserGroup alice gid) $ \resp -> do
+  bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (take 2 convs) objQid
 
--- FUTUREWORK: check the actual associated channels
---  resp.json %. "members" `shouldMatch` [bobId]
+  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (take 2 convs) objQid
+
+  updateUserGroupChannels alice gid ((.id_) <$> tail convs) >>= assertSuccess
+
+  bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (tail convs) objQid
+
+  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "page.0.channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (tail convs) objQid
+
+  updateUserGroupChannels alice gid [] >>= assertSuccess
+
+  bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "channels" >>= fmap length . asList) `shouldMatchInt` 0
+
+  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "page.0.channels" >>= fmap length . asList) `shouldMatchInt` 0
 
 testUserGroupUpdateChannelsNonAdmin :: (HasCallStack) => App ()
 testUserGroupUpdateChannelsNonAdmin = do

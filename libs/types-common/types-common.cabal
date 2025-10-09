@@ -125,6 +125,7 @@ library
     , openapi3
     , optparse-applicative   >=0.10
     , pem
+    , polysemy
     , protobuf               >=0.2
     , QuickCheck             >=2.9
     , quickcheck-instances   >=0.3.16

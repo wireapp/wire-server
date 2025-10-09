@@ -110,7 +110,7 @@ userGroupToMeta ug =
     { id_ = ug.id_,
       name = ug.name,
       members = Const (),
-      channels = Const (),
+      channels = ug.channels,
       membersCount = ug.membersCount,
       channelsCount = ug.channelsCount,
       managedBy = ug.managedBy,
@@ -121,8 +121,8 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
   { id_ :: UserGroupId,
     name :: UserGroupName,
     members :: f (Vector UserId),
-    channels :: f (Maybe (Vector (Qualified ConvId))),
     membersCount :: Maybe Int,
+    channels :: Maybe (Vector (Qualified ConvId)),
     channelsCount :: Maybe Int,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
@@ -150,8 +150,8 @@ instance ToSchema (UserGroup_ (Const ())) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (.members) .= pure mempty
-        <*> (.channels) .= pure mempty
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channels) .= maybe_ (optField "channels" (vector schema))
         <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
@@ -177,8 +177,8 @@ instance ToSchema (UserGroup_ Identity) where
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
-        <*> (runIdentity . (.channels)) .= (Identity <$> maybe_ (optField "channels" (vector schema)))
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channels) .= maybe_ (optField "channels" (vector schema))
         <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema

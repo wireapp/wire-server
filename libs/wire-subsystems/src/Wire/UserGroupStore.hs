@@ -18,7 +18,8 @@ data UserGroupPageRequest = UserGroupPageRequest
     paginationState :: PaginationState,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
-    includeMemberCount :: Bool
+    includeMemberCount :: Bool,
+    includeChannels :: Bool
   }
 
 data PaginationState = PaginationSortByName (Maybe (UserGroupName, UserGroupId)) | PaginationSortByCreatedAt (Maybe (UTCTimeMillis, UserGroupId))
@@ -33,7 +34,7 @@ toSortBy = \case
 
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
-  GetUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe UserGroup)
+  GetUserGroup :: TeamId -> UserGroupId -> Bool -> UserGroupStore m (Maybe UserGroup)
   GetUserGroups :: UserGroupPageRequest -> UserGroupStore m UserGroupPage
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe ())
   DeleteUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe ())

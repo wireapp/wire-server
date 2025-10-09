@@ -11,13 +11,14 @@ import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
 import Data.Vector (Vector, fromList)
 import GHC.Stack
 import Imports
 import Polysemy
+import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
@@ -42,6 +43,7 @@ type UserGroupStoreInMemEffectConstraints r =
 type UserGroupStoreInMemEffectStack =
   '[ UserGroupStore,
      State UserGroupInMemState,
+     Input (Local ()),
      Rnd.Random,
      State StdGen
    ]
@@ -50,14 +52,15 @@ runInMemoryUserGroupStore :: (Member MockNow r) => UserGroupInMemState -> Sem (U
 runInMemoryUserGroupStore state =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
+    . runInputConst (toLocalUnsafe (Domain "my-domain") ())
     . evalState state
     . userGroupStoreTestInterpreter
 
-userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r) => InterpreterFor UserGroupStore r
+userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r, Member (Input (Local ())) r) => InterpreterFor UserGroupStore r
 userGroupStoreTestInterpreter =
   interpret $ \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
-    GetUserGroup tid gid -> getUserGroupImpl tid gid
+    GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
@@ -93,12 +96,18 @@ createUserGroupImpl tid nug managedBy = do
   modify (Map.insert (tid, gid) ug)
   pure ug
 
-getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
+getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Bool -> Sem r (Maybe UserGroup)
+getUserGroupImpl tid gid includeChannels = fmap (filterChannels includeChannels) . Map.lookup (tid, gid) <$> get @UserGroupInMemState
+
+filterChannels :: Bool -> UserGroup -> UserGroup
+filterChannels includeChannels ug =
+  if includeChannels
+    then (ug :: UserGroup) {channelsCount = Just $ maybe 0 length ug.channels}
+    else (ug :: UserGroup) {channels = mempty}
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
   where
     sieve,
@@ -152,7 +161,7 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
 
 updateUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
-  exists <- getUserGroupImpl tid gid
+  exists <- getUserGroupImpl tid gid False
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
       f (Just g) = Just (g {name = newName} :: UserGroup)
@@ -162,7 +171,7 @@ updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
 
 deleteUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
 deleteUserGroupImpl tid gid = do
-  exists <- getUserGroupImpl tid gid
+  exists <- getUserGroupImpl tid gid False
   modify (Map.delete (tid, gid))
   pure $ exists $> ()
 
@@ -183,23 +192,32 @@ removeUserImpl gid uid = do
   modifyUserGroupsGidOnly gid (Map.alter f)
 
 updateUserGroupChannelsImpl ::
-  (UserGroupStoreInMemEffectConstraints r) =>
+  (UserGroupStoreInMemEffectConstraints r, Member (Input (Local ())) r) =>
   UserGroupId ->
   Vector ConvId ->
   Sem r ()
 updateUserGroupChannelsImpl gid convIds = do
+  qualifyLocal <- qualifyAs <$> input
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
       f (Just g) =
         Just
           ( g
-              { channels = Identity $ Just $ flip Qualified (Domain "<local>") <$> convIds,
-                channelsCount = Just $ length convIds
+              { channels = Just $ tUntagged . qualifyLocal <$> convIds,
+                channelsCount = Nothing
               } ::
               UserGroup
           )
 
   modifyUserGroupsGidOnly gid (Map.alter f)
+
+listUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r) =>
+  UserGroupId ->
+  Sem r (Vector ConvId)
+listUserGroupChannelsImpl gid =
+  foldMap (fmap qUnqualified) . ((.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
+    <$> get @(Map (TeamId, UserGroupId) UserGroup)
 
 ----------------------------------------------------------------------
 

@@ -104,6 +104,7 @@ CREATE TABLE public.user_group_channel (
 );
 
 
+
 ALTER TABLE public.user_group_channel OWNER TO "wire-server";
 
 --
