@@ -65,6 +65,7 @@
 , network
 , network-conduit-tls
 , polysemy
+, polysemy-conc
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
@@ -175,6 +176,7 @@ mkDerivation {
     network
     network-conduit-tls
     polysemy
+    polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
@@ -274,6 +276,7 @@ mkDerivation {
     network
     network-conduit-tls
     polysemy
+    polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo

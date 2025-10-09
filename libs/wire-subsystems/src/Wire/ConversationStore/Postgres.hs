@@ -116,6 +116,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
   SearchConversations search -> searchConversationsImpl search
+  HaveRemoteConvs uids -> haveRemoteConvsImpl uids
 
 upsertConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
 upsertConversationImpl lcnv nc = do
@@ -869,6 +870,18 @@ checkLocalMemberRemoteConvImpl uid (tUntagged -> Qualified convId domain) =
                               AND "user" = ($3 :: uuid)
                             ) :: boolean
                            |]
+
+haveRemoteConvsImpl :: (PGConstraints r) => [UserId] -> Sem r [UserId]
+haveRemoteConvsImpl uid =
+  runStatement uid select
+  where
+    select :: Hasql.Statement [UserId] [UserId]
+    select =
+      dimapPG @[_] @(Vector _) @(Vector _) @[_]
+        [vectorStatement|SELECT DISTINCT "user" :: uuid
+                         FROM remote_conversation_local_member
+                         WHERE "user" = ANY ($1 :: uuid[])
+                        |]
 
 selectRemoteMembersImpl :: (PGConstraints r) => [UserId] -> Remote ConvId -> Sem r ([UserId], Bool)
 selectRemoteMembersImpl uids (tUntagged -> Qualified cid domain) = do

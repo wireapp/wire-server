@@ -23,11 +23,9 @@ module Wire.Sem.Paging.Cassandra
     InternalPagingState (..),
     mkInternalPage,
     ipNext,
-    ResultSet,
+    ResultSet (..),
     mkResultSet,
     mkResultSetByLength,
-    resultSetResult,
-    resultSetType,
     ResultSetType (..),
   )
 where

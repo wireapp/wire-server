@@ -134,6 +134,8 @@ data ConversationStore m a where
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> ConversationStore m ()
   SearchConversations :: ConversationSearch -> ConversationStore m [ConversationSearchResult]
+  -- FOR MIGRATION
+  HaveRemoteConvs :: [UserId] -> ConversationStore m [UserId]
 
 makeSem ''ConversationStore
 

@@ -3,7 +3,6 @@
 module Wire.ConversationStore.Migration where
 
 import Cassandra (ClientState)
-import Data.Bits
 import Data.Domain
 import Data.Id
 import Data.IntMap qualified as IntMap
@@ -11,11 +10,8 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
 import Data.Tuple.Extra
-import Data.UUID qualified as UUID
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
-import Hasql.Pool qualified as Hasql
-import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction qualified as Transaction
@@ -23,8 +19,10 @@ import Hasql.Transaction.Sessions
 import Imports
 import Polysemy
 import Polysemy.Async
+import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Time
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
@@ -47,9 +45,9 @@ import Wire.StoredConversation
 migrateAllConversations :: Sem r ()
 migrateAllConversations = undefined
 
-migrateConversation :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r) => ConvId -> Sem r ()
+migrateConversation :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => ConvId -> Sem r ()
 migrateConversation cid = do
-  void . withMigrationLock LockExclusive (Left cid) $ do
+  void . withMigrationLocks LockExclusive (Seconds 10) [Left cid] $ do
     mConvData <- getConvFromCassandra cid
     for_ mConvData $ \convData -> do
       saveConvToPostgres convData
