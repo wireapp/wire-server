@@ -17,6 +17,7 @@
 
 module Test.Wire.API.Golden.Generated.TeamContact_user where
 
+import Data.Bool (Bool(True))
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import Data.UUID qualified as UUID (fromString)
@@ -42,7 +43,7 @@ testObject_TeamContact_user_1 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_2 :: TeamContact
@@ -62,7 +63,7 @@ testObject_TeamContact_user_2 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_3 :: TeamContact
@@ -82,7 +83,7 @@ testObject_TeamContact_user_3 =
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_4 :: TeamContact
@@ -102,7 +103,7 @@ testObject_TeamContact_user_4 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_5 :: TeamContact
@@ -122,7 +123,7 @@ testObject_TeamContact_user_5 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_6 :: TeamContact
@@ -142,7 +143,7 @@ testObject_TeamContact_user_6 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_7 :: TeamContact
@@ -162,7 +163,7 @@ testObject_TeamContact_user_7 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_8 :: TeamContact
@@ -182,7 +183,7 @@ testObject_TeamContact_user_8 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_9 :: TeamContact
@@ -202,7 +203,7 @@ testObject_TeamContact_user_9 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_10 :: TeamContact
@@ -222,7 +223,7 @@ testObject_TeamContact_user_10 =
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_11 :: TeamContact
@@ -242,7 +243,7 @@ testObject_TeamContact_user_11 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_12 :: TeamContact
@@ -262,7 +263,7 @@ testObject_TeamContact_user_12 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_13 :: TeamContact
@@ -282,7 +283,7 @@ testObject_TeamContact_user_13 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_14 :: TeamContact
@@ -302,7 +303,7 @@ testObject_TeamContact_user_14 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_15 :: TeamContact
@@ -322,7 +323,7 @@ testObject_TeamContact_user_15 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_16 :: TeamContact
@@ -342,7 +343,7 @@ testObject_TeamContact_user_16 =
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_17 :: TeamContact
@@ -362,7 +363,7 @@ testObject_TeamContact_user_17 =
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_18 :: TeamContact
@@ -382,7 +383,7 @@ testObject_TeamContact_user_18 =
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_19 :: TeamContact
@@ -402,7 +403,7 @@ testObject_TeamContact_user_19 =
       teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing,
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }
 
 testObject_TeamContact_user_20 :: TeamContact
@@ -422,5 +423,5 @@ testObject_TeamContact_user_20 =
       teamContactSso = Nothing,
       teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example"),
       teamContactUserGroups = [],
-      teamContactSearchable = Nothing
+      teamContactSearchable = True
     }

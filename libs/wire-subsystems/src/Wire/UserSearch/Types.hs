@@ -127,7 +127,7 @@ userDocToTeamContact userGroups UserDoc {..} =
       teamContactCreatedAt = udCreatedAt,
       teamContactColorId = fromIntegral . fromColourId <$> udColourId,
       teamContactUserGroups = userGroups,
-      teamContactSearchable = udSearchable
+      teamContactSearchable = fromMaybe True udSearchable
     }
 
 -- | Outbound search restrictions configured by team admin of the searcher. This
