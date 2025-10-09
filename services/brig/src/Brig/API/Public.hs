@@ -105,8 +105,6 @@ import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import Wire.API.App
 import Wire.API.Connection qualified as Public
-import Wire.API.Conversation.Member qualified as Member
-import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -142,7 +140,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), TeamMember, hasPermission)
+import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
