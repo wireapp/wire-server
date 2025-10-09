@@ -117,7 +117,25 @@ testUserProfile = do
   uid <- Id <$> UUID.nextRandom
   let domain = Domain "example.com"
   let colour = ColourId 0
-  let userProfile = UserProfile (Qualified uid domain) (Name "name") Nothing (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing UserLegalHoldNoConsent defSupportedProtocols UserTypeRegular True
+  let userProfile =
+        UserProfile
+          { profileQualifiedId = Qualified uid domain,
+            profileName = Name "name",
+            profileTextStatus = Nothing,
+            profilePict = Pict [],
+            profileAssets = [],
+            profileAccentId = colour,
+            profileDeleted = False,
+            profileService = Nothing,
+            profileHandle = Nothing,
+            profileExpire = Nothing,
+            profileTeam = Nothing,
+            profileEmail = Nothing,
+            profileLegalholdStatus = UserLegalHoldNoConsent,
+            profileSupportedProtocols = defSupportedProtocols,
+            profileType = UserTypeRegular,
+            profileSearchable = True
+          }
   let profileJSONAsText = show $ Aeson.encode userProfile
   let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
   assertBool msg (not $ "null" `isInfixOf` profileJSONAsText)
