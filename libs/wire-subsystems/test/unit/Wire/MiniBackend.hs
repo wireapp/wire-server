@@ -109,6 +109,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -232,6 +233,7 @@ type MiniBackendLowerEffects =
      DRS.DomainRegistrationStore,
      PasswordResetCodeStore,
      SessionStore,
+     UserGroupStore,
      RateLimit,
      HashPassword,
      DeleteQueue,
@@ -268,6 +270,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
     . noRateLimit
+    . userGroupStoreTestInterpreter
     . runInMemorySessionStore
     . runInMemoryPasswordResetCodeStore
     . inMemoryDomainRegistrationStoreInterpreter
@@ -295,6 +298,7 @@ type StateEffects =
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
      State [StoredUser],
+     State UserGroupInMemState,
      State [StoredApp],
      State UserIndex,
      State (Map EmailKey UserId),
@@ -313,6 +317,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftUserKeyStoreState
     . liftIndexedUserStoreState
     . liftAppStoreState
+    . liftUserGroupStoreState
     . liftUserStoreState
     . liftBlockListStoreState
     . liftActivationCodeStoreState
@@ -389,7 +394,8 @@ data MiniBackend = MkMiniBackend
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
     teamIdps :: Map TeamId IdPList,
     teamCollaborators :: Map TeamId [TeamCollaborator],
-    pushNotifications :: [Push]
+    pushNotifications :: [Push],
+    userGroups :: UserGroupInMemState
   }
   deriving stock (Eq, Show, Generic)
 
@@ -407,7 +413,8 @@ instance Default MiniBackend where
         invitations = mempty,
         teamIdps = mempty,
         teamCollaborators = mempty,
-        pushNotifications = mempty
+        pushNotifications = mempty,
+        userGroups = mempty
       }
 
 -- | represents an entire federated, stateful world of backends
@@ -679,6 +686,11 @@ liftAppStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredApp] : 
 liftAppStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.apps)
   Put newApps -> modify $ \b -> (b :: MiniBackend) {apps = newApps}
+
+liftUserGroupStoreState :: Sem (State UserGroupInMemState : State [StoredApp] : State UserIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a -> Sem (State [StoredApp] : State UserIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a
+liftUserGroupStoreState = interpret $ \case
+  Polysemy.State.Get -> Polysemy.State.gets @MiniBackend (.userGroups)
+  Put newState -> modify $ \b -> (b :: MiniBackend) {userGroups = newState}
 
 liftIndexedUserStoreState :: (Member (State MiniBackend) r) => Sem (State UserIndex : r) a -> Sem r a
 liftIndexedUserStoreState = interpret $ \case
