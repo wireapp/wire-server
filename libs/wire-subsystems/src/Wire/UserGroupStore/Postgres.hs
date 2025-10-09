@@ -57,27 +57,25 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
-    GetUserGroupIdsForUsers team uids -> getUserGroupIdsForUsers team uids
+    GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsers uids
 
-getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => TeamId -> [UserId] -> Sem r (Map UserId [UserGroupId])
-getUserGroupIdsForUsers team uidsList = do
+getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
+getUserGroupIdsForUsers uidsList = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
     session :: Session (Map UserId [UserGroupId])
     session = do
-      rows <- statement (team, V.fromList (toUUID <$> uidsList)) stmt
+      rows <- statement (V.fromList (toUUID <$> uidsList)) stmt
       pure $ Map.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
 
-    stmt :: Statement (TeamId, Vector UUID) (Vector (UUID, UUID))
+    stmt :: Statement (Vector UUID) (Vector (UUID, UUID))
     stmt =
-      lmap (\(t, vs) -> (t.toUUID, vs)) $
-        [vectorStatement|
-            select (ugm.user_id :: uuid), (ug.id :: uuid)
+      [vectorStatement|
+            select (ugm.user_id :: uuid), (ugm.user_group_id :: uuid)
               from user_group_member as ugm
-              join user_group as ug on ug.id = ugm.user_group_id
-              where ug.team_id = ($1 :: uuid) and ugm.user_id = ANY (($2 :: uuid[]))
+              where ugm.user_id = ANY (($1 :: uuid[]))
           |]
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()

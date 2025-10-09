@@ -931,7 +931,7 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   result <- IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
   let docs = result.searchResults
       uids = fmap (.udId) docs
-  ugMap <- getUserGroupIdsForUsers filters.teamId (toList uids)
+  ugMap <- getUserGroupIdsForUsers (toList uids)
   for result $ \userDoc -> do
     let ugids = fromMaybe [] (Map.lookup userDoc.udId ugMap)
     pure $ userDocToTeamContact ugids userDoc
