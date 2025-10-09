@@ -366,7 +366,7 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
           }
 
     teamFilter :: ES.Filter
-    teamFilter = ES.Filter $ ES.QueryBoolQuery boolQuery { ES.boolQueryMustMatch = mustMatch }
+    teamFilter = ES.Filter $ ES.QueryBoolQuery boolQuery {ES.boolQueryMustMatch = mustMatch}
       where
         mustMatch :: [ES.Query]
         mustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter <> emailFilter <> searchableFilter
