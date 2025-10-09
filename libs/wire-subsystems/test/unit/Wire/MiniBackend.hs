@@ -305,12 +305,14 @@ type StateEffects =
      State [DRS.StoredDomainRegistration],
      State [InternalNotification],
      State MiniBackend,
-     State [MiniEvent]
+     State [MiniEvent],
+     State UTCTime
    ]
 
 stateEffectsInterpreters :: forall r r' a. MiniBackendParams r' -> Sem (StateEffects `Append` r) a -> Sem r (MiniBackend, a)
 stateEffectsInterpreters MiniBackendParams {..} =
-  evalState []
+  evalState defaultTime
+    . evalState []
     . runState localBackend
     . evalState []
     . evalState []

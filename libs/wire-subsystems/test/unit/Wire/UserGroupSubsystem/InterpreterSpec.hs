@@ -316,7 +316,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           get2.page `shouldBe` userGroupToMeta <$> [groups !! 2, groups !! 1]
           get3.page `shouldBe` userGroupToMeta <$> [groups !! 3]
 
-    focus $ prop "getGroups: pagination (happy flow)" $ do
+    prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
        numGroupsPre
        pageSizePre ->
@@ -360,7 +360,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
                         (drop (length results - 2) results)
 
-    focus $ it "getGroups (ordering)" $ do
+    it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
         let mkNewGroup name = NewUserGroup (either undefined id $ userGroupNameFromText name) mempty

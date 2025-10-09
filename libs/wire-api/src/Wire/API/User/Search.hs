@@ -42,7 +42,7 @@ import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Conversion qualified as BS
-import Data.Id (TeamId, UserId, UserGroupId)
+import Data.Id (TeamId, UserGroupId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S

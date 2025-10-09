@@ -36,6 +36,7 @@ type UserGroupInMemState = Map (TeamId, UserGroupId) UserGroup
 type UserGroupStoreInMemEffectConstraints r =
   ( Member (State UserGroupInMemState) r,
     Member Rnd.Random r,
+    Member MockNow r,
     HasCallStack
   )
 
@@ -47,7 +48,7 @@ type UserGroupStoreInMemEffectStack =
      State StdGen
    ]
 
-runInMemoryUserGroupStore :: UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
+runInMemoryUserGroupStore :: (Member MockNow r) => UserGroupInMemState -> Sem (UserGroupStoreInMemEffectStack `Append` r) a -> Sem r a
 runInMemoryUserGroupStore state =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
@@ -85,7 +86,7 @@ updateUsersImpl gid uids = do
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
-  let now = defaultTime
+  now <- get @UTCTime
   gid <- Id <$> Rnd.uuid
   let ug =
         UserGroup_
