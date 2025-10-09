@@ -860,21 +860,24 @@ testCreateUserAnonExpiry b = do
   bob <- createAnonUserExpiry (Just 5 {- 2 was flaky, so it's 5 now; make sure to re-align with 'awaitExpiry' below! -}) "bob" b
   liftIO $ assertBool "expiry not set on regular creation" (isNothing (userExpire alice))
   ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
-  resAlice <- getProfile b (userId u1) (userId alice)
-  resBob <- getProfile b (userId u1) (userId bob)
+  resAlice <- getProfile (userId u1) (userId alice)
+  resBob <- getProfile (userId u1) (userId bob)
   selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
   liftIO $ assertBool "Bob must not be in a deleted state initially" (maybe True not (deleted selfBob))
   liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
   ensureExpiry (expire resBob) "bob/public"
   ensureExpiry (expire selfBob) "bob/self"
   awaitExpiry 10 (userId u1) (userId bob)
-  resBob' <- getProfile b (userId u1) (userId bob)
+  resBob' <- getProfile (userId u1) (userId bob)
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
+    getProfile :: UserId -> UserId -> Http ResponseLBS
+    getProfile zusr uid = get (apiVersion "v1" . b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
+
     awaitExpiry :: Int -> UserId -> UserId -> Http ()
     awaitExpiry n zusr uid = do
       -- after expiration, a profile lookup should trigger garbage collection of ephemeral users
-      r <- getProfile b zusr uid
+      r <- getProfile zusr uid
       when (statusCode r == 200 && isNothing (deleted r) && n > 0) $ do
         liftIO $ threadDelay 1000000
         awaitExpiry (n - 1) zusr uid
@@ -1585,7 +1588,3 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
                 )
             )
           . responseJsonMaybe
-
--- | Get user profile (while asserting that result is successful)
-getProfile :: Brig -> UserId -> UserId -> Http ResponseLBS
-getProfile b zusr uid = get (apiVersion "v1" . b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
