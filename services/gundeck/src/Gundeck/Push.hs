@@ -38,6 +38,7 @@ import Control.Monad.Catch
 import Control.Monad.Except (throwError)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.List.Extra qualified as List
 import Data.List1 (List1 (..), list1, toNonEmpty)
@@ -67,6 +68,7 @@ import Network.AMQP (Message (..))
 import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai.Utilities
+import Pulsar qualified as P
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
@@ -98,6 +100,7 @@ class (MonadThrow m) => MonadPushAll m where
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
   mpaPublishToRabbitMq :: Text -> Text -> Q.Message -> m ()
+  mpaPublishToPulsar :: Text -> LBS.ByteString -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
@@ -111,11 +114,26 @@ instance MonadPushAll Gundeck where
   mpaRunWithBudget = runWithBudget''
   mpaGetClients = getClients
   mpaPublishToRabbitMq = publishToRabbitMq
+  mpaPublishToPulsar = publishToPulsar
 
 publishToRabbitMq :: Text -> Text -> Q.Message -> Gundeck ()
 publishToRabbitMq exchangeName routingKey qMsg = do
   chan <- getRabbitMqChan
   void $ liftIO $ Q.publishMsg chan exchangeName routingKey qMsg
+
+publishToPulsar :: Text -> LBS.ByteString -> Gundeck ()
+publishToPulsar routingKey payload =
+  let conn = P.connect P.defaultConnectData
+      topic =
+        P.Topic
+          { P.type' = P.Persistent,
+            P.tenant = "wire",
+            P.namespace = "default",
+            P.name = P.TopicName routingKey
+          }
+   in liftIO . P.runPulsar conn $ do
+        P.Producer {..} <- P.newProducer topic
+        send (P.PulsarMessage payload)
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -300,8 +318,9 @@ pushViaRabbitMq newNotif = do
                 Set.singleton $ userRoutingKey r._recipientId
               RecipientClientsSome (toList -> cs) ->
                 Set.fromList $ map (clientRoutingKey r._recipientId) cs
-  for_ routingKeys $ \routingKey ->
+  for_ routingKeys $ \routingKey -> do
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
+    mpaPublishToPulsar routingKey (mkPulsarMessage newNotif.nnNotification)
 
 pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m ()
 pushAllToCells newNotifs = do
@@ -353,6 +372,12 @@ mkMessage notif = do
                 else showT $ fromIntegral ttl # Second #> MilliSecond
             )
       }
+
+mkPulsarMessage :: Notification -> LBS.ByteString
+mkPulsarMessage notif =
+  Aeson.encode
+    . queuedNotification notif.ntfId
+    $ toNonEmpty notif.ntfPayload
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification

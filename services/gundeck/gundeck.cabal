@@ -155,6 +155,7 @@ library
     , safe-exceptions
     , servant
     , servant-server
+    , supernova
     , text                                  >=1.1
     , these
     , time                                  >=1.4

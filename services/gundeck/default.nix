@@ -65,6 +65,7 @@
 , servant
 , servant-server
 , string-conversions
+, supernova
 , tagged
 , tasty
 , tasty-ant-xml
@@ -139,6 +140,7 @@ mkDerivation {
     safe-exceptions
     servant
     servant-server
+    supernova
     text
     these
     time
