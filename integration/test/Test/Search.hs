@@ -374,11 +374,13 @@ withFoundDocs self term f = do
 
 testUserSearchable :: App ()
 testUserSearchable = do
-  (owner, tid, []) <- createTeam OwnDomain 1
+  -- Create team and all users who are part of this test
+  (owner, tid, [u1, u3, u4]) <- createTeam OwnDomain 4
+  admin <- createTeamMember owner def {role = "admin"}
+  let everyone = [owner, u1, admin, u3, u4]
 
-  -- Create user in team, default is searchable = True.
-  u1 <- createTeamMember owner def
-  assertBool "created users are searchable by default" =<< (u1 %. "searchable" & asBool)
+  -- All users are searchable by default
+  assertBool "created users are searchable by default" . and =<< mapM (\u -> u %. "searchable" & asBool) everyone
 
   -- Setting self to non-searchable won't work -- only admin can do it.
   u1id <- u1 %. "id" & asString
@@ -391,7 +393,6 @@ testUserSearchable = do
     (resp.json %. "searchable") `shouldMatch` True
 
   -- Team admin can set user to non-searchable.
-  admin <- createTeamMember owner def {role = "admin"}
   BrigP.setUserSearchable admin u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
   BrigP.getUser u1 u1 `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
@@ -402,7 +403,6 @@ testUserSearchable = do
   BrigP.setUserSearchable owner u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
 
   -- By default created team members are found.
-  u3 <- createTeamMember owner def
   u3id <- u3 %. "id" & asString
   BrigI.refreshIndex OwnDomain
   withFoundDocs u1 (u3 %. "name") $ \docs -> do
@@ -410,7 +410,6 @@ testUserSearchable = do
     assertBool "u1 must find u3 as they are searchable by default" $ u3id `elem` foundUids
 
   -- User set to non-searchable is not found by other team members.
-  u4 <- createTeamMember owner def
   u4id <- u4 %. "id" & asString
   BrigP.setUserSearchable owner u4id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
   BrigI.refreshIndex OwnDomain
@@ -474,4 +473,10 @@ testUserSearchable = do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       mapM (\m -> m %. "id" & asString) docs
-  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal" $ Set.fromList noQueryParam == Set.fromList withQueryParam
+  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal" $
+    Set.fromList noQueryParam == Set.fromList withQueryParam
+
+  -- All users created as part of this test are in the returned result
+  everyone'sUids <- mapM objId everyone
+  assertBool "All created users as part of this test are in the returned result" $
+    Set.fromList noQueryParam == Set.fromList everyone'sUids
