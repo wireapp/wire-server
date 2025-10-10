@@ -26,11 +26,5 @@ instance Read Timeout where
       _ -> []
 
 instance FromJSON Timeout where
-  parseJSON (Number n) =
-    let defaultV = 3600
-        bounded = toBoundedInteger n :: Maybe Int64
-     in pure $
-          Timeout $
-            fromIntegral @Int $
-              maybe defaultV fromIntegral bounded
+  parseJSON (Number n) = pure $ Timeout (realToFrac (toRealFloat n :: Double))
   parseJSON v = typeMismatch "Timeout" v

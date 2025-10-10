@@ -101,7 +101,8 @@ brig:
       setVerificationTimeout: 10
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
       setTeamInvitationTimeout: 10
-      setExpiredUserCleanupTimeout: 1
+      setExpiredUserCleanupTimeout: 0.5
+      setDeleteThrottleMillis: 0
       setUserMaxConnections: 16
       setCookieInsecure: true
       setUserCookieRenewAge: 2
