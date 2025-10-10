@@ -386,14 +386,16 @@ testUserSearchable = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
 
-  u1' <- BrigP.getUser u1 u1 >>= getJSON 200
-  assertBool "Searchable is still True" =<< (u1' %. "searchable" & asBool)
+  BrigP.getUser u1 u1 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "searchable") `shouldMatch` True
 
   -- Team admin can set user to non-searchable.
   admin <- createTeamMember owner def {role = "admin"}
   BrigP.setUserSearchable admin u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
-  u1'' <- BrigP.getUser u1 u1 >>= getJSON 200
-  assertBool "Searchable is now False" . (False ==) =<< (u1'' %. "searchable" & asBool)
+  BrigP.getUser u1 u1 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "searchable") `shouldMatch` False
 
   -- Team owner can, too.
   BrigP.setUserSearchable owner u1id True `bindResponse` \resp -> resp.status `shouldMatchInt` 200
@@ -427,20 +429,19 @@ testUserSearchable = do
   -- Exact handle search with HTTP HEAD still works for non-searchable users
   u4handle <- API.randomHandle
   bindResponse (BrigP.putHandle u4 u4handle) assertSuccess
-  req <- baseRequest u3 Brig Versioned $ joinHttpPath ["handles", u4handle]
-  submit "HEAD" req `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    -- TODO: what is HEAD's API -- test for "u4handle is taken"
+  baseRequest u3 Brig Versioned (joinHttpPath ["handles", u4handle]) >>= \req ->
+    submit "HEAD" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      -- TODO: what is HEAD's API -- test for "u4handle is taken"
 
   -- Handle for POST /handles still works for non-searchable users
   u3handle <- API.randomHandle
   bindResponse (BrigP.putHandle u3 u3handle) assertSuccess
-  req <- baseRequest u1 Brig Versioned $ joinHttpPath ["handles"]
-  let req' = req & addJSONObject ["handles" .= [u4handle, u3handle]]
-  submit "POST" req' `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    freeHandles <- resp.json & asList
-    assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
+  baseRequest u1 Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= [u4handle, u3handle]] >>= \req ->
+    submit "POST" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      freeHandles <- resp.json & asList
+      assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
 
   -- Regular user can't find non-searchable team member by exact handle.
   withFoundDocs u1 u4handle $ \docs -> do
@@ -448,18 +449,17 @@ testUserSearchable = do
     assertBool "u1 must not find non-searchable u4 by exact handle" $ notElem u4id foundUids
 
   -- /teams/:tid/members gets all members, both searchable and non-searchable
-  req <- baseRequest u1 Galley Versioned $ joinHttpPath ["teams", tid, "members"]
-  submit "GET" req `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "members" >>= asList
-    foundUids <- mapM (\m -> m %. "user" & asString) docs
-    assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u3id, u4id]
+  baseRequest u1 Galley Versioned (joinHttpPath ["teams", tid, "members"]) >>= \req ->
+    submit "GET" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "members" >>= asList
+      foundUids <- mapM (\m -> m %. "user" & asString) docs
+      assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u3id, u4id]
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
-  req <- baseRequest admin Brig Versioned $ joinHttpPath ["teams", tid, "search"]
-  let req' = addQueryParams [("searchable", "false")]
-  submit "GET" req `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "members" >>= asList
-    foundUids <- mapM (\m -> m %. "user" & asString) docs
-    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u4id]
+  baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) <&> addQueryParams [("searchable", "false")] >>= \req ->
+    submit "GET" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      foundUids <- mapM (\m -> m %. "id" & asString) docs
+      assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u4id]
