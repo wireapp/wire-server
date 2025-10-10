@@ -12,7 +12,7 @@ jobs:
       - name: Set up MacOS Cross Compiler
         uses: Timmmm/setup-osxcross@v2
         with:
-          osx-version: "15.6"
+          osx-version: "15.5"
 
       - name: Install Rustup targets
         run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
