@@ -292,15 +292,6 @@ randomUser ::
   m User
 randomUser = randomUser' True
 
-randomUserPrefix ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
-  Text ->
-  Brig ->
-  m User
-randomUserPrefix prefix brig = do
-  n <- fromName <$> randomName
-  createUser' True (prefix <> n) brig
-
 randomUser' ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   Bool ->
