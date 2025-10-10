@@ -233,6 +233,7 @@ library
     Wire.ListItems
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.PaginationState
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra

@@ -88,7 +88,7 @@ import Data.Text.Encoding qualified as Text
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
-import Imports hiding (head)
+import Imports hiding (head, sortBy)
 import Language.Haskell.TH (unTypeCode)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
@@ -1694,8 +1694,21 @@ getUserGroups ::
   Bool ->
   Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeChannels includeMemberCount =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount includeChannels
+getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
+  lift . liftSem $
+    UserGroup.getGroups
+      (tUnqualified lusr)
+      UserGroup.GroupSearch
+        { query = q,
+          sortBy,
+          sortOrder,
+          pageSize,
+          lastName = (fmap userGroupNameToText lastName),
+          lastCreatedAt = (fmap fromUTCTimeMillis lastCreatedAt),
+          lastId,
+          includeMemberCount,
+          includeChannels
+        }
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd

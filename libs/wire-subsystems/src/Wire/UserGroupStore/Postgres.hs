@@ -4,22 +4,17 @@ module Wire.UserGroupStore.Postgres where
 
 import Control.Error (MaybeT (..))
 import Data.Bifunctor (second)
-import Data.Functor.Contravariant (Contravariant (..))
-import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Profunctor
 import Data.Qualified (Local, QualifiedWithTag (tUntagged), inputQualifyLocal, qualifyAs)
-import Data.Range
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as TE
 import Data.Time
 import Data.UUID as UUID
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Decoders qualified as HD
-import Hasql.Encoders qualified as HE
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
@@ -34,7 +29,9 @@ import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
-import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..), UserGroupStore (..), toSortBy)
+import Wire.PaginationState
+import Wire.Postgres
+import Wire.UserGroupStore (UserGroupPageRequest (..), UserGroupStore (..))
 
 type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
@@ -170,15 +167,6 @@ getUserGroup team id_ includeChannels = do
             where ug.id = ($1 :: uuid) and ug.team_id = ($2 :: uuid)
           |]
 
-divide3 :: (Divisible f) => (p -> (a, b, c)) -> f a -> f b -> f c -> f p
-divide3 f a b c = divide (\p -> let (x, y, z) = f p in (x, (y, z))) a (divide id b c)
-
-divide4 :: (Divisible f) => (p -> (a, b, c, d)) -> f a -> f b -> f c -> f d -> f p
-divide4 f a b c d = divide (\p -> let (w, x, y, z) = f p in (w, (x, y, z))) a (divide3 id b c d)
-
-divide5 :: (Divisible f) => (p -> (a, b, c, d, e)) -> f a -> f b -> f c -> f d -> f e -> f p
-divide5 f a b c d e = divide (\p -> let (v, w, x, y, z) = f p in (v, (w, x, y, z))) a (divide4 id b c d e)
-
 getUserGroups ::
   forall r.
   ( UserGroupStorePostgresEffectConstraints r,
@@ -187,94 +175,52 @@ getUserGroups ::
   UserGroupPageRequest ->
   Sem r UserGroupPage
 getUserGroups req@(UserGroupPageRequest {..}) = do
-  pool <- input
   loc <- inputQualifyLocal ()
-  eitherResult <- liftIO $ use pool do
-    TxSessions.transaction TxSessions.ReadCommitted TxSessions.Read do
-      UserGroupPage <$> getUserGroupsSession loc <*> getCountSession
-  either throw pure eitherResult
+  runTransaction TxSessions.ReadCommitted TxSessions.Read $
+    UserGroupPage <$> getUserGroupsSession loc <*> getCountSession
   where
-    getUserGroupsSession :: Local a -> Tx.Transaction [UserGroupMeta]
-    getUserGroupsSession loc = case (req.searchString, req.paginationState) of
-      (Nothing, PaginationSortByName Nothing) -> do
-        let encoder = divide id encodeId encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, pageSizeInt) stmt
-      (Nothing, PaginationSortByCreatedAt Nothing) -> do
-        let encoder = divide id encodeId encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, pageSizeInt) stmt
-      (Nothing, PaginationSortByName (Just (name, gid))) -> do
-        let encoder = divide4 id encodeId encodeGroupName encodeId encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, name, gid, pageSizeInt) stmt
-      (Nothing, PaginationSortByCreatedAt (Just (timestamp, gid))) -> do
-        let encoder = divide4 id encodeId encodeTime encodeId encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, timestamp, gid, pageSizeInt) stmt
-      (Just st, PaginationSortByName Nothing) -> do
-        let encoder = divide3 id encodeId encodeText encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, fuzzy st, pageSizeInt) stmt
-      (Just st, PaginationSortByCreatedAt Nothing) -> do
-        let encoder = divide3 id encodeId encodeText encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, fuzzy st, pageSizeInt) stmt
-      (Just st, PaginationSortByName (Just (name, gid))) -> do
-        let encoder = divide5 id encodeId encodeGroupName encodeId encodeText encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, name, gid, fuzzy st, pageSizeInt) stmt
-      (Just st, PaginationSortByCreatedAt (Just (timestamp, gid))) -> do
-        let encoder = divide5 id encodeId encodeTime encodeId encodeText encodeInt
-            stmt = refineResult (mapM $ parseRow loc) $ Statement queryBS encoder decodeRow True
-        Tx.statement (req.team, timestamp, gid, fuzzy st, pageSizeInt) stmt
+    getUserGroupsSession :: Local () -> Tx.Transaction [UserGroupMeta]
+    getUserGroupsSession loc =
+      Tx.statement () $
+        refineResult (mapM (parseRow loc)) $
+          buildStatement
+            ( mconcat $
+                [ literal "select",
+                  literal selectors,
+                  literal "from user_group as ug",
+                  where_
+                    ( [clause1 "team_id" "=" req.team]
+                        <> [clause (sortOrderOperator sortOrder) c | c <- toList paginationClause]
+                        <> toList (like "name" <$> searchString)
+                    )
+                ]
+                  <> [ orderBy
+                         [ (sortColumn, sortOrder),
+                           ("id", sortOrder)
+                         ],
+                       limit (pageSizeToInt32 req.pageSize)
+                     ]
+            )
+            decodeRow
 
     getCountSession :: Tx.Transaction Int
-    getCountSession = case searchString of
-      Just st -> do
-        let stmt = refineResult parseCount $ Statement countQuery (divide id encodeId encodeText) decodeCount True
-        Tx.statement (req.team, fuzzy st) stmt
-      Nothing -> do
-        let stmt = refineResult parseCount $ Statement countQuery encodeId decodeCount True
-        Tx.statement (req.team) stmt
-      where
-        decodeCount :: HD.Result Int64
-        decodeCount = HD.singleRow $ HD.column (HD.nonNullable HD.int8)
+    getCountSession =
+      Tx.statement () $
+        refineResult parseCount $
+          buildStatement
+            ( literal "select count(*) from user_group"
+                <> where_
+                  ( [clause1 "team_id" "=" req.team]
+                      <> toList (like "name" <$> searchString)
+                  )
+            )
+            (HD.singleRow (HD.column (HD.nonNullable HD.int8)))
 
-        parseCount :: Int64 -> Either Text Int
-        parseCount = \case
-          n | n < 0 -> Left "Negative count from database"
-          n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
-          n -> Right $ fromIntegral n
-
-        countQuery :: ByteString
-        countQuery =
-          "SELECT count(*) FROM user_group WHERE team_id = ($1 :: uuid)"
-            <> maybe "" (const " AND name ILIKE ($2 :: text)") searchString
-
-    encodeId :: HE.Params (Id a)
-    encodeId = contramap toUUID $ HE.param (HE.nonNullable HE.uuid)
-
-    queryBS :: ByteString
-    queryBS = TE.encodeUtf8 userGroupsQuery
-
-    pageSizeInt :: Int32
-    pageSizeInt = pageSizeToInt32 req.pageSize
-
-    fuzzy :: Text -> Text
-    fuzzy x = "%" <> x <> "%"
-
-    encodeText :: HE.Params Text
-    encodeText = HE.param $ HE.nonNullable HE.text
-
-    encodeInt :: HE.Params Int32
-    encodeInt = HE.param $ HE.nonNullable HE.int4
-
-    encodeGroupName :: HE.Params UserGroupName
-    encodeGroupName = contramap (fromRange . unUserGroupName) encodeText
-
-    encodeTime :: HE.Params UTCTimeMillis
-    encodeTime = contramap fromUTCTimeMillis $ HE.param $ HE.nonNullable HE.timestamptz
+    parseCount :: Int64 -> Either Text Int
+    parseCount = \case
+      n | n < 0 -> Left "Negative count from database"
+      n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
+      n -> Right $ fromIntegral n
 
     decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID))]
     decodeRow =
@@ -315,47 +261,27 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
           channels = fmap (fmap (tUntagged . qualifyAs loc . Id)) maybeChannels
       pure $ UserGroup_ {..}
 
-    -- \| Compile a pagination state into select query to return the next page.  Result is the
-    -- query string and the search string (which needs escaping).
-    userGroupsQuery :: Text
-    userGroupsQuery =
-      (T.unwords $ filter (not . T.null) [selFrom, whr, constraintClause, like, orderBy, limit])
-      where
-        selFrom = "select " <> sel <> " from user_group as ug"
-        sel =
-          T.intercalate ", " $
-            filter (not . T.null) $
-              ["id", "name", "managed_by", "created_at"]
-                <> ["(select count(*) from user_group_member as ugm where ugm.user_group_id = ug.id) as members" | includeMemberCount]
-                <> ["(select count(*) from user_group_channel as ugc where ugc.user_group_id = ug.id) as channels"]
-                <> ["coalesce((select array_agg(ugc.conv_id) from user_group_channel as ugc where ugc.user_group_id = ug.id), array[]::uuid[]) as channel_ids" | includeChannels]
-        whr = "where team_id = ($1 :: uuid)"
-        sortColumn = toSortBy paginationState
-        orderBy = T.unwords ["order by", sortColumnName sortColumn, sortOrderClause sortOrder <> ", id", sortOrderClause sortOrder]
-        mConstraintClause = mkConstraints
-        constraintClause = fromMaybe "" mConstraintClause
-        nameComparisonParamIndex :: Int = maybe 2 (const 4) mConstraintClause
-        like =
-          maybe
-            ""
-            (const $ "and name ilike ($" <> T.pack (show nameComparisonParamIndex) <> " :: text)")
-            searchString
-        limitParamIndex :: Int = case searchString of
-          Just _ -> nameComparisonParamIndex + 1
-          Nothing -> nameComparisonParamIndex
-        limit = "limit ($" <> T.pack (show limitParamIndex) <> " :: int)"
-        mkConstraints :: Maybe Text
-        mkConstraints =
-          case paginationState of
-            PaginationSortByName Nothing -> Nothing
-            PaginationSortByCreatedAt Nothing -> Nothing
-            PaginationSortByName (Just _) ->
-              Just $ mkQuery "($2 :: text, $3 :: uuid)"
-            PaginationSortByCreatedAt (Just _) ->
-              Just $ mkQuery "($2 :: timestamptz, $3 :: uuid)"
-          where
-            lhs = "(" <> sortColumnName sortColumn <> ", id)"
-            mkQuery rhs = T.unwords ["and", lhs, sortOrderOperator sortOrder, rhs]
+    sortColumn :: Text
+    sortColumn = case paginationState of
+      PaginationSortByName _ -> "name"
+      PaginationSortByCreatedAt _ -> "created_at"
+
+    paginationClause :: Maybe Clause
+    paginationClause = case paginationState of
+      PaginationSortByName (Just (name, gid)) ->
+        Just (mkClause "name" name <> mkClause "id" gid)
+      PaginationSortByCreatedAt (Just (createdAt, gid)) ->
+        Just (mkClause "created_at" createdAt <> mkClause "id" gid)
+      _ -> Nothing
+
+    selectors :: Text
+    selectors =
+      T.intercalate ", " $
+        filter (not . T.null) $
+          ["id", "name", "managed_by", "created_at"]
+            <> ["(select count(*) from user_group_member as ugm where ugm.user_group_id = ug.id) as members" | includeMemberCount]
+            <> ["(select count(*) from user_group_channel as ugc where ugc.user_group_id = ug.id) as channels"]
+            <> ["coalesce((select array_agg(ugc.conv_id) from user_group_channel as ugc where ugc.user_group_id = ug.id), array[]::uuid[]) as channel_ids" | includeChannels]
 
 createUserGroup ::
   forall r.

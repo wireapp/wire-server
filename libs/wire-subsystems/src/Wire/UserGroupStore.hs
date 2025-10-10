@@ -4,6 +4,7 @@ module Wire.UserGroupStore where
 
 import Data.Id
 import Data.Json.Util
+import Data.Time.Clock
 import Data.Vector
 import Imports
 import Polysemy
@@ -11,23 +12,22 @@ import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
+import Wire.PaginationState
 
 data UserGroupPageRequest = UserGroupPageRequest
   { team :: TeamId,
     searchString :: Maybe Text,
-    paginationState :: PaginationState,
+    paginationState :: PaginationState UserGroupId,
     sortOrder :: SortOrder,
     pageSize :: PageSize,
     includeMemberCount :: Bool,
     includeChannels :: Bool
   }
 
-data PaginationState = PaginationSortByName (Maybe (UserGroupName, UserGroupId)) | PaginationSortByCreatedAt (Maybe (UTCTimeMillis, UserGroupId))
+userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTime, UserGroupId)
+userGroupCreatedAtPaginationState ug = (fromUTCTimeMillis ug.createdAt, ug.id_)
 
-userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTimeMillis, UserGroupId)
-userGroupCreatedAtPaginationState ug = (ug.createdAt, ug.id_)
-
-toSortBy :: PaginationState -> SortBy
+toSortBy :: PaginationState UserGroupId -> SortBy
 toSortBy = \case
   PaginationSortByName _ -> SortByName
   PaginationSortByCreatedAt _ -> SortByCreatedAt

@@ -28,6 +28,7 @@ import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
+import Wire.PaginationState
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
 
@@ -158,10 +159,14 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
         sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
         sqlConds ((_, _), row) =
           case (paginationState, sortOrder) of
-            (PaginationSortByName (Just (name, tieBreaker)), Asc) -> (name, tieBreaker) >= (row.name, row.id_)
-            (PaginationSortByName (Just (name, tieBreaker)), Desc) -> (name, tieBreaker) <= (row.name, row.id_)
-            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
-            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
+            (PaginationSortByName (Just (name, tieBreaker)), Asc) ->
+              (name, tieBreaker) >= (userGroupNameToText row.name, row.id_)
+            (PaginationSortByName (Just (name, tieBreaker)), Desc) ->
+              (name, tieBreaker) <= (userGroupNameToText row.name, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) ->
+              (ts, tieBreaker) >= (fromUTCTimeMillis row.createdAt, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) ->
+              (ts, tieBreaker) <= (fromUTCTimeMillis row.createdAt, row.id_)
             (_, _) -> False
 
     dropAfterPageSize = take (pageSizeToInt pageSize)
