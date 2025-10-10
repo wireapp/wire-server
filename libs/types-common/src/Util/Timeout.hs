@@ -26,5 +26,4 @@ instance Read Timeout where
       _ -> []
 
 instance FromJSON Timeout where
-  parseJSON (Number n) = pure $ Timeout (realToFrac (toRealFloat n :: Double))
-  parseJSON v = typeMismatch "Timeout" v
+  parseJSON x = Timeout . realToFrac . toRealFloat @Double <$> parseJSON x
