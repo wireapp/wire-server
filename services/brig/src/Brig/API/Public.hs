@@ -648,7 +648,10 @@ browseTeamHandler ::
   Maybe Bool ->
   Handler r (Public.SearchResult Public.TeamContact)
 browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState mEmailFilter mSearchable = do
-  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mEmailFilter mSearchable
+  let searchable = case mSearchable of
+        Just False -> False
+        _ -> True
+      browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mEmailFilter searchable
   lift . liftSem $ User.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
 setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()

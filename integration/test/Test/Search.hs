@@ -462,3 +462,16 @@ testUserSearchable = do
       docs <- resp.json %. "documents" >>= asList
       foundUids <- mapM (\m -> m %. "id" & asString) docs
       assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u4id]
+
+  -- /teams/:tid/search and /teams/:tid/search?searchable=true both get all members, searchable and non-searchable
+  noQueryParam <- baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) >>= \req ->
+    submit "GET" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      mapM (\m -> m %. "id" & asString) docs
+  withQueryParam <- baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) <&> addQueryParams [("searchable", "true")] >>= \req ->
+    submit "GET" req `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      mapM (\m -> m %. "id" & asString) docs
+  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal" $ Set.fromList noQueryParam == Set.fromList withQueryParam
