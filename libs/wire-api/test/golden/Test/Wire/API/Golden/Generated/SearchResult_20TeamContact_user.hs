@@ -806,7 +806,7 @@ testObject_SearchResult_20TeamContact_user_17 =
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner
->>>>>>> 6f02b6856 (Minor refactor: use record syntax, deduplicate golden tests)
+            }
         ],
       searchPolicy = FullSearch,
       searchPagingState = Nothing,
