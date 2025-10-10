@@ -169,7 +169,7 @@ optSettings:
   setActivationTimeout: 4
   setVerificationTimeout: 4
   setTeamInvitationTimeout: 4
-  setExpiredUserCleanupTimeout: 0.5
+  setExpiredUserCleanupTimeout: 1
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieInsecure: true

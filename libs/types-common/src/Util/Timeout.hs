@@ -5,6 +5,7 @@ module Util.Timeout
 where
 
 import Data.Aeson
+import Data.Aeson.Types
 import Data.Scientific
 import Data.Time.Clock
 import Imports
@@ -25,4 +26,11 @@ instance Read Timeout where
       _ -> []
 
 instance FromJSON Timeout where
-  parseJSON x = Timeout . realToFrac . toRealFloat @Double <$> parseJSON x
+  parseJSON (Number n) =
+    let defaultV = 3600
+        bounded = toBoundedInteger n :: Maybe Int64
+     in pure $
+          Timeout $
+            fromIntegral @Int $
+              maybe defaultV fromIntegral bounded
+  parseJSON v = typeMismatch "Timeout" v
