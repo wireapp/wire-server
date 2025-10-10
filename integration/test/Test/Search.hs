@@ -431,8 +431,7 @@ testUserSearchable = do
   bindResponse (BrigP.putHandle u4 u4handle) assertSuccess
   baseRequest u3 Brig Versioned (joinHttpPath ["handles", u4handle]) >>= \req ->
     submit "HEAD" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      -- TODO: what is HEAD's API -- test for "u4handle is taken"
+      resp.status `shouldMatchInt` 200 -- (200 means "handle is taken", 404 would be "not found")
 
   -- Handle for POST /handles still works for non-searchable users
   u3handle <- API.randomHandle
