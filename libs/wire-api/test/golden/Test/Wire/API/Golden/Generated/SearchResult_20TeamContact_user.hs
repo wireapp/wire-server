@@ -66,7 +66,7 @@ testObject_SearchResult_20TeamContact_user_1 =
               teamContactUserGroups =
                 [ Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
                   Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))
-                ],
+                ]
             },
           teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
