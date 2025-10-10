@@ -96,7 +96,7 @@ import System.Process
 import System.Random (randomIO, randomRIO)
 import System.Timeout qualified as System
 import Test.QuickCheck (arbitrary, generate)
-import Test.Tasty (TestName, TestTree)
+import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.Cannon
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
@@ -239,6 +239,10 @@ instance ToJSON Mailbox where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+-- | Use this for debugging flaky tests to run them `n` times.
+deflake :: Int -> Manager -> TestName -> Http a -> TestTree
+deflake n m name h = testGroup "deflake" $ (\i -> test m (name <> " (retry " <> show i <> ")") h) <$> [1 .. n]
 
 flakyTest :: Manager -> TestName -> Http a -> TestTree
 flakyTest m n h = flakyTestCase n (void $ runHttpT m h)
