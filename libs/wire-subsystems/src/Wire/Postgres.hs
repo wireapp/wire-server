@@ -1,5 +1,25 @@
 module Wire.Postgres
-  ( -- * Runners
+  ( -- | This module provides a composable DSL for constructing postgres
+    -- statements. Queries are assembled from smaller 'QueryFragment's that
+    -- carry both their SQL text and parameter encoders.
+    --
+    -- Typical usage involves combining fragments with monoidal operators and
+    -- building a final 'Statement' using 'buildStatement'.
+    --
+    -- Example:
+    --
+    -- > let q =
+    -- >       literal "select * from users"
+    -- >       <> where_ [like "name" "alice"]
+    -- >       <> orderBy [("created_at", Desc)]
+    -- >       <> limit (10 :: Int)
+    -- > in buildStatement q userDecoder
+    --
+    -- Not that the encoders are specialised to the specific values passed when
+    -- constructing the fragments, so they don't require further values. The
+    -- resulting statement can be run with something like @runStatement ()@.
+
+    -- * Runners
     runStatement,
     runTransaction,
     runPipeline,
@@ -129,6 +149,7 @@ literal q =
       encoder = mempty
     }
 
+-- | Construct a WHERE clause from a list of fragments.
 where_ :: [QueryFragment] -> QueryFragment
 where_ frags = literal "where" <> foldr (joinFragments " and ") mempty frags
 
@@ -141,6 +162,12 @@ like field pat =
       encoder = const (fuzzy pat) >$< Enc.param (Enc.nonNullable Enc.text)
     }
 
+-- | A portion of a WHERE clause with multiple values. The monoidal operation
+-- of this type can be used to combine values into one clause. For example:
+--
+-- > clause "=" (mkClause "foo" 3 <> mkClause "bar" 4)
+--
+-- generates a pattern that will end up being expanded as @"(foo, bar) = (3, 4)"@.
 data Clause = Clause
   { fields :: [Text],
     types :: [Text],
@@ -171,6 +198,7 @@ mkClause field value =
       encoder = Enc.param (Enc.nonNullable (postgresValue value))
     }
 
+-- | Convert a 'Clause' to a 'QueryFragment'.
 clause :: Text -> Clause -> QueryFragment
 clause op cl =
   QueryFragment
@@ -188,6 +216,7 @@ clause op cl =
     wrap :: [Text] -> Text
     wrap xs = "(" <> T.intercalate ", " xs <> ")"
 
+-- | Fragment for a clause with a single value.
 clause1 :: forall a. (PostgresValue a) => Text -> Text -> a -> QueryFragment
 clause1 field op value = clause op (mkClause field value)
 
