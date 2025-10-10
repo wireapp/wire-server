@@ -262,6 +262,11 @@ searchTeamWithSearchTerm user q = searchTeam user [("q", q)]
 searchTeamAll :: (HasCallStack, MakesValue user) => user -> App Response
 searchTeamAll user = searchTeam user [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")]
 
+setUserSearchable :: (MakesValue user) => user -> String -> Bool -> App Response
+setUserSearchable self uid searchable = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["users", uid, "searchable"]
+  submit "POST" $ addJSON searchable req
+
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"

@@ -376,18 +376,13 @@ testUserSearchable :: App ()
 testUserSearchable = do
   (owner, tid, []) <- createTeam OwnDomain 1
 
-  let -- Helper to change user searchability.
-      setSearchable self uid searchable = do
-        req <- baseRequest self Brig Versioned $ joinHttpPath ["users", uid, "searchable"]
-        submit "POST" $ addJSON searchable req
-
   -- Create user in team, default is searchable = True.
   u1 <- createTeamMember owner def
   assertBool "created users are searchable by default" =<< (u1 %. "searchable" & asBool)
 
   -- Setting self to non-searchable won't work -- only admin can do it.
   u1id <- u1 %. "id" & asString
-  setSearchable u1 u1id False `bindResponse` \resp -> do
+  BrigP.setUserSearchable u1 u1id False `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
 
@@ -396,13 +391,13 @@ testUserSearchable = do
 
   -- Team admin can set user to non-searchable.
   admin <- createTeamMember owner def {role = "admin"}
-  setSearchable admin u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigP.setUserSearchable admin u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
   u1'' <- BrigP.getUser u1 u1 >>= getJSON 200
   assertBool "Searchable is now False" . (False ==) =<< (u1'' %. "searchable" & asBool)
 
   -- Team owner can, too.
-  setSearchable owner u1id True `bindResponse` \resp -> resp.status `shouldMatchInt` 200
-  setSearchable owner u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigP.setUserSearchable owner u1id True `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigP.setUserSearchable owner u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
 
   -- By default created team members are found.
   u3 <- createTeamMember owner def
@@ -415,7 +410,7 @@ testUserSearchable = do
   -- User set to non-searchable is not found by other team members.
   u4 <- createTeamMember owner def
   u4id <- u4 %. "id" & asString
-  setSearchable owner u4id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigP.setUserSearchable owner u4id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
   BrigI.refreshIndex OwnDomain
   withFoundDocs u1 (u4 %. "name") $ \docs -> do
     foundUids <- for docs objId
