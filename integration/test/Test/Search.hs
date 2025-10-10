@@ -12,7 +12,7 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 
 --------------------------------------------------------------------------------
 -- LOCAL SEARCH
