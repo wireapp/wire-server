@@ -13,7 +13,8 @@
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
-            "team": "00000001-0000-0000-0000-000100000001"
+            "team": "00000001-0000-0000-0000-000100000001",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -28,7 +29,8 @@
             "saml_idp": null,
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
-            "team": null
+            "team": null,
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -43,7 +45,8 @@
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
-            "team": "00000001-0000-0000-0000-000100000001"
+            "team": "00000001-0000-0000-0000-000100000001",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -58,7 +61,8 @@
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
-            "team": "00000000-0000-0001-0000-000000000001"
+            "team": "00000000-0000-0001-0000-000000000001",
+            "user_groups": []
         }
     ],
     "found": 7,

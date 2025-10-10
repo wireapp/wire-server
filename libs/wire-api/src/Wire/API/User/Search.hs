@@ -42,7 +42,7 @@ import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Conversion qualified as BS
-import Data.Id (TeamId, UserId)
+import Data.Id (TeamId, UserGroupId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
@@ -192,7 +192,8 @@ data TeamContact = TeamContact
     teamContactRole :: Maybe Role,
     teamContactScimExternalId :: Maybe Text,
     teamContactSso :: Maybe Sso,
-    teamContactEmailUnvalidated :: Maybe EmailAddress
+    teamContactEmailUnvalidated :: Maybe EmailAddress,
+    teamContactUserGroups :: [UserGroupId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -215,6 +216,7 @@ instance ToSchema TeamContact where
         <*> teamContactScimExternalId .= optField "scim_external_id" (maybeWithDefault Aeson.Null schema)
         <*> teamContactSso .= optField "sso" (maybeWithDefault Aeson.Null schema)
         <*> teamContactEmailUnvalidated .= optField "email_unvalidated" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactUserGroups .= fieldWithDocModifier "user_groups" (S.description ?~ "List of user group ids the user is a member of") (array schema)
 
 data TeamUserSearchSortBy
   = SortByName

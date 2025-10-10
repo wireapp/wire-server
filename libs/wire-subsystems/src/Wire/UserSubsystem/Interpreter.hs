@@ -19,6 +19,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.List.Extra (nubOrd)
+import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl)
 import Data.Qualified
 import Data.Range
@@ -73,6 +74,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.TeamSubsystem
+import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
 import Wire.UserSearch.Metrics
 import Wire.UserSearch.Types
@@ -107,7 +109,8 @@ runUserSubsystem ::
     Member InvitationStore r,
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserGroupStore r
   ) =>
   InterpreterFor AuthenticationSubsystem r ->
   Sem (UserSubsystem ': r) a ->
@@ -910,7 +913,8 @@ searchRemotely rDom mTid searchTerm = do
 browseTeamImpl ::
   ( Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserGroupStore r
   ) =>
   UserId ->
   BrowseTeamFilters ->
@@ -924,7 +928,13 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
   ensurePermissions uid filters.teamId [Permission.AddTeamMember]
 
   let maxResults = maybe 15 fromRange mMaxResults
-  userDocToTeamContact <$$> IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
+  result <- IndexedUserStore.paginateTeamMembers filters maxResults mPagingState
+  let docs = result.searchResults
+      uids = fmap (.udId) docs
+  ugMap <- getUserGroupIdsForUsers (toList uids)
+  for result $ \userDoc -> do
+    let ugids = fromMaybe [] (Map.lookup userDoc.udId ugMap)
+    pure $ userDocToTeamContact ugids userDoc
 
 getAccountNoFilterImpl ::
   forall r.

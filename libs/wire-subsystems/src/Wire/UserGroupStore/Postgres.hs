@@ -8,6 +8,7 @@ import Data.Functor.Contravariant (Contravariant (..))
 import Data.Functor.Contravariant.Divisible
 import Data.Id
 import Data.Json.Util
+import Data.Map qualified as Map
 import Data.Profunctor
 import Data.Qualified (Local, QualifiedWithTag (tUntagged), inputQualifyLocal, qualifyAs)
 import Data.Range
@@ -56,6 +57,26 @@ interpretUserGroupStoreToPostgres =
     UpdateUsers gid uids -> updateUsers gid uids
     RemoveUser gid uid -> removeUser gid uid
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels gid convIds
+    GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsers uids
+
+getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
+getUserGroupIdsForUsers uidsList = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session (Map UserId [UserGroupId])
+    session = do
+      rows <- statement (V.fromList (toUUID <$> uidsList)) stmt
+      pure $ Map.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
+
+    stmt :: Statement (Vector UUID) (Vector (UUID, UUID))
+    stmt =
+      [vectorStatement|
+            select (ugm.user_id :: uuid), (ugm.user_group_id :: uuid)
+              from user_group_member as ugm
+              where ugm.user_id = ANY (($1 :: uuid[]))
+          |]
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do

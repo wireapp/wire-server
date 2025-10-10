@@ -7,8 +7,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 17.5
--- Dumped by pg_dump version 17.5
+-- Dumped from database version 17.6
+-- Dumped by pg_dump version 17.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -41,6 +41,19 @@ COMMENT ON SCHEMA public IS '';
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: apps; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.apps (
+    user_id uuid NOT NULL,
+    team_id uuid NOT NULL,
+    metadata json
+);
+
+
+ALTER TABLE public.apps OWNER TO "wire-server";
 
 --
 -- Name: collaborators; Type: TABLE; Schema: public; Owner: wire-server
@@ -84,17 +97,6 @@ CREATE TABLE public.user_group (
 ALTER TABLE public.user_group OWNER TO "wire-server";
 
 --
--- Name: user_group_member; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.user_group_member (
-    user_group_id uuid NOT NULL,
-    user_id uuid NOT NULL
-);
-
-ALTER TABLE public.user_group_member OWNER TO "wire-server";
-
---
 -- Name: user_group_channel; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -104,8 +106,27 @@ CREATE TABLE public.user_group_channel (
 );
 
 
-
 ALTER TABLE public.user_group_channel OWNER TO "wire-server";
+
+--
+-- Name: user_group_member; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.user_group_member (
+    user_group_id uuid NOT NULL,
+    user_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_group_member OWNER TO "wire-server";
+
+--
+-- Name: apps apps_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.apps
+    ADD CONSTRAINT apps_pkey PRIMARY KEY (user_id);
+
 
 --
 -- Name: collaborators collaborators_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
@@ -113,6 +134,14 @@ ALTER TABLE public.user_group_channel OWNER TO "wire-server";
 
 ALTER TABLE ONLY public.collaborators
     ADD CONSTRAINT collaborators_pkey PRIMARY KEY (user_id, team_id);
+
+
+--
+-- Name: user_group_channel user_group_channel_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.user_group_channel
+    ADD CONSTRAINT user_group_channel_pkey PRIMARY KEY (user_group_id, conv_id);
 
 
 --
@@ -129,14 +158,6 @@ ALTER TABLE ONLY public.user_group
 
 ALTER TABLE ONLY public.user_group_member
     ADD CONSTRAINT user_group_member_pkey PRIMARY KEY (user_group_id, user_id);
-
-
---
--- Name: user_group_channel user_group_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.user_group_channel
-    ADD CONSTRAINT user_group_channel_pkey PRIMARY KEY (user_group_id, conv_id);
 
 
 --
@@ -162,6 +183,13 @@ CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user
 
 
 --
+-- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
 -- Name: user_group_member fk_user_group; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -170,7 +198,7 @@ ALTER TABLE ONLY public.user_group_member
 
 
 --
--- Name: user_group_channel fk_user_group; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+-- Name: user_group_channel fk_user_group_channel; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.user_group_channel

@@ -109,6 +109,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem
@@ -232,6 +233,7 @@ type MiniBackendLowerEffects =
      DRS.DomainRegistrationStore,
      PasswordResetCodeStore,
      SessionStore,
+     UserGroupStore,
      RateLimit,
      HashPassword,
      DeleteQueue,
@@ -268,6 +270,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
     . noRateLimit
+    . userGroupStoreTestInterpreter
     . runInMemorySessionStore
     . runInMemoryPasswordResetCodeStore
     . inMemoryDomainRegistrationStoreInterpreter
@@ -295,24 +298,28 @@ type StateEffects =
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
      State [StoredUser],
+     State UserGroupInMemState,
      State [StoredApp],
      State UserIndex,
      State (Map EmailKey UserId),
      State [DRS.StoredDomainRegistration],
      State [InternalNotification],
      State MiniBackend,
-     State [MiniEvent]
+     State [MiniEvent],
+     State UTCTime
    ]
 
 stateEffectsInterpreters :: forall r r' a. MiniBackendParams r' -> Sem (StateEffects `Append` r) a -> Sem r (MiniBackend, a)
 stateEffectsInterpreters MiniBackendParams {..} =
-  evalState []
+  evalState defaultTime
+    . evalState []
     . runState localBackend
     . evalState []
     . evalState []
     . liftUserKeyStoreState
     . liftIndexedUserStoreState
     . liftAppStoreState
+    . liftUserGroupStoreState
     . liftUserStoreState
     . liftBlockListStoreState
     . liftActivationCodeStoreState
@@ -325,7 +332,8 @@ type InputEffects =
   '[ Input UserSubsystemConfig,
      Input (Maybe AllowlistEmailDomains),
      Input (Map TeamId IdPList),
-     Input AuthenticationSubsystemConfig
+     Input AuthenticationSubsystemConfig,
+     Input (Local ())
    ]
 
 defaultZAuthSettings :: ZAuthSettings
@@ -367,7 +375,8 @@ defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
 
 inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Map TeamId IdPList -> Sem (InputEffects `Append` r) a -> Sem r a
 inputEffectsInterpreters cfg teamIdps =
-  runInputConst defaultAuthenticationSubsystemConfig
+  runInputConst defaultLocalDomain
+    . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst teamIdps
     . runInputConst Nothing
     . runInputConst cfg
@@ -389,7 +398,8 @@ data MiniBackend = MkMiniBackend
     invitations :: Map (TeamId, InvitationId) StoredInvitation,
     teamIdps :: Map TeamId IdPList,
     teamCollaborators :: Map TeamId [TeamCollaborator],
-    pushNotifications :: [Push]
+    pushNotifications :: [Push],
+    userGroups :: UserGroupInMemState
   }
   deriving stock (Eq, Show, Generic)
 
@@ -407,7 +417,8 @@ instance Default MiniBackend where
         invitations = mempty,
         teamIdps = mempty,
         teamCollaborators = mempty,
-        pushNotifications = mempty
+        pushNotifications = mempty,
+        userGroups = mempty
       }
 
 -- | represents an entire federated, stateful world of backends
@@ -679,6 +690,11 @@ liftAppStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredApp] : 
 liftAppStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.apps)
   Put newApps -> modify $ \b -> (b :: MiniBackend) {apps = newApps}
+
+liftUserGroupStoreState :: Sem (State UserGroupInMemState : State [StoredApp] : State UserIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a -> Sem (State [StoredApp] : State UserIndex : State (Map EmailKey UserId) : State [DRS.StoredDomainRegistration] : State [InternalNotification] : State MiniBackend : State [MiniEvent] : r) a
+liftUserGroupStoreState = interpret $ \case
+  Polysemy.State.Get -> Polysemy.State.gets @MiniBackend (.userGroups)
+  Put newState -> modify $ \b -> (b :: MiniBackend) {userGroups = newState}
 
 liftIndexedUserStoreState :: (Member (State MiniBackend) r) => Sem (State UserIndex : r) a -> Sem r a
 liftIndexedUserStoreState = interpret $ \case
