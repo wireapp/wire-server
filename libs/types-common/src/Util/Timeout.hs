@@ -5,7 +5,6 @@ module Util.Timeout
 where
 
 import Data.Aeson
-import Data.Aeson.Types
 import Data.Scientific
 import Data.Time.Clock
 import Imports
