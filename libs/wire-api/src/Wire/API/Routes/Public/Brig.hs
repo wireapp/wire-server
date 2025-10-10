@@ -1742,7 +1742,7 @@ type SearchAPI =
         :> QueryParam'
              [ Optional,
                Strict,
-               Description "Optional, return only non-seacrhable members when false."
+               Description "Optional, return only non-searchable members when false."
              ]
              "searchable"
              Bool
