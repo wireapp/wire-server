@@ -341,15 +341,15 @@ removeUser remover groupId removeeId = do
 
 removeUserFromAllGroups ::
   ( Member Store.UserGroupStore r,
-    Member TeamSubsystem r,
-    Member (Error UserGroupSubsystemError) r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Sem r ()
 removeUserFromAllGroups uid tid = do
-  void $ internalGetTeamMember uid tid >>= note UserGroupMemberIsNotInTheSameTeam
-  nextPage Nothing >>= go
+  internalGetTeamMember uid tid >>= \case
+    Just _ -> nextPage Nothing >>= go
+    Nothing -> pure ()
   where
     go (ug : ugs) = do
       Store.removeUser ug.id_ uid
