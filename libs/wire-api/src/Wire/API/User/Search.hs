@@ -218,7 +218,6 @@ instance ToSchema TeamContact where
         <*> teamContactSso .= optField "sso" (maybeWithDefault Aeson.Null schema)
         <*> teamContactEmailUnvalidated .= optField "email_unvalidated" (maybeWithDefault Aeson.Null schema)
         <*> teamContactUserGroups .= fieldWithDocModifier "user_groups" (S.description ?~ "List of user group ids the user is a member of") (array schema)
-        <*> teamContactSearchable .= optField "searchable" (maybeWithDefault Aeson.Null schema)
         <*> teamContactSearchable .= field "searchable" schema
 
 data TeamUserSearchSortBy
