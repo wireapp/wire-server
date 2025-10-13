@@ -8,11 +8,11 @@ import qualified API.Common as API
 import API.Galley
 import qualified API.Galley as Galley
 import qualified API.GalleyInternal as GalleyI
+import qualified Data.Set as Set
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-import qualified Data.Set as Set
 
 --------------------------------------------------------------------------------
 -- LOCAL SEARCH
@@ -360,18 +360,6 @@ testTeamSearchUserIncludesUserGroups = do
       actualUgs <- for ugs asString
       actualUgs `shouldMatchSet` expectedUgs
 
-withFoundDocs ::
-  (MakesValue user, MakesValue searchTerm) =>
-  user ->
-  searchTerm ->
-  ([Value] -> App a) ->
-  App a
-withFoundDocs self term f = do
-  BrigP.searchContacts self term OwnDomain `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "documents" >>= asList
-    f docs
-
 testUserSearchable :: App ()
 testUserSearchable = do
   -- Create team and all users who are part of this test
@@ -458,18 +446,36 @@ testUserSearchable = do
     assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u3id]
 
   -- /teams/:tid/search and /teams/:tid/search?searchable=true both get all members, searchable and non-searchable
-  noQueryParam <- BrigP.searchTeam admin [] `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "documents" >>= asList
-    mapM (\m -> m %. "id" & asString) docs
-  withQueryParam <- BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "documents" >>= asList
-    mapM (\m -> m %. "id" & asString) docs
-  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal" $
-    Set.fromList noQueryParam == Set.fromList withQueryParam
+  noQueryParam <-
+    BrigP.searchTeam admin [] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      mapM (\m -> m %. "id" & asString) docs
+  withQueryParam <-
+    BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      mapM (\m -> m %. "id" & asString) docs
+  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal"
+    $ Set.fromList noQueryParam
+    == Set.fromList withQueryParam
 
   -- All users created as part of this test are in the returned result
   everyone'sUids <- mapM objId everyone
-  assertBool "All created users as part of this test are in the returned result" $
-    Set.fromList noQueryParam == Set.fromList everyone'sUids
+  assertBool "All created users as part of this test are in the returned result"
+    $ Set.fromList noQueryParam
+    == Set.fromList everyone'sUids
+
+  where
+    -- Convenience wrapper around search contacts which applies `f` directly to document list.
+    withFoundDocs ::
+      (MakesValue user, MakesValue searchTerm) =>
+      user ->
+      searchTerm ->
+      ([Value] -> App a) ->
+      App a
+    withFoundDocs self term f = do
+      BrigP.searchContacts self term OwnDomain `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        docs <- resp.json %. "documents" >>= asList
+        f docs
