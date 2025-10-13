@@ -375,9 +375,9 @@ withFoundDocs self term f = do
 testUserSearchable :: App ()
 testUserSearchable = do
   -- Create team and all users who are part of this test
-  (owner, tid, [u1, u2, u4]) <- createTeam OwnDomain 4
+  (owner, tid, [u1, u2, u3]) <- createTeam OwnDomain 4
   admin <- createTeamMember owner def {role = "admin"}
-  let everyone = [owner, u1, admin, u2, u4]
+  let everyone = [owner, u1, admin, u2, u3]
 
   -- All users are searchable by default
   assertBool "created users are searchable by default" . and =<< mapM (\u -> u %. "searchable" & asBool) everyone
@@ -410,41 +410,41 @@ testUserSearchable = do
     assertBool "u1 must find u2 as they are searchable by default" $ u2id `elem` foundUids
 
   -- User set to non-searchable is not found by other team members.
-  u4id <- u4 %. "id" & asString
-  BrigP.setUserSearchable owner u4id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  u3id <- u3 %. "id" & asString
+  BrigP.setUserSearchable owner u3id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
   BrigI.refreshIndex OwnDomain
-  withFoundDocs u1 (u4 %. "name") $ \docs -> do
+  withFoundDocs u1 (u3 %. "name") $ \docs -> do
     foundUids <- for docs objId
-    assertBool "u1 must not find u4 as they are set non-searchable" $ notElem u4id foundUids
+    assertBool "u1 must not find u3 as they are set non-searchable" $ notElem u3id foundUids
 
   -- Even admin nor owner won't find non-searchable users via /search/contacts
-  withFoundDocs admin (u4 %. "name") $ \docs -> do
+  withFoundDocs admin (u3 %. "name") $ \docs -> do
     foundUids <- for docs objId
-    assertBool "Team admin won't find non-searchable user" $ notElem u4id foundUids
-  withFoundDocs owner (u4 %. "name") $ \docs -> do
+    assertBool "Team admin won't find non-searchable user" $ notElem u3id foundUids
+  withFoundDocs owner (u3 %. "name") $ \docs -> do
     foundUids <- for docs objId
-    assertBool "Team owner won't find non-searchable user from /search/concatcs" $ notElem u4id foundUids
+    assertBool "Team owner won't find non-searchable user from /search/concatcs" $ notElem u3id foundUids
 
   -- Check for handle being available with HTTP HEAD still shows that the handle used by non-searchable users is not available
-  u4handle <- API.randomHandle
-  bindResponse (BrigP.putHandle u4 u4handle) assertSuccess
-  baseRequest u2 Brig Versioned (joinHttpPath ["handles", u4handle]) >>= \req ->
+  u3handle <- API.randomHandle
+  bindResponse (BrigP.putHandle u3 u3handle) assertSuccess
+  baseRequest u2 Brig Versioned (joinHttpPath ["handles", u3handle]) >>= \req ->
     submit "HEAD" req `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200 -- (200 means "handle is taken", 404 would be "not found")
 
   -- Handle for POST /handles still works for non-searchable users
   u2handle <- API.randomHandle
   bindResponse (BrigP.putHandle u2 u2handle) assertSuccess
-  baseRequest u1 Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= [u4handle, u2handle]] >>= \req ->
+  baseRequest u1 Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= [u3handle, u2handle]] >>= \req ->
     submit "POST" req `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       freeHandles <- resp.json & asList
       assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
 
   -- Regular user can't find non-searchable team member by exact handle.
-  withFoundDocs u1 u4handle $ \docs -> do
+  withFoundDocs u1 u3handle $ \docs -> do
     foundUids <- for docs objId
-    assertBool "u1 must not find non-searchable u4 by exact handle" $ notElem u4id foundUids
+    assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
 
   -- /teams/:tid/members gets all members, both searchable and non-searchable
   baseRequest u1 Galley Versioned (joinHttpPath ["teams", tid, "members"]) >>= \req ->
@@ -452,7 +452,7 @@ testUserSearchable = do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "members" >>= asList
       foundUids <- mapM (\m -> m %. "user" & asString) docs
-      assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u2id, u4id]
+      assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u2id, u3id]
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
   baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) <&> addQueryParams [("searchable", "false")] >>= \req ->
@@ -460,7 +460,7 @@ testUserSearchable = do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       foundUids <- mapM (\m -> m %. "id" & asString) docs
-      assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u4id]
+      assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u3id]
 
   -- /teams/:tid/search and /teams/:tid/search?searchable=true both get all members, searchable and non-searchable
   noQueryParam <- baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) >>= \req ->
