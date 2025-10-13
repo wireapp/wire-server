@@ -425,7 +425,7 @@ testUserSearchable = do
     foundUids <- for docs objId
     assertBool "Team owner won't find non-searchable user from /search/concatcs" $ notElem u4id foundUids
 
-  -- Exact handle search with HTTP HEAD still works for non-searchable users
+  -- Check for handle being available with HTTP HEAD still shows that the handle used by non-searchable users is not available
   u4handle <- API.randomHandle
   bindResponse (BrigP.putHandle u4 u4handle) assertSuccess
   baseRequest u2 Brig Versioned (joinHttpPath ["handles", u4handle]) >>= \req ->
