@@ -5,9 +5,10 @@ import Data.Json.Util
 import Data.Text qualified as Text
 import Data.Vector qualified as V
 import Imports
-import Network.URI (URI, parseURI)
+import Network.URI (parseURI)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Error
@@ -20,8 +21,13 @@ import Wire.Error
 import Wire.ScimSubsystem
 import Wire.UserGroupSubsystem
 
+data ScimSubsystemConfig = ScimSubsystemConfig
+  { scimBaseUri :: Common.URI
+  }
+
 interpretScimSubsystem ::
   ( Member UserGroupSubsystem r,
+    Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r
   ) =>
   InterpreterFor ScimSubsystem r
@@ -37,11 +43,14 @@ scimThrow = throw . ScimSubsystemError
 scimSubsystemErrorToHttpError :: ScimSubsystemError -> HttpError
 scimSubsystemErrorToHttpError =
   StdError . \case
-    ScimSubsystemError _err -> undefined scimToServerError
+    ScimSubsystemError _err -> _ scimToServerError
+
+-- TODO: start today by writing ScimSubsystem unit tests!
 
 createScimGroupImpl ::
   forall r.
   ( Member UserGroupSubsystem r,
+    Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r
   ) =>
   TeamId ->
@@ -60,35 +69,36 @@ createScimGroupImpl teamId grp = do
 
   let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
   ug <- createGroupFull ManagedByScim teamId Nothing newGroup
-  pure $ toStoredGroup ug
+  scimBaseUri <- (.scimBaseUri) <$> input
+  pure $ toStoredGroup scimBaseUri ug
+
+toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
+toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
   where
-    toStoredGroup :: UserGroup -> SCG.StoredGroup SparTag
-    toStoredGroup ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
-      where
-        mkLocation :: String -> Common.URI
-        mkLocation pathSuffix =
-          let uri = _ <> pathSuffix
-           in maybe (error "invalid SCIM group location URI") Common.URI (parseURI uri)
+    mkLocation :: String -> Common.URI
+    mkLocation pathSuffix =
+      let uri = Common.uriToString scimBaseUri <> pathSuffix
+       in maybe (error "invalid SCIM group location URI") Common.URI (parseURI uri)
 
-        meta =
-          Meta.Meta
-            { Meta.resourceType = RT.GroupResource,
-              Meta.created = fromUTCTimeMillis ug.createdAt,
-              Meta.lastModified = fromUTCTimeMillis ug.createdAt,
-              Meta.version = Meta.Weak "v1",
-              Meta.location = mkLocation $ "/Groups/" <> Text.unpack (idToText ug.id_)
-            }
+    meta =
+      Meta.Meta
+        { Meta.resourceType = RT.GroupResource,
+          Meta.created = fromUTCTimeMillis ug.createdAt,
+          Meta.lastModified = fromUTCTimeMillis ug.createdAt,
+          Meta.version = Meta.Weak "v1",
+          Meta.location = mkLocation $ "/Groups/" <> Text.unpack (idToText ug.id_)
+        }
 
-        sg =
-          SCG.Group
-            { schemas = ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-              displayName = userGroupNameToText ug.name,
-              members =
-                [ SCG.Member
-                    { value = idToText uid,
-                      typ = "User",
-                      ref = Common.uriToText . mkLocation $ "/Users/" <> idToString uid
-                    }
-                  | uid <- toList (runIdentity ug.members)
-                ]
-            }
+    sg =
+      SCG.Group
+        { schemas = ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+          displayName = userGroupNameToText ug.name,
+          members =
+            [ SCG.Member
+                { value = idToText uid,
+                  typ = "User",
+                  ref = Common.uriToText . mkLocation $ "/Users/" <> idToString uid
+                }
+              | uid <- toList (runIdentity ug.members)
+            ]
+        }

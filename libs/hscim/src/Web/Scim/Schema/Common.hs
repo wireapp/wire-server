@@ -50,8 +50,11 @@ instance (FromJSON id, FromJSON a) => FromJSON (WithId id a) where
 newtype URI = URI {unURI :: Network.URI}
   deriving (Show, Eq)
 
+uriToString :: URI -> String
+uriToString = (\uri -> Network.uriToString Prelude.id uri "") . unURI
+
 uriToText :: URI -> Text
-uriToText = Text.pack . (\uri -> Network.uriToString Prelude.id uri "") . unURI
+uriToText = Text.pack . uriToString
 
 instance FromJSON URI where
   parseJSON = withText "URI" $ \uri -> case Network.parseURI (unpack uri) of
