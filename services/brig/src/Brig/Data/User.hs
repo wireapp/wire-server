@@ -142,7 +142,7 @@ newStoredUser u inv tid mbHandle = do
           teamId = tid,
           managedBy = managedBy,
           supportedProtocols = prots,
-          searchable = True -- NewUser doesn't have this field. TODO: should a defSearchable be added to Wire.API.User to be used everywhere?
+          searchable = True
         }
 
 newStoredUserViaScim :: (MonadReader Env m) => UserId -> Text -> TeamId -> Maybe Locale -> Name -> EmailAddress -> m NewStoredUser
