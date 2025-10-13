@@ -375,9 +375,9 @@ withFoundDocs self term f = do
 testUserSearchable :: App ()
 testUserSearchable = do
   -- Create team and all users who are part of this test
-  (owner, tid, [u1, u3, u4]) <- createTeam OwnDomain 4
+  (owner, tid, [u1, u2, u4]) <- createTeam OwnDomain 4
   admin <- createTeamMember owner def {role = "admin"}
-  let everyone = [owner, u1, admin, u3, u4]
+  let everyone = [owner, u1, admin, u2, u4]
 
   -- All users are searchable by default
   assertBool "created users are searchable by default" . and =<< mapM (\u -> u %. "searchable" & asBool) everyone
@@ -403,11 +403,11 @@ testUserSearchable = do
   BrigP.setUserSearchable owner u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
 
   -- By default created team members are found.
-  u3id <- u3 %. "id" & asString
+  u2id <- u2 %. "id" & asString
   BrigI.refreshIndex OwnDomain
-  withFoundDocs u1 (u3 %. "name") $ \docs -> do
+  withFoundDocs u1 (u2 %. "name") $ \docs -> do
     foundUids <- for docs objId
-    assertBool "u1 must find u3 as they are searchable by default" $ u3id `elem` foundUids
+    assertBool "u1 must find u2 as they are searchable by default" $ u2id `elem` foundUids
 
   -- User set to non-searchable is not found by other team members.
   u4id <- u4 %. "id" & asString
@@ -428,14 +428,14 @@ testUserSearchable = do
   -- Exact handle search with HTTP HEAD still works for non-searchable users
   u4handle <- API.randomHandle
   bindResponse (BrigP.putHandle u4 u4handle) assertSuccess
-  baseRequest u3 Brig Versioned (joinHttpPath ["handles", u4handle]) >>= \req ->
+  baseRequest u2 Brig Versioned (joinHttpPath ["handles", u4handle]) >>= \req ->
     submit "HEAD" req `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200 -- (200 means "handle is taken", 404 would be "not found")
 
   -- Handle for POST /handles still works for non-searchable users
-  u3handle <- API.randomHandle
-  bindResponse (BrigP.putHandle u3 u3handle) assertSuccess
-  baseRequest u1 Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= [u4handle, u3handle]] >>= \req ->
+  u2handle <- API.randomHandle
+  bindResponse (BrigP.putHandle u2 u2handle) assertSuccess
+  baseRequest u1 Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= [u4handle, u2handle]] >>= \req ->
     submit "POST" req `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       freeHandles <- resp.json & asList
@@ -452,7 +452,7 @@ testUserSearchable = do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "members" >>= asList
       foundUids <- mapM (\m -> m %. "user" & asString) docs
-      assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u3id, u4id]
+      assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u2id, u4id]
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
   baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) <&> addQueryParams [("searchable", "false")] >>= \req ->
