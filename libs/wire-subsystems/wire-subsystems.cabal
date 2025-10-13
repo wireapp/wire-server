@@ -120,6 +120,8 @@ common common-all
     , mime
     , mime-mail
     , network
+    , hscim
+    , network-uri
     , network-conduit-tls
     , polysemy
     , polysemy-plugin
@@ -266,6 +268,8 @@ library
     Wire.TeamSubsystem.Util
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
+    Wire.ScimSubsystem
+    Wire.ScimSubsystem.Interpreter
     Wire.UserGroupSubsystem
     Wire.UserGroupSubsystem.Interpreter
     Wire.UserKeyStore

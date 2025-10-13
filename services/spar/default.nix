@@ -131,6 +131,7 @@ mkDerivation {
     uri-bytestring
     utf8-string
     uuid
+    vector
     wai
     wai-middleware-gunzip
     wai-utilities

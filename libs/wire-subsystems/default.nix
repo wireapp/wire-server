@@ -45,6 +45,7 @@
 , hasql-th
 , hasql-transaction
 , hex
+, hscim
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -157,6 +158,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
@@ -257,6 +259,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
