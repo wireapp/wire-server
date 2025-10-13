@@ -8,6 +8,7 @@
 , api-field-json-th
 , async
 , base
+, base64
 , bilge
 , binary
 , bytestring
@@ -34,6 +35,7 @@
 , metrics-wai
 , mwc-random
 , prometheus-client
+, proto-lens
 , QuickCheck
 , random
 , retry
@@ -73,6 +75,7 @@ mkDerivation {
     api-field-json-th
     async
     base
+    base64
     bilge
     binary
     bytestring
@@ -96,6 +99,7 @@ mkDerivation {
     metrics-wai
     mwc-random
     prometheus-client
+    proto-lens
     retry
     safe-exceptions
     servant-conduit

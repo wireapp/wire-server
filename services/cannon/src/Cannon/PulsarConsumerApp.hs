@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp) where
+module Cannon.PulsarConsumerApp (pulsarWebSocketApp) where
 
 import Cannon.App (rejectOnError)
 import Cannon.Options
@@ -12,9 +12,14 @@ import Control.Exception (Handler (..), bracket, catch, catches, handle, throwIO
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
+import Data.Aeson qualified as A
+import Data.Base64.Types
+import Data.ByteString.Base64
 import Data.Id
+import Data.ProtoLens.Encoding qualified as PL
 import Data.Text
-import Data.Text qualified as Text
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
 import Imports hiding (min, threadDelay)
@@ -23,6 +28,7 @@ import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection
+import Pulsar qualified as P
 import System.Logger qualified as Log
 import System.Timeout
 import Wire.API.Event.WebSocketProtocol
@@ -33,11 +39,58 @@ data InactivityTimeout = InactivityTimeout
 
 instance Exception InactivityTimeout
 
-rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
-rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
+-- TODO: The name is a misleading. However, while developing, it's useful to keep the analogies with RabbitMQ.
+data PulsarChannel = PulsarChannel
+  {msgVar :: MVar (Maybe P.Message)}
+
+data PulsarQueueInfo = PulsarQueueInfo
+  { queueNames :: [Text],
+    messageCount :: Int
+  }
+
+data PulsarMessage = PulsarMessage
+  { msgBody :: Text,
+    msgContentType :: String,
+    -- TODO: This could be a sum type
+    msgType :: Maybe String
+  }
+  deriving (Generic)
+
+instance FromJSON PulsarMessage
+
+instance ToJSON PulsarMessage
+
+createPulsarChannel :: UserId -> Maybe ClientId -> Codensity IO (PulsarChannel, PulsarQueueInfo)
+createPulsarChannel uid mCid = do
+  msgVar <- lift newEmptyMVar
+  let queueNames = case mCid of
+        Nothing -> [userRoutingKey uid, temporaryRoutingKey uid]
+        Just cid -> pure $ clientNotificationQueueName uid cid
+
+  liftIO $ for_ queueNames $ \qn ->
+    do
+      P.runPulsar (P.connect P.defaultConnectData) $ do
+        let topic =
+              P.Topic
+                { P.type' = P.Persistent,
+                  P.tenant = "wire",
+                  P.namespace = "default",
+                  P.name = P.TopicName qn
+                }
+            subscription = P.Subscription P.Shared "cannon-websocket"
+        P.Consumer {..} <- P.newConsumer topic subscription
+        liftIO $ void . async . forever @IO $ do
+          pMsg@(P.Message pMsgId _) <- fetch
+          putMVar msgVar (Just pMsg)
+          ack pMsgId
+      pure ()
+  pure (PulsarChannel msgVar, PulsarQueueInfo queueNames undefined)
+
+pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
+pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   handle handleTooManyChannels . lowerCodensity $
     do
-      (chan, queueInfo) <- createChannel uid mcid e.pool createQueue
+      (chan, queueInfo) <- createPulsarChannel uid mcid
       conn <- Codensity $ bracket openWebSocket closeWebSocket
       activity <- liftIO newEmptyMVar
       let wsConn =
@@ -60,8 +113,9 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
           ]
         $ do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
-          sendNotifications chan wsConn
+          --          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
+          traverse_ (publishSyncMessage queueInfo.queueNames . mkSynchronizationMessage) mSyncMarkerId
+          sendNotifications chan queueInfo wsConn
 
       let monitor = do
             timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
@@ -76,6 +130,19 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
 
       liftIO $ wait main
   where
+    publishSyncMessage :: [Text] -> P.PulsarMessage -> IO ()
+    publishSyncMessage queueNames message = for_ queueNames $ \qn ->
+      P.runPulsar (P.connect P.defaultConnectData) $ do
+        let topic =
+              P.Topic
+                { P.type' = P.Persistent,
+                  P.tenant = "wire",
+                  P.namespace = "default",
+                  P.name = P.TopicName qn
+                }
+        P.Producer sendMe <- P.newProducer topic
+        sendMe message
+
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (maybe "<temporary>" clientToText mcid)
@@ -89,19 +156,23 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
 
-    getEventData :: RabbitMqChannel -> IO (Either EventData SynchronizationData)
+    getMessagePulsar :: PulsarChannel -> IO P.Message
+    getMessagePulsar chan = takeMVar chan.msgVar >>= maybe (throwIO ChannelClosed) pure
+
+    getEventData :: PulsarChannel -> IO (Either EventData SynchronizationData)
     getEventData chan = do
-      (msg, envelope) <- getMessage chan
-      case msg.msgType of
+      P.Message msgId msg <- getMessagePulsar chan
+      decMsg :: PulsarMessage <- either (\err -> logParseError err >> error "Unexpected parse error") pure $ A.eitherDecode msg
+      case decMsg.msgType of
         Just "synchronization" -> do
           let syncData =
                 SynchronizationData
-                  { markerId = TL.toStrict $ TLE.decodeUtf8 msg.msgBody,
-                    deliveryTag = show $ envelope.envDeliveryTag
+                  { markerId = TL.toStrict $ TLE.decodeUtf8 msg,
+                    deliveryTag = encodeMsgId msgId
                   }
           pure $ Right syncData
         _ -> do
-          case eitherDecode @QueuedNotification msg.msgBody of
+          case eitherDecode @QueuedNotification msg of
             Left err -> do
               logParseError err
               -- This message cannot be parsed, make sure it doesn't requeue. There
@@ -112,7 +183,9 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               -- en masse, if at some point we decide that Events should not be
               -- pushed as JSONs, hopefully we think of the parsing side if/when
               -- that happens.
-              Q.rejectEnv envelope False
+
+              -- TODO: We cannot reject, yet. This would require a change in Supernova. See https://pulsar.apache.org/docs/4.1.x/client-libraries-websocket/#negatively-acknowledge-messages
+              -- Q.rejectEnv envelope False
               -- try again
               getEventData chan
             Right notif -> do
@@ -121,7 +194,7 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
                 Left $
                   EventData
                     { event = notif,
-                      deliveryTag = show $ envelope.envDeliveryTag
+                      deliveryTag = encodeMsgId msgId
                     }
 
     handleWebSocketExceptions wsConn =
@@ -201,17 +274,17 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
         (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
         k $ QueueInfo queueName messageCount
 
-    mkSynchronizationMessage ttl markerId =
-      Q.newMsg
-        { Q.msgBody = TLE.encodeUtf8 (TL.fromStrict markerId),
-          Q.msgContentType = Just "text/plain; charset=utf-8",
-          Q.msgDeliveryMode = Just Q.Persistent,
-          Q.msgExpiration = Just (Text.pack $ show ttl),
-          Q.msgType = Just "synchronization"
-        }
+    mkSynchronizationMessage :: StrictText -> P.PulsarMessage
+    mkSynchronizationMessage markerId =
+      P.PulsarMessage . encode $
+        PulsarMessage
+          { msgBody = markerId,
+            msgContentType = "text/plain; charset=utf-8",
+            msgType = Just "synchronization"
+          }
 
-    sendNotifications :: RabbitMqChannel -> WSConnection -> IO ()
-    sendNotifications chan wsConn = do
+    sendNotifications :: PulsarChannel -> PulsarQueueInfo -> WSConnection -> IO ()
+    sendNotifications chan queueInfo wsConn = do
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
             let msg = case eventData of
@@ -229,12 +302,31 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                void $ ackMessage chan (read ackData.deliveryTag) ackData.multiple
+                -- TODO: ACKing for all queues seems to be a bit too rough...
+                P.runPulsar (P.connect P.defaultConnectData) $ for_ queueInfo.queueNames $ \qn -> do
+                  let topic =
+                        P.Topic
+                          { P.type' = P.Persistent,
+                            P.tenant = "wire",
+                            P.namespace = "default",
+                            P.name = P.TopicName qn
+                          }
+                      subscription = P.Subscription P.Shared "cannon-websocket-ack"
+                  P.Consumer {..} <- P.newConsumer topic subscription
+                  ack (decodeMsgId ackData.deliveryTag)
+
+      -- void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
       --  - exceptions on either side do not cause a deadlock
       concurrently_ consumeRabbitMq consumeWebsocket
+
+    decodeMsgId :: String -> P.MsgId
+    decodeMsgId = (either error P.MsgId) . PL.decodeMessage . TE.encodeUtf8 . T.pack
+
+    encodeMsgId :: P.MsgId -> String
+    encodeMsgId (P.MsgId msgId) = (T.unpack . extractBase64 . encodeBase64 . PL.encodeMessage) msgId
 
     logParseError :: String -> IO ()
     logParseError err =

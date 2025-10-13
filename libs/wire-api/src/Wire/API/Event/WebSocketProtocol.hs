@@ -7,13 +7,12 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Schema
-import Data.Word
 import Imports
 import Wire.API.Internal.Notification
 import Wire.Arbitrary
 
 data AckData = AckData
-  { deliveryTag :: Word64,
+  { deliveryTag :: String,
     -- | Acknowledge all deliveryTags <= 'deliveryTag', see RabbitMQ
     -- documenation:
     -- https://www.rabbitmq.com/docs/confirms#consumer-acks-multiple-parameter
@@ -32,7 +31,8 @@ instance ToSchema AckData where
 
 data EventData = EventData
   { event :: QueuedNotification,
-    deliveryTag :: Word64
+    -- | `String` to accomodate both, Pulsar and RabbitMQ.
+    deliveryTag :: String
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform EventData)
@@ -47,7 +47,8 @@ instance ToSchema EventData where
 
 data SynchronizationData = SynchronizationData
   { markerId :: Text,
-    deliveryTag :: Word64
+    -- | `String` to accomodate both, Pulsar and RabbitMQ.
+    deliveryTag :: String
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform SynchronizationData)
