@@ -29,6 +29,19 @@ data:
       tlsCa: /etc/wire/spar/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    elasticsearch:
+      url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
+      index: {{ .elasticsearch.index }}
+      insecureSkipVerifyTls: {{ .elasticsearch.insecureSkipVerifyTls }}
+      {{- if $.Values.secrets.elasticsearch }}
+      credentials: /etc/wire/spar/secrets/elasticsearch-credentials.yaml
+      {{- end }}
+      {{- if .elasticsearch.tlsCa }}
+      caCert: /etc/wire/spar/elasticsearch/ca.pem
+      {{- else if .elasticsearch.tlsCaSecretRef }}
+      caCert: /etc/wire/spar/elasticsearch/{{- .elasticsearch.tlsCaSecretRef.key }}
+      {{- end }}
+
     maxttlAuthreq: {{ .maxttlAuthreq }}
     maxttlAuthresp: {{ .maxttlAuthresp }}
 

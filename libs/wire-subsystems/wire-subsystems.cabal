@@ -79,7 +79,9 @@ common common-all
     , aeson-pretty
     , amazonka
     , amazonka-core
+    , amazonka-dynamodb
     , amazonka-ses
+    , amazonka-sqs
     , amqp
     , async
     , attoparsec
@@ -115,6 +117,7 @@ common common-all
     , hasql-th
     , hasql-transaction
     , hex
+    , hscim
     , HsOpenSSL
     , hspec
     , html-entities
@@ -129,8 +132,10 @@ common common-all
     , memory
     , mime
     , mime-mail
+    , mmorph
     , network
     , network-conduit-tls
+    , network-uri
     , polysemy
     , polysemy-conc
     , polysemy-plugin
@@ -138,6 +143,7 @@ common common-all
     , polysemy-wire-zoo
     , profunctors
     , prometheus-client
+    , proto-lens
     , QuickCheck
     , raw-strings-qq
     , resource-pool
@@ -161,6 +167,7 @@ common common-all
     , token-bucket
     , transformers
     , types-common
+    , types-common-journal
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -193,10 +200,15 @@ library
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AuthenticationSubsystem.ZAuth
     Wire.AWS
+    Wire.AWSSubsystem
+    Wire.AWSSubsystem.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.ConnectionStore
+    Wire.ConnectionStore.Cassandra
+    Wire.ConnectionStore.Types
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
@@ -209,11 +221,15 @@ library
     Wire.ConversationStore.Postgres
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
+    Wire.DeleteQueue.Interpreter
+    Wire.DeleteQueue.Listen
+    Wire.DeleteQueue.Types
     Wire.DomainRegistrationStore
     Wire.DomainRegistrationStore.Cassandra
     Wire.DomainVerificationChallengeStore
     Wire.DomainVerificationChallengeStore.Cassandra
     Wire.EmailSending
+    Wire.EmailSending.Core
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
     Wire.EmailSubsystem
@@ -225,6 +241,9 @@ library
     Wire.EnterpriseLoginSubsystem.Null
     Wire.Error
     Wire.Events
+    Wire.Events.Interpreter
+    Wire.Events.Journal
+    Wire.Events.Notifications
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
@@ -263,10 +282,14 @@ library
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
+    Wire.ScimSubsystem
+    Wire.ScimSubsystem.Interpreter
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SparAPIAccess
     Wire.SparAPIAccess.Rpc
+    Wire.StompSubsystem
+    Wire.StompSubsystem.Stomp
     Wire.StoredConversation
     Wire.StoredUser
     Wire.TeamCollaboratorsStore
@@ -357,6 +380,7 @@ library
     , memory
     , mime
     , mime-mail
+    , mmorph
     , network
     , network-conduit-tls
     , polysemy
@@ -453,6 +477,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec

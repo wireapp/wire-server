@@ -19,14 +19,10 @@
 
 -- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
-  ( -- * Pushing & Journaling Events
-    sendUserEvent,
+  ( -- * Events
     onConnectionEvent,
     onPropertyEvent,
     onClientEvent,
-
-    -- * user subsystem interpretation for user events
-    runEvents,
 
     -- * Conversations
     createConnectConv,
@@ -53,16 +49,10 @@ import Bilge.RPC
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
-import Brig.Data.Connection
-import Brig.Data.Connection qualified as Data
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.ConnectionStore qualified as E
-import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
-import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Control.Error (ExceptT, runExceptT)
-import Control.Lens (view, (?~), (^.), (^?))
+import Control.Error (ExceptT)
+import Control.Lens ((^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
@@ -73,71 +63,31 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Proxy
 import Data.Qualified
-import Data.Range
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
-import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message hiding ((.=))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
-import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
-import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
-import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserEvent
-import Wire.Events
+import Wire.Events.Interpreter (notify, toApsData)
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
-import Wire.Sem.Now (Now)
-import Wire.Sem.Now qualified as Now
-import Wire.Sem.Paging qualified as P
-import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
-
-sendUserEvent ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  UserEvent ->
-  Sem r ()
-sendUserEvent orig conn e =
-  dispatchNotifications orig conn e
-    *> embed (journalEvent orig e)
-
-runEvents ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  InterpreterFor Events r
-runEvents = interpret \case
-  -- FUTUREWORK(mangoiv): should this be in another module?
-  GenerateUserEvent uid mconnid event -> sendUserEvent uid mconnid event
-  GeneratePropertyEvent uid connid event -> onPropertyEvent uid connid event
 
 onConnectionEvent ::
   (Member NotificationSubsystem r) =>
@@ -194,246 +144,6 @@ onClientEvent orig conn e = do
           apsData = toApsData event
         }
     ]
-
-journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
-journalEvent orig e = case e of
-  UserActivated acc ->
-    Journal.userActivate acc
-  UserUpdated UserUpdatedData {eupName = Just name} ->
-    Journal.userUpdate orig Nothing Nothing (Just name)
-  UserUpdated UserUpdatedData {eupLocale = Just loc} ->
-    Journal.userUpdate orig Nothing (Just loc) Nothing
-  UserIdentityUpdated (UserIdentityUpdatedData _ (Just em) _) ->
-    Journal.userUpdate orig (Just em) Nothing Nothing
-  UserIdentityRemoved (UserIdentityRemovedData _ (Just em) _) ->
-    Journal.userEmailRemove orig em
-  UserDeleted {} ->
-    Journal.userDelete orig
-  _ ->
-    pure ()
-
--------------------------------------------------------------------------------
--- Low-Level Event Notification
-
--- | Notify the origin user's contact list (first-level contacts),
--- as well as his other clients about a change to his user account
--- or profile.
-dispatchNotifications ::
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  UserEvent ->
-  Sem r ()
-dispatchNotifications orig conn e = case e of
-  UserCreated {} -> pure ()
-  UserSuspended {} -> pure ()
-  UserResumed {} -> pure ()
-  LegalHoldClientRequested {} -> notifyContacts event orig V2.RouteAny conn
-  UserLegalHoldDisabled {} -> notifyContacts event orig V2.RouteAny conn
-  UserLegalHoldEnabled {} -> notifyContacts event orig V2.RouteAny conn
-  UserUpdated UserUpdatedData {..}
-    -- This relies on the fact that we never change the locale AND something else.
-    | isJust eupLocale -> notifySelf event orig V2.RouteDirect conn
-    | otherwise -> notifyContacts event orig V2.RouteDirect conn
-  UserActivated {} -> notifySelf event orig V2.RouteAny conn
-  UserIdentityUpdated {} -> notifySelf event orig V2.RouteDirect conn
-  UserIdentityRemoved {} -> notifySelf event orig V2.RouteDirect conn
-  UserDeleted {} -> do
-    -- n.b. Synchronously fetch the contact list on the current thread.
-    -- If done asynchronously, the connections may already have been deleted.
-    notifyUserDeletionLocals orig conn event
-    notifyUserDeletionRemotes orig
-  where
-    event = UserEvent e
-
-notifyUserDeletionLocals ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  Event ->
-  Sem r ()
-notifyUserDeletionLocals deleted conn event = do
-  luid <- qualifyLocal' deleted
-  -- first we send a notification to the deleted user's devices
-  notify event deleted V2.RouteDirect conn (pure (deleted :| []))
-  -- then to all their connections
-  connectionPages Nothing luid (toRange (Proxy @500))
-  where
-    handler :: [UserConnection] -> Sem r ()
-    handler connections = do
-      -- sent event to connections that are accepted
-      case qUnqualified . ucTo <$> filter ((==) Accepted . ucStatus) connections of
-        x : xs -> notify event deleted V2.RouteDirect conn (pure (x :| xs))
-        [] -> pure ()
-      -- also send a connection cancelled event to connections that are pending
-      d <- tDomain <$> input
-      forM_
-        (filter ((==) Sent . ucStatus) connections)
-        ( \uc -> do
-            now <- toUTCTimeMillis <$> Now.get
-            -- because the connections are going to be removed from the database anyway when a user gets deleted
-            -- we don't need to save the updated connection state in the database
-            -- note that we switch from and to users so that the "other" user becomes the recipient of the event
-            let ucCancelled =
-                  UserConnection
-                    (qUnqualified (ucTo uc))
-                    (Qualified (ucFrom uc) d)
-                    Cancelled
-                    now
-                    (ucConvId uc)
-            let e = ConnectionUpdated ucCancelled Nothing
-            onConnectionEvent deleted conn e
-        )
-
-    connectionPages :: Maybe UserId -> Local UserId -> Range 1 500 Int32 -> Sem r ()
-    connectionPages mbStart user pageSize = do
-      page <- embed $ Data.lookupLocalConnections user mbStart pageSize
-      case resultList page of
-        [] -> pure ()
-        xs -> do
-          handler xs
-          when (Data.resultHasMore page) $
-            connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize
-
-notifyUserDeletionRemotes ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (ConnectionStore InternalPaging) r
-  ) =>
-  UserId ->
-  Sem r ()
-notifyUserDeletionRemotes deleted = do
-  luid <- qualifyLocal' deleted
-  P.withChunks (\mps -> E.remoteConnectedUsersPaginated luid mps maxBound) fanoutNotifications
-  where
-    fanoutNotifications :: [Remote UserConnection] -> Sem r ()
-    fanoutNotifications = mapM_ notifyBackend . bucketRemote
-
-    notifyBackend :: Remote [UserConnection] -> Sem r ()
-    notifyBackend ucs = do
-      case tUnqualified (checked <$> ucs) of
-        Nothing ->
-          -- The user IDs cannot be more than 1000, so we can assume the range
-          -- check will only fail because there are 0 User Ids.
-          pure ()
-        Just rangedUcs -> do
-          luidDeleted <- qualifyLocal' deleted
-          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs (mapRange (qUnqualified . ucTo) rangedUcs))
-          -- also sent connection cancelled events to the connections that are pending
-          let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
-          forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
-
-    sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
-    sendCancelledEvent luidDeleted ruc = do
-      embed (runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind)) >>= \case
-        -- should we abort the whole process if we fail to send the event to a remote backend?
-        Left e ->
-          Log.err $
-            field "error" (show e)
-              . msg (val "An error occurred while sending a connection cancelled event to a remote backend.")
-        Right _ -> pure ()
-
--- | (Asynchronously) notifies other users of events.
-notify ::
-  (Member NotificationSubsystem r) =>
-  Event ->
-  -- | Origin user, TODO: Delete
-  UserId ->
-  -- | Push routing strategy.
-  V2.Route ->
-  -- | Origin device connection, if any.
-  Maybe ConnId ->
-  -- | Users to notify.
-  Sem r (NonEmpty UserId) ->
-  Sem r ()
-notify event orig route conn recipients = do
-  rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
-  let push =
-        def
-          { origin = Just orig,
-            json = toJSONObject event,
-            recipients = toList rs,
-            conn,
-            route,
-            apsData = toApsData event
-          }
-  void $ pushNotificationAsync push
-
-notifySelf ::
-  (Member NotificationSubsystem r) =>
-  Event ->
-  -- | Origin user.
-  UserId ->
-  -- | Push routing strategy.
-  V2.Route ->
-  -- | Origin device connection, if any.
-  Maybe ConnId ->
-  Sem r ()
-notifySelf event orig route conn =
-  notify event orig route conn (pure (orig :| []))
-
-notifyContacts ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r
-  ) =>
-  Event ->
-  -- | Origin user.
-  UserId ->
-  -- | Push routing strategy.
-  V2.Route ->
-  -- | Origin device connection, if any.
-  Maybe ConnId ->
-  Sem r ()
-notifyContacts event orig route conn = do
-  notify event orig route conn $
-    (:|) orig <$> liftA2 (++) contacts teamContacts
-  where
-    contacts :: Sem r [UserId]
-    contacts = embed $ lookupContactList orig
-
-    teamContacts :: Sem r [UserId]
-    teamContacts = screenMemberList <$> getTeamContacts orig
-    -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
-    --
-    screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
-    screenMemberList (Just mems)
-      | mems ^. Team.teamMemberListType == Team.ListComplete =
-          view Team.userId <$> mems ^. Team.teamMembers
-    screenMemberList _ = []
-
-toApsData :: Event -> Maybe V2.ApsData
-toApsData (ConnectionEvent (ConnectionUpdated uc name)) =
-  case (ucStatus uc, name) of
-    (MissingLegalholdConsent, _) -> Nothing
-    (Pending, n) -> apsConnRequest <$> n
-    (Accepted, n) -> apsConnAccept <$> n
-    (Blocked, _) -> Nothing
-    (Ignored, _) -> Nothing
-    (Sent, _) -> Nothing
-    (Cancelled, _) -> Nothing
-  where
-    apsConnRequest n =
-      V2.apsData (V2.ApsLocKey "push.notification.connection.request") [fromName n]
-        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
-    apsConnAccept n =
-      V2.apsData (V2.ApsLocKey "push.notification.connection.accepted") [fromName n]
-        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
-toApsData _ = Nothing
 
 -------------------------------------------------------------------------------
 -- Conversation Management
@@ -627,26 +337,6 @@ rmClient u c = do
 
 -------------------------------------------------------------------------------
 -- Team Management
-
--- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
---
--- Calls 'Galley.API.getBindingTeamMembersH'.
-getTeamContacts ::
-  ( Member TinyLog r,
-    Member (Embed HttpClientIO) r
-  ) =>
-  UserId ->
-  Sem r (Maybe Team.TeamMemberList)
-getTeamContacts u = do
-  Log.debug $ remote "galley" . msg (val "Get team contacts")
-  rs <- embed $ galleyRequest GET req
-  embed $ case Bilge.statusCode rs of
-    200 -> Just <$> decodeBody "galley" rs
-    _ -> pure Nothing
-  where
-    req =
-      paths ["i", "users", toByteString' u, "team", "members"]
-        . expect [status200, status404]
 
 guardLegalhold ::
   LegalholdProtectee ->

@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,22 +16,15 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.ConnectionStore where
+module Wire.StompSubsystem where
 
-import Data.Id
-import Data.Qualified (Local, Remote)
+import Data.Aeson (FromJSON, ToJSON)
 import Imports
-import Polysemy
-import Wire.API.Connection (UserConnection)
-import Wire.Sem.Paging (Page, PagingBounds, PagingState)
+import Polysemy (makeSem)
 
-data ConnectionStore p m a where
-  RemoteConnectedUsersPaginated ::
-    Local UserId ->
-    Maybe (PagingState p (Remote UserConnection)) ->
-    PagingBounds p (Remote UserConnection) ->
-    ConnectionStore p m (Page p (Remote UserConnection))
+data StompSubsystem m r where
+  Enqueue :: (ToJSON a) => Text -> Text -> a -> StompSubsystem m ()
+  Listen :: (FromJSON a, Show a) => Text -> Text -> (a -> m ()) -> StompSubsystem m ()
 
-makeSem ''ConnectionStore
+makeSem ''StompSubsystem

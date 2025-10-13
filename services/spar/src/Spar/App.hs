@@ -38,6 +38,7 @@ where
 
 import Bilge
 import qualified Cassandra as Cas
+import Cassandra.Options (Endpoint)
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Data.Aeson as Aeson (encode, object, (.=))
@@ -49,13 +50,14 @@ import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Qualified
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Encoding as Text
-import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
+import qualified Hasql.Pool as Hasql
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -95,15 +97,28 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
+import Util.Options (PasswordHashingOptions)
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.Routes.Version
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import qualified Wire.AWSSubsystem.AWS as AWSI
+import Wire.AuthenticationSubsystem.Config
+import Wire.DeleteQueue.Types (QueueEnv)
+import Wire.EmailSending.SMTP (SMTP)
+import Wire.EmailSubsystem.Template (Localised, TeamTemplates, TemplateBranding, UserTemplates)
+import Wire.Error
+import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig)
+import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreConfig)
+import Wire.RateLimit.Interpreter (RateLimitEnv)
+import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
+import Wire.UserSubsystem.UserSubsystemConfig (UserSubsystemConfig)
 
 throwSparSem :: (Member (Error SparError) r) => SparCustomError -> Sem r a
 throwSparSem = throw . SAML.CustomError
@@ -115,7 +130,25 @@ data Env = Env
     sparCtxHttpManager :: Bilge.Manager,
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
-    sparCtxRequestId :: RequestId
+    sparCtxHttpGalleyEndpoint :: Endpoint,
+    sparCtxHttpGundeckEndpoint :: Endpoint,
+    disabledVersions :: Set Version,
+    sparCtxRequestId :: RequestId,
+    sparCtxLocalUnit :: Local (),
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
+    sparCtxAuthenticationSubsystemConfig :: AuthenticationSubsystemConfig,
+    sparCtxPasswordHashingOptions :: PasswordHashingOptions,
+    sparCtxUserTemplates :: Localised UserTemplates,
+    sparCtxTeamTemplates :: Localised TeamTemplates,
+    sparCtxTemplateBranding :: TemplateBranding,
+    sparCtxRateLimit :: RateLimitEnv,
+    sparCtxFederationAPIAccessConfig :: FederationAPIAccessConfig,
+    sparCtxIndexedUserStoreConfig :: IndexedUserStoreConfig,
+    sparCtxUserSubsystemConfig :: UserSubsystemConfig,
+    sparCtxHasqlPool :: Hasql.Pool,
+    sparCtxSmtp :: Maybe SMTP,
+    sparCtxAws :: AWSI.Env,
+    sparCtxInternalEvents :: QueueEnv
   }
 
 -- | Get a user by UserRef, no matter what the team.
@@ -350,19 +383,16 @@ catchVerdictErrors = (`catch` hndlr)
   where
     hndlr :: SparError -> Sem r VerdictHandlerResult
     hndlr err = do
-      waiErr <- renderSparErrorWithLogging err
-      pure $ case waiErr of
-        Right (werr :: Wai.Error) ->
+      serr <- renderSparErrorWithLogging err
+      pure $ case serr of
+        StdError (werr :: Wai.Error) ->
           VerifyHandlerError
             (LText.toStrict $ Wai.label werr)
             (LText.toStrict $ Wai.message werr)
-        Left (serr :: ServerError) ->
+        RichError (werr :: Wai.Error) _bdy _hdrs ->
           VerifyHandlerError
-            "unknown-error"
-            ( Text.pack (errReasonPhrase serr)
-                <> " "
-                <> (Text.decodeUtf8With lenientDecode . toStrict . errBody $ serr)
-            )
+            (LText.toStrict $ Wai.label werr)
+            (LText.toStrict $ Wai.message werr) -- TODO: do we want to keep the entire RichError for logging?
 
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
@@ -575,12 +605,11 @@ errorPage err mpInputs =
       errHeaders = [("Content-Type", "text/html")]
     }
   where
-    werr = either forceWai id $ renderSparError err
-    forceWai ServerError {..} =
-      Wai.mkError
-        (Http.Status errHTTPCode "")
-        (LText.pack errReasonPhrase)
-        (LText.decodeUtf8With lenientDecode errBody)
+    werr =
+      renderSparError err & \case
+        StdError e -> e
+        RichError e _ _ -> e
+
     errbody :: [LText]
     errbody =
       [ "<head>",
@@ -627,8 +656,12 @@ sparToServerErrorWithLogging err = do
   Reporter.report Nothing (servantToWaiError errServant)
   pure errServant
 
-renderSparErrorWithLogging :: (Member Reporter r) => SparError -> Sem r (Either ServerError Wai.Error)
-renderSparErrorWithLogging err = do
-  let errPossiblyWai = renderSparError err
-  Reporter.report Nothing (either servantToWaiError id $ errPossiblyWai)
-  pure errPossiblyWai
+renderSparErrorWithLogging :: (Member Reporter r) => SparError -> Sem r HttpError
+renderSparErrorWithLogging (renderSparError -> err) = do
+  Reporter.report
+    Nothing
+    ( err & \case
+        StdError e -> e
+        RichError e _ _ -> e
+    )
+  pure err

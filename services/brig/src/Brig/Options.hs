@@ -24,7 +24,6 @@
 
 module Brig.Options where
 
-import Brig.Queue.Types (QueueOpts (..))
 import Control.Applicative
 import Control.Lens hiding (Level, element, enum)
 import Data.Aeson
@@ -55,10 +54,13 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.AWSSubsystem.AWS qualified as AWS
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit
+import Wire.DeleteQueue.Types (InternalEventsOpts (..))
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 import Wire.RateLimit.Interpreter
+import Wire.StompSubsystem.Stomp (StompOpts (..))
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
@@ -92,32 +94,6 @@ data ElasticSearchOpts = ElasticSearchOpts
 
 instance FromJSON ElasticSearchOpts
 
-data AWSOpts = AWSOpts
-  { -- | Event journal queue for user events
-    --   (e.g. user deletion)
-    userJournalQueue :: !(Maybe Text),
-    -- | Dynamo table for storing prekey data
-    prekeyTable :: !Text,
-    -- | AWS SQS endpoint
-    sqsEndpoint :: !AWSEndpoint,
-    -- | DynamoDB endpoint
-    dynamoDBEndpoint :: !(Maybe AWSEndpoint)
-  }
-  deriving (Show, Generic)
-
-instance FromJSON AWSOpts
-
-data EmailAWSOpts = EmailAWSOpts
-  { -- | Event feedback queue for SES
-    --   (e.g. for email bounces and complaints)
-    sesQueue :: !Text,
-    -- | AWS SES endpoint
-    sesEndpoint :: !AWSEndpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailAWSOpts
-
 data EmailSMTPCredentials = EmailSMTPCredentials
   { -- | Username to authenticate
     --   against the SMTP server
@@ -141,22 +117,6 @@ data EmailSMTPOpts = EmailSMTPOpts
   deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
-
-data StompOpts = StompOpts
-  { host :: !Text,
-    port :: !Int,
-    tls :: !Bool
-  }
-  deriving (Show, Generic)
-
-data InternalEventsOpts = InternalEventsOpts
-  { internalEventsQueue :: !QueueOpts
-  }
-  deriving (Show)
-
-instance FromJSON InternalEventsOpts where
-  parseJSON = withObject "InternalEventsOpts" $ \o ->
-    InternalEventsOpts <$> parseJSON (Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
   { -- | Email, SMS, ... template directory
@@ -239,7 +199,7 @@ data TeamOpts = TeamOpts
 instance FromJSON TeamOpts
 
 data EmailOpts
-  = EmailAWS EmailAWSOpts
+  = EmailAWS AWS.EmailAWSOpts
   | EmailSMTP EmailSMTPOpts
   deriving (Show, Generic)
 
@@ -402,7 +362,7 @@ data Opts = Opts
     -- | RabbitMQ settings, required when federation is enabled.
     rabbitmq :: !(Maybe AmqpEndpoint),
     -- | AWS settings
-    aws :: !AWSOpts,
+    aws :: !AWS.AWSOpts,
     -- | Enable Random Prekey Strategy
     randomPrekeys :: !(Maybe Bool),
     -- | STOMP broker settings
@@ -844,14 +804,6 @@ instance FromJSON Opts where
               "settings" -> "optSettings"
               "stompOptions" -> "stomp"
               other -> other
-          }
-
-instance FromJSON StompOpts where
-  parseJSON = genericParseJSON customOptions
-    where
-      customOptions =
-        defaultOptions
-          { fieldLabelModifier = \a -> "stom" <> capitalise a
           }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Opts

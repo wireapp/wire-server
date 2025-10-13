@@ -72,8 +72,6 @@ instance Cql SAML.NameID where
 
 deriving instance Cql SAML.Issuer
 
-deriving instance Cql SAML.IdPId
-
 deriving instance Cql (SAML.ID SAML.AuthnRequest)
 
 type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI)

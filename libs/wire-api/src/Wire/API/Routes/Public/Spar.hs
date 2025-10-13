@@ -34,6 +34,7 @@ import Servant.Server.Experimental.Auth
 import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
+import Web.Scim.Class.Group as Scim.Group
 import Web.Scim.Class.User as Scim.User
 import Wire.API.Deprecated (Deprecated)
 import Wire.API.Error
@@ -260,7 +261,12 @@ data ScimSite tag route = ScimSite
       route
         :- Header "Authorization" (Scim.Auth.AuthData tag)
           :> "Users"
-          :> ToServantApi (Scim.User.UserSite tag)
+          :> ToServantApi (Scim.User.UserSite tag),
+    groups ::
+      route
+        :- Header "Authorization" (Scim.Auth.AuthData tag)
+          :> "Groups"
+          :> ToServantApi (Scim.Group.GroupSite tag)
   }
   deriving (Generic)
 

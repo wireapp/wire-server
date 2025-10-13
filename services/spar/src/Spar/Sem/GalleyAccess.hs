@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.GalleyAccess
+module Spar.Sem.GalleyAccess -- TODO: use GalleyAPIAccess from wire-subsystems instead.
   ( GalleyAccess (..),
     getTeamMembers,
     getTeamMember,

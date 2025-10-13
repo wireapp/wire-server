@@ -1,3 +1,8 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,34 +21,38 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Working with STOMP queues (targeting ActiveMQ specifically).
-module Brig.Queue.Stomp
+module Wire.StompSubsystem.Stomp
   ( Env (..),
+    Stomp (..),
     mkEnv,
     Broker (..),
     Credentials (..),
-    enqueue,
-    listen,
+    StompOpts (..),
+    enqueueInternal,
+    listenInternal,
+    runStompSubsystem,
   )
 where
 
-import BasePrelude hiding (Handler, throwIO)
-import Brig.Options qualified as Opts
 import Codec.MIME.Type qualified as MIME
-import Control.Monad.Catch (Handler (..), MonadMask)
+import Control.Lens hiding ((.=))
+import Control.Monad.Catch (Handler (..), MonadCatch, MonadMask, try)
+import Control.Monad.Trans.Resource
 import Control.Retry hiding (retryPolicy)
 import Data.Aeson as Aeson
 import Data.ByteString.Lazy qualified as BL
+import Data.Char qualified as Char
 import Data.Conduit.Network.TLS
 import Data.Text
 import Data.Text.Encoding
+import Imports
 import Network.Mom.Stompl.Client.Queue hiding (try)
-import System.Logger.Class as Log
-import UnliftIO (MonadUnliftIO, throwIO, withRunInIO)
-
-data Env = Env
-  { -- | STOMP broker that we're using
-    broker :: Broker
-  }
+import Polysemy
+import Polysemy.Final
+import System.Logger qualified as Logger
+import System.Logger.Class as Log hiding (settings)
+import UnliftIO (throwIO, timeout)
+import Wire.StompSubsystem
 
 data Broker = Broker
   { -- | Broker URL
@@ -65,16 +74,63 @@ data Credentials = Credentials
 
 instance FromJSON Credentials
 
+data StompOpts = StompOpts
+  { host :: !Text,
+    port :: !Int,
+    tls :: !Bool
+  }
+  deriving (Show, Generic)
+
+instance FromJSON StompOpts where
+  parseJSON = genericParseJSON customOptions
+    where
+      customOptions =
+        defaultOptions
+          { fieldLabelModifier = \a -> "stom" <> capitalise a
+          }
+      capitalise :: String -> String
+      capitalise [] = []
+      capitalise (x : xs) = Char.toUpper x : xs
+
+data Env = Env
+  { _logger :: !Logger.Logger,
+    _broker :: !Broker
+  }
+
+makeLenses ''Env
+
+newtype Stomp a = Stomp
+  { unStomp :: ReaderT Env (ResourceT IO) a
+  }
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadReader Env,
+      MonadResource,
+      MonadUnliftIO
+    )
+
+instance MonadLogger Stomp where
+  log l m = view logger >>= \g -> Logger.log g l m
+
 -- | Construct an 'Env' with some default settings.
 mkEnv ::
+  -- | Logger
+  Logger.Logger ->
   -- | Options that can be customized
-  Opts.StompOpts ->
+  StompOpts ->
   -- | Credentials
   Credentials ->
   Env
-mkEnv o cred =
+mkEnv lgr o cred =
   Env
-    { broker =
+    { _logger = Logger.clone (Just "stomp") lgr,
+      _broker =
         Broker
           { host = o.host,
             port = o.port,
@@ -87,17 +143,18 @@ mkEnv o cred =
 --
 -- In case of failure will try five more times. The timeout for each attempt
 -- is 500ms.
-enqueue :: (ToJSON a, MonadIO m) => Broker -> Text -> a -> m ()
-enqueue b q m =
-  retrying retryPolicy retryPredicate (const enqueueAction) >>= either throwIO pure
+enqueueInternal :: (ToJSON a) => Text -> a -> Stomp ()
+enqueueInternal q m = do
+  b <- view broker
+  retrying (retryPolicy b) (retryPredicate b) (const $ enqueueAction b) >>= either throwIO pure
   where
-    retryPredicate _ res = pure (isLeft res)
-    retryPolicy = limitRetries 5 <> exponentialBackoff 50000
-    enqueueAction =
+    retryPredicate _ _ res = pure (isLeft res)
+    retryPolicy _ = limitRetries 5 <> exponentialBackoff 50000
+    enqueueAction broker' =
       liftIO $
-        try @StomplException $
+        (try :: IO () -> IO (Either StomplException ())) $
           stompTimeout "enqueue" 500000 $
-            withConnection' b $
+            withConnection' broker' $
               \conn ->
                 withWriter
                   conn
@@ -127,27 +184,25 @@ enqueue b q m =
 --
 -- In case of connection failure or an exception, will retry indefinitely.
 --
--- When 'listen' catches any kind of exception, it will reestablish the
+-- When 'listenInternal' catches any kind of exception, it will reestablish the
 -- connection and get a new message to process. Assuming that the broker is
 -- configured properly, after failing on the same message several times the
 -- message will go into the Dead Letter Queue where it can be analyzed
 -- manually.
---
--- FUTUREWORK: This probably deserves a Polysemy action
-listen ::
-  (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m) =>
-  Broker ->
+listenInternal ::
+  (FromJSON a) =>
   Text ->
-  (a -> m ()) ->
-  m ()
-listen b q callback =
-  recovering retryPolicy handlers (const listenAction)
+  (a -> IO ()) ->
+  Stomp ()
+listenInternal q callback = do
+  b <- view broker
+  recovering retryPolicy (handlers b) (const $ listenAction b)
   where
     retryPolicy = constantDelay 1000000
-    listenAction =
-      withRunInIO $ \runInIO ->
-        withConnection' b $ \conn ->
-          withReader
+    listenAction broker' =
+      withRunInIO $ \_ ->
+        withConnection' broker' $ \conn ->
+          Network.Mom.Stompl.Client.Queue.withReader
             conn
             (unpack q)
             (unpack q)
@@ -159,9 +214,9 @@ listen b q callback =
                 -- NB: 'readQ' can't timeout because it's just reading from
                 -- a chan (no network queries are being made)
                 m <- readQ r
-                runInIO $ callback (msgContent m)
+                callback (msgContent m)
                 stompTimeout "listen/ack" 1000000 $ ack conn m
-    handlers = skipAsyncExceptions ++ [logError]
+    handlers _ = skipAsyncExceptions ++ [logError]
     logError = const . Handler $ \(e :: SomeException) -> do
       Log.err $
         msg (val "Exception when listening to a STOMP queue")
@@ -197,11 +252,11 @@ jsonType = MIME.Type (MIME.Application "json") []
 -- | Set up a STOMP connection.
 withConnection' :: Broker -> (Con -> IO a) -> IO a
 withConnection' b =
-  withConnection (unpack (host b)) (port b) config []
+  withConnection (unpack b.host) b.port config []
   where
     config =
-      [OAuth (unpack (user cred)) (unpack (pass cred)) | Just cred <- [auth b]]
-        ++ [OTLS (tlsClientConfig (port b) (encodeUtf8 (host b))) | tls b]
+      [OAuth (unpack cred.user) (unpack cred.pass) | Just cred <- [b.auth]]
+        ++ [OTLS (tlsClientConfig b.port (encodeUtf8 b.host)) | b.tls]
         ++ [OTmo 1000]
 
 -- | Like 'timeout', but throws an 'AppException' instead of returning a
@@ -214,3 +269,18 @@ stompTimeout location t act =
       throwIO $
         AppException $
           location <> ": STOMP request took more than " <> show t <> "mcs and has timed out"
+
+-------------------------------------------------------------------------------
+-- Polysemy Interpreter
+
+runStompSubsystem ::
+  (Member (Final IO) r) =>
+  Env ->
+  Sem (StompSubsystem : r) a ->
+  Sem r a
+runStompSubsystem env = interpretFinal $ \case
+  Enqueue _host queue message -> liftS @IO $ runResourceT $ runReaderT (enqueueInternal queue message).unStomp env
+  Listen _host queue callback -> do
+    callbackS <- bindS callback
+    s <- getInitialStateS
+    liftS @IO $ runResourceT $ runReaderT ((listenInternal queue $ \message -> void $ callbackS (s $> message)).unStomp) env

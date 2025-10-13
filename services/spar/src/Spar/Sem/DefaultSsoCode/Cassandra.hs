@@ -30,6 +30,7 @@ import Polysemy
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Data.Instances ()
 import Spar.Sem.DefaultSsoCode
+import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 
 defaultSsoCodeToCassandra ::
   forall m r a.

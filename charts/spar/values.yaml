@@ -24,6 +24,21 @@ config:
 #   tlsCaSecretRef:
 #     name: <secret-name>
 #     key: <ca-attribute>
+
+  elasticsearch:
+    scheme: http
+    host: elasticsearch-client
+    port: 9200
+    index: directory_spar
+    insecureSkipVerifyTls: false
+#   To configure custom TLS CA, please provide one of these:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
+
   richInfoLimit: 5000
   maxScimTokens: 0
   logLevel: Info

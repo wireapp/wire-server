@@ -11,11 +11,17 @@ import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
+import Servant (ServerError)
 
 -- | Error thrown to the user
 data HttpError where
   StdError :: !Wai.Error -> HttpError
   RichError :: (ToJSON a) => !Wai.Error -> !a -> [Header] -> HttpError
+
+instance Eq HttpError where
+  StdError e == StdError e' = e == e'
+  -- RichErrors are always different because we don't know the types a, a' here
+  _ == _ = False
 
 instance Show HttpError where
   show (StdError werr) = "StdError (" <> show werr <> ")"
@@ -52,3 +58,9 @@ postgresUsageErrorToHttpError err = case err of
     StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
   ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
   AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+
+httpErrorToServerError :: HttpError -> ServerError
+httpErrorToServerError = undefined
+
+serverErrorToHttpError :: ServerError -> HttpError
+serverErrorToHttpError = undefined

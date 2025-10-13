@@ -24,12 +24,29 @@ galley:
   host: 127.0.0.1
   port: 8085
 
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
 cassandra:
   endpoint:
     host: 127.0.0.1
     port: 9042
   keyspace: spar_test
   filterNodesByDatacentre: datacenter1
+
+elasticsearch:
+  url: https://localhost:9200
+  index: directory_test_spar
+  credentials: test/resources/elasticsearch-credentials.yaml
+  caCert: test/resources/elasticsearch-ca.pem
+  insecureSkipVerifyTls: false
+
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  database: spar_test
+  user: postgres
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"
@@ -44,4 +61,76 @@ maxttlAuthresp: 7200 # seconds.  do not set this to 1h or less, as that is what 
 maxScimTokens: 8 # Token limit {#RefScimToken}
 richInfoLimit: 5000 # should be in sync with Brig
 
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+
+zauth:
+  privateKeys: test/resources/zauth/privkeys.txt
+  publicKeys: test/resources/zauth/pubkeys.txt
+  authSettings:
+    keyIndex: 1
+    userTokenTimeout: 120
+    sessionTokenTimeout: 20
+    accessTokenTimeout: 30
+    providerTokenTimeout: 60
+    legacySessionTokenTimeout: 120
+    legalHoldUserTokenTimeout: 120
+    legalHoldAccessTokenTimeout: 30
+
+emailSMS:
+  templateDir: ../../libs/wire-subsystems/templates
+  emailSender: backend-integration@wire.com
+  templateBranding:
+    brand: Wire
+    brandUrl: https://wire.com
+    brandLabelUrl: wire.com
+    brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+    brandService: Wire Service Provider
+    copyright: © WIRE SWISS GmbH
+    misuse: misuse@wire.com
+    legal: https://wire.com/legal/
+    forgot: https://wire.com/forgot/
+    support: https://support.wire.com/
+
+logLevel: Warn
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
+
+aws:
+  sesEndpoint: http://localhost:4579 # Amazon SES endpoint (fake-sqs/fake-ses)
+  sqsEndpoint: http://localhost:4568 # Amazon SQS endpoint (fake-sqs/fake-ses)
+  dynamoDBEndpoint: http://localhost:4567 # Amazon DynamoDB endpoint (fake-dynamodb)
+  prekeyTable: integration-brig-prekeys
+
+settings:
+  federationDomain: example.com
+  passwordHashingOptions:
+    algorithm: argon2id
+    memory: 32768
+    parallelism: 4
+    iterations: 3
+  passwordHashingRateLimit:
+    burstSize: 5
+    requestInterval: 1
+    ipAddrLimit:
+      burst: 5
+      inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+    userLimit:
+      burst: 5
+      inverseRate: 60000000 # 1 min, makes it 60 req/hour
+    internalLimit:
+      burst: 10
+      inverseRate: 0 # No rate limiting for internal use
+    ipv4CidrBlock: 32 # Only block individual IP addresses
+    ipv6CidrBlock: 64 # Block /64 range at a time.
+    ipAddressExceptions:
+      - 127.0.0.1/8
+    maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+  emailVisibility: "visible_if_on_team"
+  maxTeamSize: 500
+  activationTimeout: 86400 # 24 hours in seconds
+  userCookieRenewAge: 1209600 # 2 weeks in seconds
+  userCookieLimit: 32
+  userCookieThrottle:
+    stdDev: 3000
+    retryAfter: 86400

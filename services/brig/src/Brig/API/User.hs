@@ -75,7 +75,6 @@ import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
@@ -145,8 +144,6 @@ import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPass
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
-import Wire.Sem.Now (Now)
-import Wire.Sem.Paging.Cassandra
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -266,13 +263,8 @@ upgradePersonalToTeam ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member TinyLog r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member (ConnectionStore InternalPaging) r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member Events r
   ) =>
   Local UserId ->
   BindingNewTeamUser ->
@@ -295,7 +287,7 @@ upgradePersonalToTeam luid bNewTeam = do
 
     liftSem $ UserStore.updateUserTeam uid tid
     liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Intra.sendUserEvent uid Nothing (teamUpdated uid tid)
+    liftSem $ Events.generateUserEvent uid Nothing (teamUpdated uid tid)
     initAccountFeatureConfig uid
 
     -- send confirmation email

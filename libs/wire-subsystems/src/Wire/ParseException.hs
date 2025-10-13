@@ -6,6 +6,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 import Network.Wai.Utilities.JSONResponse
 import Wire.API.Error
+import Wire.Error
 
 -- | Failed to parse a response from another service.
 data ParseException = ParseException
@@ -23,3 +24,6 @@ instance Exception ParseException where
 
 instance APIError ParseException where
   toResponse _ = waiErrorToJSONResponse $ mkError status500 "internal-error" "Internal server error"
+
+parseExceptionToHttpError :: ParseException -> HttpError
+parseExceptionToHttpError (ParseException _ _) = StdError (mkError status500 "internal-error" mempty)

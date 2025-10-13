@@ -84,6 +84,7 @@ module Brig.App
 
     -- * Crutches that should be removed once Brig has been completely transitioned to Polysemy
     wrapClient,
+    wrapClientSem,
     wrapClientE,
     wrapClientM,
     wrapHttpClient,
@@ -102,14 +103,10 @@ where
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
-import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
-import Brig.DeleteQueue.Interpreter
 import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
-import Brig.Queue.Stomp qualified as Stomp
-import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (Localised, genTemplateBranding)
@@ -147,6 +144,7 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
+import Polysemy.Embed (runEmbedded)
 import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
@@ -162,13 +160,19 @@ import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
+import Wire.AWSSubsystem.AWS qualified as AWS
 import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
+import Wire.ConnectionStore
+import Wire.ConnectionStore.Cassandra
+import Wire.DeleteQueue.Types (InternalEventsOpts (..), QueueEnv (..), QueueOpts (..))
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
 import Wire.RateLimit.Interpreter
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
+import Wire.StompSubsystem.Stomp qualified as Stomp
 import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
@@ -258,11 +262,11 @@ newEnv opts = do
   eventsQueue :: QueueEnv <- case opts.internalEvents.internalEventsQueue of
     StompQueueOpts q -> do
       stomp :: Stomp.Env <- case (opts.stompOptions, opts.settings.stomp) of
-        (Just s, Just c) -> Stomp.mkEnv s <$> initCredentials c
+        (Just s, Just c) -> Stomp.mkEnv lgr s <$> initCredentials c
         (Just _, Nothing) -> error "STOMP is configured but 'setStomp' is not set"
         (Nothing, Just _) -> error "'setStomp' is present but STOMP is not configured"
         (Nothing, Nothing) -> error "stomp is selected for internal events, but not configured in 'setStomp', STOMP"
-      pure (StompQueueEnv (Stomp.broker stomp) q)
+      pure (StompQueueEnv stomp q)
     SqsQueueOpts q -> do
       let throttleMillis = fromMaybe Opt.defSqsThrottleMillis opts.settings.sqsThrottleMillis
       SqsQueueEnv aws throttleMillis <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
@@ -571,6 +575,17 @@ wrapClient :: ReaderT Env Cas.Client a -> AppT r a
 wrapClient m = do
   env <- ask
   runClient env.casClient $ runReaderT m env
+
+-- | New Polysemy-based wrapper that supports ConnectionStore effect
+wrapClientSem :: Sem '[ConnectionStore InternalPaging, Embed Cas.Client, Embed IO, Final IO] a -> AppT r a
+wrapClientSem action = do
+  env <- ask
+  liftIO
+    $ runFinal
+      . embedToFinal @IO
+      . runEmbedded @Cas.Client (runClient env.casClient)
+      . connectionStoreToCassandra
+    $ action
 
 wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
 wrapClientE = mapExceptT wrapClient

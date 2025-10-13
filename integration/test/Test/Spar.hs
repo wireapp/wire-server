@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns  -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns -Wno-ambiguous-fields #-}
 
 module Test.Spar where
 
@@ -361,6 +361,27 @@ testSparCreateScimTokenWithName = do
   token <- getScimTokens owner >>= getJSON 200 >>= (%. "tokens") >>= asList >>= assertOne
   assoc <- token %. "id"
   token %. "name" `shouldMatch` Just assoc
+
+----------------------------------------------------------------------
+-- scim group stuff
+
+testSparScimCreateUserGroup :: (HasCallStack) => App ()
+testSparScimCreateUserGroup = do
+  (owner, _, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
+  let scimUserGroup =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "ze groop",
+            "members"
+              .= [ object
+                     [ "typ" .= "User",
+                       "$ref" .= "https://...", -- TODO: we should probably validate these?  or just ignore them?
+                       "value" .= "ea2e4bf0-aa5e-11f0-96ad-e776a606779b"
+                     ]
+                 ]
+          ]
+  createScimUserGroup OwnDomain tok scimUserGroup >>= assertSuccess
 
 ----------------------------------------------------------------------
 -- saml stuff

@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -18,29 +21,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.AWS
-  ( -- * Monad
-    Env (..),
-    mkEnv,
-    Amazon,
-    amazonkaEnv,
-    execute,
-    sesQueue,
-    userJournalQueue,
-    prekeyTable,
-    Error (..),
-
-    -- * SQS
-    listen,
-    enqueueFIFO,
-    enqueueStandard,
-    getQueueUrl,
-
-    -- * AWS
-    exec,
-    execCatch,
-  )
-where
+module Wire.AWSSubsystem.AWS where
 
 import Amazonka (AWSRequest, AWSResponse)
 import Amazonka qualified as AWS
@@ -48,7 +29,6 @@ import Amazonka.DynamoDB qualified as DDB
 import Amazonka.SES qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
-import Brig.Options qualified as Opt
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -60,7 +40,8 @@ import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
 import Imports hiding (group)
 import Network.HTTP.Client (Manager)
-import Polysemy (runM)
+import Polysemy hiding (send)
+import Polysemy.Final
 import Polysemy.Input (runInputConst)
 import System.Logger qualified as Logger
 import System.Logger.Class
@@ -68,6 +49,7 @@ import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
 import Wire.AWS
+import Wire.AWSSubsystem (AWSSubsystem (..), AWSSubsystemError (..))
 
 data Env = Env
   { _logger :: !Logger,
@@ -82,7 +64,7 @@ makeLenses ''Env
 newtype Amazon a = Amazon
   { unAmazon :: ReaderT Env (ResourceT IO) a
   }
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -98,27 +80,53 @@ newtype Amazon a = Amazon
 instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
-mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
+data AWSOpts = AWSOpts
+  { -- | Event journal queue for user events
+    --   (e.g. user deletion)
+    userJournalQueue :: !(Maybe Text),
+    -- | Dynamo table for storing prekey data
+    prekeyTable :: !Text,
+    -- | AWS SQS endpoint
+    sqsEndpoint :: !AWSEndpoint,
+    -- | DynamoDB endpoint
+    dynamoDBEndpoint :: !(Maybe AWSEndpoint)
+  }
+  deriving (Show, Generic)
+  deriving anyclass (FromJSON)
+
+data EmailAWSOpts = EmailAWSOpts
+  { -- | Event feedback queue for SES
+    --   (e.g. for email bounces and complaints)
+    sesQueue :: !Text,
+    -- | AWS SES endpoint
+    sesEndpoint :: !AWSEndpoint
+  }
+  deriving (Show, Generic)
+  deriving anyclass (FromJSON)
+
+mkEnv :: Logger -> AWSOpts -> Maybe EmailAWSOpts -> Manager -> IO Env
 mkEnv lgr opts emailOpts mgr = do
   let g = Logger.clone (Just "aws.brig") lgr
-  let pk = Opt.prekeyTable opts
-  let sesEndpoint = mkEndpoint SES.defaultService . Opt.sesEndpoint <$> emailOpts
-  let dynamoEndpoint = mkEndpoint DDB.defaultService <$> Opt.dynamoDBEndpoint opts
+  let pk = opts.prekeyTable
+  let sesEndpoint = mkEndpoint SES.defaultService . (.sesEndpoint) <$> emailOpts
+  let dynamoEndpoint = mkEndpoint DDB.defaultService <$> opts.dynamoDBEndpoint
   e <-
     mkAwsEnv
       g
       sesEndpoint
       dynamoEndpoint
-      (mkEndpoint SQS.defaultService (Opt.sqsEndpoint opts))
-  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
-  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
+      (mkEndpoint SQS.defaultService opts.sqsEndpoint)
+  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . (.sesQueue)) emailOpts
+  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) opts.userJournalQueue
   pure (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g ses dyn sqs = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configureService sqs . maybe id AWS.configureService dyn . maybe id AWS.configureService ses
+          <&> AWS.configureService sqs
+            . maybe id AWS.configureService dyn
+            . maybe id AWS.configureService ses
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
@@ -139,30 +147,16 @@ mkEnv lgr opts emailOpts mgr = do
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
+---------------------------------------------------------
+
 getQueueUrl ::
   (MonadUnliftIO m, MonadCatch m) =>
   AWS.Env ->
   Text ->
   m Text
-getQueueUrl e q = view SQS.getQueueUrlResponse_queueUrl <$> exec e (SQS.newGetQueueUrl q)
+getQueueUrl e q = view SQS.getQueueUrlResponse_queueUrl <$> runAwsRequestThrow e (SQS.newGetQueueUrl q)
 
-execute :: (MonadIO m) => Env -> Amazon a -> m a
-execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
-
-data Error where
-  GeneralError :: (Show e, AWS.AsError e) => e -> Error
-  SESInvalidDomain :: Error
-
-deriving instance Show Error
-
-deriving instance Typeable Error
-
-instance Exception Error
-
---------------------------------------------------------------------------------
--- SQS
-
-listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO ()) -> Amazon ()
+listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO x) -> Amazon y
 listen throttleMillis url callback = forever . handleAny unexpectedError $ do
   msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> send receive
   void $ mapConcurrently onMessage msgs
@@ -178,7 +172,7 @@ listen throttleMillis url callback = forever . handleAny unexpectedError $ do
         Left e -> err $ msg (val "Failed to parse SQS event") . field "error" e . field "message" (show m)
         Right n -> do
           debug $ msg (val "Received SQS event") . field "event" (show n)
-          liftIO $ callback n
+          liftIO $ void $ callback n
           for_ (m ^. SQS.message_receiptHandle) (void . send . SQS.newDeleteMessage url)
     unexpectedError x = do
       err $ "error" .= show x ~~ msg (val "Failed to read or process message from SQS")
@@ -216,7 +210,7 @@ sendCatchAmazon req = do
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
 
-execCatch ::
+runAwsRequest ::
   ( AWSRequest a,
     Typeable a,
     MonadUnliftIO m,
@@ -226,12 +220,12 @@ execCatch ::
   AWS.Env ->
   a ->
   m (Either AWS.Error (AWSResponse a))
-execCatch e cmd =
+runAwsRequest e cmd =
   runResourceT $
     AWS.trying AWS._Error $
       AWS.send e cmd
 
-exec ::
+runAwsRequestThrow ::
   ( AWSRequest a,
     Typeable a,
     Typeable (AWSResponse a),
@@ -241,7 +235,32 @@ exec ::
   AWS.Env ->
   a ->
   m (AWSResponse a)
-exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) pure
+runAwsRequestThrow e cmd = liftIO (runAwsRequest e cmd) >>= either (throwM . GeneralError) pure
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000
+
+--------------------------------------------------------------------------------
+-- Polysemy Interpreter
+
+-- | Run AWSSubsystem effect by interpreting it into the Amazon monad.
+-- Uses Final IO strategy for the higher-order Listen effect.
+runAWSSubsystem ::
+  (Member (Final IO) r) =>
+  Env ->
+  Sem (AWSSubsystem : r) a ->
+  Sem r a
+runAWSSubsystem env = interpretFinal $ \case
+  RunAwsRequest x -> liftS @IO $ runAwsRequest env._amazonkaEnv x
+  RunAwsRequestThrow x -> liftS @IO $ runAwsRequestThrow env._amazonkaEnv x
+  GetQueueUrl queueName -> liftS @IO $ do
+    resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
+    pure $ view SQS.getQueueUrlResponse_queueUrl resp
+  EnqueueStandard url message -> liftS $ do
+    runResourceT $ runReaderT ((enqueueStandard url message).unAmazon) env
+  EnqueueFIFO url group dedupId message -> liftS $ do
+    runResourceT $ runReaderT ((enqueueFIFO url group dedupId message).unAmazon) env
+  Listen throttle url callback -> do
+    callbackS <- bindS callback
+    s <- getInitialStateS
+    pure $ runResourceT $ runReaderT ((listen throttle url $ callbackS . (s $>)).unAmazon) env

@@ -41,9 +41,11 @@
 , template-haskell
 , text
 , time
+, utf8-string
 , uuid
 , wai
 , wai-extra
+, wai-utilities
 , warp
 }:
 mkDerivation {
@@ -85,9 +87,11 @@ mkDerivation {
     template-haskell
     text
     time
+    utf8-string
     uuid
     wai
     wai-extra
+    wai-utilities
   ];
   executableHaskellDepends = [
     base
