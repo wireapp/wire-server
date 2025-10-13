@@ -15,7 +15,7 @@ module Wire.Postgres
     -- >       <> limit (10 :: Int)
     -- > in buildStatement q userDecoder
     --
-    -- Not that the encoders are specialised to the specific values passed when
+    -- Note that the encoders are specialised to the specific values passed when
     -- constructing the fragments, so they don't require further values. The
     -- resulting statement can be run with something like @runStatement ()@.
 
