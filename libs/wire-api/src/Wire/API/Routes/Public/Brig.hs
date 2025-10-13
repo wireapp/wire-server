@@ -295,7 +295,7 @@ type UserAPI =
                :> "users"
                :> CaptureUserId "uid"
                :> "searchable"
-               :> ReqBody '[JSON] Bool
+               :> ReqBody '[JSON] SetSearchable
                :> Post '[JSON] ()
            )
 

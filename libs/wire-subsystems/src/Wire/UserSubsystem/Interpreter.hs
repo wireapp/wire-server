@@ -1142,7 +1142,7 @@ setUserSearchableImpl ::
   ) =>
   Local UserId ->
   UserId ->
-  Bool ->
+  SetSearchable ->
   Sem r ()
 setUserSearchableImpl luid uid searchable = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid

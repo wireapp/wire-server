@@ -863,7 +863,7 @@ setUserSearchableH ::
   (Member UserSubsystem r) =>
   Local UserId ->
   UserId ->
-  Bool ->
+  Public.SetSearchable ->
   Handler r ()
 setUserSearchableH zusr uid searchable = lift $ liftSem $ User.setUserSearchable zusr uid searchable
 

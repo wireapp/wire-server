@@ -1,6 +1,8 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,6 +32,7 @@ module Wire.API.User.Search
     FederatedUserSearchPolicy (..),
     PagingState (..),
     EmailVerificationFilter (..),
+    SetSearchable (..),
   )
 where
 
@@ -372,3 +375,8 @@ instance S.ToParamSchema EmailVerificationFilter where
     mempty
       & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ ["unverified", "verified"]
+
+data SetSearchable = SetSearchable
+  { setSearchable :: Bool
+  } deriving (Generic)
+    deriving anyclass (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema)

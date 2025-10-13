@@ -14,6 +14,7 @@ import Polysemy.Error
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.User hiding (DeleteUser)
+import Wire.API.User.Search (SetSearchable(SetSearchable))
 import Wire.API.User.RichInfo
 import Wire.StoredUser
 import Wire.UserStore
@@ -236,8 +237,8 @@ getRichInfoImpl uid =
 deleteEmailImpl :: UserId -> Client ()
 deleteEmailImpl u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
-setUserSearchableImpl :: UserId -> Bool -> Client ()
-setUserSearchableImpl uid searchable = retry x5 $ write q (params LocalQuorum (searchable, uid))
+setUserSearchableImpl :: UserId -> SetSearchable -> Client ()
+setUserSearchableImpl uid (SetSearchable searchable) = retry x5 $ write q (params LocalQuorum (searchable, uid))
   where
     q :: PrepQuery W (Bool, UserId) ()
     q = "UPDATE user SET searchable = ? WHERE id = ?"
