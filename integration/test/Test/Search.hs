@@ -427,19 +427,16 @@ testUserSearchable = do
 
   -- Check for handle being available with HTTP HEAD still shows that the handle used by non-searchable users is not available
   u3handle <- API.randomHandle
-  bindResponse (BrigP.putHandle u3 u3handle) assertSuccess
-  baseRequest u2 Brig Versioned (joinHttpPath ["handles", u3handle]) >>= \req ->
-    submit "HEAD" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200 -- (200 means "handle is taken", 404 would be "not found")
+  BrigP.putHandle u3 u3handle `bindResponse` assertSuccess
+  BrigP.checkHandle u2 u3handle `bindResponse` \resp -> resp.status `shouldMatchInt` 200 -- (200 means "handle is taken", 404 would be "not found")
 
   -- Handle for POST /handles still works for non-searchable users
   u2handle <- API.randomHandle
-  bindResponse (BrigP.putHandle u2 u2handle) assertSuccess
-  baseRequest u1 Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= [u3handle, u2handle]] >>= \req ->
-    submit "POST" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      freeHandles <- resp.json & asList
-      assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
+  BrigP.putHandle u2 u2handle `bindResponse` assertSuccess
+  BrigP.checkHandles u1 [u3handle, u2handle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList
+    assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
 
   -- Regular user can't find non-searchable team member by exact handle.
   withFoundDocs u1 u3handle $ \docs -> do
@@ -447,32 +444,28 @@ testUserSearchable = do
     assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
 
   -- /teams/:tid/members gets all members, both searchable and non-searchable
-  baseRequest u1 Galley Versioned (joinHttpPath ["teams", tid, "members"]) >>= \req ->
-    submit "GET" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "members" >>= asList
-      foundUids <- mapM (\m -> m %. "user" & asString) docs
-      assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u2id, u3id]
+  getTeamMembers u1 tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "members" >>= asList
+    foundUids <- mapM (\m -> m %. "user" & asString) docs
+    assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u2id, u3id]
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
-  baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) <&> addQueryParams [("searchable", "false")] >>= \req ->
-    submit "GET" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      foundUids <- mapM (\m -> m %. "id" & asString) docs
-      assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u3id]
+  BrigP.searchTeam admin [("searchable", "false")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- mapM (\m -> m %. "id" & asString) docs
+    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u3id]
 
   -- /teams/:tid/search and /teams/:tid/search?searchable=true both get all members, searchable and non-searchable
-  noQueryParam <- baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) >>= \req ->
-    submit "GET" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      mapM (\m -> m %. "id" & asString) docs
-  withQueryParam <- baseRequest admin Brig Versioned (joinHttpPath ["teams", tid, "search"]) <&> addQueryParams [("searchable", "true")] >>= \req ->
-    submit "GET" req `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      mapM (\m -> m %. "id" & asString) docs
+  noQueryParam <- BrigP.searchTeam admin [] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    mapM (\m -> m %. "id" & asString) docs
+  withQueryParam <- BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    mapM (\m -> m %. "id" & asString) docs
   assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal" $
     Set.fromList noQueryParam == Set.fromList withQueryParam
 

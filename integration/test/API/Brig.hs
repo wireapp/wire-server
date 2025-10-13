@@ -1217,3 +1217,15 @@ removeTeamCollaborator owner tid collaborator = do
   (_, collabId) <- objQid collaborator
   req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
   submit "DELETE" req
+
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handle
+checkHandle :: (MakesValue user) => user -> String -> App Response
+checkHandle self handle = do
+  req <- baseRequest self Brig Versioned (joinHttpPath ["handles", handle])
+  submit "HEAD" req
+
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handles
+checkHandles :: (MakesValue user) => user -> [String] -> App Response
+checkHandles self handles = do
+  req <- baseRequest self Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= handles]
+  submit "POST" req
