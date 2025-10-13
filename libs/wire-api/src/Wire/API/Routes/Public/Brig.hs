@@ -294,8 +294,8 @@ type UserAPI =
                :> ZLocalUser
                :> "users"
                :> CaptureUserId "uid"
-               :> ReqBody '[JSON] Bool
                :> "searchable"
+               :> ReqBody '[JSON] Bool
                :> Post '[JSON] ()
            )
 
