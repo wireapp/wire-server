@@ -13,6 +13,12 @@ dynBackendDomain1: dynamic-backend-1.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster
 dynBackendDomain2: dynamic-backend-2.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
 dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
 
+{{- if (eq (env "CONVERSATION_STORE") "") }}
+conversationStore: cassandra
+{{- else }}
+conversationStore: {{ env "CONVERSATION_STORE" }}
+{{- end }}
+
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}
 {{- else }}

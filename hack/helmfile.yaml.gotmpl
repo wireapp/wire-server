@@ -352,6 +352,8 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: brig.config.wireServerEnterprise.enabled
         value: true
+      - name: galley.config.postgresMigration.conversation
+        value: {{ .Values.conversationStore }}
     needs:
       - 'cassandra-ephemeral'
       - 'redis-ephemeral'
@@ -370,6 +372,8 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
+      - name: galley.config.postgresMigration.conversation
+        value: {{ .Values.conversationStore }}
     needs:
       - 'cassandra-ephemeral'
       - 'redis-ephemeral'
