@@ -9,6 +9,7 @@
 , base
 , base64-bytestring
 , bilge
+, bloodhound
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -23,6 +24,7 @@
 , exceptions
 , extended
 , gitignoreSource
+, hasql-pool
 , hscim
 , HsOpenSSL
 , hspec
@@ -31,7 +33,9 @@
 , hspec-wai
 , http-api-data
 , http-client
+, http-client-openssl
 , http-types
+, http2-manager
 , imports
 , iso639
 , lens
@@ -66,6 +70,7 @@
 , tinylog
 , transformers
 , types-common
+, unordered-containers
 , uri-bytestring
 , utf8-string
 , uuid
@@ -76,6 +81,7 @@
 , wai-utilities
 , warp
 , wire-api
+, wire-api-federation
 , wire-subsystems
 , xml-conduit
 , yaml
@@ -92,6 +98,7 @@ mkDerivation {
     base
     base64-bytestring
     bilge
+    bloodhound
     brig-types
     bytestring
     bytestring-conversion
@@ -103,10 +110,16 @@ mkDerivation {
     crypton-x509
     exceptions
     extended
+    hasql-pool
     hscim
+    HsOpenSSL
     hspec
+    http-client
+    http-client-openssl
     http-types
+    http2-manager
     imports
+    iso639
     lens
     metrics-wai
     mtl
@@ -128,6 +141,7 @@ mkDerivation {
     tinylog
     transformers
     types-common
+    unordered-containers
     uri-bytestring
     utf8-string
     uuid
@@ -136,8 +150,10 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
+    wire-api-federation
     wire-subsystems
     yaml
+    zauth
   ];
   executableHaskellDepends = [
     aeson

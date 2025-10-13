@@ -1,14 +1,12 @@
-module Brig.DeleteQueue.Interpreter
+module Wire.DeleteQueue.Interpreter
   ( runDeleteQueue,
-    QueueEnv (..),
   )
 where
 
 import Amazonka.SQS.Lens
-import Brig.AWS qualified as AWS
-import Brig.Queue.Stomp qualified as Stomp
 import Control.Exception (ErrorCall (..))
 import Control.Lens
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Lazy qualified as BL
@@ -19,14 +17,13 @@ import OpenSSL.EVP.Digest hiding (digest)
 import Polysemy
 import Polysemy.Error
 import System.Logger.Class qualified as Log
+import Wire.AWSSubsystem qualified as AWS
+import Wire.AWSSubsystem.AWS qualified as AWSI
 import Wire.DeleteQueue
+import Wire.DeleteQueue.Types
 import Wire.InternalEvent
 import Wire.Sem.Logger
-
--- | The queue environment constructed from `QueueOpts`.
-data QueueEnv
-  = StompQueueEnv Stomp.Broker Text
-  | SqsQueueEnv AWS.Env Int Text
+import Wire.StompSubsystem.Stomp qualified as Stomp
 
 runDeleteQueue ::
   ( Member (Embed IO) r,
@@ -53,13 +50,13 @@ enqueue ::
   QueueEnv ->
   a ->
   Sem r ()
-enqueue (StompQueueEnv broker queue) message =
-  embed @IO $ Stomp.enqueue broker queue message
+enqueue (StompQueueEnv env queue) message =
+  embed @IO $ runResourceT $ runReaderT (Stomp.unStomp $ Stomp.enqueueInternal queue message) env
 enqueue (SqsQueueEnv awsEnv _ queue) message = do
   let body = encode message
   md5 <- embed @IO $ getDigestByName "MD5"
   let bodyMD5 = fmap (flip digest body) md5
-  resp <- embed @IO $ AWS.execute awsEnv (AWS.enqueueStandard queue body)
+  resp <- embed @IO $ runFinal $ AWSI.runAWSSubsystem awsEnv (AWS.enqueueStandard queue body)
   unless (resp ^. sendMessageResponse_mD5OfMessageBody == bodyMD5) $ do
     err $
       Log.msg (Log.val "Returned hash (MD5) doesn't match message hash")

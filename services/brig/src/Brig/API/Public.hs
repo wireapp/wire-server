@@ -44,7 +44,6 @@ import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
-import Brig.Effects.ConnectionStore
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
@@ -187,7 +186,6 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
-import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
@@ -398,7 +396,6 @@ servantSitemap ::
     Member (Concurrency 'Unsafe) r,
     Member BlockListStore r,
     Member IndexedUserStore r,
-    Member (ConnectionStore InternalPaging) r,
     Member HashPassword r,
     Member (Input UserSubsystemConfig) r,
     Member DomainRegistrationStore r,
@@ -894,16 +891,11 @@ createAccessToken method luid cid proof = do
   API.createAccessToken luid cid method link proof !>> certEnrollmentError
 
 upgradePersonalToTeam ::
-  ( Member (ConnectionStore InternalPaging) r,
-    Member (Embed HttpClientIO) r,
-    Member GalleyAPIAccess r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
+  ( Member GalleyAPIAccess r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member EmailSending r
+    Member EmailSending r,
+    Member Events r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->

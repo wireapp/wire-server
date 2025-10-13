@@ -15,13 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Queue.Types
+module Wire.DeleteQueue.Types
   ( QueueOpts (..),
+    QueueEnv (..),
+    InternalEventsOpts (..),
   )
 where
 
 import Data.Aeson
+import Data.Text
 import Imports
+import Wire.AWSSubsystem.AWS qualified as AWSI
+import Wire.StompSubsystem.Stomp qualified as Stomp
 
 -- | Config file info for a remote queue that you can publish to and listen from.
 data QueueOpts = StompQueueOpts Text | SqsQueueOpts Text
@@ -33,3 +38,17 @@ instance FromJSON QueueOpts where
       "stomp" -> StompQueueOpts <$> o .: "queueName"
       "sqs" -> SqsQueueOpts <$> o .: "queueName"
       other -> fail ("unknown 'queueType': " <> other)
+
+-- | The queue environment constructed from `QueueOpts`.
+data QueueEnv
+  = StompQueueEnv Stomp.Env Text
+  | SqsQueueEnv AWSI.Env Int Text
+
+data InternalEventsOpts = InternalEventsOpts
+  { internalEventsQueue :: !QueueOpts
+  }
+  deriving (Show)
+
+instance FromJSON InternalEventsOpts where
+  parseJSON = withObject "InternalEventsOpts" $ \o ->
+    InternalEventsOpts <$> parseJSON (Object o)

@@ -1,16 +1,11 @@
 module Brig.CanonicalInterpreter where
 
-import Brig.AWS (amazonkaEnv)
 import Brig.App as App
-import Brig.DeleteQueue.Interpreter as DQ
-import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Brig.Effects.JwtTools
 import Brig.Effects.PublicKeyBundle
 import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import Brig.IO.Intra (runEvents)
 import Brig.Options (federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Team.Template (TeamTemplates)
@@ -36,6 +31,8 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
+import Wire.AWSSubsystem (AWSSubsystem)
+import Wire.AWSSubsystem.AWS (amazonkaEnv, runAWSSubsystem)
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AppStore
@@ -47,14 +44,16 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.ConnectionStore (ConnectionStore)
+import Wire.ConnectionStore.Cassandra (connectionStoreToCassandra)
 import Wire.DeleteQueue
+import Wire.DeleteQueue.Interpreter (runDeleteQueue)
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
 import Wire.DomainVerificationChallengeStore
 import Wire.DomainVerificationChallengeStore.Cassandra
 import Wire.EmailSending
-import Wire.EmailSending.SES
-import Wire.EmailSending.SMTP
+import Wire.EmailSending.Core (EmailSendingInterpreterConfig (EmailSendingInterpreterConfig), emailSendingInterpreter)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Interpreter
 import Wire.EnterpriseLoginSubsystem
@@ -63,6 +62,7 @@ import Wire.EnterpriseLoginSubsystem.Interpreter
 import Wire.EnterpriseLoginSubsystem.Null
 import Wire.Error
 import Wire.Events
+import Wire.Events.Interpreter (runEvents)
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -152,6 +152,7 @@ type BrigLowerLevelEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
+     AWSSubsystem,
      NotificationSubsystem,
      RateLimit,
      UserGroupStore,
@@ -311,7 +312,7 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
-              . emailSendingInterpreter e
+              . emailSendingInterpreter (EmailSendingInterpreterConfig e.smtpEnv (e.awsEnv ^. amazonkaEnv) e.appLogger)
               . interpretSparAPIAccessToRpc e.sparEndpoint
               . interpretGalleyAPIAccessToRpc e.disabledVersions e.galleyEndpoint
               . passwordResetCodeStoreToCassandra @Cas.Client
@@ -364,6 +365,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
+              . runAWSSubsystem e.awsEnv
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
@@ -411,9 +413,3 @@ rethrowHttpErrorIO act = do
   case eithError of
     Left err -> embedToFinal $ throwM $ err
     Right a -> pure a
-
-emailSendingInterpreter :: (Member (Embed IO) r) => Env -> InterpreterFor EmailSending r
-emailSendingInterpreter e = do
-  case e.smtpEnv of
-    Just smtp -> emailViaSMTPInterpreter e.appLogger smtp
-    Nothing -> emailViaSESInterpreter (e.awsEnv ^. amazonkaEnv)

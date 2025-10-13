@@ -16,37 +16,36 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Working with remote queues (like Amazon SQS).
-module Brig.Queue
-  ( module Brig.Queue.Types,
-    listen,
+module Wire.DeleteQueue.Listen
+  ( listen,
   )
 where
 
-import Brig.AWS qualified as AWS
-import Brig.DeleteQueue.Interpreter (QueueEnv (..))
-import Brig.Queue.Stomp qualified as Stomp
-import Brig.Queue.Types
-import Control.Monad.Catch
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson
 import Imports
-import System.Logger.Class as Log hiding (settings)
+import Polysemy (embedFinal, runFinal)
+import Wire.AWSSubsystem qualified as AWS
+import Wire.AWSSubsystem.AWS qualified as AWSI
+import Wire.DeleteQueue.Types
+import Wire.StompSubsystem.Stomp qualified as Stomp
 
 -- | Forever listen to messages coming from a queue and execute a callback
 -- for each incoming message.
 --
--- See documentation of underlying functions (e.g. 'Stomp.listen') for
+-- See documentation of underlying functions (e.g. 'Stomp.listenInternal') for
 -- extra details.
 listen ::
   ( Show a,
     FromJSON a,
-    MonadLogger m,
-    MonadMask m,
     MonadUnliftIO m
   ) =>
   QueueEnv ->
   (a -> m ()) ->
   m ()
 listen (StompQueueEnv env queue) callback =
-  Stomp.listen env queue callback
-listen (SqsQueueEnv env throttleMillis queue) callback = do
-  withRunInIO $ \lower -> AWS.execute env $ AWS.listen throttleMillis queue $ lower . callback
+  withRunInIO $ \lower ->
+    runResourceT $ runReaderT (Stomp.unStomp $ Stomp.listenInternal queue $ lower . callback) env
+listen (SqsQueueEnv env throttleMillis queue) callback =
+  withRunInIO $ \lower ->
+    runFinal $ AWSI.runAWSSubsystem env $ AWS.listen throttleMillis queue $ embedFinal . lower . callback

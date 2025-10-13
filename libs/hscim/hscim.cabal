@@ -115,9 +115,11 @@ library
     , template-haskell
     , text
     , time
+    , utf8-string
     , uuid
     , wai
     , wai-extra
+    , wai-utilities
 
   default-language:   Haskell2010
 

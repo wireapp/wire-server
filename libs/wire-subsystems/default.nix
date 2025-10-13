@@ -7,7 +7,9 @@
 , aeson-pretty
 , amazonka
 , amazonka-core
+, amazonka-dynamodb
 , amazonka-ses
+, amazonka-sqs
 , amqp
 , async
 , attoparsec
@@ -45,6 +47,7 @@
 , hasql-th
 , hasql-transaction
 , hex
+, hscim
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -62,8 +65,10 @@
 , memory
 , mime
 , mime-mail
+, mmorph
 , network
 , network-conduit-tls
+, network-uri
 , polysemy
 , polysemy-conc
 , polysemy-plugin
@@ -72,6 +77,7 @@
 , postgresql-error-codes
 , profunctors
 , prometheus-client
+, proto-lens
 , QuickCheck
 , quickcheck-instances
 , random
@@ -99,6 +105,7 @@
 , token-bucket
 , transformers
 , types-common
+, types-common-journal
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -121,7 +128,9 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -158,6 +167,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
@@ -173,8 +183,10 @@ mkDerivation {
     memory
     mime
     mime-mail
+    mmorph
     network
     network-conduit-tls
+    network-uri
     polysemy
     polysemy-conc
     polysemy-plugin
@@ -183,6 +195,7 @@ mkDerivation {
     postgresql-error-codes
     profunctors
     prometheus-client
+    proto-lens
     QuickCheck
     raw-strings-qq
     resource-pool
@@ -206,6 +219,7 @@ mkDerivation {
     token-bucket
     transformers
     types-common
+    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring
@@ -223,7 +237,9 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -259,6 +275,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
@@ -273,8 +290,10 @@ mkDerivation {
     memory
     mime
     mime-mail
+    mmorph
     network
     network-conduit-tls
+    network-uri
     polysemy
     polysemy-conc
     polysemy-plugin
@@ -282,6 +301,7 @@ mkDerivation {
     polysemy-wire-zoo
     profunctors
     prometheus-client
+    proto-lens
     QuickCheck
     quickcheck-instances
     random
@@ -309,6 +329,7 @@ mkDerivation {
     token-bucket
     transformers
     types-common
+    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring

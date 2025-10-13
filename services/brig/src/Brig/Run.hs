@@ -23,7 +23,6 @@ import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
 import Brig.API.Public
 import Brig.API.User qualified as API
-import Brig.AWS qualified as AWS
 import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
 import Brig.Calling qualified as Calling
@@ -31,9 +30,9 @@ import Brig.CanonicalInterpreter
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Brig.InternalEvent.Process qualified as Internal
-import Brig.Options hiding (internalEvents, sesQueue)
-import Brig.Queue qualified as Queue
+import Brig.Options hiding (internalEvents)
 import Brig.Version
+import Wire.DeleteQueue.Listen qualified as Queue
 import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((.~))
@@ -56,7 +55,7 @@ import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import OpenTelemetry.Instrumentation.Wai qualified as Otel
 import OpenTelemetry.Trace as Otel
-import Polysemy (Member)
+import Polysemy (Member, embedFinal, runFinal)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
 import System.Logger (flush, msg, val, (.=), (~~))
@@ -69,6 +68,8 @@ import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
+import Wire.AWSSubsystem qualified as AWS
+import Wire.AWSSubsystem.AWS qualified as AWSI
 import Wire.DeleteQueue
 import Wire.OpenTelemetry (withTracer)
 import Wire.PostgresMigrations
@@ -93,8 +94,9 @@ run opts = withTracer \tracer -> do
   let throttleMillis = fromMaybe defSqsThrottleMillis opts.settings.sqsThrottleMillis
   emailListener <- for e.awsEnv._sesQueue $ \q ->
     Async.async $
-      AWS.execute e.awsEnv $
-        AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
+      runFinal $
+        AWSI.runAWSSubsystem e.awsEnv $
+          AWS.listen throttleMillis q (embedFinal . runBrigToIO e . SesNotification.onEvent)
   sftDiscovery <- forM e.sftEnv $ Async.async . Calling.startSFTServiceDiscovery e.appLogger
   turnDiscovery <- Calling.startTurnDiscovery e.appLogger e.fsWatcher e.turnEnv
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)

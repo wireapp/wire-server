@@ -52,6 +52,7 @@ library
     Spar.Schema.V9
     Spar.Scim
     Spar.Scim.Auth
+    Spar.Scim.Group
     Spar.Scim.Types
     Spar.Scim.User
     Spar.Sem.AReqIDStore
@@ -155,6 +156,7 @@ library
     , base
     , base64-bytestring
     , bilge
+    , bloodhound
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -166,10 +168,16 @@ library
     , crypton-x509
     , exceptions
     , extended
+    , hasql-pool
     , hscim
+    , HsOpenSSL
     , hspec
+    , http-client
+    , http-client-openssl
     , http-types
+    , http2-manager
     , imports
+    , iso639
     , lens
     , metrics-wai
     , mtl
@@ -191,6 +199,7 @@ library
     , tinylog
     , transformers
     , types-common
+    , unordered-containers
     , uri-bytestring
     , utf8-string
     , uuid
@@ -199,8 +208,10 @@ library
     , wai-utilities
     , warp
     , wire-api
+    , wire-api-federation
     , wire-subsystems
     , yaml
+    , zauth
 
   default-language:   Haskell2010
 

@@ -7,8 +7,6 @@
 , amazonka
 , amazonka-core
 , amazonka-dynamodb
-, amazonka-ses
-, amazonka-sqs
 , amqp
 , async
 , attoparsec
@@ -81,7 +79,6 @@
 , MonadRandom
 , mtl
 , network
-, network-conduit-tls
 , network-uri
 , openapi3
 , optparse-applicative
@@ -115,7 +112,6 @@
 , spar
 , split
 , ssl-util
-, stomp-queue
 , streaming-commons
 , string-conversions
 , tasty
@@ -165,14 +161,11 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-dynamodb
-    amazonka-ses
-    amazonka-sqs
     amqp
     async
     auto-update
     base
     base-prelude
-    base16-bytestring
     base64-bytestring
     bilge
     bloodhound
@@ -221,13 +214,11 @@ mkDerivation {
     memory
     metrics-core
     metrics-wai
-    mime
     mime-mail
     mmorph
     MonadRandom
     mtl
     network
-    network-conduit-tls
     openapi3
     optparse-applicative
     polysemy
@@ -236,7 +227,6 @@ mkDerivation {
     polysemy-time
     polysemy-wire-zoo
     prometheus-client
-    proto-lens
     random-shuffle
     raw-strings-qq
     resourcet
@@ -249,7 +239,6 @@ mkDerivation {
     servant-swagger-ui
     split
     ssl-util
-    stomp-queue
     template
     template-haskell
     text
@@ -260,7 +249,6 @@ mkDerivation {
     transformers
     types-common
     types-common-aws
-    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring

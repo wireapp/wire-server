@@ -30,7 +30,6 @@ where
 
 import Bilge (RequestId (..))
 import Brig.API.Error
-import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Options (allowlistEmailDomains)
@@ -54,6 +53,7 @@ import Wire.API.Allowlists qualified as Allowlists
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.User
+import Wire.AWSSubsystem qualified as AWS
 import Wire.AuthenticationSubsystem.Error (zauthError)
 import Wire.Error
 
@@ -100,7 +100,7 @@ brigErrorHandlers :: Logger -> ByteString -> [Catch.Handler IO (Either HttpError
 brigErrorHandlers logger reqId =
   [ Catch.Handler $ \(ex :: ZV.Failure) ->
       pure (Left (StdError (zauthError ex))),
-    Catch.Handler $ \(ex :: AWS.Error) ->
+    Catch.Handler $ \(ex :: AWS.AWSSubsystemError) ->
       case ex of
         AWS.SESInvalidDomain ->
           pure (Left (StdError (errorToWai @'InvalidEmail)))

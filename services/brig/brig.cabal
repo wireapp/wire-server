@@ -96,7 +96,6 @@ library
     Brig.API.User
     Brig.API.Util
     Brig.App
-    Brig.AWS
     Brig.AWS.SesNotification
     Brig.AWS.Types
     Brig.Budget
@@ -111,9 +110,6 @@ library
     Brig.Data.Nonce
     Brig.Data.Types
     Brig.Data.User
-    Brig.DeleteQueue.Interpreter
-    Brig.Effects.ConnectionStore
-    Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.JwtTools
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
@@ -126,7 +122,6 @@ library
     Brig.InternalEvent.Process
     Brig.InternalEvent.Types
     Brig.IO.Intra
-    Brig.IO.Journal
     Brig.IO.Logging
     Brig.Main
     Brig.Options
@@ -135,9 +130,6 @@ library
     Brig.Provider.Email
     Brig.Provider.RPC
     Brig.Provider.Template
-    Brig.Queue
-    Brig.Queue.Stomp
-    Brig.Queue.Types
     Brig.RPC
     Brig.Run
     Brig.Schema.Run
@@ -213,14 +205,11 @@ library
     , amazonka                              >=2
     , amazonka-core                         >=2
     , amazonka-dynamodb                     >=2
-    , amazonka-ses                          >=2
-    , amazonka-sqs                          >=2
     , amqp
     , async                                 >=2.1
     , auto-update                           >=0.1
     , base                                  >=4       && <5
     , base-prelude
-    , base16-bytestring                     >=0.1
     , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
     , bloodhound                            >=0.13
@@ -269,13 +258,11 @@ library
     , memory
     , metrics-core                          >=0.3
     , metrics-wai                           >=0.3
-    , mime
     , mime-mail                             >=0.4
     , mmorph
     , MonadRandom                           >=0.5
     , mtl                                   >=2.1
     , network                               >=2.4
-    , network-conduit-tls
     , openapi3
     , optparse-applicative                  >=0.11
     , polysemy
@@ -284,7 +271,6 @@ library
     , polysemy-time
     , polysemy-wire-zoo
     , prometheus-client
-    , proto-lens                            >=0.1
     , random-shuffle                        >=0.0.3
     , raw-strings-qq
     , resourcet                             >=1.1
@@ -297,7 +283,6 @@ library
     , servant-swagger-ui
     , split                                 >=0.2
     , ssl-util
-    , stomp-queue                           >=0.3
     , template                              >=0.2
     , template-haskell
     , text                                  >=0.11
@@ -308,7 +293,6 @@ library
     , transformers                          >=0.3
     , types-common                          >=0.16
     , types-common-aws
-    , types-common-journal                  >=0.1
     , unliftio                              >=0.2
     , unordered-containers                  >=0.2
     , uri-bytestring                        >=0.2

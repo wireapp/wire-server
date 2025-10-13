@@ -45,6 +45,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
+  CreateGroupFull managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
@@ -84,8 +85,24 @@ createUserGroup ::
   NewUserGroup ->
   Sem r UserGroup
 createUserGroup creator newGroup = do
-  let managedBy = ManagedByWire
   team <- getTeamAsAdmin creator >>= note UserGroupNotATeamAdmin
+  createUserGroupFullImpl ManagedByWire team (Just creator) newGroup
+
+createUserGroupFullImpl ::
+  ( Member UserSubsystem r,
+    Member (Error UserGroupSubsystemError) r,
+    Member Store.UserGroupStore r,
+    Member (Input (Local ())) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  ManagedBy ->
+  TeamId {- home team of the user group.-} ->
+  Maybe UserId {- creator of the user group (just needed for exclusion from event; this is not
+                checked for consistency with TeamId. -} ->
+  NewUserGroup ->
+  Sem r UserGroup
+createUserGroupFullImpl managedBy team mbCreator newGroup = do
   luids <- qualifyLocal $ toList newGroup.members
   profiles <- getLocalUserProfiles luids
   let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
@@ -97,7 +114,7 @@ createUserGroup creator newGroup = do
   ug <- Store.createUserGroup team newGroup managedBy
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
   pushNotifications
-    [ mkEvent creator (UserGroupCreated ug.id_) admins
+    [ mmkEvent mbCreator (UserGroupCreated ug.id_) admins
     ]
   pure ug
 
@@ -123,14 +140,17 @@ getTeamAsMember memberId = runMaybeT do
   mbr <- MaybeT $ internalGetTeamMember memberId team
   pure (team, mbr)
 
-mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
-mkEvent author evt recipients =
+mmkEvent :: Maybe UserId -> UserGroupEvent -> [UserId] -> Push
+mmkEvent mAuthor evt recipients =
   def
-    { origin = Just author,
+    { origin = mAuthor,
       json = toJSONObject $ UserGroupEvent evt,
       recipients = (\uid -> Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}) <$> recipients,
       transient = True
     }
+
+mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
+mkEvent = mmkEvent . Just
 
 qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
 qualifyLocal a = do

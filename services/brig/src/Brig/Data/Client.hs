@@ -53,7 +53,6 @@ import Amazonka.Data.Text qualified as AWS
 import Amazonka.DynamoDB qualified as AWS
 import Amazonka.DynamoDB.Lens qualified as AWS
 import Bilge.Retry (httpHandlers)
-import Brig.AWS
 import Brig.App
 import Brig.Types.Instances ()
 import Cassandra as C hiding (Client)
@@ -77,7 +76,7 @@ import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
-import Polysemy (Member)
+import Polysemy (Member, runFinal)
 import Prometheus qualified as Prom
 import System.CryptoBox (Result (Success))
 import System.CryptoBox qualified as CryptoBox
@@ -89,6 +88,8 @@ import Wire.API.User.Auth
 import Wire.API.User.Client hiding (UpdateClient (..))
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
+import Wire.AWSSubsystem
+import Wire.AWSSubsystem.AWS qualified as AWSI
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error
@@ -245,8 +246,7 @@ lookupPrekeyIds u c =
 
 rmClient ::
   ( MonadClient m,
-    MonadReader Brig.App.Env m,
-    MonadCatch m
+    MonadReader Brig.App.Env m
   ) =>
   UserId ->
   ClientId ->
@@ -482,16 +482,15 @@ key u c = HashMap.singleton ddbClient (ddbKey u c)
 
 deleteOptLock ::
   ( MonadReader Brig.App.Env m,
-    MonadCatch m,
     MonadIO m
   ) =>
   UserId ->
   ClientId ->
   m ()
 deleteOptLock u c = do
-  t <- asks ((.awsEnv) <&> view prekeyTable)
-  e <- asks ((.awsEnv) <&> view amazonkaEnv)
-  void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
+  t <- asks ((.awsEnv) <&> view AWSI.prekeyTable)
+  e <- asks (.awsEnv)
+  void $ liftIO $ runFinal $ AWSI.runAWSSubsystem e $ runAwsRequest (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
 withOptLock ::
   forall a m.
@@ -560,20 +559,20 @@ withOptLock u c ma = go (10 :: Int)
       (Text -> r) ->
       m (Maybe x)
     execDyn cnv mkCmd = do
-      cmd <- mkCmd <$> asks ((.awsEnv) <&> view prekeyTable)
-      e <- asks ((.awsEnv) <&> view amazonkaEnv)
+      cmd <- mkCmd <$> asks ((.awsEnv) <&> view AWSI.prekeyTable)
+      e <- asks (.awsEnv)
       liftIO $ execDyn' e cnv cmd
       where
         execDyn' ::
           forall y p.
           (AWS.AWSRequest p, Typeable (AWS.AWSResponse p), Typeable p) =>
-          AWS.Env ->
+          AWSI.Env ->
           (AWS.AWSResponse p -> Maybe y) ->
           p ->
           IO (Maybe y)
         execDyn' e conv cmd = recovering policy handlers (const run)
           where
-            run = execCatch e cmd >>= either handleErr (pure . conv)
+            run = runFinal (AWSI.runAWSSubsystem e (runAwsRequest cmd)) >>= either handleErr (pure . conv)
             handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceError_code == AWS.ErrorCode "ProvisionedThroughputExceeded" = do

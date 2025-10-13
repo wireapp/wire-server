@@ -35,7 +35,6 @@ import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
 import Bilge qualified
-import Brig.AWS qualified as AWS
 import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
@@ -66,6 +65,7 @@ import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
+import Wire.AWSSubsystem.AWS qualified as AWS
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
@@ -130,14 +130,14 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts.settings.federationDomain
-      awsOpts = Opts.aws brigOpts
+      awsOpts = brigOpts.aws
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra (brigOpts.cassandra) lg
   mg <- initHttpManagerWithTLSConfig False Nothing
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
-  mUserJournalWatcher <- for (Opts.userJournalQueue awsOpts) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
+  mUserJournalWatcher <- for awsOpts.userJournalQueue $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
   userApi <- User.tests brigOpts fedBrigClient mg b c ch g n awsEnv db mUserJournalWatcher
   providerApi <- Provider.tests localDomain brigOpts (provider iConf) mg db b c g n
   searchApis <- Search.tests brigOpts iConf.additionalElasticSearch mg g b
@@ -196,7 +196,7 @@ runTests iConf brigOpts otherArgs = do
         latestVersion :: Version
         latestVersion = maxBound
 
-    parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
+    parseEmailAWSOpts :: IO (Maybe AWS.EmailAWSOpts)
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
       (Opts.EmailAWS aws) -> pure (Just aws)
       (Opts.EmailSMTP _) -> pure Nothing

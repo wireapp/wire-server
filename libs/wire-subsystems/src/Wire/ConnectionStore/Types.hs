@@ -1,5 +1,3 @@
-{-# LANGUAGE DeepSubsumption #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
@@ -17,25 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.ConnectionStore.Cassandra where
+module Wire.ConnectionStore.Types
+  ( ResultPage,
+    resultList,
+    resultHasMore,
+    cassandraResultPage,
+  )
+where
 
-import Brig.Data.Connection
-import Brig.Effects.ConnectionStore
-import Cassandra
-import Data.Range
+import Cassandra qualified
 import Imports
-import Polysemy
-import Polysemy.Internal.Tactics
-import Wire.Sem.Paging.Cassandra
 
-connectionStoreToCassandra ::
-  forall r a.
-  (Member (Embed Client) r) =>
-  Sem (ConnectionStore InternalPaging ': r) a ->
-  Sem r a
-connectionStoreToCassandra =
-  interpretH $
-    liftT . embed @Client . \case
-      RemoteConnectedUsersPaginated uid mps bounds -> case mps of
-        Nothing -> flip mkInternalPage pure =<< lookupRemoteConnectedUsersPaginated uid (fromRange bounds)
-        Just ps -> ipNext ps
+-- | An opaque page of results with an indication of whether
+-- more data than contained in the page is available.
+newtype ResultPage a = ResultPage (Cassandra.Page a)
+
+resultList :: ResultPage a -> [a]
+resultList (ResultPage p) = Cassandra.result p
+{-# INLINE resultList #-}
+
+resultHasMore :: ResultPage a -> Bool
+resultHasMore (ResultPage p) = Cassandra.hasMore p
+{-# INLINE resultHasMore #-}
+
+cassandraResultPage :: Cassandra.Page a -> ResultPage a
+cassandraResultPage = ResultPage
+{-# INLINE cassandraResultPage #-}
