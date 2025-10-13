@@ -75,7 +75,8 @@ processInternalCommit ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,
     Member Random r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member MLSCommitLockStore r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->
@@ -221,7 +222,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
               msub' <- getSubConversation cnv sub
               when (isNothing msub') $
                 void $
-                  createSubConversation
+                  upsertSubConversation
                     cnv
                     sub
                     convOrSub.mlsMeta.cnvmlsGroupId
@@ -328,7 +329,7 @@ mkClientData clientInfo =
     }
 
 addMembers ::
-  (HasProposalActionEffects r) =>
+  (HasProposalActionEffects r, Member MLSCommitLockStore r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -352,7 +353,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure []
 
 removeMembers ::
-  (HasProposalActionEffects r) =>
+  (HasProposalActionEffects r, Member MLSCommitLockStore r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->

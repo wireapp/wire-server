@@ -8,9 +8,15 @@ module Wire.API.PostgresMarshall
 where
 
 import Data.Aeson
+import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
+import Data.ByteString.Conversion qualified as BSC
+import Data.Domain
 import Data.Id
+import Data.Misc
 import Data.Profunctor
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID
 import Data.Vector (Vector)
@@ -20,6 +26,9 @@ import Imports
 
 class PostgresMarshall a b where
   postgresMarshall :: a -> b
+
+instance {-# OVERLAPPABLE #-} (a ~ b) => PostgresMarshall a b where
+  postgresMarshall = id
 
 instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2) => PostgresMarshall (a1, a2) (b1, b2) where
   postgresMarshall (a1, a2) = (postgresMarshall a1, postgresMarshall a2)
@@ -384,16 +393,133 @@ instance
       postgresMarshall a16
     )
 
+instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2, PostgresMarshall a3 b3, PostgresMarshall a4 b4, PostgresMarshall a5 b5, PostgresMarshall a6 b6, PostgresMarshall a7 b7, PostgresMarshall a8 b8, PostgresMarshall a9 b9, PostgresMarshall a10 b10, PostgresMarshall a11 b11, PostgresMarshall a12 b12, PostgresMarshall a13 b13, PostgresMarshall a14 b14, PostgresMarshall a15 b15, PostgresMarshall a16 b16, PostgresMarshall a17 b17) => PostgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17) where
+  postgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) =
+    ( postgresMarshall a1,
+      postgresMarshall a2,
+      postgresMarshall a3,
+      postgresMarshall a4,
+      postgresMarshall a5,
+      postgresMarshall a6,
+      postgresMarshall a7,
+      postgresMarshall a8,
+      postgresMarshall a9,
+      postgresMarshall a10,
+      postgresMarshall a11,
+      postgresMarshall a12,
+      postgresMarshall a13,
+      postgresMarshall a14,
+      postgresMarshall a15,
+      postgresMarshall a16,
+      postgresMarshall a17
+    )
+
+instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2, PostgresMarshall a3 b3, PostgresMarshall a4 b4, PostgresMarshall a5 b5, PostgresMarshall a6 b6, PostgresMarshall a7 b7, PostgresMarshall a8 b8, PostgresMarshall a9 b9, PostgresMarshall a10 b10, PostgresMarshall a11 b11, PostgresMarshall a12 b12, PostgresMarshall a13 b13, PostgresMarshall a14 b14, PostgresMarshall a15 b15, PostgresMarshall a16 b16, PostgresMarshall a17 b17, PostgresMarshall a18 b18) => PostgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18) where
+  postgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) =
+    ( postgresMarshall a1,
+      postgresMarshall a2,
+      postgresMarshall a3,
+      postgresMarshall a4,
+      postgresMarshall a5,
+      postgresMarshall a6,
+      postgresMarshall a7,
+      postgresMarshall a8,
+      postgresMarshall a9,
+      postgresMarshall a10,
+      postgresMarshall a11,
+      postgresMarshall a12,
+      postgresMarshall a13,
+      postgresMarshall a14,
+      postgresMarshall a15,
+      postgresMarshall a16,
+      postgresMarshall a17,
+      postgresMarshall a18
+    )
+
+instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2, PostgresMarshall a3 b3, PostgresMarshall a4 b4, PostgresMarshall a5 b5, PostgresMarshall a6 b6, PostgresMarshall a7 b7, PostgresMarshall a8 b8, PostgresMarshall a9 b9, PostgresMarshall a10 b10, PostgresMarshall a11 b11, PostgresMarshall a12 b12, PostgresMarshall a13 b13, PostgresMarshall a14 b14, PostgresMarshall a15 b15, PostgresMarshall a16 b16, PostgresMarshall a17 b17, PostgresMarshall a18 b18, PostgresMarshall a19 b19) => PostgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19) where
+  postgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) =
+    ( postgresMarshall a1,
+      postgresMarshall a2,
+      postgresMarshall a3,
+      postgresMarshall a4,
+      postgresMarshall a5,
+      postgresMarshall a6,
+      postgresMarshall a7,
+      postgresMarshall a8,
+      postgresMarshall a9,
+      postgresMarshall a10,
+      postgresMarshall a11,
+      postgresMarshall a12,
+      postgresMarshall a13,
+      postgresMarshall a14,
+      postgresMarshall a15,
+      postgresMarshall a16,
+      postgresMarshall a17,
+      postgresMarshall a18,
+      postgresMarshall a19
+    )
+
+instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2, PostgresMarshall a3 b3, PostgresMarshall a4 b4, PostgresMarshall a5 b5, PostgresMarshall a6 b6, PostgresMarshall a7 b7, PostgresMarshall a8 b8, PostgresMarshall a9 b9, PostgresMarshall a10 b10, PostgresMarshall a11 b11, PostgresMarshall a12 b12, PostgresMarshall a13 b13, PostgresMarshall a14 b14, PostgresMarshall a15 b15, PostgresMarshall a16 b16, PostgresMarshall a17 b17, PostgresMarshall a18 b18, PostgresMarshall a19 b19, PostgresMarshall a20 b20) => PostgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20) where
+  postgresMarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) =
+    ( postgresMarshall a1,
+      postgresMarshall a2,
+      postgresMarshall a3,
+      postgresMarshall a4,
+      postgresMarshall a5,
+      postgresMarshall a6,
+      postgresMarshall a7,
+      postgresMarshall a8,
+      postgresMarshall a9,
+      postgresMarshall a10,
+      postgresMarshall a11,
+      postgresMarshall a12,
+      postgresMarshall a13,
+      postgresMarshall a14,
+      postgresMarshall a15,
+      postgresMarshall a16,
+      postgresMarshall a17,
+      postgresMarshall a18,
+      postgresMarshall a19,
+      postgresMarshall a20
+    )
+
 instance PostgresMarshall (Id a) UUID where
   postgresMarshall = toUUID
 
+instance PostgresMarshall BotId UUID where
+  postgresMarshall = toUUID . botUserId
+
+instance PostgresMarshall ClientId Text where
+  postgresMarshall = clientToText
+
 instance PostgresMarshall Object Value where
   postgresMarshall = Object
+
+instance PostgresMarshall Milliseconds Int64 where
+  postgresMarshall = msToInt64
+
+instance PostgresMarshall Domain Text where
+  postgresMarshall = domainText
+
+instance (PostgresMarshall a b) => PostgresMarshall (Maybe a) (Maybe b) where
+  postgresMarshall = fmap postgresMarshall
+
+instance (PostgresMarshall a b) => PostgresMarshall [a] (Vector b) where
+  postgresMarshall = V.fromList . map postgresMarshall
+
+instance (PostgresMarshall a b) => PostgresMarshall (Set a) (Vector b) where
+  postgresMarshall = V.fromList . map postgresMarshall . Set.toList
+
+instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
+  postgresMarshall = V.map postgresMarshall
 
 ---
 
 class PostgresUnmarshall a b where
   postgresUnmarshall :: a -> Either Text b
+
+instance {-# OVERLAPPABLE #-} (a ~ b) => PostgresUnmarshall a b where
+  postgresUnmarshall = Right
 
 instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2) => PostgresUnmarshall (a1, a2) (b1, b2) where
   postgresUnmarshall (a1, a2) =
@@ -590,18 +716,127 @@ instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall
       <*> postgresUnmarshall a15
       <*> postgresUnmarshall a16
 
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14, PostgresUnmarshall a15 b15, PostgresUnmarshall a16 b16, PostgresUnmarshall a17 b17) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) =
+    (,,,,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+      <*> postgresUnmarshall a15
+      <*> postgresUnmarshall a16
+      <*> postgresUnmarshall a17
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14, PostgresUnmarshall a15 b15, PostgresUnmarshall a16 b16, PostgresUnmarshall a17 b17, PostgresUnmarshall a18 b18) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) =
+    (,,,,,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+      <*> postgresUnmarshall a15
+      <*> postgresUnmarshall a16
+      <*> postgresUnmarshall a17
+      <*> postgresUnmarshall a18
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14, PostgresUnmarshall a15 b15, PostgresUnmarshall a16 b16, PostgresUnmarshall a17 b17, PostgresUnmarshall a18 b18, PostgresUnmarshall a19 b19) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) =
+    (,,,,,,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+      <*> postgresUnmarshall a15
+      <*> postgresUnmarshall a16
+      <*> postgresUnmarshall a17
+      <*> postgresUnmarshall a18
+      <*> postgresUnmarshall a19
+
+instance (PostgresUnmarshall a1 b1, PostgresUnmarshall a2 b2, PostgresUnmarshall a3 b3, PostgresUnmarshall a4 b4, PostgresUnmarshall a5 b5, PostgresUnmarshall a6 b6, PostgresUnmarshall a7 b7, PostgresUnmarshall a8 b8, PostgresUnmarshall a9 b9, PostgresUnmarshall a10 b10, PostgresUnmarshall a11 b11, PostgresUnmarshall a12 b12, PostgresUnmarshall a13 b13, PostgresUnmarshall a14 b14, PostgresUnmarshall a15 b15, PostgresUnmarshall a16 b16, PostgresUnmarshall a17 b17, PostgresUnmarshall a18 b18, PostgresUnmarshall a19 b19, PostgresUnmarshall a20 b20) => PostgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20) where
+  postgresUnmarshall (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) =
+    (,,,,,,,,,,,,,,,,,,,)
+      <$> postgresUnmarshall a1
+      <*> postgresUnmarshall a2
+      <*> postgresUnmarshall a3
+      <*> postgresUnmarshall a4
+      <*> postgresUnmarshall a5
+      <*> postgresUnmarshall a6
+      <*> postgresUnmarshall a7
+      <*> postgresUnmarshall a8
+      <*> postgresUnmarshall a9
+      <*> postgresUnmarshall a10
+      <*> postgresUnmarshall a11
+      <*> postgresUnmarshall a12
+      <*> postgresUnmarshall a13
+      <*> postgresUnmarshall a14
+      <*> postgresUnmarshall a15
+      <*> postgresUnmarshall a16
+      <*> postgresUnmarshall a17
+      <*> postgresUnmarshall a18
+      <*> postgresUnmarshall a19
+      <*> postgresUnmarshall a20
+
 instance PostgresUnmarshall UUID (Id a) where
   postgresUnmarshall = Right . Id
+
+instance PostgresUnmarshall UUID BotId where
+  postgresUnmarshall = Right . BotId . Id
+
+instance PostgresUnmarshall Text ClientId where
+  postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
 
 instance PostgresUnmarshall Value Object where
   postgresUnmarshall (Object obj) = Right obj
   postgresUnmarshall v = Left $ "expected Object, got: " <> Text.decodeUtf8 (BS.toStrict (encode v))
+
+instance PostgresUnmarshall Text Domain where
+  postgresUnmarshall = first Text.pack . mkDomain
 
 instance (PostgresUnmarshall a b) => PostgresUnmarshall (Maybe a) (Maybe b) where
   postgresUnmarshall = mapM postgresUnmarshall
 
 instance (PostgresUnmarshall a b) => PostgresUnmarshall (Vector a) (Vector b) where
   postgresUnmarshall = V.mapM postgresUnmarshall
+
+instance (PostgresUnmarshall a b) => PostgresUnmarshall (Vector a) [b] where
+  postgresUnmarshall = mapM postgresUnmarshall . V.toList
+
+instance (PostgresUnmarshall a b, Ord b) => PostgresUnmarshall (Vector a) (Set b) where
+  postgresUnmarshall =
+    fmap Set.fromList . mapM postgresUnmarshall . V.toList
+
+instance PostgresUnmarshall Int64 Milliseconds where
+  postgresUnmarshall = Right . int64ToMs
 
 ---
 

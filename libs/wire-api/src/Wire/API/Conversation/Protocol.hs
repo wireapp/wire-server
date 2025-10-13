@@ -37,6 +37,7 @@ module Wire.API.Conversation.Protocol
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow
 import Control.Lens (makePrisms, (?~))
@@ -44,12 +45,14 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Time.Clock
 import Imports
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.Arbitrary
@@ -59,6 +62,28 @@ data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
 instance S.ToSchema ProtocolTag
+
+instance C.Cql ProtocolTag where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . fromIntegral . fromEnum
+
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ protocolTagFromInt32 i
+  fromCql _ = Left "protocol: int expected"
+
+instance PostgresMarshall ProtocolTag Int32 where
+  postgresMarshall = fromIntegral . fromEnum
+
+instance PostgresUnmarshall Int32 ProtocolTag where
+  postgresUnmarshall = protocolTagFromInt32
+
+protocolTagFromInt32 :: Int32 -> Either Text ProtocolTag
+protocolTagFromInt32 i =
+  let i' = fromIntegral i
+   in if i' < fromEnum @ProtocolTag minBound
+        || i' > fromEnum @ProtocolTag maxBound
+        then Left $ "unexpected protocol: " <> Text.pack (show i)
+        else Right $ toEnum i'
 
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.

@@ -49,8 +49,6 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.ConversationStore (getConversation)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
-import Wire.Sem.Paging.Cassandra (CassandraPaging)
-import Wire.TeamCollaboratorsSubsystem
 
 getClients ::
   ( Member BrigAPIAccess r,
@@ -64,9 +62,8 @@ getClients usr = clientIds usr <$> getBrigClients [usr]
 -- conversation protocol (Proteus or MLS). In addition, remove the client from
 -- the "clients" table in Galley.
 rmClient ::
-  forall p1 r.
-  ( p1 ~ CassandraPaging,
-    Member ClientStore r,
+  forall r.
+  ( Member ClientStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
@@ -75,13 +72,10 @@ rmClient ::
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ListItems p1 ConvId) r,
-    Member (ListItems p1 (Remote ConvId)) r,
     Member (Error InternalError) r,
     Member ProposalStore r,
     Member Random r,
-    Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member P.TinyLog r
   ) =>
   UserId ->
   ClientId ->

@@ -168,7 +168,8 @@ postMLSCommitBundle ::
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
-    HasProposalEffects r
+    HasProposalEffects r,
+    Member MLSCommitLockStore r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -193,7 +194,8 @@ postMLSCommitBundleFromLocalUser ::
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
-    HasProposalEffects r
+    HasProposalEffects r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   ClientId ->
@@ -218,7 +220,8 @@ postMLSCommitBundleToLocalConv ::
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
-    HasProposalEffects r
+    HasProposalEffects r,
+    Member MLSCommitLockStore r
   ) =>
   Qualified UserId ->
   ClientId ->

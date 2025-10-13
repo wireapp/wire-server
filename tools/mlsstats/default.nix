@@ -8,7 +8,6 @@
 , amazonka-s3
 , base
 , base64-bytestring
-, bytestring
 , cassandra-util
 , conduit
 , filepath
@@ -37,7 +36,6 @@ mkDerivation {
     amazonka-s3
     base
     base64-bytestring
-    bytestring
     cassandra-util
     conduit
     filepath

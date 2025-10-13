@@ -78,6 +78,7 @@ import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
+import Wire.ConversationStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -164,7 +165,6 @@ removeSettingsInternalPaging ::
     Member (Input (Local ())) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -172,7 +172,8 @@ removeSettingsInternalPaging ::
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -209,12 +210,12 @@ removeSettings ::
     Member (Input (Local ())) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   UserId ->
   TeamId ->
@@ -262,14 +263,14 @@ removeSettings' ::
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   TeamId ->
   Sem r ()
@@ -312,12 +313,12 @@ grantConsent ::
     Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -360,14 +361,14 @@ requestDevice ::
     Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -453,14 +454,14 @@ approveDevice ::
     Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -530,13 +531,13 @@ disableForUser ::
     Member (Input (Local ())) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -594,12 +595,12 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member TeamStore r,
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   TeamId ->
   Local UserId ->
@@ -709,12 +710,12 @@ handleGroupConvPolicyConflicts ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
-    Member (ListItems LegacyPaging ConvId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

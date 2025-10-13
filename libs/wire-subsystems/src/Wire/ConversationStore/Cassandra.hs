@@ -16,10 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationStore.Cassandra
-  ( interpretConversationStoreToCassandra,
-    deleteConversation,
-    members,
-    removeMembersFromLocalConv,
+  ( interpretMLSCommitLockStoreToCassandra,
+    interpretConversationStoreToCassandra,
   )
 where
 
@@ -31,8 +29,8 @@ import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
-import Data.Default
 import Data.Domain
 import Data.Id
 import Data.List.Extra qualified as List
@@ -43,7 +41,6 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time
-import Data.UUID.V4 (nextRandom)
 import Imports
 import Polysemy
 import Polysemy.Embed
@@ -56,102 +53,35 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
-import Wire.API.User
-import Wire.ConversationStore (ConversationStore (..), LockAcquired (..))
+import Wire.API.Routes.MultiTablePaging
+import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
+import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
+import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
+import Wire.StoredConversation qualified as StoreConv
 import Wire.UserList
 import Wire.Util
 
 -----------------------------------------------------------------------------------------
 -- CONVERSATION STORE
 
-createMLSSelfConversation ::
-  Local UserId ->
-  Client StoredConversation
-createMLSSelfConversation lusr = do
-  let cnv = mlsSelfConvId . tUnqualified $ lusr
-      usr = tUnqualified lusr
-      nc =
-        NewConversation
-          { metadata =
-              (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
-            users = ulFromLocals [toUserRole usr],
-            protocol = BaseProtocolMLSTag,
-            groupId = Nothing
-          }
-      meta = nc.metadata
-      gid =
-        newGroupId meta.cnvmType
-          . fmap Conv
-          . tUntagged
-          . qualifyAs lusr
-          $ cnv
-      proto =
-        ProtocolMLS
-          ConversationMLSData
-            { cnvmlsGroupId = gid,
-              cnvmlsActiveData = Nothing
-            }
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery
-      Cql.insertMLSSelfConv
-      ( cnv,
-        meta.cnvmType,
-        meta.cnvmCreator,
-        Cql.Set meta.cnvmAccess,
-        Cql.Set (toList meta.cnvmAccessRoles),
-        meta.cnvmName,
-        meta.cnvmTeam,
-        meta.cnvmMessageTimer,
-        meta.cnvmReceiptMode,
-        Just gid,
-        meta.cnvmParent
-      )
-
-  (lmems, rmems) <- addMembers cnv nc.users
-  pure
-    StoredConversation
-      { id_ = cnv,
-        localMembers = lmems,
-        remoteMembers = rmems,
-        deleted = False,
-        metadata = meta,
-        protocol = proto
-      }
-
 createConversation :: Local ConvId -> NewConversation -> Client StoredConversation
 createConversation lcnv nc = do
-  let meta = nc.metadata
-      (proto, mgid) = case nc.protocol of
-        BaseProtocolProteusTag -> (ProtocolProteus, Nothing)
-        BaseProtocolMLSTag ->
-          let newGid =
-                newGroupId meta.cnvmType $
-                  Conv <$> tUntagged lcnv
-              gid = fromMaybe newGid nc.groupId
-           in ( ProtocolMLS
-                  ConversationMLSData
-                    { cnvmlsGroupId = gid,
-                      cnvmlsActiveData = Nothing
-                    },
-                Just gid
-              )
+  let storedConv = newStoredConversation lcnv nc
+      meta = storedConv.metadata
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery
       Cql.insertConv
-      ( tUnqualified lcnv,
+      ( storedConv.id_,
         meta.cnvmType,
         meta.cnvmCreator,
         Cql.Set meta.cnvmAccess,
@@ -160,24 +90,18 @@ createConversation lcnv nc = do
         meta.cnvmTeam,
         meta.cnvmMessageTimer,
         meta.cnvmReceiptMode,
-        baseProtocolToProtocol nc.protocol,
-        mgid,
+        protocolTag storedConv.protocol,
+        getGroupId storedConv.protocol,
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
         meta.cnvmCellsState,
         meta.cnvmParent
       )
-    for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-  (lmems, rmems) <- addMembers (tUnqualified lcnv) nc.users
-  pure
-    StoredConversation
-      { id_ = tUnqualified lcnv,
-        localMembers = lmems,
-        remoteMembers = rmems,
-        deleted = False,
-        metadata = meta,
-        protocol = proto
-      }
+    for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, storedConv.id_)
+  let localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
+      remoteUsers = map (\m -> (,m.convRoleName) <$> m.id_) storedConv.remoteMembers
+  void $ addMembers storedConv.id_ $ UserList localUsers remoteUsers
+  pure storedConv
 
 deleteConversation :: ConvId -> Client ()
 deleteConversation cid = do
@@ -193,13 +117,34 @@ deleteConversation cid = do
 
 conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
 conversationMeta conv =
-  (toConvMeta =<<)
+  fmap (toConvMeta . snd . toStoredConvRow)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
-  where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _, mgct, mcap, mcs, mcp) = do
-      let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
-          accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm mgct mcap (fromMaybe def mcs) mcp
+
+parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Imports.Set AccessRole) -> Maybe (Imports.Set AccessRole)
+parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
+
+toStoredConvRow :: Queries.ConvRow -> (Maybe Bool, StoreConv.ConvRow)
+toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
+  ( del,
+    ( cty,
+      muid,
+      Cql.fromSet <$> acc,
+      parseAccessRoles role (Set.fromList . Cql.fromSet <$> roleV2),
+      nme,
+      ti,
+      timer,
+      rm,
+      ptag,
+      mgid,
+      mep,
+      writetimeToUTC <$> mts,
+      mcs,
+      mgct,
+      mAp,
+      mcells,
+      mparent
+    )
+  )
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -278,37 +223,17 @@ getConversation :: ConvId -> Client (Maybe StoredConversation)
 getConversation conv = do
   cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   remoteMems <- UnliftIO.async $ lookupRemoteMembers conv
-  mbConv <-
-    toConv conv
-      <$> members conv
-      <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait cdata
-  runMaybeT $ conversationGC =<< maybe mzero pure mbConv
-
--- | "Garbage collect" a 'Conversation', i.e. if the conversation is
--- marked as deleted, actually remove it from the database and return
--- 'Nothing'.
-conversationGC ::
-  StoredConversation ->
-  MaybeT Client StoredConversation
-conversationGC conv =
-  asum
-    [ -- return conversation if not deleted
-      guard (not conv.deleted) $> conv,
-      -- actually delete it and fail
-      lift (deleteConversation conv.id_) *> mzero
-    ]
-
-localConversation :: ConvId -> Client (Maybe StoredConversation)
-localConversation cid =
-  UnliftIO.runConcurrently $
-    toConv cid
-      <$> UnliftIO.Concurrently (members cid)
-      <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
-      <*> UnliftIO.Concurrently
-        ( retry x1 $
-            query1 Cql.selectConv (params LocalQuorum (Identity cid))
-        )
+  mConvRow <- UnliftIO.wait (toStoredConvRow <$$> cdata)
+  case mConvRow of
+    Nothing -> pure Nothing
+    Just (Just True, _) -> do
+      deleteConversation conv
+      pure Nothing
+    Just (_, convRow) -> do
+      toConv conv
+        <$> members conv
+        <*> UnliftIO.wait remoteMems
+        <*> pure (Just convRow)
 
 localConversations ::
   ( Member (Embed IO) r,
@@ -327,13 +252,70 @@ localConversations client =
 
     localConversation' :: ConvId -> Client (Either ByteString StoredConversation)
     localConversation' cid =
-      note ("No conversation for: " <> toByteString' cid) <$> localConversation cid
+      note ("No conversation for: " <> toByteString' cid) <$> getConversation cid
 
 -- | Takes a list of conversation ids and returns those found for the given
 -- user.
 localConversationIdsOf :: UserId -> [ConvId] -> Client [ConvId]
 localConversationIdsOf usr cids = do
   runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params LocalQuorum (usr, cids)))
+
+getLocalConvIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Client (ResultSet ConvId)
+getLocalConvIds usr start (fromRange -> maxIds) = do
+  mkResultSet . strip . fmap runIdentity <$> case start of
+    Just c -> paginate Cql.selectUserConvsFrom (paramsP LocalQuorum (usr, c) (maxIds + 1))
+    Nothing -> paginate Cql.selectUserConvs (paramsP LocalQuorum (Identity usr) (maxIds + 1))
+  where
+    strip p = p {result = take (fromIntegral maxIds) (result p)}
+
+getConvIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Client ConvIdsPage
+getConvIds lusr (fromRange -> maxIds) pagingState = do
+  let pagingTable = maybe PagingLocals (.mtpsTable) pagingState
+      cassPagingState = (PagingState . BS.fromStrict <$> (mtpsState =<< pagingState))
+
+  case pagingTable of
+    PagingLocals -> do
+      localPage <- getLocals cassPagingState
+      let remainingSize = maxIds - fromIntegral (length (localPage.mtpResults))
+      if localPage.mtpHasMore || remainingSize <= 0
+        then pure $ localPage {mtpHasMore = True}
+        else do
+          remotePage <- getRemotes remainingSize Nothing
+          pure $
+            remotePage {mtpResults = localPage.mtpResults <> remotePage.mtpResults}
+    PagingRemotes ->
+      getRemotes maxIds cassPagingState
+  where
+    getLocals :: Maybe PagingState -> Client ConvIdsPage
+    getLocals cassPagingState = do
+      page <-
+        fmap (runIdentity)
+          <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity (tUnqualified lusr)) maxIds cassPagingState)
+      pure $
+        MultiTablePage
+          { mtpResults = map (\cid -> Qualified cid (tDomain lusr)) page.pwsResults,
+            mtpHasMore = isJust page.pwsState,
+            mtpPagingState =
+              maybe
+                (MultiTablePagingState PagingRemotes Nothing)
+                (MultiTablePagingState PagingLocals . Just . BS.toStrict . unPagingState)
+                page.pwsState
+          }
+    getRemotes :: Int32 -> Maybe PagingState -> Client ConvIdsPage
+    getRemotes maxRemotes cassPagingState = do
+      page <-
+        uncurry (flip Qualified)
+          <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity (tUnqualified lusr)) maxRemotes cassPagingState)
+      pure $
+        MultiTablePage
+          { mtpResults = page.pwsResults,
+            mtpHasMore = isJust page.pwsState,
+            mtpPagingState =
+              maybe
+                (MultiTablePagingState PagingRemotes Nothing)
+                (MultiTablePagingState PagingRemotes . Just . BS.toStrict . unPagingState)
+                page.pwsState
+          }
 
 -- | Takes a list of remote conversation ids and fetches member status flags
 -- for the given user
@@ -356,87 +338,28 @@ remoteConversationStatusOnDomain uid rconvs =
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
-toProtocol ::
-  Maybe ProtocolTag ->
-  Maybe GroupId ->
-  Maybe Epoch ->
-  Maybe UTCTime ->
-  Maybe CipherSuiteTag ->
-  Maybe Protocol
-toProtocol Nothing _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = ProtocolMLS <$> toConversationMLSData mgid mepoch mtimestamp mcs
-toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = ProtocolMixed <$> toConversationMLSData mgid mepoch mtimestamp mcs
-
-toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ConversationMLSData
-toConversationMLSData mgid mepoch mtimestamp mcs =
-  ConversationMLSData
-    <$> mgid
-    <*> pure
-      ( ActiveMLSConversationData
-          <$> mepoch
-          <*> mtimestamp
-          <*> mcs
-      )
-
-toConv ::
-  ConvId ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  Maybe Cql.ConvRow ->
-  Maybe StoredConversation
-toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) <- mconv
-  let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
-      accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
-  pure
-    StoredConversation
-      { id_ = cid,
-        deleted = fromMaybe False del,
-        localMembers = ms,
-        remoteMembers = remoteMems,
-        protocol = proto,
-        metadata =
-          ConversationMetadata
-            { cnvmType = cty,
-              cnvmCreator = muid,
-              cnvmAccess = defAccess cty acc,
-              cnvmAccessRoles = accessRoles,
-              cnvmName = nme,
-              cnvmTeam = ti,
-              cnvmMessageTimer = timer,
-              cnvmReceiptMode = rm,
-              cnvmGroupConvType = mgct,
-              cnvmCellsState = fromMaybe def mcells,
-              cnvmChannelAddPermission = mAp,
-              cnvmParent = mparent
-            }
-      }
-
 updateToMixedProtocol ::
   (Member (Embed IO) r) =>
   ClientState ->
-  Local ConvId ->
-  ConvType ->
+  ConvId ->
+  GroupId ->
+  Epoch ->
   Sem r ()
-updateToMixedProtocol client lcnv ct = do
-  let gid = newGroupId ct $ Conv <$> tUntagged lcnv
-      epoch = Epoch 0
+updateToMixedProtocol client convId gid epoch = do
   runEmbedded (runClient client) . embed . retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch)
+    addPrepQuery Cql.updateToMixedConv (convId, ProtocolMixedTag, gid, epoch)
   pure ()
 
 updateToMLSProtocol ::
   (Member (Embed IO) r) =>
   ClientState ->
-  Local ConvId ->
+  ConvId ->
   Sem r ()
-updateToMLSProtocol client lcnv =
+updateToMLSProtocol client cnv =
   runEmbedded (runClient client) . embed . retry x5 $
-    write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
+    write Cql.updateToMLSConv (params LocalQuorum (cnv, ProtocolMLSTag))
 
 updateChannelAddPermissions :: ConvId -> AddPermission -> Client ()
 updateChannelAddPermissions cid cap = retry x5 $ write Cql.updateChannelAddPermission (params LocalQuorum (cap, cid))
@@ -517,11 +440,10 @@ deleteTeamConversations tid = do
 -- When the role is not specified, it defaults to admin.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembers ::
-  (ToUserRole a) =>
   ConvId ->
-  UserList a ->
+  UserList (UserId, RoleName) ->
   Client ([LocalMember], [RemoteMember])
-addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
+addMembers conv (UserList lusers rusers) = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
   -- sequentially. (parallelizing would not aid performance as the partition
@@ -588,11 +510,6 @@ members conv = do
       retry x1 $
         query Cql.selectMembers (params LocalQuorum (Identity convId))
 
-allMembers :: Client [LocalMember]
-allMembers =
-  fmap (mapMaybe toMember) . retry x1 $
-    query Cql.selectAllMembers (params LocalQuorum ())
-
 toMemberStatus ::
   ( -- otr muted
     Maybe MutedStatus,
@@ -643,13 +560,6 @@ toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
       }
 toMember _ = Nothing
 
-newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
-newRemoteMemberWithRole ur@(tUntagged -> (Qualified (u, r) _)) =
-  RemoteMember
-    { id_ = qualifyAs ur u,
-      convRoleName = r
-    }
-
 lookupRemoteMember :: ConvId -> Domain -> UserId -> Client (Maybe RemoteMember)
 lookupRemoteMember conv domain usr = do
   mkMem <$$> retry x1 (query1 Cql.selectRemoteMember (params LocalQuorum (conv, domain, usr)))
@@ -669,16 +579,6 @@ lookupRemoteMembers conv = do
         { id_ = toRemoteUnsafe domain usr,
           convRoleName = role
         }
-
-lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
-lookupRemoteMembersByDomain dom = do
-  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
-  where
-    mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
-
-lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
-lookupLocalMembersByDomain dom = do
-  retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
 
 member ::
   ConvId ->
@@ -969,6 +869,15 @@ listSubConversations cid = do
           }
       )
 
+interpretMLSCommitLockStoreToCassandra :: (Member (Embed IO) r, Member TinyLog r) => ClientState -> InterpreterFor MLSCommitLockStore r
+interpretMLSCommitLockStoreToCassandra client = interpret $ \case
+  AcquireCommitLock gId epoch ttl -> do
+    logEffect "MLSCommitLockStore.AcquireCommitLock"
+    embedClient client $ acquireCommitLock gId epoch ttl
+  ReleaseCommitLock gId epoch -> do
+    logEffect "MLSCommitLockStore.ReleaseCommitLock"
+    embedClient client $ releaseCommitLock gId epoch
+
 interpretConversationStoreToCassandra ::
   forall r a.
   ( Member (Embed IO) r,
@@ -978,15 +887,9 @@ interpretConversationStoreToCassandra ::
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra client = interpret $ \case
-  CreateConversationId -> do
-    logEffect "ConversationStore.CreateConversationId"
-    Id <$> embed nextRandom
-  CreateConversation loc nc -> do
+  UpsertConversation lcnv nc -> do
     logEffect "ConversationStore.CreateConversation"
-    embedClient client $ createConversation loc nc
-  CreateMLSSelfConversation lusr -> do
-    logEffect "ConversationStore.CreateMLSSelfConversation"
-    embedClient client $ createMLSSelfConversation lusr
+    embedClient client $ createConversation lcnv nc
   GetConversation cid -> do
     logEffect "ConversationStore.GetConversation"
     embedClient client $ getConversation cid
@@ -996,6 +899,12 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
     localConversations client cids
+  GetLocalConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetLocalConversationIds"
+    embedClient client $ getLocalConvIds uid start maxIds
+  GetConversationIds uid maxIds pagingState -> do
+    logEffect "ConversationStore.GetConversationIds"
+    embedClient client $ getConvIds uid maxIds pagingState
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
     embedClient client $ conversationMeta cid
@@ -1044,15 +953,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetGroupInfo cid gib -> do
     logEffect "ConversationStore.SetGroupInfo"
     embedClient client $ setGroupInfo cid gib
-  AcquireCommitLock gId epoch ttl -> do
-    logEffect "ConversationStore.AcquireCommitLock"
-    embedClient client $ acquireCommitLock gId epoch ttl
-  ReleaseCommitLock gId epoch -> do
-    logEffect "ConversationStore.ReleaseCommitLock"
-    embedClient client $ releaseCommitLock gId epoch
-  UpdateToMixedProtocol cid ct -> do
+  UpdateToMixedProtocol cid groupId epoch -> do
     logEffect "ConversationStore.UpdateToMixedProtocol"
-    updateToMixedProtocol client cid ct
+    updateToMixedProtocol client cid groupId epoch
   UpdateToMLSProtocol cid -> do
     logEffect "ConversationStore.UpdateToMLSProtocol"
     updateToMLSProtocol client cid
@@ -1071,10 +974,10 @@ interpretConversationStoreToCassandra client = interpret $ \case
   DeleteTeamConversations tid -> do
     logEffect "ConversationStore.DeleteTeamConversations"
     embedClient client $ deleteTeamConversations tid
-  CreateMembers cid ul -> do
+  UpsertMembers cid ul -> do
     logEffect "ConversationStore.CreateMembers"
     runEmbedded (runClient client) $ embed $ addMembers cid ul
-  CreateMembersInRemoteConversation rcid uids -> do
+  UpsertMembersInRemoteConversation rcid uids -> do
     logEffect "ConversationStore.CreateMembersInRemoteConversation"
     runEmbedded (runClient client) $ embed $ addLocalMembersToRemoteConv rcid uids
   CreateBotMember sr bid cid -> do
@@ -1086,9 +989,6 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetLocalMembers cid -> do
     logEffect "ConversationStore.GetLocalMembers"
     runEmbedded (runClient client) $ embed $ members cid
-  GetAllLocalMembers -> do
-    logEffect "ConversationStore.GetAllLocalMembers"
-    runEmbedded (runClient client) $ embed $ allMembers
   GetRemoteMember cid uid -> do
     logEffect "ConversationStore.GetRemoteMember"
     runEmbedded (runClient client) $ embed $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
@@ -1133,13 +1033,7 @@ interpretConversationStoreToCassandra client = interpret $ \case
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     runEmbedded (runClient client) $ embed $ lookupMLSClientLeafIndices lcnv
-  GetRemoteMembersByDomain dom -> do
-    logEffect "ConversationStore.GetRemoteMembersByDomain"
-    runEmbedded (runClient client) $ embed $ lookupRemoteMembersByDomain dom
-  GetLocalMembersByDomain dom -> do
-    logEffect "ConversationStore.GetLocalMembersByDomain"
-    runEmbedded (runClient client) $ embed $ lookupLocalMembersByDomain dom
-  CreateSubConversation convId subConvId groupId -> do
+  UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
     runEmbedded (runClient client) $ embed $ insertSubConversation convId subConvId groupId
   GetSubConversation convId subConvId -> do

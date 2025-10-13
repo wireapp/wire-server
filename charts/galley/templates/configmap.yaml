@@ -66,6 +66,8 @@ data:
       endpoint: {{ .journal.endpoint }}
     {{- end }}
 
+    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+
     settings:
       httpPoolSize: {{ .settings.httpPoolSize }}
       intraListing: {{ .settings.intraListing }}

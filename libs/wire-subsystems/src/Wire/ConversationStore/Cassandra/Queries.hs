@@ -26,84 +26,7 @@
 -- - user
 -- - user_remote_conv
 -- update this list using `rg -i -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number libs/wire-subsystems/src/Wire/ConversationStore/Cassandra/Queries.hs | sort | uniq`
-module Wire.ConversationStore.Cassandra.Queries
-  ( insertMLSSelfConv,
-    insertMember,
-    insertUserConv,
-    insertRemoteMember,
-    removeMember,
-    deleteUserConv,
-    deleteUserRemoteConv,
-    removeMLSClient,
-    removeAllMLSClients,
-    removeRemoteMember,
-    selectMember,
-    selectMembers,
-    selectAllMembers,
-    selectRemoteMember,
-    selectRemoteMembers,
-    selectRemoteConvMembers,
-    selectRemoteMembersByDomain,
-    selectLocalMembersByDomain,
-    insertUserRemoteConv,
-    insertBot,
-    insertConv,
-    insertTeamConv,
-    deleteTeamConv,
-    markConvDeleted,
-    deleteConv,
-    selectConv,
-    addMLSClient,
-    selectGroupInfo,
-    isConvDeleted,
-    selectConvParent,
-    updateConvType,
-    updateConvName,
-    updateConvAccess,
-    updateConvReceiptMode,
-    updateConvMessageTimer,
-    getConvEpoch,
-    updateConvEpoch,
-    updateConvCipherSuite,
-    updateConvCellsState,
-    resetConversation,
-    updateGroupInfo,
-    planMLSClientRemoval,
-    ConvRow,
-    selectUserConvsIn,
-    selectUserConvsFrom,
-    selectUserConvs,
-    selectUserRemoteConvs,
-    selectRemoteConvMemberStatuses,
-    updateToMixedConv,
-    updateToMLSConv,
-    updateChannelAddPermission,
-    acquireCommitLock,
-    releaseCommitLock,
-    updateOtrMemberMutedStatus,
-    updateOtrMemberArchived,
-    updateMemberHidden,
-    updateRemoteOtrMemberMutedStatus,
-    updateRemoteOtrMemberArchived,
-    updateRemoteMemberHidden,
-    updateMemberConvRoleName,
-    updateRemoteMemberConvRoleName,
-    lookupMLSClients,
-    MemberStatus,
-    selectSubConversation,
-    insertSubConversation,
-    updateSubConvGroupInfo,
-    selectSubConvGroupInfo,
-    selectSubConvEpoch,
-    insertEpochForSubConversation,
-    insertCipherSuiteForSubConversation,
-    listSubConversations,
-    deleteSubConversation,
-    selectTeamConv,
-    selectTeamConvs,
-    selectTeamConvsFrom,
-  )
-where
+module Wire.ConversationStore.Cassandra.Queries where
 
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
@@ -294,9 +217,6 @@ selectMember = "select user, service, provider, status, otr_muted_status, otr_mu
 
 selectMembers :: PrepQuery R (Identity ConvId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ?"
-
-selectAllMembers :: PrepQuery R () (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectAllMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member"
 
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"

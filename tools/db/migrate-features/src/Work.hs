@@ -415,17 +415,6 @@ instance Cql EnforceAppLock where
     _ -> Left "fromCql EnforceAppLock: int out of range"
   fromCql _ = Left "fromCql EnforceAppLock: int expected"
 
-instance Cql ProtocolTag where
-  ctype = Tagged IntColumn
-  toCql = CqlInt . fromIntegral . fromEnum
-  fromCql (CqlInt i) = do
-    let i' = fromIntegral i
-    if i' < fromEnum @ProtocolTag minBound
-      || i' > fromEnum @ProtocolTag maxBound
-      then Left $ "unexpected protocol: " ++ show i
-      else Right $ toEnum i'
-  fromCql _ = Left "protocol: int expected"
-
 -- Optional time stamp. A 'Nothing' value is represented as 0.
 newtype OptionalUTCTime = OptionalUTCTime {unOptionalUTCTime :: Maybe UTCTime}
 

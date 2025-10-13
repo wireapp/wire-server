@@ -1013,7 +1013,8 @@ deleteTeamConversation ::
     Member NotificationSubsystem r,
     Member Now r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Local UserId ->
   ConnId ->

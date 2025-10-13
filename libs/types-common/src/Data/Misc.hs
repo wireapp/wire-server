@@ -38,6 +38,8 @@ module Data.Misc
 
     -- * Time
     Milliseconds (..),
+    msToInt64,
+    int64ToMs,
 
     -- * HttpsUrl
     HttpsUrl (..),

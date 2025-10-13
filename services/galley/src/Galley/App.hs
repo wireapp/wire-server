@@ -52,6 +52,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Text qualified as Text
 import Galley.API.Error
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
@@ -94,6 +95,7 @@ import Polysemy.Fail
 import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.Resource
+import Polysemy.TinyLog (TinyLog, logErrors)
 import Polysemy.TinyLog qualified as P
 import Servant qualified
 import Ssl.Util
@@ -107,11 +109,11 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess.Rpc
-import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
+import Wire.ConversationStore.Cassandra
+import Wire.ConversationStore.Postgres
 import Wire.Error
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
-import Wire.ListItems.ConversationIds.Cassandra
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -140,6 +142,7 @@ type GalleyEffects0 =
      Async,
      Delay,
      Fail,
+     TinyLog,
      Embed IO,
      Error JSONResponse,
      Resource,
@@ -254,70 +257,76 @@ evalGalleyToIO env action = do
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler env = liftIO . evalGalleyToIO env
 
+logAndMapError :: forall e1 e2 r a. (Member TinyLog r, Member (Error e2) r) => (e1 -> e2) -> (e1 -> Text) -> Text -> Sem (Error e1 : r) a -> Sem r a
+logAndMapError fErr fLog logMsg action =
+  mapError fErr $ logErrors @_ @e1 fLog logMsg action
+
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
-  ExceptT
-    . runFinal @IO
-    . resourceToIOFinal
-    . runError
-    . embedToFinal @IO
-    . failToEmbed @IO
-    . runDelay
-    . asyncToIOFinal
-    . mapError httpErrorToJSONResponse
-    . mapError postgresUsageErrorToHttpError
-    . mapError teamCollaboratorsSubsystemErrorToHttpError
-    . mapError toResponse
-    . mapError toResponse
-    . mapError toResponse
-    . mapError toResponse
-    . runInputConst e
-    . runInputConst (e ^. hasqlPool)
-    . runInputConst (e ^. cstate)
-    . mapError toResponse
-    . mapError toResponse
-    . mapError rateLimitExceededToHttpError
-    . mapError toResponse -- DynError
-    . interpretTinyLog e
-    . interpretQueue (e ^. deleteQueue)
-    . nowToIO
-    . runInputConst (e ^. options)
-    . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
-    . interpretTeamFeatureSpecialContext e
-    . runInputSem getAllTeamFeaturesForServer
-    . interpretInternalTeamListToCassandra
-    . interpretTeamListToCassandra
-    . interpretLegacyConversationListToCassandra
-    . interpretRemoteConversationListToCassandra
-    . interpretConversationListToCassandra
-    . interpretTeamMemberStoreToCassandraWithPaging lh
-    . interpretTeamMemberStoreToCassandra lh
-    . interpretTeamFeatureStoreToCassandra
-    . interpretConversationStoreToCassandra (e ^. cstate)
-    . interpretTeamStoreToCassandra lh
-    . interpretTeamNotificationStoreToCassandra
-    . interpretServiceStoreToCassandra
-    . interpretSearchVisibilityStoreToCassandra
-    . interpretLegalHoldStoreToCassandra lh
-    . interpretCustomBackendStoreToCassandra
-    . randomToIO
-    . runHashPassword e._options._settings._passwordHashingOptions
-    . interpretRateLimit e._passwordHashingRateLimitEnv
-    . interpretProposalStoreToCassandra
-    . interpretCodeStoreToCassandra
-    . interpretClientStoreToCassandra
-    . interpretTeamCollaboratorsStoreToPostgres
-    . interpretFireAndForget
-    . interpretBackendNotificationQueueAccess
-    . interpretFederatorAccess
-    . runRpcWithHttp (e ^. manager) (e ^. reqId)
-    . runGundeckAPIAccess (e ^. options . gundeck)
-    . interpretTeamSubsystem
-    . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
-    . interpretTeamCollaboratorsSubsystem
-    . interpretSparAccess
-    . interpretBrigAccess (e ^. brig)
-    . interpretExternalAccess
+  let convStoreInterpreter =
+        case (e ^. options . postgresMigration).conversation of
+          CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
+          PostgresqlStorage -> interpretConversationStoreToPostgres
+   in ExceptT
+        . runFinal @IO
+        . resourceToIOFinal
+        . runError
+        . embedToFinal @IO
+        . interpretTinyLog e
+        . failToEmbed @IO
+        . runDelay
+        . asyncToIOFinal
+        . mapError httpErrorToJSONResponse
+        . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
+        . mapError teamCollaboratorsSubsystemErrorToHttpError
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . runInputConst e
+        . runInputConst (e ^. hasqlPool)
+        . runInputConst (e ^. cstate)
+        . mapError toResponse
+        . mapError toResponse
+        . mapError rateLimitExceededToHttpError
+        . mapError toResponse -- DynError
+        . interpretQueue (e ^. deleteQueue)
+        . nowToIO
+        . runInputConst (e ^. options)
+        . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
+        . interpretTeamFeatureSpecialContext e
+        . runInputSem getAllTeamFeaturesForServer
+        . interpretInternalTeamListToCassandra
+        . interpretTeamListToCassandra
+        . interpretTeamMemberStoreToCassandraWithPaging lh
+        . interpretTeamMemberStoreToCassandra lh
+        . interpretTeamFeatureStoreToCassandra
+        . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
+        . convStoreInterpreter
+        . interpretTeamStoreToCassandra lh
+        . interpretTeamNotificationStoreToCassandra
+        . interpretServiceStoreToCassandra
+        . interpretSearchVisibilityStoreToCassandra
+        . interpretLegalHoldStoreToCassandra lh
+        . interpretCustomBackendStoreToCassandra
+        . randomToIO
+        . runHashPassword e._options._settings._passwordHashingOptions
+        . interpretRateLimit e._passwordHashingRateLimitEnv
+        . interpretProposalStoreToCassandra
+        . interpretCodeStoreToCassandra
+        . interpretClientStoreToCassandra
+        . interpretTeamCollaboratorsStoreToPostgres
+        . interpretFireAndForget
+        . interpretBackendNotificationQueueAccess
+        . interpretFederatorAccess
+        . runRpcWithHttp (e ^. manager) (e ^. reqId)
+        . runGundeckAPIAccess (e ^. options . gundeck)
+        . interpretTeamSubsystem
+        . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+        . interpretTeamCollaboratorsSubsystem
+        . interpretSparAccess
+        . interpretBrigAccess (e ^. brig)
+        . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
 

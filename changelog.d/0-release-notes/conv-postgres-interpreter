@@ -1,0 +1,14 @@
+Allow storing conversation data in postgres.
+
+This is currently not the default and is experimental.
+The migration path from Cassandra is yet to be programmed.
+
+However, new installations can use this by configuring the wire-server helm
+chart like this:
+
+```yaml
+galley:
+  config:
+    postgresqlMigration:
+      conversation: postgresql
+```
