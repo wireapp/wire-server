@@ -251,7 +251,7 @@ paginateTeamMembersImpl ::
   Sem r (SearchResult UserDoc)
 paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
   let (IndexQuery q f sortSpecs) =
-        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder mEmailVerificationFilter mSearchable
+        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder mEmailVerificationFilter searchable
   let search =
         (ES.mkSearch (Just q) (Just f))
           { -- we are requesting one more result than the page size to determine if there is a next page
@@ -317,9 +317,9 @@ teamUserSearchQuery ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   Maybe EmailVerificationFilter ->
-  Maybe Bool ->
+  Bool ->
   IndexQuery TeamContact
-teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter mSearchable =
+teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter searchable =
   IndexQuery
     ( maybe
         (ES.MatchAllQuery Nothing)
@@ -377,10 +377,9 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
         mustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter <> emailFilter <> searchableFilter
 
         searchableFilter :: [ES.Query]
-        searchableFilter = case mSearchable of
-          Just False -> [ES.TermQuery (ES.Term "searchable" "false") Nothing]
-          Just True -> [ES.QueryBoolQuery boolQuery { ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing] }]
-          Nothing -> []
+        searchableFilter = if searchable
+          then []
+          else [ES.TermQuery (ES.Term "searchable" "false") Nothing]
 
         roleFilter :: [ES.Query]
         roleFilter =
