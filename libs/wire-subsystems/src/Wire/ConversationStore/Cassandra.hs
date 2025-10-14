@@ -1054,6 +1054,7 @@ interpretConversationStoreToCassandraAndPostgres ::
   Sem r a
 interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
   UpsertConversation lcnv nc -> do
+    -- Save new convs in postgresql
     withMigrationLock LockShared (Left $ tUnqualified lcnv) $
       embedClient client (getConversation (tUnqualified lcnv)) >>= \case
         Nothing -> interpretConversationStoreToPostgres $ ConvStore.upsertConversation lcnv nc
@@ -1250,10 +1251,16 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         _ -> interpretConversationStoreToPostgres (ConvStore.upsertMembers cid ul)
   UpsertMembersInRemoteConversation rcid uids -> do
     logEffect "ConversationStore.CreateMembersInRemoteConversation"
+
+    -- Save users joining their first remote conv in postgres
     withMigrationLocks LockShared (Seconds 2) (Right <$> uids) $ do
       filterUsersInPostgres uids >>= \pgUids -> do
-        interpretConversationStoreToPostgres $ ConvStore.upsertMembersInRemoteConversation rcid pgUids
-        let cassUids = filter (`notElem` pgUids) uids
+        let -- These are not in Postegres, but that doesn't mean they're in
+            -- cassandra
+            nonPgUids = filter (`notElem` pgUids) uids
+        cassUids <- embedClient client $ haveRemoteConvs nonPgUids
+        let newPgUids = filter (`notElem` cassUids) uids
+        interpretConversationStoreToPostgres $ ConvStore.upsertMembersInRemoteConversation rcid newPgUids
         runEmbedded (runClient client) $ embed $ addLocalMembersToRemoteConv rcid cassUids
   CreateBotMember sr bid cid -> do
     logEffect "ConversationStore.CreateBotMember"
