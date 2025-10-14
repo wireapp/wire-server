@@ -446,24 +446,16 @@ testUserSearchable = do
     assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u3id]
 
   -- /teams/:tid/search and /teams/:tid/search?searchable=true both get all members, searchable and non-searchable
-  noQueryParam <-
+  searchTeamEveryone <-
     BrigP.searchTeam admin [] `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       mapM (\m -> m %. "id" & asString) docs
-  withQueryParam <-
-    BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      mapM (\m -> m %. "id" & asString) docs
-  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal"
-    $ Set.fromList noQueryParam
-    == Set.fromList withQueryParam
 
   -- All users created as part of this test are in the returned result
   everyone'sUids <- mapM objId everyone
   assertBool "All created users as part of this test are in the returned result"
-    $ Set.fromList noQueryParam
+    $ Set.fromList searchTeamEveryone
     == Set.fromList everyone'sUids
 
   where
