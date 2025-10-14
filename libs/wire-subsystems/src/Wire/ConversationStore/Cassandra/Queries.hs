@@ -243,7 +243,10 @@ updateMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "up
 -- local conversation with remote members
 
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
-selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by (conv_remote_domain, conv_remote_id)"
+
+selectUserRemoteConvsFrom :: PrepQuery R (UserId, Domain, ConvId) (Domain, ConvId)
+selectUserRemoteConvsFrom = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? and (conv_remote_domain, conv_remote_id) > (?, ?) order by (conv_remote_domain, conv_remote_id)"
 
 insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId, RoleName) ()
 insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role) values (?, ?, ?, ?)"

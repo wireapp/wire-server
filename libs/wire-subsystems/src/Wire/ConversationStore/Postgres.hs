@@ -2,10 +2,7 @@
 
 module Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres) where
 
-import Control.Error (lastMay)
 import Control.Monad.Trans.Maybe
-import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as BS
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
@@ -42,7 +39,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Pagination
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
-import Wire.API.Routes.MultiTablePaging
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.Postgres
@@ -63,7 +59,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   GetConversationEpoch cid -> getConversationEpochImpl cid
   GetConversations cids -> getConversationsImpl cids
   GetLocalConversationIds uid lastConvId maxIds -> getLocalConversationIdsImpl uid lastConvId maxIds
-  GetConversationIds uid maxIds pagingState -> getConversationIdsImpl uid maxIds pagingState
+  GetRemoteConverastionIds uid lastConvId maxIds -> getRemoteConversationIdsImpl uid lastConvId maxIds
   GetConversationMetadata cid -> getConversationMetadataImpl cid
   GetGroupInfo cid -> getGroupInfoImpl cid
   IsConversationAlive cid -> isConversationAliveImpl cid
@@ -305,101 +301,24 @@ getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
                          LIMIT ($3 :: integer)
                         |]
 
-getConversationIdsImpl :: forall r. (PGConstraints r) => Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Sem r ConvIdsPage
-getConversationIdsImpl lusr (fromRange -> maxIds) pagingState = do
-  let pagingTable = maybe PagingLocals (.mtpsTable) pagingState
-      mLastId = Aeson.decode . BS.fromStrict =<< (.mtpsState) =<< pagingState
-  case pagingTable of
-    PagingLocals -> do
-      localPage <- getLocals maxIds mLastId
-      let remainingSize = maxIds - fromIntegral (length localPage.mtpResults)
-      if remainingSize <= 0
-        then pure localPage {mtpHasMore = True}
-        else do
-          remotePage <- getRemotes remainingSize Nothing
-          pure $
-            remotePage {mtpResults = localPage.mtpResults <> remotePage.mtpResults}
-    PagingRemotes ->
-      getRemotes maxIds mLastId
+getRemoteConversationIdsImpl :: (PGConstraints r) => UserId -> Maybe (Remote ConvId) -> Range 1 1000 Int32 -> Sem r (ResultSet (Remote ConvId))
+getRemoteConversationIdsImpl usr start (fromRange -> maxIds) = do
+  mkResultSetByLength (fromIntegral maxIds) . map (uncurry toRemoteUnsafe) <$> case start of
+    Just (tUntagged -> Qualified c dom) -> runStatement (usr, dom, c, maxIds + 1) selectFrom
+    Nothing -> runStatement (usr, maxIds + 1) selectStart
   where
-    localDomain = tDomain lusr
-    usr = tUnqualified lusr
-
-    getLocals :: Int32 -> Maybe (Qualified ConvId) -> Sem r ConvIdsPage
-    getLocals maxLocals mLastId = do
-      mkLocalsPage <$> case mLastId of
-        Nothing -> runStatement (usr, maxLocals) selectLocalsStart
-        Just (Qualified lastId _) -> runStatement (usr, lastId, maxIds) selectLocalsFrom
-
-    getRemotes :: Int32 -> Maybe (Qualified ConvId) -> Sem r ConvIdsPage
-    getRemotes maxRemotes mLastId = do
-      mkRemotesPage maxRemotes <$> case mLastId of
-        Nothing -> runStatement (usr, maxRemotes) selectRemotesStart
-        Just (Qualified lastId lastDomain) -> runStatement (usr, lastDomain, lastId, maxRemotes) selectRemotesFrom
-
-    mkLocalsPage :: [ConvId] -> ConvIdsPage
-    mkLocalsPage results =
-      MultiTablePage
-        { mtpResults = map (\cid -> Qualified cid localDomain) results,
-          mtpHasMore = length results >= fromIntegral maxIds,
-          mtpPagingState =
-            case lastMay results of
-              Nothing ->
-                MultiTablePagingState
-                  { mtpsTable = PagingRemotes,
-                    mtpsState = Nothing
-                  }
-              Just newLastId ->
-                MultiTablePagingState
-                  { mtpsTable = PagingLocals,
-                    mtpsState = Just . BS.toStrict . Aeson.encode $ Qualified newLastId localDomain
-                  }
-        }
-
-    mkRemotesPage :: Int32 -> [(Domain, ConvId)] -> ConvIdsPage
-    mkRemotesPage maxRemotes results =
-      MultiTablePage
-        { mtpResults = map (uncurry $ flip Qualified) results,
-          mtpHasMore = length results >= fromIntegral maxRemotes,
-          mtpPagingState =
-            case lastMay results of
-              Nothing ->
-                -- This might look absurd because when this state is back here,
-                -- we'll go to the first page, but 'mtpHasMore' should be set to
-                -- false when we have empty results.
-                MultiTablePagingState
-                  { mtpsTable = PagingRemotes,
-                    mtpsState = Nothing
-                  }
-              Just (newLastDomain, newLastId) ->
-                MultiTablePagingState
-                  { mtpsTable = PagingRemotes,
-                    mtpsState = Just . BS.toStrict $ Aeson.encode $ Qualified newLastId newLastDomain
-                  }
-        }
-
-    selectLocalsFrom :: Hasql.Statement (UserId, ConvId, Int32) [ConvId]
-    selectLocalsFrom =
+    selectStart :: Hasql.Statement (UserId, Int32) [(Domain, ConvId)]
+    selectStart =
       dimapPG
-        [vectorStatement|SELECT (conv :: uuid)
-                         FROM conversation_member
+        [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
+                         FROM remote_conversation_local_member
                          WHERE "user" = ($1 :: uuid)
-                         AND conv > ($2 :: uuid)
-                         ORDER BY conv
-                         LIMIT ($3 :: integer)
-                        |]
-    selectLocalsStart :: Hasql.Statement (UserId, Int32) [(ConvId)]
-    selectLocalsStart =
-      dimapPG
-        [vectorStatement|SELECT (conv :: uuid)
-                         FROM conversation_member
-                         WHERE "user" = ($1 :: uuid)
-                         ORDER BY conv
+                         ORDER BY (conv_remote_domain, conv_remote_id)
                          LIMIT ($2 :: integer)
                         |]
 
-    selectRemotesFrom :: Hasql.Statement (UserId, Domain, ConvId, Int32) [(Domain, ConvId)]
-    selectRemotesFrom =
+    selectFrom :: Hasql.Statement (UserId, Domain, ConvId, Int32) [(Domain, ConvId)]
+    selectFrom =
       dimapPG
         [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
                          FROM remote_conversation_local_member
@@ -407,15 +326,6 @@ getConversationIdsImpl lusr (fromRange -> maxIds) pagingState = do
                          AND (conv_remote_domain, conv_remote_id) > ($2 :: text, $3 ::uuid)
                          ORDER BY (conv_remote_domain, conv_remote_id)
                          LIMIT ($4 :: integer)
-                        |]
-    selectRemotesStart :: Hasql.Statement (UserId, Int32) [(Domain, ConvId)]
-    selectRemotesStart =
-      dimapPG
-        [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
-                         FROM remote_conversation_local_member
-                         WHERE "user" = ($1 :: uuid)
-                         ORDER BY (conv_remote_domain, conv_remote_id)
-                         LIMIT ($2 :: integer)
                         |]
 
 getConversationMetadataImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationMetadata)
