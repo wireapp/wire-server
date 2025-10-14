@@ -272,11 +272,9 @@ localConversationIdsOf usr cids = do
 
 getLocalConvIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Client (ResultSet ConvId)
 getLocalConvIds usr start (fromRange -> maxIds) = do
-  mkResultSet . strip . fmap runIdentity <$> case start of
+  mkResultSetByLength (fromIntegral maxIds) . fmap runIdentity . result <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP LocalQuorum (usr, c) (maxIds + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP LocalQuorum (Identity usr) (maxIds + 1))
-  where
-    strip p = p {result = take (fromIntegral maxIds) (result p)}
 
 getConvIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Client ConvIdsPage
 getConvIds lusr (fromRange -> maxIds) pagingState = do
