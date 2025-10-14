@@ -2,7 +2,8 @@
 
 module Wire.ConversationStore.Migration where
 
-import Cassandra (ClientState)
+import Cassandra
+import Control.Error (lastMay)
 import Data.Domain
 import Data.Id
 import Data.IntMap qualified as IntMap
@@ -40,10 +41,14 @@ import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.MigrationLock
 import Wire.ConversationStore.Postgres
 import Wire.Postgres (runTransaction)
+import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
+import Wire.Util
 
 migrateAllConversations :: Sem r ()
 migrateAllConversations = undefined
+
+-- * Conversations
 
 migrateConversation :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => ConvId -> Sem r ()
 migrateConversation cid = do
@@ -285,7 +290,76 @@ saveConvToPostgres allConvData = do
                                           $4 :: bigint?[], $5 :: timestamptz?[], $6 :: bytea[], $7 :: bytea?[])
                             |]
 
+-- * Users
+
+migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => UserId -> Sem r ()
+migrateUser uid = do
+  void . withMigrationLocks LockExclusive (Seconds 10) [Right uid] $ do
+    statusses <- getRemoteMemberStatusFromCassandra uid
+    saveRemoteMemberStatusToPostgres uid statusses
+    deleteRemoteMemberStatusesFromCassandra uid
+
+getRemoteMemberStatusFromCassandra :: forall r. (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
+getRemoteMemberStatusFromCassandra uid = withCassandra $ do
+  convIds <- getAllRemoteConvIds [] Nothing
+  getRemoteConversationStatus uid convIds
+  where
+    getAllRemoteConvIds :: [Remote ConvId] -> Maybe (Remote ConvId) -> Sem (ConversationStore ': r) [Remote ConvId]
+    getAllRemoteConvIds acc mLastId = do
+      res <- getRemoteConverastionIds uid mLastId maxBound
+      let newAcc = res.resultSetResult <> acc
+      case (res.resultSetResult, res.resultSetType) of
+        ([], _) -> pure newAcc
+        (_, ResultSetTruncated) -> getAllRemoteConvIds newAcc (lastMay res.resultSetResult)
+        (_, ResultSetComplete) -> pure newAcc
+
+saveRemoteMemberStatusToPostgres :: (PGConstraints r) => UserId -> Map (Remote ConvId) MemberStatus -> Sem r ()
+saveRemoteMemberStatusToPostgres uid statusses =
+  runTransaction ReadCommitted Write $ do
+    Transaction.statement statusColumns insertStatuses
+  where
+    insertStatuses :: Hasql.Statement ([UserId], [Domain], [ConvId], [Maybe MutedStatus], [Maybe Text], [Bool], [Maybe Text], [Bool], [Maybe Text]) ()
+    insertStatuses =
+      lmapPG @_ @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
+        [resultlessStatement|INSERT INTO remote_conversation_local_member
+                             ("user", conv_remote_domain, conv_remote_id, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref)
+                             SELECT *
+                             FROM UNNEST ($1 :: uuid[], $2 :: text[], $3 :: uuid[],
+                                          $4 :: integer?[], $5 :: text?[],
+                                          $6 :: bool[], $7 :: text?[],
+                                          $8 :: bool[], $9 :: text?[]
+                                         )
+                            |]
+
+    statusColumns = unzip9 statusRows
+
+    statusRows :: [(UserId, Domain, ConvId, Maybe MutedStatus, Maybe Text, Bool, Maybe Text, Bool, Maybe Text)]
+    statusRows =
+      Map.foldrWithKey (\rcid status -> (statusRow rcid status :)) [] statusses
+
+    statusRow :: Remote ConvId -> MemberStatus -> (UserId, Domain, ConvId, Maybe MutedStatus, Maybe Text, Bool, Maybe Text, Bool, Maybe Text)
+    statusRow (tUntagged -> Qualified cid dom) MemberStatus {..} =
+      (uid, dom, cid, msOtrMutedStatus, msOtrMutedRef, msOtrArchived, msOtrArchivedRef, msHidden, msHiddenRef)
+
+deleteRemoteMemberStatusesFromCassandra :: (Member (Input ClientState) r, Member (Embed IO) r) => UserId -> Sem r ()
+deleteRemoteMemberStatusesFromCassandra uid = do
+  cstate <- input
+  embedClient cstate $
+    retry x5 $
+      write delete (params LocalQuorum (Identity uid))
+  where
+    delete :: PrepQuery W (Identity UserId) ()
+    delete = "delete from user_remote_conv where user = ?"
+
+-- * Utils
+
 withCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => InterpreterFor ConversationStore r
 withCassandra action = do
   cstate <- input
   interpretConversationStoreToCassandra cstate action
+
+unzip9 :: [(a, b, c, d, e, f, g, h, i)] -> ([a], [b], [c], [d], [e], [f], [g], [h], [i])
+unzip9 [] = ([], [], [], [], [], [], [], [], [])
+unzip9 ((y1, y2, y3, y4, y5, y6, y7, y8, y9) : ys) =
+  let (l1, l2, l3, l4, l5, l6, l7, l8, l9) = unzip9 ys
+   in (y1 : l1, y2 : l2, y3 : l3, y4 : l4, y5 : l5, y6 : l6, y7 : l7, y8 : l8, y9 : l9)
