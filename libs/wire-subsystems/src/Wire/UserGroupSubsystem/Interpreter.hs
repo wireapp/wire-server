@@ -26,10 +26,11 @@ import Wire.API.UserGroup.Pagination
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
+import Wire.PaginationState
 import Wire.TeamSubsystem
-import Wire.UserGroupStore (PaginationState (..), UserGroupPageRequest (..))
+import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
-import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
+import Wire.UserGroupSubsystem (GroupSearch (..), UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
@@ -45,8 +46,7 @@ interpretUserGroupSubsystem ::
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
-  GetGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount includeChannels ->
-    getUserGroups getter q sortByKeys sortOrder pSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount includeChannels
+  GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
   AddUser adder groupId addeeId -> addUser adder groupId addeeId
@@ -171,31 +171,27 @@ getUserGroups ::
     Member (Error UserGroupSubsystemError) r
   ) =>
   UserId ->
-  Maybe Text ->
-  Maybe SortBy ->
-  Maybe SortOrder ->
-  Maybe PageSize ->
-  Maybe UserGroupName ->
-  Maybe UTCTimeMillis ->
-  Maybe UserGroupId ->
-  Bool ->
-  Bool ->
+  GroupSearch ->
   Sem r UserGroupPage
-getUserGroups getter searchString sortBy' sortOrder' mPageSize mLastGroupName mLastCreatedAt mLastGroupId includeMemberCount' includeChannels' = do
+getUserGroups getter search = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
   let pageReq =
         UserGroupPageRequest
-          { pageSize = fromMaybe def mPageSize,
-            sortOrder = fromMaybe Desc sortOrder',
-            paginationState = case (fromMaybe def sortBy') of
-              SortByName -> PaginationSortByName $ (,) <$> mLastGroupName <*> mLastGroupId
-              SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> mLastCreatedAt <*> mLastGroupId,
+          { pageSize = fromMaybe def search.pageSize,
+            sortOrder = fromMaybe Desc search.sortOrder,
+            paginationState = case (fromMaybe def search.sortBy) of
+              SortByName ->
+                PaginationSortByName $
+                  (,) <$> search.lastName <*> search.lastId
+              SortByCreatedAt ->
+                PaginationSortByCreatedAt $
+                  (,) <$> search.lastCreatedAt <*> search.lastId,
             team = team,
-            searchString = searchString,
-            includeMemberCount = includeMemberCount',
-            includeChannels = includeChannels'
+            searchString = search.query,
+            includeMemberCount = search.includeMemberCount,
+            includeChannels = search.includeChannels
           }
   Store.getUserGroups pageReq
   where

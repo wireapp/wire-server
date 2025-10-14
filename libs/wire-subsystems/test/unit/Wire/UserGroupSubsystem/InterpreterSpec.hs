@@ -10,7 +10,7 @@ import Data.Bifunctor (first)
 import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
+import Data.Json.Util
 import Data.List.Extra
 import Data.Map qualified as Map
 import Data.Qualified
@@ -256,9 +256,19 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroupAdmin <- getGroup (ownerId team) group1.id_ False
           getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_ False
 
-          getGroupsAdmin <- getGroups (ownerId team) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing False False
-          getGroupsOutsider <- try $ getGroups (ownerId otherTeam) (Just (userGroupNameToText userGroupName)) Nothing Nothing Nothing Nothing Nothing Nothing False False
-
+          getGroupsAdmin <-
+            getGroups
+              (ownerId team)
+              def
+                { query = Just (userGroupNameToText userGroupName)
+                }
+          getGroupsOutsider <-
+            try $
+              getGroups
+                (ownerId otherTeam)
+                def
+                  { query = Just (userGroupNameToText userGroupName)
+                  }
           pure $
             getGroupAdmin === Just group1
               .&&. getGroupsAdmin.page === [userGroupToMeta group1]
@@ -290,8 +300,18 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
               getOwnGroup <- getGroup (ownerId team1) group1.id_ False
               getOtherGroup <- getGroup (ownerId team1) group2.id_ False
-              getOwnGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName1)) Nothing Nothing Nothing Nothing Nothing Nothing False False
-              getOtherGroups <- getGroups (ownerId team1) (Just (userGroupNameToText userGroupName2)) Nothing Nothing Nothing Nothing Nothing Nothing False False
+              getOwnGroups <-
+                getGroups
+                  (ownerId team1)
+                  def
+                    { query = Just (userGroupNameToText userGroupName1)
+                    }
+              getOtherGroups <-
+                getGroups
+                  (ownerId team1)
+                  def
+                    { query = Just (userGroupNameToText userGroupName2)
+                    }
 
               pure $
                 getOwnGroup === Just group1
@@ -305,10 +325,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
-        get0 <- getGroups (ownerId team1) (Just "nope") Nothing Nothing Nothing Nothing Nothing Nothing False False
-        get1 <- getGroups (ownerId team1) (Just "1") Nothing Nothing Nothing Nothing Nothing Nothing False False
-        get2 <- getGroups (ownerId team1) (Just "2") Nothing Nothing Nothing Nothing Nothing Nothing False False
-        get3 <- getGroups (ownerId team1) (Just "3") Nothing Nothing Nothing Nothing Nothing Nothing False False
+        get0 <- getGroups (ownerId team1) def {query = Just "nope"}
+        get1 <- getGroups (ownerId team1) def {query = Just "1"}
+        get2 <- getGroups (ownerId team1) def {query = Just "2"}
+        get3 <- getGroups (ownerId team1) def {query = Just "3"}
 
         pure do
           get0.page `shouldBe` []
@@ -335,14 +355,21 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                   groups <- replicateM (fromIntegral numGroups) mkGroup
 
                   results :: [UserGroupPage] <- do
-                    let fetch mLastName mLastCreatedAt mLastGroupId = do
-                          p <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) Nothing (Just pageSize) mLastName mLastCreatedAt mLastGroupId False False
+                    let fetch mLastThing = do
+                          p <-
+                            getGroups
+                              (ownerId team1)
+                              def
+                                { sortBy = Just SortByCreatedAt,
+                                  pageSize = Just pageSize,
+                                  lastName = fmap (userGroupNameToText . (.name)) mLastThing,
+                                  lastCreatedAt = fmap (fromUTCTimeMillis . (.createdAt)) mLastThing,
+                                  lastId = fmap (.id_) mLastThing
+                                }
                           if length p.page < pageSizeToInt pageSize
                             then pure [p]
-                            else do
-                              let lastThing = last p.page
-                              (p :) <$> fetch (Just lastThing.name) (Just lastThing.createdAt) (Just lastThing.id_)
-                    fetch Nothing Nothing Nothing
+                            else (p :) <$> fetch (Just (last p.page))
+                    fetch Nothing
 
                   let all' :: (x -> Property) -> [x] -> Property
                       all' mkProp = foldr (\x acc -> mkProp x .&&. acc) (True === True)
@@ -377,9 +404,21 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         group1b <- mkGroup "1"
         group3b <- mkGroup "3"
 
-        sortByDefaults <- getGroups (ownerId team1) Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False
-        sortByNameDesc <- getGroups (ownerId team1) Nothing (Just SortByName) (Just Desc) Nothing Nothing Nothing Nothing False False
-        sortByCreatedAtAsc <- getGroups (ownerId team1) Nothing (Just SortByCreatedAt) (Just Asc) Nothing Nothing Nothing Nothing False False
+        sortByDefaults <- getGroups (ownerId team1) def
+        sortByNameDesc <-
+          getGroups
+            (ownerId team1)
+            def
+              { sortBy = Just SortByName,
+                sortOrder = Just Desc
+              }
+        sortByCreatedAtAsc <-
+          getGroups
+            (ownerId team1)
+            def
+              { sortBy = Just SortByCreatedAt,
+                sortOrder = Just Asc
+              }
 
         let expectSortByDefaults = [[group1b, group2b, group3b], [group1a, group2a, group3a]]
             expectSortByNameDesc = [[group3a, group3b], [group2a, group2b], [group1a, group1b]]
