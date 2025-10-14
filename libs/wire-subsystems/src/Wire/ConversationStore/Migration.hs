@@ -285,9 +285,6 @@ saveConvToPostgres allConvData = do
                                           $4 :: bigint?[], $5 :: timestamptz?[], $6 :: bytea[], $7 :: bytea?[])
                             |]
 
-deleteFromCassandra :: StoredConversation -> [SubConversation] -> Sem r ()
-deleteFromCassandra = undefined
-
 withCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => InterpreterFor ConversationStore r
 withCassandra action = do
   cstate <- input
