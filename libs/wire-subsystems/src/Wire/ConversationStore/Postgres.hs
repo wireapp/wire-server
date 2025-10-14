@@ -17,6 +17,7 @@ import Data.Time
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.Records (HasField)
+import Hasql.Decoders qualified as HD
 import Hasql.Pipeline qualified as Pipeline
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
@@ -112,6 +113,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetSubConversationCipherSuite cid sconv cs -> setSubConversationCipherSuiteImpl cid sconv cs
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
+  SearchConversations search -> searchConversationsImpl search
 
 upsertConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
 upsertConversationImpl lcnv nc = do
@@ -1226,3 +1228,20 @@ deleteSubConversationImpl cid subConvId =
                              WHERE conv_id = ($1 :: uuid)
                              AND subconv_id = ($2 :: text)
                             |]
+
+searchConversationsImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Error Hasql.UsageError) r,
+    Member (Embed IO) r
+  ) =>
+  ConversationSearch ->
+  Sem r [ConvId]
+searchConversationsImpl search =
+  runStatement () $
+    buildStatement
+      ( literal "select id from conversation where"
+          <> foldMap (like "name") search.name
+      )
+      ( HD.rowList
+          (Id <$> HD.column (HD.nonNullable HD.uuid))
+      )

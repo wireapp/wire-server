@@ -50,6 +50,10 @@ data MLSCommitLockStore m a where
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> MLSCommitLockStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> MLSCommitLockStore m ()
 
+data ConversationSearch = ConversationSearch
+  { name :: Maybe Text
+  }
+
 makeSem ''MLSCommitLockStore
 
 data ConversationStore m a where
@@ -120,6 +124,7 @@ data ConversationStore m a where
   SetSubConversationCipherSuite :: ConvId -> SubConvId -> CipherSuiteTag -> ConversationStore m ()
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> ConversationStore m ()
+  SearchConversations :: ConversationSearch -> ConversationStore m [ConvId]
 
 makeSem ''ConversationStore
 
