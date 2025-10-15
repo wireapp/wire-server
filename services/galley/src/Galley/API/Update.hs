@@ -808,9 +808,28 @@ updateChannelAddPermission lusr zcon qcnv update =
     (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
 
-searchChannels :: Local UserId -> Maybe Text -> Maybe PageSize -> Maybe Text -> Maybe ConvId -> Bool -> Sem r ConversationPage
-searchChannels _ _ _ _ _ _ = do
-  pure $ ConversationPage {page = []}
+searchChannels ::
+  (Member ConversationStore r) =>
+  Local UserId ->
+  Maybe Text ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe Text ->
+  Maybe ConvId ->
+  Bool ->
+  Sem r ConversationPage
+searchChannels lusr searchString sortOrder pageSize lastName lastId _discoverable = do
+  team <- error "TODO" lusr
+  ConversationPage
+    <$> E.searchConversations
+      E.ConversationSearch
+        { team,
+          searchString,
+          sortOrder = fromMaybe Desc sortOrder,
+          pageSize = fromMaybe def pageSize,
+          lastName,
+          lastId
+        }
 
 joinConversationByReusableCode ::
   forall r.

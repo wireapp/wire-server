@@ -182,13 +182,12 @@ getUserGroups getter search = do
         UserGroupPageRequest
           { pageSize = fromMaybe def search.pageSize,
             sortOrder = fromMaybe Desc search.sortOrder,
-            paginationState = case (fromMaybe def search.sortBy) of
-              SortByName ->
-                PaginationSortByName $
-                  (,) <$> search.lastName <*> search.lastId
-              SortByCreatedAt ->
-                PaginationSortByCreatedAt $
-                  (,) <$> search.lastCreatedAt <*> search.lastId,
+            paginationState =
+              mkPaginationState
+                (fromMaybe def search.sortBy)
+                search.lastName
+                search.lastCreatedAt
+                search.lastId,
             team = team,
             searchString = search.query,
             includeMemberCount = search.includeMemberCount,

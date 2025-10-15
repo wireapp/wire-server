@@ -35,8 +35,10 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
+import Wire.API.Pagination
 import Wire.API.Provider.Service
 import Wire.ConversationStore.MLS.Types
+import Wire.PaginationState
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
@@ -51,7 +53,12 @@ data MLSCommitLockStore m a where
   ReleaseCommitLock :: GroupId -> Epoch -> MLSCommitLockStore m ()
 
 data ConversationSearch = ConversationSearch
-  { name :: Maybe Text
+  { team :: TeamId,
+    searchString :: Maybe Text,
+    pageSize :: PageSize,
+    sortOrder :: SortOrder,
+    lastName :: Maybe Text,
+    lastId :: Maybe ConvId
   }
 
 makeSem ''MLSCommitLockStore

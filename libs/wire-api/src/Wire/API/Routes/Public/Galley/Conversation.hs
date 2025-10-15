@@ -1418,13 +1418,14 @@ type ConversationAPI =
                :> "search"
                :> "channels"
                :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
+               :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
                :> QueryParam' '[Optional, Strict] "page_size" PageSize
-               :> QueryParam' '[Optional, Strict, LastSeenName] "last_seen_name" Text
-               :> QueryParam' '[Optional, Strict, LastSeenId] "last_seen_id" ConvId
+               :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" Text
+               :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" ConvId
                :> QueryFlag "discoverable"
                :> Get '[JSON] ConversationPage
            )
 
-type LastSeenName = Description "`name` of the last seen channel of the current page, used to get the next page."
+type LastSeenNameDesc = Description "`name` of the last seen channel of the current page, used to get the next page."
 
-type LastSeenId = Description "`id` of the last seen channel, used to get the next page, used as a tie breaker. **Must** be sent to get the next page."
+type LastSeenIdDesc = Description "`id` of the last seen channel, used to get the next page, used as a tie breaker. **Must** be sent to get the next page."

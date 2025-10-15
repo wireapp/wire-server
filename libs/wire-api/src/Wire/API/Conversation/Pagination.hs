@@ -18,6 +18,7 @@
 module Wire.API.Conversation.Pagination where
 
 import Data.Aeson qualified as A
+import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
@@ -26,7 +27,7 @@ import Wire.API.Conversation
 import Wire.API.Pagination
 import Wire.Arbitrary as Arbitrary
 
-newtype ConversationPage = ConversationPage {page :: [Conversation]}
+newtype ConversationPage = ConversationPage {page :: [ConvId]}
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationPage
 

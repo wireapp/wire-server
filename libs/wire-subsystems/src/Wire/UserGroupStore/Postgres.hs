@@ -191,7 +191,9 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
                   literal "from user_group as ug",
                   where_
                     ( [clause1 "team_id" "=" req.team]
-                        <> [clause (sortOrderOperator sortOrder) c | c <- toList paginationClause]
+                        <> [ clause (sortOrderOperator sortOrder) c
+                             | c <- toList (paginationClause paginationState)
+                           ]
                         <> toList (like "name" <$> searchString)
                     )
                 ]
@@ -266,14 +268,6 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
     sortColumn = case paginationState of
       PaginationSortByName _ -> "name"
       PaginationSortByCreatedAt _ -> "created_at"
-
-    paginationClause :: Maybe Clause
-    paginationClause = case paginationState of
-      PaginationSortByName (Just (name, gid)) ->
-        Just (mkClause "name" name <> mkClause "id" gid)
-      PaginationSortByCreatedAt (Just (createdAt, gid)) ->
-        Just (mkClause "created_at" createdAt <> mkClause "id" gid)
-      _ -> Nothing
 
     selectors :: Text
     selectors =

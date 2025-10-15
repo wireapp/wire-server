@@ -36,6 +36,9 @@ module Wire.Postgres
     orderBy,
     limit,
     buildStatement,
+
+    -- * Type classes
+    PostgresValue (..),
   )
 where
 

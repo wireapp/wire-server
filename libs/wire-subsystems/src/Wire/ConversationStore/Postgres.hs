@@ -38,6 +38,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
+import Wire.API.Pagination
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
 import Wire.API.Routes.MultiTablePaging
@@ -1236,11 +1237,21 @@ searchConversationsImpl ::
   ) =>
   ConversationSearch ->
   Sem r [ConvId]
-searchConversationsImpl search =
+searchConversationsImpl req =
   runStatement () $
     buildStatement
-      ( literal "select id from conversation where"
-          <> foldMap (like "name") search.name
+      ( literal "select id from conversation"
+          <> where_
+            ( [clause1 "team_id" "=" req.team]
+                <> [ clause
+                       (sortOrderOperator req.sortOrder)
+                       (mkClause "name" lastName <> mkClause "id" lastId)
+                     | lastName <- toList req.lastName,
+                       lastId <- toList req.lastId
+                   ]
+                <> toList (like "name" <$> req.searchString)
+            )
+          <> limit (pageSizeToInt32 req.pageSize)
       )
       ( HD.rowList
           (Id <$> HD.column (HD.nonNullable HD.uuid))
