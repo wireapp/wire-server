@@ -74,7 +74,7 @@ mkScimGroupMember (idToText . User.userId -> value) =
    in Group.Member {..}
 
 spec :: Spec
-spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
+spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
   describe "createScimGroup" $ do
     prop "creates a group returns it" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
       let newScimGroup =
@@ -107,3 +107,7 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
               else isLeft
       unless (want have) do
         expectationFailure . show $ ((.userManagedBy) <$> UGS.allUsers team)
+
+  describe "getScimGroup" $ do
+    it "retrieves metadata intact" $ do
+      pendingWith "we actually haven't implemented metadata storage in store, because it was weird to test it without get."
