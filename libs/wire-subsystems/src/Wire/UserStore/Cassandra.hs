@@ -14,8 +14,8 @@ import Polysemy.Error
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.User hiding (DeleteUser)
-import Wire.API.User.Search (SetSearchable(SetSearchable))
 import Wire.API.User.RichInfo
+import Wire.API.User.Search (SetSearchable (SetSearchable))
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser hiding (userId)

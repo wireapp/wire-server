@@ -377,9 +377,8 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
         mustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter <> emailFilter <> searchableFilter
 
         searchableFilter :: [ES.Query]
-        searchableFilter = if searchable
-          then []
-          else [ES.TermQuery (ES.Term "searchable" "false") Nothing]
+        searchableFilter =
+          [ES.TermQuery (ES.Term "searchable" "false") Nothing | not searchable]
 
         roleFilter :: [ES.Query]
         roleFilter =

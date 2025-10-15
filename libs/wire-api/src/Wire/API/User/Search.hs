@@ -1,8 +1,8 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -378,5 +378,6 @@ instance S.ToParamSchema EmailVerificationFilter where
 
 data SetSearchable = SetSearchable
   { setSearchable :: Bool
-  } deriving (Generic)
-    deriving anyclass (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema)
+  }
+  deriving (Generic)
+  deriving anyclass (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema)

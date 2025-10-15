@@ -13,7 +13,7 @@ import Polysemy.Error
 import Polysemy.State
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
-import Wire.API.User.Search (SetSearchable(SetSearchable))
+import Wire.API.User.Search (SetSearchable (SetSearchable))
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
