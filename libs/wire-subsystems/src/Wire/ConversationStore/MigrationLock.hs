@@ -36,6 +36,7 @@ withMigrationLock ::
 withMigrationLock ty key = withMigrationLocks ty (MilliSeconds 500) [key]
 
 data MigrationLockError = TimedOutAcquiringLock
+  deriving (Show)
 
 withMigrationLocks ::
   ( PGConstraints r,

@@ -3,7 +3,11 @@
 module Wire.ConversationStore.Migration where
 
 import Cassandra
+import Cassandra.Settings hiding (pageSize)
 import Control.Error (lastMay)
+import Data.Conduit
+import Data.Conduit.Internal (zipSources)
+import Data.Conduit.List qualified as C
 import Data.Domain
 import Data.Id
 import Data.IntMap qualified as IntMap
@@ -13,6 +17,7 @@ import Data.Time
 import Data.Tuple.Extra
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
+import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction qualified as Transaction
@@ -23,8 +28,10 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
+import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -41,16 +48,135 @@ import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.MigrationLock
 import Wire.ConversationStore.Postgres
 import Wire.Postgres (runTransaction)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.Util
 
-migrateAllConversations :: Sem r ()
-migrateAllConversations = undefined
+-- * Top level logic
+
+type EffectStack = [State Int, Input ClientState, Input Hasql.Pool, Async, Race, TinyLog, Embed IO, Final IO]
+
+migrateConvsLoop :: ClientState -> Hasql.Pool -> Log.Logger -> IO ()
+migrateConvsLoop cassClient pgPool logger =
+  migrationLoop cassClient pgPool logger "conversations" migrateAllConversations
+
+migrateUsersLoop :: ClientState -> Hasql.Pool -> Log.Logger -> IO ()
+migrateUsersLoop cassClient pgPool logger =
+  migrationLoop cassClient pgPool logger "users" migrateAllUsers
+
+migrationLoop :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> ConduitT () Void (Sem EffectStack) () -> IO ()
+migrationLoop cassClient pgPool logger name migration = go
+  where
+    go = do
+      runMigration >>= \case
+        0 -> Log.info logger $ Log.msg (Log.val "finished migration")
+        n -> do
+          Log.info logger $ Log.msg (Log.val "finished migration with errors") . Log.field "migration" name . Log.field "errors" n
+          go
+
+    runMigration :: IO Int
+    runMigration =
+      fmap fst
+        . interpreter cassClient pgPool logger
+        $ runConduit migration
+
+interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> Sem EffectStack a -> IO (Int, a)
+interpreter cassClient pgPool logger =
+  runFinal
+    . embedToFinal
+    . loggerToTinyLog logger
+    . interpretRace
+    . asyncToIOFinal
+    . runInputConst pgPool
+    . runInputConst cassClient
+    . runState 0
+
+-- * Paginated Migration
+
+pageSize :: Int32
+pageSize = 10000
+
+migrateAllConversations ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member (State Int) r
+  ) =>
+  ConduitM () Void (Sem r) ()
+migrateAllConversations =
+  withCount (paginateSem select (paramsP LocalQuorum () pageSize) x5)
+    .| logRetrievedPage
+    .| C.mapM_ (mapM_ (handleErrors migrateConversation "conv"))
+    .| C.sinkNull
+  where
+    select :: PrepQuery R () (Identity ConvId)
+    select = "select conv from conversation"
+
+migrateAllUsers ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member (State Int) r
+  ) =>
+  ConduitM () Void (Sem r) ()
+migrateAllUsers =
+  withCount
+    (paginateSem select (paramsP LocalQuorum () pageSize) x5)
+    .| logRetrievedPage
+    .| C.mapM_ (mapM_ (handleErrors migrateUser "user"))
+    .| C.sinkNull
+  where
+    select :: PrepQuery R () (Identity UserId)
+    select = "select distinct user from user_remote_conv"
+
+logRetrievedPage :: (Member TinyLog r) => ConduitM (Int32, [Identity (Id a)]) [Id a] (Sem r) ()
+logRetrievedPage =
+  C.mapM
+    ( \(i, rows) -> do
+        let estimatedRowsSoFar = (i - 1) * pageSize + fromIntegral (length rows)
+        info $ Log.msg (Log.val "retrieved page") . Log.field "estimatedRowsSoFar" estimatedRowsSoFar
+        pure $ map runIdentity rows
+    )
+
+withCount :: (Monad m) => ConduitM () [a] m () -> ConduitM () (Int32, [a]) m ()
+withCount = zipSources (C.sourceList [1 ..])
+
+handleErrors :: (Member (State Int) r, Member TinyLog r) => (Id a -> Sem (Error MigrationLockError : Error Hasql.UsageError : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
+handleErrors action lockType id_ =
+  join <$> handleError (handleError action lockType) lockType id_
+
+handleError :: (Member (State Int) r, Member TinyLog r, Show e) => (Id a -> Sem (Error e : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
+handleError action lockType id_ = do
+  eithErr <- runError (action id_)
+  case eithErr of
+    Right x -> pure $ Just x
+    Left e -> do
+      warn $
+        Log.msg (Log.val "error occurred during migration")
+          . Log.field lockType (idToText id_)
+          . Log.field "error" (show e)
+      modify (+ 1)
+      pure Nothing
 
 -- * Conversations
 
-migrateConversation :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => ConvId -> Sem r ()
+migrateConversation ::
+  ( PGConstraints r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r
+  ) =>
+  ConvId ->
+  Sem r ()
 migrateConversation cid = do
   void . withMigrationLocks LockExclusive (Seconds 10) [Left cid] $ do
     mConvData <- getConvFromCassandra cid
@@ -363,3 +489,22 @@ unzip9 [] = ([], [], [], [], [], [], [], [], [])
 unzip9 ((y1, y2, y3, y4, y5, y6, y7, y8, y9) : ys) =
   let (l1, l2, l3, l4, l5, l6, l7, l8, l9) = unzip9 ys
    in (y1 : l1, y2 : l2, y3 : l3, y4 : l4, y5 : l5, y6 : l6, y7 : l7, y8 : l8, y9 : l9)
+
+paginateSem :: forall a b q r. (Tuple a, Tuple b, RunQ q, Member (Input ClientState) r, Member (Embed IO) r) => q R a b -> QueryParams a -> RetrySettings -> ConduitT () [b] (Sem r) ()
+paginateSem q p r = go =<< lift getFirstPage
+  where
+    go page = do
+      unless (null (result page)) $
+        yield (result page)
+      when (hasMore page) $
+        go =<< lift (getNextPage page)
+
+    getFirstPage :: Sem r (Page b)
+    getFirstPage = do
+      client <- input
+      embedClient client $ retry r (paginate q p)
+
+    getNextPage :: Page b -> Sem r (Page b)
+    getNextPage page = do
+      client <- input
+      embedClient client $ retry r (nextPage page)
