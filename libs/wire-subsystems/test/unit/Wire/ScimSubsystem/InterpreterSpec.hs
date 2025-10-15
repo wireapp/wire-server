@@ -93,3 +93,17 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
             Left err -> counterexample ("Left: " ++ show err) False
             Right (createdGroup, retrievedGroup) ->
               Just createdGroup.thing.id === ((.id_) <$> retrievedGroup)
+
+    it "does not allow non-scim members" $ do
+      team :: UGS.ArbitraryTeam <- generate arbitrary
+      newScimGroup :: Group.Group <- do
+        generate arbitrary <&> \g -> g {Group.members = mkScimGroupMember <$> UGS.allUsers team}
+      let have =
+            runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
+              createScimGroup team.tid newScimGroup
+          want =
+            if all (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
+              then isRight
+              else isLeft
+      unless (want have) do
+        expectationFailure . show $ ((.userManagedBy) <$> UGS.allUsers team)
