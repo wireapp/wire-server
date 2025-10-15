@@ -1,5 +1,6 @@
 module Wire.ScimSubsystem.Interpreter where
 
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Text qualified as Text
@@ -25,6 +26,12 @@ data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
   }
 
+instance Default ScimSubsystemConfig where
+  def =
+    ScimSubsystemConfig
+      { scimBaseUri = todo -- "/scim/v2"
+      }
+
 interpretScimSubsystem ::
   ( Member UserGroupSubsystem r,
     Member (Input ScimSubsystemConfig) r,
@@ -43,9 +50,7 @@ scimThrow = throw . ScimSubsystemError
 scimSubsystemErrorToHttpError :: ScimSubsystemError -> HttpError
 scimSubsystemErrorToHttpError =
   StdError . \case
-    ScimSubsystemError _err -> _ scimToServerError
-
--- TODO: start today by writing ScimSubsystem unit tests!
+    ScimSubsystemError _err -> undefined -- _ scimToServerError
 
 createScimGroupImpl ::
   forall r.

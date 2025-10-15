@@ -105,6 +105,7 @@ common common-all
     , hasql-th
     , hasql-transaction
     , hex
+    , hscim
     , HsOpenSSL
     , hspec
     , html-entities
@@ -120,9 +121,8 @@ common common-all
     , mime
     , mime-mail
     , network
-    , hscim
-    , network-uri
     , network-conduit-tls
+    , network-uri
     , polysemy
     , polysemy-plugin
     , polysemy-time
@@ -250,6 +250,8 @@ library
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
+    Wire.ScimSubsystem
+    Wire.ScimSubsystem.Interpreter
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SparAPIAccess
@@ -268,8 +270,6 @@ library
     Wire.TeamSubsystem.Util
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
-    Wire.ScimSubsystem
-    Wire.ScimSubsystem.Interpreter
     Wire.UserGroupSubsystem
     Wire.UserGroupSubsystem.Interpreter
     Wire.UserKeyStore
@@ -442,6 +442,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec
