@@ -1,7 +1,9 @@
 module Wire.ScimSubsystem.Interpreter where
 
+import Data.Default
 import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Data.Text qualified as Text
 import Data.Vector qualified as V
 import Imports
@@ -20,6 +22,7 @@ import Wire.API.UserGroup
 import Wire.Error
 import Wire.ScimSubsystem
 import Wire.UserGroupSubsystem
+import Wire.UserSubsystem
 
 data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
@@ -28,13 +31,18 @@ data ScimSubsystemConfig = ScimSubsystemConfig
 interpretScimSubsystem ::
   ( Member UserGroupSubsystem r,
     Member (Input ScimSubsystemConfig) r,
-    Member (Error ScimSubsystemError) r
+    Member (Error ScimSubsystemError) r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   InterpreterFor ScimSubsystem r
 interpretScimSubsystem = interpret $ \case
   CreateScimGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
 
-data ScimSubsystemError = ScimSubsystemError ScimError
+data ScimSubsystemError
+  = ScimSubsystemError ScimError
+  | ScimSubsystemInvalidGroupMemberId String
+  | ScimSubsystemScimGroupWithNonScimMembers
   deriving (Show, Eq)
 
 scimThrow :: (Member (Error ScimSubsystemError) r) => ScimError -> Sem r a
@@ -44,17 +52,33 @@ scimSubsystemErrorToHttpError :: ScimSubsystemError -> HttpError
 scimSubsystemErrorToHttpError =
   StdError . \case
     ScimSubsystemError _err -> undefined -- _ scimToServerError
+    ScimSubsystemInvalidGroupMemberId _badIds -> undefined
+    ScimSubsystemScimGroupWithNonScimMembers -> undefined
 
 createScimGroupImpl ::
   forall r.
   ( Member UserGroupSubsystem r,
     Member (Input ScimSubsystemConfig) r,
-    Member (Error ScimSubsystemError) r
+    Member (Error ScimSubsystemError) r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   SCG.Group ->
   Sem r (SCG.StoredGroup SparTag)
 createScimGroupImpl teamId grp = do
+  allUsersAreScimManaged <- do
+    let uidsAsText = (.value) <$> grp.members
+    uids <-
+      let thrw = throw . ScimSubsystemInvalidGroupMemberId
+       in forM uidsAsText $ either thrw pure . parseIdFromText
+    getby :: Local GetBy <- inputQualifyLocal def {getByUserId = uids}
+    getAccountsBy getby
+      <&> all (\u -> u.userManagedBy == ManagedByScim)
+
+  unless allUsersAreScimManaged do
+    throw ScimSubsystemScimGroupWithNonScimMembers
+
   ugName <-
     userGroupNameFromText grp.displayName
       & either (scimThrow . badRequest InvalidValue . Just) pure
@@ -67,7 +91,7 @@ createScimGroupImpl teamId grp = do
 
   let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
   ug <- createGroupFull ManagedByScim teamId Nothing newGroup
-  scimBaseUri <- (.scimBaseUri) <$> input
+  ScimSubsystemConfig scimBaseUri <- input
   pure $ toStoredGroup scimBaseUri ug
 
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
