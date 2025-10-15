@@ -1,29 +1,29 @@
-{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns -Wno-unused-imports #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns -Wno-orphans #-}
 
 module Wire.ScimSubsystem.InterpreterSpec (spec) where
 
-import Data.Default
 import Data.Id
 import Imports
+import Network.URI
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Kind
-import Polysemy.State
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import Test.QuickCheck
+import Web.Scim.Class.Group qualified as Group
+import Web.Scim.Schema.Common qualified as Common
+import Web.Scim.Schema.Meta qualified as Common
 import Wire.API.Team.Member as TM
 import Wire.API.User as User
-import Wire.GalleyAPIAccess
+import Wire.API.UserGroup
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
-import Wire.TeamSubsystem
-import Wire.UserGroupStore
 import Wire.UserGroupSubsystem qualified as UGS
 import Wire.UserGroupSubsystem.Interpreter qualified as UGS
 import Wire.UserGroupSubsystem.InterpreterSpec qualified as UGS
-import Wire.UserSubsystem qualified as US
-import Wire.UserSubsystem.Interpreter qualified as US
 
 type AllDependencies =
   [ ScimSubsystem,
@@ -33,9 +33,6 @@ type AllDependencies =
   ]
     `Append` UGS.AllDependencies
 
-_runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
-_runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) id . runDependencies usrs team
-
 runDependencies ::
   forall a.
   [User] ->
@@ -43,25 +40,59 @@ runDependencies ::
   Sem AllDependencies a ->
   Either ScimSubsystemError a
 runDependencies initialUsers initialTeams =
-  -- Input ScimSubsystemConfig
-  -- Error Scim...
-  -- UGS.interpretUserGroupSubsystem
-  -- run UGS.AllDepencies
-
-  -- run . err . () . go
-  run . lowerLevelStuff . UGS.interpretUserGroupSubsystem . runError . runInputConst def . interpretScimSubsystem
+  run
+    . lowerLevelStuff
+    . UGS.interpretUserGroupSubsystem
+    . runError
+    . runInputConst (ScimSubsystemConfig scimBaseUri)
+    . interpretScimSubsystem
   where
+    scimBaseUri :: Common.URI
+    scimBaseUri = Common.URI . fromJust . parseURI $ "http://nowhere.net/scim/v2"
+
     lowerLevelStuff :: InterpretersFor UGS.AllDependencies r
-    lowerLevelStuff = fmap (fromRight todo) . runError . UGS.interpretDependencies initialUsers initialTeams
+    lowerLevelStuff = crashOnLowerErrors . UGS.interpretDependencies initialUsers initialTeams
+      where
+        crashOnLowerErrors = fmap (either (error . show) id) . runError
+
+instance Arbitrary Group.Group where
+  arbitrary = do
+    mems <- listOf1 arbitrary
+    pure
+      Group.Group
+        { schemas = ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+          displayName = "some scim user group",
+          members = mems
+        }
+
+instance Arbitrary Group.Member where
+  arbitrary = do
+    value <- arbitrary
+    let typ = "User"
+    let ref = "http://.../scim/vs/Users/463c0b40-a9d9-11f0-b091-181dea96dd7"
+    pure Group.Member {..}
 
 spec :: Spec
-spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ \team newUserGroupName seed ->
+spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
+  focus . describe "createScimGroup" $ do
+    prop "creates a group returns it" $ \team newUserGroup ->
+      let resultOrError =
+            runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
+              createdGroup <- createScimGroup team.tid newUserGroup
+              retrievedGroup :: Maybe UserGroup <- UGS.getGroup (UGS.ownerId team) createdGroup.thing.id False
+              pure (createdGroup, retrievedGroup)
+       in case resultOrError of
+            Left err -> counterexample ("Left: " ++ show err) False
+            Right (createdGroup, retrievedGroup) ->
+              Just createdGroup.thing.id === ((.id_) <$> retrievedGroup)
+
+{-
   let rndShuffle xs gen = map fst $ sortOn snd $ zip xs (Rand.randoms gen :: [Int])
       -- ~half the users
       n = length (allUsers team) `div` 2 + 1
       members = take n $ rndShuffle (allUsers team) (Rand.mkStdGen seed)
       resultOrError =
-        runDependenciesWithReturnState (allUsers team) (galleyTeam team)
+        runDependencies (allUsers team) (galleyTeam team) scimBaseUrl
           . interpretUserGroupSubsystem
           $ do
             let newUserGroup =
@@ -108,3 +139,4 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ \team newUserGro
           prop
           "refuses to create scim groups with non-scim users"
           $ \(_ :: Bool) -> True
+-}

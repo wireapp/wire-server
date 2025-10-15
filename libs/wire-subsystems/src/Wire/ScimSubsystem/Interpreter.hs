@@ -1,6 +1,5 @@
 module Wire.ScimSubsystem.Interpreter where
 
-import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Text qualified as Text
@@ -25,12 +24,6 @@ import Wire.UserGroupSubsystem
 data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
   }
-
-instance Default ScimSubsystemConfig where
-  def =
-    ScimSubsystemConfig
-      { scimBaseUri = todo -- "/scim/v2"
-      }
 
 interpretScimSubsystem ::
   ( Member UserGroupSubsystem r,
