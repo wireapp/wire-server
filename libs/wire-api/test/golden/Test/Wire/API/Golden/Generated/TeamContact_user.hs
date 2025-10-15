@@ -29,7 +29,7 @@ import Wire.API.User.Search (Sso (..), TeamContact (..))
 teamContactTemplate :: TeamContact
 teamContactTemplate =
   TeamContact
-    { teamContactUserId = Id (fromJust (UUID.fromString "")),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000")),
       teamContactName = "",
       teamContactColorId = Nothing,
       teamContactHandle = Nothing,
