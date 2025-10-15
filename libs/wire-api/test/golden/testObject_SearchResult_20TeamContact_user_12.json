@@ -17,7 +17,8 @@
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": null,
-            "user_groups": []
+            "user_groups": [],
+            "searchable": true
         }
     ],
     "found": 0,

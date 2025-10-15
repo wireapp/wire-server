@@ -12,5 +12,6 @@
     "scim_external_id": null,
     "sso": null,
     "team": "00000002-0000-0000-0000-000200000000",
-    "user_groups": []
+    "user_groups": [],
+    "searchable": true
 }

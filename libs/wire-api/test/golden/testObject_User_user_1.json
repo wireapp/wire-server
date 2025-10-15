@@ -14,5 +14,6 @@
     "status": "deleted",
     "supported_protocols": [
         "proteus"
-    ]
+    ],
+    "searchable": true
 }

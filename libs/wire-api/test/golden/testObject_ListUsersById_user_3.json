@@ -20,7 +20,8 @@
             "supported_protocols": [
                 "proteus"
             ],
-            "type": "regular"
+            "type": "regular",
+            "searchable": true
         }
     ]
 }
