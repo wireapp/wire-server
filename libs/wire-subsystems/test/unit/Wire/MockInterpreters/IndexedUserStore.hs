@@ -161,7 +161,8 @@ searchImpl searcher mTeam teamSearchInfo query maxResults = do
     . map fst
     . sortOn snd
     . filter (\(_, score) -> score /= 0)
-    $ map (\doc -> (doc, totalScore doc)) allDocs
+    . map (\doc -> (doc, totalScore doc))
+    $ filter (\u -> fromMaybe True u.udSearchable) allDocs
 
 mkResult :: Int -> [a] -> SearchResult a
 mkResult maxResults results =
