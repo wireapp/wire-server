@@ -27,14 +27,6 @@ data LockType
   | -- | Used for reading and writing to Cassandra, will block exclusive locks
     LockShared
 
-withMigrationLock ::
-  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member (Error MigrationLockError) r) =>
-  LockType ->
-  Either ConvId UserId ->
-  Sem r a ->
-  Sem r a
-withMigrationLock ty key = withMigrationLocks ty (MilliSeconds 500) [key]
-
 data MigrationLockError = TimedOutAcquiringLock
   deriving (Show)
 

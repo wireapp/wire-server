@@ -45,9 +45,11 @@ import Wire.API.Provider.Service
 import Wire.ConversationStore
 import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationStore.Migration.Cleanup
+import Wire.ConversationStore.Migration.Types
 import Wire.ConversationStore.MigrationLock
 import Wire.ConversationStore.Postgres
-import Wire.Postgres (runTransaction)
+import Wire.Postgres
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -179,54 +181,11 @@ migrateConversation ::
   Sem r ()
 migrateConversation cid = do
   void . withMigrationLocks LockExclusive (Seconds 10) [Left cid] $ do
-    mConvData <- getConvFromCassandra cid
+    mConvData <- withCassandra $ getAllConvData cid
     for_ mConvData $ \convData -> do
       saveConvToPostgres convData
-      deleteConvFromCassandra convData
-
-data ConvMLSDetails = ConvMLSDetails
-  { groupInfoData :: GroupInfoData,
-    clientMap :: ClientMap LeafIndex,
-    indexMap :: IndexMap
-  }
-
-data AllSubConvData = AllSubConvData
-  { subConv :: SubConversation,
-    groupInfoData :: Maybe GroupInfoData
-  }
-
-data AllConvData = AllConvData
-  { conv :: StoredConversation,
-    mlsDetails :: Maybe ConvMLSDetails,
-    subConvs :: [AllSubConvData]
-  }
-
-getConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => ConvId -> Sem r (Maybe AllConvData)
-getConvFromCassandra cid = withCassandra $ do
-  getConversation cid >>= \case
-    Nothing -> pure Nothing
-    Just conv -> do
-      subConvMlsData <- listSubConversations cid
-      mGroupInfo <- getGroupInfo cid
-      mlsLeafIndices <- case mlsMetadata conv of
-        Nothing -> pure Nothing
-        Just (mlsData, _) -> do
-          (cm, im) <- lookupMLSClientLeafIndices mlsData.cnvmlsGroupId
-          pure $ Just (cm, im)
-      let mlsDetails = ConvMLSDetails <$> mGroupInfo <*> fmap fst mlsLeafIndices <*> fmap snd mlsLeafIndices
-      subConvs <- fmap Map.elems $ flip Map.traverseWithKey subConvMlsData $ \subConvId mlsData -> do
-        (cm, im) <- lookupMLSClientLeafIndices mlsData.cnvmlsGroupId
-        let subconv =
-              SubConversation
-                { scParentConvId = cid,
-                  scSubConvId = subConvId,
-                  scMLSData = mlsData,
-                  scMembers = cm,
-                  scIndexMap = im
-                }
-        gi <- getSubConversationGroupInfo cid subConvId
-        pure $ AllSubConvData subconv gi
-      pure . Just $ AllConvData {..}
+      withCassandra $ deleteConv convData
+    markDeletionComplete DeleteConv cid
 
 deleteConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => AllConvData -> Sem r ()
 deleteConvFromCassandra allConvData = withCassandra $ do
@@ -273,6 +232,7 @@ saveConvToPostgres allConvData = do
     Transaction.statement remoteMemberColumns insertRemoteMembers
     Transaction.statement subConvColumns insertSubConvs
     Transaction.statement mlsClientColumns insertMLSClients
+    Transaction.statement (DeleteConv, storedConv.id_) markDeletionPendingStmt
   where
     storedConv = allConvData.conv
     -- In all these queries we do nothing on conflict because if the data is in
@@ -420,10 +380,11 @@ saveConvToPostgres allConvData = do
 
 migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => UserId -> Sem r ()
 migrateUser uid = do
-  void . withMigrationLocks LockExclusive (Seconds 10) [Right uid] $ do
+  withMigrationLocks LockExclusive (Seconds 10) [Right uid] $ do
     statusses <- getRemoteMemberStatusFromCassandra uid
     saveRemoteMemberStatusToPostgres uid statusses
     deleteRemoteMemberStatusesFromCassandra uid
+  markDeletionComplete DeleteUser uid
 
 getRemoteMemberStatusFromCassandra :: forall r. (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
 getRemoteMemberStatusFromCassandra uid = withCassandra $ do
@@ -443,6 +404,7 @@ saveRemoteMemberStatusToPostgres :: (PGConstraints r) => UserId -> Map (Remote C
 saveRemoteMemberStatusToPostgres uid statusses =
   runTransaction ReadCommitted Write $ do
     Transaction.statement statusColumns insertStatuses
+    Transaction.statement (DeleteUser, uid) markDeletionPendingStmt
   where
     insertStatuses :: Hasql.Statement ([UserId], [Domain], [ConvId], [Maybe MutedStatus], [Maybe Text], [Bool], [Maybe Text], [Bool], [Maybe Text]) ()
     insertStatuses =
@@ -467,17 +429,7 @@ saveRemoteMemberStatusToPostgres uid statusses =
     statusRow (tUntagged -> Qualified cid dom) MemberStatus {..} =
       (uid, dom, cid, msOtrMutedStatus, msOtrMutedRef, msOtrArchived, msOtrArchivedRef, msHidden, msHiddenRef)
 
-deleteRemoteMemberStatusesFromCassandra :: (Member (Input ClientState) r, Member (Embed IO) r) => UserId -> Sem r ()
-deleteRemoteMemberStatusesFromCassandra uid = do
-  cstate <- input
-  embedClient cstate $
-    retry x5 $
-      write delete (params LocalQuorum (Identity uid))
-  where
-    delete :: PrepQuery W (Identity UserId) ()
-    delete = "delete from user_remote_conv where user = ?"
-
--- * Utils
+-- * Other helpers
 
 withCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => InterpreterFor ConversationStore r
 withCassandra action = do
