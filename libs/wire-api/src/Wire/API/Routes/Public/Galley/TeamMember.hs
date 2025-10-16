@@ -20,6 +20,7 @@ module Wire.API.Routes.Public.Galley.TeamMember where
 import Data.Id
 import Data.Int
 import Data.Range
+import Data.Set (Set)
 import GHC.Generics
 import Generics.SOP qualified as GSOP
 import Servant
@@ -32,6 +33,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Member
 import Wire.API.User qualified as User
 
@@ -206,6 +208,18 @@ type TeamMemberAPI =
                      ]
                     "CSV of team members"
                     CSV
+           )
+    :<|> Named
+           "update-team-collaborator"
+           ( Summary "Update a collaborator permissions from the team."
+               :> From 'V11
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "collaborators"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] (Set CollaboratorPermission)
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
            "remove-team-collaborator"

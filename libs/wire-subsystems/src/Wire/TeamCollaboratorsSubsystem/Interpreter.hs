@@ -34,6 +34,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+  InternalUpdateTeamCollaborator user team perms -> internalUpdateTeamCollaboratorImpl user team perms
   InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
@@ -68,7 +69,7 @@ createTeamCollaboratorImpl zUser user team perms = do
   Store.createTeamCollaborator user team perms
 
   -- TODO: Review the event's values
-  generateTeamEvent (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms))
+  generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -90,6 +91,16 @@ internalGetTeamCollaboratorsWithIdsImpl ::
   Sem r [TeamCollaborator]
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
+
+internalUpdateTeamCollaboratorImpl ::
+  ( Member Store.TeamCollaboratorsStore r
+  ) =>
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+internalUpdateTeamCollaboratorImpl user team perms = do
+  Store.updateTeamCollaborator user team perms
 
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r

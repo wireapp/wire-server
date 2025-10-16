@@ -125,6 +125,7 @@ data EventType
   | ConvDelete
   | CollaboratorAdd
   | AppCreate
+  | CollaboratorUpdate
   | CollaboratorRemove
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
@@ -144,6 +145,7 @@ instance ToSchema EventType where
           element "team.conversation-delete" ConvDelete,
           element "team.collaborator-add" CollaboratorAdd,
           element "team.app-create" AppCreate,
+          element "team.collaborator-update" CollaboratorUpdate,
           element "team.collaborator-remove" CollaboratorRemove
         ]
 
@@ -161,6 +163,7 @@ data EventData
   | EdConvDelete ConvId
   | EdCollaboratorAdd UserId [CollaboratorPermission]
   | EdAppCreate UserId
+  | EdCollaboratorUpdate UserId [CollaboratorPermission]
   | EdCollaboratorRemove UserId
   deriving stock (Eq, Show, Generic)
 
@@ -192,6 +195,11 @@ instance ToJSON EventData where
         "permissions" A..= perms
       ]
   toJSON (EdAppCreate usr) = A.object ["user" A..= usr]
+  toJSON (EdCollaboratorUpdate usr perms) =
+    A.object
+      [ "user" A..= usr,
+        "permissions" A..= perms
+      ]
   toJSON (EdCollaboratorRemove usr) = A.object ["user" A..= usr]
 
 eventDataType :: EventData -> EventType
@@ -205,6 +213,7 @@ eventDataType (EdConvCreate _) = ConvCreate
 eventDataType (EdConvDelete _) = ConvDelete
 eventDataType (EdCollaboratorAdd _ _) = CollaboratorAdd
 eventDataType (EdAppCreate _) = AppCreate
+eventDataType (EdCollaboratorUpdate _ _) = CollaboratorUpdate
 eventDataType (EdCollaboratorRemove _) = CollaboratorRemove
 
 parseEventData :: EventType -> Maybe Value -> Parser EventData
@@ -232,7 +241,7 @@ parseEventData TeamCreate Nothing = fail "missing event data for type 'team.crea
 parseEventData TeamCreate (Just j) = EdTeamCreate <$> parseJSON j
 parseEventData TeamUpdate Nothing = fail "missing event data for type 'team.update'"
 parseEventData TeamUpdate (Just j) = EdTeamUpdate <$> parseJSON j
-parseEventData CollaboratorAdd Nothing = fail "missing event data for type 'team.collaborator-add"
+parseEventData CollaboratorAdd Nothing = fail "missing event data for type 'team.collaborator-add'"
 parseEventData CollaboratorAdd (Just j) = do
   let f o = EdCollaboratorAdd <$> o .: "user" <*> o .: "permissions"
   withObject "collaborator add data" f j
@@ -240,7 +249,11 @@ parseEventData AppCreate Nothing = fail "missing event data for type 'team.app-c
 parseEventData AppCreate (Just j) = do
   let f o = EdAppCreate <$> o .: "user"
   withObject "app create data" f j
-parseEventData CollaboratorRemove Nothing = fail "missing event data for type 'team.collaborator-remove"
+parseEventData CollaboratorUpdate Nothing = fail "missing event data for type 'team.collaborator-update'"
+parseEventData CollaboratorUpdate (Just j) = do
+  let f o = EdCollaboratorUpdate <$> o .: "user" <*> o .: "permissions"
+  withObject "collaborator update data" f j
+parseEventData CollaboratorRemove Nothing = fail "missing event data for type 'team.collaborator-remove'"
 parseEventData CollaboratorRemove (Just j) = do
   let f o = EdCollaboratorRemove <$> o .: "user"
   withObject "collaborator remove data" f j
@@ -259,6 +272,7 @@ genEventData = \case
   ConvDelete -> EdConvDelete <$> arbitrary
   CollaboratorAdd -> EdCollaboratorAdd <$> arbitrary <*> arbitrary
   AppCreate -> EdAppCreate <$> arbitrary
+  CollaboratorUpdate -> EdCollaboratorUpdate <$> arbitrary <*> arbitrary
   CollaboratorRemove -> EdCollaboratorRemove <$> arbitrary
 
 makeLenses ''Event

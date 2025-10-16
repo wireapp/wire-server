@@ -52,6 +52,7 @@ module Galley.API.Teams
     ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
     internalDeleteBindingTeam,
+    updateTeamCollaborator,
     removeTeamCollaborator,
   )
 where
@@ -117,6 +118,8 @@ import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingSt
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import Wire.API.Team qualified as Public
+import Wire.API.Team.Collaborator qualified as Collaborator
+import Wire.API.Team.Collaborator qualified as TeamCollaborator
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
 import Wire.API.Team.Feature
@@ -1318,6 +1321,36 @@ checkAdminLimit :: (Member (ErrorS 'TooManyTeamAdmins) r) => Int -> Sem r ()
 checkAdminLimit adminCount =
   when (adminCount > 2000) $
     throwS @'TooManyTeamAdmins
+
+-- | Updating a team collaborator permissions eventually cleaning their conversations
+updateTeamCollaborator ::
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS NotATeamMember) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member P.TinyLog r,
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Set TeamCollaborator.CollaboratorPermission ->
+  Sem r ()
+updateTeamCollaborator lusr tid rusr perms = do
+  P.debug $
+    Log.field "targets" (toByteString rusr)
+      . Log.field "action" (Log.val "Teams.updateTeamCollaborator")
+  zusrMember <- E.getTeamMember tid (tUnqualified lusr)
+  void $ permissionCheck UpdateTeamCollaborator zusrMember
+  when (Set.null $ Set.intersection (Set.fromList [Collaborator.CreateTeamConversation, Collaborator.ImplicitConnection]) perms) $
+    removeFromConvsAndPushConvLeaveEvent lusr Nothing tid rusr
+  internalUpdateTeamCollaborator rusr tid perms
 
 -- | Removing a team collaborator and clean their conversations
 removeTeamCollaborator ::
