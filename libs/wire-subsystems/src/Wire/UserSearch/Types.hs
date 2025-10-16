@@ -207,7 +207,7 @@ data BrowseTeamFilters = BrowseTeamFilters
     mSortBy :: Maybe TeamUserSearchSortBy,
     mSortOrder :: Maybe TeamUserSearchSortOrder,
     mEmailVerificationFilter :: Maybe EmailVerificationFilter,
-    searchable :: Bool
+    mSearchable :: Maybe Bool
   }
   deriving (Eq, Show)
 

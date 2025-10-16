@@ -366,6 +366,7 @@ testUserSearchable = do
   (owner, tid, [u1, u2, u3]) <- createTeam OwnDomain 4
   admin <- createTeamMember owner def {role = "admin"}
   let everyone = [owner, u1, admin, u2, u3]
+  everyone'sUidSet <- Set.fromList <$> mapM objId everyone
 
   -- All users are searchable by default
   assertBool "created users are searchable by default" . and =<< mapM (\u -> u %. "searchable" & asBool) everyone
@@ -436,35 +437,34 @@ testUserSearchable = do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "members" >>= asList
     foundUids <- mapM (\m -> m %. "user" & asString) docs
-    assertBool "/teams/:tid/members returns searchable and non-searchable users from team" $ all (`elem` foundUids) $ [u1id, u2id, u3id]
+    assertBool "/teams/:tid/members returns all users from team"
+      $ Set.fromList foundUids == everyone'sUidSet
+
+  -- /teams/:tid/search also returns all users from team
+  BrigP.searchTeam admin [] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- mapM (\m -> m %. "id" & asString) docs
+    assertBool "/teams/:tid/search returns all users from team" $ Set.fromList foundUids == everyone'sUidSet
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
   BrigP.searchTeam admin [("searchable", "false")] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
-    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members" $ Set.fromList foundUids == Set.fromList [u1id, u3id]
+    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members"
+      $ Set.fromList foundUids == Set.fromList [u1id, u3id]
 
-  -- /teams/:tid/search and /teams/:tid/search?searchable=true both get all members, searchable and non-searchable
-  noQueryParam <-
-    BrigP.searchTeam admin [] `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      mapM (\m -> m %. "id" & asString) docs
-  withQueryParam <-
-    BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      mapM (\m -> m %. "id" & asString) docs
-  assertBool "/teams/:tid/search and /teams/:tid/search?searchable=true are equal"
-    $ Set.fromList noQueryParam
-    == Set.fromList withQueryParam
+  -- /teams/:tid/search?searchable=true gets only searchable users
+  BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- mapM (\m -> m %. "id" & asString) docs
+    ownerUid <- owner %. "id" & asString
+    adminUid <- owner %. "id" & asString
+    assertBool "/teams/:tid/search?searchable=true gets only searchable users"
+      $ Set.fromList foundUids == Set.fromList [ownerUid, adminUid, u2id]
 
-  -- All users created as part of this test are in the returned result
-  everyone'sUids <- mapM objId everyone
-  assertBool "All created users as part of this test are in the returned result"
-    $ Set.fromList noQueryParam
-    == Set.fromList everyone'sUids
   where
     -- Convenience wrapper around search contacts which applies `f` directly to document list.
     withFoundDocs ::
