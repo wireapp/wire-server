@@ -437,7 +437,7 @@ testUserSearchable = do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "members" >>= asList
     foundUids <- mapM (\m -> m %. "user" & asString) docs
-    assertBool "/teams/:tid/members returns all users from team"
+    assertBool "/teams/:tid/members returns all users in team"
       $ Set.fromList foundUids == everyone'sUidSet
 
   -- /teams/:tid/search also returns all users from team
@@ -445,7 +445,7 @@ testUserSearchable = do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
-    assertBool "/teams/:tid/search returns all users from team" $ Set.fromList foundUids == everyone'sUidSet
+    assertBool "/teams/:tid/search returns all users in team" $ Set.fromList foundUids == everyone'sUidSet
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
   BrigP.searchTeam admin [("searchable", "false")] `bindResponse` \resp -> do
@@ -461,7 +461,7 @@ testUserSearchable = do
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
     ownerUid <- owner %. "id" & asString
-    adminUid <- owner %. "id" & asString
+    adminUid <- admin %. "id" & asString
     assertBool "/teams/:tid/search?searchable=true gets only searchable users"
       $ Set.fromList foundUids == Set.fromList [ownerUid, adminUid, u2id]
 
