@@ -809,8 +809,12 @@ updateChannelAddPermission lusr zcon qcnv update =
     qcnv
 
 searchChannels ::
-  (Member ConversationStore r) =>
+  ( Member ConversationStore r,
+    Member (ErrorS NotATeamMember) r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
+  TeamId ->
   Maybe Text ->
   Maybe SortOrder ->
   Maybe PageSize ->
@@ -818,12 +822,12 @@ searchChannels ::
   Maybe ConvId ->
   Bool ->
   Sem r ConversationPage
-searchChannels lusr searchString sortOrder pageSize lastName lastId _discoverable = do
-  team <- error "TODO" lusr
+searchChannels lusr tid searchString sortOrder pageSize lastName lastId _discoverable = do
+  void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
   ConversationPage
     <$> E.searchConversations
       E.ConversationSearch
-        { team,
+        { team = tid,
           searchString,
           sortOrder = fromMaybe Desc sortOrder,
           pageSize = fromMaybe def pageSize,

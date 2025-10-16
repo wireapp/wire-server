@@ -23,7 +23,6 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
 import Imports
-import Wire.API.Conversation
 import Wire.API.Pagination
 import Wire.Arbitrary as Arbitrary
 

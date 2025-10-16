@@ -18,6 +18,7 @@
 module Galley.API.Public.Team where
 
 import Galley.API.Teams
+import Galley.API.Update
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Team
@@ -29,3 +30,4 @@ teamAPI =
     <@> mkNamedAPI @"get-teams" getManyTeams
     <@> mkNamedAPI @"get-team" getTeamH
     <@> mkNamedAPI @"delete-team" deleteTeam
+    <@> mkNamedAPI @"search-channels" searchChannels

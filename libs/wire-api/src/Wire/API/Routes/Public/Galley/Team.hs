@@ -26,8 +26,10 @@ import Data.Schema
 import Imports
 import Servant
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.Conversation.Pagination
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Pagination
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -133,3 +135,24 @@ type TeamAPI =
                :> ReqBody '[Servant.JSON] TeamDeleteData
                :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 202 "Team is scheduled for removal"] ()
            )
+    :<|> Named
+           "search-channels"
+           ( Summary "Search channels"
+               :> From 'V13
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "channels"
+               :> "search"
+               :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
+               :> QueryParam' '[Optional, Strict] "sort_order" SortOrder
+               :> QueryParam' '[Optional, Strict] "page_size" PageSize
+               :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" Text
+               :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" ConvId
+               :> QueryFlag "discoverable"
+               :> Get '[JSON] ConversationPage
+           )
+
+type LastSeenNameDesc = Description "`name` of the last seen channel of the current page, used to get the next page."
+
+type LastSeenIdDesc = Description "`id` of the last seen channel, used to get the next page, used as a tie breaker. **Must** be sent to get the next page."
