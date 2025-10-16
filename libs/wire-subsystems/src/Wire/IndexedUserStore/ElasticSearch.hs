@@ -379,7 +379,7 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
         searchableFilter :: [ES.Query]
         searchableFilter = case mSearchable of
           Just False -> [ES.TermQuery (ES.Term "searchable" "false") Nothing]
-          Just True -> [ES.QueryBoolQuery boolQuery { ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing] }]
+          Just True -> [ES.QueryBoolQuery boolQuery {ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing]}]
           Nothing -> []
 
         roleFilter :: [ES.Query]

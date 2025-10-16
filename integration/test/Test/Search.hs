@@ -438,7 +438,8 @@ testUserSearchable = do
     docs <- resp.json %. "members" >>= asList
     foundUids <- mapM (\m -> m %. "user" & asString) docs
     assertBool "/teams/:tid/members returns all users in team"
-      $ Set.fromList foundUids == everyone'sUidSet
+      $ Set.fromList foundUids
+      == everyone'sUidSet
 
   -- /teams/:tid/search also returns all users from team
   BrigP.searchTeam admin [] `bindResponse` \resp -> do
@@ -453,7 +454,8 @@ testUserSearchable = do
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
     assertBool "/teams/:tid/members?searchable=false returns only non-searchable members"
-      $ Set.fromList foundUids == Set.fromList [u1id, u3id]
+      $ Set.fromList foundUids
+      == Set.fromList [u1id, u3id]
 
   -- /teams/:tid/search?searchable=true gets only searchable users
   BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
@@ -463,8 +465,8 @@ testUserSearchable = do
     ownerUid <- owner %. "id" & asString
     adminUid <- admin %. "id" & asString
     assertBool "/teams/:tid/search?searchable=true gets only searchable users"
-      $ Set.fromList foundUids == Set.fromList [ownerUid, adminUid, u2id]
-
+      $ Set.fromList foundUids
+      == Set.fromList [ownerUid, adminUid, u2id]
   where
     -- Convenience wrapper around search contacts which applies `f` directly to document list.
     withFoundDocs ::
