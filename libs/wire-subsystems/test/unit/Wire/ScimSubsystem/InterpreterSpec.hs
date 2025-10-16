@@ -75,7 +75,7 @@ mkScimGroupMember (idToText . User.userId -> value) =
 
 spec :: Spec
 spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
-  describe "createScimGroup" $ do
+  describe "scimCreateUserGroup" $ do
     prop "creates a group returns it" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
       let newScimGroup =
             newScimGroup_
@@ -86,7 +86,7 @@ spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
               }
           resultOrError = do
             runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
-              createdGroup :: Group.StoredGroup SparTag <- createScimGroup team.tid newScimGroup
+              createdGroup :: Group.StoredGroup SparTag <- scimCreateUserGroup team.tid newScimGroup
               retrievedGroup :: Maybe UserGroup <- UGS.getGroup (UGS.ownerId team) createdGroup.thing.id False
               pure (createdGroup, retrievedGroup)
        in case resultOrError of
@@ -100,7 +100,7 @@ spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
         generate arbitrary <&> \g -> g {Group.members = take 2 $ mkScimGroupMember <$> UGS.allUsers team}
       let have =
             runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
-              createScimGroup team.tid newScimGroup
+              scimCreateUserGroup team.tid newScimGroup
           want =
             if all (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
               then isRight

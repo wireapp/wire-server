@@ -37,7 +37,7 @@ interpretScimSubsystem ::
   ) =>
   InterpreterFor ScimSubsystem r
 interpretScimSubsystem = interpret $ \case
-  CreateScimGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
+  ScimCreateUserGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
 
 data ScimSubsystemError
   = ScimSubsystemError ScimError

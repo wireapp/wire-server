@@ -8,6 +8,6 @@ import Web.Scim.Class.Group qualified as SCG
 import Wire.API.User.Scim (SparTag)
 
 data ScimSubsystem m a where
-  CreateScimGroup :: TeamId -> SCG.Group -> ScimSubsystem m (SCG.StoredGroup SparTag)
+  ScimCreateUserGroup :: TeamId -> SCG.Group -> ScimSubsystem m (SCG.StoredGroup SparTag)
 
 makeSem ''ScimSubsystem
