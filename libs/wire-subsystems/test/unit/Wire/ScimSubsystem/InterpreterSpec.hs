@@ -81,7 +81,7 @@ spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
             newScimGroup_
               { Group.members =
                   let all_ = UGS.allUsers team
-                      nonscim_ = filter (\u -> u.userManagedBy /= ManagedByScim) all_
+                      nonscim_ = filter (\u -> u.userManagedBy == ManagedByScim) all_
                    in mkScimGroupMember <$> nonscim_
               }
           resultOrError = do
