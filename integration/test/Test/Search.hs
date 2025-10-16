@@ -463,7 +463,8 @@ testUserSearchable = do
   -- All users created as part of this test are in the returned result
   everyone'sUids <- mapM objId everyone
   assertBool "All created users as part of this test are in the returned result"
-    $ Set.fromList noQueryParam == Set.fromList everyone'sUids
+    $ Set.fromList noQueryParam
+    == Set.fromList everyone'sUids
   where
     -- Convenience wrapper around search contacts which applies `f` directly to document list.
     withFoundDocs ::
