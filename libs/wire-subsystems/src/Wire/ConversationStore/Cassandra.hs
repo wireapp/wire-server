@@ -43,11 +43,14 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Time
 import Imports
+import Network.HTTP.Types.Status (status500)
+import Network.Wai.Utilities.Error qualified as WaiError
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Async (Async)
 import Polysemy.Conc
 import Polysemy.Embed
-import Polysemy.Error (Error, runError, throw)
+import Polysemy.Error (Error, mapError, throw)
 import Polysemy.Input
 import Polysemy.Time
 import Polysemy.TinyLog
@@ -57,6 +60,7 @@ import Wire.API.Conversation hiding (Conversation, Member, members, newGroupId)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
+import Wire.API.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
@@ -1048,7 +1052,6 @@ interpretConversationStoreToCassandraAndPostgres ::
     PGConstraints r,
     Member Async r,
     Member (Error MigrationError) r,
-    Member (Error MigrationLockError) r,
     Member Race r
   ) =>
   ClientState ->
@@ -1478,14 +1481,20 @@ groupIdToConvId gid =
     Left _ -> throw InvalidGroupId
     Right (_, gidParts) -> pure gidParts.qConvId.qUnqualified.conv
 
-data MigrationError = InvalidGroupId
+data MigrationError
+  = InvalidGroupId
+  | FailedToAcquireMigrationLock MigrationLockError
+  deriving (Show)
+
+instance APIError MigrationError where
+  toResponse _ = waiErrorToJSONResponse $ WaiError.mkError status500 "internal-server-error" "Internal Server Error"
 
 withMigrationLockAndCleanup ::
-  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member (Error MigrationLockError) r) =>
+  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member (Error MigrationError) r) =>
   ClientState ->
   LockType ->
   Either ConvId UserId ->
-  Sem r a ->
+  Sem (Error MigrationLockError : r) a ->
   Sem r a
 withMigrationLockAndCleanup cassClient ty key =
   withMigrationLocksAndCleanup cassClient ty (MilliSeconds 500) [key]
@@ -1495,17 +1504,17 @@ withMigrationLocksAndCleanup ::
     Member Async r,
     Member TinyLog r,
     Member Race r,
-    Member (Error MigrationLockError) r,
+    Member (Error MigrationError) r,
     TimeUnit u
   ) =>
   ClientState ->
   LockType ->
   u ->
   [Either ConvId UserId] ->
-  Sem r a ->
+  Sem (Error MigrationLockError : r) a ->
   Sem r a
 withMigrationLocksAndCleanup cassClient lockType maxWait convOrUsers action =
-  withMigrationLocks lockType maxWait convOrUsers $ do
+  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait convOrUsers $ do
     interpretConversationStoreToCassandra cassClient
       . runInputConst cassClient
       $ cleanupIfNecessary convOrUsers

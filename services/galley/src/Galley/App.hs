@@ -90,6 +90,7 @@ import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async
+import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Fail
 import Polysemy.Input
@@ -130,6 +131,7 @@ type GalleyEffects0 =
   '[ Input ClientState,
      Input Hasql.Pool,
      Input Env,
+     Error MigrationError,
      Error InvalidInput,
      Error ParseException,
      Error InternalError,
@@ -139,6 +141,7 @@ type GalleyEffects0 =
      Error TeamCollaboratorsError,
      Error Hasql.UsageError,
      Error HttpError,
+     Race,
      Async,
      Delay,
      Fail,
@@ -266,6 +269,7 @@ evalGalley e =
   let convStoreInterpreter =
         case (e ^. options . postgresMigration).conversation of
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
+          MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretConversationStoreToPostgres
    in ExceptT
         . runFinal @IO
@@ -276,6 +280,7 @@ evalGalley e =
         . failToEmbed @IO
         . runDelay
         . asyncToIOFinal
+        . interpretRace
         . mapError httpErrorToJSONResponse
         . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
         . mapError teamCollaboratorsSubsystemErrorToHttpError
@@ -283,6 +288,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . mapError toResponse
+        . logAndMapError toResponse (Text.pack . show) "migration error"
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
