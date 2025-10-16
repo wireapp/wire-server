@@ -1,5 +1,4 @@
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
@@ -380,4 +379,10 @@ data SetSearchable = SetSearchable
   { setSearchable :: Bool
   }
   deriving (Generic)
-  deriving anyclass (Aeson.ToJSON, Aeson.FromJSON, S.ToSchema)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema SetSearchable)
+
+instance ToSchema SetSearchable where
+  schema =
+    object "SetSearchable" $
+      SetSearchable
+        <$> setSearchable .= field "set_searchable" schema
