@@ -1075,17 +1075,32 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.getConversationEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
-    let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
-    -- Important to read Cassandra first, otherwise we could miss a conv which
-    -- got migrated while we were reading Postgres
-    cassConvs <- indexByConvId <$> localConversations client cids
-    pgConvs <- indexByConvId <$> interpretConversationStoreToPostgres (ConvStore.getConversations cids)
-    pure $ mapMaybe (\cid -> Map.lookup cid pgConvs <|> Map.lookup cid cassConvs) cids
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+      let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
+      cassConvs <- indexByConvId <$> localConversations client cids
+      pgConvs <- indexByConvId <$> interpretConversationStoreToPostgres (ConvStore.getConversations cids)
+      pure $ mapMaybe (\cid -> Map.lookup cid pgConvs <|> Map.lookup cid cassConvs) cids
   GetLocalConversationIds uid start maxIds -> do
     logEffect "ConversationStore.GetLocalConversationIds"
 
-    -- Important to read Cassandra first, otherwise we could miss a conv which
-    -- got migrated while we were reading Postgres
+    -- [Migration Locking Limitation]
+    --
+    -- Here we cannot acquire any locks because we do not have convIds to start
+    -- with. This could cause consistency problems in two ways:
+    -- 1. Duplicate convId will be retrieved from PG
+    -- 2. Reading a conv which got deleted (or the user got removed from this
+    --    conv) in Postgresql after being migrated but the migration left it
+    --    behind in Cassandra.
+    --
+    -- 1. is solved by de-duplicating the list below
+    -- 2. is not solved here. When there is any other action attempted on this
+    --    ConvId, it should get cleaned up from Cassandra before that action, so
+    --    it _should_ be fine to return it here. But strictly speaking this is
+    --    inconsistent behaviour.
+    --
+    -- A solution could be to keep looping and locking until we get to a stable
+    -- situation, but that could run into creating too many sessions with
+    -- Postgres
     cassConvIds <- embedClient client $ getLocalConvIds uid start maxIds
     pgConvIds <- interpretConversationStoreToPostgres $ ConvStore.getLocalConversationIds uid start maxIds
 
@@ -1127,7 +1142,6 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.isConversationAlive cid)
   SelectConversations uid cids -> do
     logEffect "ConversationStore.SelectConversations"
-    -- TODO: Figure out what to do about convs which could be left behind in cassandra
     withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
       cassConvs <- embedClient client $ localConversationIdsOf uid cids
       pgConvs <- interpretConversationStoreToPostgres $ ConvStore.selectConversations uid cids
@@ -1234,10 +1248,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         Nothing -> embedClient client $ teamConversation tid cid
   GetTeamConversations tid -> do
     logEffect "ConversationStore.GetTeamConversations"
-    -- TODO: This could return some deleted conversations if they get left
-    -- behind in cassandra while migration and then deleted from postgresql.
-    --
-    -- Figure out a way to deal with this.
+    -- See [Migration Locking Limitation]
     cassConvs <- embedClient client $ getTeamConversations tid
     pgConvs <- interpretConversationStoreToPostgres $ ConvStore.getTeamConversations tid
     pure $ List.nubOrd (pgConvs <> cassConvs)
@@ -1261,8 +1272,8 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
             -- cassandra
             nonPgUids = filter (`notElem` pgUids) uids
         cassUids <- embedClient client $ haveRemoteConvs nonPgUids
-        let newPgUids = filter (`notElem` cassUids) uids
-        interpretConversationStoreToPostgres $ ConvStore.upsertMembersInRemoteConversation rcid newPgUids
+        let nonCassUids = filter (`notElem` cassUids) uids
+        interpretConversationStoreToPostgres $ ConvStore.upsertMembersInRemoteConversation rcid nonCassUids
         embedClient client $ addLocalMembersToRemoteConv rcid cassUids
   CreateBotMember sr bid cid -> do
     logEffect "ConversationStore.CreateBotMember"
