@@ -22,29 +22,19 @@
 module Spar.Scim.Group where
 
 import Data.Aeson qualified as Aeson
-import Data.Id
-import Data.Json.Util (fromUTCTimeMillis)
-import Data.Text qualified as Text
-import Data.Vector qualified as V
 import Imports
-import Network.URI (URI, parseURI)
 import Polysemy
 import Web.Scim.Class.Auth
 import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Handler
-import Web.Scim.Schema.Common qualified as Common
-import Web.Scim.Schema.Error qualified as ScimErr
 import Web.Scim.Schema.ListResponse
-import Web.Scim.Schema.Meta qualified as Meta
-import Web.Scim.Schema.ResourceType qualified as RT
 import Wire.API.User.Scim
-import Wire.API.UserGroup
-import Wire.UserGroupSubsystem qualified as UserGroup
+import Wire.ScimSubsystem
 
 ----------------------------------------------------------------------------
 -- GroupDB instance
 
-instance (AuthDB SparTag (Sem r), Member UserGroup.UserGroupSubsystem r) => SCG.GroupDB SparTag (Sem r) where
+instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag (Sem r) where
   getGroups ::
     AuthInfo SparTag ->
     ScimHandler m (ListResponse (SCG.StoredGroup SparTag))
@@ -66,57 +56,7 @@ instance (AuthDB SparTag (Sem r), Member UserGroup.UserGroupSubsystem r) => SCG.
     AuthInfo SparTag ->
     SCG.Group ->
     ScimHandler (Sem r) (SCG.StoredGroup SparTag)
-  postGroup _tok _grp = do
-    {-
-    let team = tok.stiTeam
-    ugName <- case userGroupNameFromText grp.displayName of
-      Left e -> throwScim (ScimErr.badRequest ScimErr.InvalidValue (Just e))
-      Right n -> pure n
-    -- parse member user ids
-    uids <- forM grp.members $ \m -> case parseIdFromText m.value of
-      Left _ -> throwScim (ScimErr.badRequest ScimErr.InvalidValue (Just "invalid member id"))
-      Right (uid :: UserId) -> pure uid
-    -- create group
-    let newGroup = NewUserGroup {name = ugName, members = V.fromList uids}
-    ug <- lift $ UserGroup.createScimGroup team newGroup
-    pure $ toStoredGroup ug
-    where
-      toStoredGroup :: UserGroup -> SCG.StoredGroup SparTag
-      toStoredGroup ug =
-        let created = ug.createdAt
-            mkLocation :: String -> URI
-            mkLocation pathSuffix =
-              let uri =
-                    -- best-effort absolute URI; replaced by real base elsewhere if needed
-                    "https://example.com" <> pathSuffix
-               in fromMaybe (error "invalid SCIM group location URI") (parseURI uri)
-            meta =
-              Meta.Meta
-                { Meta.resourceType = RT.GroupResource,
-                  Meta.created = fromUTCTimeMillis created,
-                  Meta.lastModified = fromUTCTimeMillis created,
-                  Meta.version = Meta.Weak "v1",
-                  Meta.location =
-                    Common.URI . mkLocation $
-                      "/Groups/" <> Text.unpack (idToText ug.id_)
-                }
-            groupVal =
-              SCG.Group
-                { schemas = ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-                  displayName = userGroupNameToText ug.name,
-                  members =
-                    [ SCG.Member
-                        { value = idToText uid,
-                          typ = "User",
-                          ref = "https://example.com/Users/" <> idToText uid
-                        }
-                      | uid <- toList (runIdentity ug.members)
-                    ]
-                }
-         in Meta.WithMeta meta (Common.WithId () groupVal)
-
-    -}
-    undefined
+  postGroup ((.stiTeam) -> team) grp = lift $ scimCreateUserGroup team grp
 
   -- no additional helpers
 
