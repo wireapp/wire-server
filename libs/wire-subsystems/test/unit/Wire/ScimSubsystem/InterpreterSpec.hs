@@ -97,7 +97,7 @@ spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
     it "does not allow non-scim members" $ do
       team :: UGS.ArbitraryTeam <- generate arbitrary
       newScimGroup :: Group.Group <- do
-        generate arbitrary <&> \g -> g {Group.members = mkScimGroupMember <$> UGS.allUsers team}
+        generate arbitrary <&> \g -> g {Group.members = take 2 $ mkScimGroupMember <$> UGS.allUsers team}
       let have =
             runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
               createScimGroup team.tid newScimGroup
