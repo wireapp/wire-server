@@ -36,6 +36,8 @@ executable entreprise-provisioning
     , text
     , types-common
     , uuid
+    , vector
+    , wire-api
 
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates

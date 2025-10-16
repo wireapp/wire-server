@@ -31,15 +31,14 @@ import Options.Applicative
 import Types
 
 data Env = Env
-  { envGalleyUrl :: Maybe ApiUrl,
-    envBrigUrl :: Maybe ApiUrl,
+  { envApiUrl :: Maybe ApiUrl,
     envAuthToken :: Maybe Token
   }
 
 data ProvisionUserGroupChannelsOptions = ProvisionUserGroupChannelsOptions
   { teamId :: TeamId,
     userId :: UserId,
-    services :: Services,
+    apiUrl :: ApiUrl,
     inputFile :: FilePath,
     authToken :: Token,
     verbose :: Bool
@@ -52,8 +51,7 @@ data Command
 envParser :: Env.Parser Env.Error Env
 envParser =
   Env
-    <$> Env.optional (ApiUrl <$> Env.var Env.str "WIRE_GALLEY_URL" (Env.help "Galley service URL"))
-    <*> Env.optional (ApiUrl <$> Env.var Env.str "WIRE_BRIG_URL" (Env.help "Brig service URL"))
+    <$> Env.optional (ApiUrl <$> Env.var Env.str "WIRE_API_URL" (Env.help "Wire API URL"))
     <*> Env.optional (Token <$> Env.var Env.str "WIRE_AUTH_TOKEN" (Env.help "Authentication token"))
 
 commandParser :: Env -> Parser Command
@@ -105,23 +103,13 @@ userGroupsParser env =
               <> metavar "USER_ID"
               <> help "User ID (UUID)"
           )
-        <*> ( Services
-                <$> ( ApiUrl
-                        <$> strOption
-                          ( long "galley-url"
-                              <> metavar "GALLEY_URL"
-                              <> help "Galley service URL"
-                              <> foldMap (\url -> value url.fromApiUrl <> showDefault) e.envGalleyUrl
-                          )
-                    )
-                <*> ( ApiUrl
-                        <$> strOption
-                          ( long "brig-url"
-                              <> metavar "BRIG_URL"
-                              <> help "Brig service URL"
-                              <> foldMap (\url -> value url.fromApiUrl <> showDefault) e.envBrigUrl
-                          )
-                    )
+        <*> ( ApiUrl
+                <$> strOption
+                  ( long "api-url"
+                      <> metavar "API_URL"
+                      <> help "Wire API URL"
+                      <> foldMap (\url -> value url.fromApiUrl <> showDefault) e.envApiUrl
+                  )
             )
         <*> strOption
           ( short 'f'

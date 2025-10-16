@@ -19,9 +19,8 @@ set -e
 
 # Configuration
 BRIG_INTERNAL="http://localhost:8082"
-BRIG_API="http://localhost:8082"
 GALLEY_INTERNAL="http://localhost:8085"
-GALLEY_API="http://localhost:8085"
+API_URL="${API_URL:-http://localhost:8080}"  # Wire API URL (via nginx)
 VERBOSE=${VERBOSE:-1}
 
 # Colors for output
@@ -109,7 +108,7 @@ login() {
   log "Logging in as $email"
 
   local response
-  response=$(curl -s -w "\n%{http_code}" -X POST "$BRIG_API/login?persist=true" \
+  response=$(curl -s -w "\n%{http_code}" -X POST "$BRIG_INTERNAL/login?persist=true" \
     -H "Content-Type: application/json" \
     -d "{
       \"email\": \"$email\",
@@ -193,7 +192,7 @@ create_user_group() {
   log "Creating user group: $name"
 
   local response
-  response=$(curl -s -w "\n%{http_code}" -X POST "$BRIG_API/v12/user-groups" \
+  response=$(curl -s -w "\n%{http_code}" -X POST "$BRIG_INTERNAL/v12/user-groups" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $auth_token" \
     -H "Z-User: $user_id" \
@@ -336,8 +335,7 @@ EOF
   cabal run entreprise-provisioning -- user-groups channels \
     -t "$team_id" \
     -u "$user_id" \
-    --galley-url "$GALLEY_API" \
-    --brig-url "$BRIG_API" \
+    --api-url "$API_URL" \
     --auth-token "$auth_token" \
     -f "$input_file" \
     "${cli_opts[@]}" \

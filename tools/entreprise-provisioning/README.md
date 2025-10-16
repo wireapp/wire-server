@@ -23,8 +23,8 @@ cabal build
 ```bash
 entreprise-provisioning user-groups channels \
   -t TEAM_ID \
-  --galley-url GALLEY_URL \
-  --brig-url BRIG_URL \
+  -u USER_ID \
+  --api-url API_URL \
   --auth-token TOKEN \
   -f INPUT_FILE \
   [-v]
@@ -33,19 +33,18 @@ entreprise-provisioning user-groups channels \
 ### Arguments
 
 - `-t, --team-id TEAM_ID`: Team ID (UUID format)
-- `--galley-url GALLEY_URL`: Galley service URL (e.g., `https://prod-nginz-https.wire.com`)
-- `--brig-url BRIG_URL`: Brig service URL (e.g., `https://prod-nginz-https.wire.com`)
+- `-u, --user-id USER_ID`: User ID (UUID format)
+- `--api-url API_URL`: Wire API URL (e.g., `https://prod-nginz-https.wire.com` or `http://localhost:8080` for local testing)
 - `-f, --file FILENAME`: Path to input JSON file
 - `--auth-token TOKEN`: Authentication token
 - `-v, --verbose`: Enable verbose output to stderr
 
 ### Environment Variables
 
-Service URLs and authentication token can be provided via environment variables. When set, these become the default values for their respective CLI arguments, making them optional:
+API URL and authentication token can be provided via environment variables. When set, these become the default values for their respective CLI arguments, making them optional:
 
 ```bash
-export WIRE_GALLEY_URL="https://prod-nginz-https.wire.com"
-export WIRE_BRIG_URL="https://prod-nginz-https.wire.com"
+export WIRE_API_URL="https://prod-nginz-https.wire.com"
 export WIRE_AUTH_TOKEN="your-bearer-token"
 ```
 
@@ -58,7 +57,7 @@ entreprise-provisioning env info
 **Configuration Priority:**
 1. Command line arguments (highest priority)
 2. Environment variables
-3. No default (required if not set)
+3. No default (needs to be specified either in env vars or on cli)
 
 ## Input Format
 
@@ -141,18 +140,14 @@ Output:
 ```
 Environment Variables:
 
-  WIRE_GALLEY_URL    Galley service URL
-                     Used as default for --galley-url if set
-
-  WIRE_BRIG_URL      Brig service URL
-                     Used as default for --brig-url if set
+  WIRE_API_URL       Wire API URL
+                     Used as default for --api-url if set
 
   WIRE_AUTH_TOKEN    Authentication token
                      Used as default for --auth-token if set
 
 Example:
-  export WIRE_GALLEY_URL=https://prod-nginz-https.wire.com
-  export WIRE_BRIG_URL=https://prod-nginz-https.wire.com
+  export WIRE_API_URL=https://prod-nginz-https.wire.com
   export WIRE_AUTH_TOKEN=your-token-here
 ```
 
@@ -161,8 +156,8 @@ Example:
 ```bash
 entreprise-provisioning user-groups channels \
   -t "3fa85f64-5717-4562-b3fc-2c963f66afa6" \
-  --galley-url "https://prod-nginz-https.wire.com" \
-  --brig-url "https://prod-nginz-https.wire.com" \
+  -u "4fa85f64-5717-4562-b3fc-2c963f66afa7" \
+  --api-url "https://prod-nginz-https.wire.com" \
   --auth-token "your-token-here" \
   -f input.json
 ```
@@ -170,13 +165,13 @@ entreprise-provisioning user-groups channels \
 ### With Environment Variables
 
 ```bash
-export WIRE_GALLEY_URL="https://prod-nginz-https.wire.com"
-export WIRE_BRIG_URL="https://prod-nginz-https.wire.com"
+export WIRE_API_URL="https://prod-nginz-https.wire.com"
 export WIRE_AUTH_TOKEN="your-token-here"
 
-# Now all service URLs and auth token are optional
+# Now API URL and auth token are optional
 entreprise-provisioning user-groups channels \
   -t "3fa85f64-5717-4562-b3fc-2c963f66afa6" \
+  -u "4fa85f64-5717-4562-b3fc-2c963f66afa7" \
   -f input.json
 ```
 
@@ -185,8 +180,8 @@ entreprise-provisioning user-groups channels \
 ```bash
 entreprise-provisioning user-groups channels \
   -t "3fa85f64-5717-4562-b3fc-2c963f66afa6" \
-  --galley-url "https://prod-nginz-https.wire.com" \
-  --brig-url "https://prod-nginz-https.wire.com" \
+  -u "4fa85f64-5717-4562-b3fc-2c963f66afa7" \
+  --api-url "https://prod-nginz-https.wire.com" \
   --auth-token "your-token-here" \
   -f input.json \
   -v 2> debug.log
@@ -197,8 +192,8 @@ entreprise-provisioning user-groups channels \
 ```bash
 entreprise-provisioning user-groups channels \
   -t "3fa85f64-5717-4562-b3fc-2c963f66afa6" \
-  --galley-url "https://prod-nginz-https.wire.com" \
-  --brig-url "https://prod-nginz-https.wire.com" \
+  -u "4fa85f64-5717-4562-b3fc-2c963f66afa7" \
+  --api-url "https://prod-nginz-https.wire.com" \
   --auth-token "your-token-here" \
   -f input.json \
   > results.json
@@ -231,11 +226,8 @@ The tool continues processing even if individual operations fail:
 
 ### Configuration Errors
 
-- **Error**: Missing `--galley-url` argument
-  - **Solution**: Provide via `--galley-url` argument or set `WIRE_GALLEY_URL` environment variable
-
-- **Error**: Missing `--brig-url` argument
-  - **Solution**: Provide via `--brig-url` argument or set `WIRE_BRIG_URL` environment variable
+- **Error**: Missing `--api-url` argument
+  - **Solution**: Provide via `--api-url` argument or set `WIRE_API_URL` environment variable
 
 - **Error**: Missing `--auth-token` argument
   - **Solution**: Provide via `--auth-token` argument or set `WIRE_AUTH_TOKEN` environment variable

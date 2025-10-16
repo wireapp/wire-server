@@ -30,12 +30,6 @@ newtype ApiUrl = ApiUrl {fromApiUrl :: String}
   deriving stock (Eq, Generic)
   deriving newtype (Show)
 
-data Services = Services
-  { galleyUrl :: ApiUrl,
-    brigUrl :: ApiUrl
-  }
-  deriving stock (Eq, Show, Generic)
-
 newtype ChannelName = ChannelName {fromChannelName :: Range 1 256 Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, FromJSON)

@@ -22,6 +22,8 @@
 , text
 , types-common
 , uuid
+, vector
+, wire-api
 }:
 mkDerivation {
   pname = "entreprise-provisioning";
@@ -43,6 +45,8 @@ mkDerivation {
     text
     types-common
     uuid
+    vector
+    wire-api
   ];
   testHaskellDepends = [
     aeson

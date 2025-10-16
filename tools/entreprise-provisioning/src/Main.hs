@@ -45,8 +45,7 @@ main = do
       putStrLn $ Env.helpInfo (Env.header "entreprise-provisioning" Env.defaultInfo) envParser mempty
     ProvisionUserGroupChannels opts -> do
       when opts.verbose $ do
-        hPutStrLn stderr $ "Galley URL: " <> show opts.services.galleyUrl
-        hPutStrLn stderr $ "Brig URL: " <> show opts.services.brigUrl
+        hPutStrLn stderr $ "API URL: " <> show opts.apiUrl
         hPutStrLn stderr $ "Loading input from: " <> inputFile opts
 
       inputData <- LBS.readFile opts.inputFile
@@ -108,7 +107,7 @@ processUserGroup manager opts token groupId channelNames = do
       else do
         when opts.verbose $
           hPutStrLn stderr "Associating channels to user group..."
-        associateChannelsToGroup manager opts.services token opts.userId groupId successfulIds
+        associateChannelsToGroup manager opts.apiUrl token opts.userId groupId successfulIds
 
   pure $
     UserGroupResult
@@ -130,7 +129,7 @@ createChannelWithLogging manager opts token channelName' = do
     hPutStrLn stderr $
       "Creating channel: " <> Text.unpack (fromRange $ fromChannelName channelName')
 
-  result <- createChannel manager opts.services token opts.userId opts.teamId channelName'
+  result <- createChannel manager opts.apiUrl token opts.userId opts.teamId channelName'
 
   case result of
     Right convId -> do
