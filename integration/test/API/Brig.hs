@@ -265,7 +265,7 @@ searchTeamAll user = searchTeam user [("q", ""), ("size", "100"), ("sortby", "cr
 setUserSearchable :: (MakesValue user) => user -> String -> Bool -> App Response
 setUserSearchable self uid searchable = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["users", uid, "searchable"]
-  submit "POST" $ addJSONObject ["setSearchable" .= searchable] req
+  submit "POST" $ addJSONObject ["set_searchable" .= searchable] req
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
