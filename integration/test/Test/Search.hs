@@ -412,7 +412,7 @@ testUserSearchable = do
     assertBool "Team admin won't find non-searchable user" $ notElem u3id foundUids
   withFoundDocs owner (u3 %. "name") $ \docs -> do
     foundUids <- for docs objId
-    assertBool "Team owner won't find non-searchable user from /search/concatcs" $ notElem u3id foundUids
+    assertBool "Team owner won't find non-searchable user from /search/contacts" $ notElem u3id foundUids
 
   -- Check for handle being available with HTTP HEAD still shows that the handle used by non-searchable users is not available
   u3handle <- API.randomHandle
