@@ -363,7 +363,7 @@ testSparCreateScimTokenWithName = do
   token %. "name" `shouldMatch` Just assoc
 
 ----------------------------------------------------------------------
--- scim user group stuff
+-- scim group stuff
 
 testSparScimCreateUserGroup :: (HasCallStack) => App ()
 testSparScimCreateUserGroup = do
@@ -376,7 +376,7 @@ testSparScimCreateUserGroup = do
             "members"
               .= [ object
                      [ "typ" .= "User",
-                       "$ref" .= "https://...", -- TODO: we should probably validate these?
+                       "$ref" .= "https://...", -- TODO: we should probably validate these?  or just ignore them?
                        "value" .= "ea2e4bf0-aa5e-11f0-96ad-e776a606779b"
                      ]
                  ]

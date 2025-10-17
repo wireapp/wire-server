@@ -26,6 +26,7 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except
+import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -68,12 +69,22 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
+import Wire.GalleyAPIAccess
+import Wire.NotificationSubsystem
+import Wire.ScimSubsystem
+import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
+import Wire.TeamSubsystem
+import qualified Wire.UserGroupStore as Store
+import Wire.UserGroupSubsystem
+import Wire.UserGroupSubsystem.Interpreter
+import Wire.UserGroupSubsystem.Interpreter (interpretUserGroupSubsystem)
+import Wire.UserSubsystem
 
 type CanonicalEffs =
   '[ SAML2,
@@ -81,6 +92,17 @@ type CanonicalEffs =
      AssIDStore,
      AReqIDStore,
      VerdictFormatStore,
+     ScimSubsystem,
+     UserGroupSubsystem,
+     UserSubsystem,
+     Error UserGroupSubsystemError,
+     Store.UserGroupStore,
+     NotificationSubsystem,
+     TeamSubsystem,
+     GalleyAPIAccess,
+     Input (Local ()),
+     Input ScimSubsystemConfig,
+     Error ScimSubsystemError,
      ScimExternalIdStore,
      ScimUserTimesStore,
      ScimTokenStore,
@@ -130,11 +152,49 @@ runSparToIO ctx action =
     . scimTokenStoreToCassandra
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
+    . handleScimSubsystemErrors
+    . runInputConst (scimSubsystemConfig ctx)
+    . runInputConst (localUnit ctx)
+    . iGalleyAPIAccess ctx
+    . iTeamSubsystem ctx
+    . iNotificationSubsystem ctx
+    . iUserGroupStore ctx
+    . iUserGroupSubsystemError ctx
+    . iUserSubsystem ctx
+    . interpretUserGroupSubsystem
+    . interpretScimSubsystem
     . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
     . assIDStoreToCassandra
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     $ saml2ToSaml2WebSso action
+
+iGalleyAPIAccess :: Env -> InterpreterFor GalleyAPIAccess r
+iGalleyAPIAccess = undefined
+
+iTeamSubsystem :: Env -> InterpreterFor TeamSubsystem r
+iTeamSubsystem = undefined
+
+iNotificationSubsystem :: Env -> InterpreterFor NotificationSubsystem r
+iNotificationSubsystem = undefined
+
+iUserGroupStore :: Env -> InterpreterFor Store.UserGroupStore r
+iUserGroupStore = undefined
+
+iUserGroupSubsystemError :: Env -> InterpreterFor (Error UserGroupSubsystemError) r
+iUserGroupSubsystemError = undefined
+
+iUserSubsystem :: Env -> InterpreterFor UserSubsystem r
+iUserSubsystem = undefined
+
+localUnit :: Env -> Local ()
+localUnit _env = undefined -- toLocalUnsafe ctx.sparCtxOpts.scimBaseUri ()
+
+scimSubsystemConfig :: Env -> ScimSubsystemConfig
+scimSubsystemConfig _env = undefined -- ScimSubsystemConfig env.sparCtxOpts.scimBaseUri
+
+handleScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
+handleScimSubsystemErrors = undefined
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
