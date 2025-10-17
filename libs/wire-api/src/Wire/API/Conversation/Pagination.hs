@@ -23,10 +23,11 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
 import Imports
+import Wire.API.Conversation
 import Wire.API.Pagination
 import Wire.Arbitrary as Arbitrary
 
-newtype ConversationPage = ConversationPage {page :: [ConvId]}
+newtype ConversationPage = ConversationPage {page :: [ChannelSearchResult]}
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationPage
 
@@ -37,3 +38,20 @@ instance ToSchema ConversationPage where
 
 instance Arbitrary ConversationPage where
   arbitrary = ConversationPage <$> arbitrary
+
+data ChannelSearchResult = ChannelSearchResult
+  { convId :: ConvId,
+    name :: Maybe Text,
+    access :: [Access]
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ChannelSearchResult
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ChannelSearchResult
+
+instance ToSchema ChannelSearchResult where
+  schema =
+    object "ChannelSearchResult" $
+      ChannelSearchResult
+        <$> (.convId) .= field "id" schema
+        <*> (.name) .= maybe_ (optField "name" schema)
+        <*> (.access) .= field "access" (array schema)

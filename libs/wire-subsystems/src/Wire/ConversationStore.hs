@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
@@ -131,7 +132,7 @@ data ConversationStore m a where
   SetSubConversationCipherSuite :: ConvId -> SubConvId -> CipherSuiteTag -> ConversationStore m ()
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> ConversationStore m ()
-  SearchConversations :: ConversationSearch -> ConversationStore m [ConvId]
+  SearchConversations :: ConversationSearch -> ConversationStore m [ChannelSearchResult]
 
 makeSem ''ConversationStore
 

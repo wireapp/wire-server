@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.ConversationStore.Postgres where
+module Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres) where
 
 import Control.Error (lastMay)
 import Control.Monad.Trans.Maybe
@@ -31,6 +31,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
@@ -1230,33 +1231,57 @@ deleteSubConversationImpl cid subConvId =
                              AND subconv_id = ($2 :: text)
                             |]
 
+data RawResult = RawResult
+  { convId :: ConvId,
+    name :: Maybe Text,
+    access :: Maybe [Int32]
+  }
+
+rawResultToSearchResult :: RawResult -> Either Text ChannelSearchResult
+rawResultToSearchResult r = do
+  access <- traverse postgresUnmarshall (fold r.access)
+  pure
+    ChannelSearchResult
+      { convId = r.convId,
+        name = r.name,
+        access
+      }
+
 searchConversationsImpl ::
   ( Member (Input Hasql.Pool) r,
     Member (Error Hasql.UsageError) r,
     Member (Embed IO) r
   ) =>
   ConversationSearch ->
-  Sem r [ConvId]
+  Sem r [ChannelSearchResult]
 searchConversationsImpl req =
   runStatement () $
-    buildStatement
-      ( literal "select id from conversation"
-          <> where_
-            ( [clause1 "team_id" "=" req.team]
-                <> [ clause
-                       (sortOrderOperator req.sortOrder)
-                       (mkClause "name" lastName <> mkClause "id" lastId)
-                     | lastName <- toList req.lastName,
-                       lastId <- toList req.lastId
-                   ]
-                <> toList (like "name" <$> req.searchString)
-                <> discoverableClause
+    Hasql.refineResult (traverse rawResultToSearchResult) $
+      buildStatement
+        ( literal "select id, name, access from conversation"
+            <> where_
+              ( [clause1 "team_id" "=" req.team]
+                  <> [ clause
+                         (sortOrderOperator req.sortOrder)
+                         (mkClause "name" lastName <> mkClause "id" lastId)
+                       | lastName <- toList req.lastName,
+                         lastId <- toList req.lastId
+                     ]
+                  <> toList (like "name" <$> req.searchString)
+                  <> discoverableClause
+              )
+            <> limit (pageSizeToInt32 req.pageSize)
+        )
+        ( HD.rowList
+            ( RawResult
+                <$> (Id <$> HD.column (HD.nonNullable HD.uuid))
+                <*> HD.column (HD.nullable HD.text)
+                <*> HD.column
+                  ( HD.nullable
+                      (HD.listArray (HD.nonNullable HD.int4))
+                  )
             )
-          <> limit (pageSizeToInt32 req.pageSize)
-      )
-      ( HD.rowList
-          (Id <$> HD.column (HD.nonNullable HD.uuid))
-      )
+        )
   where
     discoverableClause
       | req.discoverable =
