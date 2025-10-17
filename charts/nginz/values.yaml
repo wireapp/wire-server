@@ -31,6 +31,13 @@ nginx_conf:
   worker_rlimit_nofile: 131072
   worker_connections: 65536
 
+  # Sets the maximum number and size of buffers used for reading large client request headers.
+  # The request line (URL including query params) cannot exceed the size of one buffer.
+  # Format: "number size" (e.g., "4 8k", "4 32k", "8 16k")
+  # Increase this if you see "414 Request-URI Too Large" errors, particularly with SAML SSO
+  # using HTTP Redirect binding with large SAMLResponse query parameters.
+  large_client_header_buffers: "4 8k"
+
   # The domain to identify the environment, it is used to build the deeplink URLs
   # and to allow CORS requests from the webapp. Check the 'allowlisted_origins'.
   # external_env_domain: example.com
