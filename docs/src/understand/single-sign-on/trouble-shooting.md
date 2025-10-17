@@ -419,11 +419,7 @@ You have two options to resolve this issue:
 
 #### Option 1: Switch to SAML HTTP POST Binding (Recommended)
 
-The recommended solution is to configure your IdP to use **HTTP POST binding** instead of HTTP Redirect binding. With POST binding:
-- The SAML response is sent in the request body (not the URL)
-- There are no URL length limitations
-- It's more secure (URLs get logged, request bodies typically don't)
-- This is the standard practice for large SAML responses
+Configure your IdP to use **HTTP POST binding** instead of HTTP Redirect binding. With POST binding, the SAML response is sent in the request body rather than the URL, which avoids URL length limitations.
 
 **How to configure:**
 1. In your IdP (e.g., Okta, Azure AD, Authentik, etc.), locate the SAML application configuration
