@@ -25,14 +25,15 @@ module Spar.CanonicalInterpreter
 where
 
 import qualified Cassandra as Cas
-import Control.Lens (preview, _Just)
 import Control.Monad.Except
-import Data.Domain
+import Data.Id
 import Data.Qualified
+import qualified Data.Text as Text
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
+import qualified SAML2.WebSSO.Error as SAML
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
@@ -70,7 +71,7 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
-import qualified URI.ByteString as URI
+import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.User.Saml
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -154,7 +155,7 @@ runSparToIO ctx action =
     . scimTokenStoreToCassandra
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
-    . handleScimSubsystemErrors
+    . mapScimSubsystemErrors
     . runInputConst (ctx.sparCtxScimSubsystemConfig)
     . runInputConst (ctx.sparCtxLocalUnit)
     . iGalleyAPIAccess ctx
@@ -188,9 +189,6 @@ iUserGroupSubsystemError = undefined
 
 iUserSubsystem :: Env -> InterpreterFor UserSubsystem r
 iUserSubsystem = undefined
-
-handleScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
-handleScimSubsystemErrors = undefined
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do

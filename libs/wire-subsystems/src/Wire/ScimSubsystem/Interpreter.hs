@@ -19,7 +19,6 @@ import Web.Scim.Schema.ResourceType qualified as RT
 import Wire.API.User
 import Wire.API.User.Scim (SparTag)
 import Wire.API.UserGroup
-import Wire.Error
 import Wire.ScimSubsystem
 import Wire.UserGroupSubsystem
 import Wire.UserSubsystem
@@ -41,19 +40,12 @@ interpretScimSubsystem = interpret $ \case
 
 data ScimSubsystemError
   = ScimSubsystemError ScimError
-  | ScimSubsystemInvalidGroupMemberId String
-  | ScimSubsystemScimGroupWithNonScimMembers
+  | ScimSubsystemInvalidGroupMemberId Text
+  | ScimSubsystemScimGroupWithNonScimMembers [UserId]
   deriving (Show, Eq)
 
 scimThrow :: (Member (Error ScimSubsystemError) r) => ScimError -> Sem r a
 scimThrow = throw . ScimSubsystemError
-
-scimSubsystemErrorToHttpError :: ScimSubsystemError -> HttpError
-scimSubsystemErrorToHttpError =
-  StdError . \case
-    ScimSubsystemError _err -> undefined -- _ scimToServerError
-    ScimSubsystemInvalidGroupMemberId _badIds -> undefined
-    ScimSubsystemScimGroupWithNonScimMembers -> undefined
 
 createScimGroupImpl ::
   forall r.
@@ -67,17 +59,17 @@ createScimGroupImpl ::
   SCG.Group ->
   Sem r (SCG.StoredGroup SparTag)
 createScimGroupImpl teamId grp = do
-  allUsersAreScimManaged <- do
+  membersNotManagedByScim <- do
     let uidsAsText = (.value) <$> grp.members
-    uids <-
+    uids :: [UserId] <-
       let thrw = throw . ScimSubsystemInvalidGroupMemberId
-       in forM uidsAsText $ either thrw pure . parseIdFromText
+       in forM uidsAsText $ either (thrw . Text.pack) pure . parseIdFromText
     getby :: Local GetBy <- inputQualifyLocal def {getByUserId = uids}
     getAccountsBy getby
-      <&> all (\u -> u.userManagedBy == ManagedByScim)
-
-  unless allUsersAreScimManaged do
-    throw ScimSubsystemScimGroupWithNonScimMembers
+      <&> filter (\u -> u.userManagedBy /= ManagedByScim)
+      <&> fmap userId
+  unless (null membersNotManagedByScim) do
+    throw (ScimSubsystemScimGroupWithNonScimMembers membersNotManagedByScim)
 
   ugName <-
     userGroupNameFromText grp.displayName

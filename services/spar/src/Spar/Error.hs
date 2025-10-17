@@ -39,6 +39,7 @@ module Spar.Error
     sparToServerError,
     renderSparError,
     waiToServant,
+    mapScimSubsystemErrors,
   )
 where
 
@@ -48,6 +49,8 @@ import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
+import Data.Id
+import qualified Data.Text as Text
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
@@ -58,11 +61,14 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
+import Polysemy
+import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.User.Saml (TTLError)
+import Wire.ScimSubsystem.Interpreter
 
 type SparError = SAML.Error SparCustomError
 
@@ -287,3 +293,17 @@ parseResponse serviceName resp = do
 
   bdy <- maybe (err "no body") pure $ responseBody resp
   either (err . LText.pack) pure $ eitherDecode' bdy
+
+mapScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
+mapScimSubsystemErrors =
+  Polysemy.Error.mapError $
+    SAML.CustomError . SparScimError . \case
+      ScimSubsystemError err ->
+        err
+      ScimSubsystemInvalidGroupMemberId badIds ->
+        Scim.notFound "group members" badIds
+      ScimSubsystemScimGroupWithNonScimMembers badIds ->
+        Scim.badRequest Scim.InvalidValue (Just $ "These users are not \"managed_by\" = \"scim\": " <> renderIds badIds)
+  where
+    renderIds :: [UserId] -> Text
+    renderIds = Text.intercalate ", " . fmap idToText
