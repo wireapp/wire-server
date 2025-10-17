@@ -38,7 +38,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Pagination
 import Wire.API.Provider.Service
 import Wire.ConversationStore.MLS.Types
-import Wire.PaginationState
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
@@ -58,7 +57,8 @@ data ConversationSearch = ConversationSearch
     pageSize :: PageSize,
     sortOrder :: SortOrder,
     lastName :: Maybe Text,
-    lastId :: Maybe ConvId
+    lastId :: Maybe ConvId,
+    discoverable :: Bool
   }
 
 makeSem ''MLSCommitLockStore

@@ -1250,9 +1250,17 @@ searchConversationsImpl req =
                        lastId <- toList req.lastId
                    ]
                 <> toList (like "name" <$> req.searchString)
+                <> discoverableClause
             )
           <> limit (pageSizeToInt32 req.pageSize)
       )
       ( HD.rowList
           (Id <$> HD.column (HD.nonNullable HD.uuid))
       )
+  where
+    discoverableClause
+      | req.discoverable =
+          [ paramLiteral (valueEncoder @Int32 (postgresMarshall LinkAccess)) \i ->
+              argPattern "integer" i <> " = any(access)"
+          ]
+      | otherwise = []

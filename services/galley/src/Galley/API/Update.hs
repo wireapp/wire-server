@@ -822,8 +822,9 @@ searchChannels ::
   Maybe ConvId ->
   Bool ->
   Sem r ConversationPage
-searchChannels lusr tid searchString sortOrder pageSize lastName lastId _discoverable = do
-  void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
+searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
+  unless discoverable $ do
+    void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
   ConversationPage
     <$> E.searchConversations
       E.ConversationSearch
@@ -832,7 +833,8 @@ searchChannels lusr tid searchString sortOrder pageSize lastName lastId _discove
           sortOrder = fromMaybe Desc sortOrder,
           pageSize = fromMaybe def pageSize,
           lastName,
-          lastId
+          lastId,
+          discoverable
         }
 
 joinConversationByReusableCode ::
