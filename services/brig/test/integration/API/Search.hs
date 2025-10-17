@@ -220,7 +220,7 @@ testSearchableMissing opts brig galley = do
   -- perform search and still get the user
   searcher <- userId <$> mkTeamMember (Member.rolePermissions RoleMember)
   s' <- Search.executeSearch brig searcher $ fromName $ userDisplayName user
-  liftIO $ assertBool "User with no seacrhable field is still found via /search/concatcs" $
+  liftIO $ assertBool "User with no searchable field is still found via /search/contacts" $
      uid `elem` map contactUid (searchResults s')
 
   where
