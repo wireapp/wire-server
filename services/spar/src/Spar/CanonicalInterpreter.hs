@@ -26,14 +26,11 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except
-import Data.Id
 import Data.Qualified
-import qualified Data.Text as Text
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
-import qualified SAML2.WebSSO.Error as SAML
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
@@ -71,7 +68,6 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
-import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.User.Saml
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
