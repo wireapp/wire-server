@@ -42,7 +42,9 @@ instance Arbitrary ConversationPage where
 data ChannelSearchResult = ChannelSearchResult
   { convId :: ConvId,
     name :: Maybe Text,
-    access :: [Access]
+    access :: [Access],
+    memberCount :: Int,
+    adminCount :: Int
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ChannelSearchResult
@@ -55,3 +57,5 @@ instance ToSchema ChannelSearchResult where
         <$> (.convId) .= field "id" schema
         <*> (.name) .= maybe_ (optField "name" schema)
         <*> (.access) .= field "access" (array schema)
+        <*> (.memberCount) .= field "member_count" schema
+        <*> (.adminCount) .= field "admin_count" schema

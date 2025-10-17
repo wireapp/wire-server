@@ -1234,17 +1234,23 @@ deleteSubConversationImpl cid subConvId =
 data RawResult = RawResult
   { convId :: ConvId,
     name :: Maybe Text,
-    access :: Maybe [Int32]
+    access :: Maybe [Int32],
+    memberCount :: Int64,
+    adminCount :: Int64
   }
 
 rawResultToSearchResult :: RawResult -> Either Text ChannelSearchResult
 rawResultToSearchResult r = do
   access <- traverse postgresUnmarshall (fold r.access)
+  memberCount <- parseCount r.memberCount
+  adminCount <- parseCount r.adminCount
   pure
     ChannelSearchResult
       { convId = r.convId,
         name = r.name,
-        access
+        access,
+        memberCount,
+        adminCount
       }
 
 searchConversationsImpl ::
@@ -1258,7 +1264,7 @@ searchConversationsImpl req =
   runStatement () $
     Hasql.refineResult (traverse rawResultToSearchResult) $
       buildStatement
-        ( literal "select id, name, access from conversation"
+        ( literal "with conv as (select id, name, access from conversation"
             <> where_
               ( [clause1 "team_id" "=" req.team]
                   <> [ clause
@@ -1271,6 +1277,12 @@ searchConversationsImpl req =
                   <> discoverableClause
               )
             <> limit (pageSizeToInt32 req.pageSize)
+            <> literal ") select conv.id, conv.name, conv.access,"
+            <> literal "count(m.\"user\") as member_count,"
+            <> literal "count(*) filter (where m.conversation_role = \"wire_admin\") as admin_count"
+            <> literal "from conv"
+            <> literal "left join conversation_member m on m.conv = conv.id"
+            <> literal "group_by conv.id"
         )
         ( HD.rowList
             ( RawResult
@@ -1280,6 +1292,8 @@ searchConversationsImpl req =
                   ( HD.nullable
                       (HD.listArray (HD.nonNullable HD.int4))
                   )
+                <*> HD.column (HD.nonNullable HD.int8)
+                <*> HD.column (HD.nonNullable HD.int8)
             )
         )
   where

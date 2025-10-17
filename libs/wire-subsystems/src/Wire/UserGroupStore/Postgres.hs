@@ -219,12 +219,6 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
             )
             (HD.singleRow (HD.column (HD.nonNullable HD.int8)))
 
-    parseCount :: Int64 -> Either Text Int
-    parseCount = \case
-      n | n < 0 -> Left "Negative count from database"
-      n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
-      n -> Right $ fromIntegral n
-
     decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID))]
     decodeRow =
       HD.rowList

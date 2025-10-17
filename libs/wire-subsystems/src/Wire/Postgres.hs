@@ -23,6 +23,7 @@ module Wire.Postgres
     runStatement,
     runTransaction,
     runPipeline,
+    parseCount,
 
     -- * Query builder
     QueryFragment,
@@ -120,6 +121,13 @@ instance PostgresValue UTCTime where
 instance PostgresValue Int32 where
   postgresType = "int"
   postgresValue n = const n >$< Enc.int4
+
+-- | Parse count result returned by Postgres.
+parseCount :: Int64 -> Either Text Int
+parseCount = \case
+  n | n < 0 -> Left "Negative count from database"
+  n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
+  n -> Right $ fromIntegral n
 
 --------------------------------------------------------------------------------
 -- Query builder DSL
