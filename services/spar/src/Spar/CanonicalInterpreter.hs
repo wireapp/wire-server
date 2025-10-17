@@ -194,10 +194,6 @@ handleScimSubsystemErrors = undefined
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
-  err <- liftIO $ runSparToIO ctx spar
-  throwErrorAsHandlerException err
-  where
-    throwErrorAsHandlerException :: Either SparError a -> Handler a
-    throwErrorAsHandlerException (Left err) =
-      sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
-    throwErrorAsHandlerException (Right a) = pure a
+  liftIO (runSparToIO ctx spar) >>= \case
+    Right val -> pure val
+    Left err -> sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
