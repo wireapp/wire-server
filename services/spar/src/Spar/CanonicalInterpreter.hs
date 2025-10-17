@@ -25,7 +25,9 @@ module Spar.CanonicalInterpreter
 where
 
 import qualified Cassandra as Cas
+import Control.Lens (preview, _Just)
 import Control.Monad.Except
+import Data.Domain
 import Data.Qualified
 import Imports
 import Polysemy
@@ -68,6 +70,7 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
+import qualified URI.ByteString as URI
 import Wire.API.User.Saml
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -83,7 +86,6 @@ import Wire.TeamSubsystem
 import qualified Wire.UserGroupStore as Store
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
-import Wire.UserGroupSubsystem.Interpreter (interpretUserGroupSubsystem)
 import Wire.UserSubsystem
 
 type CanonicalEffs =
@@ -153,8 +155,8 @@ runSparToIO ctx action =
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
     . handleScimSubsystemErrors
-    . runInputConst (scimSubsystemConfig ctx)
-    . runInputConst (localUnit ctx)
+    . runInputConst (ctx.sparCtxScimSubsystemConfig)
+    . runInputConst (ctx.sparCtxLocalUnit)
     . iGalleyAPIAccess ctx
     . iTeamSubsystem ctx
     . iNotificationSubsystem ctx
@@ -186,12 +188,6 @@ iUserGroupSubsystemError = undefined
 
 iUserSubsystem :: Env -> InterpreterFor UserSubsystem r
 iUserSubsystem = undefined
-
-localUnit :: Env -> Local ()
-localUnit _env = undefined -- toLocalUnsafe ctx.sparCtxOpts.scimBaseUri ()
-
-scimSubsystemConfig :: Env -> ScimSubsystemConfig
-scimSubsystemConfig _env = undefined -- ScimSubsystemConfig env.sparCtxOpts.scimBaseUri
 
 handleScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
 handleScimSubsystemErrors = undefined

@@ -31,12 +31,17 @@ where
 import qualified Bilge
 import Cassandra as Cas
 import Cassandra.Util (initCassandraForService)
-import Control.Lens (to, (^.))
+import Control.Exception (ErrorCall (ErrorCall), throwIO)
+import Control.Lens (to, (^.), (^?), _Just)
+import qualified Data.ByteString.UTF8 as UTF8
+import Data.Domain
 import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
+import Data.Qualified
 import Data.Text.Encoding
 import Imports
+import Network.URI
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -53,9 +58,12 @@ import Spar.Orphans ()
 import System.Logger (Logger)
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
+import qualified URI.ByteString as URI
 import Util.Options
+import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
+import Wire.ScimSubsystem.Interpreter
 
 ----------------------------------------------------------------------
 -- cassandra
@@ -99,6 +107,30 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . to port)
           $ Bilge.empty
   let sparCtxRequestId = RequestId defRequestId
+
+  (sparCtxScimSubsystemConfig, sparCtxLocalUnit) <- do
+    let bsUri :: URI.URI
+        bsUri = sparCtxOpts.scimBaseUri
+
+        crash :: String -> IO a
+        crash msg = throwIO (ErrorCall $ "spar.yaml: scimBaseUri must be absolute URI containing server domain: " ++ show (bsUri, msg))
+
+    scimUri :: Scim.URI <- do
+      maybe (crash "no parse") (pure . Scim.URI)
+        . parseURI
+        . UTF8.toString
+        . URI.normalizeURIRef' URI.noNormalization
+        $ bsUri
+
+    localUnit :: Local () <- do
+      bs <-
+        maybe (crash "no host") (pure . URI.hostBS)
+          . (^? URI.authorityL . _Just . URI.authorityHostL)
+          $ bsUri
+      either crash (pure . (`toLocalUnsafe` ())) (mkDomainFromBS bs)
+
+    pure (ScimSubsystemConfig scimUri, localUnit)
+
   let ctx0 = Env {..}
   let heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =

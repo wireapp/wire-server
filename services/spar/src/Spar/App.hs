@@ -49,6 +49,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Qualified
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Encoding as Text
@@ -100,6 +101,7 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -115,7 +117,9 @@ data Env = Env
     sparCtxHttpManager :: Bilge.Manager,
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
-    sparCtxRequestId :: RequestId
+    sparCtxRequestId :: RequestId,
+    sparCtxLocalUnit :: Local (),
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
   }
 
 -- | Get a user by UserRef, no matter what the team.
