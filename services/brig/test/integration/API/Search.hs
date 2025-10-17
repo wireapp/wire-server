@@ -30,6 +30,7 @@ module API.Search
   )
 where
 
+import Data.UUID qualified as UUID
 import API.Search.Util
 import API.Team.Util
 import API.User.Util
@@ -45,10 +46,11 @@ import Brig.Options qualified as Opts
 import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
-import Control.Lens ((.~), (?~), (^.))
+import Control.Lens ((.~), (?~), (^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Lens qualified as Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
@@ -83,6 +85,10 @@ import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
+import Wire.API.Team.Permission
+import API.Search.Util qualified as Search
+import Wire.API.Team.Role
+import Wire.API.Team.Member qualified as Member
 
 tests :: Opt.Opts -> ES.Server -> Manager -> Galley -> Brig -> IO TestTree
 tests opts additionalElasticSearch mgr galley brig = do
@@ -157,7 +163,9 @@ tests opts additionalElasticSearch mgr galley brig = do
             -- failure/error cases on search (augment the federatorMock?)
             -- wire-api-federation Servant-Api vs protobuf-client interactions
           ],
-        test mgr "user with unvalidated email" $ testSearchWithUnvalidatedEmail brig
+        test mgr "user with unvalidated email" $ testSearchWithUnvalidatedEmail brig,
+        test mgr "testSearchableMissing: searchable field missing defaults to true" $
+          testSearchableMissing opts brig galley
       ]
   where
     -- Since the tests are about querying only, we only need 1 creation
@@ -173,6 +181,51 @@ tests opts additionalElasticSearch mgr galley brig = do
       pure ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
+
+testSearchableMissing :: Opts.Opts -> Brig -> Galley -> Http ()
+testSearchableMissing opts brig galley = do
+  (owner, tid) <- createUserWithTeam brig
+
+  let mkTeamMember :: Permissions -> Http User
+      mkTeamMember perms = do
+        member <- createTeamMember brig galley owner tid perms
+        selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
+
+  -- create user, this by default has searchable = True
+  user <- mkTeamMember (Member.rolePermissions RoleMember)
+  let uid = userId user
+  liftIO $ assertBool "created users are searchable by default" $ userSearchable user
+
+  -- remove searchable field from elasticsearch
+  let indexName = opts.elasticsearch.index
+      docId = ES.DocId $ UUID.toText $ toUUID uid
+  userJson :: Aeson.Value <- do
+    resp <- liftIO $ runBH opts $ ES.getDocument indexName mappingName docId
+    responseJsonError $ fmap Just resp
+  liftIO $ assertBool "Newly created users have seacrhable field set" $
+    isJust $ userJson^?Aeson.key "_source" . Aeson.key "searchable"
+  let userJson' = fromJust $ userJson^?Aeson.key "_source"
+      userJsonLegacy = userJson' & Aeson.atKey "searchable" .~ Nothing -- this raw JSON has now "searchable" field removed
+  void $ liftIO $ runBH opts $ ES.deleteDocument indexName mappingName docId
+  void $ liftIO $ runBH opts $ ES.indexDocument indexName mappingName ES.defaultIndexDocumentSettings userJsonLegacy docId
+  refreshIndex brig
+
+  -- get updated raw JSON and double-check that "searchable" field is gone
+  userJsonLegacyCheck :: Aeson.Value <- do
+    resp <- liftIO (runBH opts $ ES.getDocument indexName mappingName docId)
+    responseJsonError $ fmap Just resp
+  liftIO $ assertBool "Updated user has no searchable field" $
+    isNothing $ userJsonLegacyCheck^?Aeson.key "_source" . Aeson.key "searchable"
+
+  -- perform search and still get the user
+  searcher <- userId <$> mkTeamMember (Member.rolePermissions RoleMember)
+  s' <- Search.executeSearch brig searcher $ fromName $ userDisplayName user
+  liftIO $ assertBool "User with no seacrhable field is still found via /search/concatcs" $
+     uid `elem` map contactUid (searchResults s')
+
+  where
+    contactUid :: Contact -> UserId
+    contactUid = qUnqualified . contactQualifiedId
 
 testSearchWithUnvalidatedEmail :: (TestConstraints m) => Brig -> m ()
 testSearchWithUnvalidatedEmail brig = do
