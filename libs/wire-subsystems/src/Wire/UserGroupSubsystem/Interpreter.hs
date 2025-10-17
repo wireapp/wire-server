@@ -54,7 +54,8 @@ interpretUserGroupSubsystem = interpret $ \case
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
   RemoveUser remover groupId removeeId -> removeUser remover groupId removeeId
   RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
-  UpdateChannels performer groupId channelIds -> updateChannels performer groupId channelIds
+  AddChannels performer groupId channelIds -> updateChannels True performer groupId channelIds
+  UpdateChannels performer groupId channelIds -> updateChannels False performer groupId channelIds
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
@@ -379,11 +380,12 @@ updateChannels ::
     Member NotificationSubsystem r,
     Member GalleyAPIAccess r
   ) =>
+  Bool ->
   UserId ->
   UserGroupId ->
   Vector ConvId ->
   Sem r ()
-updateChannels performer groupId channelIds = do
+updateChannels appendOnly performer groupId channelIds = do
   void $ getUserGroup performer groupId False >>= note UserGroupNotFound
   teamId <- getTeamAsAdmin performer >>= note UserGroupNotATeamAdmin
   for_ channelIds $ \channelId -> do
@@ -391,7 +393,9 @@ updateChannels performer groupId channelIds = do
     let meta = conv.metadata
     unless (meta.cnvmTeam == Just teamId && meta.cnvmGroupConvType == Just Conversation.Channel) $
       throw UserGroupChannelNotFound
-  Store.updateUserGroupChannels groupId channelIds
+  if appendOnly
+    then Store.addUserGroupChannels groupId channelIds
+    else Store.updateUserGroupChannels groupId channelIds
 
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
   pushNotifications

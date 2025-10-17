@@ -56,6 +56,7 @@
   repair-handles = hself.callPackage ../tools/db/repair-handles/default.nix { inherit gitignoreSource; };
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { inherit gitignoreSource; };
   team-info = hself.callPackage ../tools/db/team-info/default.nix { inherit gitignoreSource; };
+  entreprise-provisioning = hself.callPackage ../tools/entreprise-provisioning/default.nix { inherit gitignoreSource; };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { inherit gitignoreSource; };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };

@@ -1,0 +1,23 @@
+{
+    "00000000-0000-0000-0000-0000000000a0": {
+        "association": {
+            "success": true
+        },
+        "channel": [
+            {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "name": "channel name 0"
+            },
+            {
+                "failure": {
+                    "response": {
+                        "label": "invalid-op",
+                        "message": "Channel already exists"
+                    },
+                    "status": 409
+                },
+                "name": "channel name 1"
+            }
+        ]
+    }
+}

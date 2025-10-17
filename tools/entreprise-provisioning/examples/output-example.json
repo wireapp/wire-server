@@ -1,0 +1,60 @@
+{
+  "user-group-id-1": {
+    "channel": [
+      {
+        "name": "channel name 0",
+        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      },
+      {
+        "name": "channel name 1",
+        "id": "4fa85f64-5717-4562-b3fc-2c963f66afa6"
+      }
+    ],
+    "association": {
+      "success": true
+    }
+  },
+  "user-group-id-2": {
+    "channel": [
+      {
+        "name": "channel name 0",
+        "id": "5fa85f64-5717-4562-b3fc-2c963f66afa6"
+      },
+      {
+        "name": "channel name 1",
+        "id": "6fa85f64-5717-4562-b3fc-2c963f66afa6"
+      },
+      {
+        "name": "channel name 2",
+        "failure": {
+          "status": 401,
+          "response": {
+            "label": "access-denied",
+            "message": "Insufficient permissions to create channel"
+          }
+        }
+      }
+    ],
+    "association": {
+      "success": true
+    }
+  },
+  "user-group-id-3": {
+    "channel": [
+      {
+        "name": "channel name 0",
+        "id": "7fa85f64-5717-4562-b3fc-2c963f66afa6"
+      }
+    ],
+    "association": {
+      "success": false,
+      "detail": {
+        "status": 403,
+        "response": {
+          "label": "operation-denied",
+          "message": "User not authorized to modify user group"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+Add `entreprise-provisioning`, a CLI to batch provision various entities, currently, creates and associate channels to existing user-groups.

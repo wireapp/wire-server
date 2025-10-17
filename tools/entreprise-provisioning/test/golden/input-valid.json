@@ -1,0 +1,6 @@
+{
+  "00000000-0000-0000-0000-0000000000a0": ["channel name 0", "channel name 1", "channel name 2", "channel name 3"],
+  "00000000-0000-0000-0000-0000000000a1": ["channel name 0", "channel name 1"],
+  "00000000-0000-0000-0000-0000000000a2": ["channel name 0", "channel name 1", "channel name 2"],
+  "00000000-0000-0000-0000-0000000000a3": ["channel name 0"]
+}
