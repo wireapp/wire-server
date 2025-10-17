@@ -408,7 +408,7 @@ See also:
 
 **Example URL causing the error:**
 ```
-https://account.example.com/start-sso/<sso-code>?SAMLResponse=rZrXDq...very-long-base64-encoded-string...
+https://nginz-https.example.com/sso/metadata?SAMLResponse=rZrXDq...very-long-base64-encoded-string...
 ```
 
 **Root cause:** This error occurs when using SAML with **HTTP Redirect binding** (where the SAML response is sent as a URL query parameter). Large SAML responses - particularly those with many user attributes, group memberships, or other metadata - can exceed nginx's default URL buffer size limit of 32KB.
