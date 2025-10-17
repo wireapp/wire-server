@@ -178,8 +178,7 @@ apiScim =
           -- No exceptions! Good.
           pure x
 
--- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
--- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
+-- | This is similar to 'Scim.siteServer'.
 server ::
   forall tag m.
   (Scim.User.UserDB tag m, Scim.Auth.AuthDB tag m) =>
