@@ -202,7 +202,7 @@ testSearchableMissing opts brig galley = do
   userJson :: Aeson.Value <- do
     resp <- liftIO $ runBH opts $ ES.getDocument indexName mappingName docId
     responseJsonError $ fmap Just resp
-  liftIO $ assertBool "Newly created users have seacrhable field set" $
+  liftIO $ assertBool "Newly created users have searchable field set" $
     isJust $ userJson^?Aeson.key "_source" . Aeson.key "searchable"
   let userJson' = fromJust $ userJson^?Aeson.key "_source"
       userJsonLegacy = userJson' & Aeson.atKey "searchable" .~ Nothing -- this raw JSON has now "searchable" field removed
