@@ -30,8 +30,8 @@ module API.Search
   )
 where
 
-import Data.UUID qualified as UUID
 import API.Search.Util
+import API.Search.Util qualified as Search
 import API.Team.Util
 import API.User.Util
 import Bilge
@@ -58,6 +58,7 @@ import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
 import Federation.Util
 import Imports
@@ -79,16 +80,15 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature
+import Wire.API.Team.Member qualified as Member
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
-import Wire.API.Team.Permission
-import API.Search.Util qualified as Search
-import Wire.API.Team.Role
-import Wire.API.Team.Member qualified as Member
 
 tests :: Opt.Opts -> ES.Server -> Manager -> Galley -> Brig -> IO TestTree
 tests opts additionalElasticSearch mgr galley brig = do
@@ -202,9 +202,11 @@ testSearchableMissing opts brig galley = do
   userJson :: Aeson.Value <- do
     resp <- liftIO $ runBH opts $ ES.getDocument indexName mappingName docId
     responseJsonError $ fmap Just resp
-  liftIO $ assertBool "Newly created users have searchable field set" $
-    isJust $ userJson^?Aeson.key "_source" . Aeson.key "searchable"
-  let userJson' = fromJust $ userJson^?Aeson.key "_source"
+  liftIO $
+    assertBool "Newly created users have searchable field set" $
+      isJust $
+        userJson ^? Aeson.key "_source" . Aeson.key "searchable"
+  let userJson' = userJson ^?! Aeson.key "_source"
       userJsonLegacy = userJson' & Aeson.atKey "searchable" .~ Nothing -- this raw JSON has now "searchable" field removed
   void $ liftIO $ runBH opts $ ES.deleteDocument indexName mappingName docId
   void $ liftIO $ runBH opts $ ES.indexDocument indexName mappingName ES.defaultIndexDocumentSettings userJsonLegacy docId
@@ -214,15 +216,17 @@ testSearchableMissing opts brig galley = do
   userJsonLegacyCheck :: Aeson.Value <- do
     resp <- liftIO (runBH opts $ ES.getDocument indexName mappingName docId)
     responseJsonError $ fmap Just resp
-  liftIO $ assertBool "Updated user has no searchable field" $
-    isNothing $ userJsonLegacyCheck^?Aeson.key "_source" . Aeson.key "searchable"
+  liftIO $
+    assertBool "Updated user has no searchable field" $
+      isNothing $
+        userJsonLegacyCheck ^? Aeson.key "_source" . Aeson.key "searchable"
 
   -- perform search and still get the user
   searcher <- userId <$> mkTeamMember (Member.rolePermissions RoleMember)
   s' <- Search.executeSearch brig searcher $ fromName $ userDisplayName user
-  liftIO $ assertBool "User with no searchable field is still found via /search/contacts" $
-     uid `elem` map contactUid (searchResults s')
-
+  liftIO $
+    assertBool "User with no searchable field is still found via /search/contacts" $
+      uid `elem` map contactUid (searchResults s')
   where
     contactUid :: Contact -> UserId
     contactUid = qUnqualified . contactQualifiedId
