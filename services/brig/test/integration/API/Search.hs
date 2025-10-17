@@ -46,7 +46,7 @@ import Brig.Options qualified as Opts
 import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
-import Control.Lens ((.~), (?~), (^.), (^?))
+import Control.Lens ((.~), (?~), (^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
