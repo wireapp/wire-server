@@ -830,6 +830,34 @@ type ConversationAPI =
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )
     -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event for added members
+    -- - MemberLeave event for removed members
+    :<|> Named
+           "replace-members-in-conversation"
+           ( Summary "Replace the members of a conversation."
+               :> From 'V12
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'GroupIdVersionNotSupported
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "members"
+               :> ReqBody '[Servant.JSON] InviteQualified
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Conversation members replaced")
+           )
+    -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
     :<|> Named
            "join-conversation-by-id-unqualified"
