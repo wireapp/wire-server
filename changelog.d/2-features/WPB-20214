@@ -1,3 +1,0 @@
-Add `searchable` field to users, users who have it set to `false` won't be found by the public endpoint.
-Add `POST /users/:uid/searchable` endpoint where team admin can change it for user.
-Add `/teams/:tid/search?searchable=false`, where the query parameter makes it return only non-searchable users.

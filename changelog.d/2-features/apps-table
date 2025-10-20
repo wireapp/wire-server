@@ -1,1 +1,0 @@
-Introduce apps and the corresponding creation endpoint `POST /teams/:tid/apps`.
