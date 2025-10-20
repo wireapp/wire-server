@@ -1413,7 +1413,7 @@ type ConversationAPI =
     :<|> Named
            "search-channels"
            ( Summary "[STUB] Search channels"
-               :> From 'V12
+               :> From 'V13
                :> ZLocalUser
                :> "search"
                :> "channels"
