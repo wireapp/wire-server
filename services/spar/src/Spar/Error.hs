@@ -113,12 +113,7 @@ data SparCustomError
   | -- | scim tokens can only be created in case where there's at most one idp
     SparProvisioningMoreThanOneIdP SparProvisioningMoreThanOneIdP
   | SparProvisioningTokenLimitReached
-  | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
-    -- "Spar.Sem.SAML2.Library"), for an error that immediately gets caught.
-    -- Instead, we could just use an IO exception, and catch it with
-    -- 'catchErrors' (see "Spar.Run"). Maybe we want to remove this case
-    -- altogether? Not sure.
-    SparInternalError LText
+  | SparInternalError LText
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
   deriving (Eq, Show)

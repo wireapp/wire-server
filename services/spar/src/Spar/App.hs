@@ -38,6 +38,7 @@ where
 
 import Bilge
 import qualified Cassandra as Cas
+import Cassandra.Options (Endpoint)
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Data.Aeson as Aeson (encode, object, (.=))
@@ -97,6 +98,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.Routes.Version
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
@@ -117,6 +119,8 @@ data Env = Env
     sparCtxHttpManager :: Bilge.Manager,
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
+    sparCtxHttpGalleyEndpoint :: Endpoint,
+    disabledVersions :: Set Version,
     sparCtxRequestId :: RequestId,
     sparCtxLocalUnit :: Local (),
     sparCtxScimSubsystemConfig :: ScimSubsystemConfig

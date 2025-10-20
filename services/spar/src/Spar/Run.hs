@@ -39,6 +39,7 @@ import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.Text.Encoding
 import Imports
 import Network.URI
@@ -106,6 +107,8 @@ mkApp sparCtxOpts = do
         Bilge.host (sparCtxOpts ^. to galley . to host . to encodeUtf8)
           . Bilge.port (sparCtxOpts ^. to galley . to port)
           $ Bilge.empty
+  let sparCtxHttpGalleyEndpoint = galley sparCtxOpts
+  let disabledVersions = Set.fromList . mconcat $ Set.toList . expandVersionExp <$> Set.toList sparCtxOpts.disabledAPIVersions
   let sparCtxRequestId = RequestId defRequestId
 
   (sparCtxScimSubsystemConfig, sparCtxLocalUnit) <- do

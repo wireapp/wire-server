@@ -27,10 +27,13 @@ where
 import qualified Cassandra as Cas
 import Control.Monad.Except
 import Data.Qualified
+import qualified Data.Text.Lazy as LText
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
+import Polysemy.TinyLog hiding (err)
+import qualified SAML2.WebSSO.Error as SAML
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
@@ -70,16 +73,19 @@ import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
 import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.NotificationSubsystem
+import Wire.ParseException (ParseException)
+import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
-import Wire.Sem.Logger (Logger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 import Wire.TeamSubsystem
+import Wire.TeamSubsystem.GalleyAPI
 import qualified Wire.UserGroupStore as Store
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
@@ -99,6 +105,8 @@ type CanonicalEffs =
      NotificationSubsystem,
      TeamSubsystem,
      GalleyAPIAccess,
+     Error ParseException,
+     Rpc,
      Input (Local ()),
      Input ScimSubsystemConfig,
      Error ScimSubsystemError,
@@ -154,6 +162,8 @@ runSparToIO ctx action =
     . mapScimSubsystemErrors
     . runInputConst (ctx.sparCtxScimSubsystemConfig)
     . runInputConst (ctx.sparCtxLocalUnit)
+    . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
+    . Polysemy.Error.mapError (SAML.CustomError . SparInternalError . ("galley rpc: " <>) . LText.pack . show)
     . iGalleyAPIAccess ctx
     . iTeamSubsystem ctx
     . iNotificationSubsystem ctx
@@ -168,11 +178,17 @@ runSparToIO ctx action =
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     $ saml2ToSaml2WebSso action
 
-iGalleyAPIAccess :: Env -> InterpreterFor GalleyAPIAccess r
-iGalleyAPIAccess = undefined
+iGalleyAPIAccess ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member TinyLog r
+  ) =>
+  Env ->
+  InterpreterFor GalleyAPIAccess r
+iGalleyAPIAccess env = interpretGalleyAPIAccessToRpc env.disabledVersions env.sparCtxHttpGalleyEndpoint
 
-iTeamSubsystem :: Env -> InterpreterFor TeamSubsystem r
-iTeamSubsystem = undefined
+iTeamSubsystem :: (Member GalleyAPIAccess r) => Env -> InterpreterFor TeamSubsystem r
+iTeamSubsystem _env = intepreterTeamSubsystemToGalleyAPI
 
 iNotificationSubsystem :: Env -> InterpreterFor NotificationSubsystem r
 iNotificationSubsystem = undefined
