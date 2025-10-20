@@ -161,7 +161,6 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
 type UserAPI =
-  -- See Note [ephemeral user sideeffect]
   Named
     "get-user-unqualified"
     ( Summary "Get a user by UserId"
@@ -171,16 +170,14 @@ type UserAPI =
         :> CaptureUserId "uid"
         :> GetUserVerb
     )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "get-user-qualified"
-      ( Summary "Get a user by Domain and UserId"
-          :> ZLocalUser
-          :> "users"
-          :> QualifiedCaptureUserId "uid"
-          :> GetUserVerb
-      )
+    :<|> Named
+           "get-user-qualified"
+           ( Summary "Get a user by Domain and UserId"
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> GetUserVerb
+           )
     :<|> Named
            "update-user-email"
            ( Summary "Resend email address validation email."
@@ -224,19 +221,17 @@ type UserAPI =
                      ]
                     (Maybe UserProfile)
            )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "list-users-by-unqualified-ids-or-handles"
-      ( Summary "List users (deprecated)"
-          :> Until 'V2
-          :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-          :> ZUser
-          :> "users"
-          :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
-          :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-          :> Get '[JSON] [UserProfile]
-      )
+    :<|> Named
+           "list-users-by-unqualified-ids-or-handles"
+           ( Summary "List users (deprecated)"
+               :> Until 'V2
+               :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+               :> ZUser
+               :> "users"
+               :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+               :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
+               :> Get '[JSON] [UserProfile]
+           )
     :<|> Named
            "list-users-by-ids-or-handles"
            ( Summary "List users"
@@ -247,18 +242,16 @@ type UserAPI =
                :> ReqBody '[JSON] ListUsersQuery
                :> Post '[JSON] ListUsersById
            )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "list-users-by-ids-or-handles@V3"
-      ( Summary "List users"
-          :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-          :> ZUser
-          :> Until 'V4
-          :> "list-users"
-          :> ReqBody '[JSON] ListUsersQuery
-          :> Post '[JSON] [UserProfile]
-      )
+    :<|> Named
+           "list-users-by-ids-or-handles@V3"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> ZUser
+               :> Until 'V4
+               :> "list-users"
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] [UserProfile]
+           )
     :<|> Named
            "send-verification-code"
            ( Summary "Send a verification code to a given email address."
@@ -293,6 +286,17 @@ type UserAPI =
                     'GET
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
+           )
+    :<|> Named
+           "set-user-searchable"
+           ( Summary "Set user's visibility in search"
+               :> From 'V12
+               :> ZLocalUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "searchable"
+               :> ReqBody '[JSON] SetSearchable
+               :> Post '[JSON] ()
            )
 
 type LastSeenNameDesc = Description "`name` of the last seen user group, used to get the next page when sorting by name."
@@ -1736,6 +1740,13 @@ type SearchAPI =
              ]
              "email"
              EmailVerificationFilter
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Optional, return only non-searchable members when false."
+             ]
+             "searchable"
+             Bool
         :> MultiVerb
              'GET
              '[JSON]

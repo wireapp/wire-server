@@ -21,5 +21,6 @@
         "proteus"
     ],
     "team": "00000000-0000-0002-0000-000200000002",
-    "type": "app"
+    "type": "app",
+    "searchable": true
 }

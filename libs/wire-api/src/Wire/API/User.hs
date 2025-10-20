@@ -509,7 +509,8 @@ data UserProfile = UserProfile
     profileEmail :: Maybe EmailAddress,
     profileLegalholdStatus :: UserLegalHoldStatus,
     profileSupportedProtocols :: Set BaseProtocolTag,
-    profileType :: UserType
+    profileType :: UserType,
+    profileSearchable :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
@@ -549,6 +550,7 @@ instance ToSchema UserProfile where
           .= field "legalhold_status" schema
         <*> profileSupportedProtocols .= supportedProtocolsObjectSchema
         <*> profileType .= fmap (fromMaybe UserTypeRegular) (optField "type" schema)
+        <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
 
 --------------------------------------------------------------------------------
 -- SelfProfile
@@ -603,7 +605,8 @@ data User = User
     -- | How is the user profile managed (e.g. if it's via SCIM then the user profile
     -- can't be edited via normal means)
     userManagedBy :: ManagedBy,
-    userSupportedProtocols :: Set BaseProtocolTag
+    userSupportedProtocols :: Set BaseProtocolTag,
+    userSearchable :: Bool
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
@@ -654,6 +657,7 @@ userObjectSchema =
       .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
     <*> userSupportedProtocols .= supportedProtocolsObjectSchema
     <* (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
+    <*> userSearchable .= (fromMaybe True <$> optField "searchable" schema)
 
 userEmail :: User -> Maybe EmailAddress
 userEmail = emailIdentity <=< userIdentity
@@ -732,7 +736,8 @@ mkUserProfileWithEmail memail u legalHoldStatus =
           profileEmail = memail,
           profileLegalholdStatus = legalHoldStatus,
           profileSupportedProtocols = userSupportedProtocols u,
-          profileType = ty
+          profileType = ty,
+          profileSearchable = userSearchable u
         }
 
 mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile

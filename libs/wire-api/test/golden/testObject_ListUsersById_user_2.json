@@ -14,7 +14,8 @@
             "supported_protocols": [
                 "proteus"
             ],
-            "type": "regular"
+            "type": "regular",
+            "searchable": true
         },
         {
             "accent_id": 0,
@@ -32,7 +33,8 @@
                 "mls"
             ],
             "text_status": "text status",
-            "type": "regular"
+            "type": "regular",
+            "searchable": true
         }
     ]
 }

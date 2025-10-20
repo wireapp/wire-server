@@ -53,7 +53,8 @@ profile1 =
       profileEmail = Nothing,
       profileLegalholdStatus = UserLegalHoldDisabled,
       profileSupportedProtocols = defSupportedProtocols,
-      profileType = UserTypeRegular
+      profileType = UserTypeRegular,
+      profileSearchable = True
     }
 profile2 =
   UserProfile
@@ -71,7 +72,8 @@ profile2 =
       profileEmail = Nothing,
       profileLegalholdStatus = UserLegalHoldDisabled,
       profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag],
-      profileType = UserTypeRegular
+      profileType = UserTypeRegular,
+      profileSearchable = True
     }
 
 testObject_ListUsersById_user_1 :: ListUsersById

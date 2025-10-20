@@ -867,3 +867,9 @@ resetConversation user groupId epoch = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["mls", "reset-conversation"])
   let payload = object ["group_id" .= groupId, "epoch" .= epoch]
   submit "POST" $ req & addJSON payload
+
+removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
+removeTeamCollaborator owner tid collaborator = do
+  (_, collabId) <- objQid collaborator
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  submit "DELETE" req

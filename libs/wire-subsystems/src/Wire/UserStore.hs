@@ -13,6 +13,7 @@ import Polysemy.Error
 import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.RichInfo
+import Wire.API.User.Search (SetSearchable)
 import Wire.Arbitrary
 import Wire.StoredUser
 import Wire.UserStore.IndexUser
@@ -78,6 +79,7 @@ data UserStore m a where
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
   DeleteEmail :: UserId -> UserStore m ()
+  SetUserSearchable :: UserId -> SetSearchable -> UserStore m ()
 
 makeSem ''UserStore
 

@@ -1095,5 +1095,4 @@ spec = describe "UserSubsystem.Interpreter" do
                         contactHandle = fromHandle <$> searchee.handle,
                         contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId
                       }
-              pure $
-                result.searchResults === [expectedContact]
+              pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]

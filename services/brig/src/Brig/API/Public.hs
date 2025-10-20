@@ -140,7 +140,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.Team.Member (HiddenPerm (..), hasPermission)
+import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
@@ -454,6 +454,7 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
+        :<|> Named @"set-user-searchable" setUserSearchableH
 
     userGroupAPI :: ServerT UserGroupAPI (Handler r)
     userGroupAPI =
@@ -644,9 +645,10 @@ browseTeamHandler ::
   Maybe (Range 1 500 Int) ->
   Maybe Public.PagingState ->
   Maybe EmailVerificationFilter ->
+  Maybe Bool ->
   Handler r (Public.SearchResult Public.TeamContact)
-browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState mEmailFilter = do
-  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mEmailFilter
+browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState mEmailFilter mSearchable = do
+  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mEmailFilter mSearchable
   lift . liftSem $ User.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
 setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
@@ -853,6 +855,14 @@ getSupportedProtocols lself quid = do
   muser <- (lift . liftSem $ getUserProfile lself quid) !>> fedError
   user <- maybe (throwStd (errorToWai @'E.UserNotFound)) pure muser
   pure (Public.profileSupportedProtocols user)
+
+setUserSearchableH ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  UserId ->
+  Public.SetSearchable ->
+  Handler r ()
+setUserSearchableH zusr uid searchable = lift $ liftSem $ User.setUserSearchable zusr uid searchable
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)

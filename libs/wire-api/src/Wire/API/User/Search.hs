@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -30,6 +31,7 @@ module Wire.API.User.Search
     FederatedUserSearchPolicy (..),
     PagingState (..),
     EmailVerificationFilter (..),
+    SetSearchable (..),
   )
 where
 
@@ -193,7 +195,8 @@ data TeamContact = TeamContact
     teamContactScimExternalId :: Maybe Text,
     teamContactSso :: Maybe Sso,
     teamContactEmailUnvalidated :: Maybe EmailAddress,
-    teamContactUserGroups :: [UserGroupId]
+    teamContactUserGroups :: [UserGroupId],
+    teamContactSearchable :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -217,6 +220,7 @@ instance ToSchema TeamContact where
         <*> teamContactSso .= optField "sso" (maybeWithDefault Aeson.Null schema)
         <*> teamContactEmailUnvalidated .= optField "email_unvalidated" (maybeWithDefault Aeson.Null schema)
         <*> teamContactUserGroups .= fieldWithDocModifier "user_groups" (S.description ?~ "List of user group ids the user is a member of") (array schema)
+        <*> teamContactSearchable .= field "searchable" schema
 
 data TeamUserSearchSortBy
   = SortByName
@@ -370,3 +374,15 @@ instance S.ToParamSchema EmailVerificationFilter where
     mempty
       & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ ["unverified", "verified"]
+
+data SetSearchable = SetSearchable
+  { setSearchable :: Bool
+  }
+  deriving (Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema SetSearchable)
+
+instance ToSchema SetSearchable where
+  schema =
+    object "SetSearchable" $
+      SetSearchable
+        <$> setSearchable .= field "set_searchable" schema

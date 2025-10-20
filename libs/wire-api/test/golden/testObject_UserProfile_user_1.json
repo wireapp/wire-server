@@ -13,5 +13,6 @@
         "proteus"
     ],
     "text_status": "text status",
-    "type": "regular"
+    "type": "regular",
+    "searchable": true
 }

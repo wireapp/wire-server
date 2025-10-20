@@ -51,7 +51,8 @@ testObject_UserProfile_user_1 =
       profileEmail = Nothing,
       profileLegalholdStatus = UserLegalHoldDisabled,
       profileSupportedProtocols = defSupportedProtocols,
-      profileType = UserTypeRegular
+      profileType = UserTypeRegular,
+      profileSearchable = True
     }
 
 testObject_UserProfile_user_2 :: UserProfile
@@ -82,5 +83,6 @@ testObject_UserProfile_user_2 =
       profileEmail = Just (unsafeEmailAddress "some" "example"),
       profileLegalholdStatus = UserLegalHoldNoConsent,
       profileSupportedProtocols = defSupportedProtocols,
-      profileType = UserTypeApp
+      profileType = UserTypeApp,
+      profileSearchable = True
     }

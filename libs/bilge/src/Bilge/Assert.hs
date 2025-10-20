@@ -106,7 +106,7 @@ io <!! aa = do
   m (Response (Maybe Lazy.ByteString)) ->
   Assertions () ->
   m ()
-(!!!) io = void . (<!!) io
+io !!! aa = void (io <!! aa)
 
 infix 4 ===
 

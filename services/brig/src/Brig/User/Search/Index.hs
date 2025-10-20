@@ -278,6 +278,7 @@ traceES descr act = liftIndexIO $ do
 -- saml_idp: URL of SAML issuer, not indexed, used for sorting
 -- managed_by: possible values "scim" or "wire", indexed as keyword
 -- created_at: date when "activated" state last chagned in epoch-millis, not indexed, used for sorting
+-- searchable: Used to filter searchable users
 --
 -- The prefix fields use "prefix_index" analyzer for indexing and "prefix_search"
 -- analyzer for searching. The "prefix_search" analyzer uses "edge_ngram" filter, this
@@ -419,6 +420,14 @@ indexMapping =
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 },
+            "searchable"
+              .= MappingProperty
+                { mpType = MPBoolean,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
             "scim_external_id"
               .= MappingProperty
                 { mpType = MPKeyword,
@@ -475,7 +484,7 @@ data MappingField = MappingField
     mfSearchAnalyzer :: Maybe Text
   }
 
-data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate
+data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate | MPBoolean
   deriving (Eq)
 
 instance ToJSON MappingProperty where
@@ -494,6 +503,7 @@ instance ToJSON MappingPropertyType where
   toJSON MPKeyword = Aeson.String "keyword"
   toJSON MPByte = Aeson.String "byte"
   toJSON MPDate = Aeson.String "date"
+  toJSON MPBoolean = Aeson.String "boolean"
 
 instance ToJSON MappingField where
   toJSON mf =

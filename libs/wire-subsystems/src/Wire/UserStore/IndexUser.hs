@@ -38,6 +38,7 @@ data IndexUser = IndexUser
     managedBy :: Maybe (WithWritetime ManagedBy),
     ssoId :: Maybe (WithWritetime UserSSOId),
     unverifiedEmail :: Maybe (WithWritetime EmailAddress),
+    searchable :: Maybe (WithWritetime Bool),
     writeTimeBumper :: Maybe (Writetime WriteTimeBumper)
   }
   deriving (Eq, Show)
@@ -57,6 +58,7 @@ type instance
       Maybe ManagedBy, Maybe (Writetime ManagedBy),
       Maybe UserSSOId, Maybe (Writetime UserSSOId),
       Maybe EmailAddress, Maybe (Writetime EmailAddress),
+      Maybe Bool, Maybe (Writetime Bool),
       Maybe (Writetime WriteTimeBumper)
     )
 
@@ -74,6 +76,7 @@ instance Record IndexUser where
       value <$> managedBy, writetime <$> managedBy,
       value <$> ssoId, writetime <$> ssoId,
       value <$> unverifiedEmail, writetime <$> unverifiedEmail,
+      value <$> searchable, writetime <$> searchable,
       writeTimeBumper
     )
 
@@ -90,6 +93,7 @@ instance Record IndexUser where
       managedBy, tManagedBy,
       ssoId, tSsoId,
       emailUnvalidated, tEmailUnvalidated,
+      searchable, tSearchable,
       tWriteTimeBumper
     ) = IndexUser {
           userId = u,
@@ -104,6 +108,7 @@ instance Record IndexUser where
           managedBy = WithWriteTime <$> managedBy <*> tManagedBy,
           ssoId = WithWriteTime <$> ssoId <*> tSsoId,
           unverifiedEmail = WithWriteTime <$> emailUnvalidated <*> tEmailUnvalidated,
+          searchable = WithWriteTime <$> searchable <*> tSearchable,
           writeTimeBumper = tWriteTimeBumper
         }
 {- ORMOLU_ENABLE -}
@@ -122,8 +127,9 @@ indexUserToVersion role IndexUser {..} =
       const () <$$> fmap writetime managedBy,
       const () <$$> fmap writetime ssoId,
       const () <$$> fmap writetime unverifiedEmail,
-      const () <$$> writeTimeBumper,
-      const () <$$> fmap writetime role
+      const () <$$> fmap writetime role,
+      const () <$$> fmap writetime searchable,
+      const () <$$> writeTimeBumper
     ]
 
 indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
@@ -131,7 +137,8 @@ indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udEmailUnvalidated = value <$> unverifiedEmail,
+        { udSearchable = value <$> searchable,
+          udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
@@ -190,7 +197,8 @@ normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =
   UserDoc
-    { udEmailUnvalidated = Nothing,
+    { udSearchable = Nothing,
+      udEmailUnvalidated = Nothing,
       udSso = Nothing,
       udScimExternalId = Nothing,
       udSearchVisibilityInbound = Nothing,

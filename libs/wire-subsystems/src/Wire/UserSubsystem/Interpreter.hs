@@ -168,6 +168,7 @@ runUserSubsystem authInterpreter = interpret $
     RemoveEmailEither luid -> removeEmailEitherImpl luid
     UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
     CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
+    UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -854,7 +855,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
           isContactVisible =
             (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
-      if isContactVisible
+      if isContactVisible && fromMaybe True storedUser.searchable
         then pure contact
         else MaybeT $ pure Nothing
 
@@ -1130,3 +1131,21 @@ checkUserIsAdminImpl uid = do
   tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
   ensurePermissions uid tid [CreateUpdateDeleteIdp]
   pure tid
+
+setUserSearchableImpl ::
+  ( Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
+  ) =>
+  Local UserId ->
+  UserId ->
+  SetSearchable ->
+  Sem r ()
+setUserSearchableImpl luid uid searchable = do
+  tid <- maybe (throw UserSubsystemInsufficientPermissions) pure =<< UserStore.getUserTeam uid
+  ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
+  UserStore.setUserSearchable uid searchable
+  syncUserIndex uid

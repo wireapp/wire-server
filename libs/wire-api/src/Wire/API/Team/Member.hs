@@ -483,6 +483,7 @@ data HiddenPerm
   | CreateApp
   | ManageApps
   | RemoveTeamCollaborator
+  | SetMemberSearchable
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -570,7 +571,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             NewTeamCollaborator,
             CreateApp,
             ManageApps,
-            RemoveTeamCollaborator
+            RemoveTeamCollaborator,
+            SetMemberSearchable
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
@@ -654,7 +656,7 @@ makeLenses ''TeamMemberList'
 makeLenses ''NewTeamMember'
 makeLenses ''TeamMemberDeleteData
 
-userId :: Lens' TeamMember UserId
+userId :: Lens' (TeamMember' tag) UserId
 userId = newTeamMember . nUserId
 
 permissions :: Lens (TeamMember' tag1) (TeamMember' tag2) (PermissionType tag1) (PermissionType tag2)

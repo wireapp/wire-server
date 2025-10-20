@@ -18,6 +18,7 @@
             "proteus"
         ],
         "team": "bb843450-b2f5-4ec8-90bd-52c7d5f1d22e",
-        "text_status": "text status"
+        "text_status": "text status",
+        "searchable": true
     }
 }

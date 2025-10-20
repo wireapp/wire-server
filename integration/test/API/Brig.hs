@@ -262,6 +262,11 @@ searchTeamWithSearchTerm user q = searchTeam user [("q", q)]
 searchTeamAll :: (HasCallStack, MakesValue user) => user -> App Response
 searchTeamAll user = searchTeam user [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")]
 
+setUserSearchable :: (MakesValue user) => user -> String -> Bool -> App Response
+setUserSearchable self uid searchable = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["users", uid, "searchable"]
+  submit "POST" $ addJSONObject ["set_searchable" .= searchable] req
+
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
   req <- baseRequest domain Brig Unversioned $ "/api-version"
@@ -1207,8 +1212,14 @@ refreshAppCookie u tid appId = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
   submit "POST" req
 
-removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
-removeTeamCollaborator owner tid collaborator = do
-  (_, collabId) <- objQid collaborator
-  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
-  submit "DELETE" req
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handle
+checkHandle :: (MakesValue user) => user -> String -> App Response
+checkHandle self handle = do
+  req <- baseRequest self Brig Versioned (joinHttpPath ["handles", handle])
+  submit "HEAD" req
+
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handles
+checkHandles :: (MakesValue user) => user -> [String] -> App Response
+checkHandles self handles = do
+  req <- baseRequest self Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= handles]
+  submit "POST" req

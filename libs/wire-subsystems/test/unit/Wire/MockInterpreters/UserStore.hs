@@ -13,6 +13,7 @@ import Polysemy.Error
 import Polysemy.State
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
+import Wire.API.User.Search (SetSearchable (SetSearchable))
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
@@ -90,6 +91,12 @@ inMemoryUserStoreInterpreter = interpret $ \case
     gets $ \users -> do
       user <- find (\user -> user.id == uid) users
       user.teamId
+  SetUserSearchable uid (SetSearchable searchable) -> modify $ map f
+    where
+      f u =
+        if u.id == uid
+          then u {Wire.StoredUser.searchable = Just searchable} :: StoredUser
+          else u
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =
@@ -109,6 +116,7 @@ storedUserToIndexUser storedUser =
           managedBy = withDefaultTime <$> storedUser.managedBy,
           ssoId = withDefaultTime <$> storedUser.ssoId,
           unverifiedEmail = Nothing,
+          searchable = withDefaultTime <$> storedUser.searchable,
           writeTimeBumper = Nothing
         }
 
@@ -160,5 +168,6 @@ newStoredUserToStoredUser new =
       handle = new.handle,
       teamId = new.teamId,
       managedBy = Just new.managedBy,
-      supportedProtocols = Just new.supportedProtocols
+      supportedProtocols = Just new.supportedProtocols,
+      searchable = Just new.searchable
     }

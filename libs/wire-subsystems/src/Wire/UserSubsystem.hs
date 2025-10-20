@@ -179,6 +179,7 @@ data UserSubsystem m a where
   RemoveEmailEither :: Local UserId -> UserSubsystem m (Either UserSubsystemError ())
   GetUserTeam :: UserId -> UserSubsystem m (Maybe TeamId)
   CheckUserIsAdmin :: UserId -> UserSubsystem m TeamId
+  SetUserSearchable :: Local UserId -> UserId -> SetSearchable -> UserSubsystem m ()
 
 -- | the return type of 'CheckHandle'
 data CheckHandleResp
