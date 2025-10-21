@@ -10,6 +10,12 @@ image:
   # overwrite the tag here, otherwise `appVersion` of the chart will be used
   tag: ""
 
+kubectlImage:
+  # Use a kubectl image that includes a shell (sh/bash). Distroless images will fail to exec the script.
+  registry: docker.io
+  repository: bitnamilegacy/kubectl
+  tag: 1.32.9
+
 # If you have multiple deployments of Restund running in one cluster, it is
 # important that they run on disjoint sets of nodes, you can use nodeSelector to enforce this
 nodeSelector: {}
