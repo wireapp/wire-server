@@ -26,13 +26,13 @@
 ## API changes
 
 
-* Stub endpoints for enterprise provisioning (#4743)
+* Stub endpoints for enterprise provisioning (only in V13) (#4743)
 
 * Finalize API Version V12, start new develop version V13. (#4817)
 
 * The blocked domains feature
   (`optSettings.setCustomerExtensions.domainsBlockedForRegistration`) is now
-  stricter: It is not only forbidden to register users with these domains in
+  more strict: It is not only forbidden to register users with these domains in
   their email addresses, but also to change a user's email address to one of
   these domains.
 
@@ -121,7 +121,7 @@
 
 * Add `hls.json` to `.gitignore`. It's only useful in specific editor setups. (#4747)
 
-* New make rule and python script for creating `/postgres-schema.sql`. (#4760)
+* New make rule and python script for creating `/postgres-schema.sql`. (not hooked into CI yet) (#4760)
 
 * Add postgres dynamic query builder (#4812)
 
