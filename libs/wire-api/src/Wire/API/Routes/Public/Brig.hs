@@ -413,7 +413,7 @@ type UserGroupAPI =
     :<|> Named
            "update-user-group-members"
            ( Summary "[STUB] Update user group members. Replaces the users with the given list."
-               :> From 'V12
+               :> From 'V13
                :> ZLocalUser
                :> "user-groups"
                :> Capture "gid" UserGroupId
@@ -424,7 +424,7 @@ type UserGroupAPI =
     :<|> Named
            "update-user-group-channels"
            ( Summary "Replaces the channels with the given list."
-               :> From 'V12
+               :> From 'V13
                :> CanThrow 'UserGroupNotFound
                :> CanThrow 'UserGroupNotATeamAdmin
                :> ZLocalUser
@@ -438,7 +438,7 @@ type UserGroupAPI =
     :<|> Named
            "check-user-group-name-available"
            ( Summary "[STUB] Check if a user group name is available"
-               :> From 'V12
+               :> From 'V13
                :> ZLocalUser
                :> "user-groups"
                :> "check-name"

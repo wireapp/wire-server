@@ -7,6 +7,8 @@
 -- PostgreSQL database dump
 --
 
+\restrict Hl9XxATRAdecxBiFt8PPZgKxbcBTtxdglRrKHEan0Af69hORYkknDeYWBzNNCd6
+
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
 
@@ -69,6 +71,106 @@ CREATE TABLE public.collaborators (
 ALTER TABLE public.collaborators OWNER TO "wire-server";
 
 --
+-- Name: conversation; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.conversation (
+    id uuid NOT NULL,
+    access integer[],
+    access_roles_v2 integer[],
+    cells_state integer,
+    channel_add_permission integer,
+    cipher_suite integer,
+    creator uuid,
+    epoch bigint,
+    epoch_timestamp timestamp with time zone,
+    group_conv_type integer,
+    group_id bytea,
+    message_timer bigint,
+    name text,
+    protocol integer,
+    public_group_state bytea,
+    receipt_mode integer,
+    team uuid,
+    type integer NOT NULL,
+    parent_conv uuid
+);
+
+
+ALTER TABLE public.conversation OWNER TO "wire-server";
+
+--
+-- Name: conversation_member; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.conversation_member (
+    conv uuid NOT NULL,
+    "user" uuid NOT NULL,
+    conversation_role text,
+    hidden boolean,
+    hidden_ref text,
+    otr_archived boolean,
+    otr_archived_ref text,
+    otr_muted boolean,
+    otr_muted_ref text,
+    otr_muted_status integer,
+    provider uuid,
+    service uuid
+);
+
+
+ALTER TABLE public.conversation_member OWNER TO "wire-server";
+
+--
+-- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.local_conversation_remote_member (
+    conv uuid NOT NULL,
+    user_remote_domain text NOT NULL,
+    user_remote_id uuid NOT NULL,
+    conversation_role text
+);
+
+
+ALTER TABLE public.local_conversation_remote_member OWNER TO "wire-server";
+
+--
+-- Name: mls_group_member_client; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_group_member_client (
+    group_id bytea NOT NULL,
+    user_domain text NOT NULL,
+    "user" uuid NOT NULL,
+    client text NOT NULL,
+    leaf_node_index integer NOT NULL,
+    removal_pending boolean NOT NULL
+);
+
+
+ALTER TABLE public.mls_group_member_client OWNER TO "wire-server";
+
+--
+-- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.remote_conversation_local_member (
+    "user" uuid NOT NULL,
+    conv_remote_domain text NOT NULL,
+    conv_remote_id uuid NOT NULL,
+    hidden boolean,
+    hidden_ref text,
+    otr_archived boolean,
+    otr_archived_ref text,
+    otr_muted_ref text,
+    otr_muted_status integer
+);
+
+
+ALTER TABLE public.remote_conversation_local_member OWNER TO "wire-server";
+
+--
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -80,6 +182,23 @@ CREATE TABLE public.schema_migrations (
 
 
 ALTER TABLE public.schema_migrations OWNER TO "wire-server";
+
+--
+-- Name: subconversation; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.subconversation (
+    conv_id uuid NOT NULL,
+    subconv_id text NOT NULL,
+    cipher_suite integer,
+    epoch bigint NOT NULL,
+    epoch_timestamp timestamp with time zone NOT NULL,
+    group_id bytea NOT NULL,
+    public_group_state bytea
+);
+
+
+ALTER TABLE public.subconversation OWNER TO "wire-server";
 
 --
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
@@ -137,6 +256,54 @@ ALTER TABLE ONLY public.collaborators
 
 
 --
+-- Name: conversation_member conversation_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_member
+    ADD CONSTRAINT conversation_member_pkey PRIMARY KEY (conv, "user");
+
+
+--
+-- Name: conversation conversation_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation
+    ADD CONSTRAINT conversation_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.local_conversation_remote_member
+    ADD CONSTRAINT local_conversation_remote_member_pkey PRIMARY KEY (conv, user_remote_domain, user_remote_id);
+
+
+--
+-- Name: mls_group_member_client mls_group_member_client_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_group_member_client
+    ADD CONSTRAINT mls_group_member_client_pkey PRIMARY KEY (group_id, user_domain, "user", client);
+
+
+--
+-- Name: remote_conversation_local_member remote_conversation_local_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.remote_conversation_local_member
+    ADD CONSTRAINT remote_conversation_local_member_pkey PRIMARY KEY ("user", conv_remote_domain, conv_remote_id);
+
+
+--
+-- Name: subconversation subconversation_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.subconversation
+    ADD CONSTRAINT subconversation_pkey PRIMARY KEY (conv_id, subconv_id);
+
+
+--
 -- Name: user_group_channel user_group_channel_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -183,10 +350,40 @@ CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user
 
 
 --
+-- Name: conversation_member_user_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_member_user_idx ON public.conversation_member USING btree ("user");
+
+
+--
+-- Name: conversation_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_team_idx ON public.conversation USING btree (team);
+
+
+--
 -- Name: user_group_member_user_id_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
 CREATE INDEX user_group_member_user_id_idx ON public.user_group_member USING btree (user_id);
+
+
+--
+-- Name: conversation_member conversation_member_conv_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_member
+    ADD CONSTRAINT conversation_member_conv_fkey FOREIGN KEY (conv) REFERENCES public.conversation(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversation conversation_parent_conv_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation
+    ADD CONSTRAINT conversation_parent_conv_fkey FOREIGN KEY (parent_conv) REFERENCES public.conversation(id) ON DELETE CASCADE;
 
 
 --
@@ -206,6 +403,22 @@ ALTER TABLE ONLY public.user_group_channel
 
 
 --
+-- Name: local_conversation_remote_member local_conversation_remote_member_conv_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.local_conversation_remote_member
+    ADD CONSTRAINT local_conversation_remote_member_conv_fkey FOREIGN KEY (conv) REFERENCES public.conversation(id) ON DELETE CASCADE;
+
+
+--
+-- Name: subconversation subconversation_conv_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.subconversation
+    ADD CONSTRAINT subconversation_conv_id_fkey FOREIGN KEY (conv_id) REFERENCES public.conversation(id) ON DELETE CASCADE;
+
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: wire-server
 --
 
@@ -215,3 +428,5 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict Hl9XxATRAdecxBiFt8PPZgKxbcBTtxdglRrKHEan0Af69hORYkknDeYWBzNNCd6
