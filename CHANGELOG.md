@@ -26,7 +26,9 @@
 ## API changes
 
 
-* Stub endpoints for enterprise provisioning (#4743)
+* Finalize API Version V12, start new develop version V13.
+
+* Stub endpoints for enterprise provisioning (only in api version 13) (#4743)
 
 * The blocked domains feature
   (`optSettings.setCustomerExtensions.domainsBlockedForRegistration`) is now
