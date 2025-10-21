@@ -1266,7 +1266,9 @@ searchConversationsImpl req =
       buildStatement
         ( literal "with conv as (select id, name, access from conversation"
             <> where_
-              ( [clause1 "team_id" "=" req.team]
+              ( [ clause1 "team" "=" req.team,
+                  clause1 "group_conv_type" "=" (postgresMarshall @_ @Int32 Channel)
+                ]
                   <> [ clause
                          (sortOrderOperator req.sortOrder)
                          (mkClause "name" lastName <> mkClause "id" lastId)
@@ -1276,13 +1278,14 @@ searchConversationsImpl req =
                   <> toList (like "name" <$> req.searchString)
                   <> discoverableClause
               )
+            <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
             <> limit (pageSizeToInt32 req.pageSize)
             <> literal ") select conv.id, conv.name, conv.access,"
             <> literal "count(m.\"user\") as member_count,"
-            <> literal "count(*) filter (where m.conversation_role = \"wire_admin\") as admin_count"
-            <> literal "from conv"
-            <> literal "left join conversation_member m on m.conv = conv.id"
-            <> literal "group_by conv.id"
+            <> literal "count(*) filter (where m.conversation_role = 'wire_admin') as admin_count"
+            <> literal "from conv left join conversation_member m on m.conv = conv.id"
+            <> literal "group by conv.id, conv.name, conv.access"
+            <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
         )
         ( HD.rowList
             ( RawResult

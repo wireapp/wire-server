@@ -177,7 +177,7 @@ argPattern0 :: Text -> Int -> Text
 argPattern0 t i = "$" <> T.pack (show i) <> " :: " <> t
 
 argPattern :: Text -> Int -> Text
-argPattern t i = "(" <> argPattern t i <> ")"
+argPattern t i = "(" <> argPattern0 t i <> ")"
 
 -- | Construct a WHERE clause from a list of fragments.
 where_ :: [QueryFragment] -> QueryFragment

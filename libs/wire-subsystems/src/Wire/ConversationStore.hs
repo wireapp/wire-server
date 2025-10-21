@@ -61,6 +61,7 @@ data ConversationSearch = ConversationSearch
     lastId :: Maybe ConvId,
     discoverable :: Bool
   }
+  deriving (Show)
 
 makeSem ''MLSCommitLockStore
 
