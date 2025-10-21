@@ -68,14 +68,22 @@ migrateUsersLoop cassClient pgPool logger =
   migrationLoop cassClient pgPool logger "users" migrateAllUsers
 
 migrationLoop :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> ConduitT () Void (Sem EffectStack) () -> IO ()
-migrationLoop cassClient pgPool logger name migration = go
+migrationLoop cassClient pgPool logger name migration = go 0
   where
-    go = do
+    go :: Int -> IO ()
+    go nIter = do
       runMigration >>= \case
-        0 -> Log.info logger $ Log.msg (Log.val "finished migration")
+        0 ->
+          Log.info logger $
+            Log.msg (Log.val "finished migration")
+              . Log.field "attempt" nIter
         n -> do
-          Log.info logger $ Log.msg (Log.val "finished migration with errors") . Log.field "migration" name . Log.field "errors" n
-          go
+          Log.info logger $
+            Log.msg (Log.val "finished migration with errors")
+              . Log.field "migration" name
+              . Log.field "errors" n
+              . Log.field "attempt" nIter
+          go (nIter + 1)
 
     runMigration :: IO Int
     runMigration =

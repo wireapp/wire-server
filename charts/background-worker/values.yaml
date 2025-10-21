@@ -31,6 +31,39 @@ config:
     #   key: <ca-attribute>
   cassandra:
     host: aws-cassandra
+  cassandraGalley:
+    host: aws-cassandra
+
+  # Postgres connection settings
+  #
+  # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+  # To set the password via a brig secret see `secrets.pgPassword`.
+  #
+  # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+  # additional files (e.g. certificates) into the brig container. This way
+  # does not work for password files (parameter `passfile`), because
+  # libpq-connect requires access rights (mask 0600) for them that we cannot
+  # provide for random uids.
+  #
+  # Below is an example configuration we're using for our CI tests.
+  postgresql:
+    host: postgresql # DNS name without protocol
+    port: "5432"
+    user: wire-server
+    dbname: wire-server
+  postgresqlPool:
+    size: 5
+    acquisitionTimeout: 10s
+    agingTimeout: 1d
+    idlenessTimeout: 10m
+
+
+  # Setting this to `true` will start conversation migration to postgresql.
+  #
+  # NOTE: It is very important that galley be configured to with
+  # `settings.postgresMigration.converastion` with `migration-to-postgresql`
+  # before setting this to `true`.
+  migrateConversations: false
 
   backendNotificationPusher:
     pushBackoffMinWait: 10000 # in microseconds, so 10ms
