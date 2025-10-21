@@ -124,7 +124,6 @@ type CanonicalEffs =
      Error TTLError,
      Error SparError,
      Reporter,
-     -- TODO(sandy): Make this a Logger Text instead
      Logger String,
      Logger (TinyLog.Msg -> TinyLog.Msg),
      Input Opts,
