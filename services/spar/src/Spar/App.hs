@@ -103,6 +103,7 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.AuthenticationSubsystem.Config
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -124,7 +125,8 @@ data Env = Env
     disabledVersions :: Set Version,
     sparCtxRequestId :: RequestId,
     sparCtxLocalUnit :: Local (),
-    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
+    sparCtxAuthenticationSubsystemConfig :: AuthenticationSubsystemConfig
   }
 
 -- | Get a user by UserRef, no matter what the team.
