@@ -120,6 +120,7 @@ data Env = Env
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxHttpGalleyEndpoint :: Endpoint,
+    sparCtxHttpGundeckEndpoint :: Endpoint,
     disabledVersions :: Set Version,
     sparCtxRequestId :: RequestId,
     sparCtxLocalUnit :: Local (),

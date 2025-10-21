@@ -134,6 +134,8 @@ mkApp sparCtxOpts = do
 
     pure (ScimSubsystemConfig scimUri, localUnit)
 
+  let sparCtxHttpGundeckEndpoint = undefined
+
   let ctx0 = Env {..}
   let heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =

@@ -30,9 +30,11 @@ import Data.Qualified
 import qualified Data.Text.Lazy as LText
 import Imports
 import Polysemy
+import qualified Polysemy.Async as P
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.TinyLog hiding (err)
+import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO.Error as SAML
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
@@ -74,11 +76,14 @@ import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
+import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException (ParseException)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.Sem.Delay
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
@@ -86,6 +91,7 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserGroupStore
 import qualified Wire.UserGroupStore as Store
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter
@@ -103,6 +109,9 @@ type CanonicalEffs =
      Error UserGroupSubsystemError,
      Store.UserGroupStore,
      NotificationSubsystem,
+     GundeckAPIAccess,
+     P.Async,
+     Delay,
      TeamSubsystem,
      GalleyAPIAccess,
      Error ParseException,
@@ -164,10 +173,13 @@ runSparToIO ctx action =
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
     . Polysemy.Error.mapError (SAML.CustomError . SparInternalError . ("galley rpc: " <>) . LText.pack . show)
     . iGalleyAPIAccess ctx
-    . iTeamSubsystem ctx
+    . intepreterTeamSubsystemToGalleyAPI
+    . runDelay
+    . P.asyncToIOFinal
+    . iGundeckAPIAccess ctx
     . iNotificationSubsystem ctx
     . iUserGroupStore ctx
-    . iUserGroupSubsystemError ctx
+    . iUserGroupSubsystemError
     . iUserSubsystem ctx
     . interpretUserGroupSubsystem
     . interpretScimSubsystem
@@ -186,20 +198,64 @@ iGalleyAPIAccess ::
   InterpreterFor GalleyAPIAccess r
 iGalleyAPIAccess env = interpretGalleyAPIAccessToRpc env.disabledVersions env.sparCtxHttpGalleyEndpoint
 
-iTeamSubsystem :: (Member GalleyAPIAccess r) => Env -> InterpreterFor TeamSubsystem r
-iTeamSubsystem _env = intepreterTeamSubsystemToGalleyAPI
+iGundeckAPIAccess ::
+  ( Member (Embed IO) r,
+    Member Rpc r
+  ) =>
+  Env ->
+  InterpreterFor GundeckAPIAccess r
+iGundeckAPIAccess env = runGundeckAPIAccess (sparCtxHttpGundeckEndpoint env)
 
-iNotificationSubsystem :: Env -> InterpreterFor NotificationSubsystem r
-iNotificationSubsystem = undefined
+iNotificationSubsystem ::
+  ( Member GundeckAPIAccess r,
+    Member TinyLog r,
+    Member Delay r,
+    Member P.Async r,
+    Member (Final IO) r
+  ) =>
+  Env ->
+  InterpreterFor NotificationSubsystem r
+iNotificationSubsystem env = runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig env.sparCtxRequestId)
 
-iUserGroupStore :: Env -> InterpreterFor Store.UserGroupStore r
-iUserGroupStore = undefined
+iUserGroupStore :: Env -> InterpreterFor UserGroupStore r
+iUserGroupStore _env = undefined
 
-iUserGroupSubsystemError :: Env -> InterpreterFor (Error UserGroupSubsystemError) r
-iUserGroupSubsystemError = undefined
+iUserGroupSubsystemError :: (Member (Error SparError) r) => InterpreterFor (Error UserGroupSubsystemError) r
+iUserGroupSubsystemError = Polysemy.Error.mapError (SAML.CustomError . SparInternalError . ("galley rpc: " <>) . LText.pack . show)
 
 iUserSubsystem :: Env -> InterpreterFor UserSubsystem r
-iUserSubsystem = undefined
+iUserSubsystem =
+  {-
+    ( Member UserStore r,
+      Member AppStore r,
+      Member UserKeyStore r,
+      Member GalleyAPIAccess r,
+      Member BlockListStore r,
+      Member DRS.DomainRegistrationStore r,
+      Member (Concurrency 'Unsafe) r,
+      Member (Error FederationError) r,
+      Member (Error UserSubsystemError) r,
+      Member (FederationAPIAccess fedM) r,
+      Member DeleteQueue r,
+      Member Events r,
+      Member Now r,
+      RunClient (fedM 'Brig),
+      FederationMonad fedM,
+      Typeable fedM,
+      Member IndexedUserStore r,
+      Member FederationConfigStore r,
+      Member Metrics r,
+      Member InvitationStore r,
+      Member TinyLog r,
+      Member (Input UserSubsystemConfig) r,
+      Member TeamSubsystem r,
+      Member UserGroupStore r
+    ) =>
+    Env ->
+    InterpreterFor Store.UserGroupStore r
+  iUserGroupStore = runUserSubsystem
+  -}
+  undefined
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do

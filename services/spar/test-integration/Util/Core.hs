@@ -276,6 +276,7 @@ mkEnv tstOpts opts = do
       sparCtxHttpBrig = brig empty
       sparCtxHttpGalley = galley empty
       sparCtxHttpGalleyEndpoint = undefined
+      sparCtxHttpGundeckEndpoint = undefined
       disabledVersions = undefined
       sparCtxRequestId = RequestId "<fake request id>"
       sparCtxScimSubsystemConfig = error "mkEnv: implement sparCtxScimSubsystemConfig when needed"
