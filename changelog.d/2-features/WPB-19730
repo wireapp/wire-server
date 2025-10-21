@@ -1,1 +1,0 @@
-Brig: Add optional `email` query parameter to `GET /teams/{tid}/search` ("browse-team").
