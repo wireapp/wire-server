@@ -1,0 +1,57 @@
+# .github/workflows/unicode-security.yml
+name: Unicode Security Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  unicode-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need history for diff
+      
+      - name: Check for Bidi override attacks
+        run: |
+          
+          echo "Checking for bidirectional text overrides..."
+          if git grep -P '[\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069]' -- '*.hs' '*.c' '*.js' '*.py' '*.java' '*.rs'; then
+            echo "❌ Bidirectional override characters detected!"
+            exit 1
+          fi
+          echo "✓ No bidi overrides found"
+      
+      - name: Check for homoglyphs (Cyrillic lookalikes)
+        run: |
+          
+          echo "Checking for Cyrillic homoglyphs..."
+          if git grep -P '[\u0430-\u044F\u0410-\u042F]' -- '*.hs' '*.c' '*.js' '*.py' '*.java' '*.rs'; then
+            echo "❌ Cyrillic characters detected in source code!"
+            exit 1
+          fi
+          echo "✓ No Cyrillic homoglyphs found"
+      
+      - name: Check for zero-width characters
+        run: |
+          
+          echo "Checking for zero-width characters..."
+          if git grep -P '[\u200B\u200C\u200D\uFEFF]' -- '*.hs' '*.c' '*.js' '*.py' '*.java' '*.rs'; then
+            echo "❌ Zero-width characters detected!"
+            exit 1
+          fi
+          echo "✓ No zero-width characters found"
+      
+      - name: Check for mixed scripts in identifiers
+        run: |
+          
+          echo "Checking for suspicious character combinations..."
+          if git grep -P '[a-zA-Z][\u0430-\u044F]|[\u0430-\u044F][a-zA-Z]' -- '*.hs' '*.c' '*.js' '*.py' '*.java' '*.rs'; then
+            echo "❌ Mixed Latin/Cyrillic in identifiers detected!"
+            exit 1
+          fi
+          echo "✓ No mixed scripts found"
