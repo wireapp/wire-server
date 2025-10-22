@@ -873,3 +873,44 @@ removeTeamCollaborator owner tid collaborator = do
   (_, collabId) <- objQid collaborator
   req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
   submit "DELETE" req
+
+data SearchChannels = SearchChannels
+  { q :: Maybe String,
+    sortOrder :: Maybe String,
+    pageSize :: Maybe Int,
+    lastName :: Maybe String,
+    lastId :: Maybe String,
+    discoverable :: Bool
+  }
+
+instance Default SearchChannels where
+  def =
+    SearchChannels
+      { q = Nothing,
+        sortOrder = Nothing,
+        pageSize = Nothing,
+        lastName = Nothing,
+        lastId = Nothing,
+        discoverable = False
+      }
+
+searchChannels :: (MakesValue user) => user -> String -> SearchChannels -> App Response
+searchChannels user tid args = do
+  req <-
+    baseRequest
+      user
+      Galley
+      Versioned
+      (joinHttpPath ["teams", tid, "channels", "search"])
+  submit "GET"
+    $ req
+    & addQueryParams
+      ( mconcat
+          [ [("q", q) | q <- toList args.q],
+            [("sort_order", o) | o <- toList args.sortOrder],
+            [("page_size", show n) | n <- toList args.pageSize],
+            [("last_seen_name", n) | n <- toList args.lastName],
+            [("last_seen_id", x) | x <- toList args.lastId],
+            [("discoverable", "true") | args.discoverable]
+          ]
+      )
