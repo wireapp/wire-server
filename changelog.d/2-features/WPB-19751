@@ -1,3 +1,0 @@
-Add feature flag for "simplified user connection requests" QR codes
-(`simplifiedUserConnectionRequestQRCode`). As it has been implicitly enabled
-before - there was no way to turn it off - it's enabled by default.
