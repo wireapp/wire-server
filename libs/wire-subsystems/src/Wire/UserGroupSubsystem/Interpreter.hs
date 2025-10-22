@@ -45,7 +45,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
-  CreateGroupFull managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
+  CreateGroupFull team mbCreator newGroup -> createUserGroupFullImpl team mbCreator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
@@ -63,6 +63,7 @@ data UserGroupSubsystemError
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
   | UserGroupChannelNotFound
+  | UserGroupMustBeManagedByWire
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -72,6 +73,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
     UserGroupChannelNotFound -> errorToWai @E.UserGroupChannelNotFound
+    UserGroupMustBeManagedByWire -> undefined -- errorToWai @E.UserGroupChannelNotFound
 
 createUserGroup ::
   ( Member UserSubsystem r,
@@ -86,7 +88,9 @@ createUserGroup ::
   Sem r UserGroup
 createUserGroup creator newGroup = do
   team <- getTeamAsAdmin creator >>= note UserGroupNotATeamAdmin
-  createUserGroupFullImpl ManagedByWire team (Just creator) newGroup
+  unless (newGroup.managedBy == ManagedByWire) $
+    throw UserGroupMustBeManagedByWire
+  createUserGroupFullImpl team (Just creator) newGroup
 
 createUserGroupFullImpl ::
   ( Member UserSubsystem r,
@@ -96,13 +100,12 @@ createUserGroupFullImpl ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
-  ManagedBy ->
   TeamId {- home team of the user group.-} ->
   Maybe UserId {- creator of the user group (just needed for exclusion from event; this is not
                 checked for consistency with TeamId. -} ->
   NewUserGroup ->
   Sem r UserGroup
-createUserGroupFullImpl managedBy team mbCreator newGroup = do
+createUserGroupFullImpl team mbCreator newGroup = do
   luids <- qualifyLocal $ toList newGroup.members
   profiles <- getLocalUserProfiles luids
   let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
@@ -111,7 +114,7 @@ createUserGroupFullImpl managedBy team mbCreator newGroup = do
   when (existingIds /= actualIds || not allInSameTeam) $
     throw $
       UserGroupMemberIsNotInTheSameTeam
-  ug <- Store.createUserGroup team newGroup managedBy
+  ug <- Store.createUserGroup team newGroup
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
   pushNotifications
     [ mmkEvent mbCreator (UserGroupCreated ug.id_) admins

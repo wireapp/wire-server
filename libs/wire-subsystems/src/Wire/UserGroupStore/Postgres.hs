@@ -45,7 +45,7 @@ interpretUserGroupStoreToPostgres ::
   InterpreterFor UserGroupStore r
 interpretUserGroupStoreToPostgres =
   interpret $ \case
-    CreateUserGroup team newUserGroup managedBy -> createUserGroup team newUserGroup managedBy
+    CreateUserGroup team newUserGroup -> createUserGroup team newUserGroup
     GetUserGroup team userGroupId includeChannels -> getUserGroup team userGroupId includeChannels
     GetUserGroups req -> getUserGroups req
     UpdateUserGroup tid gid gup -> updateGroup tid gid gup
@@ -289,16 +289,15 @@ createUserGroup ::
   (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   NewUserGroup ->
-  ManagedBy ->
   Sem r UserGroup
-createUserGroup team newUserGroup managedBy = do
+createUserGroup team newUserGroup = do
   pool <- input
   eitherUuid <- liftIO $ use pool session
   either throw pure eitherUuid
   where
     session :: Session UserGroup
     session = TxSessions.transaction TxSessions.Serializable TxSessions.Write do
-      (id_, name, managedBy_, createdAt) <- Tx.statement (newUserGroup.name, team, managedBy) insertGroupStatement
+      (id_, name, managedBy_, createdAt) <- Tx.statement (newUserGroup.name, team, newUserGroup.managedBy) insertGroupStatement
       Tx.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
       pure
         UserGroup_

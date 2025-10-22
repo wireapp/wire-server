@@ -23,7 +23,6 @@ import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Wire.API.Pagination
-import Wire.API.User
 import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
@@ -60,7 +59,7 @@ runInMemoryUserGroupStore state =
 userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r, Member (Input (Local ())) r) => InterpreterFor UserGroupStore r
 userGroupStoreTestInterpreter =
   interpret $ \case
-    CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
+    CreateUserGroup tid ng -> createUserGroupImpl tid ng
     GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
@@ -86,8 +85,8 @@ updateUsersImpl gid uids = do
 
   modifyUserGroupsGidOnly gid (Map.alter f)
 
-createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
-createUserGroupImpl tid nug managedBy = do
+createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> Sem r UserGroup
+createUserGroupImpl tid nug = do
   now <- get @UTCTime
   gid <- Id <$> Rnd.uuid
   let ug =
@@ -98,7 +97,7 @@ createUserGroupImpl tid nug managedBy = do
             channels = mempty,
             membersCount = Nothing,
             channelsCount = Nothing,
-            managedBy = managedBy,
+            managedBy = nug.managedBy,
             createdAt = toUTCTimeMillis now
           }
 

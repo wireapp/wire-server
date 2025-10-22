@@ -81,8 +81,8 @@ createScimGroupImpl teamId grp = do
             & either (scimThrow . badRequest InvalidValue . Just . Text.pack) pure
      in go `mapM` grp.members
 
-  let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
-  ug <- createGroupFull ManagedByScim teamId Nothing newGroup
+  let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds, managedBy =  ManagedByScim}
+  ug <- createGroupFull teamId Nothing newGroup
   ScimSubsystemConfig scimBaseUri <- input
   pure $ toStoredGroup scimBaseUri ug
 

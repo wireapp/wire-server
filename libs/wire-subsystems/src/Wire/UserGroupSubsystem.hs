@@ -10,7 +10,6 @@ import Data.Vector (Vector)
 import Imports
 import Polysemy
 import Wire.API.Pagination
-import Wire.API.User.Profile (ManagedBy)
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 
@@ -42,7 +41,7 @@ instance Default GroupSearch where
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
-  CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> UserGroupSubsystem r UserGroup
+  CreateGroupFull :: TeamId -> Maybe UserId -> NewUserGroup -> UserGroupSubsystem r UserGroup
   GetGroup :: UserId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
   GetGroups :: UserId -> GroupSearch -> UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()

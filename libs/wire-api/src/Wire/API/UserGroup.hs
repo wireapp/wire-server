@@ -61,7 +61,8 @@ instance ToHttpApiData UserGroupName where
 
 data NewUserGroup = NewUserGroup
   { name :: UserGroupName,
-    members :: Vector UserId
+    members :: Vector UserId,
+    managedBy :: ManagedBy
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform NewUserGroup
@@ -73,6 +74,7 @@ instance ToSchema NewUserGroup where
       NewUserGroup
         <$> (.name) .= field "name" schema
         <*> (.members) .= field "members" (vector schema)
+        <*> (.managedBy) .= field "managed_by" schema
 
 data UserGroupUpdate = UserGroupUpdate
   { name :: UserGroupName

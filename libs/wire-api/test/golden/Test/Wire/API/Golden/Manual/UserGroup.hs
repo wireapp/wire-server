@@ -27,10 +27,10 @@ unsafeToUserGroupName :: Text -> UserGroupName
 unsafeToUserGroupName = either (error . show) id . userGroupNameFromText
 
 testObject_NewUserGroup_1 :: NewUserGroup
-testObject_NewUserGroup_1 = NewUserGroup (unsafeToUserGroupName "some name @@~~ii") mempty
+testObject_NewUserGroup_1 = NewUserGroup (unsafeToUserGroupName "some name @@~~ii") mempty ManagedByWire
 
 testObject_NewUserGroup_2 :: NewUserGroup
-testObject_NewUserGroup_2 = NewUserGroup (unsafeToUserGroupName "some other name @@~~ii") (fromList [userId1, userId2])
+testObject_NewUserGroup_2 = NewUserGroup (unsafeToUserGroupName "some other name @@~~ii") (fromList [userId1, userId2]) ManagedByWire
 
 testObject_UserGroupUpdate_1 :: UserGroupUpdate
 testObject_UserGroupUpdate_1 = UserGroupUpdate (unsafeToUserGroupName " ")

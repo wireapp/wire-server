@@ -9,7 +9,6 @@ import Data.Vector
 import Imports
 import Polysemy
 import Wire.API.Pagination
-import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.PaginationState
@@ -33,7 +32,7 @@ toSortBy = \case
   PaginationSortByCreatedAt _ -> SortByCreatedAt
 
 data UserGroupStore m a where
-  CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
+  CreateUserGroup :: TeamId -> NewUserGroup -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> Bool -> UserGroupStore m (Maybe UserGroup)
   GetUserGroups :: UserGroupPageRequest -> UserGroupStore m UserGroupPage
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe ())
