@@ -1,6 +1,6 @@
 <a id="trouble-shooting-faq"></a>
 > ##### Contents
-> 
+>
 > * [Trouble shooting & FAQ](#id1)
 >   * [Reporting a problem with user provisioning or SSO authentication](#reporting-a-problem-with-user-provisioning-or-sso-authentication)
 >   * [Can I use SCIM without SAML?](#can-i-use-scim-without-saml)
@@ -17,6 +17,7 @@
 >   * [Can I distribute a URL to my users that contains the login code?](#can-i-distribute-a-url-to-my-users-that-contains-the-login-code)
 >   * [(Theoretical) name clashes in SAML NameIDs](#theoretical-name-clashes-in-saml-nameids)
 >   * [After logging in via IdP page, the redirection to the wire app is not happening](#after-logging-in-via-idp-page-the-redirection-to-the-wire-app-is-not-happening)
+>   * [Getting "414 Request-URI Too Large" error during SAML SSO login](#getting-414-request-uri-too-large-error-during-saml-sso-login)
 
 # Trouble shooting & FAQ
 
@@ -400,3 +401,63 @@ See also:
 [1](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action),
 [2](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy),
 [3](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP).
+
+## Getting "414 Request-URI Too Large" error during SAML SSO login
+
+**Problem:** After authenticating successfully at the IdP (Identity Provider), users are redirected back to Wire but encounter a `414 Request-URI Too Large` error. The URL contains a very long `SAMLResponse` query parameter.
+
+**Example URL causing the error:**
+```
+https://nginz-https.example.com/sso/metadata?SAMLResponse=rZrXDq...very-long-base64-encoded-string...
+```
+
+**Root cause:** This error occurs when using SAML with **HTTP Redirect binding** (where the SAML response is sent as a URL query parameter). Large SAML responses - particularly those with many user attributes, group memberships, or other metadata - can exceed nginx's default URL buffer size limit of 32KB.
+
+### Solutions
+
+You have two options to resolve this issue:
+
+#### Option 1: Switch to SAML HTTP POST Binding (Recommended)
+
+Configure your IdP to use **HTTP POST binding** instead of HTTP Redirect binding. With POST binding, the SAML response is sent in the request body rather than the URL, which avoids URL length limitations.
+
+**How to configure:**
+1. In your IdP (e.g., Okta, Azure AD, Authentik, etc.), locate the SAML application configuration
+2. Change the binding from "Redirect" to "POST" for the Assertion Consumer Service (ACS)
+3. Save and test the SSO login flow
+
+Consult your IdP's documentation for specific instructions on changing SAML bindings.
+
+#### Option 2: Increase nginx URL Buffer Size
+
+If you cannot change the IdP configuration to use POST binding, you can increase nginx's URL buffer size in the Wire backend:
+
+1. **Update your nginz helm chart values** (e.g., in your `values.yaml` override file):
+
+   ```yaml
+   nginx_conf:
+     # Increase buffer size to handle large SAML responses in URLs
+     # Format: "number size" - request line must fit in one buffer
+     large_client_header_buffers: "4 32k"  # Allows URLs up to 32KB
+   ```
+
+   For even larger SAML responses (if 32KB is still not enough):
+   ```yaml
+   nginx_conf:
+     large_client_header_buffers: "4 64k"  # Allows URLs up to 64KB
+   ```
+
+2. **Redeploy the nginz service** with the updated configuration
+
+3. **Test the SSO login flow** again
+
+**Note:** The first value is the number of buffers, and the second is the size of each buffer. The request line (URL) must fit within a **single buffer**, not across multiple buffers. So `4 32k` means up to 32KB per URL, with 4 buffers available total (128KB) for all headers.
+
+### How to determine which binding is being used
+
+- **HTTP Redirect binding**: The SAMLResponse appears in the URL as a query parameter (`?SAMLResponse=...`)
+- **HTTP POST binding**: The URL is clean with no SAMLResponse parameter; the response is in the request body
+
+### Reference
+
+- Nginx directive documentation: [large_client_header_buffers](http://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_buffers)
