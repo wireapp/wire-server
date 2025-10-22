@@ -15,6 +15,8 @@ testEnv = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
   let cassandra = undefined
+      cassandraGalley = undefined
+      hasqlPool = undefined
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
   workerRunningGauge <- mkWorkerRunningGauge
