@@ -46,7 +46,6 @@ testChannelSearch = do
                 ]
           ]
       )
-  printJSON tid
 
   -- unnamed channel
   unnamed <-
@@ -86,12 +85,14 @@ testChannelSearch = do
     results %. "0.id" `shouldMatch` (unnamed %. "qualified_id.id")
     results %. "0.member_count" `shouldMatchInt` 3
     results %. "0.admin_count" `shouldMatchInt` 1
+    results %. "0.access" `shouldMatch` ["invite"]
     lookupField results "0.name" `shouldMatch` (Nothing :: Maybe Value)
 
     results %. "1.id" `shouldMatch` (last named %. "qualified_id.id")
     results %. "1.name" `shouldMatch` "foo20"
     results %. "1.member_count" `shouldMatchInt` 1
     results %. "1.admin_count" `shouldMatchInt` 1
+    results %. "1.access" `shouldMatch` ["invite"]
 
   -- smaller page, ascending
   (lastName, lastId) <- bindResponse
