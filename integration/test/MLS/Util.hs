@@ -205,8 +205,12 @@ generateKeyPackage cid suite = do
 
 -- | Create conversation and corresponding group.
 createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ConvId
-createNewGroup cs cid = do
-  conv <- postConversation cid defMLS >>= getJSON 201
+createNewGroup cs cid = createNewGroupWith cs cid defMLS
+
+-- | Create conversation and corresponding group.
+createNewGroupWith :: (HasCallStack) => Ciphersuite -> ClientIdentity -> CreateConv -> App ConvId
+createNewGroupWith cs cid cc = do
+  conv <- postConversation cid cc {protocol = "mls"} >>= getJSON 201
   convId <- objConvId conv
   createGroup cs cid convId
   pure convId

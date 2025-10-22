@@ -155,6 +155,20 @@ getAllConvs u = do
     resp.json
   result %. "found" & asList
 
+getAllConvIds :: (HasCallStack, MakesValue u) => u -> Int -> App [Value]
+getAllConvIds u pageSize = go [] Nothing
+  where
+    go acc state0 = do
+      page <- bindResponse (listConversationIds u def {size = Just pageSize, pagingState = state0}) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json
+      ids <- page %. "qualified_conversations" & asList
+      state <- page %. "paging_state" >>= asOptional >>= traverse asString
+      hasMore <- page %. "has_more" & asBool
+      if hasMore
+        then go (acc <> ids) state
+        else pure (acc <> ids)
+
 -- | Setup a team user, another user, connect the two, create a proteus
 -- conversation, upgrade to mixed. Return the two users and the conversation.
 simpleMixedConversationSetup ::
