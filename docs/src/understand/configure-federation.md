@@ -381,73 +381,208 @@ The default strategy of `allowNone` effectively disables federation
 (and probably isn’t what you want if you are reading this).
 `allowAll` federates with any backend that requests contact or that a
 user uses in a search.  `allowDynamic` only federates with known
-remote backends listed in cassandra.
+remote backends listed in Cassandra.
 
 The update frequency determines how often other services will refresh
 the information about remote connections from brig.
 
-More information about individual remote connections is stored in
-brig’s cassandra, and maintained via internal brig api end-points by
-the sysadmin:
+#### Managing remote domains via internal API
 
-* [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
-  - after adding a new remote backend, wait for the other end to do
-    the same with you, and then wait a few moments for things to
-    stabilize (at least `update_interval * 2`; see below).
-* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
-  - this serves an object with 3 fields:
-    - `remotes` (from cassandra): the list of remote domains with search policy (and
-      possibly other information in the future);
-    - `strategy` (from config): federation strategy; one of `allowNone`, `allowDynamic`, `allowAll` (see above)
-    - `update_interval` (from config): the suggested update frequency with which calling
-      services should refresh their information.
-  - It doesn’t serve the local domain, which needs to be configured
-    for every service that needs to know it individually.  This may
-    change in the future.
-  - This end-point enjoys a comparably high amount of traffic.  If you
-    have many pods (a large instance with say, >100 pods), *and* you set a very
-    short update interval (<10s), you should monitor brig’s service and
-    database load closely in the beginning.
-* [`PUT`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_federation_remotes__domain_)
-* **NOTE:** De-federating (`DELETE`) has been removed from the API to
-  avoid a scalability issue.  Watch out for a fix in the changelog!
+Information about remote federation domains is stored in **brig’s Cassandra** and configured through the **internal brig API**.
 
-The `remotes` list looks like this:
+**Create a Remote Domain:**
 
-```default
+```
+POST /i/federation/remotes
+```
+
+Body Example (no restriction, allow all teams):
+
+```json
+{
+  "domain": "cloud.example.com",
+  "search_policy": "full_search",
+  "restriction": {
+    "tag": "allow_all",
+    "value": null
+  }
+}
+```
+
+Body Example (restrict by team):
+
+```json
+{
+  "domain": "cloud.example.com",
+  "search_policy": "full_search",
+  "restriction": {
+    "tag": "restrict_by_team",
+    "value": [
+      "aacea429-c8ba-4afc-9369-cae87404b820",
+      "bf82dca7-0916-42af-8f84-88a47b34521e"
+    ]
+  }
+}
+```
+
+*After adding a new remote backend, wait for the other end to do the same, and allow at least `update_interval * 2` (see below) for the federation state to stabilize.*
+
+**Get Federation Remotes:**
+
+```
+GET /i/federation/remotes
+```
+
+Returns a list of all configured federation remotes and strategy settings.
+
+Response Example:
+
+```json
+{
+  "remotes": [
+    {
+      "domain": "example.com",
+      "restriction": {
+        "tag": "restrict_by_team",
+        "value": [
+          "99db9768-04e3-4b5d-9268-831b6a25c4ab"
+        ]
+      },
+      "search_policy": "no_search"
+    }
+  ],
+  "strategy": "allowDynamic",
+  "update_interval": 30
+}
+```
+
+Fields:
+
+- `strategy`: Federation strategy, possible values:
+  - `allowAll`: Federation with any domain is allowed
+  - `allowDynamic`: If federation strategy is `allowDynamic`, only backends that are listed can be reached by us and can reach us.
+  - `allowNone`: No domains are allowed to federate (federation disabled)
+- `remotes`: An array of configured remote domains. Entries have the following fields:
+  - `domain`: Remote backend domain name
+  - `restriction`: Either `allow_all` or `restrict_by_team` (see section on **Team restriction** below)
+  - `search_policy`: The search policy for a remote backend. Independently of the federation strategy, the list provides information about remote backends that may change dynamically (currently: `search_policy`). See [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and [User Searchability](searchability.md#user-searchability) for more context. Values:
+    - `no_search`: No users are returned by federated searches. Default.
+    - `exact_handle_search`: Only users where the handle exactly matches are returned.
+    - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+- `update_interval`: suggested polling frequency (in seconds) for consuming services
+
+If federation strategy is `allowAll`, and there is no entry for a
+domain in the database, default is `no_search`. The field in
+Cassandra is not nullable, i.e., you always have to explicitly name a
+search policy if you create an entry.
+
+
+> ⚠️ This endpoint may have relatively high traffic on large instances. If you run >100 pods and use a short update interval (<10s), monitor brig’s load and Cassandra performance closely.
+
+
+**Update a Remote Domain:**
+
+```
+PUT /i/federation/remotes/:domain
+```
+
+Use this to update the search policy or restriction mode of a given remote domain.
+
+**Example (switching a remote to team restriction mode):**
+
+```json
+{
+  "domain": "cloud.example.com",
+  "search_policy": "full_search",
+  "restriction": {
+    "tag": "restrict_by_team",
+    "value": [
+      "aacea429-c8ba-4afc-9369-cae87404b820",
+      "bf82dca7-0916-42af-8f84-88a47b34521e"
+    ]
+  }
+}
+```
+
+#### Team Restriction
+
+By default, federation can be configured at the **domain** level, but in some cases it is necessary to restrict communication further to specific **teams** within a remote domain.
+
+The **team restriction** mechanism lets you define an allowlist of remote teams that are permitted to **find users from your domain**. In practice, this means that only users belonging to those teams will be discoverable in federated search or connection requests.
+
+Typical deployment:
+
+A customer runs an **on-premise instance** that needs to federate with **their team on Wire Cloud**, but not with other cloud teams or users.
+The allowlist ensures that only the designated cloud team can find users on the on-prem instance.
+
+**Important Limitations:**
+
+* Team restrictions apply to **search and discovery**. Once a user is connected, they may still introduce other users, e.g. via adding them to a common group conversations with other non-allowed users.
+* If a domain is configured via the **static federation config file**, it cannot be modified in the database. That means you cannot:
+  * Add or update the domain itself,
+  * Add or update team restrictions for that domain.
+    Changes require editing the config file and restarting the service.
+* Private (non-team) users are not eligible for team-restricted federation. They will always be excluded if restrictions apply.
+* Removing a team from the allowlist **does not break existing connections** — users already connected or part of common conversations can still interact. Restrictions only apply to *new* searches and connection requests.
+
+**Behavior in federated search**
+
+The team restriction impacts **federated user search** results. Two modes are possible:
+
+* `allow_all` (no restriction):
+  All teams from the remote domain are discoverable.
+
+* `restrict_by_team` (allowlist):
+  Only users from explicitly allowed teams are discoverable.
+  You must add teams via `POST /i/federation/remotes/:domain/teams`.
+
+**Example:**
+
+* If `domain1` allows only `teamA` from `domain2`, then a user from `teamB` in `domain2` will **not** show up in `domain1`’s federated search.
+* Exact handle search and full search both respect these restrictions.
+
+The following internal API endpoints are available for team restrictions (applicable if `restriction.tag` is set to `restrict_by_team`):
+
+**Add a Remote Team:**
+
+```
+POST /i/federation/remotes/:domain/teams
+```
+
+Allow federation with a specific team from the remote domain.
+
+Body:
+
+```json
+{
+  "team_id": "8bec1ed8-6ca8-4457-bd54-8a7f8a0a398a"
+}
+```
+
+**Get Allowed Remote Teams:**
+
+```
+GET /i/federation/remotes/:domain/teams
+```
+
+List all teams from the remote domain that are currently allowed to federate.
+
+Response Example:
+
+```json
 [
-  {
-    "domain": "wire.example.com",
-    "search_policy": "full_search"
-  },
-  {
-    "domain": "evil.example.com"
-    "search_policy": "no_search"
-  },
-  ...
+  { "team_id": "2c41cd5a-6885-44c2-ae31-8d2bea5b59aa" },
+  { "team_id": "5c78b3fa-1acc-444a-9ca9-df8a4703e603" }
 ]
 ```
 
-It serves two purposes:
+**Delete a Remote Team:**
 
-1. If federation strategy is `allowDynamic`, only backends that are
-   listed can be reached by us and can reach us;
-2. Independently of the federation strategy, the list provides
-   information about remote backends that may change dynamically (at
-   the time of writing this: search policy, see
-   [Searching users on another federated backend](searchability.md#searching-users-on-another-federated-backend) and
-   [User Searchability](searchability.md#user-searchability) for more context)
+```
+DELETE /i/federation/remotes/:domain/teams/:team_id
+```
 
-The search policy for a remote backend can be:
-
-- `no_search`: No users are returned by federated searches.  default.
-- `exact_handle_search`: Only users where the handle exactly matches are returned.
-- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
-
-If federation strategy is `allowAll`, and there is no entry for a
-domain in the database, default is `no_search`.  The field in
-cassandra is not nullable, ie., you always have to explicitly name a
-search policy if you create an entry.
+Remove a team from the allowlist. Once removed, users from that team will not be discoverable or accessible via federation.
 
 #### If your instance has been federating before
 
@@ -644,3 +779,126 @@ Create user accounts on both backends.
 
 With one user, search for the other user using the
 `@username-1@example.com` syntax in the UI search field of the webapp.
+
+### Federated Calling
+
+To begin with, you need to make a few decisions:
+ * How paranoid am I (separation of sensitive content) -- Do I want separation between "local" calling traffic between my backend and it's users, from the calling traffic to and from a remote (trusted) backend?
+ * How paranoid am I (traffic across the internet) -- Do you want the extra security / simplified routing / greater maintainence of using DTLS for your federated calling traffic? This gives you the benefit of being simpler to route across a network and enhanced security with certificate checking between backend calling components.
+
+To begin with, we are going to assume you have calling working "properly". that means your users can use both wire calling services, and can find direct calling routes to the calling services. If this is not you, or if you are unsure, contact wire support to schedule a checkup of your calling services.
+
+For this document, we are going to assume "not that paranoid" and "simplify networking, please."
+
+We will also assume you have a working non-federated calling infrastructure (because you should).
+
+#### Federated Calling Traffic
+
+In order for users on both federated backends to communicate, calling traffic needs to travel between your wire calling environment and the calling environment of your federation partner.
+
+There are two options for how calling traffic is transfered between federating backends: with, or without DTLS.
+If you have chosen DTLS, you need to have incoming port 9191 between your calling clusters. Federated calling traffic will be transmitted between federated environments on this port.
+
+#### Configure Coturn
+
+To set up federated 1on1 calling, coturn will need to be reconfigured and the following should be added to your coturn `values.yaml` file:
+
+```yaml
+coturnFederationListeningIP: '__COTURN_HOST_IP__'
+federate:
+  enabled: true
+  port: 9191
+```
+
+If you are using DTLS (with `cert-manager`)
+
+```yaml
+coturnFederationListeningIP: '__COTURN_HOST_IP__'
+federate:
+  enabled: true
+  port: 9191
+  dtls:
+    enabled: true
+    tls:
+      issuerRef:
+        name: letsencrypt-http01
+        kind: ClusterIssuer
+      certificate:
+        dnsNames:
+          - coturn.example.com
+```
+
+or with your own certificates:
+
+```yaml
+coturnFederationListeningIP: '__COTURN_HOST_IP__'
+federate:
+  enabled: true
+  port: 9191
+  dtls:
+    enabled: true
+    tls:
+      key: |
+        -----BEGIN PRIVATE KEY-----
+      crt: |
+       ...
+```
+
+Then redeploy `coturn`
+
+```bash
+d helm upgrade --install coturn charts/coturn -f values/coturn/values.yaml -f values/coturn/secrets.yaml
+```
+
+If running into error with YAML and spacing (it happens), you can supply the certificate and key directly from the CLI like so:
+
+```bash
+d helm upgrade --install coturn charts/coturn -f values/coturn/values.yaml -f values/coturn/secrets.yaml --set-file federate.dtls.tls.key=key.pem --set-file federate.dtls.tls.crt=crt.pem
+```
+
+#### Configure SFTD (Federated Conference Calling)
+
+To understand more on the architecture, read [Federated Conference Calling](https://docs.wire.com/latest/understand/sft.html#federated-conference-calling)
+
+For setup of federated conference calling, a prerequisite should be met (not required, but recommended) of designating a coturn server that will be used exclusively for federated calls. 
+
+To configure SFTD, in `values/sftd/values.yaml`: 
+- `multiSFT` will have to be enabled
+- turn secret from `brig`
+
+```yaml
+allowOrigin: "https://webapp.example.com"
+multiSFT:
+  enabled: true
+  discoveryRequired: false
+  turnServerURI: "turn:federation.or.local.coturnIP:3478?transport=udp"
+  secret: "turnSecretFromBrig"
+```
+
+Calls between federated SFT servers can be enabled using the optional boolean `multiSFT.enabled`. If provided, the field `is_federating` in the response of `/calls/config/v2` will reflect `multiSFT.enabled`’s value.
+
+```yaml
+brig:
+  config:
+    multiSFT:
+      enabled: true
+```
+
+Additionally `setSftListAllServers` should be set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is also required to enable calls between federated instances of Wire.
+
+```yaml
+brig:
+  config:
+    optSettings:
+      setSftListAllServers: enabled
+```
+
+Redeploy `sftd`
+```bash
+d helm upgrade --install sftd charts/sftd -f values/sftd/values.yaml
+```
+
+Redeploy `wire-server`
+```bash
+d helm upgrade --install wire-server ./charts/wire-server --timeout=15m0s --values ./values/wire-server/values.yaml --values ./values/wire-server/secrets.yaml
+```

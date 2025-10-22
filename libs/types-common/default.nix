@@ -35,6 +35,7 @@
 , openapi3
 , optparse-applicative
 , pem
+, polysemy
 , protobuf
 , QuickCheck
 , quickcheck-instances
@@ -93,6 +94,7 @@ mkDerivation {
     openapi3
     optparse-applicative
     pem
+    polysemy
     protobuf
     QuickCheck
     quickcheck-instances

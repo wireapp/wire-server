@@ -102,6 +102,7 @@ brig:
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
       setTeamInvitationTimeout: 10
       setExpiredUserCleanupTimeout: 1
+      setDeleteThrottleMillis: 0
       setUserMaxConnections: 16
       setCookieInsecure: true
       setUserCookieRenewAge: 2
@@ -252,6 +253,7 @@ cargohold:
     settings:
       # See helmfile for the real value
       federationDomain: integration.example.com
+      assetAuditLogEnabled: false
       disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
@@ -368,6 +370,8 @@ galley:
           status: enabled
           config:
             mlsConversationReset: false
+        assetAuditLog:
+          status: disabled
         chatBubbles:
           defaults:
             status: disabled

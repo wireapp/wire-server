@@ -50,7 +50,7 @@ import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Default
-import Data.Domain (Domain (..), domainText, mkDomain)
+import Data.Domain (Domain (..), domainText)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
@@ -96,7 +96,7 @@ import System.Process
 import System.Random (randomIO, randomRIO)
 import System.Timeout qualified as System
 import Test.QuickCheck (arbitrary, generate)
-import Test.Tasty (TestName, TestTree)
+import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.Cannon
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
@@ -239,6 +239,10 @@ instance ToJSON Mailbox where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+-- | Use this for debugging flaky tests to run them `n` times.
+deflake :: Int -> Manager -> TestName -> Http a -> TestTree
+deflake n m name h = testGroup "deflake" $ (\i -> test m (name <> " (retry " <> show i <> ")") h) <$> [1 .. n]
 
 flakyTest :: Manager -> TestName -> Http a -> TestTree
 flakyTest m n h = flakyTestCase n (void $ runHttpT m h)
@@ -1033,15 +1037,6 @@ withSettingsOverrides opts action = liftIO $ do
   mapM_ Async.cancel sftDiscovery
   mapM_ Async.cancel turnDiscovery
   pure res
-
--- | When we remove the customer-specific extension of domain blocking, this test will fail to
--- compile.
-withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
-withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opt.settings = opts.settings {customerExtensions = Just blocked}}
-      blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
-      unsafeMkDomain = either error id . mkDomain
-  withSettingsOverrides opts' sess
 
 -- | Run a probe several times, until a "good" value materializes or until patience runs out
 aFewTimes ::

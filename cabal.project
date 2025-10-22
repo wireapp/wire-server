@@ -60,6 +60,7 @@ packages:
   , tools/stern/
   , tools/mlsstats/
   , tools/test-stats/
+  , tools/entreprise-provisioning/
 
 tests: True
 benchmarks: True

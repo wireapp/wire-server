@@ -250,17 +250,22 @@ searchContacts user searchTerm domain = do
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__search
-searchTeam :: (HasCallStack, MakesValue user) => user -> String -> App Response
-searchTeam user q = do
+searchTeam :: (HasCallStack, MakesValue user) => user -> [(String, String)] -> App Response
+searchTeam user params = do
   tid <- user %. "team" & asString
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
-  submit "GET" (req & addQueryParams [("q", q)])
+  submit "GET" (req & addQueryParams params)
+
+searchTeamWithSearchTerm :: (HasCallStack, MakesValue user) => user -> String -> App Response
+searchTeamWithSearchTerm user q = searchTeam user [("q", q)]
 
 searchTeamAll :: (HasCallStack, MakesValue user) => user -> App Response
-searchTeamAll user = do
-  tid <- user %. "team" & asString
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "search"]
-  submit "GET" (req & addQueryParams [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")])
+searchTeamAll user = searchTeam user [("q", ""), ("size", "100"), ("sortby", "created_at"), ("sortorder", "desc")]
+
+setUserSearchable :: (MakesValue user) => user -> String -> Bool -> App Response
+setUserSearchable self uid searchable = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["users", uid, "searchable"]
+  submit "POST" $ addJSONObject ["set_searchable" .= searchable] req
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
@@ -422,10 +427,10 @@ putSelfLocale caller locale = do
 --
 -- NOTE: the full process of changing (and confirming) the email address is more complicated.
 -- see /services/brig/test/integration for details.
-putSelfEmail :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
-putSelfEmail caller emailAddress = do
-  callerid <- asString $ caller %. "id"
-  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", callerid, "email"]
+putUserEmail :: (HasCallStack, MakesValue caller, MakesValue target) => caller -> target -> String -> App Response
+putUserEmail caller target emailAddress = do
+  uid <- asString $ target %. "id"
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", uid, "email"]
   submit "PUT" $ req & addJSONObject ["email" .= emailAddress]
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_self_email
@@ -882,6 +887,11 @@ activate domain key code = do
     req
       & addQueryParams [("key", key), ("code", code)]
 
+activateSend :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
+activateSend domain email locale = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["activate", "send"]
+  submit "POST" $ req & addJSONObject (["email" .= email] <> maybeToList (((.=) "locale") <$> locale))
+
 acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> App Response
 acceptTeamInvitation user code mPw = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]
@@ -1056,6 +1066,16 @@ getUserGroup user gid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
   submit "GET" req
 
+getUserGroupWithChannels :: (MakesValue user) => user -> String -> App Response
+getUserGroupWithChannels user gid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid]
+  submit "GET" $ req & addQueryParams [("include_channels", "true")]
+
+updateUserGroupChannels :: (MakesValue user) => user -> String -> [String] -> App Response
+updateUserGroupChannels user gid convIds = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "channels"]
+  submit "PUT" $ req & addJSONObject ["channels" .= convIds]
+
 data GetUserGroupsArgs = GetUserGroupsArgs
   { q :: Maybe String,
     sortByKeys :: Maybe String,
@@ -1064,11 +1084,23 @@ data GetUserGroupsArgs = GetUserGroupsArgs
     lastName :: Maybe String,
     lastCreatedAt :: Maybe String,
     lastId :: Maybe String,
-    includeMemberCount :: Bool
+    includeMemberCount :: Bool,
+    includeChannels :: Bool
   }
 
 instance Default GetUserGroupsArgs where
-  def = GetUserGroupsArgs Nothing Nothing Nothing Nothing Nothing Nothing Nothing False
+  def =
+    GetUserGroupsArgs
+      { q = Nothing,
+        sortByKeys = Nothing,
+        sortOrder = Nothing,
+        pSize = Nothing,
+        lastName = Nothing,
+        lastCreatedAt = Nothing,
+        lastId = Nothing,
+        includeMemberCount = False,
+        includeChannels = False
+      }
 
 getUserGroups :: (MakesValue user) => user -> GetUserGroupsArgs -> App Response
 getUserGroups user GetUserGroupsArgs {..} = do
@@ -1084,7 +1116,8 @@ getUserGroups user GetUserGroupsArgs {..} = do
               ("last_seen_name",) <$> lastName,
               ("last_seen_created_at",) <$> lastCreatedAt,
               ("last_seen_id",) <$> lastId,
-              (if includeMemberCount then Just ("include_member_count", "true") else Nothing)
+              (if includeMemberCount then Just ("include_member_count", "true") else Nothing),
+              (if includeChannels then Just ("include_channels", "true") else Nothing)
             ]
         )
 
@@ -1113,6 +1146,15 @@ addUsersToGroup user gid uids = do
         [ "members" .= uids
         ]
 
+updateUserGroupUsers :: (MakesValue user) => user -> String -> [String] -> App Response
+updateUserGroupUsers user gid uids = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users"]
+  submit "PUT" $
+    req
+      & addJSONObject
+        [ "members" .= uids
+        ]
+
 removeUserFromGroup :: (MakesValue user) => user -> String -> String -> App Response
 removeUserFromGroup user gid uid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users", uid]
@@ -1133,3 +1175,51 @@ getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
 getAllTeamCollaborators owner tid = do
   req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
   submit "GET" req
+
+data NewApp = NewApp
+  { name :: String,
+    pict :: Maybe [Value],
+    assets :: Maybe [Value],
+    accentId :: Maybe Int,
+    meta :: Value
+  }
+
+instance Default NewApp where
+  def =
+    NewApp
+      { name = "",
+        pict = Nothing,
+        assets = Nothing,
+        accentId = Nothing,
+        meta = object []
+      }
+
+createApp :: (MakesValue creator) => creator -> String -> NewApp -> App Response
+createApp creator tid new = do
+  req <- baseRequest creator Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "name" .= new.name,
+          "picture" .= new.pict,
+          "assets" .= new.assets,
+          "accent_id" .= new.accentId,
+          "metadata" .= new.meta
+        ]
+
+refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
+refreshAppCookie u tid appId = do
+  req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
+  submit "POST" req
+
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handle
+checkHandle :: (MakesValue user) => user -> String -> App Response
+checkHandle self handle = do
+  req <- baseRequest self Brig Versioned (joinHttpPath ["handles", handle])
+  submit "HEAD" req
+
+-- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handles
+checkHandles :: (MakesValue user) => user -> [String] -> App Response
+checkHandles self handles = do
+  req <- baseRequest self Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= handles]
+  submit "POST" req

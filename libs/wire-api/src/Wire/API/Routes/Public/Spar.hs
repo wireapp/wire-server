@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -28,6 +30,7 @@ import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
+import Servant.Server.Experimental.Auth
 import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
@@ -125,12 +128,14 @@ type APIAuthResp =
         :> Post '[PlainText] Void
     )
 
+type instance AuthServerData (AuthProtect "TeamAdmin") = TeamId
+
 type APIIDP =
   Named "idp-get" (ZOptUser :> IdpGet)
     :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
     :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
-    :<|> Named "idp-create@v7" (Until 'V8 :> ZOptUser :> IdpCreate) -- (change is semantic, see handler)
-    :<|> Named "idp-create" (From 'V8 :> ZOptUser :> IdpCreate)
+    :<|> Named "idp-create@v7" (Until 'V8 :> AuthProtect "TeamAdmin" :> IdpCreate) -- (change is semantic, see handler)
+    :<|> Named "idp-create" (From 'V8 :> AuthProtect "TeamAdmin" :> IdpCreate)
     :<|> Named "idp-update" (ZOptUser :> IdpUpdate)
     :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
 

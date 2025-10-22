@@ -34,6 +34,7 @@ module Wire.API.User
     SelfProfile (..),
     -- User (should not be here)
     User (..),
+    UserType (..),
     isSamlUser,
     userId,
     userDeleted,
@@ -166,6 +167,7 @@ import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
 import Data.Code qualified as Code
 import Data.Currency qualified as Currency
+import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
@@ -465,6 +467,25 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
   toJSON e = A.object ["qualified_users" A..= qualifiedUsers e]
 
 --------------------------------------------------------------------------------
+-- UserType
+
+data UserType = UserTypeRegular | UserTypeApp | UserTypeBot
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserType)
+
+instance Default UserType where
+  def = UserTypeRegular
+
+instance ToSchema UserType where
+  schema =
+    Schema.enum @Text "UserType" $
+      mconcat
+        [ Schema.element "regular" UserTypeRegular,
+          Schema.element "app" UserTypeApp,
+          Schema.element "bot" UserTypeBot
+        ]
+
+--------------------------------------------------------------------------------
 -- UserProfile
 
 -- | A subset of the data of an existing 'User' that is returned on the API and is visible to
@@ -487,7 +508,9 @@ data UserProfile = UserProfile
     profileTeam :: Maybe TeamId,
     profileEmail :: Maybe EmailAddress,
     profileLegalholdStatus :: UserLegalHoldStatus,
-    profileSupportedProtocols :: Set BaseProtocolTag
+    profileSupportedProtocols :: Set BaseProtocolTag,
+    profileType :: UserType,
+    profileSearchable :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
@@ -526,6 +549,8 @@ instance ToSchema UserProfile where
         <*> profileLegalholdStatus
           .= field "legalhold_status" schema
         <*> profileSupportedProtocols .= supportedProtocolsObjectSchema
+        <*> profileType .= fmap (fromMaybe UserTypeRegular) (optField "type" schema)
+        <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
 
 --------------------------------------------------------------------------------
 -- SelfProfile
@@ -580,7 +605,8 @@ data User = User
     -- | How is the user profile managed (e.g. if it's via SCIM then the user profile
     -- can't be edited via normal means)
     userManagedBy :: ManagedBy,
-    userSupportedProtocols :: Set BaseProtocolTag
+    userSupportedProtocols :: Set BaseProtocolTag,
+    userSearchable :: Bool
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
@@ -631,6 +657,7 @@ userObjectSchema =
       .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
     <*> userSupportedProtocols .= supportedProtocolsObjectSchema
     <* (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
+    <*> userSearchable .= (fromMaybe True <$> optField "searchable" schema)
 
 userEmail :: User -> Maybe EmailAddress
 userEmail = emailIdentity <=< userIdentity
@@ -689,24 +716,29 @@ instance FromJSON (EmailVisibility ()) where
 
 mkUserProfileWithEmail :: Maybe EmailAddress -> User -> UserLegalHoldStatus -> UserProfile
 mkUserProfileWithEmail memail u legalHoldStatus =
-  -- This profile would be visible to any other user. When a new field is
-  -- added, please make sure it is OK for other users to have access to it.
-  UserProfile
-    { profileQualifiedId = userQualifiedId u,
-      profileHandle = userHandle u,
-      profileName = userDisplayName u,
-      profileTextStatus = userTextStatus u,
-      profilePict = userPict u,
-      profileAssets = userAssets u,
-      profileAccentId = userAccentId u,
-      profileService = userService u,
-      profileDeleted = userDeleted u,
-      profileExpire = userExpire u,
-      profileTeam = userTeam u,
-      profileEmail = memail,
-      profileLegalholdStatus = legalHoldStatus,
-      profileSupportedProtocols = userSupportedProtocols u
-    }
+  let ty = case userService u of
+        Nothing -> UserTypeRegular
+        Just _ -> UserTypeBot
+   in -- This profile would be visible to any other user. When a new field is
+      -- added, please make sure it is OK for other users to have access to it.
+      UserProfile
+        { profileQualifiedId = userQualifiedId u,
+          profileHandle = userHandle u,
+          profileName = userDisplayName u,
+          profileTextStatus = userTextStatus u,
+          profilePict = userPict u,
+          profileAssets = userAssets u,
+          profileAccentId = userAccentId u,
+          profileService = userService u,
+          profileDeleted = userDeleted u,
+          profileExpire = userExpire u,
+          profileTeam = userTeam u,
+          profileEmail = memail,
+          profileLegalholdStatus = legalHoldStatus,
+          profileSupportedProtocols = userSupportedProtocols u,
+          profileType = ty,
+          profileSearchable = userSearchable u
+        }
 
 mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
 mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =

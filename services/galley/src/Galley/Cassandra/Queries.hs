@@ -135,6 +135,12 @@ selectTeamMember ::
     )
 selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from team_member where team = ? and user = ?"
 
+selectTeamMembersBase :: (IsString a) => [String] -> a
+selectTeamMembersBase conds = fromString $ selectFrom <> " where team = ?" <> whereClause <> " order by user"
+  where
+    selectFrom = "select user, perms, invited_by, invited_at, legalhold_status from team_member"
+    whereClause = concatMap (" and " <>) conds
+
 -- | This query fetches **all** members of a team, it should always be paginated
 selectTeamMembers ::
   PrepQuery
@@ -146,12 +152,7 @@ selectTeamMembers ::
       Maybe UTCTimeMillis,
       Maybe UserLegalHoldStatus
     )
-selectTeamMembers =
-  [r|
-    select user, perms, invited_by, invited_at, legalhold_status
-      from team_member
-    where team = ? order by user
-    |]
+selectTeamMembers = selectTeamMembersBase []
 
 selectTeamMembersFrom ::
   PrepQuery
@@ -163,12 +164,7 @@ selectTeamMembersFrom ::
       Maybe UTCTimeMillis,
       Maybe UserLegalHoldStatus
     )
-selectTeamMembersFrom =
-  [r|
-    select user, perms, invited_by, invited_at, legalhold_status
-      from team_member
-    where team = ? and user > ? order by user
-    |]
+selectTeamMembersFrom = selectTeamMembersBase ["user > ?"]
 
 selectTeamMembers' ::
   PrepQuery
@@ -176,13 +172,14 @@ selectTeamMembers' ::
     (TeamId, [UserId])
     ( UserId,
       Permissions,
+      Writetime Permissions,
       Maybe UserId,
       Maybe UTCTimeMillis,
       Maybe UserLegalHoldStatus
     )
 selectTeamMembers' =
   [r|
-    select user, perms, invited_by, invited_at, legalhold_status
+    select user, perms, writetime(perms), invited_by, invited_at, legalhold_status
       from team_member
     where team = ? and user in ? order by user
     |]

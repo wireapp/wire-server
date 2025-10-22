@@ -49,7 +49,8 @@ resetLocalMLSMainConversation ::
     Member Random r,
     Member Resource r,
     Member ConversationStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member MLSCommitLockStore r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->

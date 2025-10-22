@@ -22,6 +22,7 @@ import API.Brig
 import qualified API.BrigInternal as I
 import API.Common
 import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
+import API.GalleyInternal (selectTeamMembers)
 import qualified API.GalleyInternal as I
 import API.Gundeck
 import qualified API.Nginz as Nginz
@@ -474,3 +475,13 @@ testDeleteTeamUserRatelimitingIsPropagated = do
     bindResponse (deleteTeamMember tid owner m) $ \resp -> do
       pure resp.status
   Set.fromList statusCodes `shouldMatchSet` ([202, 429] :: [Int])
+
+testSelectTeamMembersByIds :: (HasCallStack) => App ()
+testSelectTeamMembersByIds = do
+  (owner, tid, mems) <- createTeam OwnDomain 5
+  uids <- for (owner : mems) ((%. "id") >=> asString)
+
+  selectTeamMembers OwnDomain tid uids `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    tms <- resp.json %. "members" >>= asList
+    length tms `shouldMatchInt` 5

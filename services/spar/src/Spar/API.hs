@@ -50,6 +50,7 @@ import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Conversion
 import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
@@ -61,6 +62,7 @@ import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
 import Imports
+import Network.Wai (Request, requestHeaders)
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
@@ -69,6 +71,7 @@ import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
+import Servant.Server.Experimental.Auth
 import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
@@ -122,9 +125,16 @@ app ctx0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
   let ctx = ctx0 {sparCtxRequestId = rid}
   SAML.setHttpCachePolicy
-    ( serve
+    ( serveWithContext
         (Proxy @SparAPI)
-        (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
+        (authContext ctx)
+        ( hoistServerWithContext
+            (Proxy @SparAPI)
+            (Proxy @'[AuthHandler Request TeamId])
+            (runSparToHandler ctx)
+            (api $ sparCtxOpts ctx) ::
+            Server SparAPI
+        )
     )
     req
     cont
@@ -442,6 +452,17 @@ ssoSettings =
 ----------------------------------------------------------------------------
 -- IdPConfigStore API
 
+authHandler :: Env -> AuthHandler Request TeamId
+authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
+  bs <- maybe (throwSparSem SparMissingZUsr) pure $ lookup "Z-User" (requestHeaders req)
+  uid <- maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
+  BrigAccess.checkAdminGetTeamId uid
+  where
+    throwError' se = Spar.Error.sparToServerErrorWithLogging (sparCtxLogger ctx) se >>= throwError
+
+authContext :: Env -> Servant.Context (AuthHandler Request TeamId ': '[])
+authContext e = authHandler e :. EmptyContext
+
 idpGet ::
   ( Member Random r,
     Member (Logger String) r,
@@ -606,18 +627,17 @@ idpCreate ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
-  Maybe UserId ->
+  TeamId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate zusr (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
-  GalleyAccess.assertSSOEnabled teamid
+idpCreate tid (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+  GalleyAccess.assertSSOEnabled tid
   idp <-
-    maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
-      >>= validateNewIdP apiversion idpmeta teamid mReplaces
+    maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
+      >>= validateNewIdP apiversion idpmeta tid mReplaces
   IdPRawMetadataStore.store (idp ^. SAML.idpId) rawIdpMetadata
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
@@ -634,16 +654,15 @@ idpCreateV7 ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
-  Maybe UserId ->
+  TeamId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateV7 zusr idpmeta mReplaces mApiversion mHandle = do
-  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
-  assertNoScimOrNoIdP teamid
-  idpCreate zusr idpmeta mReplaces mApiversion mHandle
+idpCreateV7 tid idpmeta mReplaces mApiversion mHandle = do
+  assertNoScimOrNoIdP
+  idpCreate tid idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -653,11 +672,10 @@ idpCreateV7 zusr idpmeta mReplaces mApiversion mHandle = do
         Member (Error SparError) r,
         Member IdPConfigStore r
       ) =>
-      TeamId ->
       Sem r ()
-    assertNoScimOrNoIdP teamid = do
-      numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
-      numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
+    assertNoScimOrNoIdP = do
+      numTokens <- length <$> ScimTokenStore.lookupByTeam tid
+      numIdps <- length <$> IdPConfigStore.getConfigsByTeam tid
       when (numTokens > 0 && numIdps > 0) $
         throwSparSem $
           SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden

@@ -63,6 +63,9 @@ config:
     # tlsCaSecretRef:
     #   name: <secret-name>
     #   key: <ca-attribute>
+
+  postgresMigration:
+    conversation: cassandra
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000
@@ -210,6 +213,8 @@ config:
         status: enabled
         config:
           mlsConversationReset: false
+      assetAuditLog:
+        status: disabled
       consumableNotifications:
         defaults:
           status: disabled
@@ -222,7 +227,14 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
-
+      simplifiedUserConnectionRequestQRCode:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+      stealthUsers:
+        defaults:
+          status: disabled
+          lockStatus: locked
   aws:
     region: "eu-west-1"
   proxy: {}

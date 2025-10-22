@@ -11,5 +11,7 @@
     "saml_idp": null,
     "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
     "sso": null,
-    "team": null
+    "team": null,
+    "user_groups": [],
+    "searchable": true
 }

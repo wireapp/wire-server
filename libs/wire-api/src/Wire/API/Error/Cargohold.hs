@@ -29,6 +29,7 @@ data CargoholdError
   | UnverifiedUser
   | UserNotFound
   | IncompleteBody
+  | MissingAuditMetadata
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -49,3 +50,5 @@ type instance MapError 'UserNotFound = 'StaticError 403 "not-found" "User not fo
 type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound
 
 type instance MapError 'IncompleteBody = 'StaticError 400 "incomplete-body" "HTTP content-length header does not match body size"
+
+type instance MapError 'MissingAuditMetadata = 'StaticError 400 "missing-audit-metadata" "Missing required asset audit metadata"

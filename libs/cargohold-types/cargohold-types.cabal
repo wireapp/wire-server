@@ -68,6 +68,7 @@ library
       base                   >=4    && <5
     , bytestring-conversion  >=0.2
     , imports
+    , QuickCheck
     , types-common           >=0.16
     , wire-api
 

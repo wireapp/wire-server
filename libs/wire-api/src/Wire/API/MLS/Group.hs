@@ -17,7 +17,9 @@
 
 module Wire.API.MLS.Group where
 
+import Cassandra qualified as C
 import Data.Aeson qualified as A
+import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Json.Util
 import Data.OpenApi qualified as S
@@ -25,10 +27,12 @@ import Data.Schema
 import Imports
 import Servant
 import Wire.API.MLS.Serialisation
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
   deriving (Eq, Show, Generic, Ord)
+  deriving newtype (PostgresUnmarshall ByteString)
   deriving (Arbitrary) via (GenericUniform GroupId)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
@@ -47,6 +51,17 @@ instance ToSchema GroupId where
     GroupId
       <$> unGroupId
         .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
+
+instance C.Cql GroupId where
+  ctype = C.Tagged C.BlobColumn
+
+  toCql = C.CqlBlob . LBS.fromStrict . unGroupId
+
+  fromCql (C.CqlBlob b) = Right . GroupId . LBS.toStrict $ b
+  fromCql _ = Left "group_id: blob expected"
+
+instance PostgresMarshall GroupId ByteString where
+  postgresMarshall = unGroupId
 
 newtype GroupIdGen = GroupIdGen {unGroupIdGen :: Word32}
   deriving (Eq, Show, Generic, Ord)

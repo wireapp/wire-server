@@ -42,6 +42,7 @@ import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
+import Wire.API.App
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
@@ -52,6 +53,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.OAuth
+import Wire.API.Pagination
 import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -81,7 +83,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
-import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.User.Search
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
@@ -110,6 +112,7 @@ type BrigAPI =
     :<|> DomainVerificationTeamAPI
     :<|> DomainVerificationChallengeAPI
     :<|> UserGroupAPI
+    :<|> AppsAPI
 
 data BrigAPITag
 
@@ -158,7 +161,6 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
 type UserAPI =
-  -- See Note [ephemeral user sideeffect]
   Named
     "get-user-unqualified"
     ( Summary "Get a user by UserId"
@@ -168,16 +170,14 @@ type UserAPI =
         :> CaptureUserId "uid"
         :> GetUserVerb
     )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "get-user-qualified"
-      ( Summary "Get a user by Domain and UserId"
-          :> ZLocalUser
-          :> "users"
-          :> QualifiedCaptureUserId "uid"
-          :> GetUserVerb
-      )
+    :<|> Named
+           "get-user-qualified"
+           ( Summary "Get a user by Domain and UserId"
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> GetUserVerb
+           )
     :<|> Named
            "update-user-email"
            ( Summary "Resend email address validation email."
@@ -221,19 +221,17 @@ type UserAPI =
                      ]
                     (Maybe UserProfile)
            )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "list-users-by-unqualified-ids-or-handles"
-      ( Summary "List users (deprecated)"
-          :> Until 'V2
-          :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-          :> ZUser
-          :> "users"
-          :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
-          :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-          :> Get '[JSON] [UserProfile]
-      )
+    :<|> Named
+           "list-users-by-unqualified-ids-or-handles"
+           ( Summary "List users (deprecated)"
+               :> Until 'V2
+               :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+               :> ZUser
+               :> "users"
+               :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+               :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
+               :> Get '[JSON] [UserProfile]
+           )
     :<|> Named
            "list-users-by-ids-or-handles"
            ( Summary "List users"
@@ -244,18 +242,16 @@ type UserAPI =
                :> ReqBody '[JSON] ListUsersQuery
                :> Post '[JSON] ListUsersById
            )
-    :<|>
-    -- See Note [ephemeral user sideeffect]
-    Named
-      "list-users-by-ids-or-handles@V3"
-      ( Summary "List users"
-          :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-          :> ZUser
-          :> Until 'V4
-          :> "list-users"
-          :> ReqBody '[JSON] ListUsersQuery
-          :> Post '[JSON] [UserProfile]
-      )
+    :<|> Named
+           "list-users-by-ids-or-handles@V3"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> ZUser
+               :> Until 'V4
+               :> "list-users"
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] [UserProfile]
+           )
     :<|> Named
            "send-verification-code"
            ( Summary "Send a verification code to a given email address."
@@ -291,6 +287,17 @@ type UserAPI =
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
            )
+    :<|> Named
+           "set-user-searchable"
+           ( Summary "Set user's visibility in search"
+               :> From 'V12
+               :> ZLocalUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "searchable"
+               :> ReqBody '[JSON] SetSearchable
+               :> Post '[JSON] ()
+           )
 
 type LastSeenNameDesc = Description "`name` of the last seen user group, used to get the next page when sorting by name."
 
@@ -311,11 +318,13 @@ type UserGroupAPI =
     )
     :<|> Named
            "get-user-group"
-           ( From 'V10
+           ( Summary "Fetch a group accessible from the logged-in user"
+               :> From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
                :> "user-groups"
                :> Capture "gid" UserGroupId
+               :> QueryFlag "include_channels"
                :> MultiVerb
                     'GET
                     '[JSON]
@@ -326,7 +335,8 @@ type UserGroupAPI =
            )
     :<|> Named
            "get-user-groups"
-           ( From 'V10
+           ( Summary "Fetch groups accessible from the logged-in user"
+               :> From 'V10
                :> ZLocalUser
                :> "user-groups"
                :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
@@ -336,6 +346,7 @@ type UserGroupAPI =
                :> QueryParam' '[Optional, Strict, LastSeenNameDesc] "last_seen_name" UserGroupName
                :> QueryParam' '[Optional, Strict, LastSeenCreatedAtDesc] "last_seen_created_at" UTCTimeMillis
                :> QueryParam' '[Optional, Strict, LastSeenIdDesc] "last_seen_id" UserGroupId
+               :> QueryFlag "include_channels"
                :> QueryFlag "include_member_count"
                :> Get '[JSON] UserGroupPage
            )
@@ -398,6 +409,41 @@ type UserGroupAPI =
                :> "users"
                :> Capture "uid" UserId
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "User removed from group")
+           )
+    :<|> Named
+           "update-user-group-members"
+           ( Summary "[STUB] Update user group members. Replaces the users with the given list."
+               :> From 'V13
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "users"
+               :> ReqBody '[JSON] UpdateUserGroupMembers
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group members updated")
+           )
+    :<|> Named
+           "update-user-group-channels"
+           ( Summary "Replaces the channels with the given list."
+               :> From 'V13
+               :> CanThrow 'UserGroupNotFound
+               :> CanThrow 'UserGroupNotATeamAdmin
+               :> ZLocalUser
+               :> "user-groups"
+               :> Capture "gid" UserGroupId
+               :> "channels"
+               :> QueryFlag "append_only"
+               :> ReqBody '[JSON] UpdateUserGroupChannels
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User group channels updated")
+           )
+    :<|> Named
+           "check-user-group-name-available"
+           ( Summary "[STUB] Check if a user group name is available"
+               :> From 'V13
+               :> ZLocalUser
+               :> "user-groups"
+               :> "check-name"
+               :> ReqBody '[JSON] CheckUserGroupName
+               :> MultiVerb 'POST '[JSON] '[Respond 200 "OK" UserGroupNameAvailability] UserGroupNameAvailability
            )
 
 type SelfAPI =
@@ -1686,6 +1732,21 @@ type SearchAPI =
              ]
              "pagingState"
              PagingState
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description
+                 "Filter for (un-)verified email"
+             ]
+             "email"
+             EmailVerificationFilter
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Optional, return only non-searchable members when false."
+             ]
+             "searchable"
+             Bool
         :> MultiVerb
              'GET
              '[JSON]
@@ -2044,4 +2105,27 @@ type SystemSettingsAPI =
                :> "system"
                :> "settings"
                :> Get '[JSON] SystemSettings
+           )
+
+type AppsAPI =
+  Named
+    "create-app"
+    ( Summary "Create a new app"
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "apps"
+        :> ReqBody '[JSON] NewApp
+        :> Post '[JSON] CreatedApp
+    )
+    :<|> Named
+           "refresh-app-cookie"
+           ( Summary "Get a new app authentication token"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Capture "app" UserId
+               :> "cookies"
+               :> Post '[JSON] RefreshAppCookieResponse
            )

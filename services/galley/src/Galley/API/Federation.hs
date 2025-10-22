@@ -275,7 +275,8 @@ leaveConversation ::
     Member Random r,
     Member TinyLog r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -492,7 +493,8 @@ updateConversation ::
     Member Random r,
     Member TeamFeatureStore r,
     Member (Input (Local ())) r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -620,7 +622,8 @@ sendMLSCommitBundle ::
     Member P.TinyLog r,
     Member Random r,
     Member ProposalStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -718,7 +721,8 @@ leaveSubConversation ::
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member E.MLSCommitLockStore r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
@@ -739,7 +743,8 @@ deleteSubConversationForRemoteUser ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member E.MLSCommitLockStore r
   ) =>
   Domain ->
   DeleteSubConversationFedRequest ->

@@ -106,14 +106,13 @@ non-overlapping version ranges.
 ### Version bump checklist
 
 When making the client API version bump, i.e., when finalising a version, there
-are several steps to make apart from deciding what endpoint changes are part of
+are several steps to take apart from deciding what endpoint changes are part of
 the version. In these example we assume that version `V6` should be finalized and `V7` should be created:
 
 - Run wire-server and download the `swagger.json` of the current development version, e.g. with the following command: `curl localhost:8080/v6/api/swagger.json | jq > swagger-v6.json` and copy the file to `services/brig/docs/swagger-v6.json`.
 - In `wire-api` extend the `Version` type with a new version by appending the
   new version to the end.
-- In the same `Version` module update the `developmentVersions` value to list
-  only the new version.
+- In the same `Version` module update the `isDevelopmentVersion` to your taste.
 - In `services/brig/src/Brig/API/Public.hs`
   - update `versionedSwaggerDocsAPI` so that the finalized version points to the pregenerated swagger, and the dynamically generated swagger spits out swagger for the new `V7`.
 - Set the version for `gDefaultAPIVersion` in `integration/test/Testlib/Env.hs` to 7.

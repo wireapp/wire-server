@@ -62,6 +62,7 @@ testObject_SelfProfile_user_1 =
             userExpire = Just (fromJust (readUTCTimeMillis "1864-05-07T21:09:29.342Z")),
             userTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000002"))),
             userManagedBy = ManagedByScim,
-            userSupportedProtocols = defSupportedProtocols
+            userSupportedProtocols = defSupportedProtocols,
+            userSearchable = True
           }
     }

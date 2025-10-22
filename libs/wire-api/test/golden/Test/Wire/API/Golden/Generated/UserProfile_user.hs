@@ -50,7 +50,9 @@ testObject_UserProfile_user_1 =
       profileTeam = Nothing,
       profileEmail = Nothing,
       profileLegalholdStatus = UserLegalHoldDisabled,
-      profileSupportedProtocols = defSupportedProtocols
+      profileSupportedProtocols = defSupportedProtocols,
+      profileType = UserTypeRegular,
+      profileSearchable = True
     }
 
 testObject_UserProfile_user_2 :: UserProfile
@@ -80,5 +82,7 @@ testObject_UserProfile_user_2 =
       profileTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002"))),
       profileEmail = Just (unsafeEmailAddress "some" "example"),
       profileLegalholdStatus = UserLegalHoldNoConsent,
-      profileSupportedProtocols = defSupportedProtocols
+      profileSupportedProtocols = defSupportedProtocols,
+      profileType = UserTypeApp,
+      profileSearchable = True
     }

@@ -15,6 +15,7 @@ import Wire.API.Password (Password)
 import Wire.API.Provider.Service
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
+import Wire.API.User.Search (SetSearchable (SetSearchable))
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser hiding (userId)
@@ -43,6 +44,7 @@ interpretUserStoreCassandra casClient =
       GetRichInfo uid -> getRichInfoImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
+      SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -102,6 +104,7 @@ getIndexUserBaseQuery =
     managed_by, writetime(managed_by),
     sso_id, writetime(sso_id),
     email_unvalidated, writetime(email_unvalidated),
+    searchable, writetime(searchable),
     writetime(write_time_bumper)
     FROM user
   |]
@@ -205,9 +208,9 @@ lookupLocaleImpl u = do
   retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
 
 getUserTeamImpl :: UserId -> Client (Maybe TeamId)
-getUserTeamImpl u = runIdentity <$$> retry x1 (query1 q (params LocalQuorum (Identity u)))
+getUserTeamImpl u = (runIdentity =<<) <$> retry x1 (query1 q (params LocalQuorum (Identity u)))
   where
-    q :: PrepQuery R (Identity UserId) (Identity TeamId)
+    q :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
     q = "SELECT team FROM user WHERE id = ?"
 
 updateUserTeamImpl :: UserId -> TeamId -> Client ()
@@ -234,6 +237,12 @@ getRichInfoImpl uid =
 deleteEmailImpl :: UserId -> Client ()
 deleteEmailImpl u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
+setUserSearchableImpl :: UserId -> SetSearchable -> Client ()
+setUserSearchableImpl uid (SetSearchable searchable) = retry x5 $ write q (params LocalQuorum (searchable, uid))
+  where
+    q :: PrepQuery W (Bool, UserId) ()
+    q = "UPDATE user SET searchable = ? WHERE id = ?"
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -241,8 +250,8 @@ insertUser :: PrepQuery W (TupleType NewStoredUser) ()
 insertUser =
   "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, team, managed_by, supported_protocols) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \country, provider, service, handle, team, managed_by, supported_protocols, searchable) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
 insertServiceUser =
@@ -259,7 +268,7 @@ selectUsers =
   [sql|
   SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
   activated, status, expires, language, country, provider,
-  service, handle, team, managed_by, supported_protocols
+  service, handle, team, managed_by, supported_protocols, searchable
   FROM user WHERE id IN ?
   |]
 

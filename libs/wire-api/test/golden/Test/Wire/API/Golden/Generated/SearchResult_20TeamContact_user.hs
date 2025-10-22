@@ -22,10 +22,30 @@ module Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user where
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import Data.UUID qualified as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..), Sso (..), TeamContact (..))
+
+teamContactTemplate :: TeamContact
+teamContactTemplate =
+  TeamContact
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
+      teamContactName = "",
+      teamContactColorId = Nothing,
+      teamContactHandle = Nothing,
+      teamContactTeam = Nothing,
+      teamContactEmail = Nothing,
+      teamContactCreatedAt = Nothing,
+      teamContactManagedBy = Nothing,
+      teamContactSAMLIdp = Nothing,
+      teamContactRole = Nothing,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing,
+      teamContactUserGroups = [],
+      teamContactSearchable = True
+    }
 
 testObject_SearchResult_20TeamContact_user_1 :: SearchResult TeamContact
 testObject_SearchResult_20TeamContact_user_1 =
@@ -34,35 +54,31 @@ testObject_SearchResult_20TeamContact_user_1 =
       searchReturned = 2,
       searchTook = 0,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
-              teamContactHandle = Nothing,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T20:48:17.263Z")),
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleAdmin,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactUserGroups =
+                [ Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
+                  Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))
+                ]
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T17:17:18.225Z")),
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleExternalPartner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = FullSearch,
@@ -89,50 +105,28 @@ testObject_SearchResult_20TeamContact_user_3 =
       searchReturned = -2,
       searchTook = -7,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
-              teamContactEmail = Nothing,
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
-              teamContactRole = Just RoleAdmin,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleAdmin
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T04:59:07.086Z")),
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactSAMLIdp = Just ""
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T05:39:37.370Z")),
               teamContactManagedBy = Just ManagedByScim,
-              teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactSAMLIdp = Just ""
             }
         ],
       searchPolicy = FullSearch,
@@ -147,65 +141,46 @@ testObject_SearchResult_20TeamContact_user_4 =
       searchReturned = 4,
       searchTook = 2,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
-              teamContactHandle = Nothing,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Nothing,
               teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T01:29:06.597Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleAdmin,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
-              teamContactHandle = Nothing,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T17:38:20.677Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = ExactHandleSearch,
@@ -220,20 +195,16 @@ testObject_SearchResult_20TeamContact_user_5 =
       searchReturned = -3,
       searchTook = -7,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T12:39:20.984Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             }
         ],
       searchPolicy = FullSearch,
@@ -248,54 +219,36 @@ testObject_SearchResult_20TeamContact_user_6 =
       searchReturned = -7,
       searchTook = -4,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
-              teamContactEmail = Nothing,
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleOwner
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T10:59:12.538Z")),
               teamContactManagedBy = Just ManagedByScim,
-              teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactSAMLIdp = Just ""
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
@@ -303,89 +256,54 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T23:24:12.000Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleOwner
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T19:59:50.883Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleMember
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T13:56:02.433Z")),
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
-              teamContactRole = Just RoleAdmin,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleAdmin
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
-              teamContactHandle = Nothing,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T01:45:42.970Z")),
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
               teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
-              teamContactEmail = Nothing,
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
@@ -395,53 +313,39 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleOwner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T14:01:50.906Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByScim,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             }
         ],
       searchPolicy = FullSearch,
@@ -456,95 +360,65 @@ testObject_SearchResult_20TeamContact_user_7 =
       searchReturned = 5,
       searchTook = 5,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T19:22:39.660Z")),
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T19:42:55.525Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleMember
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T00:45:08.016Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
               teamContactEmailUnvalidated = Just (unsafeEmailAddress "some" "example")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T21:18:46.647Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = FullSearch,
@@ -559,39 +433,27 @@ testObject_SearchResult_20TeamContact_user_8 =
       searchReturned = 2,
       searchTook = -7,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
-              teamContactHandle = Nothing,
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T13:46:22.701Z")),
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
@@ -599,14 +461,10 @@ testObject_SearchResult_20TeamContact_user_8 =
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T09:25:11.685Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
@@ -614,10 +472,7 @@ testObject_SearchResult_20TeamContact_user_8 =
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T11:37:20.763Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             }
         ],
       searchPolicy = FullSearch,
@@ -632,24 +487,16 @@ testObject_SearchResult_20TeamContact_user_9 =
       searchReturned = 3,
       searchTook = -3,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleMember
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
@@ -657,40 +504,29 @@ testObject_SearchResult_20TeamContact_user_9 =
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T16:22:05.429Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T17:19:11.439Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T05:44:15.175Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = FullSearch,
@@ -717,40 +553,29 @@ testObject_SearchResult_20TeamContact_user_11 =
       searchReturned = 7,
       searchTook = 1,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T23:32:15.171Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
-              teamContactHandle = Nothing,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T09:36:08.567Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
@@ -758,73 +583,41 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleAdmin,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T00:23:34.413Z")),
               teamContactManagedBy = Just ManagedByScim,
-              teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactSAMLIdp = Just ""
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
-              teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactManagedBy = Just ManagedByWire
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T02:39:28.838Z")),
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleExternalPartner
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
-              teamContactManagedBy = Nothing,
-              teamContactSAMLIdp = Nothing,
-              teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleOwner
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
@@ -832,10 +625,8 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T01:15:59.694Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = FullSearch,
@@ -850,20 +641,15 @@ testObject_SearchResult_20TeamContact_user_12 =
       searchReturned = 0,
       searchTook = 0,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T06:59:36.374Z")),
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = FullSearch,
@@ -878,39 +664,28 @@ testObject_SearchResult_20TeamContact_user_13 =
       searchReturned = 3,
       searchTook = 1,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T17:55:15.951Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleMember
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
-              teamContactHandle = Nothing,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T05:08:55.558Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleMember,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
@@ -918,10 +693,7 @@ testObject_SearchResult_20TeamContact_user_13 =
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T11:18:47.121Z")),
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Nothing,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             }
         ],
       searchPolicy = FullSearch,
@@ -936,20 +708,14 @@ testObject_SearchResult_20TeamContact_user_14 =
       searchReturned = 4,
       searchTook = -4,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
-              teamContactHandle = Nothing,
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T06:35:15.745Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleAdmin,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             }
         ],
       searchPolicy = FullSearch,
@@ -964,20 +730,15 @@ testObject_SearchResult_20TeamContact_user_15 =
       searchReturned = 6,
       searchTook = -6,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByWire,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleOwner,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             }
         ],
       searchPolicy = FullSearch,
@@ -992,39 +753,29 @@ testObject_SearchResult_20TeamContact_user_16 =
       searchReturned = 2,
       searchTook = -5,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T23:38:23.560Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleAdmin,
               teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-              teamContactEmailUnvalidated = Nothing
+              teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f")
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
-              teamContactCreatedAt = Nothing,
               teamContactManagedBy = Just ManagedByScim,
-              teamContactSAMLIdp = Nothing,
               teamContactRole = Just RoleAdmin,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-          TeamContact
+          teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
-              teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
@@ -1033,9 +784,7 @@ testObject_SearchResult_20TeamContact_user_16 =
               teamContactManagedBy = Just ManagedByScim,
               teamContactSAMLIdp = Just "",
               teamContactRole = Just RoleAdmin,
-              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f"
             }
         ],
       searchPolicy = FullSearch,
@@ -1050,20 +799,13 @@ testObject_SearchResult_20TeamContact_user_17 =
       searchReturned = -5,
       searchTook = 4,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
-              teamContactTeam = Nothing,
-              teamContactEmail = Nothing,
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T02:22:14.746Z")),
               teamContactManagedBy = Just ManagedByWire,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleExternalPartner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleExternalPartner
             }
         ],
       searchPolicy = FullSearch,
@@ -1078,20 +820,14 @@ testObject_SearchResult_20TeamContact_user_18 =
       searchReturned = -7,
       searchTook = -7,
       searchResults =
-        [ TeamContact
+        [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              teamContactName = "",
-              teamContactColorId = Nothing,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
               teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T12:35:16.437Z")),
-              teamContactManagedBy = Nothing,
               teamContactSAMLIdp = Just "",
-              teamContactRole = Just RoleOwner,
-              teamContactScimExternalId = Nothing,
-              teamContactSso = Nothing,
-              teamContactEmailUnvalidated = Nothing
+              teamContactRole = Just RoleOwner
             }
         ],
       searchPolicy = FullSearch,

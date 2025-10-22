@@ -25,7 +25,8 @@ aws:
 
 settings:
   maxTotalBytes: 27262976
-  downloadLinkTTL: 300    # Seconds
+  downloadLinkTTL: 300 # Seconds
+  assetAuditLogEnabled: false
   federationDomain: example.com
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.

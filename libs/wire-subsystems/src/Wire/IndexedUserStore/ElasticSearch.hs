@@ -10,6 +10,7 @@ import Data.ByteString qualified as LBS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
@@ -18,6 +19,7 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
+import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User.Search
 import Wire.IndexedUserStore
@@ -220,7 +222,13 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
                 ],
-              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
+              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")],
+              -- The following matches both where searchable is true
+              -- or where the field is missing. There didn't seem to
+              -- be a more readable way to express
+              -- "not(exists(searchable) or searchable = true" in
+              -- Elastic Search.
+              ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing]
             }
       -- This reduces relevance on users not in team of search by 90% (no
       -- science behind that number). If the searcher is not part of a team the
@@ -243,7 +251,7 @@ paginateTeamMembersImpl ::
   Sem r (SearchResult UserDoc)
 paginateTeamMembersImpl cfg BrowseTeamFilters {..} maxResults mPagingState = do
   let (IndexQuery q f sortSpecs) =
-        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder
+        teamUserSearchQuery teamId mQuery mRoleFilter mSortBy mSortOrder mEmailVerificationFilter mSearchable
   let search =
         (ES.mkSearch (Just q) (Just f))
           { -- we are requesting one more result than the page size to determine if there is a next page
@@ -308,8 +316,10 @@ teamUserSearchQuery ::
   Maybe RoleFilter ->
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
+  Maybe EmailVerificationFilter ->
+  Maybe Bool ->
   IndexQuery TeamContact
-teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
+teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter mSearchable =
   IndexQuery
     ( maybe
         (ES.MatchAllQuery Nothing)
@@ -360,12 +370,39 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
             ES.multiMatchQueryOperator = ES.And
           }
 
-    teamFilter =
-      ES.Filter $
-        ES.QueryBoolQuery
-          boolQuery
-            { ES.boolQueryMustMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
-            }
+    teamFilter :: ES.Filter
+    teamFilter = ES.Filter $ ES.QueryBoolQuery boolQuery {ES.boolQueryMustMatch = mustMatch}
+      where
+        mustMatch :: [ES.Query]
+        mustMatch = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing : roleFilter <> emailFilter <> searchableFilter
+
+        searchableFilter :: [ES.Query]
+        searchableFilter = case mSearchable of
+          Just False -> [ES.TermQuery (ES.Term "searchable" "false") Nothing]
+          Just True -> [ES.QueryBoolQuery boolQuery {ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing]}]
+          Nothing -> []
+
+        roleFilter :: [ES.Query]
+        roleFilter =
+          case mRoleFilter of
+            Nothing -> []
+            Just (RoleFilter []) -> []
+            Just (RoleFilter (r : rs)) -> [ES.TermsQuery "role" (roleName <$> r :| rs)]
+
+        emailFilter :: [ES.Query]
+        emailFilter =
+          case mEmailFilter of
+            Nothing -> []
+            -- Verified: must have a verified email and must NOT have an unverified email
+            Just EmailVerified ->
+              [ ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryMustMatch = [ES.QueryExistsQuery (ES.FieldName "email")],
+                      ES.boolQueryMustNotMatch = [ES.QueryExistsQuery (ES.FieldName "email_unvalidated")]
+                    }
+              ]
+            -- Unverified: must have an unverified email, regardless of verified
+            Just EmailUnverified -> [ES.QueryExistsQuery (ES.FieldName "email_unvalidated")]
 
     defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
     defaultSort tuSortBy sortOrder =

@@ -1,3 +1,137 @@
+# [2025-10-21] (Chart Release 5.23.0)
+
+## Release notes
+
+
+* Team user search role filter has been fixed and results now include each member's team role. Note: existing search index documents will only show roles after a reindex or when users get updated; newly created or updated users populate their role automatically. (#4728)
+
+* Elasticsearch/OpenSearch mapping updated for team user search to support filtering by unverified email addresses. For the new filter `email=verified|unverified` on `GET /teams/{tid}/search` to work as intended, it is necessary to create a new index and re-index the data either by [migrating to a new index](https://docs.wire.com/latest/developer/reference/elastic-search.html?h=#migrate-to-a-new-index) or by [recreating the index](https://docs.wire.com/latest/developer/reference/elastic-search.html?h=#recreate-an-index-requires-downtime).
+
+* Allow storing conversation data in postgres.
+
+  This is currently not the default and is experimental.
+  The migration path from Cassandra is yet to be programmed.
+
+  However, new installations can use this by configuring the wire-server helm
+  chart like this:
+
+  ```yaml
+  galley:
+    config:
+      postgresqlMigration:
+        conversation: postgresql
+  ``` (#4764)
+
+
+## API changes
+
+
+* Stub endpoints for enterprise provisioning (only in V13) (#4743)
+
+* Finalize API Version V12, start new develop version V13. (#4817)
+
+* The blocked domains feature
+  (`optSettings.setCustomerExtensions.domainsBlockedForRegistration`) is now
+  more strict: It is not only forbidden to register users with these domains in
+  their email addresses, but also to change a user's email address to one of
+  these domains.
+
+  This affects the endpoints:
+  - `/register` (as before)
+  - `/activate/send`
+  - `/users/{uid}/email`
+  - `/i/self/email` (internal endpoint)
+  - `/access/self/email`
+  - `/i/teams/{tid}/invitations` (internal endpoint)
+  - `/teams/{tid}/invitations` (#4624)
+
+
+## Features
+
+
+* Allow collaborator to be removed from a team. (#4694)
+
+* Add PodDisruptionBudget for Backoffice (#4751)
+
+* Implement user-groups channels association (`/user-groups/{gid}/channels`). (#4783)
+
+* Implement `channels` and `channelsCount` in `user-groups` endpoints. (#4776)
+
+* Add `entreprise-provisioning`, a CLI to batch provision various entities, currently, creates and associate channels to existing user-groups. (#4790)
+
+* Brig: Add optional `email` query parameter to `GET /teams/{tid}/search` ("browse-team"). (#4774)
+
+* Add feature flag for "simplified user connection requests" QR codes
+  (`simplifiedUserConnectionRequestQRCode`). As it has been implicitly enabled
+  before - there was no way to turn it off - it's enabled by default. (#4763)
+
+* Added user group endpoints to nginz config (#4744)
+
+* New endpoint to update the users of a user group (#4768)
+
+* Include total count in user group list/search responses (#4773)
+
+* Allow updates of SCIM users by SCIM even if E2EID is enabled (#4772)
+
+* Add global `AssetAuditLog` feature flag (#4779)
+
+* cargohold: add asset audit logging (#4782, #4784, #4787)
+
+* Add `searchable` field to users, users who have it set to `false` won't be found by the public endpoint.
+  Add `POST /users/:uid/searchable` endpoint where team admin can change it for user.
+  Add `/teams/:tid/search?searchable=false`, where the query parameter makes it return only non-searchable users. (#4786)
+
+* Add user group ids to team member search result (#4809)
+
+* Add endpoint for a team admin to get a new app cookie (#4769)
+
+* Introduce apps and the corresponding creation endpoint `POST /teams/:tid/apps`. (#4696)
+
+* Add `stealthUsers` feature flag (#4803)
+
+* Remove user from all user groups on deletion (#4781)
+
+* Add `type` field to user profiles. The possible values are "regular" for regular users, "bot" for services and "app" for apps. (#4758)
+
+
+## Bug fixes and other updates
+
+
+* The role filter of the team search is fixed (#4728)
+
+* Changed Swagger data type `Pict` from `{}` which is interpreted as `string` to
+  `{"type":"object"}`. Also, static Swagger specifications of earlier API versions
+  have been adapted. (#4785)
+
+* Added nginz rules for missing endpoints (#4808)
+
+
+## Documentation
+
+
+* add documentation on setting up federated calling (#4796)
+
+* Update multi-ingress deeplink documentation to have a better example (#4807)
+
+
+## Internal changes
+
+
+* Add a preStopHook to gundeck helm chart to avoid spurious 500s on gundeck restarts. (#4730)
+
+* Add `hls.json` to `.gitignore`. It's only useful in specific editor setups. (#4747)
+
+* New make rule and python script for creating `/postgres-schema.sql`. (not hooked into CI yet) (#4760)
+
+* Add postgres dynamic query builder (#4812)
+
+* charts/{redis-ephemeral,reaper}: switch away from non-working bitnami registry (#4792)
+
+* Update kubectl, restund, redis-cluster, and rabbitmq images to use bitnamilegacy registry (#4791)
+
+* Switch reaper and restund kubectl images to bitnamilegacy registry to ensure shell access compatibility (#4801)
+
+
 # [2025-09-02] (Chart Release 5.22.0)
 
 ## Release notes

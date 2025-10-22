@@ -106,6 +106,7 @@ import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
@@ -146,15 +147,17 @@ import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra
-import Wire.SessionStore (SessionStore)
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem as User
+import Wire.UserSubsystem.Error (GuardFailure (..), UserSubsystemError (..))
 import Wire.UserSubsystem.HandleBlacklist
+import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode qualified as VerificationCode
 import Wire.VerificationCodeGen (mkVerificationCodeGen)
 import Wire.VerificationCodeSubsystem
@@ -597,7 +600,7 @@ changeAccountStatus ::
     Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -619,7 +622,7 @@ changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatus ->
@@ -632,7 +635,14 @@ changeSingleAccountStatus uid status = do
     liftSem $ User.internalUpdateSearchIndex uid
     liftSem $ Events.generateUserEvent uid Nothing (ev uid)
 
-mkUserEvent :: (Traversable t, Member (Concurrency Unsafe) r, Member SessionStore r) => t UserId -> AccountStatus -> ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
+mkUserEvent ::
+  ( Traversable t,
+    Member (Concurrency Unsafe) r,
+    Member AuthenticationSubsystem r
+  ) =>
+  t UserId ->
+  AccountStatus ->
+  ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
@@ -750,12 +760,16 @@ sendActivationCode ::
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member ActivationCodeStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member (Polysemy.Error.Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   EmailAddress ->
   Maybe Locale ->
   ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode email loc = do
+  lift . liftSem $ guardBlockedDomainEmail
+
   let ek = mkEmailKey email
   doesExist <- lift $ liftSem $ isJust <$> lookupKey ek
   when doesExist $
@@ -810,6 +824,19 @@ sendActivationCode email loc = do
           _otherwise ->
             liftSem $ (maybe sendActivationMail (const sendEmailAddressUpdateMail) ident) em name aKey aCode loc'
 
+    guardBlockedDomainEmail ::
+      ( Member (Input UserSubsystemConfig) r',
+        Member (Polysemy.Error.Error UserSubsystemError) r'
+      ) =>
+      Sem r' ()
+    guardBlockedDomainEmail = do
+      domain <-
+        either (Polysemy.Error.throw . UserSubsystemGuardFailed . InvalidDomain) pure $
+          emailDomain email
+      blocked <- blockedDomains <$> input
+      when (domain `elem` blocked) $
+        Polysemy.Error.throw UserSubsystemBlockedDomain
+
 mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = pure k
 mkActivationKey (ActivateEmail e) =
@@ -823,7 +850,7 @@ changePassword ::
     Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   PasswordChange ->
@@ -877,7 +904,8 @@ deleteSelfUser ::
     Member PropertySubsystem r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -949,7 +977,8 @@ verifyDeleteUser ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -977,7 +1006,8 @@ ensureAccountDeleted ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1026,7 +1056,8 @@ deleteAccount ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   User ->
   Sem r ()
@@ -1038,8 +1069,9 @@ deleteAccount user = do
     for_ (userEmail user) $ deleteKeyForUser uid . mkEmailKey
 
     PropertySubsystem.onUserDeleted uid
-
     UserStore.deleteUser user
+
+  traverse_ (removeUserFromAllGroups uid) user.userTeam
 
   Intra.rmUser uid (userAssets user)
   embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))

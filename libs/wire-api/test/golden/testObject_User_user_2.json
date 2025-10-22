@@ -34,5 +34,6 @@
     },
     "status": "deleted",
     "supported_protocols": [],
-    "text_status": "text status"
+    "text_status": "text status",
+    "searchable": true
 }

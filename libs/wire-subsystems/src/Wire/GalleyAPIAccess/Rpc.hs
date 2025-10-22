@@ -49,8 +49,10 @@ import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
+import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Wire.API.User (UserIds (UserIds))
 import Wire.GalleyAPIAccess (GalleyAPIAccess (..), MLSOneToOneEstablished (..), ShowOrHideInvitationUrl (..))
 import Wire.ParseException
 import Wire.Rpc
@@ -77,6 +79,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
+          SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -93,6 +96,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
+          InternalGetConversation id' -> internalGetConversation id'
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -350,6 +354,27 @@ getTeamMembers tid maxResults = do
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
         . maybe id (queryItem "maxResults" . toByteString') maxResults
+        . expect2xx
+
+selectTeamMemberInfos ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  [UserId] ->
+  Sem r TeamMemberInfoList
+selectTeamMemberInfos tid uids = do
+  debug $ remote "galley" . msg (val "Select team members")
+  let bdy = UserIds uids
+  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  where
+    req bdy =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", "by-ids"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode bdy)
         . expect2xx
 
 getTeamAdmins ::
@@ -656,3 +681,26 @@ getEJPDConvInfo uid = do
     getReq =
       method GET
         . paths ["i", "user", toByteString' uid, "all-conversations"]
+
+internalGetConversation ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  ConvId ->
+  Sem r (Maybe Conversation)
+internalGetConversation convId = do
+  debug $
+    remote "galley"
+      . field "conv" (toByteString convId)
+      . msg (val "Getting conversation (internal)")
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    200 -> Just <$> decodeBodyOrThrow "galley" rs
+    _ -> pure Nothing
+  where
+    req =
+      method GET
+        . paths ["i", "conversations", toByteString' convId]
+        . expect [status200, status404]

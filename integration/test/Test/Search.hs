@@ -3,10 +3,12 @@ module Test.Search where
 
 import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
+import API.Common (defPassword)
 import qualified API.Common as API
 import API.Galley
 import qualified API.Galley as Galley
 import qualified API.GalleyInternal as GalleyI
+import qualified Data.Set as Set
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
@@ -237,3 +239,244 @@ testFederatedUserSearchForNonTeamUser = do
         [] -> pure ()
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
+
+--------------------------------------------------------------------------------
+-- TEAM SEARCH
+
+testSearchForTeamMembersWithRoles :: (HasCallStack) => App ()
+testSearchForTeamMembersWithRoles = do
+  (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam OwnDomain 5
+  [ownerId, m1Id, m2Id, m3Id, m4Id] <- for [owner, m1, m2, m3, m4] objId
+
+  BrigI.refreshIndex OwnDomain
+  bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 5
+    for_ docs $ \doc -> do
+      uid <- doc %. "id" & asString
+      if uid == ownerId
+        then doc %. "role" `shouldMatch` "owner"
+        else doc %. "role" `shouldMatch` "member"
+
+  updateTeamMember tid owner m1 Owner >>= assertSuccess
+  updateTeamMember tid owner m2 Member >>= assertSuccess
+  updateTeamMember tid owner m3 Partner >>= assertSuccess
+  updateTeamMember tid owner m4 Admin >>= assertSuccess
+
+  let expectedRoles =
+        [ ("owner", [ownerId, m1Id]),
+          ("admin", [m4Id]),
+          ("member", [m2Id]),
+          ("partner", [m3Id])
+        ]
+      expectedUserToRoleMapping = expectedRoles >>= \(role, uids) -> [(uid, role) | uid <- uids]
+      toUidRoleTuple doc = (,) <$> (doc %. "id" & asString) <*> (doc %. "role" & asString)
+
+  BrigI.refreshIndex OwnDomain
+  bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    actual <- for docs toUidRoleTuple
+    actual `shouldMatchSet` expectedUserToRoleMapping
+
+  for_ expectedRoles $ \(role, expectedIds) -> do
+    bindResponse (BrigP.searchTeam owner [("frole", role)]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      actual <- for docs toUidRoleTuple
+      let expected = [(uid, role) | uid <- expectedIds]
+      actual `shouldMatchSet` expected
+
+  bindResponse (BrigP.searchTeam owner [("frole", "owner,admin,partner")]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 4
+    for_ docs $ \doc -> do
+      doc %. "role" `shouldNotMatch` "member"
+
+testTeamSearchEmailFilter :: (HasCallStack) => App ()
+testTeamSearchEmailFilter = do
+  (owner, _, mem : _) <- createTeam OwnDomain 2
+
+  -- mark member as having an unverified email in addition to their verified one
+  (cookie, token) <- do
+    email <- mem %. "email" & asString
+    BrigP.login OwnDomain email defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      tok <- resp.json %. "access_token" & asString
+      let cookieVal = fromJust $ getCookie "zuid" resp
+      pure ("zuid=" <> cookieVal, tok)
+  newUnverified <- API.randomEmail
+  BrigP.updateEmail mem newUnverified cookie token >>= assertSuccess
+
+  BrigI.refreshIndex OwnDomain
+
+  -- email=verified returns users with verified email and no unverified (owner only)
+  BrigP.searchTeam owner [("email", "verified"), ("size", "100"), ("q", "")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    uids <- for docs objId
+    ownerId <- objId owner
+    uids `shouldMatchSet` [ownerId]
+
+  -- email=unverified returns users with unverified email regardless of also having verified (member only)
+  BrigP.searchTeam owner [("email", "unverified"), ("size", "100"), ("q", "")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    uids <- for docs objId
+    memberId <- objId mem
+    uids `shouldMatchSet` [memberId]
+
+  -- omitting email returns all users
+  BrigP.searchTeam owner [("size", "100"), ("q", "")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    uids <- for docs objId
+    ownerId <- objId owner
+    memberId <- objId mem
+    uids `shouldMatchSet` [ownerId, memberId]
+
+testTeamSearchUserIncludesUserGroups :: (HasCallStack) => App ()
+testTeamSearchUserIncludesUserGroups = do
+  (owner, _team, mems) <- createTeam OwnDomain 5
+  [ownerId, mem1id, mem2id, mem3id, mem4id] <- for (owner : mems) ((%. "id") >=> asString)
+
+  ug1 <- BrigP.createUserGroup owner (object ["name" .= "group 1", "members" .= [mem1id, mem2id]]) >>= getJSON 200 >>= objId
+  ug2 <- BrigP.createUserGroup owner (object ["name" .= "group 2", "members" .= [mem2id, mem3id, mem4id]]) >>= getJSON 200 >>= objId
+  ug3 <- BrigP.createUserGroup owner (object ["name" .= "group 3", "members" .= [mem2id, mem3id]]) >>= getJSON 200 >>= objId
+
+  BrigI.refreshIndex OwnDomain
+
+  bindResponse (BrigP.searchTeamAll owner) \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 5
+    actual <- for docs $ \doc -> (,) <$> (doc %. "id" & asString) <*> (doc %. "user_groups" & asList)
+    let expected = [(mem1id, [ug1]), (mem2id, [ug1, ug2, ug3]), (mem3id, [ug2, ug3]), (mem4id, [ug2]), (ownerId, [])]
+    (fst <$> actual) `shouldMatchSet` (fst <$> expected)
+    for_ actual $ \(uid, ugs) -> do
+      let expectedUgs = fromMaybe [] (lookup uid expected)
+      actualUgs <- for ugs asString
+      actualUgs `shouldMatchSet` expectedUgs
+
+testUserSearchable :: App ()
+testUserSearchable = do
+  -- Create team and all users who are part of this test
+  (owner, tid, [u1, u2, u3]) <- createTeam OwnDomain 4
+  admin <- createTeamMember owner def {role = "admin"}
+  let everyone = [owner, u1, admin, u2, u3]
+  everyone'sUidSet <- Set.fromList <$> mapM objId everyone
+
+  -- All users are searchable by default
+  assertBool "created users are searchable by default" . and =<< mapM (\u -> u %. "searchable" & asBool) everyone
+
+  -- Setting self to non-searchable won't work -- only admin can do it.
+  u1id <- u1 %. "id" & asString
+  BrigP.setUserSearchable u1 u1id False `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "insufficient-permissions"
+
+  BrigP.getUser u1 u1 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "searchable") `shouldMatch` True
+
+  -- Team admin can set user to non-searchable.
+  BrigP.setUserSearchable admin u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigP.getUser u1 u1 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "searchable") `shouldMatch` False
+
+  -- Team owner can, too.
+  BrigP.setUserSearchable owner u1id True `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigP.setUserSearchable owner u1id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+
+  -- By default created team members are found.
+  u2id <- u2 %. "id" & asString
+  BrigI.refreshIndex OwnDomain
+  withFoundDocs u1 (u2 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "u1 must find u2 as they are searchable by default" $ u2id `elem` foundUids
+
+  -- User set to non-searchable is not found by other team members.
+  u3id <- u3 %. "id" & asString
+  BrigP.setUserSearchable owner u3id False `bindResponse` \resp -> resp.status `shouldMatchInt` 200
+  BrigI.refreshIndex OwnDomain
+  withFoundDocs u1 (u3 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "u1 must not find u3 as they are set non-searchable" $ notElem u3id foundUids
+
+  -- Even admin nor owner won't find non-searchable users via /search/contacts
+  withFoundDocs admin (u3 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "Team admin won't find non-searchable user" $ notElem u3id foundUids
+  withFoundDocs owner (u3 %. "name") $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "Team owner won't find non-searchable user from /search/contacts" $ notElem u3id foundUids
+
+  -- Check for handle being available with HTTP HEAD still shows that the handle used by non-searchable users is not available
+  u3handle <- API.randomHandle
+  BrigP.putHandle u3 u3handle `bindResponse` assertSuccess
+  BrigP.checkHandle u2 u3handle `bindResponse` \resp -> resp.status `shouldMatchInt` 200 -- (200 means "handle is taken", 404 would be "not found")
+
+  -- Handle for POST /handles still works for non-searchable users
+  u2handle <- API.randomHandle
+  BrigP.putHandle u2 u2handle `bindResponse` assertSuccess
+  BrigP.checkHandles u1 [u3handle, u2handle] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    freeHandles <- resp.json & asList
+    assertBool "POST /handles filters all taken handles, even for regular members" $ null freeHandles
+
+  -- Regular user can't find non-searchable team member by exact handle.
+  withFoundDocs u1 u3handle $ \docs -> do
+    foundUids <- for docs objId
+    assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
+
+  -- /teams/:tid/members gets all members, both searchable and non-searchable
+  getTeamMembers u1 tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "members" >>= asList
+    foundUids <- mapM (\m -> m %. "user" & asString) docs
+    assertBool "/teams/:tid/members returns all users in team"
+      $ Set.fromList foundUids
+      == everyone'sUidSet
+
+  -- /teams/:tid/search also returns all users from team
+  BrigP.searchTeam admin [] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- mapM (\m -> m %. "id" & asString) docs
+    assertBool "/teams/:tid/search returns all users in team" $ Set.fromList foundUids == everyone'sUidSet
+
+  -- /teams/:tid/search?searchable=false gets only non-searchable members
+  BrigP.searchTeam admin [("searchable", "false")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- mapM (\m -> m %. "id" & asString) docs
+    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members"
+      $ Set.fromList foundUids
+      == Set.fromList [u1id, u3id]
+
+  -- /teams/:tid/search?searchable=true gets only searchable users
+  BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- mapM (\m -> m %. "id" & asString) docs
+    ownerUid <- owner %. "id" & asString
+    adminUid <- admin %. "id" & asString
+    assertBool "/teams/:tid/search?searchable=true gets only searchable users"
+      $ Set.fromList foundUids
+      == Set.fromList [ownerUid, adminUid, u2id]
+  where
+    -- Convenience wrapper around search contacts which applies `f` directly to document list.
+    withFoundDocs ::
+      (MakesValue user, MakesValue searchTerm) =>
+      user ->
+      searchTerm ->
+      ([Value] -> App a) ->
+      App a
+    withFoundDocs self term f = do
+      BrigP.searchContacts self term OwnDomain `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        docs <- resp.json %. "documents" >>= asList
+        f docs

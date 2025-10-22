@@ -23,6 +23,7 @@ module Wire.API.MLS.GroupInfo
   )
 where
 
+import Cassandra qualified as C
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Lazy qualified as LBS
@@ -35,6 +36,7 @@ import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.1-2
@@ -139,3 +141,16 @@ instance SerialiseMLS GroupInfoData where
 
 instance S.ToSchema GroupInfoData where
   declareNamedSchema _ = pure (mlsSwagger "GroupInfoData")
+
+instance C.Cql GroupInfoData where
+  ctype = C.Tagged C.BlobColumn
+
+  toCql = C.CqlBlob . LBS.fromStrict . unGroupInfoData
+  fromCql (C.CqlBlob b) = Right $ GroupInfoData (LBS.toStrict b)
+  fromCql _ = Left "GroupInfoData: blob expected"
+
+instance PostgresMarshall GroupInfoData ByteString where
+  postgresMarshall = unGroupInfoData
+
+instance PostgresUnmarshall ByteString GroupInfoData where
+  postgresUnmarshall = Right . GroupInfoData

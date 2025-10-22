@@ -109,6 +109,8 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.MLS.Group.Serialisation qualified as Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
@@ -493,7 +495,8 @@ performAction ::
   ( HasConversationActionEffects tag r,
     Member BackendNotificationQueueAccess r,
     Member TeamCollaboratorsSubsystem r,
-    Member (Error FederationError) r
+    Member (Error FederationError) r,
+    Member E.MLSCommitLockStore r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -572,7 +575,9 @@ performAction tag origUser lconv action = do
     SConversationUpdateProtocolTag -> do
       case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          E.updateToMixedProtocol lcnv (convType (tUnqualified lconv))
+          let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
+              epoch = Epoch 0
+          E.updateToMixedProtocol (tUnqualified lcnv) gid epoch
           pure $ mkPerformActionResult action
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureForTeam @MlsMigrationConfig tid
@@ -581,7 +586,7 @@ performAction tag origUser lconv action = do
           ok <- checkMigrationCriteria now mlsConv mig
           unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
           removeExtraneousClients origUser lconv
-          E.updateToMLSProtocol lcnv
+          E.updateToMLSProtocol (tUnqualified lcnv)
           pure $ mkPerformActionResult action
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges
@@ -843,7 +848,8 @@ updateLocalConversation ::
     HasConversationActionEffects tag r,
     SingI tag,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -879,7 +885,8 @@ updateLocalConversationUnchecked ::
     Member Now r,
     HasConversationActionEffects tag r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->
@@ -942,7 +949,7 @@ addMembersToLocalConversation ::
   JoinType ->
   Sem r (BotsAndMembers, ConversationJoin)
 addMembersToLocalConversation lcnv users role joinType = do
-  (lmems, rmems) <- E.createMembers (tUnqualified lcnv) (fmap (,role) users)
+  (lmems, rmems) <- E.upsertMembers (tUnqualified lcnv) (fmap (,role) users)
   neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
   let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)
@@ -1071,7 +1078,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
   -- Update the local view of the remote conversation by adding only those local
   -- users that are connected to the adder
-  E.createMembersInRemoteConversation remoteConvId connectedList
+  E.upsertMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
 notifyTypingIndicator ::

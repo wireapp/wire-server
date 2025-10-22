@@ -15,6 +15,7 @@ import Database.CQL.Protocol
 import Imports
 import SAML2.WebSSO qualified as SAML
 import URI.ByteString
+import Wire.API.Team.Role (Role)
 import Wire.API.User hiding (userId)
 import Wire.API.User.Search
 import Wire.UserSearch.Types
@@ -37,6 +38,7 @@ data IndexUser = IndexUser
     managedBy :: Maybe (WithWritetime ManagedBy),
     ssoId :: Maybe (WithWritetime UserSSOId),
     unverifiedEmail :: Maybe (WithWritetime EmailAddress),
+    searchable :: Maybe (WithWritetime Bool),
     writeTimeBumper :: Maybe (Writetime WriteTimeBumper)
   }
   deriving (Eq, Show)
@@ -56,6 +58,7 @@ type instance
       Maybe ManagedBy, Maybe (Writetime ManagedBy),
       Maybe UserSSOId, Maybe (Writetime UserSSOId),
       Maybe EmailAddress, Maybe (Writetime EmailAddress),
+      Maybe Bool, Maybe (Writetime Bool),
       Maybe (Writetime WriteTimeBumper)
     )
 
@@ -73,6 +76,7 @@ instance Record IndexUser where
       value <$> managedBy, writetime <$> managedBy,
       value <$> ssoId, writetime <$> ssoId,
       value <$> unverifiedEmail, writetime <$> unverifiedEmail,
+      value <$> searchable, writetime <$> searchable,
       writeTimeBumper
     )
 
@@ -89,6 +93,7 @@ instance Record IndexUser where
       managedBy, tManagedBy,
       ssoId, tSsoId,
       emailUnvalidated, tEmailUnvalidated,
+      searchable, tSearchable,
       tWriteTimeBumper
     ) = IndexUser {
           userId = u,
@@ -103,12 +108,13 @@ instance Record IndexUser where
           managedBy = WithWriteTime <$> managedBy <*> tManagedBy,
           ssoId = WithWriteTime <$> ssoId <*> tSsoId,
           unverifiedEmail = WithWriteTime <$> emailUnvalidated <*> tEmailUnvalidated,
+          searchable = WithWriteTime <$> searchable <*> tSearchable,
           writeTimeBumper = tWriteTimeBumper
         }
 {- ORMOLU_ENABLE -}
 
-indexUserToVersion :: IndexUser -> IndexVersion
-indexUserToVersion IndexUser {..} =
+indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
+indexUserToVersion role IndexUser {..} =
   mkIndexVersion
     [ const () <$$> Just name.writetime,
       const () <$$> fmap writetime teamId,
@@ -121,20 +127,22 @@ indexUserToVersion IndexUser {..} =
       const () <$$> fmap writetime managedBy,
       const () <$$> fmap writetime ssoId,
       const () <$$> fmap writetime unverifiedEmail,
+      const () <$$> fmap writetime role,
+      const () <$$> fmap writetime searchable,
       const () <$$> writeTimeBumper
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udEmailUnvalidated = value <$> unverifiedEmail,
+        { udSearchable = value <$> searchable,
+          udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
-          -- FUTUREWORK: This is a bug: https://wearezeta.atlassian.net/browse/WPB-11124
-          udRole = Nothing,
+          udRole = mRole,
           udCreatedAt = Just . toUTCTimeMillis $ writetimeToUTC activated.writetime,
           udManagedBy = value <$> managedBy,
           udSAMLIdP = idpUrl . value =<< ssoId,
@@ -189,7 +197,8 @@ normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =
   UserDoc
-    { udEmailUnvalidated = Nothing,
+    { udSearchable = Nothing,
+      udEmailUnvalidated = Nothing,
       udSso = Nothing,
       udScimExternalId = Nothing,
       udSearchVisibilityInbound = Nothing,

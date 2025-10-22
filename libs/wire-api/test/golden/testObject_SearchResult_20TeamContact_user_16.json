@@ -16,7 +16,9 @@
                 "issuer": "https://example.com/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
-            "team": null
+            "team": null,
+            "user_groups": [],
+            "searchable": true
         },
         {
             "accent_id": null,
@@ -31,7 +33,9 @@
             "saml_idp": null,
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
-            "team": "00000000-0000-0000-0000-000100000001"
+            "team": "00000000-0000-0000-0000-000100000001",
+            "user_groups": [],
+            "searchable": true
         },
         {
             "accent_id": 0,
@@ -46,7 +50,9 @@
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": null,
-            "team": "00000000-0000-0001-0000-000000000000"
+            "team": "00000000-0000-0001-0000-000000000000",
+            "user_groups": [],
+            "searchable": true
         }
     ],
     "found": 2,

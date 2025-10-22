@@ -44,7 +44,7 @@
 When a page needs to be moved because it's related to code changes:
 1. Add the page to `wire-server/docs` and merge it to the develop branch
 2. In `wire-docs`:
-   - Update the `wire-server` submodule to the latest commit
+   - Update the `wire-server` submodule (to the latest commit) and commit that change
    - Delete the original page from `wire-docs/src`
    - Create a relative symbolic link to the file in the `wire-server` module:
      ```
@@ -52,7 +52,8 @@ When a page needs to be moved because it's related to code changes:
      rm example-file.svg
      ln -s ../../../wire-server/docs/src/developer/reference/example-file.svg example-file.svg
      ```
-3. Test with `make run` before creating a PR
+3. Commit new linked files before testing with `make run`
+4. Test with `make run` before creating a PR
 
 ## Creating New Files
 
@@ -61,7 +62,7 @@ When a page needs to be moved because it's related to code changes:
 2. Merge it into `wire-server:develop`
 3. To make it discoverable on docs.wire.com:
    - Update the navigation structure in [mkdocs.yml](https://github.com/wireapp/wire-docs/blob/main/mkdocs.yml#L9) or update the directory's README.md to include references to the new file, or add references to the new file from relevant existing pages
-   - Update the `wire-server` submodule reference in `wire-docs` if not done automatically
+   - Update the `wire-server` submodule reference in `wire-docs` (if not done automatically) and commit the change
    - Add references to the new file from relevant existing pages
    - Test with `make run` and create a PR to `wire-docs:main`
 
@@ -82,7 +83,8 @@ When a page needs to be moved because it's related to code changes:
 1. Identify all references to the file in `wire-docs` and `wire-server/docs`
 2. Remove all references and links from navigation (mkdocs.yml) and other pages
 3. Delete the file from its location
-4. Submit a PR to `wire-docs:main`
+4. Commit local deleted files before testing with `make run`
+5. Submit a PR to `wire-docs:main`
 
 ## Publishing Changes
 

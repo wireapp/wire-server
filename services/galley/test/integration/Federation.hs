@@ -31,7 +31,6 @@ isConvMemberLTests = do
             convId
             convLocalMembers
             convRemoteMembers
-            False
             (defConversationMetadata (Just userId))
             ProtocolProteus
       lUserId :: Local UserId

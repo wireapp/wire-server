@@ -26,27 +26,31 @@
 
 module API.Search
   ( tests,
+    testWithBothIndices,
   )
 where
 
 import API.Search.Util
+import API.Search.Util qualified as Search
 import API.Team.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert
 import Brig.App (initHttpManagerWithTLSConfig)
-import Brig.Index.Eval (runCommand)
+import Brig.Index.Eval (initIndex, runCommand)
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (ElasticSearchOpts)
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
+import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
-import Control.Lens ((.~), (?~), (^.))
+import Control.Lens ((.~), (?~), (^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (Value, decode)
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Lens qualified as Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
@@ -54,6 +58,7 @@ import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
 import Federation.Util
 import Imports
@@ -75,6 +80,9 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature
+import Wire.API.Team.Member qualified as Member
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User as User
 import Wire.API.User.Search
@@ -155,7 +163,9 @@ tests opts additionalElasticSearch mgr galley brig = do
             -- failure/error cases on search (augment the federatorMock?)
             -- wire-api-federation Servant-Api vs protobuf-client interactions
           ],
-        test mgr "user with unvalidated email" $ testSearchWithUnvalidatedEmail brig
+        test mgr "user with unvalidated email" $ testSearchWithUnvalidatedEmail brig,
+        test mgr "testSearchableMissing: searchable field missing defaults to true" $
+          testSearchableMissing opts brig galley
       ]
   where
     -- Since the tests are about querying only, we only need 1 creation
@@ -171,6 +181,55 @@ tests opts additionalElasticSearch mgr galley brig = do
       pure ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
+
+testSearchableMissing :: Opts.Opts -> Brig -> Galley -> Http ()
+testSearchableMissing opts brig galley = do
+  (owner, tid) <- createUserWithTeam brig
+
+  let mkTeamMember :: Permissions -> Http User
+      mkTeamMember perms = do
+        member <- createTeamMember brig galley owner tid perms
+        selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
+
+  -- create user, this by default has searchable = True
+  user <- mkTeamMember (Member.rolePermissions RoleMember)
+  let uid = userId user
+  liftIO $ assertBool "created users are searchable by default" $ userSearchable user
+
+  -- remove searchable field from elasticsearch
+  let indexName = opts.elasticsearch.index
+      docId = ES.DocId $ UUID.toText $ toUUID uid
+  userJson :: Aeson.Value <- do
+    resp <- liftIO $ runBH opts $ ES.getDocument indexName mappingName docId
+    responseJsonError $ fmap Just resp
+  liftIO $
+    assertBool "Newly created users have searchable field set" $
+      isJust $
+        userJson ^? Aeson.key "_source" . Aeson.key "searchable"
+  let userJson' = userJson ^?! Aeson.key "_source"
+      userJsonLegacy = userJson' & Aeson.atKey "searchable" .~ Nothing -- this raw JSON has now "searchable" field removed
+  void $ liftIO $ runBH opts $ ES.deleteDocument indexName mappingName docId
+  void $ liftIO $ runBH opts $ ES.indexDocument indexName mappingName ES.defaultIndexDocumentSettings userJsonLegacy docId
+  refreshIndex brig
+
+  -- get updated raw JSON and double-check that "searchable" field is gone
+  userJsonLegacyCheck :: Aeson.Value <- do
+    resp <- liftIO (runBH opts $ ES.getDocument indexName mappingName docId)
+    responseJsonError $ fmap Just resp
+  liftIO $
+    assertBool "Updated user has no searchable field" $
+      isNothing $
+        userJsonLegacyCheck ^? Aeson.key "_source" . Aeson.key "searchable"
+
+  -- perform search and still get the user
+  searcher <- userId <$> mkTeamMember (Member.rolePermissions RoleMember)
+  s' <- Search.executeSearch brig searcher $ fromName $ userDisplayName user
+  liftIO $
+    assertBool "User with no searchable field is still found via /search/contacts" $
+      uid `elem` map contactUid (searchResults s')
+  where
+    contactUid :: Contact -> UserId
+    contactUid = qUnqualified . contactQualifiedId
 
 testSearchWithUnvalidatedEmail :: (TestConstraints m) => Brig -> m ()
 testSearchWithUnvalidatedEmail brig = do
@@ -630,7 +689,7 @@ testSearchOtherDomain opts brig = do
 -- server. The proxy server ensures that only requests to the 'old' index go
 -- through.
 testMigrationToNewIndex ::
-  (TestConstraints m, MonadUnliftIO m) =>
+  (HasCallStack, TestConstraints m, MonadUnliftIO m) =>
   Opt.Opts ->
   Brig ->
   ES.Server ->
@@ -792,8 +851,8 @@ withESProxy lg opts migrationIndexName f = do
   liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
   withESProxyOnly [indexName] opts $ flip f indexName
 
-createEsIndexCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
-createEsIndexCommand logger opts newIndexName migrationIndexName =
+mkElasticSettings :: Opts.Opts -> IndexName -> IndexName -> ElasticSettings
+mkElasticSettings opts newIndexName migrationIndexName =
   let esNewOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
       replicas = 2
       shards = 2
@@ -804,6 +863,11 @@ createEsIndexCommand logger opts newIndexName migrationIndexName =
           & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
           & IndexOpts.esIndexShardCount .~ shards
           & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+   in esSettings
+
+createEsIndexCommand :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
+createEsIndexCommand logger opts newIndexName migrationIndexName =
+  let esSettings = mkElasticSettings opts newIndexName migrationIndexName
    in runCommand logger $ Create esSettings opts.galley
 
 -- | Gives a URL to a HTTP proxy server to the continuation. The proxy is only
@@ -877,7 +941,12 @@ optsForOldIndex opts migrationIndexName = do
 createIndexWithMapping :: (MonadIO m, HasCallStack) => Log.Logger -> Opt.Opts -> ES.IndexName -> Text -> Value -> m ()
 createIndexWithMapping lg opts migrationIndexName name val = do
   let indexName = ES.IndexName name
-  liftIO $ createEsIndexCommand lg opts indexName migrationIndexName
+  let elasticSettings = mkElasticSettings opts indexName migrationIndexName
+      settings = mkCreateIndexSettings elasticSettings
+      conn = elasticSettings ^. esConnection
+
+  e <- liftIO $ initIndex lg conn opts.galley
+  runIndexIO e $ createIndexWithoutMapping True settings
   mappingReply <- runBH opts $ ES.putNamedMapping indexName mappingName val
   unless (ES.isCreated mappingReply || ES.isSuccess mappingReply) $ do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name <> ", error: " <> show mappingReply
@@ -895,7 +964,14 @@ runBH opts action = do
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 
---- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
+-- | This was generated from Brig.User.Search.Index.indexMapping at commit 18885bc
+-- how to generate:
+-- - run `cabal repl brig`
+-- - ghci> import Brig.User.Search.Index
+--   ghci> import Data.Aeson
+--   ghci> import qualified Data.ByteString.Lazy.Char8 as BL
+--   ghci> BL.putStrLn $ encode indexMapping
+-- - copy the output, format and paste it here
 oldMapping :: Value
 oldMapping =
   fromJust $
@@ -931,6 +1007,11 @@ oldMapping =
         }
       },
       "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "email_unvalidated": {
+      "index": false,
       "store": false,
       "type": "text"
     },

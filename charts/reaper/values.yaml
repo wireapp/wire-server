@@ -1,4 +1,8 @@
-
+image:
+  # Use a kubectl image that includes a shell (sh/bash). Distroless images will fail to exec the script.
+  registry: docker.io
+  repository: bitnamilegacy/kubectl
+  tag: 1.32.9
 podSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:

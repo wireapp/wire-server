@@ -155,3 +155,8 @@ getConversation conv = do
   (domain, convId) <- objQid conv
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "conversations", convId]
   submit "GET" $ req
+
+selectTeamMembers :: (HasCallStack, MakesValue domain) => domain -> String -> [String] -> App Response
+selectTeamMembers domain tid uids = do
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "members", "by-ids"]
+  submit "GET" $ req & addJSON (object ["ids" .= uids])

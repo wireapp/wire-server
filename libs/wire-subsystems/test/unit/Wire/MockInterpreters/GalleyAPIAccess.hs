@@ -9,6 +9,7 @@ import Imports
 import Polysemy
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
 import Wire.API.Team.SearchVisibility
 import Wire.GalleyAPIAccess
 
@@ -47,6 +48,12 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
+  SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
+  InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
+
+-- this is called but the result is not needed in unit tests
+selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList
+selectTeamMemberInfosImpl _ _ _ = TeamMemberInfoList []
 
 getFeatureConfigForTeamImpl :: forall feature. (IsFeatureConfig feature) => AllTeamFeatures -> TeamId -> LockableFeature feature
 getFeatureConfigForTeamImpl allfeatures _ = npProject' (Proxy @(feature)) allfeatures

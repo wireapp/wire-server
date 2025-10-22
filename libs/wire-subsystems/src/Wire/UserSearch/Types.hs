@@ -58,7 +58,8 @@ data UserDoc = UserDoc
     udSearchVisibilityInbound :: Maybe SearchVisibilityInbound,
     udScimExternalId :: Maybe Text,
     udSso :: Maybe Sso,
-    udEmailUnvalidated :: Maybe EmailAddress
+    udEmailUnvalidated :: Maybe EmailAddress,
+    udSearchable :: Maybe Bool
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
@@ -81,7 +82,8 @@ instance ToJSON UserDoc where
         searchVisibilityInboundFieldName .= udSearchVisibilityInbound ud,
         "scim_external_id" .= udScimExternalId ud,
         "sso" .= udSso ud,
-        "email_unvalidated" .= udEmailUnvalidated ud
+        "email_unvalidated" .= udEmailUnvalidated ud,
+        "searchable" .= udSearchable ud
       ]
 
 instance FromJSON UserDoc where
@@ -103,12 +105,13 @@ instance FromJSON UserDoc where
       <*> o .:? "scim_external_id"
       <*> o .:? "sso"
       <*> o .:? "email_unvalidated"
+      <*> o .:? "searchable"
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
 
-userDocToTeamContact :: UserDoc -> TeamContact
-userDocToTeamContact UserDoc {..} =
+userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
+userDocToTeamContact userGroups UserDoc {..} =
   TeamContact
     { teamContactUserId = udId,
       teamContactTeam = udTeam,
@@ -122,7 +125,9 @@ userDocToTeamContact UserDoc {..} =
       teamContactEmailUnvalidated = udEmailUnvalidated,
       teamContactEmail = udEmail,
       teamContactCreatedAt = udCreatedAt,
-      teamContactColorId = fromIntegral . fromColourId <$> udColourId
+      teamContactColorId = fromIntegral . fromColourId <$> udColourId,
+      teamContactUserGroups = userGroups,
+      teamContactSearchable = fromMaybe True udSearchable
     }
 
 -- | Outbound search restrictions configured by team admin of the searcher. This
@@ -200,8 +205,11 @@ data BrowseTeamFilters = BrowseTeamFilters
     mQuery :: Maybe Text,
     mRoleFilter :: Maybe RoleFilter,
     mSortBy :: Maybe TeamUserSearchSortBy,
-    mSortOrder :: Maybe TeamUserSearchSortOrder
+    mSortOrder :: Maybe TeamUserSearchSortOrder,
+    mEmailVerificationFilter :: Maybe EmailVerificationFilter,
+    mSearchable :: Maybe Bool
   }
+  deriving (Eq, Show)
 
 userIdToDocId :: UserId -> DocId
 userIdToDocId uid = DocId (idToText uid)

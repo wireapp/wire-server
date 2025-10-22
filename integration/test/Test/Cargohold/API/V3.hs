@@ -36,7 +36,6 @@ import Data.Time.Format
 import Data.Time.Format.ISO8601
 import Network.HTTP.Client
 import SetupHelpers
-import Test.Cargohold.API.Util
 import Testlib.Prelude
 import Text.Read (readMaybe)
 
@@ -56,7 +55,7 @@ testSimpleRoundtrip = do
       uid2 <- randomUser OwnDomain def
       -- Initial upload
       let bdy = (applicationText, cs "Hello World")
-      r1 <- uploadSimple uid sets bdy
+      r1 <- uploadSimpleV3 uid sets bdy
       r1.status `shouldMatchInt` 201
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
@@ -120,13 +119,13 @@ testUploadWrongContentLength = do
       -- having the delimiter `--frontier--` being interpreted as content. So,
       -- we add a big offset here.
       tooBigContentLength = payloadBytes + 1024
-  uploadRaw uid (body tooBigContentLength payload) >>= \resp -> do
+  uploadRawV3 uid (body tooBigContentLength payload) >>= \resp -> do
     resp.status `shouldMatchInt` 400
     resp.jsonBody %. "label" `shouldMatch` "incomplete-body"
 
   -- Sanity check
   key <-
-    uploadRaw uid (body payloadBytes payload) >>= \resp -> do
+    uploadRawV3 uid (body payloadBytes payload) >>= \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"
 

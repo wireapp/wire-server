@@ -22,5 +22,6 @@
         "proteus"
     ],
     "team": "00000001-0000-0002-0000-000000000002",
-    "text_status": "text status"
+    "text_status": "text status",
+    "searchable": true
 }

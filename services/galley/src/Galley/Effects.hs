@@ -86,11 +86,11 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess
-import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
@@ -131,12 +131,10 @@ type GalleyEffects1 =
      TeamNotificationStore,
      TeamStore,
      ConversationStore,
+     MLSCommitLockStore,
      TeamFeatureStore,
      TeamMemberStore InternalPaging,
      TeamMemberStore CassandraPaging,
-     ListItems CassandraPaging ConvId,
-     ListItems CassandraPaging (Remote ConvId),
-     ListItems LegacyPaging ConvId,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
      Input AllTeamFeatures,
@@ -145,7 +143,8 @@ type GalleyEffects1 =
      Input Opts,
      Now,
      Queue DeleteItem,
-     TinyLog,
      Error DynError,
-     Error RateLimitExceeded
+     Error RateLimitExceeded,
+     ErrorS OperationDenied,
+     ErrorS 'NotATeamMember
    ]

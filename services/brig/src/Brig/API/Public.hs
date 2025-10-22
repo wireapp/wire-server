@@ -24,6 +24,7 @@ module Brig.API.Public
   ( servantSitemap,
     docsAPI,
     DocsAPI,
+    updateUserGroupChannels,
   )
 where
 
@@ -60,7 +61,6 @@ import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
 import Control.Lens ((.~), (?~))
-import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson
 import Data.ByteString (fromStrict)
@@ -88,7 +88,7 @@ import Data.Text.Encoding qualified as Text
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
-import Imports hiding (head)
+import Imports hiding (head, sortBy)
 import Language.Haskell.TH (unTypeCode)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities (CacheControl (..), (!>>))
@@ -103,6 +103,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
+import Wire.API.App
 import Wire.API.Connection qualified as Public
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
@@ -112,6 +113,7 @@ import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Fed
+import Wire.API.Pagination
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
@@ -138,7 +140,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.Team.Member (HiddenPerm (..), hasPermission)
+import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
@@ -149,12 +151,15 @@ import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
+import Wire.API.User.Search (EmailVerificationFilter)
 import Wire.API.User.Search qualified as Public
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AppSubsystem (AppSubsystem)
+import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
@@ -232,22 +237,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V12)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V13)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V12
-        <> serviceSwagger @BrigAPITag @'V12
-        <> serviceSwagger @GalleyAPITag @'V12
-        <> serviceSwagger @SparAPITag @'V12
-        <> serviceSwagger @CargoholdAPITag @'V12
-        <> serviceSwagger @CannonAPITag @'V12
-        <> serviceSwagger @GundeckAPITag @'V12
-        <> serviceSwagger @ProxyAPITag @'V12
-        <> serviceSwagger @OAuthAPITag @'V12
+    ( serviceSwagger @VersionAPITag @'V13
+        <> serviceSwagger @BrigAPITag @'V13
+        <> serviceSwagger @GalleyAPITag @'V13
+        <> serviceSwagger @SparAPITag @'V13
+        <> serviceSwagger @CargoholdAPITag @'V13
+        <> serviceSwagger @CannonAPITag @'V13
+        <> serviceSwagger @GundeckAPITag @'V13
+        <> serviceSwagger @ProxyAPITag @'V13
+        <> serviceSwagger @OAuthAPITag @'V13
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V12) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V13) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V12)) = swaggerPregenUIServer $(pregenSwagger V12)
 versionedSwaggerDocsAPI (Just (VersionNumber V11)) = swaggerPregenUIServer $(pregenSwagger V11)
 versionedSwaggerDocsAPI (Just (VersionNumber V10)) = swaggerPregenUIServer $(pregenSwagger V10)
 versionedSwaggerDocsAPI (Just (VersionNumber V9)) = swaggerPregenUIServer $(pregenSwagger V9)
@@ -406,7 +412,8 @@ servantSitemap ::
     Member Random r,
     Member UserGroupSubsystem r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -433,6 +440,7 @@ servantSitemap =
     :<|> domainVerificationTeamAPI
     :<|> domainVerificationChallengeAPI
     :<|> userGroupAPI
+    :<|> appsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -447,6 +455,7 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
         :<|> Named @"get-supported-protocols" getSupportedProtocols
+        :<|> Named @"set-user-searchable" setUserSearchableH
 
     userGroupAPI :: ServerT UserGroupAPI (Handler r)
     userGroupAPI =
@@ -458,6 +467,9 @@ servantSitemap =
         :<|> Named @"add-user-to-group" addUserToGroup
         :<|> Named @"add-users-to-group-bulk" addUsersToGroupbulk
         :<|> Named @"remove-user-from-group" removeUserFromGroup
+        :<|> Named @"update-user-group-members" updateUserGroupMembers
+        :<|> Named @"update-user-group-channels" updateUserGroupChannels
+        :<|> Named @"check-user-group-name-available" checkUserGroupNameAvailable
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -615,6 +627,11 @@ servantSitemap =
       Named @"domain-verification-challenge" getDomainVerificationChallenge
         :<|> Named @"verify-challenge" verifyChallenge
 
+    appsAPI :: ServerT AppsAPI (Handler r)
+    appsAPI =
+      Named @"create-app" createApp
+        :<|> Named @"refresh-app-cookie" refreshAppCookie
+
 ---------------------------------------------------------------------------
 -- Handlers
 
@@ -628,9 +645,11 @@ browseTeamHandler ::
   Maybe Public.TeamUserSearchSortOrder ->
   Maybe (Range 1 500 Int) ->
   Maybe Public.PagingState ->
+  Maybe EmailVerificationFilter ->
+  Maybe Bool ->
   Handler r (Public.SearchResult Public.TeamContact)
-browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState = do
-  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder
+browseTeamHandler uid tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mMaxResults mPagingState mEmailFilter mSearchable = do
+  let browseTeamFilters = BrowseTeamFilters tid mQuery mRoleFilter mTeamUserSearchSortBy mTeamUserSearchSortOrder mEmailFilter mSearchable
   lift . liftSem $ User.browseTeam uid browseTeamFilters mMaxResults mPagingState
 
 setPropertyH :: (Member PropertySubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
@@ -652,7 +671,9 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -662,7 +683,9 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  (Member DeleteQueue r, Member SessionStore r) =>
+  ( Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
@@ -683,7 +706,7 @@ getPrekeyBundleH zusr (Qualified uid domain) =
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -710,7 +733,7 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -722,7 +745,7 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -739,8 +762,7 @@ addClient ::
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
-    Member UserSubsystem r,
-    Member SessionStore r
+    Member UserSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -755,8 +777,7 @@ addClient lusr con new = do
 
 deleteClient ::
   ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r,
-    Member SessionStore r
+    Member DeleteQueue r
   ) =>
   UserId ->
   ConnId ->
@@ -835,6 +856,14 @@ getSupportedProtocols lself quid = do
   muser <- (lift . liftSem $ getUserProfile lself quid) !>> fedError
   user <- maybe (throwStd (errorToWai @'E.UserNotFound)) pure muser
   pure (Public.profileSupportedProtocols user)
+
+setUserSearchableH ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  UserId ->
+  Public.SetSearchable ->
+  Handler r ()
+setUserSearchableH zusr uid searchable = lift $ liftSem $ User.setUserSearchable zusr uid searchable
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
@@ -1136,7 +1165,7 @@ changePassword ::
     Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Public.PasswordChange ->
@@ -1236,13 +1265,14 @@ sendActivationCode ::
     Member EmailSubsystem r,
     Member GalleyAPIAccess r,
     Member UserKeyStore r,
-    Member ActivationCodeStore r
+    Member ActivationCodeStore r,
+    Member (Error UserSubsystemError) r,
+    Member (Input UserSubsystemConfig) r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
 sendActivationCode ac = do
   let email = ac.emailKey
-  customerExtensionCheckBlockedDomains email
   checkAllowlist email
   API.sendActivationCode email (ac.locale) !>> sendActCodeError
 
@@ -1255,22 +1285,6 @@ searchUsersHandler ::
   Handler r (Public.SearchResult Public.Contact)
 searchUsersHandler luid term mDomain mMaxResults =
   lift . liftSem $ User.searchUsers luid term mDomain mMaxResults
-
--- | If the user presents an email address from a blocked domain, throw an error.
---
--- The tautological constraint in the type signature is added so that once we remove the
--- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: Public.EmailAddress -> (Handler r) ()
-customerExtensionCheckBlockedDomains email = do
-  mBlockedDomains <- fmap (.domainsBlockedForRegistration) <$> asks (.settings.customerExtensions)
-  for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
-    case mkDomain (Text.decodeUtf8 $ Public.domainPart email) of
-      Left _ ->
-        pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
-      Right domain ->
-        when (domain `elem` blockedDomains) $
-          throwM $
-            customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
   ( Member GalleyAPIAccess r,
@@ -1415,7 +1429,8 @@ deleteSelfUser ::
     Member Events r,
     Member HashPassword r,
     Member RateLimit r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Local UserId ->
   Public.DeleteUser ->
@@ -1433,7 +1448,8 @@ verifyDeleteUser ::
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1672,8 +1688,9 @@ verifyChallengeTeam lusr domain challengeId (ChallengeToken token) = do
 createUserGroup :: (_) => Local UserId -> NewUserGroup -> Handler r UserGroup
 createUserGroup lusr newUserGroup = lift . liftSem $ UserGroup.createGroup (tUnqualified lusr) newUserGroup
 
-getUserGroup :: (_) => Local UserId -> UserGroupId -> Handler r (Maybe UserGroup)
-getUserGroup lusr ugid = lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid
+getUserGroup :: (_) => Local UserId -> UserGroupId -> Bool -> Handler r (Maybe UserGroup)
+getUserGroup lusr ugid includeChannels =
+  lift . liftSem $ UserGroup.getGroup (tUnqualified lusr) ugid includeChannels
 
 getUserGroups ::
   (_) =>
@@ -1686,9 +1703,23 @@ getUserGroups ::
   Maybe UTCTimeMillis ->
   Maybe UserGroupId ->
   Bool ->
+  Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount =
-  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) q sortByKeys sortOrder pSize mLastName mLastCreatedAt mLastId includeMemberCount
+getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
+  lift . liftSem $
+    UserGroup.getGroups
+      (tUnqualified lusr)
+      UserGroup.GroupSearch
+        { query = q,
+          sortBy,
+          sortOrder,
+          pageSize,
+          lastName = (fmap userGroupNameToText lastName),
+          lastCreatedAt = (fmap fromUTCTimeMillis lastCreatedAt),
+          lastId,
+          includeMemberCount,
+          includeChannels
+        }
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd
@@ -1704,6 +1735,29 @@ addUsersToGroupbulk lusr gid payload = lift . liftSem $ UserGroup.addUsers (tUnq
 
 removeUserFromGroup :: (_) => Local UserId -> UserGroupId -> UserId -> (Handler r) ()
 removeUserFromGroup lusr gid mid = lift . liftSem $ UserGroup.removeUser (tUnqualified lusr) gid mid
+
+updateUserGroupMembers :: (_) => Local UserId -> UserGroupId -> UpdateUserGroupMembers -> Handler r ()
+updateUserGroupMembers lusr gid gupd = lift . liftSem $ UserGroup.updateUsers (tUnqualified lusr) gid gupd.members
+
+updateUserGroupChannels :: (_) => Local UserId -> UserGroupId -> Bool -> UpdateUserGroupChannels -> Handler r ()
+updateUserGroupChannels lusr gid appendOnly upd =
+  lift . liftSem $
+    if appendOnly
+      then UserGroup.addChannels (tUnqualified lusr) gid upd.channels
+      else UserGroup.updateChannels (tUnqualified lusr) gid upd.channels
+
+checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
+checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
+
+createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
+createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
+
+refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
+refreshAppCookie lusr tid appId = do
+  mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId
+  case mc of
+    Left delay -> throwE $ loginError (LoginThrottled delay)
+    Right c -> pure $ RefreshAppCookieResponse c
 
 -- Deprecated
 

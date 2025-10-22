@@ -66,6 +66,8 @@ data:
       endpoint: {{ .journal.endpoint }}
     {{- end }}
 
+    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+
     settings:
       httpPoolSize: {{ .settings.httpPoolSize }}
       intraListing: {{ .settings.intraListing }}
@@ -187,6 +189,10 @@ data:
         allowedGlobalOperations:
           {{- toYaml .settings.featureFlags.allowedGlobalOperations | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.assetAuditLog }}
+        assetAuditLog:
+          {{- toYaml .settings.featureFlags.assetAuditLog | nindent 10 }}
+        {{- end }}
         {{- if .settings.featureFlags.consumableNotifications }}
         consumableNotifications:
           {{- toYaml .settings.featureFlags.consumableNotifications | nindent 10 }}
@@ -198,6 +204,14 @@ data:
         {{- if .settings.featureFlags.apps }}
         apps:
           {{- toYaml .settings.featureFlags.apps | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.simplifiedUserConnectionRequestQRCode }}
+        simplifiedUserConnectionRequestQRCode:
+          {{- toYaml .settings.featureFlags.simplifiedUserConnectionRequestQRCode | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.stealthUsers }}
+        stealthUsers:
+          {{- toYaml .settings.featureFlags.stealthUsers | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

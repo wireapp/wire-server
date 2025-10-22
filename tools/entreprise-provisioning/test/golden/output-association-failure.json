@@ -1,0 +1,24 @@
+{
+    "00000000-0000-0000-0000-0000000000a0": {
+        "association": {
+            "detail": {
+                "response": {
+                    "label": "not-found",
+                    "message": "User group not found"
+                },
+                "status": 404
+            },
+            "success": false
+        },
+        "channel": [
+            {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "name": "channel name 0"
+            },
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "name": "channel name 1"
+            }
+        ]
+    }
+}

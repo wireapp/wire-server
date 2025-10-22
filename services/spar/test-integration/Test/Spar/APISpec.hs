@@ -553,12 +553,8 @@ specCRUDIdentityProvider = do
         env <- ask
         (owner, tid) <- callCreateUserWithTeam
         ((^. idpId) -> idpid) <- registerTestIdP owner
-        let mkUser :: Role -> TestSpar UserId
-            mkUser role = do
-              let perms = rolePermissions role
-              call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-        admin <- mkUser RoleAdmin
-        member <- mkUser RoleMember
+        admin <- mkUser RoleAdmin env tid
+        member <- mkUser RoleMember env tid
         callIdpDelete' (env ^. teSpar) (Just member) idpid
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
         callIdpDelete' (env ^. teSpar) (Just admin) idpid
@@ -870,7 +866,9 @@ specCRUDIdentityProvider = do
     context "bad xml" $ do
       it "responds with a 'client error'" $ do
         env <- ask
-        callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
+        (_owner, tid) <- callCreateUserWithTeam
+        admin <- mkUser RoleAdmin env tid
+        callIdpCreateRaw' (env ^. teSpar) (Just admin) "application/xml" "@@ bad xml ###"
           `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     context "no zuser" $ do
       it "responds with 'client error'" $ do
@@ -884,7 +882,7 @@ specCRUDIdentityProvider = do
         uid <- call $ userId <$> randomUser (env ^. teBrig)
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) idpmeta
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "zuser is a team member, but not a team owner" $ do
       it "responds with 'insufficient-permissions' and a helpful message" $ do
         env <- ask
@@ -960,7 +958,9 @@ specCRUDIdentityProvider = do
       context "bad json" $ do
         it "responds with a 'client error'" $ do
           env <- ask
-          callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
+          (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          admin <- mkUser RoleAdmin env tid
+          callIdpCreateRaw' (env ^. teSpar) (Just admin) "application/json" "@@ bad json ###"
             `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
       context "good json" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
@@ -1824,3 +1824,8 @@ checkSamlFlow mkareq mkaresp submitaresp checkresp = do
         (Just authnreq)
   sparresp <- submitaresp teamid authnresp
   liftIO $ checkresp sparresp
+
+mkUser :: Role -> TestEnv -> TeamId -> TestSpar UserId
+mkUser role env tid = do
+  let perms = rolePermissions role
+  call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms

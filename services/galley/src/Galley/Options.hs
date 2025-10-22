@@ -59,17 +59,21 @@ module Galley.Options
     passwordHashingOptions,
     passwordHashingRateLimit,
     checkGroupInfo,
+    postgresMigration,
     GuestLinkTTLSeconds (..),
+    PostgresMigrationOpts (..),
+    StorageLocation (..),
   )
 where
 
 import Control.Lens hiding (Level, (.=))
-import Data.Aeson (FromJSON (..))
+import Data.Aeson
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
+import Data.Text qualified as Text
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
@@ -182,6 +186,22 @@ deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
 
+data StorageLocation = CassandraStorage | PostgresqlStorage
+
+instance FromJSON StorageLocation where
+  parseJSON = withText "StorageLocation" $ \case
+    "cassandra" -> pure CassandraStorage
+    "postgresql" -> pure PostgresqlStorage
+    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql"
+
+data PostgresMigrationOpts = PostgresMigrationOpts
+  { conversation :: StorageLocation
+  }
+
+instance FromJSON PostgresMigrationOpts where
+  parseJSON = withObject "PostgresMigrationOpts" $ \o ->
+    PostgresMigrationOpts <$> o .: "conversation"
+
 data Opts = Opts
   { -- | Host and port to bind to
     _galley :: !Endpoint,
@@ -215,7 +235,8 @@ data Opts = Opts
     --  <http://cr.yp.to/proto/netstrings.txt>
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _logFormat :: !(Maybe (Last LogFormat))
+    _logFormat :: !(Maybe (Last LogFormat)),
+    _postgresMigration :: !PostgresMigrationOpts
   }
 
 deriveFromJSON toOptionFieldName ''Opts

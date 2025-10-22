@@ -19,7 +19,9 @@
             },
             "supported_protocols": [
                 "proteus"
-            ]
+            ],
+            "type": "regular",
+            "searchable": true
         }
     ]
 }

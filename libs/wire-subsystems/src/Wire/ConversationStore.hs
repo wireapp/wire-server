@@ -19,7 +19,6 @@
 
 module Wire.ConversationStore where
 
-import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -38,6 +37,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
 import Wire.ConversationStore.MLS.Types
+import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -46,18 +46,24 @@ data LockAcquired
   | NotAcquired
   deriving (Show, Eq)
 
+data MLSCommitLockStore m a where
+  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> MLSCommitLockStore m LockAcquired
+  ReleaseCommitLock :: GroupId -> Epoch -> MLSCommitLockStore m ()
+
+makeSem ''MLSCommitLockStore
+
 data ConversationStore m a where
-  CreateConversationId :: ConversationStore m ConvId
-  CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
-  CreateMLSSelfConversation ::
-    Local UserId ->
-    ConversationStore m StoredConversation
+  UpsertConversation :: Local ConvId -> NewConversation -> ConversationStore m StoredConversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe StoredConversation)
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
+  GetLocalConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> ConversationStore m (ResultSet ConvId)
+  GetConversationIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> ConversationStore m ConvIdsPage
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
+  -- FUTUREWORK: This is only relevant for Convs in Cassandra, we can delete it
+  -- once we delete the Cassandra interpreter
   IsConversationAlive :: ConvId -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->
@@ -75,21 +81,21 @@ data ConversationStore m a where
   ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
-  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
-  ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
-  UpdateToMixedProtocol :: Local ConvId -> ConvType -> ConversationStore m ()
-  UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
+  UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
+  UpdateToMLSProtocol :: ConvId -> ConversationStore m ()
+  -- This function only exists to ensure that the cassandra row about team ->
+  -- conv relationshop is deleted from cassanrda. This action should be deleted
+  -- when we drop support for Cassandra.
   DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()
   GetTeamConversation :: TeamId -> ConvId -> ConversationStore m (Maybe ConvId)
   GetTeamConversations :: TeamId -> ConversationStore m [ConvId]
   DeleteTeamConversations :: TeamId -> ConversationStore m ()
   -- MEMBER OPERATIONS
-  CreateMembers :: (ToUserRole u) => ConvId -> UserList u -> ConversationStore m ([LocalMember], [RemoteMember])
-  CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
+  UpsertMembers :: ConvId -> UserList (UserId, RoleName) -> ConversationStore m ([LocalMember], [RemoteMember])
+  UpsertMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> ConversationStore m BotMember
   GetLocalMember :: ConvId -> UserId -> ConversationStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> ConversationStore m [LocalMember]
-  GetAllLocalMembers :: ConversationStore m [LocalMember]
   GetRemoteMember :: ConvId -> Remote UserId -> ConversationStore m (Maybe RemoteMember)
   GetRemoteMembers :: ConvId -> ConversationStore m [RemoteMember]
   CheckLocalMemberRemoteConv :: UserId -> Remote ConvId -> ConversationStore m Bool
@@ -104,10 +110,8 @@ data ConversationStore m a where
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
-  GetRemoteMembersByDomain :: Domain -> ConversationStore m [(ConvId, RemoteMember)]
-  GetLocalMembersByDomain :: Domain -> ConversationStore m [(ConvId, UserId)]
   -- SUB CONVERSATION OPERATIONS
-  CreateSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
+  UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation
   GetSubConversation :: ConvId -> SubConvId -> ConversationStore m (Maybe SubConversation)
   GetSubConversationGroupInfo :: ConvId -> SubConvId -> ConversationStore m (Maybe GroupInfoData)
   GetSubConversationEpoch :: ConvId -> SubConvId -> ConversationStore m (Maybe Epoch)
@@ -123,5 +127,5 @@ acceptConnectConversation :: (Member ConversationStore r) => ConvId -> Sem r ()
 acceptConnectConversation cid = setConversationType cid One2OneConv
 
 -- | Add a member to a local conversation, as an admin.
-createMember :: (Member ConversationStore r) => Local ConvId -> Local UserId -> Sem r [LocalMember]
-createMember c u = fst <$> createMembers (tUnqualified c) (UserList [tUnqualified u] [])
+upsertMember :: (Member ConversationStore r) => Local ConvId -> Local UserId -> Sem r [LocalMember]
+upsertMember c u = fst <$> upsertMembers (tUnqualified c) (UserList [(tUnqualified u, roleNameWireAdmin)] [])

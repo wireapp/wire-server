@@ -11,5 +11,7 @@
     "saml_idp": null,
     "scim_external_id": null,
     "sso": null,
-    "team": null
+    "team": null,
+    "user_groups": [],
+    "searchable": true
 }

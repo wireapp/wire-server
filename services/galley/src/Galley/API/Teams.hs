@@ -52,6 +52,7 @@ module Galley.API.Teams
     ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
     internalDeleteBindingTeam,
+    removeTeamCollaborator,
   )
 where
 
@@ -100,7 +101,8 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
-import Wire.API.Conversation (ConversationRemoveMembers (..))
+import Wire.API.Conversation (ConvType (..), ConversationRemoveMembers (..))
+import Wire.API.Conversation qualified
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
@@ -109,8 +111,9 @@ import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Federation.Error
+import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Routes.Internal.Galley.TeamsIntra
-import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
+import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import Wire.API.Team qualified as Public
@@ -125,6 +128,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User qualified as U
+import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ListItems qualified as E
@@ -669,6 +673,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
           transient = True
         }
     ]
+  Brig.updateSearchIndex targetId
 
 updateTeamMember ::
   forall r.
@@ -929,27 +934,31 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   for_ cc $ \c ->
     E.getConversation c >>= \conv ->
       for_ conv $ \dc ->
-        when (remove `isMember` dc.localMembers) $ do
-          E.deleteMembers c (UserList [remove] [])
-          let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
-              targets =
-                BotsAndMembers
-                  (Set.fromList $ (.id_) <$> allLocUsers)
-                  (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                  (Set.fromList bots)
-          void $
-            notifyConversationAction
-              (sing @'ConversationRemoveMembersTag)
-              (tUntagged lusr)
-              True
-              zcon
-              (qualifyAs lusr dc)
-              targets
-              ( ConversationRemoveMembers
-                  (pure . tUntagged . qualifyAs lusr $ remove)
-                  EdReasonDeleted
-              )
-              def
+        when (remove `isMember` dc.localMembers) $
+          case dc.metadata.cnvmType of
+            One2OneConv ->
+              E.deleteConversation dc.id_
+            _ -> do
+              E.deleteMembers c (UserList [remove] [])
+              let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
+                  targets =
+                    BotsAndMembers
+                      (Set.fromList $ (.id_) <$> allLocUsers)
+                      (Set.fromList $ (.id_) <$> dc.remoteMembers)
+                      (Set.fromList bots)
+              void $
+                notifyConversationAction
+                  (sing @'ConversationRemoveMembersTag)
+                  (tUntagged lusr)
+                  True
+                  zcon
+                  (qualifyAs lusr dc)
+                  targets
+                  ( ConversationRemoveMembers
+                      (pure . tUntagged . qualifyAs lusr $ remove)
+                      EdReasonDeleted
+                  )
+                  def
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
@@ -1004,7 +1013,8 @@ deleteTeamConversation ::
     Member NotificationSubsystem r,
     Member Now r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1295,3 +1305,50 @@ checkAdminLimit :: (Member (ErrorS 'TooManyTeamAdmins) r) => Int -> Sem r ()
 checkAdminLimit adminCount =
   when (adminCount > 2000) $
     throwS @'TooManyTeamAdmins
+
+-- | Removing a team collaborator and clean their conversations
+removeTeamCollaborator ::
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS NotATeamMember) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member P.TinyLog r,
+    Member TeamFeatureStore r,
+    Member TeamStore r,
+    Member TeamCollaboratorsSubsystem r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r ()
+removeTeamCollaborator lusr tid rusr = do
+  P.debug $
+    Log.field "targets" (toByteString rusr)
+      . Log.field "action" (Log.val "Teams.removeTeamCollaborator")
+  zusrMember <- E.getTeamMember tid (tUnqualified lusr)
+  void $ permissionCheck RemoveTeamCollaborator zusrMember
+  toNotify <-
+    getFeatureForTeam @LimitedEventFanoutConfig tid
+      >>= ( \case
+              FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+              FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+          )
+        . (.status)
+  uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
+  internalRemoveTeamCollaborator rusr tid
+  now <- Now.get
+  let e = newEvent tid now (EdCollaboratorRemove rusr)
+  admins <- E.getTeamAdmins tid
+  pushNotifications
+    [ def
+        { origin = Just $ tUnqualified lusr,
+          json = toJSONObject e,
+          recipients = userRecipient rusr : map (`Recipient` RecipientClientsAll) admins
+        }
+    ]

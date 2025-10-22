@@ -170,6 +170,10 @@ library
   exposed-modules:
     Wire.ActivationCodeStore
     Wire.ActivationCodeStore.Cassandra
+    Wire.AppStore
+    Wire.AppStore.Postgres
+    Wire.AppSubsystem
+    Wire.AppSubsystem.Interpreter
     Wire.AuthenticationSubsystem
     Wire.AuthenticationSubsystem.Config
     Wire.AuthenticationSubsystem.Cookie
@@ -187,6 +191,7 @@ library
     Wire.ConversationStore.Cassandra.Instances
     Wire.ConversationStore.Cassandra.Queries
     Wire.ConversationStore.MLS.Types
+    Wire.ConversationStore.Postgres
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -226,14 +231,15 @@ library
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
     Wire.ListItems
-    Wire.ListItems.ConversationIds.Cassandra
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.PaginationState
     Wire.ParseException
     Wire.PasswordResetCodeStore
     Wire.PasswordResetCodeStore.Cassandra
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
+    Wire.Postgres
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
@@ -257,6 +263,7 @@ library
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
+    Wire.TeamSubsystem.Util
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem
@@ -397,6 +404,7 @@ test-suite wire-subsystems-tests
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
+    Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
@@ -436,6 +444,7 @@ test-suite wire-subsystems-tests
     Wire.UserSearch.TypesSpec
     Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
+    Wire.Util
     Wire.VerificationCodeSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover

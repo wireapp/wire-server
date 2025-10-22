@@ -47,6 +47,7 @@ module Data.Qualified
     deprecatedSchema,
     qualifiedSchema,
     qualifiedObjectSchema,
+    inputQualifyLocal,
   )
 where
 
@@ -61,6 +62,8 @@ import Data.OpenApi (deprecated)
 import Data.OpenApi qualified as S
 import Data.Schema
 import Imports hiding (local)
+import Polysemy
+import Polysemy.Input
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 ----------------------------------------------------------------------
@@ -234,3 +237,11 @@ instance S.ToSchema (Qualified Handle) where
 
 instance (Arbitrary a) => Arbitrary (Qualified a) where
   arbitrary = Qualified <$> arbitrary <*> arbitrary
+
+----------------------------------------------------------------------
+-- Polysemy
+
+inputQualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
+inputQualifyLocal a = do
+  l <- input @(Local ())
+  pure $ qualifyAs l a

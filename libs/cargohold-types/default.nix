@@ -8,6 +8,7 @@
 , gitignoreSource
 , imports
 , lib
+, QuickCheck
 , types-common
 , wire-api
 }:
@@ -19,6 +20,7 @@ mkDerivation {
     base
     bytestring-conversion
     imports
+    QuickCheck
     types-common
     wire-api
   ];

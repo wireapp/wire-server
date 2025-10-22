@@ -124,10 +124,10 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
-import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
@@ -149,6 +149,7 @@ servantSitemap ::
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserGroupSubsystem r,
     Member TeamSubsystem r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
@@ -174,7 +175,6 @@ servantSitemap ::
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
     Member RateLimit r,
-    Member SessionStore r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
@@ -224,6 +224,7 @@ accountAPI ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserSubsystem r,
+    Member UserGroupSubsystem r,
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member UserStore r,
@@ -243,7 +244,6 @@ accountAPI ::
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
-    Member SessionStore r,
     Member (Concurrency Unsafe) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -300,7 +300,7 @@ teamsAPI ::
     Member Events r,
     Member (Input (Local ())) r,
     Member IndexedUserStore r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -318,6 +318,7 @@ userAPI =
     :<|> Named @"i-delete-user-locale" deleteLocale
     :<|> Named @"i-get-default-locale" getDefaultUserLocale
     :<|> Named @"get-user-export-data" getUserExportDataH
+    :<|> Named @"i-check-admin-get-team-id" checkAdminGetTeamId
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
@@ -331,7 +332,6 @@ authAPI ::
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -491,9 +491,10 @@ getVerificationCode uid action = runMaybeT do
   code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
   pure code.codeValue
 
-internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
+internalSearchIndexAPI :: forall r. (Member UserSubsystem r) => ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndexes))
+    :<|> Named @"update-search-index" (\uid -> lift $ liftSem $ UserSubsystem.internalUpdateSearchIndex uid $> NoContent)
 
 enterpriseLoginApi ::
   ( Member EnterpriseLoginSubsystem r,
@@ -532,8 +533,7 @@ addClientInternalH ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -551,7 +551,13 @@ legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientReque
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: (Member DeleteQueue r, Member Events r, Member SessionStore r) => UserId -> (Handler r) NoContent
+removeLegalHoldClientH ::
+  ( Member DeleteQueue r,
+    Member Events r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -624,7 +630,8 @@ deleteUserNoAuthH ::
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r,
+    Member UserGroupSubsystem r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -779,7 +786,7 @@ changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member SessionStore r
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -913,6 +920,9 @@ getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
   defLocale <- defaultUserLocale <$> asks (.settings)
   pure $ LocaleUpdate defLocale
+
+checkAdminGetTeamId :: (Member UserSubsystem r) => UserId -> Handler r TeamId
+checkAdminGetTeamId uid = lift . liftSem $ UserSubsystem.checkUserIsAdmin uid
 
 updateClientLastActive :: UserId -> ClientId -> Handler r ()
 updateClientLastActive u c = do

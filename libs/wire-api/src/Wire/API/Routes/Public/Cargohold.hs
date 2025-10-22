@@ -139,6 +139,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
   Named
     '("assets-upload-v3", tag)
     ( Summary "Upload an asset"
+        :> Description AuditUploadDescription
         :> CanThrow 'AssetTooLarge
         :> CanThrow 'InvalidLength
         :> CanThrow 'IncompleteBody
@@ -290,6 +291,7 @@ type MainAPI =
     :<|> Named
            "assets-upload"
            ( Summary "Upload an asset"
+               :> Description AuditUploadDescription
                :> From 'V2
                :> CanThrow 'AssetTooLarge
                :> CanThrow 'InvalidLength
@@ -351,3 +353,17 @@ data CargoholdAPITag
 
 instance ServiceAPI CargoholdAPITag v where
   type ServiceAPIRoutes CargoholdAPITag = CargoholdAPI
+
+type AuditUploadDescription =
+  "<p>Construct the request as <code>multipart/mixed</code>; set header \
+  \<code>Content-Type: multipart/mixed; boundary=&lt;boundary&gt;</code>.</p> \
+  \<p>Use exactly two parts in this order:</p> \
+  \<ol><li><code>application/json</code> metadata (AssetSettings)</li><li><code>application/octet-stream</code> asset bytes</li></ol> \
+  \<p>Each part must include <code>Content-Type</code> and <code>Content-Length</code>; the second part may include <code>Content-MD5</code>. Use CRLF between headers and bodies.</p> \
+  \<p>When asset audit logging is enabled, the JSON metadata must include:</p> \
+  \<ul><li><code>convId</code>: object <code>{ id: UUID, domain: String }</code> (qualified conversation ID)</li><li><code>filename</code>: String</li><li><code>filetype</code>: String MIME type (e.g. <code>image/png</code>, <code>application/pdf</code>)</li></ul> \
+  \<p>Optional metadata: <code>public</code> (Bool, default <code>false</code>), <code>retention</code> (one of <code>eternal</code>, <code>persistent</code>, <code>volatile</code>, <code>eternal-infrequent_access</code>, <code>expiring</code>).</p> \
+  \<p>For profile pictures or team icons without a conversation, set <code>convId.id</code> to <code>00000000-0000-0000-0000-000000000000</code> and <code>convId.domain</code> to the tenant’s domain; use any reasonable filename.</p> \
+  \<p>Note: the server treats the asset bytes as <code>application/octet-stream</code>; <code>filetype</code> is used for auditing only.</p> \
+  \<p>Example body (boundary=frontier):</p> \
+  \<pre><code>Content-Type: multipart/mixed; boundary=frontier<br/><br/>--frontier<br/>Content-Type: application/json<br/>Content-Length: 191<br/><br/>{\"public\":false,\"retention\":\"volatile\",\"convId\":{\"id\":\"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\",\"domain\":\"example.com\"},\"filename\":\"report.pdf\",\"filetype\":\"application/pdf\"}<br/>--frontier<br/>Content-Type: application/octet-stream<br/>Content-Length: 11<br/><br/>Hello Audit<br/>--frontier--</code></pre>"

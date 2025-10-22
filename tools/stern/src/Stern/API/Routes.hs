@@ -323,6 +323,8 @@ type SternAPI =
     :<|> Named "put-route-chat-bubbles-config" (MkFeatureStatusPutRoute ChatBubblesConfig)
     :<|> Named "get-route-apps-config" (MkFeatureGetRoute AppsConfig)
     :<|> Named "put-route-apps-config" (MkFeatureStatusPutRoute AppsConfig)
+    :<|> Named "get-route-stealth-users-config" (MkFeatureGetRoute StealthUsersConfig)
+    :<|> Named "put-route-stealth-users-config" (MkFeatureStatusPutRoute StealthUsersConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"

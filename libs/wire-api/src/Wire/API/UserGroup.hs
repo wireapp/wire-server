@@ -27,6 +27,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.OpenApi qualified as OpenApi
+import Data.Qualified (Qualified)
 import Data.Range
 import Data.Schema
 import Data.Text qualified as Text
@@ -109,7 +110,9 @@ userGroupToMeta ug =
     { id_ = ug.id_,
       name = ug.name,
       members = Const (),
+      channels = ug.channels,
       membersCount = ug.membersCount,
+      channelsCount = ug.channelsCount,
       managedBy = ug.managedBy,
       createdAt = ug.createdAt
     }
@@ -119,6 +122,8 @@ data UserGroup_ (f :: Type -> Type) = UserGroup_
     name :: UserGroupName,
     members :: f (Vector UserId),
     membersCount :: Maybe Int,
+    channels :: Maybe (Vector (Qualified ConvId)),
+    channelsCount :: Maybe Int,
     managedBy :: ManagedBy,
     createdAt :: UTCTimeMillis
   }
@@ -146,6 +151,8 @@ instance ToSchema (UserGroup_ (Const ())) where
         <*> (.name) .= field "name" schema
         <*> (.members) .= pure mempty
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channels) .= maybe_ (optField "channels" (vector schema))
+        <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
 
@@ -171,5 +178,59 @@ instance ToSchema (UserGroup_ Identity) where
         <*> (.name) .= field "name" schema
         <*> (runIdentity . (.members)) .= field "members" (Identity <$> vector schema)
         <*> (.membersCount) .= maybe_ (optField "membersCount" schema)
+        <*> (.channels) .= maybe_ (optField "channels" (vector schema))
+        <*> (.channelsCount) .= maybe_ (optField "channelsCount" schema)
         <*> (.managedBy) .= field "managedBy" schema
         <*> (.createdAt) .= field "createdAt" schema
+
+newtype UpdateUserGroupMembers = UpdateUserGroupMembers
+  { members :: Vector UserId
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UpdateUserGroupMembers
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UpdateUserGroupMembers
+
+instance ToSchema UpdateUserGroupMembers where
+  schema =
+    object "UpdateUserGroupMembers" $
+      UpdateUserGroupMembers
+        <$> (.members) .= field "members" (vector schema)
+
+newtype UpdateUserGroupChannels = UpdateUserGroupChannels
+  { channels :: Vector ConvId
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UpdateUserGroupChannels
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UpdateUserGroupChannels
+
+instance ToSchema UpdateUserGroupChannels where
+  schema =
+    object "UpdateUserGroupChannels" $
+      UpdateUserGroupChannels
+        <$> (.channels) .= field "channels" (vector schema)
+
+newtype CheckUserGroupName = CheckUserGroupName
+  { name :: UserGroupName
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform CheckUserGroupName
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema CheckUserGroupName
+
+instance ToSchema CheckUserGroupName where
+  schema =
+    object "CheckUserGroupName" $
+      CheckUserGroupName
+        <$> (.name) .= field "name" schema
+
+newtype UserGroupNameAvailability = UserGroupNameAvailability
+  { available :: Bool
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform UserGroupNameAvailability
+  deriving (A.ToJSON, A.FromJSON, OpenApi.ToSchema) via Schema UserGroupNameAvailability
+
+instance ToSchema UserGroupNameAvailability where
+  schema =
+    object "UserGroupNameAvailability" $
+      UserGroupNameAvailability
+        <$> (.available) .= field "name_available" schema

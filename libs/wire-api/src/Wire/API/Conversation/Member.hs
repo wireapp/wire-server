@@ -35,6 +35,7 @@ module Wire.API.Conversation.Member
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -47,6 +48,7 @@ import Data.Schema
 import Imports
 import Test.QuickCheck qualified as QC
 import Wire.API.Conversation.Role
+import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -161,8 +163,11 @@ instance ToSchema Member where
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, ToSchema, Arbitrary)
+  deriving newtype (Num, ToSchema, Arbitrary, C.Cql, PostgresUnmarshall Int32)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MutedStatus
+
+instance PostgresMarshall MutedStatus Int32 where
+  postgresMarshall = fromMutedStatus
 
 data OtherMember = OtherMember
   { omQualifiedId :: Qualified UserId,

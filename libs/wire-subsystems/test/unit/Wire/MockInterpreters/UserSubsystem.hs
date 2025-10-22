@@ -46,6 +46,8 @@ userSubsystemTestInterpreter initialUsers =
     RemoveEmailEither _ -> error "RemoveEmailEither: implement on demand (userSubsystemInterpreter)"
     SearchUsers {} -> error "SearchUsers: implement on demand (userSubsystemInterpreter)"
     BrowseTeam {} -> error "BrowseTeam: implement on demand (userSubsystemInterpreter)"
+    CheckUserIsAdmin {} -> error "CheckUserIsAdmin: implement on demand (userSubsystemInterpreter)"
+    SetUserSearchable {} -> error "SetUserSearchable: implement on demand (userSubsystemInterpreter)"
 
 toProfile :: User -> UserProfile
 toProfile u = mkUserProfileWithEmail (userEmail u) u UserLegalHoldDisabled

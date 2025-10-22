@@ -40,7 +40,8 @@ data StoredUser = StoredUser
     handle :: Maybe Handle,
     teamId :: Maybe TeamId,
     managedBy :: Maybe ManagedBy,
-    supportedProtocols :: Maybe (Set BaseProtocolTag)
+    supportedProtocols :: Maybe (Set BaseProtocolTag),
+    searchable :: Maybe Bool
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform StoredUser)
@@ -98,7 +99,8 @@ mkUserFromStored domain defaultLocale storedUser =
           userManagedBy = fromMaybe ManagedByWire storedUser.managedBy,
           userSupportedProtocols = case storedUser.supportedProtocols of
             Nothing -> defSupportedProtocols
-            Just ps -> if S.null ps then defSupportedProtocols else ps
+            Just ps -> if S.null ps then defSupportedProtocols else ps,
+          userSearchable = (fromMaybe True storedUser.searchable)
         }
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
@@ -147,7 +149,8 @@ data NewStoredUser = NewStoredUser
     handle :: Maybe Handle,
     teamId :: Maybe TeamId,
     managedBy :: ManagedBy,
-    supportedProtocols :: Set BaseProtocolTag
+    supportedProtocols :: Set BaseProtocolTag,
+    searchable :: Bool
   }
   deriving (Show)
 
@@ -178,7 +181,8 @@ deriving instance
       Maybe Handle,
       Maybe TeamId,
       ManagedBy,
-      Set BaseProtocolTag
+      Set BaseProtocolTag,
+      Bool
     )
 
 instance HasField "service" NewStoredUser (Maybe ServiceRef) where
@@ -203,5 +207,6 @@ newStoredUserToUser (Qualified new domain) =
       userExpire = new.expires,
       userTeam = new.teamId,
       userManagedBy = new.managedBy,
-      userSupportedProtocols = new.supportedProtocols
+      userSupportedProtocols = new.supportedProtocols,
+      userSearchable = new.searchable
     }

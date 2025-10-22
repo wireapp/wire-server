@@ -28,6 +28,7 @@ import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -40,6 +41,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Servant
 import Wire.API.MLS.SubConversation
 import Wire.API.OAuth
+import Wire.API.Pagination
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -1408,3 +1410,21 @@ type ConversationAPI =
                     (UpdateResponses "Add permissions unchanged" "Add permissions updated" Event)
                     (UpdateResult Event)
            )
+    :<|> Named
+           "search-channels"
+           ( Summary "[STUB] Search channels"
+               :> From 'V13
+               :> ZLocalUser
+               :> "search"
+               :> "channels"
+               :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
+               :> QueryParam' '[Optional, Strict] "page_size" PageSize
+               :> QueryParam' '[Optional, Strict, LastSeenName] "last_seen_name" Text
+               :> QueryParam' '[Optional, Strict, LastSeenId] "last_seen_id" ConvId
+               :> QueryFlag "discoverable"
+               :> Get '[JSON] ConversationPage
+           )
+
+type LastSeenName = Description "`name` of the last seen channel of the current page, used to get the next page."
+
+type LastSeenId = Description "`id` of the last seen channel, used to get the next page, used as a tie breaker. **Must** be sent to get the next page."

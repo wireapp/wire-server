@@ -653,7 +653,7 @@ parsedTextWithDoc desc name parser = appendDescr (text name) `withParser` (eithe
 jsonObject :: ValueSchema SwaggerDoc A.Object
 jsonObject =
   unnamed . object "Object" $
-    mkSchema mempty pure (pure . (^.. ifolded . withIndex))
+    mkSchema (pure (mempty & S.type_ ?~ S.OpenApiObject)) pure (pure . (^.. ifolded . withIndex))
 
 -- | A schema for an arbitrary JSON value.
 jsonValue :: ValueSchema SwaggerDoc A.Value

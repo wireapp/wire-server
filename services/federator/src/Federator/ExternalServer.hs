@@ -21,14 +21,18 @@ module Federator.ExternalServer
     RPC (..),
     CertHeader (..),
     server,
+    extractIp,
   )
 where
 
 import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
+import Data.ByteString.Char8 qualified as BS8
+import Data.ByteString.Conversion (fromByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Misc
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -45,6 +49,7 @@ import Federator.Service
 import Federator.Validation
 import Imports
 import Network.HTTP.Client (Manager)
+import Network.HTTP.Types (RequestHeaders)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Polysemy
@@ -60,6 +65,7 @@ import Servant.Server.Generic (AsServerT)
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Endpoint (originIpHeaderName)
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.VersionInfo
 
@@ -155,7 +161,12 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
   body <- embed $ Wai.lazyRequestBody wreq
-  let headers = filter ((== versionHeader) . fst) (Wai.requestHeaders wreq)
+  -- Build headers to forward internally: keep only API version and add Wire-Origin-IP if present
+  let reqHeaders = Wai.requestHeaders wreq
+      headersVersion = filter ((== versionHeader) . fst) reqHeaders
+      mOriginIp = (originIpHeaderName,) <$> tryGetOriginIp reqHeaders
+      -- FUTUREWORK: did we miss passing the request ID header?
+      headers = maybeToList mOriginIp <> headersVersion
   resp <- serviceCall component path headers body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
@@ -168,6 +179,28 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq cont = do
               (\(name, _) -> name == "Content-Type")
               (responseHeaders resp)
         }
+  where
+    tryGetOriginIp :: RequestHeaders -> Maybe ByteString
+    tryGetOriginIp headers = lookup "X-Forwarded-For" headers >>= listToMaybe . mapMaybe extractIp . BS8.split ','
+
+-- | Extract the IPv4/IPv6 portion from a host[:port] or [host]:port.
+extractIp :: ByteString -> Maybe ByteString
+extractIp str =
+  verify stripWs <|> verify stripPort <|> verify stripBrackets
+  where
+    stripBrackets :: ByteString
+    stripBrackets = BS8.dropWhile (== '[') . BS8.dropWhileEnd (== ']') $ stripPort
+
+    stripPort :: ByteString
+    stripPort = BS8.dropWhileEnd (== ':') . BS8.dropWhileEnd isDigit $ stripWs
+
+    stripWs :: ByteString
+    stripWs = BS8.strip str
+
+    verify :: ByteString -> Maybe ByteString
+    verify bs = case fromByteString @IpAddr bs of
+      Just _ -> Just bs
+      Nothing -> Nothing
 
 serveInward :: Env -> Int -> IORef [IO ()] -> IO ()
 serveInward env port cleanupsRef =

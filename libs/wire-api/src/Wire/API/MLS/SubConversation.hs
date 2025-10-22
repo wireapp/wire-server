@@ -40,6 +40,7 @@ import Test.QuickCheck
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.Arbitrary
@@ -48,7 +49,7 @@ import Wire.Arbitrary
 -- conversation. The pair of a qualified conversation ID and a subconversation
 -- ID identifies globally.
 newtype SubConvId = SubConvId {unSubConvId :: Text}
-  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON, S.ToSchema)
+  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON, S.ToSchema, PostgresUnmarshall Text)
   deriving stock (Generic)
   deriving stock (Show)
 
@@ -67,6 +68,9 @@ instance Arbitrary SubConvId where
     n <- choose (1, 255)
     cs <- replicateM n (arbitrary `suchThat` isValidSubConvChar)
     pure $ SubConvId (T.pack cs)
+
+instance PostgresMarshall SubConvId Text where
+  postgresMarshall = unSubConvId
 
 isValidSubConvChar :: Char -> Bool
 isValidSubConvChar c = isPrint c && isAscii c && not (isSpace c)

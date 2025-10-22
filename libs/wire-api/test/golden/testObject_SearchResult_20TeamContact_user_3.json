@@ -13,7 +13,9 @@
             "saml_idp": null,
             "scim_external_id": null,
             "sso": null,
-            "team": "00000001-0000-0001-0000-000000000000"
+            "team": "00000001-0000-0001-0000-000000000000",
+            "user_groups": [],
+            "searchable": true
         },
         {
             "accent_id": 0,
@@ -28,7 +30,9 @@
             "saml_idp": "",
             "scim_external_id": null,
             "sso": null,
-            "team": null
+            "team": null,
+            "user_groups": [],
+            "searchable": true
         },
         {
             "accent_id": 0,
@@ -43,7 +47,9 @@
             "saml_idp": "",
             "scim_external_id": null,
             "sso": null,
-            "team": null
+            "team": null,
+            "user_groups": [],
+            "searchable": true
         }
     ],
     "found": -5,

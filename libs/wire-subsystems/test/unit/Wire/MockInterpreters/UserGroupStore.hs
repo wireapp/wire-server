@@ -7,23 +7,28 @@
 module Wire.MockInterpreters.UserGroupStore where
 
 import Control.Lens ((%~), _2)
+import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Qualified
 import Data.Text qualified as T
 import Data.Time.Clock
-import Data.Vector (fromList)
+import Data.Vector (Vector, fromList)
 import GHC.Stack
 import Imports
 import Polysemy
+import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
+import Wire.API.Pagination
 import Wire.API.User
-import Wire.API.UserGroup
+import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
+import Wire.PaginationState
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
 
@@ -39,6 +44,7 @@ type UserGroupStoreInMemEffectConstraints r =
 type UserGroupStoreInMemEffectStack =
   '[ UserGroupStore,
      State UserGroupInMemState,
+     Input (Local ()),
      Rnd.Random,
      State StdGen
    ]
@@ -47,19 +53,38 @@ runInMemoryUserGroupStore :: (Member MockNow r) => UserGroupInMemState -> Sem (U
 runInMemoryUserGroupStore state =
   evalState (mkStdGen 3)
     . randomToStatefulStdGen
+    . runInputConst (toLocalUnsafe (Domain "my-domain") ())
     . evalState state
     . userGroupStoreTestInterpreter
 
-userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r) => InterpreterFor UserGroupStore r
+userGroupStoreTestInterpreter :: (UserGroupStoreInMemEffectConstraints r, Member (Input (Local ())) r) => InterpreterFor UserGroupStore r
 userGroupStoreTestInterpreter =
   interpret $ \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
-    GetUserGroup tid gid -> getUserGroupImpl tid gid
+    GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
+    UpdateUsers gid uids -> updateUsersImpl gid uids
     RemoveUser gid uid -> removeUserImpl gid uid
+    AddUserGroupChannels gid convIds -> updateUserGroupChannelsImpl True gid convIds
+    UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl False gid convIds
+    GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsersImpl uids
+
+getUserGroupIdsForUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
+getUserGroupIdsForUsersImpl uids = do
+  st <- get @UserGroupInMemState
+  let ugs = snd <$> Map.assocs st
+  pure $ Map.fromList $ (\uid -> (uid, id_ <$> filter (\ug -> uid `elem` ug.members.runIdentity) ugs)) <$> uids
+
+updateUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
+updateUsersImpl gid uids = do
+  let f :: Maybe UserGroup -> Maybe UserGroup
+      f Nothing = Nothing
+      f (Just g) = Just (g {members = Identity . fromList . nub $ toList uids} :: UserGroup)
+
+  modifyUserGroupsGidOnly gid (Map.alter f)
 
 createUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> NewUserGroup -> ManagedBy -> Sem r UserGroup
 createUserGroupImpl tid nug managedBy = do
@@ -70,7 +95,9 @@ createUserGroupImpl tid nug managedBy = do
           { id_ = gid,
             name = nug.name,
             members = Identity nug.members,
+            channels = mempty,
             membersCount = Nothing,
+            channelsCount = Nothing,
             managedBy = managedBy,
             createdAt = toUTCTimeMillis now
           }
@@ -78,12 +105,19 @@ createUserGroupImpl tid nug managedBy = do
   modify (Map.insert (tid, gid) ug)
   pure ug
 
-getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe UserGroup)
-getUserGroupImpl tid gid = (Map.lookup (tid, gid)) <$> get @UserGroupInMemState
+getUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Bool -> Sem r (Maybe UserGroup)
+getUserGroupImpl tid gid includeChannels = fmap (filterChannels includeChannels) . Map.lookup (tid, gid) <$> get @UserGroupInMemState
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r [UserGroupMeta]
+filterChannels :: Bool -> UserGroup -> UserGroup
+filterChannels includeChannels ug =
+  if includeChannels
+    then (ug :: UserGroup) {channelsCount = Just $ maybe 0 length ug.channels}
+    else (ug :: UserGroup) {channels = mempty}
+
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
 getUserGroupsImpl UserGroupPageRequest {..} = do
-  ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta) . Map.toList) <$> get @UserGroupInMemState
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
+  pure $ UserGroupPage meta (length meta)
   where
     sieve,
       dropAfterPageSize,
@@ -126,17 +160,21 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
         sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
         sqlConds ((_, _), row) =
           case (paginationState, sortOrder) of
-            (PaginationSortByName (Just (name, tieBreaker)), Asc) -> (name, tieBreaker) >= (row.name, row.id_)
-            (PaginationSortByName (Just (name, tieBreaker)), Desc) -> (name, tieBreaker) <= (row.name, row.id_)
-            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) -> (ts, tieBreaker) >= (row.createdAt, row.id_)
-            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) -> (ts, tieBreaker) <= (row.createdAt, row.id_)
+            (PaginationSortByName (Just (name, tieBreaker)), Asc) ->
+              (name, tieBreaker) >= (userGroupNameToText row.name, row.id_)
+            (PaginationSortByName (Just (name, tieBreaker)), Desc) ->
+              (name, tieBreaker) <= (userGroupNameToText row.name, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) ->
+              (ts, tieBreaker) >= (fromUTCTimeMillis row.createdAt, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) ->
+              (ts, tieBreaker) <= (fromUTCTimeMillis row.createdAt, row.id_)
             (_, _) -> False
 
     dropAfterPageSize = take (pageSizeToInt pageSize)
 
 updateUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> UserGroupUpdate -> Sem r (Maybe ())
 updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
-  exists <- getUserGroupImpl tid gid
+  exists <- getUserGroupImpl tid gid False
   let f :: Maybe UserGroup -> Maybe UserGroup
       f Nothing = Nothing
       f (Just g) = Just (g {name = newName} :: UserGroup)
@@ -146,7 +184,7 @@ updateUserGroupImpl tid gid (UserGroupUpdate newName) = do
 
 deleteUserGroupImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupId -> Sem r (Maybe ())
 deleteUserGroupImpl tid gid = do
-  exists <- getUserGroupImpl tid gid
+  exists <- getUserGroupImpl tid gid False
   modify (Map.delete (tid, gid))
   pure $ exists $> ()
 
@@ -165,6 +203,35 @@ removeUserImpl gid uid = do
       f (Just g) = Just (g {members = Identity . fromList $ toList (runIdentity g.members) \\ [uid]} :: UserGroup)
 
   modifyUserGroupsGidOnly gid (Map.alter f)
+
+updateUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r, Member (Input (Local ())) r) =>
+  Bool ->
+  UserGroupId ->
+  Vector ConvId ->
+  Sem r ()
+updateUserGroupChannelsImpl appendOnly gid convIds = do
+  qualifyLocal <- qualifyAs <$> input
+  let f :: UserGroup -> UserGroup
+      f g =
+        g
+          { channels =
+              Just $
+                newQualifiedConvIds <> if appendOnly then fromMaybe mempty g.channels else mempty,
+            channelsCount = Just $ length convIds
+          } ::
+          UserGroup
+      newQualifiedConvIds = tUntagged . qualifyLocal <$> convIds
+
+  modifyUserGroupsGidOnly gid (Map.alter $ fmap f)
+
+listUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r) =>
+  UserGroupId ->
+  Sem r (Vector ConvId)
+listUserGroupChannelsImpl gid =
+  foldMap (fmap qUnqualified) . ((.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
+    <$> get @(Map (TeamId, UserGroupId) UserGroup)
 
 ----------------------------------------------------------------------
 

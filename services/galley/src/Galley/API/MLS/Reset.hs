@@ -38,6 +38,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.ConversationStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -67,7 +68,8 @@ resetMLSConversation ::
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member MLSCommitLockStore r
   ) =>
   Local UserId ->
   MLSReset ->
