@@ -77,7 +77,7 @@ mkEnv :: Opts -> IO Env
 mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
-  cassandraGalley <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-galley" logger
+  cassandraGalley <- defInitCassandra opts.cassandraGalley =<< setLoggerName "cassandra-galley" logger
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
