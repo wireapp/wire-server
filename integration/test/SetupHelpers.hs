@@ -717,3 +717,8 @@ registerInvitedUser domain tid email = do
     >>= asString
     >>= registerUser domain email
     >>= assertSuccess
+
+getMetrics :: (HasCallStack, MakesValue domain) => domain -> Service -> App Response
+getMetrics domain service = do
+  req <- rawBaseRequest domain service Unversioned "/i/metrics"
+  submit "GET" req

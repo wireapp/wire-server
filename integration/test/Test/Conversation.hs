@@ -32,7 +32,10 @@ import qualified Data.Aeson as Aeson
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
+import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import GHC.Stack
 import MLS.Util
 import Notifications
@@ -41,6 +44,7 @@ import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
+import Text.Regex.TDFA ((=~))
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do
@@ -1124,9 +1128,8 @@ testMigrationToPostgres = do
                         <> expectedConvsFrom domainMConvs
 
                 actualConvs `shouldMatchSet` ((convIdToQidObject <$> expectedConvs) <> otherMelConvs)
-                -- TODO: Explcitly wait for migration to be over
-                when (phase == 3) $ do
-                  liftIO $ threadDelay 10_000_000
+
+                when (phase == 3) $ waitForMigration domainM
         runPhase 1
         runPhase 2
         runPhase 3
@@ -1177,6 +1180,17 @@ testMigrationToPostgres = do
         getConversation convAdmin convId `bindResponse` \resp ->
           resp.status `shouldMatchInt` 404
 
+    waitForMigration :: (HasCallStack) => String -> App ()
+    waitForMigration domainM = do
+      metrics <-
+        getMetrics domainM BackgroundWorker `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          pure $ Text.decodeUtf8 resp.body
+      let (_, _, _, convFinishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "^wire_local_convs_migration_finished\\ ([0-9]+\\.[0-9]+)$")
+      let (_, _, _, userFinishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "^wire_user_remote_convs_migration_finished\\ ([0-9]+\\.[0-9]+)$")
+      when (convFinishedMatches /= [Text.pack "1.0"] || userFinishedMatches /= [Text.pack "1.0"]) $ do
+        liftIO $ threadDelay 100_000
+        waitForMigration domainM
 -- Test Helpers
 
 data TestConvList = TestConvList
