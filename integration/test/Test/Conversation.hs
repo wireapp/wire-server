@@ -45,6 +45,7 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
 import Text.Regex.TDFA ((=~))
+import UnliftIO
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do
@@ -1052,8 +1053,8 @@ testGetSelfMember = do
 --
 -- TODO:
 -- Also create convs and send messages in all phases
-testMigrationToPostgres :: App ()
-testMigrationToPostgres = do
+testMigrationToPostgresMLS :: App ()
+testMigrationToPostgresMLS = do
   resourcePool <- asks (.resourcePool)
   (alice, aliceTid, _) <- createTeam OwnDomain 1
   (bob, bobTid, _) <- createTeam OtherDomain 1
@@ -1191,6 +1192,170 @@ testMigrationToPostgres = do
       when (convFinishedMatches /= [Text.pack "1.0"] || userFinishedMatches /= [Text.pack "1.0"]) $ do
         liftIO $ threadDelay 100_000
         waitForMigration domainM
+
+-- | The migration has these phases.
+-- 1. Write to cassandra (before any migration activity)
+-- 2. Galley is prepared for migrations (new things created in PG, old things are in Cassandra)
+-- 3. Backgound worker starts migration
+-- 4. Background worker finishes migration, galley is still configured to think migration is on going
+-- 5. Background worker is configured to not do anything, galley is configured to only use PG
+--
+-- The comments and variable names call these phases by number i.e. Phase1, Phase2, and so on.
+--
+-- The tests are from the perspective of mel, a user on the dynamic backend,
+-- called backendM (migraing backend). There are also users called mark and mia
+-- on this backend.
+--
+-- TODO:
+-- Also create convs and send messages in all phases
+testMigrationToPostgresJustProteus :: App ()
+testMigrationToPostgresJustProteus = do
+  resourcePool <- asks (.resourcePool)
+  (alice, aliceTid, _) <- createTeam OwnDomain 1
+  (bob, bobTid, _) <- createTeam OtherDomain 1
+
+  let phase1Overrides =
+        def
+          { galleyCfg = setField "postgresMigration.conversation" "cassandra",
+            backgroundWorkerCfg = setField "migrateConversations" False
+          }
+      phase2Overrides =
+        def
+          { galleyCfg = setField "postgresMigration.conversation" "migration-to-postgresql",
+            backgroundWorkerCfg = setField "migrateConversations" False
+          }
+      phase3Overrides =
+        def
+          { galleyCfg = setField "postgresMigration.conversation" "migration-to-postgresql",
+            backgroundWorkerCfg = setField "migrateConversations" True
+          }
+      phase4Overrides =
+        def
+          { galleyCfg = setField "postgresMigration.conversation" "migration-to-postgresql",
+            backgroundWorkerCfg = setField "migrateConversations" False
+          }
+      phase5Overrides =
+        def
+          { galleyCfg = setField "postgresMigration.conversation" "postgresql",
+            backgroundWorkerCfg = setField "migrateConversations" False
+          }
+      phaseOverrides =
+        IntMap.fromList
+          [ (1, phase1Overrides),
+            (2, phase2Overrides),
+            (3, phase3Overrides),
+            (4, phase4Overrides),
+            (5, phase5Overrides)
+          ]
+  runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
+    let domainM = migratingBackend.berDomain
+    (mel, _melC, mark, _markC, mia, _miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, otherMelConvs) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+      [mel, mark] <- createUsers [domainM, domainM]
+      (mia, miaTid, _) <- createTeam domainM 1
+      [melC, markC, miaC] <- traverse (createMLSClient def) [mel, mark, mia]
+      connectUsers [alice, bob, mel, mark, mia]
+      otherMelConvs <- getAllConvIds mel 100
+
+      domainAConvs <- createTestConvs alice aliceTid mel mark []
+      domainBConvs <- createTestConvs bob bobTid mel mark []
+      domainMConvs <- createTestConvs mia miaTid mel mark []
+      pure (mel, melC, mark, markC, mia, miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, otherMelConvs)
+
+    addUsersToFailureContext [("alice", alice), ("bob", bob), ("mel", mel), ("mark", mark), ("mia", mia)]
+      $ addJSONToFailureContext "convIds" (domainAConvs <> domainBConvs <> domainMConvs)
+      $ do
+        let runPhase :: (HasCallStack) => Int -> App ()
+            runPhase phase = do
+              putStrLn $ "----------> Start phase: " <> show phase
+              runCodensity (startDynamicBackend migratingBackend (phaseOverrides IntMap.! phase)) $ \_ -> do
+                runPhaseOperations phase alice aliceTid domainAConvs mel mark
+                runPhaseOperations phase bob bobTid domainBConvs mel mark
+                runPhaseOperations phase mia miaTid domainMConvs mel mark
+                actualConvs <- getAllConvIds mel n
+                let expectedConvsFrom dom =
+                      dom.unmodifiedConvs
+                        <> concat (IntMap.elems (IntMap.restrictKeys dom.kickMelConvs (IntSet.fromList [(phase + 1) .. 5])))
+                        <> concat (IntMap.elems dom.kickMarkConvs)
+                        <> concat (IntMap.elems (IntMap.restrictKeys dom.delConvs (IntSet.fromList [(phase + 1) .. 5])))
+                    expectedConvs =
+                      expectedConvsFrom domainAConvs
+                        <> expectedConvsFrom domainBConvs
+                        <> expectedConvsFrom domainMConvs
+
+                actualConvs `shouldMatchSet` ((convIdToQidObject <$> expectedConvs) <> otherMelConvs)
+
+                when (phase == 3) $ waitForMigration domainM
+        runPhase 1
+        runPhase 2
+        runPhase 3
+        runPhase 4
+        runPhase 5
+  where
+    n = 10
+    -- Creates n convs of these types:
+    -- 1. Convs that will exist unmodified during the test
+    -- 2. Convs that will kick mel in each phase
+    -- 3. Convs that will kick mark in each phase
+    -- 4. Convs that will be deleted in each phase
+    createTestConvs :: (HasCallStack) => Value -> String -> Value -> Value -> [Value] -> App TestConvList
+    createTestConvs creatorC tid mel mark others = do
+      unmodifiedConvs <- replicateConcurrently n $ do
+        createTestConv creatorC tid (mel : mark : others)
+
+      kickMelConvs <- forPhase $ createTestConv creatorC tid (mel : others)
+      kickMarkConvs <- forPhase $ createTestConv creatorC tid (mel : mark : others)
+      delConvs <- forPhase $ createTestConv creatorC tid (mel : mark : others)
+      pure $ TestConvList {..}
+
+    createTestConv :: (HasCallStack) => Value -> String -> [Value] -> App ConvId
+    createTestConv creator tid members = do
+      postConversation creator defProteus {team = Just tid, qualifiedUsers = members}
+        >>= getJSON 201
+        >>= objConvId
+
+    forPhase :: App a -> App (IntMap [a])
+    forPhase action =
+      fmap IntMap.fromList . forConcurrently [1 .. 5] $ \phase -> do
+        convs <- replicateM n $ action
+        pure (phase, convs)
+
+    retry500Once :: App Response -> App Response
+    retry500Once action = do
+      action `bindResponse` \resp -> do
+        if resp.status == 500
+          then action
+          else pure resp
+
+    runPhaseOperations :: (HasCallStack) => Int -> Value -> String -> TestConvList -> Value -> Value -> App ()
+    runPhaseOperations phase convAdmin tid TestConvList {..} mel mark = do
+      withWebSocket mel $ \melWS -> do
+        forConcurrently_ (IntMap.findWithDefault [] phase kickMelConvs) $ \convId -> do
+          retry500Once (removeMember convAdmin convId mel) >>= assertSuccess
+
+        void $ awaitNMatches n isConvLeaveNotif melWS
+
+        forConcurrently_ (IntMap.findWithDefault [] phase kickMarkConvs) $ \convId -> do
+          retry500Once (removeMember convAdmin convId mark) >>= assertSuccess
+
+        void $ awaitNMatches n isConvLeaveNotif melWS
+
+        forConcurrently_ (IntMap.findWithDefault [] phase delConvs) $ \convId -> do
+          retry500Once (deleteTeamConversation tid convId convAdmin) >>= assertSuccess
+
+        void $ awaitNMatches n isConvDeleteNotif melWS
+
+    waitForMigration :: (HasCallStack) => String -> App ()
+    waitForMigration domainM = do
+      metrics <-
+        getMetrics domainM BackgroundWorker `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          pure $ Text.decodeUtf8 resp.body
+      let (_, _, _, convFinishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "^wire_local_convs_migration_finished\\ ([0-9]+\\.[0-9]+)$")
+      let (_, _, _, userFinishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "^wire_user_remote_convs_migration_finished\\ ([0-9]+\\.[0-9]+)$")
+      when (convFinishedMatches /= [Text.pack "1.0"] || userFinishedMatches /= [Text.pack "1.0"]) $ do
+        liftIO $ threadDelay 100_000
+        waitForMigration domainM
+
 -- Test Helpers
 
 data TestConvList = TestConvList
