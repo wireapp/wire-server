@@ -30,6 +30,7 @@ testChannelSearch :: App ()
 testChannelSearch = do
   (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
   [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  dee <- randomUser OwnDomain def
   traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
   void
@@ -59,8 +60,11 @@ testChannelSearch = do
   void $ do
     convId <- objConvId unnamed
     createGroup def alice1 convId
-    createAddCommit alice1 convId [bob, charlie]
+    let update = ["access" .= (["link"] :: [String]), "access_role" .= ["team_member"]]
+    void
+      $ createAddCommit alice1 convId [bob, charlie]
       >>= sendAndConsumeCommitBundle
+    void $ updateAccess alice convId update >>= getJSON 200
 
   -- named channels
   named <- for [0 :: Int .. 20] $ \i ->
@@ -85,7 +89,7 @@ testChannelSearch = do
     results %. "0.id" `shouldMatch` (unnamed %. "qualified_id.id")
     results %. "0.member_count" `shouldMatchInt` 3
     results %. "0.admin_count" `shouldMatchInt` 1
-    results %. "0.access" `shouldMatch` ["invite"]
+    results %. "0.access" `shouldMatch` ["link"]
     lookupField results "0.name" `shouldMatch` (Nothing :: Maybe Value)
 
     results %. "1.id" `shouldMatch` (last named %. "qualified_id.id")
@@ -132,3 +136,13 @@ testChannelSearch = do
       length results `shouldMatchInt` 5
       for_ (zip results (drop 5 named)) $ \(actual, expected) ->
         actual %. "id" `shouldMatch` (expected %. "qualified_id.id")
+
+  -- public channels
+  bindResponse (searchChannels dee tid def {discoverable = True})
+    $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      results <- resp.json %. "page" & asList
+      length results `shouldMatchInt` 1
+      head results %. "id" `shouldMatch` (unnamed %. "qualified_id.id")
+  bindResponse (searchChannels dee tid def {discoverable = False}) $ \resp -> do
+    resp.status `shouldMatchInt` 403
