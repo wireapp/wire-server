@@ -1239,13 +1239,13 @@ data RawResult = RawResult
     adminCount :: Int64
   }
 
-rawResultToSearchResult :: RawResult -> Either Text ChannelSearchResult
+rawResultToSearchResult :: RawResult -> Either Text ConversationSearchResult
 rawResultToSearchResult r = do
   access <- traverse postgresUnmarshall (fold r.access)
   memberCount <- parseCount r.memberCount
   adminCount <- parseCount r.adminCount
   pure
-    ChannelSearchResult
+    ConversationSearchResult
       { convId = r.convId,
         name = r.name,
         access,
@@ -1259,7 +1259,7 @@ searchConversationsImpl ::
     Member (Embed IO) r
   ) =>
   ConversationSearch ->
-  Sem r [ChannelSearchResult]
+  Sem r [ConversationSearchResult]
 searchConversationsImpl req =
   runStatement () $
     Hasql.refineResult (traverse rawResultToSearchResult) $

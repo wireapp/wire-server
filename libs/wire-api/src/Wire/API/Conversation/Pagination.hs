@@ -27,7 +27,7 @@ import Wire.API.Conversation
 import Wire.API.Pagination
 import Wire.Arbitrary as Arbitrary
 
-newtype ConversationPage = ConversationPage {page :: [ChannelSearchResult]}
+newtype ConversationPage = ConversationPage {page :: [ConversationSearchResult]}
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationPage
 
@@ -39,7 +39,7 @@ instance ToSchema ConversationPage where
 instance Arbitrary ConversationPage where
   arbitrary = ConversationPage <$> arbitrary
 
-data ChannelSearchResult = ChannelSearchResult
+data ConversationSearchResult = ConversationSearchResult
   { convId :: ConvId,
     name :: Maybe Text,
     access :: [Access],
@@ -47,13 +47,13 @@ data ChannelSearchResult = ChannelSearchResult
     adminCount :: Int
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform ChannelSearchResult
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ChannelSearchResult
+  deriving (Arbitrary) via GenericUniform ConversationSearchResult
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationSearchResult
 
-instance ToSchema ChannelSearchResult where
+instance ToSchema ConversationSearchResult where
   schema =
-    object "ChannelSearchResult" $
-      ChannelSearchResult
+    object "ConversationSearchResult" $
+      ConversationSearchResult
         <$> (.convId) .= field "id" schema
         <*> (.name) .= maybe_ (optField "name" schema)
         <*> (.access) .= field "access" (array schema)

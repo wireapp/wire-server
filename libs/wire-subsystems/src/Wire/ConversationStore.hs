@@ -133,7 +133,7 @@ data ConversationStore m a where
   SetSubConversationCipherSuite :: ConvId -> SubConvId -> CipherSuiteTag -> ConversationStore m ()
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> ConversationStore m ()
-  SearchConversations :: ConversationSearch -> ConversationStore m [ChannelSearchResult]
+  SearchConversations :: ConversationSearch -> ConversationStore m [ConversationSearchResult]
 
 makeSem ''ConversationStore
 
