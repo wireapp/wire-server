@@ -40,7 +40,6 @@ module Galley.API.Update
     updateConversationAccessUnqualified,
     updateConversationAccess,
     updateChannelAddPermission,
-    searchChannels,
     deleteLocalConversation,
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
@@ -115,7 +114,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -127,7 +125,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Pagination
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -807,35 +804,6 @@ updateChannelAddPermission lusr zcon qcnv update =
     )
     (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
-
-searchChannels ::
-  ( Member ConversationStore r,
-    Member (ErrorS NotATeamMember) r,
-    Member TeamStore r
-  ) =>
-  Local UserId ->
-  TeamId ->
-  Maybe Text ->
-  Maybe SortOrder ->
-  Maybe PageSize ->
-  Maybe Text ->
-  Maybe ConvId ->
-  Bool ->
-  Sem r ConversationPage
-searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
-  unless discoverable $ do
-    void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
-  ConversationPage
-    <$> E.searchConversations
-      E.ConversationSearch
-        { team = tid,
-          searchString,
-          sortOrder = fromMaybe Desc sortOrder,
-          pageSize = fromMaybe def pageSize,
-          lastName,
-          lastId,
-          discoverable
-        }
 
 joinConversationByReusableCode ::
   forall r.

@@ -47,6 +47,7 @@ module Galley.API.Query
     getMLSOne2OneConversationInternal,
     getMLSOne2OneConversation,
     isMLSOne2OneEstablished,
+    searchChannels,
   )
 where
 
@@ -55,6 +56,7 @@ import Control.Monad.Extra
 import Data.ByteString.Conversion
 import Data.Code
 import Data.CommaSeparatedList
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Map qualified as Map
@@ -89,6 +91,7 @@ import System.Logger.Class qualified as Logger
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Role qualified as Public
@@ -100,6 +103,7 @@ import Wire.API.Federation.Client (FederatorClient, getNegotiatedVersion)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Federation
 import Wire.API.MLS.Keys
+import Wire.API.Pagination
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
@@ -984,6 +988,35 @@ isRemoteMLSOne2OneEstablished lself qother rconv = do
   where
     ep :: ConversationMLSData -> Word64
     ep = epochNumber . cnvmlsEpoch
+
+searchChannels ::
+  ( Member ConversationStore r,
+    Member (ErrorS NotATeamMember) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Maybe Text ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe Text ->
+  Maybe ConvId ->
+  Bool ->
+  Sem r ConversationPage
+searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
+  unless discoverable $ do
+    void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
+  ConversationPage
+    <$> E.searchConversations
+      E.ConversationSearch
+        { team = tid,
+          searchString,
+          sortOrder = fromMaybe Desc sortOrder,
+          pageSize = fromMaybe def pageSize,
+          lastName,
+          lastId,
+          discoverable
+        }
 
 -------------------------------------------------------------------------------
 -- Helpers

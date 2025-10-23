@@ -17,8 +17,8 @@
 
 module Galley.API.Public.Team where
 
+import Galley.API.Query
 import Galley.API.Teams
-import Galley.API.Update
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Team
