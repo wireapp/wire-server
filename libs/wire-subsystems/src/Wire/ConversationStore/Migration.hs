@@ -31,6 +31,7 @@ import Polysemy.Input
 import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
+import Prometheus qualified
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
@@ -59,16 +60,18 @@ import Wire.Util
 
 type EffectStack = [State Int, Input ClientState, Input Hasql.Pool, Async, Race, TinyLog, Embed IO, Final IO]
 
-migrateConvsLoop :: ClientState -> Hasql.Pool -> Log.Logger -> IO ()
-migrateConvsLoop cassClient pgPool logger =
-  migrationLoop cassClient pgPool logger "conversations" migrateAllConversations
+migrateConvsLoop :: ClientState -> Hasql.Pool -> Log.Logger -> Prometheus.Counter -> Prometheus.Counter -> IO ()
+migrateConvsLoop cassClient pgPool logger migCounter migFinished =
+  migrationLoop cassClient pgPool logger "conversations" migFinished $ migrateAllConversations migCounter
 
-migrateUsersLoop :: ClientState -> Hasql.Pool -> Log.Logger -> IO ()
-migrateUsersLoop cassClient pgPool logger =
-  migrationLoop cassClient pgPool logger "users" migrateAllUsers
+migrateUsersLoop :: ClientState -> Hasql.Pool -> Log.Logger -> Prometheus.Counter -> Prometheus.Counter -> IO ()
+migrateUsersLoop cassClient pgPool logger migCounter migFinished =
+  migrationLoop cassClient pgPool logger "users" migFinished $ migrateAllUsers migCounter
 
-migrationLoop :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> ConduitT () Void (Sem EffectStack) () -> IO ()
-migrationLoop cassClient pgPool logger name migration = go 0
+migrationLoop :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Prometheus.Counter -> ConduitT () Void (Sem EffectStack) () -> IO ()
+migrationLoop cassClient pgPool logger name migFinished migration = do
+  go 0
+  Prometheus.incCounter migFinished
   where
     go :: Int -> IO ()
     go nIter = do
@@ -116,12 +119,13 @@ migrateAllConversations ::
     Member Race r,
     Member (State Int) r
   ) =>
+  Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
-migrateAllConversations =
+migrateAllConversations migCounter = do
+  lift $ info $ Log.msg (Log.val "migrateAllConversations")
   withCount (paginateSem select (paramsP LocalQuorum () pageSize) x5)
     .| logRetrievedPage
-    .| C.mapM_ (mapM_ (handleErrors migrateConversation "conv"))
-    .| C.sinkNull
+    .| C.mapM_ (mapM_ (handleErrors (migrateConversation migCounter) "conv"))
   where
     select :: PrepQuery R () (Identity ConvId)
     select = "select conv from conversation"
@@ -135,13 +139,13 @@ migrateAllUsers ::
     Member Race r,
     Member (State Int) r
   ) =>
+  Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
-migrateAllUsers =
-  withCount
-    (paginateSem select (paramsP LocalQuorum () pageSize) x5)
+migrateAllUsers migCounter = do
+  lift $ info $ Log.msg (Log.val "migrateAllUsers")
+  withCount (paginateSem select (paramsP LocalQuorum () pageSize) x5)
     .| logRetrievedPage
-    .| C.mapM_ (mapM_ (handleErrors migrateUser "user"))
-    .| C.sinkNull
+    .| C.mapM_ (mapM_ (handleErrors (migrateUser migCounter) "user"))
   where
     select :: PrepQuery R () (Identity UserId)
     select = "select distinct user from user_remote_conv"
@@ -185,15 +189,17 @@ migrateConversation ::
     Member (Error MigrationLockError) r,
     Member Race r
   ) =>
+  Prometheus.Counter ->
   ConvId ->
   Sem r ()
-migrateConversation cid = do
+migrateConversation migCounter cid = do
   void . withMigrationLocks LockExclusive (Seconds 10) [Left cid] $ do
     mConvData <- withCassandra $ getAllConvData cid
     for_ mConvData $ \convData -> do
       saveConvToPostgres convData
       withCassandra $ deleteConv convData
     markDeletionComplete DeleteConv cid
+    liftIO $ Prometheus.incCounter migCounter
 
 deleteConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => AllConvData -> Sem r ()
 deleteConvFromCassandra allConvData = withCassandra $ do
@@ -250,8 +256,8 @@ saveConvToPostgres allConvData = do
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
-                              group_id, epoch, epoch_timestamp, cipher_suite, group_conv_type,
-                              channel_add_permission, cells_state, parent_conv)
+                              group_id, epoch, epoch_timestamp, cipher_suite, public_group_state,
+                              group_conv_type, channel_add_permission, cells_state, parent_conv)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
@@ -386,13 +392,14 @@ saveConvToPostgres allConvData = do
 
 -- * Users
 
-migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => UserId -> Sem r ()
-migrateUser uid = do
+migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => Prometheus.Counter -> UserId -> Sem r ()
+migrateUser migCounter uid = do
   withMigrationLocks LockExclusive (Seconds 10) [Right uid] $ do
     statusses <- getRemoteMemberStatusFromCassandra uid
     saveRemoteMemberStatusToPostgres uid statusses
     deleteRemoteMemberStatusesFromCassandra uid
   markDeletionComplete DeleteUser uid
+  liftIO $ Prometheus.incCounter migCounter
 
 getRemoteMemberStatusFromCassandra :: forall r. (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
 getRemoteMemberStatusFromCassandra uid = withCassandra $ do
@@ -450,10 +457,12 @@ unzip9 ((y1, y2, y3, y4, y5, y6, y7, y8, y9) : ys) =
   let (l1, l2, l3, l4, l5, l6, l7, l8, l9) = unzip9 ys
    in (y1 : l1, y2 : l2, y3 : l3, y4 : l4, y5 : l5, y6 : l6, y7 : l7, y8 : l8, y9 : l9)
 
-paginateSem :: forall a b q r. (Tuple a, Tuple b, RunQ q, Member (Input ClientState) r, Member (Embed IO) r) => q R a b -> QueryParams a -> RetrySettings -> ConduitT () [b] (Sem r) ()
-paginateSem q p r = go =<< lift getFirstPage
+paginateSem :: forall a b q r. (Tuple a, Tuple b, RunQ q, Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => q R a b -> QueryParams a -> RetrySettings -> ConduitT () [b] (Sem r) ()
+paginateSem q p r = do
+  go =<< lift getFirstPage
   where
     go page = do
+      lift $ info $ Log.msg (Log.val "Got a page")
       unless (null (result page)) $
         yield (result page)
       when (hasMore page) $
