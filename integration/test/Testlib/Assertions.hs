@@ -16,6 +16,7 @@ import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import Data.Aeson.Lens (_Array, _Object)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as BS
 import Data.Char
@@ -152,15 +153,15 @@ shouldMatchWithRules rules customRules a b = do
       _ -> Nothing
 
 shouldMatchBase64 ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
+  (MakesValue a, HasCallStack) =>
   -- | The actual value, in base64
   a ->
-  -- | The expected value, in plain text
-  b ->
+  -- | The expected value
+  ByteString ->
   App ()
 a `shouldMatchBase64` b = do
-  xa <- Text.decodeUtf8With Text.lenientDecode . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
-  xa `shouldMatch` b
+  let xb = Text.decodeUtf8 (B64.encode b)
+  a `shouldMatch` xb
 
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>

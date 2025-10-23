@@ -174,6 +174,9 @@ remotePostCommitBundle rsender qcs bundle = do
       e@(MLSMessageResponseUnreachableBackends _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e
+      e@(MLSMessageResponseGroupInfoDiagnostics _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
       e@(MLSMessageResponseNonFederatingBackends _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e

@@ -80,6 +80,7 @@ type MLSMessagingAPI =
         :> CanThrow MLSProposalFailure
         :> CanThrow NonFederatingBackends
         :> CanThrow UnreachableBackends
+        :> CanThrow GroupInfoDiagnostics
         :> CanThrow 'MLSInvalidLeafNodeSignature
         :> "messages"
         :> ZLocalUser
@@ -114,7 +115,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSLegalholdIncompatible
                :> CanThrow MLSProposalFailure
                :> CanThrow MLSIdentityMismatch
-               :> CanThrow MLSGroupInfoMismatch
+               :> CanThrow GroupInfoDiagnostics
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> CanThrow GroupIdVersionNotSupported

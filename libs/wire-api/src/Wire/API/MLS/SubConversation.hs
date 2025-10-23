@@ -133,6 +133,23 @@ type ConvOrSubConvId = ConvOrSubChoice ConvId SubConvId
 
 makePrisms ''ConvOrSubChoice
 
+convOrSubToPair :: ConvOrSubChoice c s -> (c, Maybe s)
+convOrSubToPair (Conv c) = (c, Nothing)
+convOrSubToPair (SubConv c s) = (c, Just s)
+
+convOrSubFromPair :: (c, Maybe s) -> ConvOrSubChoice c s
+convOrSubFromPair (c, Nothing) = Conv c
+convOrSubFromPair (c, Just s) = SubConv c s
+
+convOrSubConvIdObjectSchema :: ObjectSchema SwaggerDoc ConvOrSubConvId
+convOrSubConvIdObjectSchema =
+  convOrSubFromPair
+    <$> convOrSubToPair
+      .= ( (,)
+             <$> fst .= field "conv_id" schema
+             <*> snd .= maybe_ (optField "subconv_id" schema)
+         )
+
 instance ToSchema ConvOrSubConvId where
   schema =
     object "ConvOrSubConvId" $

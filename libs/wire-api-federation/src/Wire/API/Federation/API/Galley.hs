@@ -526,6 +526,7 @@ data MLSMessageResponse
     -- that an application message could not be sent to.
     MLSMessageResponseUpdates [ConversationUpdate]
   | MLSMessageResponseNonFederatingBackends NonFederatingBackends
+  | MLSMessageResponseGroupInfoDiagnostics GroupInfoDiagnostics
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

@@ -44,7 +44,8 @@ testMlsPatch = do
                   "defaultProtocol" .= "mls",
                   "supportedProtocols" .= ["proteus", "mls"],
                   "allowedCipherSuites" .= ([1] :: [Int]),
-                  "defaultCipherSuite" .= toJSON (1 :: Int)
+                  "defaultCipherSuite" .= toJSON (1 :: Int),
+                  "groupInfoDiagnostics" .= True
                 ]
           ]
       checkPatch domain "mls"
@@ -55,7 +56,8 @@ testMlsPatch = do
                   "defaultProtocol" .= "mls",
                   "supportedProtocols" .= ["proteus", "mls"],
                   "allowedCipherSuites" .= ([1] :: [Int]),
-                  "defaultCipherSuite" .= toJSON (1 :: Int)
+                  "defaultCipherSuite" .= toJSON (1 :: Int),
+                  "groupInfoDiagnostics" .= True
                 ]
           ]
 
@@ -69,7 +71,8 @@ mls1 uid =
             "defaultProtocol" .= "mls",
             "supportedProtocols" .= ["proteus", "mls"],
             "allowedCipherSuites" .= ([1] :: [Int]),
-            "defaultCipherSuite" .= toJSON (1 :: Int)
+            "defaultCipherSuite" .= toJSON (1 :: Int),
+            "groupInfoDiagnostics" .= True
           ]
     ]
 
@@ -83,7 +86,8 @@ mls2 =
             "defaultProtocol" .= "mls",
             "supportedProtocols" .= ["mls"],
             "allowedCipherSuites" .= ([1] :: [Int]),
-            "defaultCipherSuite" .= toJSON (1 :: Int)
+            "defaultCipherSuite" .= toJSON (1 :: Int),
+            "groupInfoDiagnostics" .= True
           ]
     ]
 
@@ -97,6 +101,7 @@ mlsInvalidConfig =
             "defaultProtocol" .= "mls",
             "supportedProtocols" .= ["proteus"],
             "allowedCipherSuites" .= ([1] :: [Int]),
-            "defaultCipherSuite" .= toJSON (1 :: Int)
+            "defaultCipherSuite" .= toJSON (1 :: Int),
+            "groupInfoDiagnostics" .= True
           ]
     ]

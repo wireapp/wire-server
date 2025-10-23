@@ -1017,7 +1017,8 @@ data MLSConfigB t f = MLSConfig
     mlsDefaultProtocol :: Wear t f ProtocolTag,
     mlsAllowedCipherSuites :: Wear t f [CipherSuiteTag],
     mlsDefaultCipherSuite :: Wear t f CipherSuiteTag,
-    mlsSupportedProtocols :: Wear t f [ProtocolTag]
+    mlsSupportedProtocols :: Wear t f [ProtocolTag],
+    mlsGroupInfoDiagnostics :: Any
   }
   deriving (Generic, BareB)
 
@@ -1044,11 +1045,13 @@ deriving via (BarbieFeature MLSConfigB) instance (ToSchema MLSConfig)
 instance Default MLSConfig where
   def =
     MLSConfig
-      []
-      ProtocolProteusTag
-      [MLS_128_DHKEMP256_AES128GCM_SHA256_P256]
-      MLS_128_DHKEMP256_AES128GCM_SHA256_P256
-      [ProtocolProteusTag, ProtocolMLSTag]
+      { mlsProtocolToggleUsers = [],
+        mlsDefaultProtocol = ProtocolProteusTag,
+        mlsAllowedCipherSuites = [MLS_128_DHKEMP256_AES128GCM_SHA256_P256],
+        mlsDefaultCipherSuite = MLS_128_DHKEMP256_AES128GCM_SHA256_P256,
+        mlsSupportedProtocols = [ProtocolProteusTag, ProtocolMLSTag],
+        mlsGroupInfoDiagnostics = Any False
+      }
 
 instance (FieldF f) => ToSchema (MLSConfigB Covered f) where
   schema =
@@ -1064,6 +1067,8 @@ instance (FieldF f) => ToSchema (MLSConfigB Covered f) where
         <*> mlsAllowedCipherSuites .= fieldF "allowedCipherSuites" (array schema)
         <*> mlsDefaultCipherSuite .= fieldF "defaultCipherSuite" schema
         <*> mlsSupportedProtocols .= fieldF "supportedProtocols" (array schema)
+        <*> (getAny . mlsGroupInfoDiagnostics)
+          .= fmap (Any . fromMaybe False) (optField "groupInfoDiagnostics" schema)
 
 instance Default (LockableFeature MLSConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}

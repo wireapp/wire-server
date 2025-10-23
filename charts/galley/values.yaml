@@ -156,6 +156,7 @@ config:
             allowedCipherSuites: [2]
             defaultCipherSuite: 2
             supportedProtocols: [proteus, mls] # must contain defaultProtocol
+            groupInfoDiagnostics: false
           lockStatus: unlocked
       searchVisibilityInbound:
         defaults:

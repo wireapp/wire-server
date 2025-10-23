@@ -80,6 +80,9 @@ imRemoveIndices keys =
     . flip IntMap.withoutKeys (IntSet.fromList (map fromIntegral keys))
     . unIndexMap
 
+imAssocs :: IndexMap -> [(Int, ClientIdentity)]
+imAssocs = IntMap.assocs . unIndexMap
+
 -- | A two-level map of users to clients to leaf indices.
 --
 -- This is used to keep track of the state of an MLS group for e.g. propagating
