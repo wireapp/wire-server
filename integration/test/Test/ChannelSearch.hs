@@ -138,11 +138,13 @@ testChannelSearch = do
         actual %. "id" `shouldMatch` (expected %. "qualified_id.id")
 
   -- public channels
-  bindResponse (searchChannels dee tid def {discoverable = True})
+  bindResponse (searchChannels bob tid def {discoverable = True})
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       results <- resp.json %. "page" & asList
       length results `shouldMatchInt` 1
       head results %. "id" `shouldMatch` (unnamed %. "qualified_id.id")
-  bindResponse (searchChannels dee tid def {discoverable = False}) $ \resp -> do
+  bindResponse (searchChannels bob tid def) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+  bindResponse (searchChannels dee tid def {discoverable = True}) $ \resp -> do
     resp.status `shouldMatchInt` 403

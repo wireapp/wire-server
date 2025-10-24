@@ -65,6 +65,7 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Tagged
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
@@ -107,7 +108,7 @@ import Wire.API.Pagination
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (TeamMember, isAdminOrOwner, permissions)
+import Wire.API.Team.Member (HiddenPerm (..), TeamMember, isAdminOrOwner, permissions)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
@@ -992,6 +993,7 @@ isRemoteMLSOne2OneEstablished lself qother rconv = do
 searchChannels ::
   ( Member ConversationStore r,
     Member (ErrorS NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -1004,8 +1006,12 @@ searchChannels ::
   Bool ->
   Sem r ConversationPage
 searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
-  unless discoverable $ do
-    void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
+  r <- runError @(Tagged OperationDenied ()) $ do
+    mem <- E.getTeamMember tid (tUnqualified lusr)
+    void $ permissionCheck SearchChannels mem
+  case r of
+    Left e | not discoverable -> throw e
+    _ -> pure ()
   ConversationPage
     <$> E.searchConversations
       E.ConversationSearch
