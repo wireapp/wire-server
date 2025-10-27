@@ -492,6 +492,14 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
           then pure pws -- if user is admin, return all team members
           else do
             -- if user isn't an admin, filter by whether team member is searchable
+            --
+            -- FUTUREWORK: Remove this via-Brig filtering when user
+            -- and team_member tables are migrated to Postgres. We
+            -- currently can't filter in the database because
+            -- Cassandra doesn't support joins. The SQL could
+            -- otherwise be (pseudocode): `select team_member.* from
+            -- team_member, user where team_member.user = user.id
+            -- where searchable`.
             let pwsResults0 = pwsResults pws
                 uids = map (^. userId) pwsResults0
             users <- E.getUsers uids
