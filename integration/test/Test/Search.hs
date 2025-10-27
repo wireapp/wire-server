@@ -438,34 +438,28 @@ testUserSearchable = do
     docs <- resp.json %. "members" >>= asList
     foundUids <- mapM (\m -> m %. "user" & asString) docs
     searchableUsers'Uids <- mapM objId [owner, admin, u2]
-    assertBool "/teams/:tid/members returns only searchable users to regular team member"
-      $ Set.fromList foundUids
-      == Set.fromList searchableUsers'Uids
+    foundUids `shouldMatchSet` searchableUsers'Uids
 
   -- /teams/:tid/members: admin gets all members, both searchable and non-searchable
   getTeamMembers admin tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "members" >>= asList
     foundUids <- mapM (\m -> m %. "user" & asString) docs
-    assertBool "/teams/:tid/members returns all users in team"
-      $ Set.fromList foundUids
-      == everyone'sUidSet
+    shouldMatchSet foundUids everyone'sUidSet
 
   -- /teams/:tid/search also returns all users from team
   BrigP.searchTeam admin [] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
-    assertBool "/teams/:tid/search returns all users in team" $ Set.fromList foundUids == everyone'sUidSet
+    foundUids `shouldMatchSet` everyone'sUidSet
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
   BrigP.searchTeam admin [("searchable", "false")] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
-    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members"
-      $ Set.fromList foundUids
-      == Set.fromList [u1id, u3id]
+    foundUids `shouldMatchSet` [u1id, u3id]
 
   -- /teams/:tid/search?searchable=true gets only searchable users
   BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
@@ -474,9 +468,7 @@ testUserSearchable = do
     foundUids <- mapM (\m -> m %. "id" & asString) docs
     ownerUid <- owner %. "id" & asString
     adminUid <- admin %. "id" & asString
-    assertBool "/teams/:tid/search?searchable=true gets only searchable users"
-      $ Set.fromList foundUids
-      == Set.fromList [ownerUid, adminUid, u2id]
+    foundUids `shouldMatchSet` [ownerUid, adminUid, u2id]
   where
     -- Convenience wrapper around search contacts which applies `f` directly to document list.
     withFoundDocs ::
