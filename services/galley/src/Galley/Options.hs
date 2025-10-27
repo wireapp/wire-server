@@ -77,8 +77,8 @@ import Data.Range
 import Data.Text qualified as Text
 import Galley.Keys
 import Galley.Types.Teams
-import Imports
 import Hasql.Pool.Extended
+import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
