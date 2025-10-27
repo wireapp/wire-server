@@ -470,7 +470,9 @@ getTeamConversationRoles zusr tid = do
 
 getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
     Member TeamStore r,
+    Member BrigAPIAccess r,
     Member (TeamMemberStore CassandraPaging) r
   ) =>
   Local UserId ->
@@ -484,7 +486,18 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   let mState = C.PagingState . LBS.fromStrict <$> (mbPagingState >>= mtpsState)
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
   if member `hasPermission` SearchContacts
-    then E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
+    then do
+      pws :: PageWithState TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
+      pws' <-
+        if member `hasPermission` SetMemberSearchable
+          then pure pws -- if user is admin, return all team members
+          else do
+            -- if user isn't an admin, filter by whether team member is searchable
+            pwsResults' <- flip filterM (pwsResults pws) $ \tm -> do
+              u <- noteS @'TeamMemberNotFound =<< E.getUser (tm ^. userId) -- fetch user from Brig
+              pure $ U.userSearchable u
+            pure $ pws {pwsResults = pwsResults'}
+      pure $ toTeamMembersPage member pws'
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
       -- we only return the person who invited them and the self user.
