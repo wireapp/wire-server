@@ -493,10 +493,10 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
           else do
             -- if user isn't an admin, filter by whether team member is searchable
             let pwsResults0 = pwsResults pws
-                uids = map (^.userId) pwsResults0
+                uids = map (^. userId) pwsResults0
             users <- E.getUsers uids
             let searchableUsers'Uids = map (qUnqualified . U.userQualifiedId) $ filter U.userSearchable users
-                pwsResults1 = filter (\tm -> (tm^.userId) `elem` searchableUsers'Uids) pwsResults0
+                pwsResults1 = filter (\tm -> (tm ^. userId) `elem` searchableUsers'Uids) pwsResults0
             pure $ pws {pwsResults = pwsResults1}
       pure $ toTeamMembersPage member pws'
     else do
