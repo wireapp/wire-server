@@ -470,7 +470,6 @@ getTeamConversationRoles zusr tid = do
 
 getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamMemberNotFound) r,
     Member TeamStore r,
     Member BrigAPIAccess r,
     Member (TeamMemberStore CassandraPaging) r
@@ -493,10 +492,12 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
           then pure pws -- if user is admin, return all team members
           else do
             -- if user isn't an admin, filter by whether team member is searchable
-            pwsResults' <- flip filterM (pwsResults pws) $ \tm -> do
-              u <- noteS @'TeamMemberNotFound =<< E.getUser (tm ^. userId) -- fetch user from Brig
-              pure $ U.userSearchable u
-            pure $ pws {pwsResults = pwsResults'}
+            let pwsResults0 = pwsResults pws
+                uids = map (^.userId) pwsResults0
+            users <- E.getUsers uids
+            let searchableUsers'Uids = map (qUnqualified . U.userQualifiedId) $ filter U.userSearchable users
+                pwsResults1 = filter (\tm -> (tm^.userId) `elem` searchableUsers'Uids) pwsResults0
+            pure $ pws {pwsResults = pwsResults1}
       pure $ toTeamMembersPage member pws'
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
