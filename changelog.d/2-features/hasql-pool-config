@@ -1,0 +1,9 @@
+Allow configuring postgresql pool paramters. In brig and galley helm charts, the paramters can be configured like this:
+
+```yaml
+postgresqlPool:
+  size: 100
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+```
