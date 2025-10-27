@@ -432,8 +432,18 @@ testUserSearchable = do
     foundUids <- for docs objId
     assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
 
-  -- /teams/:tid/members gets all members, both searchable and non-searchable
+  -- /teams/:tid/members, regular user gets only searchable members
   getTeamMembers u1 tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "members" >>= asList
+    foundUids <- mapM (\m -> m %. "user" & asString) docs
+    searchableUsers'Uids <- mapM objId [owner, admin, u2]
+    assertBool "/teams/:tid/members returns only searchable users to regular team member"
+      $ Set.fromList foundUids
+      == Set.fromList searchableUsers'Uids
+
+  -- /teams/:tid/members: admin gets all members, both searchable and non-searchable
+  getTeamMembers admin tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "members" >>= asList
     foundUids <- mapM (\m -> m %. "user" & asString) docs
