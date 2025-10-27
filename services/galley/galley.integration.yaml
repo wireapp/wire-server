@@ -16,6 +16,12 @@ postgresql:
   dbname: backendA
   password: posty-the-gres
 
+postgresqlPool:
+  size: 20
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
 brig:
   host: 0.0.0.0
   port: 8082

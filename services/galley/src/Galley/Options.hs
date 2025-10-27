@@ -41,8 +41,9 @@ module Galley.Options
     Opts (..),
     galley,
     cassandra,
-    postgresqlPassword,
     postgresql,
+    postgresqlPassword,
+    postgresqlPool,
     brig,
     gundeck,
     spar,
@@ -77,6 +78,7 @@ import Data.Text qualified as Text
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
+import Hasql.Pool.Extended
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
@@ -211,6 +213,7 @@ data Opts = Opts
     -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     _postgresql :: !(Map Text Text),
     _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _postgresqlPool :: !PoolConfig,
     -- | Brig endpoint
     _brig :: !Endpoint,
     -- | Gundeck endpoint

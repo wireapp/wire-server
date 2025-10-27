@@ -96,6 +96,12 @@ config:
     port: "5432"
     user: wire-server
     dbname: wire-server
+  postgresqlPool:
+    size: 100
+    acquisitionTimeout: 10s
+    agingTimeout: 1d
+    idlenessTimeout: 10m
+
   emailSMS:
     general:
       templateBranding:
