@@ -1264,23 +1264,8 @@ searchConversationsImpl req =
   runStatement () $
     Hasql.refineResult (traverse rawResultToSearchResult) $
       buildStatement
-        ( literal "with conv as (select id, name, access from conversation"
-            <> where_
-              ( [ clause1 "team" "=" req.team,
-                  clause1 "group_conv_type" "=" (postgresMarshall @_ @Int32 Channel)
-                ]
-                  <> [ clause
-                         (sortOrderOperator req.sortOrder)
-                         (mkClause "name" lastName <> mkClause "id" lastId)
-                       | lastName <- toList req.lastName,
-                         lastId <- toList req.lastId
-                     ]
-                  <> toList (like "name" <$> req.searchString)
-                  <> discoverableClause
-              )
-            <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
-            <> limit (pageSizeToInt32 req.pageSize)
-            <> literal ") select conv.id, conv.name, conv.access,"
+        ( cte
+            <> literal "select conv.id, conv.name, conv.access,"
             <> literal "count(m.\"user\") as member_count,"
             <> literal "count(*) filter (where m.conversation_role = 'wire_admin') as admin_count"
             <> literal "from conv left join conversation_member m on m.conv = conv.id"
@@ -1300,6 +1285,25 @@ searchConversationsImpl req =
             )
         )
   where
+    cte =
+      literal "with conv as (select id, name, access from conversation"
+        <> where_
+          ( [ clause1 "team" "=" req.team,
+              clause1 "group_conv_type" "=" (postgresMarshall @_ @Int32 Channel)
+            ]
+              <> [ clause
+                     (sortOrderOperator req.sortOrder)
+                     (mkClause "name" lastName <> mkClause "id" lastId)
+                   | lastName <- toList req.lastName,
+                     lastId <- toList req.lastId
+                 ]
+              <> toList (like "name" <$> req.searchString)
+              <> discoverableClause
+          )
+        <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
+        <> limit (pageSizeToInt32 req.pageSize)
+        <> literal ")"
+
     discoverableClause
       | req.discoverable =
           [ paramLiteral (valueEncoder @Int32 (postgresMarshall LinkAccess)) \i ->
