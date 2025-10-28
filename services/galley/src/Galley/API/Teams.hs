@@ -502,10 +502,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
 
       let results = flip mapMaybe pwsResults0 $ \tm ->
             let uid' = tm ^. userId
-                mapSearchable user =
-                  if U.userSearchable user
-                    then Just tm
-                    else Nothing
+                mapSearchable user = Just tm <* guard (U.userSearchable user
              in maybe (Just $ Left uid') (fmap Right . mapSearchable) $ HM.lookup uid' users
       let notFoundUserUids = lefts results
       unless (null notFoundUserUids) $
