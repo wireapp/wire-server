@@ -42,6 +42,7 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time
+import Data.UUID.Util qualified as UUID
 import Imports
 import Network.HTTP.Types.Status (status500)
 import Network.Wai.Utilities.Error qualified as WaiError
@@ -1107,7 +1108,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     cassConvIds <- embedClient client $ getLocalConvIds uid start maxIds
     pgConvIds <- interpretConversationStoreToPostgres $ ConvStore.getLocalConversationIds uid start maxIds
 
-    let allResults = List.nubOrd (pgConvIds.resultSetResult <> cassConvIds.resultSetResult)
+    let allResults = List.nubOrdBy (\id1 id2 -> (UUID.version $ toUUID id1, id1) `compare` (UUID.version $ toUUID id2, id2)) (pgConvIds.resultSetResult <> cassConvIds.resultSetResult)
         maxIdsInt = (fromIntegral $ fromRange maxIds)
     pure $
       ResultSet

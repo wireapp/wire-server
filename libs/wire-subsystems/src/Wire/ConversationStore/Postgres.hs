@@ -286,7 +286,7 @@ getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
         [vectorStatement|SELECT (conv :: uuid)
                          FROM conversation_member
                          WHERE "user" = ($1 :: uuid)
-                         ORDER BY conv
+                         ORDER BY uuid_extract_version(conv), conv
                          LIMIT ($2 :: integer)
                         |]
 
@@ -297,7 +297,7 @@ getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
                          FROM conversation_member
                          WHERE "user" = ($1 :: uuid)
                          AND conv > ($2 :: uuid)
-                         ORDER BY conv
+                         ORDER BY uuid_extract_version(conv), conv
                          LIMIT ($3 :: integer)
                         |]
 
@@ -313,7 +313,7 @@ getRemoteConversationIdsImpl usr start (fromRange -> maxIds) = do
         [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
                          FROM remote_conversation_local_member
                          WHERE "user" = ($1 :: uuid)
-                         ORDER BY (conv_remote_domain, conv_remote_id)
+                         ORDER BY conv_remote_domain, uuid_extract_version(conv_remote_id), conv_remote_id
                          LIMIT ($2 :: integer)
                         |]
 
@@ -323,8 +323,8 @@ getRemoteConversationIdsImpl usr start (fromRange -> maxIds) = do
         [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
                          FROM remote_conversation_local_member
                          WHERE "user" = ($1 :: uuid)
-                         AND (conv_remote_domain, conv_remote_id) > ($2 :: text, $3 ::uuid)
-                         ORDER BY (conv_remote_domain, conv_remote_id)
+                         AND (conv_remote_domain, uuid_extract_version(conv_remote_id), conv_remote_id) > ($2 :: text, uuid_extract_version($3 :: uuid), $3 :: uuid)
+                         ORDER BY conv_remote_domain, uuid_extract_version(conv_remote_id), conv_remote_id
                          LIMIT ($4 :: integer)
                         |]
 
