@@ -1268,6 +1268,7 @@ testMigrationToPostgresJustProteus = do
       domainMConvs <- createTestConvs mia miaTid mel mark []
       pure (mel, melC, mark, markC, mia, miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, otherMelConvs)
 
+    newConvsRef <- newIORef []
     addUsersToFailureContext [("alice", alice), ("bob", bob), ("mel", mel), ("mark", mark), ("mia", mia)]
       $ addJSONToFailureContext "convIds" (domainAConvs <> domainBConvs <> domainMConvs)
       $ addJSONToFailureContext "otherMelConvs" otherMelConvs
@@ -1276,9 +1277,12 @@ testMigrationToPostgresJustProteus = do
             runPhase phase = do
               putStrLn $ "----------> Start phase: " <> show phase
               runCodensity (startDynamicBackend migratingBackend (phaseOverrides IntMap.! phase)) $ \_ -> do
-                runPhaseOperations phase alice aliceTid domainAConvs mel mark
-                runPhaseOperations phase bob bobTid domainBConvs mel mark
-                runPhaseOperations phase mia miaTid domainMConvs mel mark
+                newDomainAConvs <- runPhaseOperations phase alice aliceTid domainAConvs mel mark
+                newDomainBConvs <- runPhaseOperations phase bob bobTid domainBConvs mel mark
+                newDomainCConvs <- runPhaseOperations phase mia miaTid domainMConvs mel mark
+                let newConvs = newDomainAConvs <> newDomainBConvs <> newDomainCConvs
+                modifyIORef newConvsRef (newConvs <>)
+                allNewConvs <- readIORef newConvsRef
                 actualConvs <- getAllConvIds mel n
                 let expectedConvsFrom dom =
                       dom.unmodifiedConvs
@@ -1290,6 +1294,7 @@ testMigrationToPostgresJustProteus = do
                       expectedConvsFrom domainAConvs
                         <> expectedConvsFrom domainBConvs
                         <> expectedConvsFrom domainMConvs
+                        <> allNewConvs
 
                 actualConvs `shouldMatchSet` ((convIdToQidObject <$> expectedConvs) <> otherMelConvs)
 
@@ -1306,6 +1311,7 @@ testMigrationToPostgresJustProteus = do
     -- 2. Convs that will kick mel in each phase
     -- 3. Convs that will kick mark in each phase
     -- 4. Convs that will be deleted in each phase
+    -- 5. Convs that will add mel in each phase
     createTestConvs :: (HasCallStack) => Value -> String -> Value -> Value -> [Value] -> App TestConvList
     createTestConvs creatorC tid mel mark others = do
       unmodifiedConvs <- replicateConcurrently n $ do
@@ -1336,7 +1342,7 @@ testMigrationToPostgresJustProteus = do
           then action
           else pure resp
 
-    runPhaseOperations :: (HasCallStack) => Int -> Value -> String -> TestConvList -> Value -> Value -> App ()
+    runPhaseOperations :: (HasCallStack) => Int -> Value -> String -> TestConvList -> Value -> Value -> App [ConvId]
     runPhaseOperations phase convAdmin tid TestConvList {..} mel mark = do
       withWebSocket mel $ \melWS -> do
         forConcurrently_ (IntMap.findWithDefault [] phase kickMelConvs) $ \convId -> do
@@ -1356,6 +1362,8 @@ testMigrationToPostgresJustProteus = do
           retry500Once (addMembers convAdmin convId (def {users = [mel]})) >>= assertSuccess
 
         void $ awaitNMatches n isConvDeleteNotif melWS
+        replicateConcurrently n
+          $ createTestConv convAdmin tid [mel]
 
     waitForMigration :: (HasCallStack) => String -> App ()
     waitForMigration domainM = do
