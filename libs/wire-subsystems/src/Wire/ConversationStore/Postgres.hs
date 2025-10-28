@@ -296,7 +296,7 @@ getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
         [vectorStatement|SELECT (conv :: uuid)
                          FROM conversation_member
                          WHERE "user" = ($1 :: uuid)
-                         AND conv > ($2 :: uuid)
+                         AND (uuid_extract_version(conv), conv) > (uuid_extract_version($2 :: uuid), $2 :: uuid)
                          ORDER BY uuid_extract_version(conv), conv
                          LIMIT ($3 :: integer)
                         |]
