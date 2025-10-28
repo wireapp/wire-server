@@ -64,6 +64,7 @@ import Data.ByteString.Conversion (List, toByteString)
 import Data.ByteString.Conversion qualified
 import Data.ByteString.Lazy qualified as LBS
 import Data.Default
+import Data.HashMap.Strict qualified as HM
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold qualified as LH
@@ -472,7 +473,8 @@ getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
     Member BrigAPIAccess r,
-    Member (TeamMemberStore CassandraPaging) r
+    Member (TeamMemberStore CassandraPaging) r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   TeamId ->
@@ -494,12 +496,24 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
       -- `select team_member.* from team_member, user where
       -- team_member.user = user.id where searchable`.
       let pwsResults0 = pwsResults pws
-      users <- E.getUsers $ map (^. userId) pwsResults0
-      let f user tm =
-            if qUnqualified (U.userQualifiedId user) == tm ^. userId && U.userSearchable user
-              then Just tm
-              else Nothing -- throw here instead?
-      pure $ toTeamMembersPage member $ pws {pwsResults = catMaybes $ zipWith f users pwsResults0}
+      users <-
+        HM.fromList . map (\user -> (qUnqualified (U.userQualifiedId user), user))
+          <$> E.getUsers (map (^. userId) pwsResults0)
+
+      let results = flip mapMaybe pwsResults0 $ \tm ->
+            let uid' = tm ^. userId
+                mapSearchable user =
+                  if U.userSearchable user
+                    then Just tm
+                    else Nothing
+             in maybe (Just $ Left uid') (fmap Right . mapSearchable) $ HM.lookup uid' users
+      let notFoundUserUids = lefts results
+      unless (null notFoundUserUids) $
+        P.err $
+          Log.field "targets" (toByteString $ show $ map toByteString notFoundUserUids)
+            . Log.field "action" (Log.val "Teams.getTeamMembers")
+            . Log.msg (Log.val "Could not find team member with uid from Brig")
+      pure $ toTeamMembersPage member $ pws {pwsResults = rights results}
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
       -- we only return the person who invited them and the self user.
