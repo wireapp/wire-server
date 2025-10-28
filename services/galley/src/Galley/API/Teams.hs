@@ -496,9 +496,10 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
       -- where searchable`.
       let pwsResults0 = pwsResults pws
       users <- E.getUsers $ map (^. userId) pwsResults0
-      let f user tm = if qUnqualified (U.userQualifiedId user) == tm ^. userId && U.userSearchable user
-            then Just tm
-            else Nothing -- throw here instead?
+      let f user tm =
+            if qUnqualified (U.userQualifiedId user) == tm ^. userId && U.userSearchable user
+              then Just tm
+              else Nothing -- throw here instead?
       pure $ toTeamMembersPage member $ pws {pwsResults = catMaybes $ zipWith f users pwsResults0}
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
