@@ -487,26 +487,19 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   if member `hasPermission` SearchContacts
     then do
       pws :: PageWithState TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
-      pws' <-
-        if member `hasPermission` SetMemberSearchable
-          then pure pws -- if user is admin, return all team members
-          else do
-            -- if user isn't an admin, filter by whether team member is searchable
-            --
-            -- FUTUREWORK: Remove this via-Brig filtering when user
-            -- and team_member tables are migrated to Postgres. We
-            -- currently can't filter in the database because
-            -- Cassandra doesn't support joins. The SQL could
-            -- otherwise be (pseudocode): `select team_member.* from
-            -- team_member, user where team_member.user = user.id
-            -- where searchable`.
-            let pwsResults0 = pwsResults pws
-                uids = map (^. userId) pwsResults0
-            users <- E.getUsers uids
-            let searchableUsers'Uids = map (qUnqualified . U.userQualifiedId) $ filter U.userSearchable users
-                pwsResults1 = filter (\tm -> (tm ^. userId) `elem` searchableUsers'Uids) pwsResults0
-            pure $ pws {pwsResults = pwsResults1}
-      pure $ toTeamMembersPage member pws'
+      -- FUTUREWORK: Remove this via-Brig filtering when user
+      -- and team_member tables are migrated to Postgres. We
+      -- currently can't filter in the database because
+      -- Cassandra doesn't support joins. The SQL could
+      -- otherwise be (pseudocode): `select team_member.* from
+      -- team_member, user where team_member.user = user.id
+      -- where searchable`.
+      let pwsResults0 = pwsResults pws
+      users <- E.getUsers $ map (^. userId) pwsResults0
+      let f user tm = if qUnqualified (U.userQualifiedId user) == tm ^. userId && U.userSearchable user
+            then Just tm
+            else Nothing -- throw here instead?
+      pure $ toTeamMembersPage member $ pws {pwsResults = catMaybes $ zipWith f users pwsResults0}
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
       -- we only return the person who invited them and the self user.
