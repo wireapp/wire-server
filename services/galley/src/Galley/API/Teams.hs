@@ -487,13 +487,12 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   if member `hasPermission` SearchContacts
     then do
       pws :: PageWithState TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
-      -- FUTUREWORK: Remove this via-Brig filtering when user
-      -- and team_member tables are migrated to Postgres. We
-      -- currently can't filter in the database because
-      -- Cassandra doesn't support joins. The SQL could
-      -- otherwise be (pseudocode): `select team_member.* from
-      -- team_member, user where team_member.user = user.id
-      -- where searchable`.
+      -- FUTUREWORK: Remove this via-Brig filtering when user and
+      -- team_member tables are migrated to Postgres. We currently
+      -- can't filter in the database because Cassandra doesn't
+      -- support joins. The SQL could otherwise be (pseudocode):
+      -- `select team_member.* from team_member, user where
+      -- team_member.user = user.id where searchable`.
       let pwsResults0 = pwsResults pws
       users <- E.getUsers $ map (^. userId) pwsResults0
       let f user tm =
