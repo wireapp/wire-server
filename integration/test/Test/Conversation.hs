@@ -1109,6 +1109,7 @@ testMigrationToPostgresMLS = do
 
     addUsersToFailureContext [("alice", alice), ("bob", bob), ("mel", mel), ("mark", mark), ("mia", mia)]
       $ addJSONToFailureContext "convIds" (domainAConvs <> domainBConvs <> domainMConvs)
+      $ addJSONToFailureContext "otherMelConvs" otherMelConvs
       $ do
         let runPhase :: (HasCallStack) => Int -> App ()
             runPhase phase = do
@@ -1123,6 +1124,7 @@ testMigrationToPostgresMLS = do
                         <> concat (IntMap.elems (IntMap.restrictKeys dom.kickMelConvs (IntSet.fromList [(phase + 1) .. 5])))
                         <> concat (IntMap.elems dom.kickMarkConvs)
                         <> concat (IntMap.elems (IntMap.restrictKeys dom.delConvs (IntSet.fromList [(phase + 1) .. 5])))
+                        <> concat (IntMap.elems (IntMap.restrictKeys dom.addMelConvs (IntSet.fromList [(phase + 1) .. 5])))
                     expectedConvs =
                       expectedConvsFrom domainAConvs
                         <> expectedConvsFrom domainBConvs
@@ -1151,6 +1153,7 @@ testMigrationToPostgresMLS = do
       kickMelConvs <- forPhase $ createTestConv creatorC tid (melC : othersC)
       kickMarkConvs <- forPhase $ createTestConv creatorC tid (melC : markC : othersC)
       delConvs <- forPhase $ createTestConv creatorC tid (melC : markC : othersC)
+      addMelConvs <- forPhase $ createTestConv creatorC tid othersC
       pure $ TestConvList {..}
 
     createTestConv :: (HasCallStack) => ClientIdentity -> String -> [ClientIdentity] -> App ConvId
@@ -1180,6 +1183,10 @@ testMigrationToPostgresMLS = do
         deleteTeamConversation tid convId convAdmin >>= assertSuccess
         getConversation convAdmin convId `bindResponse` \resp ->
           resp.status `shouldMatchInt` 404
+
+      for_ (IntMap.findWithDefault [] phase addMelConvs) $ \convId -> do
+        void $ uploadNewKeyPackage def melC
+        void $ createAddCommit convAdmin convId [melC.qualifiedUserId] >>= sendAndConsumeCommitBundle
 
     waitForMigration :: (HasCallStack) => String -> App ()
     waitForMigration domainM = do
@@ -1263,6 +1270,7 @@ testMigrationToPostgresJustProteus = do
 
     addUsersToFailureContext [("alice", alice), ("bob", bob), ("mel", mel), ("mark", mark), ("mia", mia)]
       $ addJSONToFailureContext "convIds" (domainAConvs <> domainBConvs <> domainMConvs)
+      $ addJSONToFailureContext "otherMelConvs" otherMelConvs
       $ do
         let runPhase :: (HasCallStack) => Int -> App ()
             runPhase phase = do
@@ -1277,6 +1285,7 @@ testMigrationToPostgresJustProteus = do
                         <> concat (IntMap.elems (IntMap.restrictKeys dom.kickMelConvs (IntSet.fromList [(phase + 1) .. 5])))
                         <> concat (IntMap.elems dom.kickMarkConvs)
                         <> concat (IntMap.elems (IntMap.restrictKeys dom.delConvs (IntSet.fromList [(phase + 1) .. 5])))
+                        <> concat (IntMap.elems (IntMap.restrictKeys dom.addMelConvs (IntSet.fromList [1 .. phase])))
                     expectedConvs =
                       expectedConvsFrom domainAConvs
                         <> expectedConvsFrom domainBConvs
@@ -1305,6 +1314,7 @@ testMigrationToPostgresJustProteus = do
       kickMelConvs <- forPhase $ createTestConv creatorC tid (mel : others)
       kickMarkConvs <- forPhase $ createTestConv creatorC tid (mel : mark : others)
       delConvs <- forPhase $ createTestConv creatorC tid (mel : mark : others)
+      addMelConvs <- forPhase $ createTestConv creatorC tid others
       pure $ TestConvList {..}
 
     createTestConv :: (HasCallStack) => Value -> String -> [Value] -> App ConvId
@@ -1342,6 +1352,9 @@ testMigrationToPostgresJustProteus = do
         forConcurrently_ (IntMap.findWithDefault [] phase delConvs) $ \convId -> do
           retry500Once (deleteTeamConversation tid convId convAdmin) >>= assertSuccess
 
+        forConcurrently_ (IntMap.findWithDefault [] phase addMelConvs) $ \convId -> do
+          retry500Once (addMembers convAdmin convId (def {users = [mel]})) >>= assertSuccess
+
         void $ awaitNMatches n isConvDeleteNotif melWS
 
     waitForMigration :: (HasCallStack) => String -> App ()
@@ -1362,7 +1375,8 @@ data TestConvList = TestConvList
   { unmodifiedConvs :: [ConvId],
     kickMelConvs :: IntMap [ConvId],
     kickMarkConvs :: IntMap [ConvId],
-    delConvs :: IntMap [ConvId]
+    delConvs :: IntMap [ConvId],
+    addMelConvs :: IntMap [ConvId]
   }
 
 instance ToJSON TestConvList where
@@ -1370,8 +1384,9 @@ instance ToJSON TestConvList where
     object
       [ fromString "unmodifiedConvs" .= (mkId <$> convList.unmodifiedConvs),
         fromString "kickMelConvs" .= (mkId <$$> convList.kickMelConvs),
-        fromString "kickMarkConvs" .= (mkId <$$> convList.kickMelConvs),
-        fromString "delConvs" .= (mkId <$$> convList.delConvs)
+        fromString "kickMarkConvs" .= (mkId <$$> convList.kickMarkConvs),
+        fromString "delConvs" .= (mkId <$$> convList.delConvs),
+        fromString "addMelConvs" .= (mkId <$$> convList.addMelConvs)
       ]
     where
       mkId :: ConvId -> String
@@ -1383,5 +1398,6 @@ instance Semigroup TestConvList where
       { unmodifiedConvs = l1.unmodifiedConvs <> l2.unmodifiedConvs,
         kickMelConvs = IntMap.unionWith (<>) l1.kickMelConvs l2.kickMelConvs,
         kickMarkConvs = IntMap.unionWith (<>) l1.kickMarkConvs l2.kickMarkConvs,
-        delConvs = IntMap.unionWith (<>) l1.delConvs l2.delConvs
+        delConvs = IntMap.unionWith (<>) l1.delConvs l2.delConvs,
+        addMelConvs = IntMap.unionWith (<>) l1.addMelConvs l2.addMelConvs
       }
