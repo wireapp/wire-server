@@ -502,12 +502,12 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
 
       let results = flip mapMaybe pwsResults0 $ \tm ->
             let uid' = tm ^. userId
-                mapSearchable user = Just tm <* guard (U.userSearchable user
+                mapSearchable user = Just tm <* guard (U.userSearchable user)
              in maybe (Just $ Left uid') (fmap Right . mapSearchable) $ HM.lookup uid' users
       let notFoundUserUids = lefts results
       unless (null notFoundUserUids) $
         P.err $
-          Log.field "targets" (toByteString $ show $ map toByteString notFoundUserUids)
+          Log.field "targets" (show notFoundUserUids)
             . Log.field "action" (Log.val "Teams.getTeamMembers")
             . Log.msg (Log.val "Could not find team member with uid from Brig")
       pure $ toTeamMembersPage member $ pws {pwsResults = rights results}
