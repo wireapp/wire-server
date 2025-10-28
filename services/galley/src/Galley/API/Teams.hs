@@ -509,7 +509,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
         P.err $
           Log.field "targets" (show notFoundUserUids)
             . Log.field "action" (Log.val "Teams.getTeamMembers")
-            . Log.msg (Log.val "Could not find team member with uid from Brig")
+            . Log.msg (Log.val "Could not find team members with target uids from Brig")
       pure $ toTeamMembersPage member $ pws {pwsResults = rights results}
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
