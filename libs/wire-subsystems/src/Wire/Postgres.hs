@@ -23,10 +23,13 @@ module Wire.Postgres
     runStatement,
     runTransaction,
     runPipeline,
+    parseCount,
 
     -- * Query builder
     QueryFragment,
     literal,
+    paramLiteral,
+    argPattern,
     where_,
     like,
     Clause,
@@ -36,6 +39,9 @@ module Wire.Postgres
     orderBy,
     limit,
     buildStatement,
+
+    -- * Type classes
+    PostgresValue (..),
   )
 where
 
@@ -97,6 +103,9 @@ class PostgresValue a where
   postgresType :: Text
   postgresValue :: a -> Enc.Value ()
 
+  valueEncoder :: a -> Enc.Params ()
+  valueEncoder = Enc.param . Enc.nonNullable . postgresValue
+
 instance PostgresValue (Id a) where
   postgresType = "uuid"
   postgresValue u = const (toUUID u) >$< Enc.uuid
@@ -112,6 +121,13 @@ instance PostgresValue UTCTime where
 instance PostgresValue Int32 where
   postgresType = "int"
   postgresValue n = const n >$< Enc.int4
+
+-- | Parse count result returned by Postgres.
+parseCount :: Int64 -> Either Text Int
+parseCount = \case
+  n | n < 0 -> Left "Negative count from database"
+  n | n > fromIntegral (maxBound :: Int) -> Left "Count from database too large"
+  n -> Right $ fromIntegral n
 
 --------------------------------------------------------------------------------
 -- Query builder DSL
@@ -149,18 +165,29 @@ literal q =
       encoder = mempty
     }
 
+-- | Helper to construct a fragment with a single parameter.
+paramLiteral :: Enc.Params () -> (Int -> Text) -> QueryFragment
+paramLiteral encoder q =
+  QueryFragment
+    { query = q <$> nextIndex,
+      encoder
+    }
+
+argPattern0 :: Text -> Int -> Text
+argPattern0 t i = "$" <> T.pack (show i) <> " :: " <> t
+
+argPattern :: Text -> Int -> Text
+argPattern t i = "(" <> argPattern0 t i <> ")"
+
 -- | Construct a WHERE clause from a list of fragments.
 where_ :: [QueryFragment] -> QueryFragment
 where_ frags = literal "where" <> foldr (joinFragments " and ") mempty frags
 
 like :: Text -> Text -> QueryFragment
-like field pat =
-  QueryFragment
-    { query = do
-        i <- nextIndex
-        pure $ field <> " ilike ($" <> T.pack (show i) <> " :: text)",
-      encoder = const (fuzzy pat) >$< Enc.param (Enc.nonNullable Enc.text)
-    }
+like field pat = paramLiteral
+  (const (fuzzy pat) >$< Enc.param (Enc.nonNullable Enc.text))
+  $ \i ->
+    field <> " ilike " <> argPattern "text" i
 
 -- | A portion of a WHERE clause with multiple values. The monoidal operation
 -- of this type can be used to combine values into one clause. For example:
@@ -195,7 +222,7 @@ mkClause field value =
   Clause
     { fields = [field],
       types = [postgresType @a],
-      encoder = Enc.param (Enc.nonNullable (postgresValue value))
+      encoder = valueEncoder value
     }
 
 -- | Convert a 'Clause' to a 'QueryFragment'.
@@ -205,9 +232,8 @@ clause op cl =
     { query = do
         types <-
           fmap wrap $
-            for cl.types $ \ty -> do
-              i <- nextIndex
-              pure $ "$" <> T.pack (show i) <> " :: " <> ty <> ""
+            for cl.types $
+              \ty -> argPattern0 ty <$> nextIndex
         let fields = wrap cl.fields
         pure $ fields <> " " <> op <> " " <> types,
       encoder = cl.encoder
@@ -227,13 +253,8 @@ orderBy os =
       <> T.intercalate ", " (map (\(field, o) -> field <> " " <> sortOrderClause o) os)
 
 limit :: forall a. (PostgresValue a) => a -> QueryFragment
-limit n =
-  QueryFragment
-    { query = do
-        i <- nextIndex
-        pure $ "limit ($" <> T.pack (show i) <> " :: " <> postgresType @a <> ")",
-      encoder = Enc.param (Enc.nonNullable (postgresValue n))
-    }
+limit n = paramLiteral (valueEncoder n) $ \i ->
+  "limit " <> argPattern (postgresType @a) i
 
 buildStatement :: QueryFragment -> Dec.Result b -> Statement () b
 buildStatement frag dec =

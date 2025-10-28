@@ -67,7 +67,7 @@ instance S.ToParamSchema SortOrder where
       & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ ["asc", "desc"]
 
-------------------------------
+--------------------------------------------------------------------------------
 
 newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int32}
   deriving (Eq, Show, Ord, Generic)
@@ -103,3 +103,53 @@ instance S.ToParamSchema PageSize where
 
 instance Default PageSize where
   def = PageSize (unsafeRange 15)
+
+--------------------------------------------------------------------------------
+
+data SortBy = SortByName | SortByCreatedAt
+  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
+
+sortColumnName :: SortBy -> Text
+sortColumnName = \case
+  SortByName -> "name"
+  SortByCreatedAt -> "created_at"
+
+instance Default SortBy where
+  def = SortByCreatedAt
+
+instance ToSchema SortBy where
+  schema =
+    enum @Text "SortBy" $
+      mconcat
+        [ element "name" SortByName,
+          element "created_at" SortByCreatedAt
+        ]
+
+instance Arbitrary SortBy where
+  arbitrary = Arbitrary.elements [minBound ..]
+
+instance FromHttpApiData SortBy where
+  parseUrlPiece "name" = pure SortByName
+  parseUrlPiece "created_at" = pure SortByCreatedAt
+  parseUrlPiece bad = Left $ "SortBy: could not parse " <> bad
+
+instance S.ToParamSchema SortBy where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.OpenApiString
+      & S.enum_ ?~ ["name", "created_at"]
+
+--------------------------------------------------------------------------------
+
+defaultSortOrder :: SortBy -> SortOrder
+defaultSortOrder SortByName = Asc
+defaultSortOrder SortByCreatedAt = Desc
+
+--------------------------------------------------------------------------------
+
+addPageDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+addPageDocs =
+  description
+    ?~ "This is the last page if it contains fewer rows than requested. There \
+       \may be 0 rows on a page."

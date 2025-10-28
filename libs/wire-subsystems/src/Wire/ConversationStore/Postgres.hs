@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.ConversationStore.Postgres where
+module Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres) where
 
 import Control.Error (lastMay)
 import Control.Monad.Trans.Maybe
@@ -17,6 +17,7 @@ import Data.Time
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.Records (HasField)
+import Hasql.Decoders qualified as HD
 import Hasql.Pipeline qualified as Pipeline
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
@@ -30,6 +31,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
@@ -37,6 +39,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
+import Wire.API.Pagination
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
 import Wire.API.Routes.MultiTablePaging
@@ -112,6 +115,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetSubConversationCipherSuite cid sconv cs -> setSubConversationCipherSuiteImpl cid sconv cs
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
+  SearchConversations search -> searchConversationsImpl search
 
 upsertConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
 upsertConversationImpl lcnv nc = do
@@ -1226,3 +1230,83 @@ deleteSubConversationImpl cid subConvId =
                              WHERE conv_id = ($1 :: uuid)
                              AND subconv_id = ($2 :: text)
                             |]
+
+data RawResult = RawResult
+  { convId :: ConvId,
+    name :: Maybe Text,
+    access :: Maybe [Int32],
+    memberCount :: Int64,
+    adminCount :: Int64
+  }
+
+rawResultToSearchResult :: RawResult -> Either Text ConversationSearchResult
+rawResultToSearchResult r = do
+  access <- traverse postgresUnmarshall (fold r.access)
+  memberCount <- parseCount r.memberCount
+  adminCount <- parseCount r.adminCount
+  pure
+    ConversationSearchResult
+      { convId = r.convId,
+        name = r.name,
+        access,
+        memberCount,
+        adminCount
+      }
+
+searchConversationsImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Error Hasql.UsageError) r,
+    Member (Embed IO) r
+  ) =>
+  ConversationSearch ->
+  Sem r [ConversationSearchResult]
+searchConversationsImpl req =
+  runStatement () $
+    Hasql.refineResult (traverse rawResultToSearchResult) $
+      buildStatement
+        ( cte
+            <> literal "select conv.id, conv.name, conv.access,"
+            <> literal "count(m.\"user\") as member_count,"
+            <> literal "count(*) filter (where m.conversation_role = 'wire_admin') as admin_count"
+            <> literal "from conv left join conversation_member m on m.conv = conv.id"
+            <> literal "group by conv.id, conv.name, conv.access"
+            <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
+        )
+        ( HD.rowList
+            ( RawResult
+                <$> (Id <$> HD.column (HD.nonNullable HD.uuid))
+                <*> HD.column (HD.nullable HD.text)
+                <*> HD.column
+                  ( HD.nullable
+                      (HD.listArray (HD.nonNullable HD.int4))
+                  )
+                <*> HD.column (HD.nonNullable HD.int8)
+                <*> HD.column (HD.nonNullable HD.int8)
+            )
+        )
+  where
+    cte =
+      literal "with conv as (select id, name, access from conversation"
+        <> where_
+          ( [ clause1 "team" "=" req.team,
+              clause1 "group_conv_type" "=" (postgresMarshall @_ @Int32 Channel)
+            ]
+              <> [ clause
+                     (sortOrderOperator req.sortOrder)
+                     (mkClause "name" lastName <> mkClause "id" lastId)
+                   | lastName <- toList req.lastName,
+                     lastId <- toList req.lastId
+                 ]
+              <> toList (like "name" <$> req.searchString)
+              <> discoverableClause
+          )
+        <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
+        <> limit (pageSizeToInt32 req.pageSize)
+        <> literal ")"
+
+    discoverableClause
+      | req.discoverable =
+          [ paramLiteral (valueEncoder @Int32 (postgresMarshall LinkAccess)) \i ->
+              argPattern "integer" i <> " = any(access)"
+          ]
+      | otherwise = []

@@ -14,19 +14,14 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.UserGroup.Pagination where
 
-import Control.Lens (makePrisms, (?~))
 import Data.Aeson qualified as A
-import Data.Default
 import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
 import Imports
-import Servant.API
-import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
@@ -40,60 +35,10 @@ data UserGroupPage = UserGroupPage
 
 instance ToSchema UserGroupPage where
   schema =
-    objectWithDocModifier "UserGroupPage" docs $
+    objectWithDocModifier "UserGroupPage" addPageDocs $
       UserGroupPage
         <$> page .= field "page" (array schema)
         <*> total .= field "total" schema
-    where
-      docs :: NamedSwaggerDoc -> NamedSwaggerDoc
-      docs =
-        description
-          ?~ "This is the last page if it contains fewer rows than requested. There \
-             \may be 0 rows on a page."
 
 instance Arbitrary UserGroupPage where
   arbitrary = UserGroupPage <$> arbitrary <*> arbitrary
-
-------------------------------
-
-data SortBy = SortByName | SortByCreatedAt
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
-
-sortColumnName :: SortBy -> Text
-sortColumnName = \case
-  SortByName -> "name"
-  SortByCreatedAt -> "created_at"
-
-instance Default SortBy where
-  def = SortByCreatedAt
-
-instance ToSchema SortBy where
-  schema =
-    enum @Text "SortBy" $
-      mconcat
-        [ element "name" SortByName,
-          element "created_at" SortByCreatedAt
-        ]
-
-instance Arbitrary SortBy where
-  arbitrary = Arbitrary.elements [minBound ..]
-
-instance FromHttpApiData SortBy where
-  parseUrlPiece "name" = pure SortByName
-  parseUrlPiece "created_at" = pure SortByCreatedAt
-  parseUrlPiece bad = Left $ "SortBy: could not parse " <> bad
-
-instance S.ToParamSchema SortBy where
-  toParamSchema _ =
-    mempty
-      & S.type_ ?~ S.OpenApiString
-      & S.enum_ ?~ ["name", "created_at"]
-
-------------------------------
-
-defaultSortOrder :: SortBy -> SortOrder
-defaultSortOrder SortByName = Asc
-defaultSortOrder SortByCreatedAt = Desc
-
-makePrisms ''UserGroupPage

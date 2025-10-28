@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
@@ -35,6 +36,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
+import Wire.API.Pagination
 import Wire.API.Provider.Service
 import Wire.ConversationStore.MLS.Types
 import Wire.Sem.Paging.Cassandra
@@ -49,6 +51,17 @@ data LockAcquired
 data MLSCommitLockStore m a where
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> MLSCommitLockStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> MLSCommitLockStore m ()
+
+data ConversationSearch = ConversationSearch
+  { team :: TeamId,
+    searchString :: Maybe Text,
+    pageSize :: PageSize,
+    sortOrder :: SortOrder,
+    lastName :: Maybe Text,
+    lastId :: Maybe ConvId,
+    discoverable :: Bool
+  }
+  deriving (Show)
 
 makeSem ''MLSCommitLockStore
 
@@ -120,6 +133,7 @@ data ConversationStore m a where
   SetSubConversationCipherSuite :: ConvId -> SubConvId -> CipherSuiteTag -> ConversationStore m ()
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> ConversationStore m ()
+  SearchConversations :: ConversationSearch -> ConversationStore m [ConversationSearchResult]
 
 makeSem ''ConversationStore
 

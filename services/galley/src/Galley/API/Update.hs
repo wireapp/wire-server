@@ -40,7 +40,6 @@ module Galley.API.Update
     updateConversationAccessUnqualified,
     updateConversationAccess,
     updateChannelAddPermission,
-    searchChannels,
     deleteLocalConversation,
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
@@ -115,7 +114,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -127,7 +125,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Pagination
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -807,10 +804,6 @@ updateChannelAddPermission lusr zcon qcnv update =
     )
     (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
-
-searchChannels :: Local UserId -> Maybe Text -> Maybe PageSize -> Maybe Text -> Maybe ConvId -> Bool -> Sem r ConversationPage
-searchChannels _ _ _ _ _ _ = do
-  pure $ ConversationPage {page = []}
 
 joinConversationByReusableCode ::
   forall r.

@@ -473,6 +473,9 @@ nginx_conf:
     - path: /teams/([^/]*)/search$
       envs:
       - all
+    - path: /teams/([^/]*)/channels/search$
+      envs:
+      - all
     - path: /verification-code/send
       envs:
       - all
@@ -723,9 +726,6 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
-    - path: /search/channels$
-      envs:
-      - all
     gundeck:
     - path: /push
       envs:

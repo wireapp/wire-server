@@ -1060,3 +1060,6 @@ interpretConversationStoreToCassandra client = interpret $ \case
   DeleteSubConversation convId subConvId -> do
     logEffect "ConversationStore.DeleteSubConversation"
     runEmbedded (runClient client) $ embed $ deleteSubConversation convId subConvId
+  SearchConversations _ -> do
+    logEffect "ConversationStore.SearchConversations"
+    pure []

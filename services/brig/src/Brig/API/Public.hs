@@ -1714,8 +1714,8 @@ getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId inc
           sortBy,
           sortOrder,
           pageSize,
-          lastName = (fmap userGroupNameToText lastName),
-          lastCreatedAt = (fmap fromUTCTimeMillis lastCreatedAt),
+          lastName = fmap userGroupNameToText lastName,
+          lastCreatedAt = fmap fromUTCTimeMillis lastCreatedAt,
           lastId,
           includeMemberCount,
           includeChannels
