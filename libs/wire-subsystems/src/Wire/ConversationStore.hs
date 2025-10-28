@@ -138,6 +138,8 @@ data ConversationStore m a where
   ListSubConversations :: ConvId -> ConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> ConversationStore m ()
   SearchConversations :: ConversationSearch -> ConversationStore m [ConversationSearchResult]
+  SetConversationOutOfSync :: ConvId -> Bool -> ConversationStore m ()
+  IsConversationOutOfSync :: ConvId -> ConversationStore m Bool
   -- FOR MIGRATION
   HaveRemoteConvs :: [UserId] -> ConversationStore m [UserId]
 

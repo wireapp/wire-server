@@ -106,6 +106,8 @@ interpretConversationStoreToPostgres = interpret $ \case
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
   SearchConversations search -> searchConversationsImpl search
+  SetConversationOutOfSync convId outOfSync -> setConversationOutOfSyncImpl convId outOfSync
+  IsConversationOutOfSync convId -> isConversationOutOfSyncImpl convId
   HaveRemoteConvs uids -> haveRemoteConvsImpl uids
 
 upsertConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
@@ -1227,3 +1229,24 @@ searchConversationsImpl req =
               argPattern "integer" i <> " = any(access)"
           ]
       | otherwise = []
+
+setConversationOutOfSyncImpl :: (PGConstraints r) => ConvId -> Bool -> Sem r ()
+setConversationOutOfSyncImpl cid outOfSync =
+  runStatement (cid, outOfSync) $
+    lmapPG
+      [resultlessStatement|
+      INSERT INTO conversation_out_of_sync (conv_id, out_of_sync)
+        VALUES ($1 :: uuid, $2 :: boolean)
+        ON CONFLICT (conv_id)
+        DO UPDATE SET out_of_sync = ($2 :: boolean)
+    |]
+
+isConversationOutOfSyncImpl :: (PGConstraints r) => ConvId -> Sem r Bool
+isConversationOutOfSyncImpl cid =
+  fmap (fromMaybe False) $
+    runStatement cid $
+      lmapPG
+        [maybeStatement|
+          SELECT (out_of_sync :: boolean) FROM conversation_out_of_sync
+          WHERE conv_id = ($1 :: uuid)
+          |]

@@ -354,3 +354,17 @@ releaseCommitLock = "delete from mls_commit_locks where group_id = ? and epoch =
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
+
+-- Out of Sync --------------------------------------------------------------
+
+insertConvOutOfSync :: PrepQuery W (ConvId, Bool) ()
+insertConvOutOfSync = "insert into conversation_out_of_sync (conv_id, out_of_sync) values (?, ?)"
+
+insertSubConvOutOfSync :: PrepQuery W (ConvId, SubConvId, Bool) ()
+insertSubConvOutOfSync = "insert into subconversation_out_of_sync (conv_id, subconv_id, out_of_sync) values (?, ?, ?)"
+
+lookupConvOutOfSync :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
+lookupConvOutOfSync = "select out_of_sync from conversation_out_of_sync where conv_id = ?"
+
+lookupSubConvOutOfSync :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Bool))
+lookupSubConvOutOfSync = "select out_of_sync from subconversation_out_of_sync where conv_id = ? and subconv_id = ?"
