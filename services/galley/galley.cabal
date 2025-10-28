@@ -348,6 +348,7 @@ library
     , types-common-aws
     , types-common-journal                  >=0.1
     , unliftio                              >=0.2
+    , unordered-containers
     , uri-bytestring                        >=0.2
     , utf8-string
     , uuid                                  >=1.3

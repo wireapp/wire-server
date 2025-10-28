@@ -204,6 +204,7 @@ mkDerivation {
     types-common-aws
     types-common-journal
     unliftio
+    unordered-containers
     uri-bytestring
     utf8-string
     uuid
