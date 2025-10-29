@@ -1453,6 +1453,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres convId >>= \case
         False -> embedClient client $ deleteSubConversation convId subConvId
         True -> interpretConversationStoreToPostgres $ ConvStore.deleteSubConversation convId subConvId
+  SearchConversations _ -> do
+    -- In theory, it is possible to make this partially work. But we don't have
+    -- to worry so much about this interpreter to be used only during the
+    -- transition.
+    logEffect "ConversationStore.SearchConversations"
+    pure []
   HaveRemoteConvs uids -> do
     logEffect "ConversationStore.DeleteSubConversation"
     withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
