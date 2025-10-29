@@ -884,8 +884,8 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetLocalConversationIds uid start maxIds -> do
     logEffect "ConversationStore.GetLocalConversationIds"
     embedClient client $ getLocalConvIds uid start maxIds
-  GetRemoteConverastionIds uid start maxIds -> do
-    logEffect "ConversationStore.GetRemoteConverastionIds"
+  GetRemoteConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetRemoteConversationIds"
     embedClient client $ getRemoteConvIds uid start maxIds
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
@@ -1123,12 +1123,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
               then ResultSetTruncated
               else ResultSetComplete
         }
-  GetRemoteConverastionIds uid start maxIds -> do
-    logEffect "ConversationStore.GetRemoteConverastionIds"
+  GetRemoteConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetRemoteConversationIds"
     withMigrationLockAndCleanup client LockShared (Right uid) $ do
       isUserInPostgres uid >>= \case
         False -> embedClient client $ getRemoteConvIds uid start maxIds
-        True -> interpretConversationStoreToPostgres $ ConvStore.getRemoteConverastionIds uid start maxIds
+        True -> interpretConversationStoreToPostgres $ ConvStore.getRemoteConversationIds uid start maxIds
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
     withMigrationLockAndCleanup client LockShared (Left cid) $

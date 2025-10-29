@@ -76,7 +76,7 @@ data ConversationStore m a where
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
   GetLocalConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> ConversationStore m (ResultSet ConvId)
-  GetRemoteConverastionIds :: UserId -> Maybe (Remote ConvId) -> Range 1 1000 Int32 -> ConversationStore m (ResultSet (Remote ConvId))
+  GetRemoteConversationIds :: UserId -> Maybe (Remote ConvId) -> Range 1 1000 Int32 -> ConversationStore m (ResultSet (Remote ConvId))
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
   -- FUTUREWORK: This is only relevant for Convs in Cassandra, we can delete it
@@ -174,7 +174,7 @@ getConversationIdsResultSet lusr maxIds mLastId = do
               }
 
     getRemotes :: Maybe (Remote ConvId) -> Range 1 1000 Int32 -> Sem r (ResultSet (Qualified ConvId))
-    getRemotes lastRemote maxRemotes = tUntagged <$$> getRemoteConverastionIds usr lastRemote maxRemotes
+    getRemotes lastRemote maxRemotes = tUntagged <$$> getRemoteConversationIds usr lastRemote maxRemotes
 
 -- | This function only exists because we use the 'MultiTablePage' type for the
 -- endpoint. Since now the pagination is based on the qualified ids, we can

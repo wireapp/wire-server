@@ -97,10 +97,10 @@ deleteRemoteMemberStatusesFromCassandra uid = do
     delete = "delete from user_remote_conv where user = ?"
 
 cleanupIfNecessary :: (PGConstraints r, Member (Input ClientState) r, Member ConversationStore r) => [Either ConvId UserId] -> Sem r ()
-cleanupIfNecessary = mapM_ (either cleanupConvIfNecessary cleanupUserIfNecesasry)
+cleanupIfNecessary = mapM_ (either cleanupConvIfNecessary cleanupUserIfNecessary)
 
-cleanupUserIfNecesasry :: (PGConstraints r, Member (Input ClientState) r) => UserId -> Sem r ()
-cleanupUserIfNecesasry uid =
+cleanupUserIfNecessary :: (PGConstraints r, Member (Input ClientState) r) => UserId -> Sem r ()
+cleanupUserIfNecessary uid =
   whenM (isPendingDelete DeleteUser uid) $ do
     deleteRemoteMemberStatusesFromCassandra uid
     markDeletionComplete DeleteUser uid

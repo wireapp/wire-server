@@ -16,7 +16,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
-import Wire.MigrateConversations qualified as MigrateConverastions
+import Wire.MigrateConversations qualified as MigrateConversations
 
 run :: Opts -> IO ()
 run opts = do
@@ -36,7 +36,7 @@ run opts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversations" $
-            MigrateConverastions.startWorker
+            MigrateConversations.startWorker
       else pure $ pure ()
   let cleanup =
         void . runConcurrently $

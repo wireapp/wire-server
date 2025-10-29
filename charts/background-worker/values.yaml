@@ -61,7 +61,7 @@ config:
   # Setting this to `true` will start conversation migration to postgresql.
   #
   # NOTE: It is very important that galley be configured to with
-  # `settings.postgresMigration.converastion` with `migration-to-postgresql`
+  # `settings.postgresMigration.conversation` with `migration-to-postgresql`
   # before setting this to `true`.
   migrateConversations: false
 

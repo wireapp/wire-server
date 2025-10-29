@@ -407,7 +407,7 @@ getRemoteMemberStatusFromCassandra uid = withCassandra $ do
   where
     getAllRemoteConvIds :: [Remote ConvId] -> Maybe (Remote ConvId) -> Sem (ConversationStore ': r) [Remote ConvId]
     getAllRemoteConvIds acc mLastId = do
-      res <- getRemoteConverastionIds uid mLastId maxBound
+      res <- getRemoteConversationIds uid mLastId maxBound
       let newAcc = res.resultSetResult <> acc
       case (res.resultSetResult, res.resultSetType) of
         ([], _) -> pure newAcc

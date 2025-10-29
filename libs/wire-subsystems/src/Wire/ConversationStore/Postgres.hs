@@ -53,7 +53,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   GetConversationEpoch cid -> getConversationEpochImpl cid
   GetConversations cids -> getConversationsImpl cids
   GetLocalConversationIds uid lastConvId maxIds -> getLocalConversationIdsImpl uid lastConvId maxIds
-  GetRemoteConverastionIds uid lastConvId maxIds -> getRemoteConversationIdsImpl uid lastConvId maxIds
+  GetRemoteConversationIds uid lastConvId maxIds -> getRemoteConversationIdsImpl uid lastConvId maxIds
   GetConversationMetadata cid -> getConversationMetadataImpl cid
   GetGroupInfo cid -> getGroupInfoImpl cid
   IsConversationAlive cid -> isConversationAliveImpl cid
