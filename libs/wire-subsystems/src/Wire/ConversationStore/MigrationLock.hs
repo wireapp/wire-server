@@ -19,7 +19,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Message qualified as Log
 import Wire.API.PostgresMarshall
-import Wire.ConversationStore.Postgres
+import Wire.Postgres
 
 data LockType
   = -- | Used for migrating a conversation, will block any other locks

@@ -46,12 +46,6 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
 
-type PGConstraints r =
-  ( Member (Input Hasql.Pool) r,
-    Member (Embed IO) r,
-    Member (Error Hasql.UsageError) r
-  )
-
 interpretConversationStoreToPostgres :: (PGConstraints r) => InterpreterFor ConversationStore r
 interpretConversationStoreToPostgres = interpret $ \case
   UpsertConversation lcnv nc -> upsertConversationImpl lcnv nc

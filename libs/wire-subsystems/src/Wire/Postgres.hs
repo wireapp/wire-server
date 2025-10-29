@@ -24,6 +24,7 @@ module Wire.Postgres
     runTransaction,
     runPipeline,
     parseCount,
+    PGConstraints,
 
     -- * Query builder
     QueryFragment,
@@ -55,6 +56,7 @@ import Hasql.Decoders qualified as Dec
 import Hasql.Encoders qualified as Enc
 import Hasql.Pipeline (Pipeline)
 import Hasql.Pool
+import Hasql.Pool qualified as Hasql
 import Hasql.Session
 import Hasql.Statement
 import Hasql.Transaction (Transaction)
@@ -66,11 +68,14 @@ import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Pagination
 
-runStatement ::
-  ( Member (Input Pool) r,
+type PGConstraints r =
+  ( Member (Input Hasql.Pool) r,
     Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+    Member (Error Hasql.UsageError) r
+  )
+
+runStatement ::
+  (PGConstraints r) =>
   a ->
   Statement a b ->
   Sem r b
@@ -79,7 +84,7 @@ runStatement a stmt = do
   liftIO (use pool (statement a stmt)) >>= either throw pure
 
 runTransaction ::
-  (Member (Input Pool) r, Member (Embed IO) r, Member (Error UsageError) r) =>
+  (PGConstraints r) =>
   IsolationLevel ->
   Mode ->
   Transaction a ->
@@ -89,10 +94,7 @@ runTransaction isolationLevel mode t = do
   liftIO (use pool $ Transaction.transaction isolationLevel mode t) >>= either throw pure
 
 runPipeline ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   Pipeline a ->
   Sem r a
 runPipeline p = do

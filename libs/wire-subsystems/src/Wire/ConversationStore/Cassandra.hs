@@ -77,7 +77,8 @@ import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.MigrationLock
-import Wire.ConversationStore.Postgres (PGConstraints, interpretConversationStoreToPostgres)
+import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as StoreConv

@@ -16,7 +16,6 @@ import Wire.API.PostgresMarshall
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Types
-import Wire.ConversationStore.Postgres
 import Wire.Postgres
 import Wire.StoredConversation
 import Wire.Util
