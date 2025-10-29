@@ -49,7 +49,7 @@ import Util.Attoparsec (takeUpToWhile)
 -- except for:
 -- * not allowing a space @" "@
 -- * accepting digits as first letter of labels (except for the last label, not allowing IPs)
--- * requiring at least two labels
+-- * requiring at least two labels (except for "localhost")
 -- * not only must labels be 63 chars or less, the whole domain must be 253 chars or less
 --
 -- <domain> ::= <label> "." <tld> | <label> "." <domain>
@@ -98,7 +98,10 @@ instance ToHttpApiData Domain where
 domainParser :: Atto.Parser Domain
 domainParser = do
   parts <- domainLabel `Atto.sepBy1` Atto.char '.'
-  when (length parts < 2) $
+  let isLocalhost = case parts of
+        [p] -> BS.Char8.map toLower p == "localhost"
+        _ -> False
+  when (length parts < 2 && not isLocalhost) $
     fail "Invalid domain name: cannot be dotless domain"
   when (isDigit (BS.Char8.head (last parts))) $
     fail "Invalid domain name: last label cannot start with digit"
