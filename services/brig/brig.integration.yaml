@@ -111,7 +111,7 @@ emailSMS:
     #         that may be used for this
 
   general:
-    templateDir: deb/opt/brig/templates
+    templateDir: ../../libs/wire-subsystems/templates
     emailSender: backend-integration@wire.com
     smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
     templateBranding:

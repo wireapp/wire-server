@@ -272,7 +272,7 @@ sftStaticEnv = withOpenSSL $ do
   let tokenTtl = 10 -- seconds
       configTtl = 10 -- seconds
       secret = "secret word"
-      turnSource = TurnSourceFiles (TurnServersFiles "test/resources/turn/servers.txt" "test/resources/turn/servers-v2.txt")
+      turnSource = TurnSourceFiles (TurnServersFiles "../../../../libs/wire-subsystems/test/resources/turn/servers.txt" "../../../../libs/wire-subsystems/test/resources/turn/servers-v2.txt")
   Just sha512 <- getDigestByName "SHA512"
   env <- mkTurnEnv turnSource tokenTtl configTtl secret sha512
   let TurnServersFromFiles _ serversV1IORef serversV2IORef = env ^. turnServers
