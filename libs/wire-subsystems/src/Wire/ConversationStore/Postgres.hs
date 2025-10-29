@@ -689,21 +689,6 @@ mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRe
       }
   )
 
-mkLocalMemberRow :: ConvId -> LocalMember -> LocalMemberRow
-mkLocalMemberRow cid lm =
-  ( cid,
-    lm.id_,
-    _serviceRefId <$> lm.service,
-    _serviceRefProvider <$> lm.service,
-    lm.status.msOtrMutedStatus,
-    lm.status.msOtrMutedRef,
-    Just lm.status.msOtrArchived,
-    lm.status.msOtrArchivedRef,
-    Just lm.status.msHidden,
-    lm.status.msHiddenRef,
-    Just lm.convRoleName
-  )
-
 type RemoteMemberRow = (ConvId, Domain, UserId, RoleName)
 
 getRemoteMemberImpl :: (PGConstraints r) => ConvId -> Remote UserId -> Sem r (Maybe RemoteMember)

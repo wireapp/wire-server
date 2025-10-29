@@ -43,13 +43,12 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
-import Wire.ConversationStore
+import Wire.ConversationStore hiding (pageSize)
 import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Migration.Types
 import Wire.ConversationStore.MigrationLock
-import Wire.ConversationStore.Postgres
 import Wire.Postgres
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Paging.Cassandra
