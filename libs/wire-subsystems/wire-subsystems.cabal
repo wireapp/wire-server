@@ -11,15 +11,15 @@ license-file:       LICENSE
 build-type:         Simple
 extra-source-files:
   postgres-migrations/*.sql
-  test/resources/**/*.pem
-  test/resources/**/*.yaml
-  test/resources/**/*.json
-  test/resources/**/*.txt
-  test/resources/**/*.html
   templates/**/*.html
   templates/**/*.txt
   templates/index.html
   templates/version
+  test/resources/**/*.html
+  test/resources/**/*.json
+  test/resources/**/*.pem
+  test/resources/**/*.txt
+  test/resources/**/*.yaml
 
 common common-all
   default-language:   GHC2021
