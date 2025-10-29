@@ -34,7 +34,7 @@ tests =
 checkGolden :: IO ()
 checkGolden = do
   -- This file was generated from ToJSON of the format prior to 67993ab1
-  ns <- BSL.readFile "../../../../libs/wire-subsystems/test/resources/internal-notification.json"
+  ns <- BSL.readFile "../../libs/wire-subsystems/test/resources/internal-notification.json"
   let eith = A.eitherDecode @InternalNotification ns
   case eith of
     Left err -> assertFailure ("Could not parse InternalNotification: " <> show err)
