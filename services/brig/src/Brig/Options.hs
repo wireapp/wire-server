@@ -42,6 +42,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound.Types qualified as ES
+import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import Network.DNS qualified as DNS
@@ -395,6 +396,7 @@ data Opts = Opts
     -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     postgresql :: !(Map Text Text),
     postgresqlPassword :: !(Maybe FilePathSecrets),
+    postgresqlPool :: !PoolConfig,
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.

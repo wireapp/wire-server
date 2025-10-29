@@ -279,7 +279,7 @@ newEnv opts = do
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
-  hasqlPool <- initPostgresPool opts.postgresql opts.postgresqlPassword
+  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,

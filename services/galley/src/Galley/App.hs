@@ -184,7 +184,7 @@ createEnv o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  postgres <- initPostgresPool o._postgresql o._postgresqlPassword
+  postgres <- initPostgresPool o._postgresqlPool o._postgresql o._postgresqlPassword
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
     <*> initExtEnv

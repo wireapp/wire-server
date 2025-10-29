@@ -1626,6 +1626,24 @@ config:
     port: "5432"
     user: wire-server
     dbname: wire-server
+  postgresqlPool:
+    # Pool size.
+    size: 100
+
+    # Connection acquisition timeout.
+    acquisitionTimeout: 10s
+
+    # Maximal connection lifetime.
+    #
+    # Determines how long is available for reuse. After the timeout passes and
+    # an active session is finished the connection will be closed releasing a
+    # slot in the pool for a fresh connection to be established.
+    #
+    # This is useful as a healthy measure for resetting the server-side caches.
+    agingTimeout: 1d
+
+    # Maximal connection idle time.
+    idlenessTimeout: 10m
 secrets:
   pgPassword: user-password # plain text; i.e. not base64 encoded
 ```
@@ -1638,6 +1656,11 @@ postgresql:
   user: wire-server
   dbname: wire-server
   password: db-password # plain text passwords should only be used in test setups
+postgresqlPool:
+  size: 100
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
 postgresqlPassword: /path/to/pgPassword # refers to a PostgreSQL password file
 ```
 
