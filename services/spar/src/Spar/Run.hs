@@ -236,7 +236,7 @@ mkApp sparCtxOpts = do
             activationCodeTimeout = sparCtxOpts.settings.activationTimeout,
             blockedDomains = blockedDomains
           }
-  sparCtxHasqlPool <- Hasql.initPostgresPool (postgresql sparCtxOpts) (postgresqlPassword sparCtxOpts)
+  sparCtxHasqlPool <- Hasql.initPostgresPool (postgresqlPool sparCtxOpts) (postgresql sparCtxOpts) (postgresqlPassword sparCtxOpts)
   let sparCtxSmtp = Nothing -- Spar doesn't send emails directly
   sparCtxAws <- AWSI.mkEnv sparCtxLogger sparCtxOpts.aws Nothing sparCtxHttpManager
   sparCtxInternalEvents <- initInternalEvents sparCtxLogger sparCtxOpts sparCtxAws
