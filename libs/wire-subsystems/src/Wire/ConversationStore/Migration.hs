@@ -12,6 +12,7 @@ import Data.Domain
 import Data.Id
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
+import Data.Misc
 import Data.Qualified
 import Data.Time
 import Data.Tuple.Extra
@@ -34,6 +35,7 @@ import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
@@ -250,6 +252,29 @@ saveConvToPostgres allConvData = do
     storedConv = allConvData.conv
     -- In all these queries we do nothing on conflict because if the data is in
     -- Postgres it is considered fresher and data from Cassandra is ignored.
+    insertConv ::
+      Hasql.Statement
+        ( ConvId,
+          ConvType,
+          Maybe UserId,
+          Vector Access,
+          Imports.Set AccessRole,
+          Maybe Text,
+          Maybe TeamId,
+          Maybe Milliseconds,
+          Maybe ReceiptMode,
+          ProtocolTag,
+          Maybe GroupId,
+          Maybe Epoch,
+          Maybe UTCTime,
+          Maybe CipherSuiteTag,
+          Maybe GroupInfoData,
+          Maybe GroupConvType,
+          Maybe AddPermission,
+          CellsState,
+          Maybe ConvId
+        )
+        ()
     insertConv =
       lmapPG @_ @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _)
         [resultlessStatement|INSERT INTO conversation
