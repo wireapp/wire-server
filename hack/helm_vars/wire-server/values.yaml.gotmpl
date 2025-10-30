@@ -604,7 +604,20 @@ background-worker:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
       remotesRefreshInterval: 1000000 # 1s
+    postgresql:
+      host: "postgresql"
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
     cassandra:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
+      {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+      {{- end }}
+    cassandraGalley:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
       {{- if .Values.useK8ssandraSSL.enabled }}
@@ -621,6 +634,7 @@ background-worker:
         name: "rabbitmq-certificate"
         key: "ca.crt"
   secrets:
+    pgPassword: "posty-the-gres"
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
