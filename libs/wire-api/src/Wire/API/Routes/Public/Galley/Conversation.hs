@@ -835,7 +835,7 @@ type ConversationAPI =
     :<|> Named
            "replace-members-in-conversation"
            ( Summary "Replace the members of a conversation."
-               :> From 'V12
+               :> From 'V13
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
