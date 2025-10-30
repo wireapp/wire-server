@@ -1648,7 +1648,7 @@ paginateConvListIds = do
   -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
   -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
   -- Getting them 16 at a time should get all them in 16 times.
-  foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
+  foldM_ (getChunkedConvs 16 16 alice) Nothing [15, 14 .. 0 :: Int]
 
 -- This test ensures to setup conversations so that a page would end exactly
 -- when local convs are exhausted and then exactly when another remote domain's
@@ -1710,7 +1710,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
-  foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
+  foldM_ (getChunkedConvs 16 16 alice) Nothing [3, 2, 1, 0 :: Int]
 
 -- | Gets chunked conversation ids given size of each chunk, size of the last
 -- chunk, requesting user and @n@ which represents how many chunks are remaining
