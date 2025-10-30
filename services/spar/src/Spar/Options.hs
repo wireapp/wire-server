@@ -42,6 +42,7 @@ import qualified Data.Yaml as Yaml
 import qualified Database.Bloodhound.Types as ES
 import Imports
 import qualified Network.AMQP.Extended as Q
+import qualified Hasql.Pool.Extended as Hasql
 import Options.Applicative
 import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
@@ -72,6 +73,7 @@ data Opts = Opts
     -- | Postgresql settings, the key values must be in libpq format.
     postgresql :: !(Map Text Text),
     postgresqlPassword :: !(Maybe FilePathSecrets),
+    postgresqlPool :: !Hasql.PoolConfig,
     -- | Federator address
     federatorInternal :: !(Maybe Endpoint),
     -- | RabbitMQ settings, required when federation is enabled.
