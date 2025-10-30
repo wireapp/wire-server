@@ -1275,7 +1275,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     -- Save users joining their first remote conv in postgres
     withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
       filterUsersInPostgres uids >>= \pgUids -> do
-        let -- These are not in Postegres, but that doesn't mean they're in
+        let -- These are not in Postgres, but that doesn't mean they're in
             -- cassandra
             nonPgUids = filter (`notElem` pgUids) uids
         cassUids <- embedClient client $ haveRemoteConvs nonPgUids

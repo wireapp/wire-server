@@ -1,7 +1,7 @@
 Starting this release, existing deployments can migrate the conversation data to
 PostgreSQL from Cassandra. This is necessary for channel search and management
 of channels from the team-management UI. It is highly recommended to take a
-backup of the Galley Cassandra before triggerring the migration.
+backup of the Galley Cassandra before triggering the migration.
 
 The migration needs to happen in 3 steps:
 

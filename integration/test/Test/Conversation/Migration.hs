@@ -8,7 +8,7 @@
 -- The comments and variable names call these phases by number i.e. Phase1, Phase2, and so on.
 --
 -- The tests are from the perspective of mel, a user on the dynamic backend,
--- called backendM (migraing backend). There are also users called mark and mia
+-- called backendM (migrating backend). There are also users called mark and mia
 -- on this backend.
 module Test.Conversation.Migration where
 
