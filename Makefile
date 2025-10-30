@@ -403,11 +403,11 @@ es-reset: c
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
 	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/resources/test/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
 	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/resources/test/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 .PHONY: rabbitmq-reset
 rabbitmq-reset: rabbit-clean
