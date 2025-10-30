@@ -1,0 +1,3 @@
+Move /services/brig/deb/opt/brig/templates => libs/wire-subsystems/templates.
+
+(because it'll be needed in galley any moment now.)

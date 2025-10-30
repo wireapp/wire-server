@@ -9,7 +9,17 @@ copyright:          (c) 2020 Wire Swiss GmbH
 license:            AGPL-3.0-only
 license-file:       LICENSE
 build-type:         Simple
-extra-source-files: postgres-migrations/*.sql
+extra-source-files:
+  postgres-migrations/*.sql
+  templates/**/*.html
+  templates/**/*.txt
+  templates/index.html
+  templates/version
+  test/resources/**/*.html
+  test/resources/**/*.json
+  test/resources/**/*.pem
+  test/resources/**/*.txt
+  test/resources/**/*.yaml
 
 common common-all
   default-language:   GHC2021
