@@ -12,11 +12,11 @@ cassandra:
 elasticsearch:
   url: https://localhost:9200
   index: directory_test
-  credentials: test/resources/elasticsearch-credentials.yaml
-  caCert: test/resources/elasticsearch-ca.pem
+  credentials: ../../libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml
+  caCert: ../../libs/wire-subsystems/test/resources/elasticsearch-ca.pem
   insecureSkipVerifyTls: false
-  additionalCredentials: test/resources/elasticsearch-credentials.yaml
-  additionalCaCert: test/resources/elasticsearch-ca.pem
+  additionalCredentials: ../../libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml
+  additionalCaCert: ../../libs/wire-subsystems/test/resources/elasticsearch-ca.pem
   additionalInsecureSkipVerifyTls: false
 
 postgresql:
@@ -37,7 +37,7 @@ rabbitmq:
   port: 5671
   vHost: /
   enableTls: true
-  caCert: test/resources/rabbitmq-ca.pem
+  caCert: ../../libs/wire-subsystems/test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
 cargohold:
@@ -147,8 +147,8 @@ emailSMS:
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
 zauth:
-  privateKeys: test/resources/zauth/privkeys.txt
-  publicKeys: test/resources/zauth/pubkeys.txt
+  privateKeys: ../../libs/wire-subsystems/test/resources/zauth/privkeys.txt
+  publicKeys: ../../libs/wire-subsystems/test/resources/zauth/pubkeys.txt
   authSettings:
     keyIndex: 1
     userTokenTimeout: 120
@@ -160,14 +160,14 @@ zauth:
 
 turn:
   serversSource: files # files | dns
-  servers: test/resources/turn/servers.txt
-  serversV2: test/resources/turn/servers-v2.txt
+  servers: ../../libs/wire-subsystems/test/resources/turn/servers.txt
+  serversV2: ../../libs/wire-subsystems/test/resources/turn/servers-v2.txt
   # If configured to dns, also configure:
   # baseDomain: example.com
   # discoveryIntervalSeconds: 10
 
   # This should be the same secret as used by the TURN servers
-  secret: test/resources/turn/secret.txt
+  secret: ../../libs/wire-subsystems/test/resources/turn/secret.txt
   configTTL: 3600
   tokenTTL: 21600
 
@@ -233,13 +233,13 @@ optSettings:
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
-  setPublicKeyBundle: test/resources/jwt/ecdsa_secp256r1_sha256_key.pem
+  setPublicKeyBundle: ../../libs/wire-subsystems/test/resources/jwt/ecdsa_secp256r1_sha256_key.pem
   setEnableMLS: true
   # To only allow specific email address domains to register, uncomment and update the setting below
   # setAllowlistEmailDomains:
   #   - wire.com
   # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
-  setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
+  setOAuthJwkKeyPair: ../../libs/wire-subsystems/test/resources/oauth/ed25519.jwk
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
   setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
   setOAuthEnabled: true

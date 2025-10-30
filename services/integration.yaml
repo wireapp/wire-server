@@ -74,9 +74,9 @@ originDomain: example.com
 
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
-  privateKey: test/resources/key.pem
-  publicKey: test/resources/pubkey.pem
-  cert: test/resources/cert.pem
+  privateKey: ../../libs/wire-subsystems/test/resources/key.pem
+  publicKey: ../../libs/wire-subsystems/test/resources/pubkey.pem
+  cert: ../../libs/wire-subsystems/test/resources/cert.pem
   botHost: https://127.0.0.1
 
 # Used by spar integration tests
