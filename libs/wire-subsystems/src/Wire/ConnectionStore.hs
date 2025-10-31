@@ -19,6 +19,7 @@
 
 module Wire.ConnectionStore
   ( ConnectionStore (..),
+
     -- * Operations
     insertConnection,
     updateConnection,

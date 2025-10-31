@@ -32,7 +32,6 @@ import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivati
 import Brig.InternalEvent.Process qualified as Internal
 import Brig.Options hiding (internalEvents)
 import Brig.Version
-import Wire.DeleteQueue.Listen qualified as Queue
 import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((.~))
@@ -71,6 +70,7 @@ import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.AWSSubsystem qualified as AWS
 import Wire.AWSSubsystem.AWS qualified as AWSI
 import Wire.DeleteQueue
+import Wire.DeleteQueue.Listen qualified as Queue
 import Wire.OpenTelemetry (withTracer)
 import Wire.PostgresMigrations
 import Wire.Sem.Paging qualified as P
