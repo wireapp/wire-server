@@ -38,3 +38,6 @@ ulDiff (UserList lA rA) (UserList lB rB) =
   UserList
     (filter (`notElem` lB) lA)
     (filter (`notElem` rB) rA)
+
+ulNull :: UserList a -> Bool
+ulNull ul = null ul.ulLocals && null ul.ulRemotes
