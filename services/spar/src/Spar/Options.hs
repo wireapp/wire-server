@@ -40,9 +40,9 @@ import Data.Domain (Domain)
 import Data.Time
 import qualified Data.Yaml as Yaml
 import qualified Database.Bloodhound.Types as ES
+import qualified Hasql.Pool.Extended as Hasql
 import Imports
 import qualified Network.AMQP.Extended as Q
-import qualified Hasql.Pool.Extended as Hasql
 import Options.Applicative
 import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
