@@ -38,8 +38,8 @@ cassandra:
 elasticsearch:
   url: https://localhost:9200
   index: directory_test_spar
-  credentials: test/resources/elasticsearch-credentials.yaml
-  caCert: test/resources/elasticsearch-ca.pem
+  credentials: ../../libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml
+  caCert: ../../libs/wire-subsystems/test/resources/elasticsearch-ca.pem
   insecureSkipVerifyTls: false
 
 postgresql:
