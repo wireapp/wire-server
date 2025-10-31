@@ -469,6 +469,29 @@ addMembers usr qcnv opts = do
           <> ["conversation_role" .= r | r <- toList opts.role]
       )
 
+replaceMembers ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  AddMembers ->
+  App Response
+replaceMembers usr qcnv opts = do
+  (convDomain, convId) <- objQid qcnv
+  qUsers <- mapM objQidObject opts.users
+  let path = ["conversations", convDomain, convId, "members"]
+  req <-
+    baseRequest
+      usr
+      Galley
+      (maybe Versioned ExplicitVersion opts.version)
+      (joinHttpPath path)
+  submit "PUT"
+    $ req
+    & addJSONObject
+      ( ["qualified_users" .= qUsers]
+          <> ["conversation_role" .= r | r <- toList opts.role]
+      )
+
 removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
 removeMember remover qcnv removed = do
   (convDomain, convId) <- objQid qcnv

@@ -50,6 +50,7 @@ module Galley.API.Update
     addMembersUnqualified,
     addMembersUnqualifiedV2,
     addMembers,
+    replaceMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
     updateOtherMember,
@@ -80,6 +81,7 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
+import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Map.Strict qualified as Map
 import Data.Misc
@@ -1047,6 +1049,85 @@ addMembersUnqualified ::
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
   addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+
+-- | Replace conversation members by computing the difference between desired and
+-- current members, then executing removals followed by additions within a commit
+-- lock.
+replaceMembers ::
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAPIAccess r,
+    Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member LegalHoldStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  InviteQualified ->
+  Sem r ()
+replaceMembers lusr zcon qcnv (InviteQualified desiredUsers role) = do
+  lcnv <- ensureLocal lusr qcnv
+  conv <- getConversationWithError lcnv
+
+  -- Check team permissions for desired members
+  when (null conv.metadata.cnvmParent) $
+    mapErrorS @OperationDenied @('ActionDenied 'AddConversationMember) $
+      forM_ conv.metadata.cnvmTeam $ \tid -> do
+        forM_ desiredUsers $ \u -> do
+          mTeamMembership <- E.getTeamMember tid $ qUnqualified u
+          forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+            permissionCheck JoinRegularConversations . Just
+
+  -- Get current members (excluding the requesting user)
+  let currentMembers = Set.fromList $ map (\m -> Qualified m.id_ (tDomain lcnv)) (toList conv.localMembers)
+      desiredMembersSet = Set.fromList $ toList desiredUsers
+      toRemove = Set.difference currentMembers desiredMembersSet
+      toAdd = Set.difference desiredMembersSet currentMembers
+
+  -- If both sets are empty, return Unchanged
+  unless (Set.null toRemove && Set.null toAdd) $ do
+    -- Add members first
+    for_ (nonEmpty $ Set.toList toAdd) $ \addList -> do
+      let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
+      let action = ConversationJoin addList role joinType
+      getUpdateResult . fmap lcuEvent $
+        updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
+
+    -- Remove members
+    for_ (nonEmpty $ Set.toList toRemove) $ \removeList -> do
+      void . getUpdateResult . fmap lcuEvent $
+        updateLocalConversation @'ConversationRemoveMembersTag
+          lcnv
+          (tUntagged lusr)
+          (Just zcon)
+          (ConversationRemoveMembers removeList EdReasonRemoved)
 
 updateSelfMember ::
   ( Member ConversationStore r,
