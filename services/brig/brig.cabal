@@ -17,6 +17,7 @@ extra-source-files:
   docs/swagger-v4.json
   docs/swagger-v5.json
   docs/swagger.md
+  test/resources/internal-notification.json
 
 common common-all
   default-language:   GHC2021
