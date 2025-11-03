@@ -26,8 +26,18 @@ jobs:
           echo "CC=aarch64-apple-darwin-clang" >> $GITHUB_ENV
           echo "CXX=aarch64-apple-darwin-clang++" >> $GITHUB_ENV
           echo "AR=aarch64-apple-darwin-ar" >> $GITHUB_ENV
-          echo "CFLAGS=-mmacosx-version-min=11.0 -arch arm64" >> $GITHUB_ENV
+          echo "CFLAGS=-isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk -mmacosx-version-min=11.0 -arch arm64" >> $GITHUB_ENV
+          echo "LDFLAGS=-isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk -arch arm64" >> $GITHUB_ENV
           echo "RUSTFLAGS=-C linker=aarch64-apple-darwin-clang" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+          echo "OSXCROSS_NO_INCLUDE_PATHS=1" >> $GITHUB_ENV
+          echo "SDKROOT=/usr/local/osxcross/target/SDK/MacOSX15.5.sdk" >> $GITHUB_ENV
+
+      - name: Verify osxcross toolchain
+        run: |
+          which aarch64-apple-darwin-clang
+          aarch64-apple-darwin-clang --version
+          aarch64-apple-darwin-clang -v -isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk -arch arm64 -mmacosx-version-min=11.0 -x c - -o /dev/null <<< "int main() {return 0;}"
 
       - name: Build zAuth for macOS ARM
         run: |
