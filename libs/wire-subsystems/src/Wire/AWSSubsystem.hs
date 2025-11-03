@@ -47,6 +47,7 @@ data AWSSubsystem m r where
     a ->
     AWSSubsystem m (AWS.AWSResponse a)
   GetQueueUrl :: Text -> AWSSubsystem m Text
+  GetJournalQueueUrl :: AWSSubsystem m (Maybe Text)
   Listen :: forall a m. (FromJSON a, Show a) => Int -> Text -> (a -> m ()) -> AWSSubsystem m ()
   EnqueueStandard :: Text -> BL.ByteString -> AWSSubsystem m SQS.SendMessageResponse
   EnqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> AWSSubsystem m SQS.SendMessageResponse

@@ -104,20 +104,21 @@ journalEvent ::
   Maybe Name ->
   Sem r ()
 journalEvent typ uid em loc tid nm = do
-  queueUrl <- AWS.getQueueUrl "integration-user-events.fifo"
-  ts <- now
-  rnd <- embed nextRandom
-  let userEvent :: Proto.UserEvent =
-        defMessage
-          & U.eventType .~ typ
-          & U.userId .~ toBytes uid
-          & U.utcTime .~ ts
-          & U.maybe'email .~ (toByteString' <$> em)
-          & U.maybe'locale .~ (pack . show <$> loc)
-          & U.maybe'teamId .~ (toBytes <$> tid)
-          & U.maybe'name .~ (toByteString' <$> nm)
-      encoded = fromStrict $ B64.encode $ encodeMessage userEvent
-  void $ AWS.enqueueFIFO queueUrl "user.events" rnd encoded
+  mbQueueUrl <- AWS.getJournalQueueUrl
+  forM_ mbQueueUrl $ \queueUrl -> do
+    ts <- now
+    rnd <- embed nextRandom
+    let userEvent :: Proto.UserEvent =
+          defMessage
+            & U.eventType .~ typ
+            & U.userId .~ toBytes uid
+            & U.utcTime .~ ts
+            & U.maybe'email .~ (toByteString' <$> em)
+            & U.maybe'locale .~ (pack . show <$> loc)
+            & U.maybe'teamId .~ (toBytes <$> tid)
+            & U.maybe'name .~ (toByteString' <$> nm)
+        encoded = fromStrict $ B64.encode $ encodeMessage userEvent
+    void $ AWS.enqueueFIFO queueUrl "user.events" rnd encoded
 
 -- | Journal a Wire.API.UserEvent by pattern matching on its constructors
 journalUserEvent ::
