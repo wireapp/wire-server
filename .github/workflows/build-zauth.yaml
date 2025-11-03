@@ -38,7 +38,7 @@ jobs:
           cp target/aarch64-apple-darwin/release/zauth release/zauth-aarch64-apple-darwin
 
       - name: Upload macOS ARM64 release binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zauth-macos-arm64
           path: release/zauth-aarch64-apple-darwin
