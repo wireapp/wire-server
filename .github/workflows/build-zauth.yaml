@@ -5,69 +5,59 @@ on:
 
 name: Build zAuth Rust binary for ARM64
 jobs:
-  build:
+  build-macos-arm:
     runs-on: ubuntu-latest
+    env:
+      OSXCROSS_TARGET: ${{ github.workspace }}/osxcross
+      SDK_VERSION: 15.5
+      TARGET: aarch64-apple-darwin
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang build-essential cmake git curl xz-utils
 
-      - name: Set up osxcross toolchain
+      - name: Setup osxcross
         uses: Timmmm/setup-osxcross@v2
         with:
-          osx-version: "15.5"
+          osx-version: ${{ env.SDK_VERSION }}
 
-      - name: Configure environment for macOS ARM cross-compiling
+      - name: Download macOS SDK
         run: |
-          export TRIPLE="aarch64-apple-darwin24.5"
-          export ARCHFLAG="-arch arm64"
-          
-          echo "CC=${TRIPLE}-clang" >> $GITHUB_ENV
-          echo "CXX=${TRIPLE}-clang++" >> $GITHUB_ENV
-          echo "AR=${TRIPLE}-ar" >> $GITHUB_ENV
-          echo "TARGET=aarch64-apple-darwin" >> $GITHUB_ENV
-          echo "CFLAGS=-isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk -mmacosx-version-min=11.0 ${ARCHFLAG}" >> $GITHUB_ENV
-          echo "LDFLAGS=-isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk ${ARCHFLAG}" >> $GITHUB_ENV
-          echo "RUSTFLAGS=-C linker=${TRIPLE}-clang" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
-          echo "OSXCROSS_NO_INCLUDE_PATHS=1" >> $GITHUB_ENV
-          echo "SDKROOT=/usr/local/osxcross/target/SDK/MacOSX15.5.sdk" >> $GITHUB_ENV
-          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-          echo "ac_cv_func_malloc_0_nonnull=yes" >> $GITHUB_ENV
-          echo "ac_cv_func_realloc_0_nonnull=yes" >> $GITHUB_ENV
+          mkdir -p $OSXCROSS_TARGET/SDK
+          curl -L -o $OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk.tar.xz \
+            https://github.com/tpoechtrager/osxcross/raw/master/tarballs/MacOSX${SDK_VERSION}.sdk.tar.xz
+          tar -xJf $OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk.tar.xz -C $OSXCROSS_TARGET/SDK
+        shell: bash
 
-      - name: Verify compiler
+      - name: Setup cross compile env
         run: |
-          which $CC
-          $CC --version
-          echo "int main() {return 0;}" | $CC -v $CFLAGS -x c -o /dev/null -
+          export SDKROOT=$OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk
+          export CC=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang
+          export CXX=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang++
+          export AR=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-ar
+          export CFLAGS="-isysroot $SDKROOT -mmacosx-version-min=11.0 -arch arm64"
+          export LDFLAGS="-isysroot $SDKROOT -arch arm64"
+          export RUSTFLAGS="-C linker=$CC"
+          echo "SDKROOT=$SDKROOT" >> $GITHUB_ENV
+          echo "CC=$CC" >> $GITHUB_ENV
+          echo "CXX=$CXX" >> $GITHUB_ENV
+          echo "AR=$AR" >> $GITHUB_ENV
+          echo "CFLAGS=$CFLAGS" >> $GITHUB_ENV
+          echo "LDFLAGS=$LDFLAGS" >> $GITHUB_ENV
+          echo "RUSTFLAGS=$RUSTFLAGS" >> $GITHUB_ENV
 
-      - name: Build libzauth (Rust + C + libsodium-sys)
+      - name: Build zauth
         run: |
-          echo "Building for aarch64-apple-darwin..."
-          make libzauth
-        env:
-          TARGET: aarch64-apple-darwin
-          CC: ${{ env.CC }}
-          CXX: ${{ env.CXX }}
-          AR: ${{ env.AR }}
-          CFLAGS: ${{ env.CFLAGS }}
-          LDFLAGS: ${{ env.LDFLAGS }}
-          RUSTFLAGS: ${{ env.RUSTFLAGS }}
-          MACOSX_DEPLOYMENT_TARGET: 11.0
-          OSXCROSS_NO_INCLUDE_PATHS: 1
-          SDKROOT: /usr/local/osxcross/target/SDK/MacOSX15.5.sdk
-          PKG_CONFIG_ALLOW_CROSS: 1
-          ac_cv_func_malloc_0_nonnull: yes
-          ac_cv_func_realloc_0_nonnull: yes
+          cargo build --release --target $TARGET
 
-      - name: Upload compiled artifact
-        uses: actions/upload-artifact@v4
+      - name: Copy zauth binary
+        run: |
+          mkdir -p build-artifacts
+          cp target/$TARGET/release/zauth build-artifacts/
+
+      - name: Upload zauth macOS ARM binary
+        uses: actions/upload-artifact@v3
         with:
-          name: libzauth-aarch64-apple-darwin
-          path: |
-            libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release
+          name: zauth-macos-arm
+          path: build-artifacts/zauth
