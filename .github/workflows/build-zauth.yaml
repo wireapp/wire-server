@@ -7,57 +7,38 @@ name: Build zAuth Rust binary for ARM64
 jobs:
   build-macos-arm:
     runs-on: ubuntu-latest
-    env:
-      OSXCROSS_TARGET: ${{ github.workspace }}/osxcross
-      SDK_VERSION: 15.5
-      TARGET: aarch64-apple-darwin
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang build-essential cmake git curl xz-utils
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
 
       - name: Setup osxcross
         uses: Timmmm/setup-osxcross@v2
         with:
-          osx-version: ${{ env.SDK_VERSION }}
+          osx-version: 15.5
 
-      - name: Download macOS SDK
+      - name: Show compiler info
         run: |
-          mkdir -p $OSXCROSS_TARGET/SDK
-          curl -L -o $OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk.tar.xz \
-            https://github.com/tpoechtrager/osxcross/raw/master/tarballs/MacOSX${SDK_VERSION}.sdk.tar.xz
-          tar -xJf $OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk.tar.xz -C $OSXCROSS_TARGET/SDK
-        shell: bash
+          echo "CC: $CC"
+          $CC --version
 
-      - name: Setup cross compile env
+      - name: Build zauth release binary
         run: |
-          export SDKROOT=$OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk
-          export CC=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang
-          export CXX=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang++
-          export AR=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-ar
-          export CFLAGS="-isysroot $SDKROOT -mmacosx-version-min=11.0 -arch arm64"
-          export LDFLAGS="-isysroot $SDKROOT -arch arm64"
-          export RUSTFLAGS="-C linker=$CC"
-          echo "SDKROOT=$SDKROOT" >> $GITHUB_ENV
-          echo "CC=$CC" >> $GITHUB_ENV
-          echo "CXX=$CXX" >> $GITHUB_ENV
-          echo "AR=$AR" >> $GITHUB_ENV
-          echo "CFLAGS=$CFLAGS" >> $GITHUB_ENV
-          echo "LDFLAGS=$LDFLAGS" >> $GITHUB_ENV
-          echo "RUSTFLAGS=$RUSTFLAGS" >> $GITHUB_ENV
+          cargo build --release --target aarch64-apple-darwin
 
-      - name: Build zauth
+      - name: Copy built binary
         run: |
-          cargo build --release --target $TARGET
+          mkdir -p release
+          cp target/aarch64-apple-darwin/release/zauth release/zauth-aarch64-apple-darwin
 
-      - name: Copy zauth binary
-        run: |
-          mkdir -p build-artifacts
-          cp target/$TARGET/release/zauth build-artifacts/
-
-      - name: Upload zauth macOS ARM binary
-        uses: actions/upload-artifact@v4
+      - name: Upload macOS ARM64 release binary
+        uses: actions/upload-artifact@v3
         with:
-          name: zauth-macos-arm
-          path: build-artifacts/zauth
+          name: zauth-macos-arm64
+          path: release/zauth-aarch64-apple-darwin
