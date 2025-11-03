@@ -104,7 +104,7 @@ journalEvent ::
   Maybe Name ->
   Sem r ()
 journalEvent typ uid em loc tid nm = do
-  queueUrl <- AWS.getQueueUrl "user.events"
+  queueUrl <- AWS.getQueueUrl "integration-user-events.fifo"
   ts <- now
   rnd <- embed nextRandom
   let userEvent :: Proto.UserEvent =
