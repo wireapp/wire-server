@@ -149,12 +149,21 @@ mkEnv lgr opts emailOpts mgr = do
 
 ---------------------------------------------------------
 
+-- | Variant of getQueueUrlImpl for calling during Env construction.
 getQueueUrl ::
   (MonadUnliftIO m, MonadCatch m) =>
   AWS.Env ->
   Text ->
   m Text
 getQueueUrl e q = view SQS.getQueueUrlResponse_queueUrl <$> runAwsRequestThrow e (SQS.newGetQueueUrl q)
+
+getQueueUrlImpl :: Env -> Text -> IO Text
+getQueueUrlImpl env queueName = do
+  resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
+  pure $ view SQS.getQueueUrlResponse_queueUrl resp
+
+getJournalQueueUrlImpl :: Env -> IO (Maybe Text)
+getJournalQueueUrlImpl env = forM (env ^. userJournalQueue) (getQueueUrlImpl env)
 
 listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO x) -> Amazon y
 listen throttleMillis url callback = forever . handleAny unexpectedError $ do
@@ -239,14 +248,6 @@ runAwsRequestThrow e cmd = liftIO (runAwsRequest e cmd) >>= either (throwM . Gen
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000
-
-getQueueUrlImpl :: Env -> Text -> IO Text
-getQueueUrlImpl env queueName = do
-  resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
-  pure $ view SQS.getQueueUrlResponse_queueUrl resp
-
-getJournalQueueUrlImpl :: Env -> IO (Maybe Text)
-getJournalQueueUrlImpl env = forM (env ^. userJournalQueue) (getQueueUrlImpl env)
 
 --------------------------------------------------------------------------------
 -- Polysemy Interpreter
