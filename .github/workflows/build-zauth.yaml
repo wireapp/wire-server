@@ -7,38 +7,48 @@ name: Build zAuth Rust binary for ARM64
 jobs:
   build-macos-arm:
     runs-on: ubuntu-latest
+    env:
+      SDK_VERSION: 15.5
+      TARGET: aarch64-apple-darwin
+      OSXCROSS_TARGET: ${{ github.workspace }}/osxcross
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
       - name: Setup osxcross
         uses: Timmmm/setup-osxcross@v2
         with:
-          osx-version: 15.5
+          osx-version: ${{ env.SDK_VERSION }}
 
-      - name: Show compiler info
+      - name: Set compiler variables
         run: |
-          echo "CC: $CC"
+          export CC=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang
+          export CXX=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang++
+          export AR=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-ar
+          export SDKROOT=$OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          echo "CC=$CC"
           $CC --version
 
-      - name: Build zauth release binary
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build zauth
         run: |
+          export CC=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang
+          export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=$CC
           cargo build --release --target aarch64-apple-darwin
 
-      - name: Copy built binary
-        run: |
-          mkdir -p release
-          cp target/aarch64-apple-darwin/release/zauth release/zauth-aarch64-apple-darwin
+      - name: List built binaries
+        run: ls -lh target/aarch64-apple-darwin/release
 
-      - name: Upload macOS ARM64 release binary
+      - name: Upload zauth binary as artifact
         uses: actions/upload-artifact@v4
         with:
           name: zauth-macos-arm64
-          path: release/zauth-aarch64-apple-darwin
+          path: target/aarch64-apple-darwin/release/zauth
