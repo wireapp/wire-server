@@ -41,10 +41,17 @@ jobs:
       - name: Build zauth
         run: |
           cd libs/libzauth/libzauth-c
-          rustup target add aarch64-apple-darwin
           export CC=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang
+          export CXX=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang++
+          export AR=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-ar
+          export SDKROOT=$OSXCROSS_TARGET/SDK/MacOSX${SDK_VERSION}.sdk
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=11.0"
+          export LDFLAGS="-isysroot $SDKROOT -arch arm64"
+          export PKG_CONFIG_ALLOW_CROSS=1
+          export OSXCROSS_NO_INCLUDE_PATHS=1
           export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=$CC
-          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin --verbose
 
       - name: List built binaries
         run: ls -lh libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release
