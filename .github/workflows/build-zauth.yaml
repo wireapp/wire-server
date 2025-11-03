@@ -3,7 +3,6 @@ on:
     branches:
       - lwille/zauth-arm64
 
-
 name: Build zAuth Rust binary for ARM64
 jobs:
   build:
@@ -15,19 +14,28 @@ jobs:
           osx-version: "15.5"
 
       - name: Install Rustup targets
-        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Build zAuth for ARM64
+      - name: Configure environment for macOS ARM cross-compiling
         run: |
-          make libzauth 
+          echo "CC=aarch64-apple-darwin15.5-clang" >> $GITHUB_ENV
+          echo "CXX=aarch64-apple-darwin15.5-clang++" >> $GITHUB_ENV
+          echo "AR=aarch64-apple-darwin15.5-ar" >> $GITHUB_ENV
+          echo "CFLAGS=-mmacosx-version-min=11.0 -arch arm64" >> $GITHUB_ENV
+          echo "RUSTFLAGS=-C linker=aarch64-apple-darwin15.5-clang" >> $GITHUB_ENV
+
+      - name: Build zAuth for macOS ARM
+        run: |
+          make libzauth
         env:
-          CARGO_BUILD_TARGET: aarch64-apple-darwin 
+          CARGO_BUILD_TARGET: aarch64-apple-darwin
 
       - name: Upload zAuth binary as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zauth-linux-arm64
+          name: zauth-macos-arm64
           path: dist/zauth
