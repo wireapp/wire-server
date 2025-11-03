@@ -375,8 +375,8 @@ testSparScimCreateUserGroup = do
             "displayName" .= "ze groop",
             "members"
               .= [ object
-                     [ "typ" .= "User",
-                       "$ref" .= "https://...", -- TODO: we should probably validate these?  or just ignore them?
+                     [ "type" .= "User",
+                       "$ref" .= "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b", -- TODO: or something imilar.  we should probably validate these?  or just ignore them?
                        "value" .= "ea2e4bf0-aa5e-11f0-96ad-e776a606779b"
                      ]
                  ]
