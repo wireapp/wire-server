@@ -40,6 +40,7 @@ jobs:
 
       - name: Build zauth
         run: |
+          cd libs/libzauth/libzauth-c
           export CC=$OSXCROSS_TARGET/bin/aarch64-apple-darwin24.5-clang
           export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=$CC
           cargo build --release --target aarch64-apple-darwin
