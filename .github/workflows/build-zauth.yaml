@@ -33,14 +33,6 @@ jobs:
           echo "OSXCROSS_NO_INCLUDE_PATHS=1" >> $GITHUB_ENV
           echo "SDKROOT=/usr/local/osxcross/target/SDK/MacOSX15.5.sdk" >> $GITHUB_ENV
 
-      - name: Verify osxcross toolchain
-        run: |
-          which aarch64-apple-darwin24.5-clang
-          aarch64-apple-darwin24.5-clang --version
-          echo "int main() {return 0;}" | aarch64-apple-darwin24.5-clang -v \
-            -isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk \
-            -arch arm64 -mmacosx-version-min=11.0 -o /dev/null -x c -
-
       - name: Build zAuth for macOS ARM
         run: |
           make libzauth
