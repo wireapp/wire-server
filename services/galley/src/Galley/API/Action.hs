@@ -957,16 +957,15 @@ addMembersToLocalConversation lcnv users role joinType = do
 
 setOutOfSyncFlag :: (Member ConversationStore r) => Local StoredConversation -> UserList UserId -> Sem r ()
 setOutOfSyncFlag (tUnqualified -> conv) newMembers =
-  when (goingOutOfSync conv newMembers) $
-    E.setConversationOutOfSync conv.id_ True
-  where
-    goingOutOfSync conv newMembers
-      | ulNull newMembers = False
-      | otherwise = case conv.protocol of
-          ProtocolMLS _ -> True
-          ProtocolProteus -> False
-          -- no need to keep track of out of sync flag for mixed conversations
-          ProtocolMixed _ -> False
+  let goingOutOfSync
+        | ulNull newMembers = False
+        | otherwise = case conv.protocol of
+            ProtocolMLS _ -> True
+            ProtocolProteus -> False
+            -- no need to keep track of out of sync flag for mixed conversations
+            ProtocolMixed _ -> False
+   in when goingOutOfSync $
+        E.setConversationOutOfSync conv.id_ True
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
