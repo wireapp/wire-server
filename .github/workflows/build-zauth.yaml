@@ -57,7 +57,7 @@ jobs:
           cp target/$TARGET/release/zauth build-artifacts/
 
       - name: Upload zauth macOS ARM binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zauth-macos-arm
           path: build-artifacts/zauth
