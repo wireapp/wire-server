@@ -19,7 +19,7 @@ jobs:
       - name: Set up osxcross toolchain
         uses: Timmmm/setup-osxcross@v2
         with:
-          macos-sdk: "15.5"
+          osx-version: "15.5"
 
       - name: Configure environment for macOS ARM cross-compiling
         run: |
