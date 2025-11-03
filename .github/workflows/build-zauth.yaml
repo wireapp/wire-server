@@ -22,11 +22,12 @@ jobs:
 
       - name: Configure environment for macOS ARM cross-compiling
         run: |
-          echo "CC=aarch64-apple-darwin15.5-clang" >> $GITHUB_ENV
-          echo "CXX=aarch64-apple-darwin15.5-clang++" >> $GITHUB_ENV
-          echo "AR=aarch64-apple-darwin15.5-ar" >> $GITHUB_ENV
+          echo "PATH=/usr/local/osxcross/bin:$PATH" >> $GITHUB_ENV
+          echo "CC=aarch64-apple-darwin-clang" >> $GITHUB_ENV
+          echo "CXX=aarch64-apple-darwin-clang++" >> $GITHUB_ENV
+          echo "AR=aarch64-apple-darwin-ar" >> $GITHUB_ENV
           echo "CFLAGS=-mmacosx-version-min=11.0 -arch arm64" >> $GITHUB_ENV
-          echo "RUSTFLAGS=-C linker=aarch64-apple-darwin15.5-clang" >> $GITHUB_ENV
+          echo "RUSTFLAGS=-C linker=aarch64-apple-darwin-clang" >> $GITHUB_ENV
 
       - name: Build zAuth for macOS ARM
         run: |
