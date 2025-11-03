@@ -681,3 +681,49 @@ testTeamAdminCanGetChannelData = do
   getConversation owner conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "access-denied"
+
+testConversationOutOfSync :: (HasCallStack) => App ()
+testConversationOutOfSync = do
+  (owner, tid, [alice, bob, charlie]) <- createTeam OwnDomain 4
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  -- create empty channel
+  ch <-
+    postConversation
+      alice1
+      defMLS
+        { groupConvType = Just "channel",
+          team = Just tid
+        }
+      >>= getJSON 201
+
+  -- set up mls group
+  convId <- objConvId ch
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+
+  -- an empty channel should not be out of sync
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` False
+
+  -- after adding some members, it should be out of sync
+  void $ addMembers owner convId def {users = [bob, charlie]} >>= getJSON 200
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- now bob joins with an external commit, the conv should remain out of sync
+  void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundle
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- finally, charlie joins and the conversation is not out of sync anymore
+  void $ createExternalCommit convId charlie1 Nothing >>= sendAndConsumeCommitBundle
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` False

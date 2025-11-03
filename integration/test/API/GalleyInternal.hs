@@ -160,3 +160,13 @@ selectTeamMembers :: (HasCallStack, MakesValue domain) => domain -> String -> [S
 selectTeamMembers domain tid uids = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "members", "by-ids"]
   submit "GET" $ req & addJSON (object ["ids" .= uids])
+
+isConversationOutOfSync :: (HasCallStack, MakesValue conv) => conv -> App Response
+isConversationOutOfSync conv = do
+  (domain, convId) <- objQid conv
+  baseRequest
+    domain
+    Galley
+    Unversioned
+    (joinHttpPath ["i", "conversations", convId, "out-of-sync"])
+    >>= submit "GET"
