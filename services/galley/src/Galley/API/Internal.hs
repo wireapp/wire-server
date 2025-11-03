@@ -183,6 +183,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
     <@> mkNamedAPI @"get-conversation-by-id" Query.getLocalConversationInternal
+    <@> mkNamedAPI @"is-conversation-out-of-sync" E.isConversationOutOfSync
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
