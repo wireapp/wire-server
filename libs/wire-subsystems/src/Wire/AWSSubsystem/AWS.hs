@@ -240,6 +240,14 @@ runAwsRequestThrow e cmd = liftIO (runAwsRequest e cmd) >>= either (throwM . Gen
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000
 
+getQueueUrlImpl :: Env -> Text -> IO Text
+getQueueUrlImpl env queueName = do
+  resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
+  pure $ view SQS.getQueueUrlResponse_queueUrl resp
+
+getJournalQueueUrlImpl :: Env -> IO (Maybe Text)
+getJournalQueueUrlImpl env = forM (env ^. userJournalQueue) (getQueueUrlImpl env)
+
 --------------------------------------------------------------------------------
 -- Polysemy Interpreter
 
@@ -253,9 +261,8 @@ runAWSSubsystem ::
 runAWSSubsystem env = interpretFinal $ \case
   RunAwsRequest x -> liftS @IO $ runAwsRequest env._amazonkaEnv x
   RunAwsRequestThrow x -> liftS @IO $ runAwsRequestThrow env._amazonkaEnv x
-  GetQueueUrl queueName -> liftS @IO $ do
-    resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
-    pure $ view SQS.getQueueUrlResponse_queueUrl resp
+  GetQueueUrl queueName -> liftS @IO $ getQueueUrlImpl env queueName
+  GetJournalQueueUrl -> liftS @IO $ getJournalQueueUrlImpl env
   EnqueueStandard url message -> liftS $ do
     runResourceT $ runReaderT ((enqueueStandard url message).unAmazon) env
   EnqueueFIFO url group dedupId message -> liftS $ do
