@@ -97,6 +97,7 @@ library
     , imports
     , metrics-wai
     , monad-control
+    , prometheus-client
     , retry
     , servant
     , servant-client

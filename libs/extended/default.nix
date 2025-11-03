@@ -26,6 +26,7 @@
 , lib
 , metrics-wai
 , monad-control
+, prometheus-client
 , retry
 , servant
 , servant-client
@@ -67,6 +68,7 @@ mkDerivation {
     imports
     metrics-wai
     monad-control
+    prometheus-client
     retry
     servant
     servant-client
