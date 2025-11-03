@@ -32,6 +32,11 @@ jobs:
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
           echo "OSXCROSS_NO_INCLUDE_PATHS=1" >> $GITHUB_ENV
           echo "SDKROOT=/usr/local/osxcross/target/SDK/MacOSX15.5.sdk" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/osxcross/target/SDK/MacOSX15.5.sdk/usr/lib/pkgconfig" >> $GITHUB_ENV
+          # Prevent autotools from running test binaries
+          echo "ac_cv_func_malloc_0_nonnull=yes" >> $GITHUB_ENV
+          echo "ac_cv_func_realloc_0_nonnull=yes" >> $GITHUB_ENV
 
       - name: Build zAuth for macOS ARM
         run: |
