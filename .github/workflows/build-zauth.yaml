@@ -37,7 +37,9 @@ jobs:
         run: |
           which aarch64-apple-darwin24.5-clang
           aarch64-apple-darwin24.5-clang --version
-          aarch64-apple-darwin24.5-clang -v -isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk -arch arm64 -mmacos
+          echo "int main() {return 0;}" | aarch64-apple-darwin24.5-clang -v \
+            -isysroot /usr/local/osxcross/target/SDK/MacOSX15.5.sdk \
+            -arch arm64 -mmacosx-version-min=11.0 -o /dev/null -x c -
 
       - name: Build zAuth for macOS ARM
         run: |
