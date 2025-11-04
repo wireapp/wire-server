@@ -17,6 +17,7 @@ executable inconsistencies
     EmailLessUsers
     EmailUnparseableUsers
     HandleLessUsers
+    NullPermsTeamMembers
     Options
     Paths_inconsistencies
     UsersInUnknownTeams
