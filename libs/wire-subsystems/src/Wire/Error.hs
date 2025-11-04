@@ -11,7 +11,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding (decodeUtf8With)
-import Debug.Trace
+import Data.Text.Lazy.Encoding qualified as LText
 import Hasql.Pool
 import Imports
 import Network.HTTP.Types
@@ -42,6 +42,10 @@ errorCode (RichError e _ _) = Wai.code e
 errorLabel :: HttpError -> LText
 errorLabel (StdError e) = Wai.label e
 errorLabel (RichError e _ _) = Wai.label e
+
+errorMessage :: HttpError -> LText
+errorMessage (StdError e) = Wai.message e
+errorMessage (RichError e _ _) = Wai.message e
 
 instance ToJSON HttpError where
   toJSON (StdError e) = toJSON e
@@ -76,7 +80,7 @@ httpErrorToServerError err =
   ServerError
     (statusCode $ errorCode err)
     (UTF8BS.toString $ statusMessage $ errorCode err)
-    (encode err)
+    (if errorLabel err == "unknown-error" then LText.encodeUtf8 (errorMessage err) else encode err)
     []
 
 -- | Construct a StdError from a servant error.
