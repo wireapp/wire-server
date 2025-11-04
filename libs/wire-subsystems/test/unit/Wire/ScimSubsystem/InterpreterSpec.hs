@@ -74,7 +74,7 @@ mkScimGroupMember (idToText . User.userId -> value) =
    in Group.Member {..}
 
 spec :: Spec
-spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
+spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
   describe "scimCreateUserGroup" $ do
     prop "creates a group returns it" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
       let newScimGroup =
@@ -94,15 +94,15 @@ spec = focus . UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
             Right (createdGroup, retrievedGroup) ->
               Just createdGroup.thing.id === ((.id_) <$> retrievedGroup)
 
-    it "does not allow non-scim members" $ do
-      team :: UGS.ArbitraryTeam <- generate arbitrary
-      newScimGroup :: Group.Group <- do
-        generate arbitrary <&> \g -> g {Group.members = take 2 $ mkScimGroupMember <$> UGS.allUsers team}
-      let have =
+    prop "does not allow non-scim members" $ \team newScimGroup_ -> do
+      let newScimGroup = newScimGroup_ {Group.members = mkScimGroupMember <$> groupMembers}
+          groupMembers = take 2 (UGS.allUsers team)
+          have =
             runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
               scimCreateUserGroup team.tid newScimGroup
+
           want =
-            if all (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
+            if all (\u -> u.userManagedBy == ManagedByScim) groupMembers
               then isRight
               else isLeft
       unless (want have) do
