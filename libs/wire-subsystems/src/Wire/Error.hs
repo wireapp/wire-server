@@ -1,17 +1,23 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.Error where
 
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString qualified as BS
+import Data.ByteString.UTF8 qualified as UTF8BS
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Encoding (decodeUtf8With)
+import Debug.Trace
 import Hasql.Pool
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
-import Servant (ServerError)
+import Servant (ServerError (..))
 
 -- | Error thrown to the user
 data HttpError where
@@ -28,6 +34,10 @@ instance Show HttpError where
   show e@(RichError _ _ headers) = "RichError (json = " <> Text.unpack (Text.decodeUtf8 $ BS.toStrict $ encode e) <> ", headers = " <> show headers <> ")"
 
 instance Exception HttpError
+
+errorCode :: HttpError -> Status
+errorCode (StdError e) = Wai.code e
+errorCode (RichError e _ _) = Wai.code e
 
 errorLabel :: HttpError -> LText
 errorLabel (StdError e) = Wai.label e
@@ -59,8 +69,25 @@ postgresUsageErrorToHttpError err = case err of
   ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
   AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
 
+-- | Extract the wai error from an HttpError and convert into a
+-- servant error.  `RichError` extra data is discarded!
 httpErrorToServerError :: HttpError -> ServerError
-httpErrorToServerError = undefined
+httpErrorToServerError err =
+  ServerError
+    (statusCode $ errorCode err)
+    (UTF8BS.toString $ statusMessage $ errorCode err)
+    (encode err)
+    []
 
+-- | Construct a StdError from a servant error.
 serverErrorToHttpError :: ServerError -> HttpError
-serverErrorToHttpError = undefined
+serverErrorToHttpError ServerError {..} =
+  StdError $
+    Wai.mkError
+      (Status errHTTPCode (UTF8BS.fromString errReasonPhrase))
+      lbl
+      msg
+  where
+    (lbl, msg) = case decode @Wai.Error errBody of
+      Just err -> (err.label :: LText, err.message :: LText)
+      Nothing -> ("unknown-error", decodeUtf8With lenientDecode errBody) -- just make something up.
