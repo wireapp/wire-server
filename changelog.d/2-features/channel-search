@@ -1,1 +1,1 @@
-Add `GET /teams/:tid/channels/search` endpoint for listing and searching channels
+Add `GET /teams/:tid/channels/search` endpoint for listing and searching channels (#4821, #4836)
