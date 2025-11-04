@@ -44,6 +44,7 @@ data Command
   | EmailUnparseableUsers
   | MissingEmailUserKeys (Maybe (FilePath, Bool))
   | UsersInUnknownTeams CassandraSettings
+  | NullPermsTeamMembers CassandraSettings
 
 optionsParser :: Parser (Command, Settings)
 optionsParser = (,) <$> commandParser <*> settingsParser
@@ -51,7 +52,13 @@ optionsParser = (,) <$> commandParser <*> settingsParser
 commandParser :: Parser Command
 commandParser =
   subparser $
-    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand <> unparseableEmailsCommand <> missingEmailsCommand <> usersInUnknownTeamsCommand
+    danglingHandlesCommand
+      <> handleLessUsersCommand
+      <> danglingKeysCommand
+      <> unparseableEmailsCommand
+      <> missingEmailsCommand
+      <> usersInUnknownTeamsCommand
+      <> nullPermsTeamMembersCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
 danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional (inputFileRepairParser "handles")) (progDesc "find handle which shouldn't be claimed"))
@@ -72,6 +79,11 @@ usersInUnknownTeamsCommand :: Mod CommandFields Command
 usersInUnknownTeamsCommand = command "users-in-unknown-teams" (info (helper <*> parser) (progDesc "find users which have a team that doesn't exist"))
   where
     parser = (UsersInUnknownTeams <$> cassandraSettingsParser "galley")
+
+nullPermsTeamMembersCommand :: Mod CommandFields Command
+nullPermsTeamMembersCommand = command "null-perms" (info (helper <*> parser) (progDesc "find team_member rows whose perms field is NULL and report user and team info"))
+  where
+    parser = (NullPermsTeamMembers <$> cassandraSettingsParser "galley")
 
 settingsParser :: Parser Settings
 settingsParser =
