@@ -26,7 +26,7 @@ jobs:
         id: locate
         run: |
           TOOLCHAIN_PATH=$(find /home/runner/work/_actions/Timmmm/setup-osxcross/v2/osxcross/target/bin \
-            \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang' 2>/dev/null | head -n 1 || true
+            \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang' 2>/dev/null | head -n 1 || true)
           if [ -z "$TOOLCHAIN_PATH" ]; then
             echo "aarch64-apple-darwin clang not found"
             echo "Available files under osxcross target/bin:"
