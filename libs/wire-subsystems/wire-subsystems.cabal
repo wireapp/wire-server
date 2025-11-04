@@ -171,6 +171,7 @@ common common-all
     , unliftio
     , unordered-containers
     , uri-bytestring
+    , utf8-string
     , uuid
     , vector
     , wai-utilities
@@ -439,6 +440,7 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.ErrorSpec
     Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
