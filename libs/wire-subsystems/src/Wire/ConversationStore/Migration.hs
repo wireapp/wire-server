@@ -52,6 +52,7 @@ import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Migration.Types
 import Wire.ConversationStore.MigrationLock
 import Wire.Postgres
+import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -92,21 +93,21 @@ migrationLoop cassClient pgPool logger name migFinished migration = do
     runMigration :: IO Int
     runMigration =
       fmap fst
-        . interpreter cassClient pgPool logger
+        . interpreter cassClient pgPool logger name
         $ runConduit migration
 
-interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> Sem EffectStack a -> IO (Int, a)
-interpreter cassClient pgPool logger =
+interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
+interpreter cassClient pgPool logger name =
   runFinal
     . embedToFinal
     . loggerToTinyLog logger
+    . mapLogger (Log.field "migration" name .)
+    . raiseUnder
     . interpretRace
     . asyncToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
     . runState 0
-
--- * Paginated Migration
 
 pageSize :: Int32
 pageSize = 10000
