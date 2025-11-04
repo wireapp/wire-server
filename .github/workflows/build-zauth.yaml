@@ -39,6 +39,9 @@ jobs:
           export CC=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang' | head -n 1)
           export CXX=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang++' | head -n 1)
           export AR=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-ar' | head -n 1)
+          export AR_aarch64_apple_darwin=$AR
+          export CFLAGS_aarch64_apple_darwin="$CFLAGS"
+          export LDFLAGS_aarch64_apple_darwin="$LDFLAGS"
 
           if [ -z "$CC" ]; then
             echo "Error: couldn't find aarch64 clang in $TOOLCHAIN"
@@ -47,6 +50,7 @@ jobs:
           fi
 
           export SDKROOT=$(dirname $(dirname $TOOLCHAIN))/SDK/MacOSX${SDK_VERSION}.sdk
+          ls -l "$SDKROOT"
           export MACOSX_DEPLOYMENT_TARGET=11.0
           export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=11.0"
           export LDFLAGS="-isysroot $SDKROOT -arch arm64"
