@@ -40,8 +40,6 @@ jobs:
           export CXX=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang++' | head -n 1)
           export AR=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-ar' | head -n 1)
           export AR_aarch64_apple_darwin=$AR
-          export CFLAGS_aarch64_apple_darwin="$CFLAGS"
-          export LDFLAGS_aarch64_apple_darwin="$LDFLAGS"
 
           if [ -z "$CC" ]; then
             echo "Error: couldn't find aarch64 clang in $TOOLCHAIN"
@@ -53,13 +51,13 @@ jobs:
           export SDKROOT="$OSXCROSS/SDK/MacOSX${SDK_VERSION}.sdk"
           ls -l "$SDKROOT"
           export MACOSX_DEPLOYMENT_TARGET=11.0
-          export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=11.0"
-          export LDFLAGS="-isysroot $SDKROOT -arch arm64"
+          export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+          export LDFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+          export CFLAGS_aarch64_apple_darwin="$CFLAGS"
+          export LDFLAGS_aarch64_apple_darwin="$LDFLAGS"
           export PKG_CONFIG_ALLOW_CROSS=1
           export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=$CC
           export CC_aarch64_apple_darwin="$CC"
-          export CFLAGS_aarch64_apple_darwin="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=11.0"
-          export LDFLAGS_aarch64_apple_darwin="-isysroot $SDKROOT -arch arm64"
 
           echo "Using CC=$CC"
           $CC --version || (echo "clang executable broken" && exit 1)
@@ -73,3 +71,10 @@ jobs:
         with:
           name: zauth-macos-arm64
           path: libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release/zauth
+
+      - name: Upload config.log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsodium-config-log
+          path: libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release/build/libsodium-sys-*/out/
