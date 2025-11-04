@@ -221,7 +221,9 @@ startDynamicBackend resource beOverrides = do
           gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace,
           backgroundWorkerCfg =
             setField "cassandra.keyspace" resource.berGundeckKeyspace
-              >=> setField "cassandraGalley.keyspace" resource.berGalleyKeyspace
+              >=> setField "cassandraGalley.keyspace" resource.berGalleyKeyspace,
+          cannonCfg =
+            setField "cassandra.keyspace" resource.berGundeckKeyspace
         }
     setPgDb :: ServiceOverrides
     setPgDb =
