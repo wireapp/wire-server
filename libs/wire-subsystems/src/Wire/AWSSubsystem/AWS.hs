@@ -163,7 +163,7 @@ getQueueUrlImpl env queueName = do
   pure $ view SQS.getQueueUrlResponse_queueUrl resp
 
 getJournalQueueUrlImpl :: Env -> IO (Maybe Text)
-getJournalQueueUrlImpl env = forM (env ^. userJournalQueue) (getQueueUrlImpl env)
+getJournalQueueUrlImpl env = pure (env ^. userJournalQueue)
 
 listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO x) -> Amazon y
 listen throttleMillis url callback = forever . handleAny unexpectedError $ do
