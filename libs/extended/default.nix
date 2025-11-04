@@ -42,6 +42,7 @@
 , transformers
 , types-common
 , unliftio
+, uuid
 , wai
 }:
 mkDerivation {
@@ -82,6 +83,7 @@ mkDerivation {
     transformers
     types-common
     unliftio
+    uuid
     wai
   ];
   testHaskellDepends = [

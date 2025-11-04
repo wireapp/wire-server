@@ -99,6 +99,7 @@ library
     , monad-control
     , prometheus-client
     , retry
+    , uuid
     , servant
     , servant-client
     , servant-client-core

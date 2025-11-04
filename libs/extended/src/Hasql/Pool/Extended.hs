@@ -3,6 +3,8 @@ module Hasql.Pool.Extended where
 import Data.Aeson
 import Data.Map as Map
 import Data.Misc
+import Data.Set qualified as Set
+import Data.UUID
 import Hasql.Connection.Setting qualified as HasqlSetting
 import Hasql.Connection.Setting.Connection qualified as HasqlConn
 import Hasql.Connection.Setting.Connection.Param qualified as HasqlConfig
@@ -43,6 +45,7 @@ initPostgresPool config pgConfig mFpSecrets = do
   let pgConfigWithPw = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
       pgParams = Map.foldMapWithKey (\k v -> [HasqlConfig.other k v]) pgConfigWithPw
   metrics <- initHasqlPoolMetrics
+  connsRef <- newIORef $ Connections mempty mempty mempty
   HasqlPool.acquire $
     HasqlPool.settings
       [ HasqlPool.staticConnectionSettings $
@@ -51,7 +54,7 @@ initPostgresPool config pgConfig mFpSecrets = do
         HasqlPool.acquisitionTimeout config.acquisitionTimeout.duration,
         HasqlPool.agingTimeout config.agingTimeout.duration,
         HasqlPool.idlenessTimeout config.idlenessTimeout.duration,
-        HasqlPool.observationHandler (observationHandler metrics)
+        HasqlPool.observationHandler (observationHandler connsRef metrics)
       ]
 
 data HasqlPoolMetrics = HasqlPoolMetrics
@@ -73,23 +76,52 @@ initHasqlPoolMetrics = do
     <*> register (counter $ Info "wire_hasql_pool_session_failure_count" "Number of times a session has failed")
     <*> register (counter $ Info "wire_hasql_pool_session_count" "Number of times a session was created")
 
-observationHandler :: HasqlPoolMetrics -> Observation -> IO ()
-observationHandler metrics (ConnectionObservation _ status) = do
+data Connections = Connections
+  { connecting :: Set UUID,
+    inUse :: Set UUID,
+    readyForUse :: Set UUID
+  }
+
+observationHandler :: IORef Connections -> HasqlPoolMetrics -> Observation -> IO ()
+observationHandler connsRef metrics (ConnectionObservation connId status) = do
   case status of
-    ConnectingConnectionStatus -> pure ()
+    ConnectingConnectionStatus -> do
+      modifyIORef' connsRef (\conns -> conns {connecting = Set.insert connId conns.connecting})
     ReadyForUseConnectionStatus reason -> do
-      case reason of
+      connsChange <- case reason of
         SessionFailedConnectionReadyForUseReason _ -> do
-          decGauge metrics.inUseGauge
           incCounter metrics.sessionFailureCounter
-        SessionSucceededConnectionReadyForUseReason ->
-          decGauge metrics.inUseGauge
-        EstablishedConnectionReadyForUseReason ->
+          pure $ \conns -> conns {inUse = Set.delete connId conns.inUse}
+        SessionSucceededConnectionReadyForUseReason -> do
+          pure $ \conns -> conns {inUse = Set.delete connId conns.inUse}
+        EstablishedConnectionReadyForUseReason -> do
           incCounter metrics.establishedCounter
-      incGauge metrics.readyForUseGauge
+          pure (\conns -> conns {connecting = Set.delete connId conns.connecting})
+
+      (inUseSize, readyForUseSize) <- atomicModifyIORef' connsRef $ \conns ->
+        let newConns = (connsChange conns) {readyForUse = Set.insert connId conns.readyForUse}
+         in (newConns, (Set.size newConns.inUse, Set.size newConns.readyForUse))
+
+      setGauge metrics.readyForUseGauge (fromIntegral readyForUseSize)
+      setGauge metrics.inUseGauge (fromIntegral inUseSize)
     InUseConnectionStatus -> do
-      decGauge metrics.readyForUseGauge
-      incGauge metrics.inUseGauge
       incCounter metrics.sessionCounter
+      (inUseSize, readyForUseSize) <- atomicModifyIORef' connsRef $ \conns ->
+        let newConns =
+              conns
+                { readyForUse = Set.delete connId conns.readyForUse,
+                  inUse = Set.insert connId conns.inUse
+                }
+         in (newConns, (Set.size newConns.inUse, Set.size newConns.readyForUse))
+      setGauge metrics.readyForUseGauge (fromIntegral readyForUseSize)
+      setGauge metrics.inUseGauge (fromIntegral inUseSize)
     TerminatedConnectionStatus _ -> do
-      decGauge metrics.readyForUseGauge
+      (inUseSize, readyForUseSize) <- atomicModifyIORef' connsRef $ \conns ->
+        let newConns =
+              conns
+                { readyForUse = Set.delete connId conns.readyForUse,
+                  inUse = Set.delete connId conns.inUse
+                }
+         in (newConns, (Set.size newConns.inUse, Set.size newConns.readyForUse))
+      setGauge metrics.readyForUseGauge (fromIntegral readyForUseSize)
+      setGauge metrics.inUseGauge (fromIntegral inUseSize)
