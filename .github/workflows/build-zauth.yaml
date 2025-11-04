@@ -50,7 +50,7 @@ jobs:
           fi
 
           export OSXCROSS="$OSXCROSS_TARGET"
-          export SDKROOT="$OSXCROSS/target/SDK/MacOSX${SDK_VERSION}.sdk"
+          export SDKROOT="$OSXCROSS/SDK/MacOSX${SDK_VERSION}.sdk"
           ls -l "$SDKROOT"
           export MACOSX_DEPLOYMENT_TARGET=11.0
           export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=11.0"
