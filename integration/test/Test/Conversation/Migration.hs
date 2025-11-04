@@ -153,9 +153,9 @@ testMigrationToPostgresProteus = do
       otherMelConvs <- getAllConvIds mel 100
 
       -- Other convs which just exist
-      pooledReplicateConcurrentlyN_ parallellism 500 $ createTestConv mia miaTid []
-      pooledReplicateConcurrentlyN_ parallellism 500 $ createTestConv alice aliceTid [mia]
-      pooledReplicateConcurrentlyN_ parallellism 500 $ createTestConv bob bobTid [mia]
+      pooledReplicateConcurrentlyN_ parallellism 100 $ createTestConv mia miaTid []
+      pooledReplicateConcurrentlyN_ parallellism 100 $ createTestConv alice aliceTid [mia]
+      pooledReplicateConcurrentlyN_ parallellism 100 $ createTestConv bob bobTid [mia]
 
       domainAConvs <- createTestConvs alice aliceTid mel mark []
       domainBConvs <- createTestConvs bob bobTid mel mark []
