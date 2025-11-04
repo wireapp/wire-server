@@ -19,8 +19,9 @@ import Web.Scim.Schema.ResourceType qualified as RT
 import Wire.API.User
 import Wire.API.User.Scim (SparTag)
 import Wire.API.UserGroup
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
-import Wire.UserGroupSubsystem
 import Wire.UserSubsystem
 
 data ScimSubsystemConfig = ScimSubsystemConfig
@@ -28,11 +29,10 @@ data ScimSubsystemConfig = ScimSubsystemConfig
   }
 
 interpretScimSubsystem ::
-  ( Member UserGroupSubsystem r,
-    Member (Input ScimSubsystemConfig) r,
+  ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
-    Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member BrigAPIAccess r
   ) =>
   InterpreterFor ScimSubsystem r
 interpretScimSubsystem = interpret $ \case
@@ -49,11 +49,10 @@ scimThrow = throw . ScimSubsystemError
 
 createScimGroupImpl ::
   forall r.
-  ( Member UserGroupSubsystem r,
-    Member (Input ScimSubsystemConfig) r,
+  ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
-    Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member BrigAPIAccess r
   ) =>
   TeamId ->
   SCG.Group ->
@@ -65,9 +64,11 @@ createScimGroupImpl teamId grp = do
       let thrw = throw . ScimSubsystemInvalidGroupMemberId
        in forM uidsAsText $ either (thrw . Text.pack) pure . parseIdFromText
     getby :: Local GetBy <- inputQualifyLocal def {getByUserId = uids}
-    getAccountsBy getby
-      <&> filter (\u -> u.userManagedBy /= ManagedByScim)
-      <&> fmap userId
+    users <- BrigAPI.getAccountsBy getby
+    pure $
+      users
+        & filter (\u -> u.userManagedBy /= ManagedByScim)
+        & fmap userId
   unless (null membersNotManagedByScim) do
     throw (ScimSubsystemScimGroupWithNonScimMembers membersNotManagedByScim)
 
@@ -82,7 +83,7 @@ createScimGroupImpl teamId grp = do
      in go `mapM` grp.members
 
   let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
-  ug <- createGroupFull ManagedByScim teamId Nothing newGroup
+  ug <- BrigAPI.createGroupFull ManagedByScim teamId Nothing newGroup
   ScimSubsystemConfig scimBaseUri <- input
   pure $ toStoredGroup scimBaseUri ug
 
