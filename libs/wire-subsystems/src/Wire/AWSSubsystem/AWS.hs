@@ -157,14 +157,6 @@ getQueueUrl ::
   m Text
 getQueueUrl e q = view SQS.getQueueUrlResponse_queueUrl <$> runAwsRequestThrow e (SQS.newGetQueueUrl q)
 
-getQueueUrlImpl :: Env -> Text -> IO Text
-getQueueUrlImpl env queueName = do
-  resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
-  pure $ view SQS.getQueueUrlResponse_queueUrl resp
-
-getJournalQueueUrlImpl :: Env -> IO (Maybe Text)
-getJournalQueueUrlImpl env = pure (env ^. userJournalQueue)
-
 listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO x) -> Amazon y
 listen throttleMillis url callback = forever . handleAny unexpectedError $ do
   msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> send receive
@@ -262,8 +254,10 @@ runAWSSubsystem ::
 runAWSSubsystem env = interpretFinal $ \case
   RunAwsRequest x -> liftS @IO $ runAwsRequest env._amazonkaEnv x
   RunAwsRequestThrow x -> liftS @IO $ runAwsRequestThrow env._amazonkaEnv x
-  GetQueueUrl queueName -> liftS @IO $ getQueueUrlImpl env queueName
-  GetJournalQueueUrl -> liftS @IO $ getJournalQueueUrlImpl env
+  GetQueueUrl queueName -> liftS @IO $ do
+    resp <- runResourceT $ AWS.send env._amazonkaEnv (SQS.newGetQueueUrl queueName)
+    pure $ view SQS.getQueueUrlResponse_queueUrl resp
+  GetJournalQueueUrl -> liftS $ pure (env ^. userJournalQueue)
   EnqueueStandard url message -> liftS $ do
     runResourceT $ runReaderT ((enqueueStandard url message).unAmazon) env
   EnqueueFIFO url group dedupId message -> liftS $ do
