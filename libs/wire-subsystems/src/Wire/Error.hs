@@ -35,17 +35,12 @@ instance Show HttpError where
 
 instance Exception HttpError
 
-errorCode :: HttpError -> Status
-errorCode (StdError e) = Wai.code e
-errorCode (RichError e _ _) = Wai.code e
+httpErrorToWaiError :: HttpError -> Wai.Error
+httpErrorToWaiError (StdError e) = e
+httpErrorToWaiError (RichError e _ _) = e
 
 errorLabel :: HttpError -> LText
-errorLabel (StdError e) = Wai.label e
-errorLabel (RichError e _ _) = Wai.label e
-
-errorMessage :: HttpError -> LText
-errorMessage (StdError e) = Wai.message e
-errorMessage (RichError e _ _) = Wai.message e
+errorLabel = (.label) . httpErrorToWaiError
 
 instance ToJSON HttpError where
   toJSON (StdError e) = toJSON e
@@ -78,9 +73,12 @@ postgresUsageErrorToHttpError err = case err of
 httpErrorToServerError :: HttpError -> ServerError
 httpErrorToServerError err =
   ServerError
-    (statusCode $ errorCode err)
-    (UTF8BS.toString $ statusMessage $ errorCode err)
-    (if errorLabel err == "unknown-error" then LText.encodeUtf8 (errorMessage err) else encode err)
+    (statusCode (httpErrorToWaiError err).code)
+    (UTF8BS.toString $ statusMessage $ (httpErrorToWaiError err).code)
+    ( if (httpErrorToWaiError err).label == "unknown-error"
+        then LText.encodeUtf8 (httpErrorToWaiError err).message
+        else encode err
+    )
     []
 
 -- | Construct a StdError from a servant error.
