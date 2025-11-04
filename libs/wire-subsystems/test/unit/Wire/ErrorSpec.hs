@@ -27,15 +27,15 @@ spec = describe "httpErrorToServerError, serverErrorToHttpError" do
     let serverError = serverError_ {errBody = "<html>...</html>"}
      in httpErrorToServerError (serverErrorToHttpError serverError) === serverError
 
+-- there are a lot of contraints for the ""isomorphism"" to work!  here are the instances.
+
 instance Arbitrary ServerError where
   -- headers are lost in translation
-  arbitrary =
-    ServerError
-      <$> (abs <$> arbitrary)
-      <*> arbitrary
-      <*> (encode <$> (arbitrary @Wai.Error))
-      <*> pure []
-  shrink _ = []
+  arbitrary = do
+    code <- abs <$> arbitrary
+    phrase <- arbitrary
+    waiErr <- (arbitrary @Wai.Error) <&> \e -> e {Wai.code = e.code {statusCode = code}}
+    pure $ ServerError code phrase (encode waiErr) []
 
 instance Arbitrary Wai.Error where
   arbitrary =
@@ -43,4 +43,3 @@ instance Arbitrary Wai.Error where
       <$> (Status <$> (abs <$> arbitrary) <*> (UTF8BS.fromString <$> arbitrary))
       <*> (LT.pack <$> arbitrary)
       <*> (LT.pack <$> arbitrary)
-  shrink _ = []
