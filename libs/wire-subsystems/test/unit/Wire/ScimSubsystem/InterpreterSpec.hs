@@ -4,7 +4,10 @@
 module Wire.ScimSubsystem.InterpreterSpec (spec) where
 
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Qualified
 import Data.Text qualified as Text
+import Data.UUID qualified as UUID
 import Imports
 import Network.URI
 import Polysemy
@@ -17,10 +20,12 @@ import Test.QuickCheck
 import Web.Scim.Class.Group qualified as Group
 import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Meta qualified as Common
+import Wire.API.Routes.Internal.Brig (GetBy (..))
 import Wire.API.Team.Member as TM
 import Wire.API.User as User
 import Wire.API.User.Scim
 import Wire.API.UserGroup
+import Wire.BrigAPIAccess (BrigAPIAccess (..))
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
 import Wire.UserGroupSubsystem qualified as UGS
@@ -31,6 +36,7 @@ type AllDependencies =
   [ ScimSubsystem,
     Input ScimSubsystemConfig,
     Error ScimSubsystemError,
+    BrigAPIAccess,
     UGS.UserGroupSubsystem
   ]
     `Append` UGS.AllDependencies
@@ -45,6 +51,7 @@ runDependencies initialUsers initialTeams =
   run
     . lowerLevelStuff
     . UGS.interpretUserGroupSubsystem
+    . mockBrigAPIAccess initialUsers
     . runError
     . runInputConst (ScimSubsystemConfig scimBaseUri)
     . interpretScimSubsystem
@@ -56,6 +63,28 @@ runDependencies initialUsers initialTeams =
     lowerLevelStuff = crashOnLowerErrors . UGS.interpretDependencies initialUsers initialTeams
       where
         crashOnLowerErrors = fmap (either (error . show) id) . runError
+
+    -- Mock BrigAPIAccess interpreter for tests
+    mockBrigAPIAccess :: [User] -> InterpreterFor BrigAPIAccess r
+    mockBrigAPIAccess users = interpret $ \case
+      GetAccountsBy localGetBy -> do
+        let getBy = tUnqualified localGetBy
+        pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
+      CreateGroupFull managedBy _teamId _creatorUserId newGroup -> do
+        -- For tests, just create a minimal UserGroup
+        let gid = Id UUID.nil  -- Using nil UUID for tests
+        pure $
+          UserGroup_
+            { id_ = gid,
+              name = newGroup.name,
+              members = Identity newGroup.members,
+              membersCount = Nothing,
+              channels = Nothing,
+              channelsCount = Nothing,
+              managedBy = managedBy,
+              createdAt = toUTCTimeMillis (read "2024-01-01 00:00:00 UTC")
+            }
+      _ -> error "Unimplemented BrigAPIAccess operation in mock"
 
 instance Arbitrary Group.Group where
   arbitrary = do

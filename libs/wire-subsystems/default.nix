@@ -109,6 +109,7 @@
 , unliftio
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
@@ -223,6 +224,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai-utilities
@@ -333,6 +335,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai

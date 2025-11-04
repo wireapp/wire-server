@@ -27,7 +27,7 @@ userSubsystemTestInterpreter initialUsers =
     GetLocalUserProfiles luids ->
       let uids = qUnqualified $ tUntagged luids
        in pure (toProfile <$> filter (\u -> userId u `elem` uids) initialUsers)
-    GetAccountsBy (tUnqualified -> MkGetBy NoPendingInvitations uids []) ->
+    GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations uids []) ->
       pure (filter (\u -> userId u `elem` uids) initialUsers)
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
     GetAccountNoFilter _ -> error "GetAccountNoFilter: implement on demand (userSubsystemInterpreter)"

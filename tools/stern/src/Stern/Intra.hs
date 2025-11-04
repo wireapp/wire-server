@@ -116,7 +116,7 @@ import Wire.API.EnterpriseLogin
 import Wire.API.Internal.Notification
 import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
-import Wire.API.Routes.Internal.Brig
+import Wire.API.Routes.Internal.Brig qualified as BrigAPI
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -1049,7 +1049,7 @@ deleteOAuthClient cid = do
 
 ----------------------------------------------------------------------
 
-enterpriseLogin :: SS.ServerT EnterpriseLoginApi Handler
+enterpriseLogin :: SS.ServerT BrigAPI.EnterpriseLoginApi Handler
 enterpriseLogin =
   Named @"domain-registration-lock" (runClientToHandler . domRegLock)
     :<|> Named @"domain-registration-unlock" (runClientToHandler . domRegUnlock)
@@ -1080,4 +1080,4 @@ domRegGet :: Domain -> SC.ClientM (DomainRegistrationResponse V10)
     :<|> domRegDelete
     :<|> domRegGet
   ) =
-    SC.client (Proxy @("i" :> EnterpriseLoginApi))
+    SC.client (Proxy @("i" :> BrigAPI.EnterpriseLoginApi))

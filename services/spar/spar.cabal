@@ -208,10 +208,8 @@ library
     , wai-utilities
     , warp
     , wire-api
-    , wire-api-federation
     , wire-subsystems
     , yaml
-    , zauth
 
   default-language:   Haskell2010
 
