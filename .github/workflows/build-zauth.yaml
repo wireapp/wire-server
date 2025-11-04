@@ -8,7 +8,7 @@ jobs:
   build-macos-arm:
     runs-on: ubuntu-latest
     env:
-      SDK_VERSION: 15.5
+      SDK_VERSION: 12.3
       TARGET: aarch64-apple-darwin
       OSXCROSS_TARGET: ${{ github.workspace }}/osxcross
       CARGO_HOME: ${{ github.workspace }}/.cargo
