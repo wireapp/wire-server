@@ -473,9 +473,6 @@ nginx_conf:
     - path: /teams/([^/]*)/search$
       envs:
       - all
-    - path: /teams/([^/]*)/channels/search$
-      envs:
-      - all
     - path: /verification-code/send
       envs:
       - all
@@ -633,6 +630,9 @@ nginx_conf:
       envs:
       - all
     - path: /teams/([^/]*)$
+      envs:
+      - all
+    - path: /teams/([^/]*)/channels/search$
       envs:
       - all
     - path: /teams/([^/]*)/members(.*)
