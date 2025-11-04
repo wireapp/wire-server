@@ -22,11 +22,16 @@ jobs:
         with:
           osx-version: ${{ env.SDK_VERSION }}
 
+      - name: Find osxcross clang path
+        run: |
+          echo "Searching for aarch64-apple-darwin clang binaries..."
+          find $HOME $GITHUB_WORKSPACE /usr/local -type f -name 'aarch64-apple-darwin*-clang' 2>/dev/null | tee clang_paths.txt
+
       - name: Locate osxcross toolchain
         id: locate
         run: |
-          TOOLCHAIN_DIR=$(find $HOME $GITHUB_WORKSPACE -type d -path "*/osxcross/target/bin" | head -n 1)
-          echo "Found toolchain in: $TOOLCHAIN_DIR"
+          TOOLCHAIN_DIR=$(find $HOME $GITHUB_WORKSPACE -type f -name 'aarch64-apple-darwin*-clang' | head -n 1 | xargs dirname)
+          echo "Found toolchain bin directory: $TOOLCHAIN_DIR"
           echo "toolchain=$TOOLCHAIN_DIR" >> $GITHUB_OUTPUT
 
       - name: Install Rust (with macOS ARM64 target)
@@ -42,16 +47,14 @@ jobs:
       - name: Build zauth
         run: |
           cd libs/libzauth/libzauth-c
-          export OSXCROSS_TARGET=${{ steps.locate.outputs.toolchain }}/..
-          export CC=${OSXCROSS_TARGET}/bin/aarch64-apple-darwin-clang
-          export CXX=${OSXCROSS_TARGET}/bin/aarch64-apple-darwin-clang++
-          export AR=${OSXCROSS_TARGET}/bin/aarch64-apple-darwin-ar
-          export SDKROOT=${OSXCROSS_TARGET}/SDK/MacOSX${SDK_VERSION}.sdk
+          export CC=${{ steps.locate.outputs.toolchain }}/aarch64-apple-darwin-clang
+          export CXX=${{ steps.locate.outputs.toolchain }}/aarch64-apple-darwin-clang++
+          export AR=${{ steps.locate.outputs.toolchain }}/aarch64-apple-darwin-ar
+          export SDKROOT=$(dirname $(dirname ${{ steps.locate.outputs.toolchain }}))/SDK/MacOSX${SDK_VERSION}.sdk
           export MACOSX_DEPLOYMENT_TARGET=11.0
           export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=11.0"
           export LDFLAGS="-isysroot $SDKROOT -arch arm64"
           export PKG_CONFIG_ALLOW_CROSS=1
-          export OSXCROSS_NO_INCLUDE_PATHS=1
           export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=$CC
           $CC --version || (echo "clang missing" && exit 1)
           cargo build --release --target aarch64-apple-darwin --verbose
