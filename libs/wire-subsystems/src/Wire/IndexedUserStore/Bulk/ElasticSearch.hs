@@ -3,7 +3,10 @@ module Wire.IndexedUserStore.Bulk.ElasticSearch where
 import Cassandra.Exec (paginateWithStateC)
 import Cassandra.Util (Writetime (Writetime))
 import Conduit (ConduitT, runConduit, (.|))
+import Control.Error (headMay)
 import Data.Conduit.Combinators qualified as Conduit
+import Data.Conduit.Internal (zipSources)
+import Data.Conduit.List qualified as CL
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
 import Data.Map qualified as Map
@@ -78,16 +81,20 @@ syncAllUsersWithVersion ::
   Sem r ()
 syncAllUsersWithVersion mkVersion =
   runConduit $
-    paginateWithStateC (getIndexUsersPaginated 1000)
+    zipSources (CL.sourceList [1 ..]) (paginateWithStateC (getIndexUsersPaginated pageSize))
       .| logPage
       .| mkUserDocs
       .| Conduit.mapM_ IndexedUserStore.bulkUpsert
   where
-    logPage :: ConduitT [IndexUser] [IndexUser] (Sem r) ()
-    logPage = Conduit.iterM $ \page -> do
+    pageSize = 1000
+
+    logPage :: ConduitT (Int32, [IndexUser]) [IndexUser] (Sem r) ()
+    logPage = Conduit.mapM $ \(pageNumber, page) -> do
       info $
-        Log.field "size" (length page)
-          . Log.msg (Log.val "Reindex: processing C* page")
+        Log.field "estimatedUserSoFar" (length page + fromIntegral (pageSize * pageNumber))
+          . Log.msg (Log.val "Received user page")
+          . Log.field "firstUser" (maybe "N/A" (idToText . (.userId)) (headMay page))
+      pure page
 
     mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] (Sem r) ()
     mkUserDocs = Conduit.mapM $ \page -> do

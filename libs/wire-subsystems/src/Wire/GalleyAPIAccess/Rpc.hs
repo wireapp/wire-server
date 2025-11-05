@@ -36,7 +36,6 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog
 import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
