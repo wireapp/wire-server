@@ -37,8 +37,6 @@ import Polysemy.Error
 import Polysemy.Final
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Intra.Galley (MonadSparToGalley)
-import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as TinyLog
 import qualified System.Logger.Class as TinyLog
 import Wire.API.User.Saml
@@ -108,13 +106,3 @@ viaRunHttp env m = do
 
 instance (Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r) => TinyLog.MonadLogger (RunHttp r) where
   log lvl msg = semToRunHttp $ Logger.log lvl msg
-
-instance
-  ( Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r,
-    Member (Embed IO) r
-  ) =>
-  MonadSparToGalley (RunHttp r)
-  where
-  call modreq = do
-    req <- asks rheRequest
-    httpLbs req modreq

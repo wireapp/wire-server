@@ -83,8 +83,6 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
@@ -114,6 +112,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.BrigAPIAccess (BrigAPIAccess, getAccount)
 import qualified Wire.BrigAPIAccess as BrigAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import qualified Wire.GalleyAPIAccess as GalleyAccess
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -141,7 +141,7 @@ app ctx0 req cont = do
     cont
 
 api ::
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member (Input Opts) r,
     Member AssIDStore r,
@@ -179,7 +179,7 @@ api opts =
     :<|> apiINTERNAL
 
 apiSSO ::
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member (Logger String) r,
     Member (Input Opts) r,
     Member BrigAPIAccess r,
@@ -211,7 +211,7 @@ apiSSO opts =
 apiIDP ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
@@ -238,7 +238,7 @@ apiINTERNAL ::
     Member ScimUserTimesStore r,
     Member (Logger String) r,
     Member Random r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r
   ) =>
   ServerT InternalAPI (Sem r)
@@ -359,7 +359,7 @@ authresp ::
   ( Member Random r,
     Member (Logger String) r,
     Member (Input Opts) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
@@ -470,7 +470,7 @@ authContext e = authHandler e :. EmptyContext
 idpGet ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
@@ -484,7 +484,7 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   pure idp
 
 idpGetRaw ::
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -503,7 +503,7 @@ idpGetRaw zusr idpid = do
 idpGetAll ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
@@ -517,7 +517,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 idpGetAllByTeamId ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
@@ -540,7 +540,7 @@ idpDelete ::
   forall r.
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member SAMLUserStore r,
@@ -624,7 +624,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
 idpCreate ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
@@ -651,7 +651,7 @@ idpCreate tid (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe def
 idpCreateV7 ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
@@ -752,7 +752,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog 
 idpUpdate ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -768,7 +768,7 @@ idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
 idpUpdateXML ::
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -808,7 +808,7 @@ validateIdPUpdate ::
   (HasCallStack, m ~ Sem r) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
@@ -874,7 +874,7 @@ withDebugLog msg showval action = do
 
 authorizeIdP ::
   ( HasCallStack,
-    ( Member GalleyAccess r,
+    ( Member GalleyAPIAccess r,
       Member BrigAPIAccess r,
       Member (Error SparError) r
     )

@@ -45,8 +45,6 @@ import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import Spar.Sem.IdPConfigStore.Cassandra (idPToCassandra)
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
@@ -69,9 +67,12 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
+import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
@@ -88,6 +89,7 @@ type CanonicalEffs =
 
 type LowerLevelCanonicalEffs =
   '[ BrigAPIAccess,
+     GalleyAPIAccess,
      SAML2,
      SamlProtocolSettings,
      AssIDStore,
@@ -106,7 +108,6 @@ type LowerLevelCanonicalEffs =
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed Cas.Client,
-     GalleyAccess,
      Error IdpDbError,
      Error TTLError,
      Error SparError,
@@ -135,7 +136,6 @@ runSparToIO ctx =
     . runError @SparError
     . ttlErrorToSparError
     . idpDbErrorToSparError
-    . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
     . interpretClientToIO (sparCtxCas ctx)
     . samlUserStoreToCassandra
     . idpRawMetadataStoreToCassandra
@@ -145,8 +145,8 @@ runSparToIO ctx =
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
     . mapScimSubsystemErrors
-    . runInputConst (ctx.sparCtxScimSubsystemConfig)
-    . runInputConst (ctx.sparCtxLocalUnit)
+    . runInputConst ctx.sparCtxScimSubsystemConfig
+    . runInputConst ctx.sparCtxLocalUnit
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
     . iParseException
     . verdictFormatStoreToCassandra
@@ -154,6 +154,7 @@ runSparToIO ctx =
     . assIDStoreToCassandra
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     . saml2ToSaml2WebSso
+    . interpretGalleyAPIAccessToRpc (foldMap expandVersionExp ctx.sparCtxOpts.disabledAPIVersions) ctx.sparCtxOpts.galley
     . interpretBrigAccess ctx.sparCtxOpts.brig
     . interpretScimSubsystem
 

@@ -98,6 +98,10 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamAdmins tid -> getTeamAdmins tid
           InternalGetConversation id' -> internalGetConversation id'
           GetTeamContacts uid -> getTeamContacts uid
+          AssertHasPermission tid perm uid -> assertHasPermission tid perm uid
+          AssertSSOEnabled tid -> assertSSOEnabled tid
+          IsEmailValidationEnabledTeam tid -> isEmailValidationEnabledTeam tid
+          UpdateTeamMember uid tid role -> updateTeamMember uid tid role
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -728,3 +732,112 @@ getTeamContacts uid = do
       method GET
         . paths ["i", "users", toByteString' uid, "team", "members"]
         . expect [status200, status404]
+
+assertHasPermission ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r,
+    Member.IsPerm Member.TeamMember perm,
+    Show perm
+  ) =>
+  TeamId ->
+  perm ->
+  UserId ->
+  Sem r ()
+assertHasPermission tid perm uid = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . field "user" (toByteString uid)
+      . msg (val "Asserting user has permission")
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    200 -> do
+      member <- decodeBodyOrThrow @Member.TeamMember "galley" rs
+      unless (Member.hasPermission member perm) $
+        throw $
+          ParseException "galley" $
+            "User does not have permission: " <> show perm
+    _ -> throw $ ParseException "galley" "Failed to check permission"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", toByteString' uid]
+        . expect [status200, status404]
+
+assertSSOEnabled ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem r ()
+assertSSOEnabled tid = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . msg (val "Asserting SSO is enabled")
+  rs <- galleyRequest req
+  unless (Bilge.statusCode rs == 200) $
+    throw $
+      ParseException "galley" "Failed to get SSO feature status"
+  feature <- decodeBodyOrThrow @(LockableFeature SSOConfig) "galley" rs
+  unless (feature.status == FeatureStatusEnabled) $
+    throw $
+      ParseException "galley" "SSO is not enabled for this team"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . expect2xx
+
+isEmailValidationEnabledTeam ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem r Bool
+isEmailValidationEnabledTeam tid = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . msg (val "Checking if email validation is enabled")
+  rs <- galleyRequest req
+  pure $
+    Bilge.statusCode rs == 200
+      && ( ((.status) <$> responseJsonMaybe @(LockableFeature ValidateSAMLEmailsConfig) rs)
+             == Just FeatureStatusEnabled
+         )
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
+
+updateTeamMember ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  TeamId ->
+  Role ->
+  Sem r ()
+updateTeamMember uid tid role = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . field "user" (toByteString uid)
+      . msg (val "Updating team member")
+  void $ galleyRequest req
+  where
+    prm = Member.rolePermissions role
+    bdy = Member.mkNewTeamMember uid prm Nothing
+    req =
+      method PUT
+        . paths ["i", "teams", toByteString' tid, "members"]
+        . header "Content-Type" "application/json"
+        . expect2xx
+        . lbytes (encode bdy)

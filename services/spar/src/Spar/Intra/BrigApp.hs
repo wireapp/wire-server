@@ -55,13 +55,13 @@ import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm, TeamMember)
 import Wire.API.User
 import Wire.API.User.Scim (ValidScimId (..))
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import qualified Wire.BrigAPIAccess as BrigAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import qualified Wire.GalleyAPIAccess as GalleyAccess
 
 ----------------------------------------------------------------------
 
@@ -133,7 +133,7 @@ getZUsrCheckPerm ::
   forall r perm.
   ( HasCallStack,
     ( Member BrigAPIAccess r,
-      Member GalleyAccess r,
+      Member GalleyAPIAccess r,
       Member (Error SparError) r
     ),
     IsPerm TeamMember perm,
@@ -153,7 +153,7 @@ authorizeScimTokenManagement ::
   forall r.
   ( HasCallStack,
     ( Member BrigAPIAccess r,
-      Member GalleyAccess r,
+      Member GalleyAPIAccess r,
       Member (Error SparError) r
     )
   ) =>

@@ -79,7 +79,6 @@ import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
-import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -113,6 +112,7 @@ import Wire.API.User.Scim (ScimTokenInfo (..), ValidScimId (..))
 import qualified Wire.API.User.Scim as ST
 import Wire.BrigAPIAccess (BrigAPIAccess, getAccount)
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
+import Wire.GalleyAPIAccess as GalleyAccess
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
@@ -129,7 +129,7 @@ instance
     Member Random r,
     Member (Input Opts) r,
     Member Now r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
@@ -507,7 +507,7 @@ createValidScimUser ::
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
@@ -641,7 +641,7 @@ updateValidScimUser ::
     Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
     Member Now r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
@@ -713,7 +713,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
           Scim.getUser tokinfo uid
 
 updateVsuUref ::
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimExternalIdStore r,
     Member SAMLUserStore r
@@ -960,7 +960,7 @@ synthesizeStoredUser ::
     Member Now r,
     Member (Logger (Msg -> Msg)) r,
     Member BrigAPIAccess r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member ScimUserTimesStore r
   ) =>
   User ->
@@ -1027,7 +1027,7 @@ synthesizeStoredUser acc veid =
     getRole :: Sem r Role
     getRole = do
       let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
-      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId acc)) (userTeam acc)
+      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember (userId acc) tid) (userTeam acc)
 
 synthesizeStoredUser' ::
   (MonadError Scim.ScimError m) =>
@@ -1086,7 +1086,7 @@ synthesizeScimUser info =
 getUserById ::
   forall r.
   ( Member BrigAPIAccess r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,
@@ -1132,7 +1132,7 @@ getUserById midp stiTeam uid = do
 scimFindUserByHandle ::
   forall r.
   ( Member BrigAPIAccess r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,
@@ -1158,7 +1158,7 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 scimFindUserByExternalId ::
   forall r.
   ( Member BrigAPIAccess r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,

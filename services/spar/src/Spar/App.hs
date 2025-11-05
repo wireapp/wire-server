@@ -76,8 +76,6 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.Reporter (Reporter)
@@ -100,6 +98,8 @@ import Wire.API.User.Saml
 import Wire.BrigAPIAccess (BrigAPIAccess, getAccount)
 import qualified Wire.BrigAPIAccess as BrigAccess
 import Wire.Error
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import qualified Wire.GalleyAPIAccess as GalleyAccess
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -204,7 +204,7 @@ createSamlUserWithId teamid buid suid role = do
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-1655)
 autoprovisionSamlUser ::
   forall r.
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
@@ -238,7 +238,7 @@ autoprovisionSamlUser idp buid suid = do
 -- make brig initiate the email validate procedure.
 validateSamlEmailIfExists ::
   forall r.
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member BrigAPIAccess r
   ) =>
   UserId ->
@@ -252,7 +252,7 @@ validateSamlEmailIfExists uid = \case
 
 validateEmail ::
   forall r.
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member BrigAPIAccess r
   ) =>
   Maybe TeamId ->
@@ -278,7 +278,7 @@ verdictHandler ::
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member AReqIDStore r,
     Member VerdictFormatStore r,
@@ -325,7 +325,7 @@ verdictHandlerResult ::
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
@@ -405,7 +405,7 @@ verdictHandlerResultCore ::
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
+    Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,

@@ -23,7 +23,6 @@ library
     Spar.Data.Instances
     Spar.Error
     Spar.Intra.BrigApp
-    Spar.Intra.Galley
     Spar.Options
     Spar.Orphans
     Spar.Run
@@ -64,8 +63,6 @@ library
     Spar.Sem.DefaultSsoCode.Cassandra
     Spar.Sem.DefaultSsoCode.Mem
     Spar.Sem.DefaultSsoCode.Spec
-    Spar.Sem.GalleyAccess
-    Spar.Sem.GalleyAccess.Http
     Spar.Sem.IdPConfigStore
     Spar.Sem.IdPConfigStore.Cassandra
     Spar.Sem.IdPConfigStore.Mem
