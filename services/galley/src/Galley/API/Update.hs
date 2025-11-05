@@ -1099,24 +1099,24 @@ replaceMembers ::
 replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
-  ugs <- getUserGroupsForConv conv.id_
-  let ugMembers = concatMap (fmap (flip Qualified (tDomain lusr)) . V.toList . runIdentity . (.members)) (V.toList ugs)
-      desiredUsers = appendList invitedUsers ugMembers
 
   -- Check team permissions for desired members
   when (null conv.metadata.cnvmParent) $
     mapErrorS @OperationDenied @('ActionDenied 'AddConversationMember) $
       forM_ conv.metadata.cnvmTeam $ \tid -> do
-        forM_ desiredUsers $ \u -> do
+        forM_ invitedUsers $ \u -> do
           mTeamMembership <- E.getTeamMember tid $ qUnqualified u
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
             permissionCheck JoinRegularConversations . Just
 
+  ugs <- getUserGroupsForConv conv.id_
   -- Get current members (excluding the requesting user)
   let currentMembers = Set.fromList $ map (\m -> Qualified m.id_ (tDomain lcnv)) (toList conv.localMembers)
-      desiredMembersSet = Set.fromList $ toList desiredUsers
       invitedMembersSet = Set.fromList $ toList invitedUsers
-      toRemove = Set.difference currentMembers desiredMembersSet
+      ugMembers = concatMap (fmap (flip Qualified (tDomain lusr)) . V.toList . runIdentity . (.members)) (V.toList ugs)
+      -- the invited users plus all user group members should stay
+      allUsersThatShouldStay = Set.fromList $ toList $ appendList invitedUsers ugMembers
+      toRemove = Set.difference currentMembers allUsersThatShouldStay
       toAdd = Set.difference invitedMembersSet currentMembers
 
   -- If both sets are empty, return Unchanged
