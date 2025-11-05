@@ -37,7 +37,6 @@ where
 
 import Bilge
 import qualified Cassandra as Cas
-import Cassandra.Options (Endpoint)
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Data.Aeson as Aeson (encode, object, (.=))
@@ -56,7 +55,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
-import qualified Hasql.Pool as Hasql
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -96,28 +94,17 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
-import Util.Options (PasswordHashingOptions)
 import Web.Cookie (SetCookie, renderSetCookie)
-import Wire.API.Routes.Version
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import qualified Wire.AWSSubsystem.AWS as AWSI
-import Wire.AuthenticationSubsystem.Config
-import Wire.DeleteQueue.Types (QueueEnv)
-import Wire.EmailSending.SMTP (SMTP)
-import Wire.EmailSubsystem.Template (Localised, TeamTemplates, TemplateBranding, UserTemplates)
 import Wire.Error
-import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig)
-import Wire.IndexedUserStore.ElasticSearch (IndexedUserStoreConfig)
-import Wire.RateLimit.Interpreter (RateLimitEnv)
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
-import Wire.UserSubsystem.UserSubsystemConfig (UserSubsystemConfig)
 
 throwSparSem :: (Member (Error SparError) r) => SparCustomError -> Sem r a
 throwSparSem = throw . SAML.CustomError
@@ -129,25 +116,9 @@ data Env = Env
     sparCtxHttpManager :: Bilge.Manager,
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
-    sparCtxHttpGalleyEndpoint :: Endpoint,
-    sparCtxHttpGundeckEndpoint :: Endpoint,
-    disabledVersions :: Set Version,
     sparCtxRequestId :: RequestId,
     sparCtxLocalUnit :: Local (),
-    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
-    sparCtxAuthenticationSubsystemConfig :: AuthenticationSubsystemConfig,
-    sparCtxPasswordHashingOptions :: PasswordHashingOptions,
-    sparCtxUserTemplates :: Localised UserTemplates,
-    sparCtxTeamTemplates :: Localised TeamTemplates,
-    sparCtxTemplateBranding :: TemplateBranding,
-    sparCtxRateLimit :: RateLimitEnv,
-    sparCtxFederationAPIAccessConfig :: FederationAPIAccessConfig,
-    sparCtxIndexedUserStoreConfig :: IndexedUserStoreConfig,
-    sparCtxUserSubsystemConfig :: UserSubsystemConfig,
-    sparCtxHasqlPool :: Hasql.Pool,
-    sparCtxSmtp :: Maybe SMTP,
-    sparCtxAws :: AWSI.Env,
-    sparCtxInternalEvents :: QueueEnv
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
   }
 
 -- | Get a user by UserRef, no matter what the team.

@@ -25,19 +25,14 @@ module Spar.CanonicalInterpreter
 where
 
 import qualified Cassandra as Cas
-import Control.Exception (ErrorCall (..))
-import Control.Lens ((^.))
 import Control.Monad.Except hiding (mapError)
 import Data.Qualified
-import qualified Hasql.Pool as Hasql
 import Imports
 import Polysemy
-import qualified Polysemy.Async as P
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog hiding (err)
-import qualified SAML2.WebSSO as SAML
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
@@ -75,39 +70,18 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
-import Wire.API.User.Saml
-import Wire.AWSSubsystem (AWSSubsystem)
-import Wire.AWSSubsystem.AWS (runAWSSubsystem)
-import qualified Wire.AWSSubsystem.AWS as AWSI
+import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
-import Wire.EmailSending (EmailSending)
-import Wire.EmailSending.Core (EmailSendingInterpreterConfig (EmailSendingInterpreterConfig), emailSendingInterpreter)
-import Wire.Error
-import Wire.GalleyAPIAccess
-import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
-import Wire.GundeckAPIAccess
-import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
-import Wire.RateLimit
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
-import Wire.Sem.Delay
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
-import Wire.TeamSubsystem
-import Wire.TeamSubsystem.GalleyAPI
-import Wire.UserGroupStore
-import qualified Wire.UserGroupStore as Store
-import Wire.UserGroupStore.Postgres
-import Wire.UserGroupSubsystem.Interpreter
-import Wire.UserStore
-import Wire.UserStore.Cassandra
 
 type CanonicalEffs =
   '[ScimSubsystem]
@@ -120,16 +94,6 @@ type LowerLevelCanonicalEffs =
      AssIDStore,
      AReqIDStore,
      VerdictFormatStore,
-     Error UserGroupSubsystemError,
-     Store.UserGroupStore,
-     AWSSubsystem,
-     NotificationSubsystem,
-     GundeckAPIAccess,
-     P.Async,
-     Delay,
-     TeamSubsystem,
-     GalleyAPIAccess,
-     Error ErrorCall,
      Error ParseException,
      Rpc,
      Input (Local ()),
@@ -145,15 +109,10 @@ type LowerLevelCanonicalEffs =
      Embed Cas.Client,
      BrigAccess,
      GalleyAccess,
-     UserStore,
-     Error RateLimitExceeded,
      Error IdpDbError,
      Error TTLError,
-     Input Hasql.Pool,
-     Error Hasql.UsageError,
      Error SparError,
      Reporter,
-     EmailSending,
      Logger String,
      Logger (TinyLog.Msg -> TinyLog.Msg),
      Input Opts,
@@ -174,15 +133,10 @@ runSparToIO ctx =
     . runInputConst (sparCtxOpts ctx)
     . loggerToTinyLog (sparCtxLogger ctx)
     . stringLoggerToTinyLog
-    . emailSendingInterpreter (EmailSendingInterpreterConfig ctx.sparCtxSmtp (ctx.sparCtxAws ^. AWSI.amazonkaEnv) ctx.sparCtxLogger)
     . reporterToTinyLogWai
     . runError @SparError
-    . iHasqlUsageError
-    . runInputConst ctx.sparCtxHasqlPool
     . ttlErrorToSparError
     . idpDbErrorToSparError
-    . mapError (httpErrorToSparError . rateLimitExceededToHttpError)
-    . interpretUserStoreCassandra ctx.sparCtxCas
     . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
     . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
     . interpretClientToIO (sparCtxCas ctx)
@@ -198,16 +152,6 @@ runSparToIO ctx =
     . runInputConst (ctx.sparCtxLocalUnit)
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
     . iParseException
-    . iErrorCall
-    . iGalleyAPIAccess ctx
-    . intepreterTeamSubsystemToGalleyAPI
-    . runDelay
-    . P.asyncToIOFinal
-    . iGundeckAPIAccess ctx
-    . iNotificationSubsystem ctx
-    . runAWSSubsystem ctx.sparCtxAws
-    . iUserGroupStore
-    . iUserGroupSubsystemError
     . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
     . assIDStoreToCassandra
@@ -216,57 +160,8 @@ runSparToIO ctx =
     . interpretBrigAccess ctx.sparCtxOpts.brig
     . interpretScimSubsystem
 
-iGalleyAPIAccess ::
-  ( Member (Error ParseException) r,
-    Member Rpc r,
-    Member TinyLog r
-  ) =>
-  Env ->
-  InterpreterFor GalleyAPIAccess r
-iGalleyAPIAccess env = interpretGalleyAPIAccessToRpc env.disabledVersions env.sparCtxHttpGalleyEndpoint
-
-iGundeckAPIAccess ::
-  ( Member (Embed IO) r,
-    Member Rpc r
-  ) =>
-  Env ->
-  InterpreterFor GundeckAPIAccess r
-iGundeckAPIAccess env = runGundeckAPIAccess (sparCtxHttpGundeckEndpoint env)
-
-iNotificationSubsystem ::
-  ( Member GundeckAPIAccess r,
-    Member TinyLog r,
-    Member Delay r,
-    Member P.Async r,
-    Member (Final IO) r
-  ) =>
-  Env ->
-  InterpreterFor NotificationSubsystem r
-iNotificationSubsystem env = runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig env.sparCtxRequestId)
-
-iUserGroupStore ::
-  ( Member (Input (Local ())) r,
-    Member (Embed IO) r,
-    Member (Input Hasql.Pool) r,
-    Member (Error Hasql.UsageError) r
-  ) =>
-  InterpreterFor UserGroupStore r
-iUserGroupStore = interpretUserGroupStoreToPostgres
-
-iUserGroupSubsystemError :: (Member (Error SparError) r) => InterpreterFor (Error UserGroupSubsystemError) r
-iUserGroupSubsystemError = Polysemy.Error.mapError (httpErrorToSparError . userGroupSubsystemErrorToHttpError)
-
-iHasqlUsageError :: (Member (Error SparError) r) => InterpreterFor (Error Hasql.UsageError) r
-iHasqlUsageError = Polysemy.Error.mapError (httpErrorToSparError . postgresUsageErrorToHttpError)
-
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)
-
-iErrorCall :: (Member (Error SparError) r) => InterpreterFor (Error ErrorCall) r
-iErrorCall = Polysemy.Error.mapError errorCallToSparError
-  where
-    errorCallToSparError :: ErrorCall -> SparError
-    errorCallToSparError (ErrorCallWithLocation msg _) = SAML.CustomError (SparInternalError (fromString msg))
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
