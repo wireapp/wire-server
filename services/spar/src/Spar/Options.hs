@@ -40,9 +40,7 @@ import Data.Domain (Domain)
 import Data.Time
 import qualified Data.Yaml as Yaml
 import qualified Database.Bloodhound.Types as ES
-import qualified Hasql.Pool.Extended as Hasql
 import Imports
-import qualified Network.AMQP.Extended as Q
 import Options.Applicative
 import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
@@ -56,30 +54,15 @@ import Wire.API.Routes.Version
 import Wire.API.User (EmailAddress, EmailVisibilityConfig, Locale)
 import Wire.API.User.Orphans ()
 import Wire.API.User.Saml
-import Wire.AWSSubsystem.AWS (AWSOpts)
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit (CookieThrottle)
-import Wire.DeleteQueue.Types (InternalEventsOpts)
 import Wire.RateLimit.Interpreter (RateLimitConfig)
-import Wire.StompSubsystem.Stomp (StompOpts)
 
 data Opts = Opts
   { saml :: !SAML.Config,
     brig :: !Endpoint,
     galley :: !Endpoint,
-    gundeck :: !Endpoint,
     cassandra :: !CassandraOpts,
-    elasticsearch :: !ElasticSearchOpts,
-    -- | Postgresql settings, the key values must be in libpq format.
-    postgresql :: !(Map Text Text),
-    postgresqlPassword :: !(Maybe FilePathSecrets),
-    postgresqlPool :: !Hasql.PoolConfig,
-    -- | Federator address
-    federatorInternal :: !(Maybe Endpoint),
-    -- | RabbitMQ settings, required when federation is enabled.
-    rabbitmq :: !(Maybe Q.AmqpEndpoint),
-    -- | STOMP broker settings
-    stompOptions :: !(Maybe StompOpts),
     maxttlAuthreq :: !(TTL "authreq"),
     maxttlAuthresp :: !(TTL "authresp"),
     -- | The maximum number of SCIM tokens that we will allow teams to have.
@@ -89,19 +72,12 @@ data Opts = Opts
     -- | Wire/AWS specific; optional; used to discover Cassandra instance
     -- IPs using describe-instances.
     discoUrl :: !(Maybe Text),
-    -- | Event queue for Spar-generated events
-    internalEvents :: !InternalEventsOpts,
-    -- | ZAuth settings
-    zauth :: !ZAuthOpts,
-    -- | Email and SMS settings
-    emailSMS :: !EmailSMSOpts,
     -- | Log level
     logLevel :: !Level,
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
     disabledAPIVersions :: !(Set VersionExp),
     scimBaseUri :: URI,
-    aws :: !AWSOpts,
     -- | Runtime settings
     settings :: !Settings
   }
