@@ -1766,7 +1766,7 @@ getConvsPagingOk = do
             =<< getConvs u ids1 <!! const 200 === statusCode
         pure $ map cnvQualifiedId (crFound r)
       liftIO $ assertEqual "unexpected length (getConvs)" n (length ids2)
-      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids2)
+      liftIO $ assertEqual "getConvIds /= getConvs" ids1 ids2
 
       pure (Just state')
 
