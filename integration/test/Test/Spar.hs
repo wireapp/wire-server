@@ -16,6 +16,7 @@ import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
 import qualified Data.Text as ST
+import Debug.Trace
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
@@ -367,8 +368,53 @@ testSparCreateScimTokenWithName = do
 
 testSparScimCreateUserGroup :: (HasCallStack) => App ()
 testSparScimCreateUserGroup = do
-  (owner, _, _) <- createTeam OwnDomain 1
+  (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
+
+  -- f0, f1, ... are stolen from other tests in this module, but they don't wokr quite yet.
+
+  {-
+  let _f0 :: App String
+      _f0 = do
+        void $ setTeamFeatureStatus owner tid "sso" "enabled"
+        void $ registerTestIdPWithMeta owner >>= getJSON 201
+        email <- randomEmail
+        extId <- randomExternalId
+        scimUser <- randomScimUserWithEmail extId email
+        scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+        bindResponse (getUsersId OwnDomain [scimUserId]) $ \res -> do
+          res.status `shouldMatchInt` 200
+          asString (res.json %. "[0].id") `shouldMatch` [scimUserId]
+        pure scimUserId
+
+   -}
+
+  let f1 :: App String
+      f1 = do
+        assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+        assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+        void $ registerTestIdPWithMetaWithPrivateCreds owner
+
+        scimUser <-
+          randomScimUserWith
+            def
+              { mkExternalId = randomEmail,
+                prependExternalIdToEmails = False,
+                mkOtherEmails = pure []
+              }
+        uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+        getScimUser OwnDomain tok uid `bindResponse` \res -> do
+          res.status `shouldMatchInt` 200
+          res.json %. "id" `shouldMatch` uid
+          traceM (show owner)
+          traceM (show tid)
+          traceM . show =<< res.json -- if this looks right (team,
+          -- id), then maybe there is another bug in scim group
+          -- creation, not the test?
+          pure uid
+
+  scimUserId :: String <- f1
   let scimUserGroup =
         object
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
@@ -376,8 +422,11 @@ testSparScimCreateUserGroup = do
             "members"
               .= [ object
                      [ "type" .= "User",
-                       "$ref" .= "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b", -- TODO: or something imilar.  we should probably validate these?  or just ignore them?
-                       "value" .= "ea2e4bf0-aa5e-11f0-96ad-e776a606779b"
+                       "$ref" .= "...", -- something like
+                       -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
+                       -- but since we're just receiving this it's ok
+                       -- to ignore.
+                       "value" .= scimUserId
                      ]
                  ]
           ]
