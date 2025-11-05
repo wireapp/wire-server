@@ -4,7 +4,6 @@
 module Wire.ScimSubsystem.InterpreterSpec (spec) where
 
 import Data.Id
-import Data.Qualified
 import Data.Text qualified as Text
 import Imports
 import Network.URI
@@ -67,8 +66,7 @@ runDependencies initialUsers initialTeams =
     mockBrigAPIAccess users = interpret $ \case
       CreateGroupFull managedBy teamId creatorUserId newGroup -> do
         UGS.createGroupFull managedBy teamId creatorUserId newGroup
-      GetAccountsBy localGetBy -> do
-        let getBy = tUnqualified localGetBy
+      GetAccountsBy getBy -> do
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
       _ -> error "Unimplemented BrigAPIAccess operation in mock"
 

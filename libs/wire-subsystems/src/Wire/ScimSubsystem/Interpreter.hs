@@ -3,7 +3,6 @@ module Wire.ScimSubsystem.Interpreter where
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified
 import Data.Text qualified as Text
 import Data.Vector qualified as V
 import Imports
@@ -31,7 +30,6 @@ data ScimSubsystemConfig = ScimSubsystemConfig
 interpretScimSubsystem ::
   ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
-    Member (Input (Local ())) r,
     Member BrigAPIAccess r
   ) =>
   InterpreterFor ScimSubsystem r
@@ -51,7 +49,6 @@ createScimGroupImpl ::
   forall r.
   ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
-    Member (Input (Local ())) r,
     Member BrigAPIAccess r
   ) =>
   TeamId ->
@@ -63,8 +60,7 @@ createScimGroupImpl teamId grp = do
     uids :: [UserId] <-
       let thrw = throw . ScimSubsystemInvalidGroupMemberId
        in forM uidsAsText $ either (thrw . Text.pack) pure . parseIdFromText
-    getby :: Local GetBy <- inputQualifyLocal def {getByUserId = uids}
-    users <- BrigAPI.getAccountsBy getby
+    users <- BrigAPI.getAccountsBy def {getByUserId = uids}
     pure $
       users
         & filter (\u -> u.userManagedBy /= ManagedByScim)

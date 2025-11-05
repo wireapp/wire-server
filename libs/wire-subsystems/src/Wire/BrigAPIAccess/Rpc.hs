@@ -20,6 +20,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import System.IO.Unsafe
 import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
@@ -520,15 +521,14 @@ updateSearchIndex uid = do
 -- | Calls 'Brig.API.Internal.getAccountsByInternalH'.
 getAccountsBy ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
-  Local GetBy ->
+  GetBy ->
   Sem r [User]
 getAccountsBy localGetBy = do
-  let qualifiedGetBy = tUntagged localGetBy
   r <-
     brigRequest $
       method POST
         . path "/i/users/accounts-by"
-        . json qualifiedGetBy
+        . json localGetBy
         . expect2xx
   decodeBodyOrThrow "brig" r
 

@@ -229,7 +229,7 @@ type GetAccountsByInternal =
     ( Summary "Get user accounts by various criteria (internal)"
         :> "users"
         :> "accounts-by"
-        :> ReqBody '[Servant.JSON] (Qualified GetBy)
+        :> ReqBody '[Servant.JSON] GetBy
         :> Post '[Servant.JSON] [User]
     )
 
