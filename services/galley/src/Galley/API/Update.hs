@@ -1122,12 +1122,16 @@ replaceMembers lusr zcon qcnv (InviteQualified desiredUsers role) = do
 
     -- Remove members
     for_ (nonEmpty $ Set.toList toRemove) $ \removeList -> do
-      void . getUpdateResult . fmap lcuEvent $
-        updateLocalConversation @'ConversationRemoveMembersTag
-          lcnv
-          (tUntagged lusr)
-          (Just zcon)
-          (ConversationRemoveMembers removeList EdReasonRemoved)
+      if notIsConvMember lusr conv (tUntagged lusr) && conv.metadata.cnvmGroupConvType == Just Channel
+        then
+          for_ removeList $ removeMemberQualified lusr zcon qcnv
+        else
+          void . getUpdateResult . fmap lcuEvent $
+            updateLocalConversation @'ConversationRemoveMembersTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              (ConversationRemoveMembers removeList EdReasonRemoved)
 
 updateSelfMember ::
   ( Member ConversationStore r,

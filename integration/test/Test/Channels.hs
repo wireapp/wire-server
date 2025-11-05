@@ -525,6 +525,48 @@ testTeamAdminCanAddMembersWithoutJoining = do
       selfQid <- self %. "qualified_id"
       filterM (\m -> (/= selfQid) <$> (m %. "qualified_id")) allUsers
 
+testTeamAdminCanReplaceMembers :: (HasCallStack) => App ()
+testTeamAdminCanReplaceMembers = do
+  (alice, tid, bob : charlie : dylan : emil : fred : _) <- createTeam OwnDomain 6
+
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "admins")
+
+  -- the team admin creates a channel without joining
+  channel <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+
+  withWebSockets [bob, charlie, dylan] $ \wss -> do
+    -- the team admin adds members to the channel using the PUT endpoint
+    bindResponse (replaceMembers alice channel def {users = [bob, charlie, dylan]}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- members should receive member-join notifications
+    for_ wss $ \ws -> awaitMatch isMemberJoinNotif ws
+
+    -- the members are added to the backend conversation
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members.others" & asList
+      expected <- for [bob, charlie, dylan] (%. "id")
+      actual <- for convMems (%. "id")
+      expected `shouldMatchSet` actual
+
+  withWebSockets [emil, fred] $ \wss -> do
+    -- the team admin replaces members in the channel using the PUT endpoint
+    bindResponse (replaceMembers alice channel def {users = [dylan, emil, fred]}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- members should receive member-join notifications
+    for_ wss $ \ws -> awaitMatch isMemberJoinNotif ws
+
+    -- the members are replaced in the backend conversation
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members.others" & asList
+      expected <- for [dylan, emil, fred] (%. "id")
+      actual <- for convMems (%. "id")
+      expected `shouldMatchSet` actual
+
 testAdminCanRemoveMemberWithoutJoining :: (HasCallStack) => App ()
 testAdminCanRemoveMemberWithoutJoining = do
   (owner, tid, mems@(m1 : m2 : m3 : _)) <- createTeam OwnDomain 4
