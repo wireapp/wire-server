@@ -130,7 +130,7 @@ data BrigAPIAccess m a where
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
-  GetAccountsBy :: Local GetBy -> BrigAPIAccess m [User]
+  GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
 
 makeSem ''BrigAPIAccess

@@ -992,14 +992,11 @@ getAccountsByInternalH ::
   ( Member UserSubsystem r,
     Member (Input (Local ())) r
   ) =>
-  Qualified GetBy ->
+  GetBy ->
   Handler r [User]
-getAccountsByInternalH qGetBy = case qGetBy of
-  Qualified getByData domain -> do
-    loc <- lift $ liftSem input
-    if tDomain loc == domain
-      then lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
-      else throwStd (errorToWai @'E.InvalidUser)
+getAccountsByInternalH getByData = do
+  loc <- lift $ liftSem input
+  lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
 
 createGroupFullInternalH ::
   ( Member UserGroupSubsystem r
