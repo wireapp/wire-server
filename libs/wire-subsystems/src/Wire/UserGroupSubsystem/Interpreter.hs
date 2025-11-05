@@ -5,7 +5,7 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Vector (Vector)
 import Imports
@@ -89,6 +89,7 @@ createUserGroup creator newGroup = do
   createUserGroupFullImpl ManagedByWire team (Just creator) newGroup
 
 createUserGroupFullImpl ::
+  forall r.
   ( Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
@@ -103,20 +104,30 @@ createUserGroupFullImpl ::
   NewUserGroup ->
   Sem r UserGroup
 createUserGroupFullImpl managedBy team mbCreator newGroup = do
-  luids <- qualifyLocal $ toList newGroup.members
-  profiles <- getLocalUserProfiles luids
-  let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
-  let actualIds = Set.fromList $ toList newGroup.members
-  let allInSameTeam = all (\p -> p.profileTeam == Just team) profiles
-  when (existingIds /= actualIds || not allInSameTeam) $
-    throw $
-      UserGroupMemberIsNotInTheSameTeam
+  guardMembersInTeam
   ug <- Store.createUserGroup team newGroup managedBy
-  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-  pushNotifications
-    [ mmkEvent mbCreator (UserGroupCreated ug.id_) admins
-    ]
+  notifyAdmins ug
   pure ug
+  where
+    guardMembersInTeam :: Sem r ()
+    guardMembersInTeam = do
+      groupMembersFound :: [UserProfile] <- getLocalUserProfiles =<< qualifyLocal (toList newGroup.members)
+      let groupMemberIdsRequested :: [UserId] = toList newGroup.members
+          groupMemberIdsFound :: [UserId] = qUnqualified . profileQualifiedId <$> groupMembersFound
+          nobodyMissing = Set.fromList groupMemberIdsRequested == Set.fromList groupMemberIdsFound
+
+          allTeams :: [Maybe TeamId] = nub $ profileTeam <$> groupMembersFound
+          nobodyFromOtherTeam = allTeams == [Just team] || null (toList newGroup.members)
+
+      unless (nobodyMissing && nobodyFromOtherTeam) do
+        throw UserGroupMemberIsNotInTheSameTeam
+
+    notifyAdmins :: UserGroup -> Sem r ()
+    notifyAdmins ug = do
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+      pushNotifications
+        [ mmkEvent mbCreator (UserGroupCreated ug.id_) admins
+        ]
 
 getTeamAsAdmin ::
   ( Member UserSubsystem r,
