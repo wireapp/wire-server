@@ -21,6 +21,27 @@ module Wire.BrigAPIAccess
     getUserExportData,
     updateSearchIndex,
     getAccountsBy,
+    createSAML,
+    createNoSAML,
+    updateEmail,
+    getAccount,
+    getByHandle,
+    getByEmail,
+    setName,
+    setHandle,
+    setManagedBy,
+    setSSOId,
+    setRichInfo,
+    setLocale,
+    getRichInfo,
+    checkHandleAvailable,
+    ensureReAuthorised,
+    ssoLogin,
+    getStatus,
+    getStatusMaybe,
+    setStatus,
+    getDefaultUserLocale,
+    checkAdminGetTeamId,
 
     -- * Teams
     getSize,
@@ -52,6 +73,9 @@ where
 
 import Data.Aeson
 import Data.ByteString.Conversion
+import Data.Code as Code
+import Data.Handle (Handle)
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -59,14 +83,18 @@ import Imports
 import Network.HTTP.Types.Status
 import Polysemy
 import Polysemy.Error
+import SAML2.WebSSO qualified as SAML
+import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Error.Galley
+import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig (GetBy)
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.Role
 import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
@@ -132,6 +160,27 @@ data BrigAPIAccess m a where
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
+  CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> Role -> BrigAPIAccess m UserId
+  CreateNoSAML :: Text -> EmailAddress -> UserId -> TeamId -> Name -> Maybe Locale -> Role -> BrigAPIAccess m UserId
+  UpdateEmail :: UserId -> EmailAddress -> EmailActivation -> BrigAPIAccess m ()
+  GetAccount :: HavePendingInvitations -> UserId -> BrigAPIAccess m (Maybe User)
+  GetByHandle :: Handle -> BrigAPIAccess m (Maybe User)
+  GetByEmail :: EmailAddress -> BrigAPIAccess m (Maybe User)
+  SetName :: UserId -> Name -> BrigAPIAccess m ()
+  SetHandle :: UserId -> Handle -> BrigAPIAccess m ()
+  SetManagedBy :: UserId -> ManagedBy -> BrigAPIAccess m ()
+  SetSSOId :: UserId -> UserSSOId -> BrigAPIAccess m ()
+  SetRichInfo :: UserId -> RichInfo -> BrigAPIAccess m ()
+  SetLocale :: UserId -> Maybe Locale -> BrigAPIAccess m ()
+  GetRichInfo :: UserId -> BrigAPIAccess m RichInfo
+  CheckHandleAvailable :: Handle -> BrigAPIAccess m Bool
+  EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword6 -> Maybe Code.Value -> Maybe VerificationAction -> BrigAPIAccess m ()
+  SsoLogin :: UserId -> BrigAPIAccess m SetCookie
+  GetStatus :: UserId -> BrigAPIAccess m AccountStatus
+  GetStatusMaybe :: UserId -> BrigAPIAccess m (Maybe AccountStatus)
+  SetStatus :: UserId -> AccountStatus -> BrigAPIAccess m ()
+  GetDefaultUserLocale :: BrigAPIAccess m Locale
+  CheckAdminGetTeamId :: UserId -> BrigAPIAccess m TeamId
 
 makeSem ''BrigAPIAccess
 

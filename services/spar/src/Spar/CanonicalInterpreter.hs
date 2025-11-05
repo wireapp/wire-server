@@ -33,6 +33,7 @@ import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog hiding (err)
+import qualified SAML2.WebSSO as SAML
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
@@ -42,8 +43,6 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
-import Spar.Sem.BrigAccess (BrigAccess)
-import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.GalleyAccess (GalleyAccess)
@@ -107,7 +106,6 @@ type LowerLevelCanonicalEffs =
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed Cas.Client,
-     BrigAccess,
      GalleyAccess,
      Error IdpDbError,
      Error TTLError,
@@ -138,7 +136,6 @@ runSparToIO ctx =
     . ttlErrorToSparError
     . idpDbErrorToSparError
     . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
-    . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
     . interpretClientToIO (sparCtxCas ctx)
     . samlUserStoreToCassandra
     . idpRawMetadataStoreToCassandra
@@ -160,8 +157,8 @@ runSparToIO ctx =
     . interpretBrigAccess ctx.sparCtxOpts.brig
     . interpretScimSubsystem
 
-iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
-iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)
+iParseException :: (Member (Error SparError) r) => Sem (Error ParseException : r) a -> Sem r a
+iParseException = mapError (SAML.CustomError . SparSomeHttpError . parseExceptionToHttpError)
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do

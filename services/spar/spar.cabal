@@ -22,7 +22,6 @@ library
     Spar.Data
     Spar.Data.Instances
     Spar.Error
-    Spar.Intra.Brig
     Spar.Intra.BrigApp
     Spar.Intra.Galley
     Spar.Options
@@ -61,8 +60,6 @@ library
     Spar.Sem.AssIDStore
     Spar.Sem.AssIDStore.Cassandra
     Spar.Sem.AssIDStore.Mem
-    Spar.Sem.BrigAccess
-    Spar.Sem.BrigAccess.Http
     Spar.Sem.DefaultSsoCode
     Spar.Sem.DefaultSsoCode.Cassandra
     Spar.Sem.DefaultSsoCode.Mem
@@ -168,16 +165,10 @@ library
     , crypton-x509
     , exceptions
     , extended
-    , hasql-pool
     , hscim
-    , HsOpenSSL
     , hspec
-    , http-client
-    , http-client-openssl
     , http-types
-    , http2-manager
     , imports
-    , iso639
     , lens
     , metrics-wai
     , mtl
@@ -199,7 +190,6 @@ library
     , tinylog
     , transformers
     , types-common
-    , unordered-containers
     , uri-bytestring
     , utf8-string
     , uuid
@@ -285,7 +275,6 @@ executable spar-integration
     Test.Spar.APISpec
     Test.Spar.AppSpec
     Test.Spar.DataSpec
-    Test.Spar.Intra.BrigSpec
     Test.Spar.Scim.AuthSpec
     Test.Spar.Scim.UserSpec
     Util
@@ -406,6 +395,7 @@ executable spar-integration
     , wai-extra
     , wai-utilities
     , wire-api
+    , wire-subsystems
     , xml-conduit
     , yaml
     , zauth
@@ -557,7 +547,6 @@ test-suite spec
     Paths_spar
     Test.Spar.APISpec
     Test.Spar.DataSpec
-    Test.Spar.Intra.BrigSpec
     Test.Spar.Roundtrip.ByteString
     Test.Spar.Scim.UserSpec
     Test.Spar.ScimSpec
@@ -647,12 +636,12 @@ test-suite spec
     , spar
     , string-conversions
     , text
-    , these
     , time
     , tinylog
     , types-common
     , uri-bytestring
     , uuid
     , wire-api
+    , wire-subsystems
 
   default-language:   Haskell2010

@@ -82,7 +82,6 @@ import Spar.Options
 import Spar.Scim.Auth
 import Spar.Scim.Group ()
 import Spar.Scim.User
-import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import Spar.Sem.Reporter (Reporter)
@@ -100,6 +99,7 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
@@ -121,7 +121,7 @@ apiScim ::
     Member Now r,
     Member (Error SparError) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimSubsystem r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,

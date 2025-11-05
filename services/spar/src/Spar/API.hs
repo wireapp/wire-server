@@ -81,8 +81,6 @@ import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
@@ -114,6 +112,8 @@ import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.BrigAPIAccess (BrigAPIAccess, getAccount)
+import qualified Wire.BrigAPIAccess as BrigAccess
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -142,7 +142,7 @@ app ctx0 req cont = do
 
 api ::
   ( Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member (Input Opts) r,
     Member AssIDStore r,
     Member AReqIDStore r,
@@ -182,7 +182,7 @@ apiSSO ::
   ( Member GalleyAccess r,
     Member (Logger String) r,
     Member (Input Opts) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
     Member AReqIDStore r,
@@ -212,7 +212,7 @@ apiIDP ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -239,7 +239,7 @@ apiINTERNAL ::
     Member (Logger String) r,
     Member Random r,
     Member GalleyAccess r,
-    Member BrigAccess r
+    Member BrigAPIAccess r
   ) =>
   ServerT InternalAPI (Sem r)
 apiINTERNAL =
@@ -360,7 +360,7 @@ authresp ::
     Member (Logger String) r,
     Member (Input Opts) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
     Member AReqIDStore r,
@@ -471,7 +471,7 @@ idpGet ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -485,7 +485,7 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
 
 idpGetRaw ::
   ( Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
@@ -504,7 +504,7 @@ idpGetAll ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -518,7 +518,7 @@ idpGetAllByTeamId ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -541,7 +541,7 @@ idpDelete ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member SAMLUserStore r,
     Member IdPConfigStore r,
@@ -625,7 +625,7 @@ idpCreate ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -652,7 +652,7 @@ idpCreateV7 ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -753,7 +753,7 @@ idpUpdate ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
@@ -769,7 +769,7 @@ idpUpdateXML ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
@@ -809,7 +809,7 @@ validateIdPUpdate ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -875,7 +875,7 @@ withDebugLog msg showval action = do
 authorizeIdP ::
   ( HasCallStack,
     ( Member GalleyAccess r,
-      Member BrigAccess r,
+      Member BrigAPIAccess r,
       Member (Error SparError) r
     )
   ) =>

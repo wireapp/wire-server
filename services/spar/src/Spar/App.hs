@@ -76,8 +76,6 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
@@ -99,6 +97,8 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.BrigAPIAccess (BrigAPIAccess, getAccount)
+import qualified Wire.BrigAPIAccess as BrigAccess
 import Wire.Error
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
@@ -140,7 +140,7 @@ data Env = Env
 --
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
 getUserByUrefUnsafe ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   SAML.UserRef ->
@@ -150,7 +150,7 @@ getUserByUrefUnsafe uref = do
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ScimExternalIdStore r
   ) =>
   TeamId ->
@@ -183,7 +183,7 @@ getUserIdByScimExternalId tid eid = do
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
 createSamlUserWithId ::
   ( Member (Error SparError) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   TeamId ->
@@ -205,7 +205,7 @@ createSamlUserWithId teamid buid suid role = do
 autoprovisionSamlUser ::
   forall r.
   ( Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
@@ -239,7 +239,7 @@ autoprovisionSamlUser idp buid suid = do
 validateSamlEmailIfExists ::
   forall r.
   ( Member GalleyAccess r,
-    Member BrigAccess r
+    Member BrigAPIAccess r
   ) =>
   UserId ->
   SAML.UserRef ->
@@ -253,7 +253,7 @@ validateSamlEmailIfExists uid = \case
 validateEmail ::
   forall r.
   ( Member GalleyAccess r,
-    Member BrigAccess r
+    Member BrigAPIAccess r
   ) =>
   Maybe TeamId ->
   UserId ->
@@ -279,7 +279,7 @@ verdictHandler ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member AReqIDStore r,
     Member VerdictFormatStore r,
     Member ScimTokenStore r,
@@ -326,7 +326,7 @@ verdictHandlerResult ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
@@ -371,7 +371,7 @@ catchVerdictErrors = (`catch` hndlr)
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
 getUserByUrefViaOldIssuerUnsafe ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   IdP ->
@@ -389,7 +389,7 @@ getUserByUrefViaOldIssuerUnsafe idp (SAML.UserRef _ subject) = do
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
 moveUserToNewIssuer ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   SAML.UserRef ->
@@ -406,7 +406,7 @@ verdictHandlerResultCore ::
   ( Member Random r,
     Member (Logger String) r,
     Member GalleyAccess r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,

@@ -90,6 +90,7 @@ common common-all
     , base64-bytestring
     , bilge
     , bloodhound
+    , brig-types
     , bytestring
     , bytestring-conversion
     , case-insensitive
@@ -97,6 +98,7 @@ common common-all
     , conduit
     , containers
     , contravariant
+    , cookie
     , cql
     , crypton
     , currency-codes
