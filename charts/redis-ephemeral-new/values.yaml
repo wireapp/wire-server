@@ -7,7 +7,7 @@ configTemplate: |
   # dont write rdb to emptyDir disk - epehemeral setup
   save ""
   {{- if .Values.auth.enabled }}
-  masterauth {{ .Values.auth.password }}
+  requirepass {{ .Values.auth.password }}
   {{- end }}
 
 auth:
