@@ -322,6 +322,7 @@ library
     , optparse-applicative
     , pem
     , polysemy
+    , polysemy-conc
     , polysemy-wire-zoo
     , prometheus-client
     , proto-lens                            >=0.2

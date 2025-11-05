@@ -9,13 +9,14 @@ import Network.AMQP.Extended (demoteOpts)
 import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
-import UnliftIO (concurrently_)
+import UnliftIO (Concurrently (..), runConcurrently)
 import Util.Options
 import Wire.BackendNotificationPusher qualified as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
+import Wire.MigrateConversations qualified as MigrateConversations
 
 run :: Opts -> IO ()
 run opts = do
@@ -29,11 +30,21 @@ run opts = do
     runAppT env $
       withNamedLogger "dead-user-notification-watcher" $
         DeadUserNotificationWatcher.startWorker amqpEP
-  let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
-      -- specific exception types to message threads to clean up
-      cleanup = do
-        concurrently_ cleanupDeadUserNotifWatcher cleanupBackendNotifPusher
-  let server = defaultServer (T.unpack $ opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
+
+  cleanupConvMigration <-
+    if opts.migrateConversations
+      then
+        runAppT env $
+          withNamedLogger "migrate-conversations" $
+            MigrateConversations.startWorker
+      else pure $ pure ()
+  let cleanup =
+        void . runConcurrently $
+          (,,)
+            <$> Concurrently cleanupDeadUserNotifWatcher
+            <*> Concurrently cleanupBackendNotifPusher
+            <*> Concurrently cleanupConvMigration
+  let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server
   -- Additional cleanup when shutting down via signals.
   runSettingsWithCleanup cleanup settings (servantApp env) Nothing

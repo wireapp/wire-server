@@ -218,13 +218,19 @@ startDynamicBackend resource beOverrides = do
         { galleyCfg = setField "cassandra.keyspace" resource.berGalleyKeyspace,
           brigCfg = setField "cassandra.keyspace" resource.berBrigKeyspace,
           sparCfg = setField "cassandra.keyspace" resource.berSparKeyspace,
-          gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace
+          gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace,
+          backgroundWorkerCfg =
+            setField "cassandra.keyspace" resource.berGundeckKeyspace
+              >=> setField "cassandraGalley.keyspace" resource.berGalleyKeyspace,
+          cannonCfg =
+            setField "cassandra.keyspace" resource.berGundeckKeyspace
         }
     setPgDb :: ServiceOverrides
     setPgDb =
       def
         { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
-          galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
+          galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
+          backgroundWorkerCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
         }
 
     setEsIndex :: ServiceOverrides

@@ -132,6 +132,7 @@ common common-all
     , network
     , network-conduit-tls
     , polysemy
+    , polysemy-conc
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
@@ -200,6 +201,10 @@ library
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
     Wire.ConversationStore.Cassandra.Queries
+    Wire.ConversationStore.Migration
+    Wire.ConversationStore.Migration.Cleanup
+    Wire.ConversationStore.Migration.Types
+    Wire.ConversationStore.MigrationLock
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.DeleteQueue

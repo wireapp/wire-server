@@ -23,3 +23,19 @@ created one (in case the CA is provided as PEM string.)
 {{- dict "name" "background-worker-cassandra" "key" "ca.pem" | toYaml -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "useCassandraTLSGalley" -}}
+{{ or (hasKey .cassandraGalley "tlsCa") (hasKey .cassandraGalley "tlsCaSecretRef") }}
+{{- end -}}
+
+{{/* Return a Dict of TLS CA secret name and key
+This is used to switch between provided secret (e.g. by cert-manager) and
+created one (in case the CA is provided as PEM string.)
+*/}}
+{{- define "tlsSecretRefGalley" -}}
+{{- if .cassandraGalley.tlsCaSecretRef -}}
+{{ .cassandraGalley.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "background-worker-cassandra-galley" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}

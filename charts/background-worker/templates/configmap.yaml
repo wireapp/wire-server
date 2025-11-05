@@ -30,6 +30,24 @@ data:
       tlsCa: /etc/wire/background-worker/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    cassandraGalley:
+      endpoint:
+        host: {{ .cassandraGalley.host }}
+        port: 9042
+      keyspace: galley
+      {{- if hasKey .cassandraGalley "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandraGalley.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "useCassandraTLSGalley" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
+      {{- end }}
+
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
+    {{- end }}
+
     {{- with .rabbitmq }}
     rabbitmq:
       host: {{ .host }}
@@ -45,6 +63,8 @@ data:
       caCert: /etc/wire/background-worker/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
       {{- end }}
     {{- end }}
+
+    migrateConversations: {{ .migrateConversations }}
 
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}

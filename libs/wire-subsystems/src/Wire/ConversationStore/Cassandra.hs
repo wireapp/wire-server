@@ -18,6 +18,8 @@
 module Wire.ConversationStore.Cassandra
   ( interpretMLSCommitLockStoreToCassandra,
     interpretConversationStoreToCassandra,
+    interpretConversationStoreToCassandraAndPostgres,
+    MigrationError (..),
   )
 where
 
@@ -29,7 +31,6 @@ import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
-import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
@@ -41,9 +42,18 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time
+import Data.UUID.Util qualified as UUID
 import Imports
+import Network.HTTP.Types.Status (status500)
+import Network.Wai.Utilities.Error qualified as WaiError
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
+import Polysemy.Async (Async)
+import Polysemy.Conc
 import Polysemy.Embed
+import Polysemy.Error (Error, mapError, throw)
+import Polysemy.Input
+import Polysemy.Time
 import Polysemy.TinyLog
 import System.Logger qualified as Log
 import UnliftIO qualified
@@ -51,18 +61,24 @@ import Wire.API.Conversation hiding (Conversation, Member, members, newGroupId)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
+import Wire.API.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
-import Wire.API.Routes.MultiTablePaging
 import Wire.ConversationStore (ConversationStore (..), LockAcquired (..), MLSCommitLockStore (..))
+import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationStore.Migration.Cleanup
+import Wire.ConversationStore.MigrationLock
+import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as StoreConv
@@ -262,60 +278,15 @@ localConversationIdsOf usr cids = do
 
 getLocalConvIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Client (ResultSet ConvId)
 getLocalConvIds usr start (fromRange -> maxIds) = do
-  mkResultSet . strip . fmap runIdentity <$> case start of
+  mkResultSetByLength (fromIntegral maxIds) . fmap runIdentity . result <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP LocalQuorum (usr, c) (maxIds + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP LocalQuorum (Identity usr) (maxIds + 1))
-  where
-    strip p = p {result = take (fromIntegral maxIds) (result p)}
 
-getConvIds :: Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Client ConvIdsPage
-getConvIds lusr (fromRange -> maxIds) pagingState = do
-  let pagingTable = maybe PagingLocals (.mtpsTable) pagingState
-      cassPagingState = (PagingState . BS.fromStrict <$> (mtpsState =<< pagingState))
-
-  case pagingTable of
-    PagingLocals -> do
-      localPage <- getLocals cassPagingState
-      let remainingSize = maxIds - fromIntegral (length (localPage.mtpResults))
-      if localPage.mtpHasMore || remainingSize <= 0
-        then pure $ localPage {mtpHasMore = True}
-        else do
-          remotePage <- getRemotes remainingSize Nothing
-          pure $
-            remotePage {mtpResults = localPage.mtpResults <> remotePage.mtpResults}
-    PagingRemotes ->
-      getRemotes maxIds cassPagingState
-  where
-    getLocals :: Maybe PagingState -> Client ConvIdsPage
-    getLocals cassPagingState = do
-      page <-
-        fmap (runIdentity)
-          <$> paginateWithState Cql.selectUserConvs (paramsPagingState LocalQuorum (Identity (tUnqualified lusr)) maxIds cassPagingState)
-      pure $
-        MultiTablePage
-          { mtpResults = map (\cid -> Qualified cid (tDomain lusr)) page.pwsResults,
-            mtpHasMore = isJust page.pwsState,
-            mtpPagingState =
-              maybe
-                (MultiTablePagingState PagingRemotes Nothing)
-                (MultiTablePagingState PagingLocals . Just . BS.toStrict . unPagingState)
-                page.pwsState
-          }
-    getRemotes :: Int32 -> Maybe PagingState -> Client ConvIdsPage
-    getRemotes maxRemotes cassPagingState = do
-      page <-
-        uncurry (flip Qualified)
-          <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState LocalQuorum (Identity (tUnqualified lusr)) maxRemotes cassPagingState)
-      pure $
-        MultiTablePage
-          { mtpResults = page.pwsResults,
-            mtpHasMore = isJust page.pwsState,
-            mtpPagingState =
-              maybe
-                (MultiTablePagingState PagingRemotes Nothing)
-                (MultiTablePagingState PagingRemotes . Just . BS.toStrict . unPagingState)
-                page.pwsState
-          }
+getRemoteConvIds :: UserId -> Maybe (Remote ConvId) -> Range 1 1000 Int32 -> Client (ResultSet (Remote ConvId))
+getRemoteConvIds usr start (fromRange -> maxIds) = do
+  mkResultSetByLength (fromIntegral maxIds) . fmap (uncurry toRemoteUnsafe) . result <$> case start of
+    Just (tUntagged -> Qualified c dom) -> paginate Cql.selectUserRemoteConvsFrom (paramsP LocalQuorum (usr, dom, c) (maxIds + 1))
+    Nothing -> paginate Cql.selectUserRemoteConvs (paramsP LocalQuorum (Identity usr) (maxIds + 1))
 
 -- | Takes a list of remote conversation ids and fetches member status flags
 -- for the given user
@@ -714,6 +685,17 @@ lookupLocalMemberRemoteConv uid (tUntagged -> Qualified conv dom) =
       x5
       (query1 Cql.selectRemoteConvMembers (params LocalQuorum (uid, dom, conv)))
 
+haveRemoteConvs :: [UserId] -> Client [UserId]
+haveRemoteConvs uids =
+  catMaybes <$> UnliftIO.pooledMapConcurrentlyN 16 runSelect uids
+  where
+    selectUserFromRemoteConv :: PrepQuery R (Identity UserId) (Identity UserId)
+    selectUserFromRemoteConv = "select user from user_remote_conv where user = ? limit 1"
+
+    runSelect :: UserId -> Client (Maybe UserId)
+    runSelect uid =
+      runIdentity <$$> retry x5 (query1 selectUserFromRemoteConv (params LocalQuorum (Identity uid)))
+
 removeLocalMembersFromRemoteConv ::
   -- | The conversation to remove members from
   Remote ConvId ->
@@ -902,9 +884,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   GetLocalConversationIds uid start maxIds -> do
     logEffect "ConversationStore.GetLocalConversationIds"
     embedClient client $ getLocalConvIds uid start maxIds
-  GetConversationIds uid maxIds pagingState -> do
-    logEffect "ConversationStore.GetConversationIds"
-    embedClient client $ getConvIds uid maxIds pagingState
+  GetRemoteConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetRemoteConversationIds"
+    embedClient client $ getRemoteConvIds uid start maxIds
   GetConversationMetadata cid -> do
     logEffect "ConversationStore.GetConversationMetadata"
     embedClient client $ conversationMeta cid
@@ -976,40 +958,40 @@ interpretConversationStoreToCassandra client = interpret $ \case
     embedClient client $ deleteTeamConversations tid
   UpsertMembers cid ul -> do
     logEffect "ConversationStore.CreateMembers"
-    runEmbedded (runClient client) $ embed $ addMembers cid ul
+    embedClient client $ addMembers cid ul
   UpsertMembersInRemoteConversation rcid uids -> do
     logEffect "ConversationStore.CreateMembersInRemoteConversation"
-    runEmbedded (runClient client) $ embed $ addLocalMembersToRemoteConv rcid uids
+    embedClient client $ addLocalMembersToRemoteConv rcid uids
   CreateBotMember sr bid cid -> do
     logEffect "ConversationStore.CreateBotMember"
-    runEmbedded (runClient client) $ embed $ addBotMember sr bid cid
+    embedClient client $ addBotMember sr bid cid
   GetLocalMember cid uid -> do
     logEffect "ConversationStore.GetLocalMember"
-    runEmbedded (runClient client) $ embed $ member cid uid
+    embedClient client $ member cid uid
   GetLocalMembers cid -> do
     logEffect "ConversationStore.GetLocalMembers"
-    runEmbedded (runClient client) $ embed $ members cid
+    embedClient client $ members cid
   GetRemoteMember cid uid -> do
     logEffect "ConversationStore.GetRemoteMember"
-    runEmbedded (runClient client) $ embed $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
+    embedClient client $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> do
     logEffect "ConversationStore.GetRemoteMembers"
-    runEmbedded (runClient client) $ embed $ lookupRemoteMembers rcid
+    embedClient client $ lookupRemoteMembers rcid
   CheckLocalMemberRemoteConv uid rcnv -> do
     logEffect "ConversationStore.CheckLocalMemberRemoteConv"
-    fmap (not . null) $ runEmbedded (runClient client) $ embed $ lookupLocalMemberRemoteConv uid rcnv
+    fmap (not . null) $ embedClient client $ lookupLocalMemberRemoteConv uid rcnv
   SelectRemoteMembers uids rcnv -> do
     logEffect "ConversationStore.SelectRemoteMembers"
-    runEmbedded (runClient client) $ embed $ filterRemoteConvMembers uids rcnv
+    embedClient client $ filterRemoteConvMembers uids rcnv
   SetSelfMember qcid luid upd -> do
     logEffect "ConversationStore.SetSelfMember"
-    runEmbedded (runClient client) $ embed $ updateSelfMember qcid luid upd
+    embedClient client $ updateSelfMember qcid luid upd
   SetOtherMember lcid quid upd -> do
     logEffect "ConversationStore.SetOtherMember"
-    runEmbedded (runClient client) $ embed $ updateOtherMemberLocalConv lcid quid upd
+    embedClient client $ updateOtherMemberLocalConv lcid quid upd
   DeleteMembers cnv ul -> do
     logEffect "ConversationStore.DeleteMembers"
-    runEmbedded (runClient client) $ embed $ removeMembersFromLocalConv cnv ul
+    embedClient client $ removeMembersFromLocalConv cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
     runEmbedded (runClient client) $
@@ -1017,49 +999,533 @@ interpretConversationStoreToCassandra client = interpret $ \case
         removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> do
     logEffect "ConversationStore.AddMLSClients"
-    runEmbedded (runClient client) $ embed $ addMLSClients lcnv quid cs
+    embedClient client $ addMLSClients lcnv quid cs
   PlanClientRemoval lcnv cids -> do
     logEffect "ConversationStore.PlanClientRemoval"
-    runEmbedded (runClient client) $ embed $ planMLSClientRemoval lcnv cids
+    embedClient client $ planMLSClientRemoval lcnv cids
   RemoveMLSClients lcnv quid cs -> do
     logEffect "ConversationStore.RemoveMLSClients"
-    runEmbedded (runClient client) $ embed $ removeMLSClients lcnv quid cs
+    embedClient client $ removeMLSClients lcnv quid cs
   RemoveAllMLSClients gid -> do
     logEffect "ConversationStore.RemoveAllMLSClients"
-    runEmbedded (runClient client) $ embed $ removeAllMLSClients gid
+    embedClient client $ removeAllMLSClients gid
   LookupMLSClients lcnv -> do
     logEffect "ConversationStore.LookupMLSClients"
-    runEmbedded (runClient client) $ embed $ lookupMLSClients lcnv
+    embedClient client $ lookupMLSClients lcnv
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
-    runEmbedded (runClient client) $ embed $ lookupMLSClientLeafIndices lcnv
+    embedClient client $ lookupMLSClientLeafIndices lcnv
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
-    runEmbedded (runClient client) $ embed $ insertSubConversation convId subConvId groupId
+    embedClient client $ insertSubConversation convId subConvId groupId
   GetSubConversation convId subConvId -> do
     logEffect "ConversationStore.GetSubConversation"
-    runEmbedded (runClient client) $ embed $ selectSubConversation convId subConvId
+    embedClient client $ selectSubConversation convId subConvId
   GetSubConversationGroupInfo convId subConvId -> do
     logEffect "ConversationStore.GetSubConversationGroupInfo"
-    runEmbedded (runClient client) $ embed $ selectSubConvGroupInfo convId subConvId
+    embedClient client $ selectSubConvGroupInfo convId subConvId
   GetSubConversationEpoch convId subConvId -> do
     logEffect "ConversationStore.GetSubConversationEpoch"
-    runEmbedded (runClient client) $ embed $ selectSubConvEpoch convId subConvId
+    embedClient client $ selectSubConvEpoch convId subConvId
   SetSubConversationGroupInfo convId subConvId mPgs -> do
     logEffect "ConversationStore.SetSubConversationGroupInfo"
-    runEmbedded (runClient client) $ embed $ updateSubConvGroupInfo convId subConvId mPgs
+    embedClient client $ updateSubConvGroupInfo convId subConvId mPgs
   SetSubConversationEpoch cid sconv epoch -> do
     logEffect "ConversationStore.SetSubConversationEpoch"
-    runEmbedded (runClient client) $ embed $ setEpochForSubConversation cid sconv epoch
+    embedClient client $ setEpochForSubConversation cid sconv epoch
   SetSubConversationCipherSuite cid sconv cs -> do
     logEffect "ConversationStore.SetSubConversationCipherSuite"
-    runEmbedded (runClient client) $ embed $ setCipherSuiteForSubConversation cid sconv cs
+    embedClient client $ setCipherSuiteForSubConversation cid sconv cs
   ListSubConversations cid -> do
     logEffect "ConversationStore.ListSubConversations"
-    runEmbedded (runClient client) $ embed $ listSubConversations cid
+    embedClient client $ listSubConversations cid
   DeleteSubConversation convId subConvId -> do
     logEffect "ConversationStore.DeleteSubConversation"
-    runEmbedded (runClient client) $ embed $ deleteSubConversation convId subConvId
+    embedClient client $ deleteSubConversation convId subConvId
   SearchConversations _ -> do
     logEffect "ConversationStore.SearchConversations"
     pure []
+  HaveRemoteConvs uids ->
+    embedClient client $ haveRemoteConvs uids
+
+interpretConversationStoreToCassandraAndPostgres ::
+  forall r a.
+  ( Member TinyLog r,
+    PGConstraints r,
+    Member Async r,
+    Member (Error MigrationError) r,
+    Member Race r
+  ) =>
+  ClientState ->
+  Sem (ConversationStore ': r) a ->
+  Sem r a
+interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
+  UpsertConversation lcnv nc -> do
+    -- Save new convs in postgresql
+    withMigrationLockAndCleanup client LockShared (Left $ tUnqualified lcnv) $
+      embedClient client (getConversation (tUnqualified lcnv)) >>= \case
+        Nothing -> interpretConversationStoreToPostgres $ ConvStore.upsertConversation lcnv nc
+        Just _ -> embedClient client $ createConversation lcnv nc
+  GetConversation cid -> do
+    logEffect "ConversationStore.GetConversation"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      getConvWithPostgres cid >>= \case
+        Nothing -> embedClient client (getConversation cid)
+        conv -> pure conv
+  GetConversationEpoch cid -> do
+    logEffect "ConversationStore.GetConversationEpoch"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client (getConvEpoch cid)
+        True -> interpretConversationStoreToPostgres $ ConvStore.getConversationEpoch cid
+  GetConversations cids -> do
+    logEffect "ConversationStore.GetConversations"
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+      let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
+      cassConvs <- indexByConvId <$> localConversations client cids
+      pgConvs <- indexByConvId <$> interpretConversationStoreToPostgres (ConvStore.getConversations cids)
+      pure $ mapMaybe (\cid -> Map.lookup cid pgConvs <|> Map.lookup cid cassConvs) cids
+  GetLocalConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetLocalConversationIds"
+
+    -- [Migration Locking Limitation]
+    --
+    -- Here we cannot acquire any locks because we do not have convIds to start
+    -- with. This could cause consistency problems in two ways:
+    -- 1. Duplicate convId will be retrieved from PG
+    -- 2. Reading a conv which got deleted (or the user got removed from this
+    --    conv) in Postgresql after being migrated but the migration left it
+    --    behind in Cassandra.
+    --
+    -- 1. is solved by de-duplicating the list below
+    -- 2. is not solved here. When there is any other action attempted on this
+    --    ConvId, it should get cleaned up from Cassandra before that action, so
+    --    it _should_ be fine to return it here. But strictly speaking this is
+    --    inconsistent behaviour.
+    --
+    -- A solution could be to keep looping and locking until we get to a stable
+    -- situation, but that could run into creating too many sessions with
+    -- Postgres
+    cassConvIds <- embedClient client $ getLocalConvIds uid start maxIds
+    pgConvIds <- interpretConversationStoreToPostgres $ ConvStore.getLocalConversationIds uid start maxIds
+
+    let allResults =
+          sortOn (\cid -> (UUID.version $ toUUID cid, cid)) $
+            List.nubOrd (pgConvIds.resultSetResult <> cassConvIds.resultSetResult)
+        maxIdsInt = (fromIntegral $ fromRange maxIds)
+    pure $
+      ResultSet
+        { resultSetResult = take maxIdsInt allResults,
+          resultSetType =
+            if cassConvIds.resultSetType == ResultSetTruncated
+              || pgConvIds.resultSetType == ResultSetTruncated
+              || length allResults > maxIdsInt
+              then ResultSetTruncated
+              else ResultSetComplete
+        }
+  GetRemoteConversationIds uid start maxIds -> do
+    logEffect "ConversationStore.GetRemoteConversationIds"
+    withMigrationLockAndCleanup client LockShared (Right uid) $ do
+      isUserInPostgres uid >>= \case
+        False -> embedClient client $ getRemoteConvIds uid start maxIds
+        True -> interpretConversationStoreToPostgres $ ConvStore.getRemoteConversationIds uid start maxIds
+  GetConversationMetadata cid -> do
+    logEffect "ConversationStore.GetConversationMetadata"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      interpretConversationStoreToPostgres (ConvStore.getConversationMetadata cid) >>= \case
+        Nothing -> embedClient client (conversationMeta cid)
+        meta -> pure meta
+  GetGroupInfo cid -> do
+    logEffect "ConversationStore.GetGroupInfo"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client (getGroupInfo cid)
+        True -> interpretConversationStoreToPostgres (ConvStore.getGroupInfo cid)
+  IsConversationAlive cid -> do
+    logEffect "ConversationStore.IsConversationAlive"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client (isConvAlive cid)
+        True -> interpretConversationStoreToPostgres (ConvStore.isConversationAlive cid)
+  SelectConversations uid cids -> do
+    logEffect "ConversationStore.SelectConversations"
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+      cassConvs <- embedClient client $ localConversationIdsOf uid cids
+      pgConvs <- interpretConversationStoreToPostgres $ ConvStore.selectConversations uid cids
+      pure $ List.nubOrd (pgConvs <> cassConvs)
+  GetRemoteConversationStatus uid cids -> do
+    logEffect "ConversationStore.GetRemoteConversationStatus"
+    withMigrationLockAndCleanup client LockShared (Right uid) $ do
+      isUserInPostgres uid >>= \case
+        False -> embedClient client $ remoteConversationStatus uid cids
+        True -> interpretConversationStoreToPostgres $ ConvStore.getRemoteConversationStatus uid cids
+  SetConversationType cid ty -> do
+    logEffect "ConversationStore.SetConversationType"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvType cid ty
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationType cid ty)
+  SetConversationName cid value -> do
+    logEffect "ConversationStore.SetConversationName"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvName cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationName cid value)
+  SetConversationAccess cid value -> do
+    logEffect "ConversationStore.SetConversationAccess"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvAccess cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationAccess cid value)
+  SetConversationReceiptMode cid value -> do
+    logEffect "ConversationStore.SetConversationReceiptMode"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvReceiptMode cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationReceiptMode cid value)
+  SetConversationMessageTimer cid value -> do
+    logEffect "ConversationStore.SetConversationMessageTimer"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvMessageTimer cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationMessageTimer cid value)
+  SetConversationEpoch cid epoch -> do
+    logEffect "ConversationStore.SetConversationEpoch"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvEpoch cid epoch
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationEpoch cid epoch)
+  SetConversationCipherSuite cid cs -> do
+    logEffect "ConversationStore.SetConversationCipherSuite"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvCipherSuite cid cs
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationCipherSuite cid cs)
+  SetConversationCellsState cid ps -> do
+    logEffect "ConversationStore.SetConversationCellsState"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvCellsState cid ps
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationCellsState cid ps)
+  ResetConversation cid groupId -> do
+    logEffect "ConversationStore.ResetConversation"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ resetConversation cid groupId
+        True -> interpretConversationStoreToPostgres (ConvStore.resetConversation cid groupId)
+  DeleteConversation cid -> do
+    logEffect "ConversationStore.DeleteConversation"
+    withMigrationLockAndCleanup client LockShared (Left cid) $ do
+      embedClient client $ deleteConversation cid
+      interpretConversationStoreToPostgres (ConvStore.deleteConversation cid)
+  SetGroupInfo cid gib -> do
+    logEffect "ConversationStore.SetGroupInfo"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ setGroupInfo cid gib
+        True -> interpretConversationStoreToPostgres (ConvStore.setGroupInfo cid gib)
+  UpdateToMixedProtocol cid groupId epoch -> do
+    logEffect "ConversationStore.UpdateToMixedProtocol"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> updateToMixedProtocol client cid groupId epoch
+        True -> interpretConversationStoreToPostgres (ConvStore.updateToMixedProtocol cid groupId epoch)
+  UpdateToMLSProtocol cid -> do
+    logEffect "ConversationStore.UpdateToMLSProtocol"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> updateToMLSProtocol client cid
+        _ -> interpretConversationStoreToPostgres (ConvStore.updateToMLSProtocol cid)
+  UpdateChannelAddPermissions cid cap -> do
+    logEffect "ConversationStore.UpdateChannelAddPermissions"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateChannelAddPermissions cid cap
+        _ -> interpretConversationStoreToPostgres (ConvStore.updateChannelAddPermissions cid cap)
+  DeleteTeamConversation tid cid -> do
+    logEffect "ConversationStore.DeleteTeamConversation"
+    withMigrationLockAndCleanup client LockShared (Left cid) $ do
+      embedClient client $ removeTeamConv tid cid
+      interpretConversationStoreToPostgres (ConvStore.deleteTeamConversation tid cid)
+  GetTeamConversation tid cid -> do
+    logEffect "ConversationStore.GetTeamConversation"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      interpretConversationStoreToPostgres (ConvStore.getTeamConversation tid cid) >>= \case
+        Just foundCid -> pure $ Just foundCid
+        Nothing -> embedClient client $ teamConversation tid cid
+  GetTeamConversations tid -> do
+    logEffect "ConversationStore.GetTeamConversations"
+    -- See [Migration Locking Limitation]
+    cassConvs <- embedClient client $ getTeamConversations tid
+    pgConvs <- interpretConversationStoreToPostgres $ ConvStore.getTeamConversations tid
+    pure $ List.nubOrd (pgConvs <> cassConvs)
+  DeleteTeamConversations tid -> do
+    logEffect "ConversationStore.DeleteTeamConversations"
+    embedClient client $ deleteTeamConversations tid
+    interpretConversationStoreToPostgres $ ConvStore.deleteTeamConversations tid
+  UpsertMembers cid ul -> do
+    logEffect "ConversationStore.CreateMembers"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ addMembers cid ul
+        _ -> interpretConversationStoreToPostgres (ConvStore.upsertMembers cid ul)
+  UpsertMembersInRemoteConversation rcid uids -> do
+    logEffect "ConversationStore.CreateMembersInRemoteConversation"
+
+    -- Save users joining their first remote conv in postgres
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+      filterUsersInPostgres uids >>= \pgUids -> do
+        let -- These are not in Postgres, but that doesn't mean they're in
+            -- cassandra
+            nonPgUids = filter (`notElem` pgUids) uids
+        cassUids <- embedClient client $ haveRemoteConvs nonPgUids
+        let nonCassUids = filter (`notElem` cassUids) uids
+        interpretConversationStoreToPostgres $ ConvStore.upsertMembersInRemoteConversation rcid nonCassUids
+        embedClient client $ addLocalMembersToRemoteConv rcid cassUids
+  CreateBotMember sr bid cid -> do
+    logEffect "ConversationStore.CreateBotMember"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ addBotMember sr bid cid
+        _ -> interpretConversationStoreToPostgres (ConvStore.createBotMember sr bid cid)
+  GetLocalMember cid uid -> do
+    logEffect "ConversationStore.GetLocalMember"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ member cid uid
+        True -> interpretConversationStoreToPostgres (ConvStore.getLocalMember cid uid)
+  GetLocalMembers cid -> do
+    logEffect "ConversationStore.GetLocalMembers"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ members cid
+        True -> interpretConversationStoreToPostgres (ConvStore.getLocalMembers cid)
+  GetRemoteMember cid uid -> do
+    logEffect "ConversationStore.GetRemoteMember"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
+        True -> interpretConversationStoreToPostgres (ConvStore.getRemoteMember cid uid)
+  GetRemoteMembers cid -> do
+    logEffect "ConversationStore.GetRemoteMembers"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ lookupRemoteMembers cid
+        True -> interpretConversationStoreToPostgres (ConvStore.getRemoteMembers cid)
+  CheckLocalMemberRemoteConv uid rcnv -> do
+    logEffect "ConversationStore.CheckLocalMemberRemoteConv"
+    withMigrationLockAndCleanup client LockShared (Right uid) $ do
+      isUserInPostgres uid >>= \case
+        False -> fmap (not . null) $ embedClient client $ lookupLocalMemberRemoteConv uid rcnv
+        True -> interpretConversationStoreToPostgres $ ConvStore.checkLocalMemberRemoteConv uid rcnv
+  SelectRemoteMembers uids rcnv -> do
+    logEffect "ConversationStore.SelectRemoteMembers"
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+      filterUsersInPostgres uids >>= \pgUids -> do
+        (pgUsers, _) <- interpretConversationStoreToPostgres $ ConvStore.selectRemoteMembers pgUids rcnv
+        (cassUsers, _) <- embedClient client $ filterRemoteConvMembers uids rcnv
+        let foundUsers = pgUsers <> cassUsers
+        pure (foundUsers, Set.fromList foundUsers == Set.fromList uids)
+  SetSelfMember qcid luid upd -> do
+    logEffect "ConversationStore.SetSelfMember"
+    let localConvFunctions lcid =
+          ( withMigrationLockAndCleanup client LockShared (Left (tUnqualified lcid)),
+            isConvInPostgres (tUnqualified lcid)
+          )
+        remoteConvFunctions _ =
+          ( withMigrationLockAndCleanup client (LockShared) (Right (tUnqualified luid)),
+            isUserInPostgres (tUnqualified luid)
+          )
+    let (withLock, isInPG) = foldQualified luid localConvFunctions remoteConvFunctions qcid
+    withLock $
+      isInPG >>= \case
+        False -> embedClient client $ updateSelfMember qcid luid upd
+        True -> interpretConversationStoreToPostgres $ ConvStore.setSelfMember qcid luid upd
+  SetOtherMember lcid quid upd -> do
+    logEffect "ConversationStore.SetOtherMember"
+    withMigrationLockAndCleanup client LockShared (Left $ tUnqualified lcid) $
+      isConvInPostgres (tUnqualified lcid) >>= \case
+        False -> embedClient client $ updateOtherMemberLocalConv lcid quid upd
+        True -> interpretConversationStoreToPostgres (ConvStore.setOtherMember lcid quid upd)
+  DeleteMembers cid ul -> do
+    logEffect "ConversationStore.DeleteMembers"
+    withMigrationLockAndCleanup client LockShared (Left cid) $ do
+      -- No need to check where these are, we just delete them from both places
+      embedClient client $ removeMembersFromLocalConv cid ul
+      interpretConversationStoreToPostgres $ ConvStore.deleteMembers cid ul
+  DeleteMembersInRemoteConversation rcnv uids -> do
+    logEffect "ConversationStore.DeleteMembersInRemoteConversation"
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+      -- No need to check where these are, we just delete them from both places
+      embedClient client $ removeLocalMembersFromRemoteConv rcnv uids
+      interpretConversationStoreToPostgres $ ConvStore.deleteMembersInRemoteConversation rcnv uids
+  AddMLSClients groupId quid cs -> do
+    logEffect "ConversationStore.AddMLSClients"
+    cid <- groupIdToConvId groupId
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ addMLSClients groupId quid cs
+        True -> interpretConversationStoreToPostgres (ConvStore.addMLSClients groupId quid cs)
+  PlanClientRemoval gid clients -> do
+    logEffect "ConversationStore.PlanClientRemoval"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ planMLSClientRemoval gid clients
+        True -> interpretConversationStoreToPostgres (ConvStore.planClientRemoval gid clients)
+  RemoveMLSClients gid quid cs -> do
+    logEffect "ConversationStore.RemoveMLSClients"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $ do
+      embedClient client $ removeMLSClients gid quid cs
+      interpretConversationStoreToPostgres (ConvStore.removeMLSClients gid quid cs)
+  RemoveAllMLSClients gid -> do
+    logEffect "ConversationStore.RemoveAllMLSClients"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $ do
+      embedClient client $ removeAllMLSClients gid
+      interpretConversationStoreToPostgres (ConvStore.removeAllMLSClients gid)
+  LookupMLSClients gid -> do
+    logEffect "ConversationStore.LookupMLSClients"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ lookupMLSClients gid
+        True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClients gid)
+  LookupMLSClientLeafIndices gid -> do
+    logEffect "ConversationStore.LookupMLSClientLeafIndices"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ lookupMLSClientLeafIndices gid
+        True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClientLeafIndices gid)
+  UpsertSubConversation convId subConvId groupId -> do
+    logEffect "ConversationStore.CreateSubConversation"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ insertSubConversation convId subConvId groupId
+        True -> interpretConversationStoreToPostgres (ConvStore.upsertSubConversation convId subConvId groupId)
+  GetSubConversation convId subConvId -> do
+    logEffect "ConversationStore.GetSubConversation"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ selectSubConversation convId subConvId
+        True -> interpretConversationStoreToPostgres $ ConvStore.getSubConversation convId subConvId
+  GetSubConversationGroupInfo convId subConvId -> do
+    logEffect "ConversationStore.GetSubConversationGroupInfo"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ selectSubConvGroupInfo convId subConvId
+        True -> interpretConversationStoreToPostgres $ ConvStore.getSubConversationGroupInfo convId subConvId
+  GetSubConversationEpoch convId subConvId -> do
+    logEffect "ConversationStore.GetSubConversationEpoch"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ selectSubConvEpoch convId subConvId
+        True -> interpretConversationStoreToPostgres $ ConvStore.getSubConversationEpoch convId subConvId
+  SetSubConversationGroupInfo convId subConvId mPgs -> do
+    logEffect "ConversationStore.SetSubConversationGroupInfo"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ updateSubConvGroupInfo convId subConvId mPgs
+        True -> interpretConversationStoreToPostgres $ ConvStore.setSubConversationGroupInfo convId subConvId mPgs
+  SetSubConversationEpoch cid sconv epoch -> do
+    logEffect "ConversationStore.SetSubConversationEpoch"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ setEpochForSubConversation cid sconv epoch
+        True -> interpretConversationStoreToPostgres $ ConvStore.setSubConversationEpoch cid sconv epoch
+  SetSubConversationCipherSuite cid sconv cs -> do
+    logEffect "ConversationStore.SetSubConversationCipherSuite"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ setCipherSuiteForSubConversation cid sconv cs
+        True -> interpretConversationStoreToPostgres $ ConvStore.setSubConversationCipherSuite cid sconv cs
+  ListSubConversations cid -> do
+    logEffect "ConversationStore.ListSubConversations"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ listSubConversations cid
+        True -> interpretConversationStoreToPostgres $ ConvStore.listSubConversations cid
+  DeleteSubConversation convId subConvId -> do
+    logEffect "ConversationStore.DeleteSubConversation"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ deleteSubConversation convId subConvId
+        True -> interpretConversationStoreToPostgres $ ConvStore.deleteSubConversation convId subConvId
+  SearchConversations _ -> do
+    -- In theory, it is possible to make this partially work. But we don't have
+    -- to worry so much about this interpreter to be used only during the
+    -- transition.
+    logEffect "ConversationStore.SearchConversations"
+    pure []
+  HaveRemoteConvs uids -> do
+    logEffect "ConversationStore.DeleteSubConversation"
+    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+      remotesInCass <- embedClient client $ haveRemoteConvs uids
+      remotesInPG <- interpretConversationStoreToPostgres $ ConvStore.haveRemoteConvs uids
+      pure $ List.nubOrd (remotesInPG <> remotesInCass)
+
+getConvWithPostgres :: (PGConstraints r) => ConvId -> Sem r (Maybe StoredConversation)
+getConvWithPostgres cid = interpretConversationStoreToPostgres $ ConvStore.getConversation cid
+
+isConvInPostgres :: (PGConstraints r) => ConvId -> Sem r Bool
+isConvInPostgres cid = interpretConversationStoreToPostgres $ ConvStore.isConversationAlive cid
+
+-- | Here a user being in postgres means that their remote conv memberships have
+-- been migrated to Postgres
+isUserInPostgres :: (PGConstraints r) => UserId -> Sem r Bool
+isUserInPostgres uid = do
+  filterUsersInPostgres [uid] >>= \case
+    [] -> pure False
+    _ -> pure True
+
+filterUsersInPostgres :: (PGConstraints r) => [UserId] -> Sem r [UserId]
+filterUsersInPostgres uids = do
+  interpretConversationStoreToPostgres (ConvStore.haveRemoteConvs uids)
+
+-- | Assumes that the GroupId is local
+groupIdToConvId :: (Member (Error MigrationError) r) => GroupId -> Sem r ConvId
+groupIdToConvId gid =
+  case groupIdToConv gid of
+    Left _ -> throw InvalidGroupId
+    Right (_, gidParts) -> pure gidParts.qConvId.qUnqualified.conv
+
+data MigrationError
+  = InvalidGroupId
+  | FailedToAcquireMigrationLock MigrationLockError
+  deriving (Show)
+
+instance APIError MigrationError where
+  toResponse _ = waiErrorToJSONResponse $ WaiError.mkError status500 "internal-server-error" "Internal Server Error"
+
+withMigrationLockAndCleanup ::
+  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member (Error MigrationError) r) =>
+  ClientState ->
+  LockType ->
+  Either ConvId UserId ->
+  Sem (Error MigrationLockError : r) a ->
+  Sem r a
+withMigrationLockAndCleanup cassClient ty key =
+  withMigrationLocksAndCleanup cassClient ty (MilliSeconds 500) [key]
+
+withMigrationLocksAndCleanup ::
+  ( PGConstraints r,
+    Member Async r,
+    Member TinyLog r,
+    Member Race r,
+    Member (Error MigrationError) r,
+    TimeUnit u
+  ) =>
+  ClientState ->
+  LockType ->
+  u ->
+  [Either ConvId UserId] ->
+  Sem (Error MigrationLockError : r) a ->
+  Sem r a
+withMigrationLocksAndCleanup cassClient lockType maxWait convOrUsers action =
+  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait convOrUsers $ do
+    interpretConversationStoreToCassandra cassClient
+      . runInputConst cassClient
+      $ cleanupIfNecessary convOrUsers
+    action

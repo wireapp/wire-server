@@ -1,6 +1,7 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
+import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
@@ -15,7 +16,14 @@ data Opts = Opts
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig,
-    cassandra :: CassandraOpts
+    cassandra :: CassandraOpts,
+    cassandraGalley :: CassandraOpts,
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    postgresql :: !(Map Text Text),
+    postgresqlPassword :: !(Maybe FilePathSecrets),
+    postgresqlPool :: !PoolConfig,
+    migrateConversations :: Bool
   }
   deriving (Show, Generic)
 

@@ -10,6 +10,8 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Map.Strict qualified as Map
 import HTTP2.Client.Manager
+import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import Network.HTTP.Client
@@ -49,7 +51,9 @@ data Env = Env
     backendNotificationsConfig :: BackendNotificationsConfig,
     workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
-    cassandra :: ClientState
+    cassandra :: ClientState,
+    cassandraGalley :: ClientState,
+    hasqlPool :: Hasql.Pool
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -72,9 +76,11 @@ mkWorkerRunningGauge =
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
-  cassandra <- defInitCassandra opts.cassandra logger
+  cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
+  cassandraGalley <- defInitCassandra opts.cassandraGalley =<< setLoggerName "cassandra-galley" logger
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
+  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   let federatorInternal = opts.federatorInternal
       defederationTimeout =
         maybe
@@ -153,5 +159,9 @@ updateWorkingStatus isWorking worker = do
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do
   env <- ask
-  namedLogger <- lift $ Log.new $ Log.setName (Just name) $ Log.settings env.logger
+  namedLogger <- setLoggerName name env.logger
   lift $ runAppT (env {logger = namedLogger}) action
+
+setLoggerName :: (MonadIO m) => Text -> Log.Logger -> m Log.Logger
+setLoggerName name logger =
+  Log.new $ Log.setName (Just name) $ Log.settings logger

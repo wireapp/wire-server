@@ -60,9 +60,14 @@ spec:
     - name: "federator-ca"
       configMap:
         name: "federator-ca"
+
     - name: "background-worker-config"
       configMap:
         name: "background-worker"
+
+    - name: "background-worker-secrets"
+      secret:
+        secretName: "background-worker"
 
     - name: "stern-config"
       configMap:
@@ -249,6 +254,9 @@ spec:
 
     - name: background-worker-config
       mountPath: /etc/wire/background-worker/conf
+
+    - name: background-worker-secrets
+      mountPath: /etc/wire/background-worker/secrets
 
     - name: stern-config
       mountPath: /etc/wire/stern/conf

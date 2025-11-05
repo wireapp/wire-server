@@ -15,6 +15,7 @@
 , extended
 , federator
 , gitignoreSource
+, hasql-pool
 , HsOpenSSL
 , hspec
 , http-client
@@ -42,6 +43,7 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
+, wire-subsystems
 }:
 mkDerivation {
   pname = "background-worker";
@@ -59,6 +61,7 @@ mkDerivation {
     containers
     exceptions
     extended
+    hasql-pool
     HsOpenSSL
     http-client
     http2-manager
@@ -78,6 +81,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
   testHaskellDepends = [

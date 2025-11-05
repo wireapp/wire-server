@@ -14,6 +14,25 @@ cassandra:
     port: 9042
   keyspace: gundeck_test
 
+cassandraGalley:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: galley_test
+
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
+postgresqlPool:
+  size: 5
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
 rabbitmq:
   host: 127.0.0.1
   port: 5671
@@ -28,3 +47,5 @@ backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms
   pushBackoffMaxWait: 1000000 # 1s
   remotesRefreshInterval: 10000 # 10ms
+
+migrateConversations: false

@@ -67,6 +67,7 @@
 , optparse-applicative
 , pem
 , polysemy
+, polysemy-conc
 , polysemy-wire-zoo
 , process
 , prometheus-client
@@ -178,6 +179,7 @@ mkDerivation {
     optparse-applicative
     pem
     polysemy
+    polysemy-conc
     polysemy-wire-zoo
     prometheus-client
     proto-lens

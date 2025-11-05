@@ -1683,10 +1683,9 @@ used as `password` field.
 
 ### Using PostgreSQL for storing conversation data
 
-This is currently not the default and is experimental.
-The migration path from Cassandra is yet to be programmed.
+#### New Installations
 
-However, new installations can use this by configuring the wire-server helm
+New installations can use this by configuring the wire-server helm
 chart like this:
 
 ```yaml
@@ -1695,6 +1694,61 @@ galley:
     postgresqlMigration:
       conversation: postgresql
 ```
+
+#### Migration for existing installations
+
+Existing installations should migrate the conversation data to PostgreSQL from
+Cassandra. This is necessary for channel search and management of channels from
+the team-management UI. It is highly recommended to take a backup of the Galley
+Cassandra before triggering the migration.
+
+The migration needs to happen in 3 steps:
+
+1. Prepare wire-server for migration.
+
+   This step make sure that wire-server keep working as expected during the
+   migration. To do this deploy wire-server with this config change:
+
+   ```yaml
+   galley:
+     config:
+       postgresqlMigration:
+         conversation: migrate-to-postgresql
+   ```
+
+   This change should restart all the galley pods, any new conversations will
+   now be written to PostgreSQL.
+
+2. Trigger the migration and wait.
+
+   This step will actually carry out the migration. To do this deploy
+   wire-server with this config change:
+
+   ```yaml
+   background-worker:
+     config:
+       migrateConversations: true
+   ```
+
+   This change should restart the background-worker pods. It is recommended to
+   watch the logs and wait for both of these two metrics to report `1.0`:
+   `wire_local_convs_migration_finished` and `wire_user_remote_convs_migration_finished`.
+   This can take a long time depending on number of conversations in the DB.
+
+3. Configure wire-server to only use PostgreSQL for conversations.
+
+   This will be the configuration which must be used from now on for every new
+   release.
+
+   ```yaml
+   galley:
+     config:
+       postgresqlMigration:
+         conversation: postgresql
+   background-worker:
+     config:
+       migrateConversations: false
+   ```
 
 ## Configure Cells
 

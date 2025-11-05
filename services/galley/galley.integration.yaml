@@ -196,3 +196,4 @@ journal: # if set, journals; if not set, disables journaling
 
 postgresMigration:
   conversation: postgresql
+  # conversation: cassandra

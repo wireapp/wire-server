@@ -34,6 +34,7 @@ module Wire.API.Conversation.Protocol
     cnvmlsEpoch,
     ProtocolUpdate (..),
     getGroupId,
+    getMLSData,
   )
 where
 
@@ -282,3 +283,8 @@ getGroupId :: Protocol -> Maybe GroupId
 getGroupId (ProtocolMLS mlsData) = Just $ cnvmlsGroupId mlsData
 getGroupId (ProtocolMixed mlsData) = Just $ cnvmlsGroupId mlsData
 getGroupId _ = Nothing
+
+getMLSData :: Protocol -> Maybe ConversationMLSData
+getMLSData (ProtocolMLS mlsData) = Just mlsData
+getMLSData (ProtocolMixed mlsData) = Just mlsData
+getMLSData ProtocolProteus = Nothing

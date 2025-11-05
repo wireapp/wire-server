@@ -323,7 +323,9 @@ spec = do
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
       let cassandra = undefined
-      let federatorInternal = Endpoint "localhost" 8097
+          cassandraGalley = undefined
+          hasqlPool = undefined
+          federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
@@ -341,6 +343,8 @@ spec = do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
       let cassandra = undefined
+          cassandraGalley = undefined
+          hasqlPool = undefined
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined

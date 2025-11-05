@@ -188,13 +188,23 @@ deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
 
-data StorageLocation = CassandraStorage | PostgresqlStorage
+data StorageLocation
+  = -- | Use when solely using Cassandra
+    CassandraStorage
+  | -- | Use while migration to postgresql. Using this option does not trigger
+    --   the migration. Newly created conversations are stored in Postgresql.
+    --   Once this has been turned on, it MUST NOT be made CassandraStorage ever
+    --   again.
+    MigrationToPostgresql
+  | -- | Use after migrating to postgresql
+    PostgresqlStorage
 
 instance FromJSON StorageLocation where
   parseJSON = withText "StorageLocation" $ \case
     "cassandra" -> pure CassandraStorage
+    "migration-to-postgresql" -> pure MigrationToPostgresql
     "postgresql" -> pure PostgresqlStorage
-    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql"
+    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql, migration-to-postgresql"
 
 data PostgresMigrationOpts = PostgresMigrationOpts
   { conversation :: StorageLocation

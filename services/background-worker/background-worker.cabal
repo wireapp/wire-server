@@ -19,6 +19,7 @@ library
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
+    Wire.MigrateConversations
 
   hs-source-dirs:     src
   default-language:   GHC2021
@@ -37,6 +38,7 @@ library
     , containers
     , exceptions
     , extended
+    , hasql-pool
     , HsOpenSSL
     , http-client
     , http2-manager
@@ -56,6 +58,7 @@ library
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-subsystems
 
   default-extensions:
     AllowAmbiguousTypes
