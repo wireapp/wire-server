@@ -1132,6 +1132,7 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
     for_ (nonEmpty $ Set.toList toRemove) $ \removeList -> do
       if notIsConvMember lusr conv (tUntagged lusr) && conv.metadata.cnvmGroupConvType == Just Channel
         then
+          -- FUTUREWORK: we need a proper implementation for bulk removals of users from TM, and push the checks down into updateLocalConversation
           for_ removeList $ removeMemberQualified lusr zcon qcnv
         else
           void . getUpdateResult . fmap lcuEvent $
@@ -1437,6 +1438,8 @@ removeMemberFromLocalConv lcnv lusr con victim
       let lconv = qualifyAs lusr conv
       if not (isConvMemberL lconv lusr) && conv.metadata.cnvmGroupConvType == Just Channel
         then
+          -- FUTUREWORK: we need a proper implementation for removals of users from TM, and push the checks down into updateLocalConversation
+          -- The current implementation works, but is a short-term solution, taken for pragmatic reasons.
           fmap (const Nothing) . runError @NoChanges $ removeMemberFromChannel (tUntagged lusr) lconv victim
         else
           fmap (fmap lcuEvent . hush)
