@@ -19,6 +19,10 @@ galley:
   host: 127.0.0.1
   port: 8085
 
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
 proxy:
   host: 127.0.0.1
   port: 8087
@@ -54,6 +58,10 @@ rabbitMqVHost: backendA
 nginxIngress:
   host: localhost
   port: 8443
+
+federatorInternal:
+  host: 127.0.0.1
+  port: 8097
 
 federatorExternal:
   host: 127.0.0.1
