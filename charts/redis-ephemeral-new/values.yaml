@@ -3,6 +3,9 @@ redis-ephemeral:
   image:
     tag: "7.4.6"
 
+  haMode:
+    enabled: false
+
 extraSecretRedisConfigs: redis-extra-config
 
 configTemplate: |
