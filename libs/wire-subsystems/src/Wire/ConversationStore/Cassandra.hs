@@ -857,8 +857,8 @@ setConversationOutOfSync cid outOfSync =
 
 isConversationOutOfSync :: ConvId -> Client Bool
 isConversationOutOfSync cid =
-  fmap (fromMaybe False . fmap (fromMaybe False . runIdentity)) $
-    retry x1 (query1 Cql.lookupConvOutOfSync (params LocalQuorum (Identity cid)))
+  maybe False (fromMaybe False . runIdentity)
+    <$> retry x1 (query1 Cql.lookupConvOutOfSync (params LocalQuorum (Identity cid)))
 
 interpretMLSCommitLockStoreToCassandra :: (Member (Embed IO) r, Member TinyLog r) => ClientState -> InterpreterFor MLSCommitLockStore r
 interpretMLSCommitLockStoreToCassandra client = interpret $ \case
