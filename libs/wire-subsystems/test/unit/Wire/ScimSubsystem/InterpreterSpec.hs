@@ -72,7 +72,7 @@ runDependencies initialUsers initialTeams =
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
       CreateGroupFull managedBy _teamId _creatorUserId newGroup -> do
         -- For tests, just create a minimal UserGroup
-        let gid = Id UUID.nil  -- Using nil UUID for tests
+        let gid = Id UUID.nil -- Using nil UUID for tests
         pure $
           UserGroup_
             { id_ = gid,

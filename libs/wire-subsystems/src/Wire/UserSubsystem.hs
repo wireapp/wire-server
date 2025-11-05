@@ -26,6 +26,7 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Brig (GetBy (..))
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
@@ -33,7 +34,6 @@ import Wire.API.Team.Member (IsPerm (..), TeamMember)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.IdentityProvider hiding (team)
-import Wire.API.Routes.Internal.Brig (GetBy (..))
 import Wire.API.User.Search
 import Wire.ActivationCodeStore
 import Wire.Arbitrary
