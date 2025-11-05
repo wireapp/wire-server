@@ -15,6 +15,7 @@ import OpenSSL.EVP.Digest
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async (asyncToIOFinal)
+import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
@@ -29,7 +30,7 @@ import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore
-import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
+import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
 import Wire.ExternalAccess.External
@@ -54,17 +55,19 @@ dispatchJob job = do
     convStoreInterpreter env =
       case env.postgresMigration.conversation of
         CassandraStorage -> interpretConversationStoreToCassandra env.cassandraGalley
+        MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres env.cassandraGalley
         PostgresqlStorage -> interpretConversationStoreToPostgres
-        _ -> todo
     runInterpreters env extEnv = do
       runFinal @IO
         . embedToFinal @IO
         . asyncToIOFinal
+        . interpretRace
         . runDelay
         . runError
         . mapError @FederationError (T.pack . show)
         . mapError @UsageError (T.pack . show)
         . mapError @ParseException (T.pack . show)
+        . mapError @MigrationError (T.pack . show)
         . interpretTinyLog env job.requestId job.jobId
         . runInputConst env.hasqlPool
         . runInputConst (toLocalUnsafe env.domain ())

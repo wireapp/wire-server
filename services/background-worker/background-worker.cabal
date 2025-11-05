@@ -51,6 +51,7 @@ library
     , metrics-wai
     , monad-control
     , polysemy
+    , polysemy-conc
     , polysemy-wire-zoo
     , prometheus-client
     , retry
