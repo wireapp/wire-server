@@ -533,7 +533,7 @@ testTeamAdminCanReplaceMembers = do
     for [bob, charlie, dylan, emil, fred, guenter, horst, ilona] (%. "id")
 
   -- these are the users added to the conversation via user groups
-  -- they should not be remove by the replace operation
+  -- they should not be removed by the replace operation
   let userGroupUsers = [guenterId, horstId, ilonaId]
 
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
