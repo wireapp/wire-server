@@ -72,6 +72,7 @@ library
     Wire.API.App
     Wire.API.ApplyMods
     Wire.API.Asset
+    Wire.API.BackgroundJobs
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config

@@ -1,9 +1,9 @@
 module Wire.NotificationSubsystem.Interpreter where
 
-import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
+import Data.Id
 import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Proxy
@@ -21,10 +21,10 @@ import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
-import Wire.API.Team.Member
+import Wire.API.Team.HardTruncationLimit (HardTruncationLimit)
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
-import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem as NS
 import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
@@ -155,7 +155,7 @@ chunkPushes maxRecipients
     splitPush :: Natural -> Push -> (Push, Push)
     splitPush n p =
       let (r1, r2) = splitAt (fromIntegral n) (toList p.recipients)
-       in (p {recipients = r1}, p {recipients = r2})
+       in (p {NS.recipients = r1}, p {NS.recipients = r2})
 
 pushSlowlyImpl ::
   ( Member Delay r,

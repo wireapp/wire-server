@@ -17,24 +17,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.ExternalAccess
-  ( -- * External access effect
-    ExternalAccess (..),
-    deliver,
-    deliverAsync,
-    deliverAndDeleteAsync,
+module Wire.ServiceStore
+  ( -- * Service effect
+    ServiceStore (..),
+
+    -- * Create service
+    createService,
+
+    -- * Read service
+    getService,
+
+    -- * Delete service
+    deleteService,
   )
 where
 
-import Data.Id
 import Imports
 import Polysemy
-import Wire.API.Event.Conversation
-import Wire.StoredConversation
+import Wire.API.Bot.Service
+import Wire.API.Provider.Service (ServiceRef)
 
-data ExternalAccess m a where
-  Deliver :: (Foldable f) => f (BotMember, Event) -> ExternalAccess m [BotMember]
-  DeliverAsync :: (Foldable f) => f (BotMember, Event) -> ExternalAccess m ()
-  DeliverAndDeleteAsync :: (Foldable f) => ConvId -> f (BotMember, Event) -> ExternalAccess m ()
+data ServiceStore m a where
+  CreateService :: Service -> ServiceStore m ()
+  GetService :: ServiceRef -> ServiceStore m (Maybe Service)
+  DeleteService :: ServiceRef -> ServiceStore m ()
 
-makeSem ''ExternalAccess
+makeSem ''ServiceStore

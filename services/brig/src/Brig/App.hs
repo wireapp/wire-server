@@ -71,6 +71,7 @@ module Brig.App
     disabledVersionsLens,
     enableSFTFederationLens,
     rateLimitEnvLens,
+    amqpJobsPublisherChannelLens,
     initZAuth,
     initLogger,
     initPostgresPool,
@@ -218,7 +219,8 @@ data Env = Env
     rabbitmqChannel :: Maybe (MVar Q.Channel),
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool,
-    rateLimitEnv :: RateLimitEnv
+    rateLimitEnv :: RateLimitEnv,
+    amqpJobsPublisherChannel :: Maybe (MVar Q.Channel)
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -280,6 +282,7 @@ newEnv opts = do
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  amqpJobsPublisherChannel <- traverse (Q.mkRabbitMqChannelMVar lgr (Just "brig")) opts.rabbitmq
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,
@@ -319,7 +322,8 @@ newEnv opts = do
         rabbitmqChannel = rabbitChan,
         disabledVersions = allDisabledVersions,
         enableSFTFederation = opts.multiSFT,
-        rateLimitEnv
+        rateLimitEnv,
+        amqpJobsPublisherChannel
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)

@@ -31,7 +31,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
 import Galley.API.Push
-import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Imports
 import Network.Wai.Utilities.JSONResponse
@@ -51,6 +50,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
+import Wire.ExternalAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

@@ -24,7 +24,7 @@ import Cassandra
 import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Aws qualified as Aws
@@ -44,6 +44,7 @@ import System.Logger
 import Util.Options
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
+import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
 import Wire.RateLimit.Interpreter (RateLimitEnv)
 
@@ -70,15 +71,7 @@ data Env = Env
     _passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
--- | Environment specific to the communication with external
--- service providers.
-data ExtEnv = ExtEnv
-  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
-  }
-
 makeLenses ''Env
-
-makeLenses ''ExtEnv
 
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
 initExtEnv :: IO ExtEnv

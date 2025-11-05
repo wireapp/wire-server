@@ -76,3 +76,12 @@ cellsStateToInt32 = \case
   CellsDisabled -> 0
   CellsPending -> 1
   CellsReady -> 2
+
+class HasCellsState a where
+  getCellsState :: a -> CellsState
+
+instance HasCellsState CellsState where
+  getCellsState = id
+
+instance HasCellsState () where
+  getCellsState = def

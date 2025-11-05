@@ -11,14 +11,17 @@
 , cassandra-util
 , containers
 , data-default
+, data-timeout
 , exceptions
 , extended
+, extra
 , federator
 , gitignoreSource
 , hasql-pool
 , HsOpenSSL
 , hspec
 , http-client
+, http-client-openssl
 , http-media
 , http-types
 , http2-manager
@@ -26,6 +29,8 @@
 , lib
 , metrics-wai
 , monad-control
+, polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
 , retry
@@ -33,6 +38,7 @@
 , servant-client
 , servant-client-core
 , servant-server
+, ssl-util
 , text
 , tinylog
 , transformers
@@ -59,19 +65,25 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    data-timeout
     exceptions
     extended
+    extra
     hasql-pool
     HsOpenSSL
     http-client
+    http-client-openssl
     http2-manager
     imports
     metrics-wai
     monad-control
+    polysemy
+    polysemy-wire-zoo
     prometheus-client
     retry
     servant-client
     servant-server
+    ssl-util
     text
     tinylog
     transformers
@@ -113,6 +125,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
   ];
   description = "Runs background work";
   license = lib.licenses.agpl3Only;

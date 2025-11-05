@@ -43,7 +43,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.UUID.Tagged qualified as U
 import Galley.API.Action
-import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping

@@ -67,6 +67,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.ConversationStore (MLSCommitLockStore)
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -326,6 +327,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member FederatorAccess r,
         Member FireAndForget r,
         Member NotificationSubsystem r,
+        Member ConversationSubsystem r,
         Member (Input (Local ())) r,
         Member (Input Env) r,
         Member Now r,

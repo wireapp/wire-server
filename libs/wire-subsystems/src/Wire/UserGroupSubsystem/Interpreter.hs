@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
@@ -12,6 +14,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
+import Wire.API.BackgroundJobs
 import Wire.API.Conversation qualified as Conversation
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -23,10 +26,12 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
+import Wire.BackgroundJobsPublisher
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
 import Wire.PaginationState
+import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
@@ -34,13 +39,15 @@ import Wire.UserGroupSubsystem (GroupSearch (..), UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member BackgroundJobsPublisher r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -74,12 +81,14 @@ userGroupSubsystemErrorToHttpError =
     UserGroupChannelNotFound -> errorToWai @E.UserGroupChannelNotFound
 
 createUserGroup ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   NewUserGroup ->
@@ -107,6 +116,7 @@ createUserGroupFullImpl managedBy team mbCreator newGroup = do
   guardMembersInTeam
   ug <- Store.createUserGroup team newGroup managedBy
   notifyAdmins ug
+  triggerSyncUserGroup team creator ug.id_
   pure ug
   where
     guardMembersInTeam :: Sem r ()
@@ -276,11 +286,13 @@ deleteGroup deleter groupId =
           throw UserGroupNotATeamAdmin
 
 addUser ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -296,13 +308,16 @@ addUser adder groupId addeeId = do
     pushNotifications
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
+    triggerSyncUserGroup team adder groupId
 
 addUsers ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -322,12 +337,16 @@ addUsers adder groupId addeeIds = do
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
+  triggerSyncUserGroup team adder groupId
+
 updateUsers ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -343,13 +362,16 @@ updateUsers updater groupId uids = do
   pushNotifications
     [ mkEvent updater (UserGroupUpdated groupId) admins
     ]
+  triggerSyncUserGroup team updater groupId
 
 removeUser ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -365,6 +387,7 @@ removeUser remover groupId removeeId = do
     pushNotifications
       [ mkEvent remover (UserGroupUpdated groupId) admins
       ]
+    triggerSyncUserGroup team remover groupId
 
 removeUserFromAllGroups ::
   ( Member Store.UserGroupStore r,
@@ -403,12 +426,14 @@ removeUserFromAllGroups uid tid = do
           }
 
 updateChannels ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member BackgroundJobsPublisher r
   ) =>
   Bool ->
   UserId ->
@@ -423,11 +448,26 @@ updateChannels appendOnly performer groupId channelIds = do
     let meta = conv.metadata
     unless (meta.cnvmTeam == Just teamId && meta.cnvmGroupConvType == Just Conversation.Channel) $
       throw UserGroupChannelNotFound
+
   if appendOnly
     then Store.addUserGroupChannels groupId channelIds
     else Store.updateUserGroupChannels groupId channelIds
+
+  triggerSyncUserGroup teamId performer groupId
 
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
   pushNotifications
     [ mkEvent performer (UserGroupUpdated groupId) admins
     ]
+
+triggerSyncUserGroup ::
+  ( Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  TeamId ->
+  UserId ->
+  UserGroupId ->
+  Sem r ()
+triggerSyncUserGroup teamId actor userGroupId = do
+  jobId <- Random.newId
+  publishJob jobId $ JobSyncUserGroup SyncUserGroup {..}

@@ -74,6 +74,7 @@ module Wire.API.Conversation
     -- * invite
     Invite (..),
     InviteQualified (..),
+    InviteQualifiedInternal (..),
 
     -- * update
     ConversationRename (..),
@@ -249,6 +250,9 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
           "ConversationMetadata"
           (conversationMetadataObjectSchema accessRolesSchemaV2)
 
+instance HasCellsState ConversationMetadata where
+  getCellsState = cnvmCellsState
+
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
 --
@@ -267,6 +271,9 @@ data OwnConversation = OwnConversation
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OwnConversation)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema OwnConversation
+
+instance HasCellsState OwnConversation where
+  getCellsState = getCellsState . cnvMetadata
 
 cnvType :: OwnConversation -> ConvType
 cnvType = cnvmType . cnvMetadata
@@ -1094,6 +1101,21 @@ instance ToSchema InviteQualified where
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
         <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+
+data InviteQualifiedInternal = InviteQualifiedInternal
+  { actor :: UserId,
+    invite :: InviteQualified
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InviteQualifiedInternal)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema InviteQualifiedInternal)
+
+instance ToSchema InviteQualifiedInternal where
+  schema =
+    object "InviteQualifiedInternal" $
+      InviteQualifiedInternal
+        <$> (.actor) .= field "actor" schema
+        <*> (.invite) .= field "invite" schema
 
 --------------------------------------------------------------------------------
 -- update

@@ -53,7 +53,6 @@ import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.TeamStore
@@ -81,6 +80,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.NotificationSubsystem (NotificationSubsystem)

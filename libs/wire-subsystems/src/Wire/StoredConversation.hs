@@ -35,6 +35,9 @@ data StoredConversation = StoredConversation
   }
   deriving (Show)
 
+instance HasCellsState StoredConversation where
+  getCellsState = getCellsState . (.metadata)
+
 type ConvRowWithId =
   ( ConvId,
     ConvType,

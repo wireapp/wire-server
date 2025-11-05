@@ -35,7 +35,6 @@ import Data.Json.Util
 import Data.List1 qualified as List1
 import Data.Map qualified as Map
 import Data.Qualified
-import Galley.Effects.ExternalAccess
 import Imports
 import Polysemy
 import Polysemy.TinyLog
@@ -43,6 +42,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsSome), Route (..))
+import Wire.ExternalAccess
 import Wire.NotificationSubsystem
 import Wire.StoredConversation
 

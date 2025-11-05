@@ -58,6 +58,7 @@ brig:
       teamCreatorWelcome: https://teams.wire.com/login
       teamMemberWelcome: https://wire.com/download
       accountPages: https://account.wire.com
+    # Background-worker uses Brig's Cassandra keyspace.
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -609,6 +610,11 @@ background-worker:
       port: "5432"
       user: wire-server
       dbname: wire-server
+    backgroundJobs:
+      concurrency: 8
+      jobTimeout: 60
+      maxAttempts: 3
+    # Cassandra clusters used by background-worker
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -625,6 +631,15 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
+    cassandraBrig:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
+      {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+      {{- end }}
+    domain: {{ .Values.domain }}
     rabbitmq:
       port: 5671
       adminPort: 15671
@@ -638,6 +653,7 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+    pgPassword: "posty-the-gres"
 
 integration:
   ingress:

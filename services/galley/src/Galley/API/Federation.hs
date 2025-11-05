@@ -55,7 +55,6 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.FireAndForget qualified as E
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Imports
@@ -94,6 +93,8 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem
+import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -267,6 +268,7 @@ leaveConversation ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -316,7 +318,7 @@ leaveConversation requestingDomain lc = do
       do
         outcome <-
           runError @FederationError $
-            notifyConversationAction
+            sendConversationActionNotifications
               SConversationLeaveTag
               leaver
               False
@@ -418,6 +420,7 @@ onUserDeleted ::
     Member FireAndForget r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -455,7 +458,7 @@ onUserDeleted origDomain udcn = do
               removeUser (qualifyAs lc conv) RemoveUserIncludeMain (tUntagged deletedUser)
               outcome <-
                 runError @FederationError $
-                  notifyConversationAction
+                  sendConversationActionNotifications
                     (sing @'ConversationLeaveTag)
                     untaggedDeletedUser
                     False
@@ -480,6 +483,7 @@ updateConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member (Error InternalError) r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -614,6 +618,7 @@ sendMLSCommitBundle ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,

@@ -20,12 +20,14 @@
 module Wire.ConversationStore where
 
 import Control.Error (lastMay)
+import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Text qualified as Text
 import Data.Time.Clock
 import Imports
 import Polysemy
@@ -201,3 +203,31 @@ getConversationIds lusr maxIds pagingState = do
               mtpsState = BS.toStrict . Aeson.encode <$> mLastResult
             }
       }
+
+data StorageLocation
+  = -- | Use when solely using Cassandra
+    CassandraStorage
+  | -- | Use while migration to postgresql. Using this option does not trigger
+    --   the migration. Newly created conversations are stored in Postgresql.
+    --   Once this has been turned on, it MUST NOT be made CassandraStorage ever
+    --   again.
+    MigrationToPostgresql
+  | -- | Use after migrating to postgresql
+    PostgresqlStorage
+  deriving (Show)
+
+instance FromJSON StorageLocation where
+  parseJSON = withText "StorageLocation" $ \case
+    "cassandra" -> pure CassandraStorage
+    "migration-to-postgresql" -> pure MigrationToPostgresql
+    "postgresql" -> pure PostgresqlStorage
+    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql, migration-to-postgresql"
+
+data PostgresMigrationOpts = PostgresMigrationOpts
+  { conversation :: StorageLocation
+  }
+  deriving (Show)
+
+instance FromJSON PostgresMigrationOpts where
+  parseJSON = withObject "PostgresMigrationOpts" $ \o ->
+    PostgresMigrationOpts <$> o .: "conversation"

@@ -157,11 +157,12 @@ testTemporaryQueuesAreDeletedAfterUse = do
         aliceClientQueue = Queue {name = fromString aliceClientQueueName, vhost = fromString beResource.berVHost}
         deadNotifsQueue = Queue {name = fromString "dead-user-notifications", vhost = fromString beResource.berVHost}
         cellsEventsQueue = Queue {name = fromString "cells_events", vhost = fromString beResource.berVHost}
+        backgroundJobsQueue = Queue {name = fromString "background-jobs", vhost = fromString beResource.berVHost}
 
     -- Wait for queue for the new client to be created
     eventually $ do
       queuesBeforeWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-      queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue]
+      queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue, backgroundJobsQueue]
 
     runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
       handle <- randomHandle
@@ -169,7 +170,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
       queuesDuringWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
       addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
-        length queuesDuringWS.items `shouldMatchInt` 4
+        length queuesDuringWS.items `shouldMatchInt` 5
 
       -- We cannot use 'assertEvent' here because there is a race between the temp
       -- queue being created and rabbitmq fanning out the previous events.
@@ -183,7 +184,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
     eventually $ do
       queuesAfterWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-      queuesAfterWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue]
+      queuesAfterWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue, backgroundJobsQueue]
 
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus :: (HasCallStack) => App ()
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do

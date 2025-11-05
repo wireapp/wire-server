@@ -61,6 +61,7 @@ import Wire.API.Unreachable
 import Wire.API.User.Client
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem
 import Wire.StoredConversation
 
 processInternalCommit ::
@@ -73,6 +74,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member ConversationSubsystem r,
     Member Resource r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
@@ -255,7 +257,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       )
                       $ nonEmpty (bmQualifiedMembers lconv bm)
                   update <-
-                    notifyConversationAction
+                    sendConversationActionNotifications
                       SConversationJoinTag
                       senderUser
                       False
@@ -329,7 +331,7 @@ mkClientData clientInfo =
     }
 
 addMembers ::
-  (HasProposalActionEffects r, Member MLSCommitLockStore r) =>
+  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -353,7 +355,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure []
 
 removeMembers ::
-  (HasProposalActionEffects r, Member MLSCommitLockStore r) =>
+  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->

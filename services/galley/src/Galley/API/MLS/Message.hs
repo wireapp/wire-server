@@ -85,6 +85,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -166,6 +167,7 @@ postMLSCommitBundle ::
     Member Resource r,
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
+    Member ConversationSubsystem r,
     Member MLSCommitLockStore r
   ) =>
   Local x ->
@@ -193,6 +195,7 @@ postMLSCommitBundleFromLocalUser ::
     Member Resource r,
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
+    Member ConversationSubsystem r,
     Member MLSCommitLockStore r
   ) =>
   Local UserId ->
@@ -220,6 +223,7 @@ postMLSCommitBundleToLocalConv ::
     Member Resource r,
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
+    Member ConversationSubsystem r,
     Member MLSCommitLockStore r
   ) =>
   Qualified UserId ->

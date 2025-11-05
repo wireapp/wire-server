@@ -33,6 +33,7 @@ module Wire.API.Event.Conversation
     CellsEventType (..),
     CellsEventData (..),
     cellsEventType,
+    shouldPushToCells,
 
     -- * Event lenses
     _EdMembersJoin,
@@ -92,6 +93,7 @@ import Test.QuickCheck qualified as QC
 import URI.ByteString ()
 import Wire.API.Conversation hiding (AddPermissionUpdate)
 import Wire.API.Conversation qualified as Conv
+import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
 import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
 import Wire.API.Conversation.Protocol qualified as P
@@ -580,6 +582,13 @@ instance ToJSONObject CellsEvent where
     case A.toJSON event of
       A.Object o -> KeyMap.delete "data" o
       _ -> KeyMap.fromList []
+
+shouldPushToCells :: (HasCellsState a) => a -> Event -> Bool
+shouldPushToCells st e =
+  isCellsConversationEvent (evtType e) && case getCellsState st of
+    CellsDisabled -> False
+    CellsPending -> True
+    CellsReady -> True
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

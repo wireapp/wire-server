@@ -39,9 +39,13 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
+import Wire.BackgroundJobsPublisher qualified as BackgroundJobsPublisher
+import Wire.BackgroundJobsPublisher.Null qualified as BackgroundJobsPublisher
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.Sem.Random qualified as Random
+import Wire.Sem.Random.Null qualified as Random
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
@@ -57,8 +61,10 @@ type AllDependencies =
     `Append` '[ Input (Local ()),
                 MockNow,
                 NotificationSubsystem,
+                BackgroundJobsPublisher.BackgroundJobsPublisher,
                 State [Push],
-                Error UserGroupSubsystemError
+                Error UserGroupSubsystemError,
+                Random.Random
               ]
 
 runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
@@ -70,16 +76,11 @@ runDependencies ::
   Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
-  run . runError . interpretDependencies initialUsers initialTeams
-
-interpretDependencies ::
-  forall r a.
-  [User] ->
-  Map TeamId [TeamMember] ->
-  Sem (AllDependencies `Append` r) a ->
-  Sem ('[Error UserGroupSubsystemError] `Append` r) a
-interpretDependencies initialUsers initialTeams =
-  evalState mempty
+  run
+    . Random.randomToNull
+    . runError
+    . evalState mempty
+    . BackgroundJobsPublisher.interpretBackgroundJobsPublisherNoConfig
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
@@ -95,8 +96,10 @@ runDependenciesWithReturnState ::
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
+    . Random.randomToNull
     . runError
     . runState mempty
+    . BackgroundJobsPublisher.interpretBackgroundJobsPublisherNoConfig
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())

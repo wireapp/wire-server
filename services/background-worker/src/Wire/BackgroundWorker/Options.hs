@@ -1,33 +1,42 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
+import Data.Domain (Domain)
+import Data.Range (Range)
+import GHC.Generics
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
 import Util.Options
+import Wire.ConversationStore (PostgresMigrationOpts)
 
 data Opts = Opts
   { logLevel :: !Level,
     logFormat :: !(Maybe (Last LogFormat)),
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
+    brig :: Endpoint,
+    gundeck :: Endpoint,
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig,
     cassandra :: CassandraOpts,
     cassandraGalley :: CassandraOpts,
+    cassandraBrig :: CassandraOpts,
     -- | Postgresql settings, the key values must be in libpq format.
     -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     postgresql :: !(Map Text Text),
     postgresqlPassword :: !(Maybe FilePathSecrets),
     postgresqlPool :: !PoolConfig,
-    migrateConversations :: Bool
+    postgresMigration :: !PostgresMigrationOpts,
+    migrateConversations :: Bool,
+    backgroundJobs :: BackgroundJobsConfig,
+    domain :: Domain
   }
   deriving (Show, Generic)
-
-instance FromJSON Opts
+  deriving (FromJSON) via Generically Opts
 
 data BackendNotificationsConfig = BackendNotificationsConfig
   { -- | Minimum amount of time (in microseconds) to wait before doing the first
@@ -44,8 +53,7 @@ data BackendNotificationsConfig = BackendNotificationsConfig
     remotesRefreshInterval :: Int
   }
   deriving (Show, Generic)
-
-instance FromJSON BackendNotificationsConfig
+  deriving (FromJSON) via Generically BackendNotificationsConfig
 
 newtype RabbitMqOpts = RabbitMqOpts {unRabbitMqOpts :: Either AmqpEndpoint RabbitMqAdminOpts}
   deriving (Show)
@@ -56,3 +64,14 @@ instance FromJSON RabbitMqOpts where
       <$> ( (Right <$> parseJSON v)
               <|> (Left <$> parseJSON v)
           )
+
+data BackgroundJobsConfig = BackgroundJobsConfig
+  { -- | Maximum parallel jobs processed by this process
+    concurrency :: Range 1 1000 Int,
+    -- | Per-attempt timeout (seconds)
+    jobTimeout :: Range 1 1000 Int,
+    -- | Total attempts including first run
+    maxAttempts :: Range 1 1000 Int
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON) via Generically BackgroundJobsConfig

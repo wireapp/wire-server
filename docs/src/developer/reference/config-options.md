@@ -1682,6 +1682,7 @@ The `postgresqlPassword` file is read by `brig` and `galley`. Its content is
 used as `password` field.
 
 ### Using PostgreSQL for storing conversation data
+<!-- TODO(leif): update when rebased -->
 
 #### New Installations
 
@@ -1761,3 +1762,44 @@ gundeck:
   settings:
     cellsEventQueue: "cells_events"
 ```
+## Background worker: Background jobs
+<!-- TODO(leif): rework this --->
+
+The background worker consumes jobs from RabbitMQ to process tasks asynchronously. The following configuration controls the consumer’s behavior:
+
+Internal YAML file and Helm values (under `background-worker.config`):
+
+```yaml
+backgroundJobs:
+  # Maximum number of in-flight jobs per process
+  concurrency: 8
+  # Per-attempt timeout in seconds
+  jobTimeout: 60
+  # Total attempts including the first run
+  maxAttempts: 3
+```
+
+Notes:
+
+- `concurrency` controls the AMQP prefetch and caps parallel handler execution per process.
+- `jobTimeout` bounds each attempt; timed‑out attempts are retried until `maxAttempts` is reached.
+- `maxAttempts` is total tries (first run plus retries). On final failure, the job is dropped (NACK requeue=false) and counted in metrics.
+
+Additional background-worker configuration:
+
+```yaml
+# Cassandra clusters
+cassandra:
+  host: aws-cassandra
+cassandraBrig:
+  host: aws-cassandra
+cassandraGalley:
+  host: aws-cassandra
+
+# Conversation storage backend selection
+postgresMigration:
+  conversation: cassandra # or postgresql
+```
+
+- `cassandraGalley` configures the third Cassandra cluster used for conversation-related data; TLS may be configured via `tlsCa` or `tlsCaSecretRef` similarly to the other clusters.
+- `postgresMigration.conversation` selects the storage location for conversation data; aligns with galley’s option and defaults to `cassandra`.

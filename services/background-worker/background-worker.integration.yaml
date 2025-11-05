@@ -8,6 +8,14 @@ federatorInternal:
   host: 127.0.0.1
   port: 8097
 
+brig:
+  host: 0.0.0.0
+  port: 8082
+
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
 cassandra:
   endpoint:
     host: 127.0.0.1
@@ -19,6 +27,12 @@ cassandraGalley:
     host: 127.0.0.1
     port: 9042
   keyspace: galley_test
+
+cassandraBrig:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: brig_test
 
 postgresql:
   host: 127.0.0.1
@@ -32,6 +46,8 @@ postgresqlPool:
   acquisitionTimeout: 10s
   agingTimeout: 1d
   idlenessTimeout: 10m
+
+domain: example.org
 
 rabbitmq:
   host: 127.0.0.1
@@ -49,3 +65,12 @@ backendNotificationPusher:
   remotesRefreshInterval: 10000 # 10ms
 
 migrateConversations: false
+
+# Background jobs consumer configuration for integration
+backgroundJobs:
+  concurrency: 4
+  jobTimeout: 5
+  maxAttempts: 3
+
+postgresMigration:
+  conversation: postgresql

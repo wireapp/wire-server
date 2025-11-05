@@ -23,7 +23,7 @@ where
 
 import Bilge qualified
 import Bilge.Retry
-import Control.Lens (view)
+import Control.Lens ((^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString qualified as BS
@@ -38,6 +38,7 @@ import OpenSSL.Session qualified as SSL
 import Ssl.Util
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
+import Wire.ExternalAccess.External (ExtEnv (..))
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
@@ -81,7 +82,8 @@ makeVerifiedRequest ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
-  (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
+  env <- ask
+  let (mgr, verifyFingerprints) = extGetManager (env ^. extEnv)
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
 
 -- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.

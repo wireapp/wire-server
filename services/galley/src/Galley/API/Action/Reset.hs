@@ -31,6 +31,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.ConversationStore
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation as Data
@@ -44,6 +45,7 @@ resetLocalMLSMainConversation ::
     Member BackendNotificationQueueAccess r,
     Member FederatorAccess r,
     Member ExternalAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Random r,

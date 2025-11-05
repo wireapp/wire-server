@@ -62,18 +62,14 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.FireAndForget
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
@@ -89,8 +85,12 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
+import Wire.ConversationSubsystem
+import Wire.ExternalAccess
+import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
@@ -100,6 +100,7 @@ import Wire.Rpc
 import Wire.Sem.Now
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
+import Wire.ServiceStore
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -107,11 +108,12 @@ import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ ExternalAccess,
-     BrigAPIAccess,
-     SparAccess,
+  '[ SparAccess,
      TeamCollaboratorsSubsystem,
+     ConversationSubsystem,
      NotificationSubsystem,
+     ExternalAccess,
+     BrigAPIAccess,
      TeamSubsystem,
      GundeckAPIAccess,
      Rpc,

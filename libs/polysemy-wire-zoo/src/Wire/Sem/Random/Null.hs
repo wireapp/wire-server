@@ -1,8 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,29 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.ServiceStore
-  ( -- * Service effect
-    ServiceStore (..),
-
-    -- * Create service
-    createService,
-
-    -- * Read service
-    getService,
-
-    -- * Delete service
-    deleteService,
+module Wire.Sem.Random.Null
+  ( randomToNull,
   )
 where
 
+import Crypto.Random
+import Data.Id (Id (..))
+import qualified Data.UUID as UUID
 import Imports
 import Polysemy
-import Wire.API.Bot.Service
-import Wire.API.Provider.Service (ServiceRef)
+import Wire.Sem.Random (Random (..))
 
-data ServiceStore m a where
-  CreateService :: Service -> ServiceStore m ()
-  GetService :: ServiceRef -> ServiceStore m (Maybe Service)
-  DeleteService :: ServiceRef -> ServiceStore m ()
-
-makeSem ''ServiceStore
+randomToNull ::
+  Sem (Random ': r) a ->
+  Sem r a
+randomToNull = interpret $ \case
+  Bytes i -> pure $ mconcat $ replicate i "0"
+  Uuid -> pure UUID.nil
+  NewId -> pure $ Id UUID.nil
+  ScimTokenId -> pure $ Id UUID.nil
+  LiftRandom m -> pure $ fst $ withDRG (drgNewSeed $ seedFromInteger 0) m
+  NDigitNumber n -> pure $ 10 ^ n

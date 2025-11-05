@@ -71,6 +71,7 @@ userGroupStoreTestInterpreter =
     RemoveUser gid uid -> removeUserImpl gid uid
     AddUserGroupChannels gid convIds -> updateUserGroupChannelsImpl True gid convIds
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl False gid convIds
+    GetUserGroupChannels tid gid -> getUserGroupChannelsImpl tid gid
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsersImpl uids
 
 getUserGroupsForConvImpl :: (UserGroupStoreInMemEffectConstraints r) => ConvId -> Sem r (Vector UserGroup)
@@ -240,6 +241,17 @@ listUserGroupChannelsImpl ::
 listUserGroupChannelsImpl gid =
   foldMap (fmap qUnqualified) . ((.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
     <$> get @(Map (TeamId, UserGroupId) UserGroup)
+
+getUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r) =>
+  TeamId ->
+  UserGroupId ->
+  Sem r (Maybe (Vector ConvId))
+getUserGroupChannelsImpl tid gid = do
+  st <- get @UserGroupInMemState
+  pure $ case st Map.!? (tid, gid) of
+    Nothing -> Nothing
+    Just ug -> fmap (fmap qUnqualified) ug.channels
 
 ----------------------------------------------------------------------
 

@@ -150,7 +150,9 @@ common common-all
     , servant
     , servant-client-core
     , servant-server
+    , singletons
     , sodium-crypto-sign
+    , ssl-util
     , statistics
     , stomp-queue
     , template
@@ -197,6 +199,13 @@ library
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AuthenticationSubsystem.ZAuth
     Wire.AWS
+    Wire.BackendNotificationQueueAccess
+    Wire.BackendNotificationQueueAccess.RabbitMq
+    Wire.BackgroundJobsPublisher
+    Wire.BackgroundJobsPublisher.Null
+    Wire.BackgroundJobsPublisher.RabbitMQ
+    Wire.BackgroundJobsRunner
+    Wire.BackgroundJobsRunner.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
@@ -211,6 +220,8 @@ library
     Wire.ConversationStore.MigrationLock
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
+    Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Interpreter
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -229,10 +240,13 @@ library
     Wire.EnterpriseLoginSubsystem.Null
     Wire.Error
     Wire.Events
+    Wire.ExternalAccess
+    Wire.ExternalAccess.External
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FireAndForget
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
@@ -269,6 +283,8 @@ library
     Wire.Rpc
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Interpreter
+    Wire.ServiceStore
+    Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SparAPIAccess

@@ -87,7 +87,9 @@
 , servant
 , servant-client-core
 , servant-server
+, singletons
 , sodium-crypto-sign
+, ssl-util
 , statistics
 , stomp-queue
 , string-conversions
@@ -198,7 +200,9 @@ mkDerivation {
     servant
     servant-client-core
     servant-server
+    singletons
     sodium-crypto-sign
+    ssl-util
     statistics
     stomp-queue
     template
@@ -304,7 +308,9 @@ mkDerivation {
     servant
     servant-client-core
     servant-server
+    singletons
     sodium-crypto-sign
+    ssl-util
     statistics
     stomp-queue
     string-conversions
