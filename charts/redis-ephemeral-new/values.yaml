@@ -6,7 +6,7 @@ redis-ephemeral:
 extraSecretRedisConfigs: redis-extra-config
 
 configTemplate: |
-  # dont write rdb to emptyDir disk - epehemeral setup
+  # dont write rdb to emptyDir disk - ephemeral setup
   save ""
   {{- if .Values.auth.enabled }}
   requirepass {{ .Values.auth.password }}
@@ -15,3 +15,11 @@ configTemplate: |
 auth:
   enabled: false
   # password: very-secure-redis-master-password
+
+tls:
+  enabled: false
+  # certificatesSecret: redis-certificate
+  # certFilename: "tls.crt"
+  # certKeyFilename: "tls.key"
+  # certCAFilename: "ca.crt"
+  # authClients: false
