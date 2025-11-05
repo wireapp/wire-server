@@ -1,0 +1,15 @@
+redis-ephemeral:
+  extraSecretRedisConfigs: redis-extra-config
+
+extraSecretRedisConfigs: redis-extra-config
+
+configTemplate: |
+  # dont write rdb to emptyDir disk - epehemeral setup
+  save ""
+  {{- if .Values.auth.enabled }}
+  masterauth {{ .Values.auth.password }}
+  {{- end }}
+
+auth:
+  enabled: false
+  # password: very-secure-redis-master-password
