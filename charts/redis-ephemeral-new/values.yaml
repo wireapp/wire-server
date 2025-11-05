@@ -1,5 +1,7 @@
 redis-ephemeral:
   extraSecretRedisConfigs: redis-extra-config
+  image:
+    tag: "7.4.6"
 
 extraSecretRedisConfigs: redis-extra-config
 
