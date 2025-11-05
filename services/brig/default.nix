@@ -7,7 +7,6 @@
 , amazonka
 , amazonka-core
 , amazonka-dynamodb
-, amazonka-ses
 , amazonka-sqs
 , amqp
 , async
@@ -165,7 +164,6 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-dynamodb
-    amazonka-ses
     amazonka-sqs
     amqp
     async
