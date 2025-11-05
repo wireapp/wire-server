@@ -309,7 +309,6 @@ library
     Wire.IdPSubsystem
     Wire.IdPSubsystem.Interpreter
     Wire.IndexedUserStore
-    Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
     Wire.IndexedUserStore.ElasticSearch
     Wire.IndexedUserStore.MigrationStore
