@@ -109,9 +109,8 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
       let newScimGroup =
             newScimGroup_
               { Group.members =
-                  let all_ = UGS.allUsers team
-                      nonscim_ = filter (\u -> u.userManagedBy == ManagedByScim) all_
-                   in mkScimGroupMember <$> nonscim_
+                  let scimMembers = filter (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
+                   in mkScimGroupMember <$> scimMembers
               }
           resultOrError = do
             runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
