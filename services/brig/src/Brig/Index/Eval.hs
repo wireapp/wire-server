@@ -43,65 +43,30 @@ import Imports
 import Polysemy
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
-import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options (initCredentials)
-import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
-import Wire.BlockListStore (BlockListStore)
 import Wire.BlockListStore.Cassandra
-import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
-import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
-import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IndexedUserStore
-import Wire.IndexedUserStore.Bulk (IndexedUserStoreBulk)
-import Wire.IndexedUserStore.Bulk qualified as IndexedUserStoreBulk
-import Wire.IndexedUserStore.Bulk.ElasticSearch (interpretIndexedUserStoreBulk)
+import Wire.IndexedUserStore.Bulk.ElasticSearch (BulkEffectStack)
+import Wire.IndexedUserStore.Bulk.ElasticSearch qualified as IndexedUserStoreBulk
 import Wire.IndexedUserStore.ElasticSearch
-import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch
 import Wire.ParseException
 import Wire.Rpc
-import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog
-import Wire.Sem.Metrics
 import Wire.Sem.Metrics.IO
-import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
-import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem.Error
 
-type BrigIndexEffectStack =
-  [ IndexedUserStoreBulk,
-    UserKeyStore,
-    BlockListStore,
-    Error UserSubsystemError,
-    FederationAPIAccess FederatorClient,
-    Error FederationError,
-    UserStore,
-    IndexedUserStore,
-    Error IndexedUserStoreError,
-    IndexedUserMigrationStore,
-    Error MigrationException,
-    FederationConfigStore,
-    GalleyAPIAccess,
-    Error ParseException,
-    Rpc,
-    Metrics,
-    TinyLog,
-    Concurrency 'Unsafe,
-    Embed IO,
-    Final IO
-  ]
-
-runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BulkEffectStack a -> IO a
 runSem esConn cas galleyEndpoint logger action = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
@@ -144,7 +109,6 @@ runSem esConn cas galleyEndpoint logger action = do
     . throwErrorToIOFinal @UserSubsystemError
     . interpretBlockListStoreToCassandra casClient
     . interpretUserKeyStoreCassandra casClient
-    . interpretIndexedUserStoreBulk
     $ action
 
 throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Error e) r
@@ -162,17 +126,14 @@ runCommand l = \case
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
-      IndexedUserStoreBulk.syncAllUsers
+    IndexedUserStoreBulk.syncAllUsers (runSem (es ^. esConnection) cas galley l)
   ReindexSameOrNewer es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
-      IndexedUserStoreBulk.forceSyncAllUsers
+    IndexedUserStoreBulk.forceSyncAllUsers (runSem (es ^. esConnection) cas galley l)
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
-      IndexedUserStoreBulk.migrateData
+    IndexedUserStoreBulk.migrateData (runSem (es ^. esConnection) cas galley l)
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig

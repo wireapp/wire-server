@@ -237,7 +237,6 @@ library
     Wire.HashPassword.Interpreter
     Wire.HashPassword.Scrypt
     Wire.IndexedUserStore
-    Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
     Wire.IndexedUserStore.ElasticSearch
     Wire.IndexedUserStore.MigrationStore
