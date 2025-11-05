@@ -1,0 +1,4 @@
+Introducing user groups in SCIM involved a lot of refactorings:
+- some of Brig.CanonicalInterpreters has been moved (copied?) to wire-subsystems (notably stomp, aws, events)
+- Spar.CanonicalInterpreter has been extended to make use of the subsystems formerly only used by brig (somme of the interpreters are undefined because unused)
+- since that running brig code in spar wasn't always feasible: brig internal api has been extended to expose UserGroupSubsystem to spar
