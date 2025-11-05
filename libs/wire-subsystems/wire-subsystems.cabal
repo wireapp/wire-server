@@ -79,7 +79,9 @@ common common-all
     , aeson-pretty
     , amazonka
     , amazonka-core
+    , amazonka-dynamodb
     , amazonka-ses
+    , amazonka-sqs
     , amqp
     , async
     , attoparsec
@@ -193,6 +195,8 @@ library
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AuthenticationSubsystem.ZAuth
     Wire.AWS
+    Wire.AWSSubsystem
+    Wire.AWSSubsystem.AWS
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
