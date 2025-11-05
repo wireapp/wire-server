@@ -63,6 +63,7 @@ userGroupStoreTestInterpreter =
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
+    GetUserGroupsForConv cid -> getUserGroupsForConvImpl cid
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -71,6 +72,13 @@ userGroupStoreTestInterpreter =
     AddUserGroupChannels gid convIds -> updateUserGroupChannelsImpl True gid convIds
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl False gid convIds
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsersImpl uids
+
+getUserGroupsForConvImpl :: (UserGroupStoreInMemEffectConstraints r) => ConvId -> Sem r (Vector UserGroup)
+getUserGroupsForConvImpl cid = do
+  st <- get @UserGroupInMemState
+  let belongs ug = maybe False (elem cid . fmap Data.Qualified.qUnqualified) ug.channels
+      groups = filter belongs (snd <$> Map.toList st)
+  pure (fromList groups)
 
 getUserGroupIdsForUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
 getUserGroupIdsForUsersImpl uids = do

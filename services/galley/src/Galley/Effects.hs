@@ -103,6 +103,7 @@ import Wire.Sem.Random
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -127,6 +128,7 @@ type GalleyEffects1 =
      CustomBackendStore,
      LegalHoldStore,
      SearchVisibilityStore,
+     UserGroupStore,
      ServiceStore,
      TeamNotificationStore,
      TeamStore,

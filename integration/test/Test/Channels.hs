@@ -19,6 +19,7 @@
 
 module Test.Channels where
 
+import API.Brig
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
@@ -527,13 +528,31 @@ testTeamAdminCanAddMembersWithoutJoining = do
 
 testTeamAdminCanReplaceMembers :: (HasCallStack) => App ()
 testTeamAdminCanReplaceMembers = do
-  (alice, tid, bob : charlie : dylan : emil : fred : _) <- createTeam OwnDomain 6
+  (alice, tid, bob : charlie : dylan : emil : fred : guenter : horst : ilona : _) <- createTeam OwnDomain 9
+  [bobId, charlieId, dylanId, emilId, fredId, guenterId, horstId, ilonaId] <-
+    for [bob, charlie, dylan, emil, fred, guenter, horst, ilona] (%. "id")
+
+  -- these are the users added to the conversation via user groups
+  -- they should not be remove by the replace operation
+  let userGroupUsers = [guenterId, horstId, ilonaId]
 
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   void $ setTeamFeatureConfig alice tid "channels" (config "admins")
 
   -- the team admin creates a channel without joining
   channel <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  convId <- objConvId channel
+
+  -- create 2 user groups and assign the channel to them
+  gid1 <- createUserGroup alice (object ["name" .= "ug 1", "members" .= [guenterId, horstId]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  gid2 <- createUserGroup alice (object ["name" .= "ug 2", "members" .= [horstId, ilonaId]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  updateUserGroupChannels alice gid1 [convId.id_] >>= assertSuccess
+  updateUserGroupChannels alice gid2 [convId.id_] >>= assertSuccess
+
+  withWebSockets [guenter, horst, ilona] $ \wss -> do
+    -- let's add the users from the associated user group by hand for now (later this will be automatic)
+    addMembersToChannel alice channel def {users = [guenter, horst, ilona], role = Just "wire_member"} >>= assertSuccess
+    for_ wss $ \ws -> awaitMatch isMemberJoinNotif ws
 
   withWebSockets [bob, charlie, dylan] $ \wss -> do
     -- the team admin adds members to the channel using the PUT endpoint
@@ -547,7 +566,7 @@ testTeamAdminCanReplaceMembers = do
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       convMems <- resp.json %. "members.others" & asList
-      expected <- for [bob, charlie, dylan] (%. "id")
+      let expected = userGroupUsers <> [bobId, charlieId, dylanId]
       actual <- for convMems (%. "id")
       expected `shouldMatchSet` actual
 
@@ -563,7 +582,7 @@ testTeamAdminCanReplaceMembers = do
     I.getConversation channel `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       convMems <- resp.json %. "members.others" & asList
-      expected <- for [dylan, emil, fred] (%. "id")
+      let expected = userGroupUsers <> [dylanId, emilId, fredId]
       actual <- for convMems (%. "id")
       expected `shouldMatchSet` actual
 

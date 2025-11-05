@@ -81,13 +81,14 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty (appendList, nonEmpty)
 import Data.List1
 import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
+import Data.Vector qualified as V
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
 import Galley.API.Cells
@@ -134,6 +135,7 @@ import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User.Client
+import Wire.API.UserGroup
 import Wire.ConversationStore qualified as E
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
@@ -142,6 +144,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
+import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
 
 acceptConv ::
@@ -1085,16 +1088,20 @@ replaceMembers ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member UserGroupStore r
   ) =>
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
   Sem r ()
-replaceMembers lusr zcon qcnv (InviteQualified desiredUsers role) = do
+replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
+  ugs <- getUserGroupsForConv conv.id_
+  let ugMembers = concatMap (fmap (flip Qualified (tDomain lusr)) . V.toList . runIdentity . (.members)) (V.toList ugs)
+      desiredUsers = appendList invitedUsers ugMembers
 
   -- Check team permissions for desired members
   when (null conv.metadata.cnvmParent) $
@@ -1108,8 +1115,9 @@ replaceMembers lusr zcon qcnv (InviteQualified desiredUsers role) = do
   -- Get current members (excluding the requesting user)
   let currentMembers = Set.fromList $ map (\m -> Qualified m.id_ (tDomain lcnv)) (toList conv.localMembers)
       desiredMembersSet = Set.fromList $ toList desiredUsers
+      invitedMembersSet = Set.fromList $ toList invitedUsers
       toRemove = Set.difference currentMembers desiredMembersSet
-      toAdd = Set.difference desiredMembersSet currentMembers
+      toAdd = Set.difference invitedMembersSet currentMembers
 
   -- If both sets are empty, return Unchanged
   unless (Set.null toRemove && Set.null toAdd) $ do

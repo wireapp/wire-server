@@ -125,6 +125,7 @@ import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -312,6 +313,7 @@ evalGalley e =
         . interpretTeamStoreToCassandra lh
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra
+        . interpretUserGroupStoreToPostgres
         . interpretSearchVisibilityStoreToCassandra
         . interpretLegalHoldStoreToCassandra lh
         . interpretCustomBackendStoreToCassandra
