@@ -835,6 +835,7 @@ type ConversationAPI =
     :<|> Named
            "replace-members-in-conversation"
            ( Summary "Replace the members of a conversation."
+               :> Description "This will add any members not already in the conversation, and remove any members not in the provided list except users that are associated via a user group."
                :> From 'V13
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
