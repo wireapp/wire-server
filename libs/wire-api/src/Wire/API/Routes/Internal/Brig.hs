@@ -61,7 +61,6 @@ import Data.Schema hiding (swaggerDoc)
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports hiding (head)
-import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Network.HTTP.Client qualified as HTTP
 import Servant hiding (Handler, addHeader, respond)
 import Servant.Client qualified as Servant
@@ -97,6 +96,7 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | Parameters for getting user accounts by various criteria
 data GetBy = GetBy
