@@ -4,10 +4,8 @@
 module Wire.ScimSubsystem.InterpreterSpec (spec) where
 
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
 import Data.Qualified
 import Data.Text qualified as Text
-import Data.UUID qualified as UUID
 import Imports
 import Network.URI
 import Polysemy
@@ -65,25 +63,13 @@ runDependencies initialUsers initialTeams =
         crashOnLowerErrors = fmap (either (error . show) id) . runError
 
     -- Mock BrigAPIAccess interpreter for tests
-    mockBrigAPIAccess :: [User] -> InterpreterFor BrigAPIAccess r
+    mockBrigAPIAccess :: (Member UGS.UserGroupSubsystem r) => [User] -> InterpreterFor BrigAPIAccess r
     mockBrigAPIAccess users = interpret $ \case
+      CreateGroupFull managedBy teamId creatorUserId newGroup -> do
+        UGS.createGroupFull managedBy teamId creatorUserId newGroup
       GetAccountsBy localGetBy -> do
         let getBy = tUnqualified localGetBy
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
-      CreateGroupFull managedBy _teamId _creatorUserId newGroup -> do
-        -- For tests, just create a minimal UserGroup
-        let gid = Id UUID.nil -- Using nil UUID for tests
-        pure $
-          UserGroup_
-            { id_ = gid,
-              name = newGroup.name,
-              members = Identity newGroup.members,
-              membersCount = Nothing,
-              channels = Nothing,
-              channelsCount = Nothing,
-              managedBy = managedBy,
-              createdAt = toUTCTimeMillis (read "2024-01-01 00:00:00 UTC")
-            }
       _ -> error "Unimplemented BrigAPIAccess operation in mock"
 
 instance Arbitrary Group.Group where
