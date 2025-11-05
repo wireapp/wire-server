@@ -1,12 +1,14 @@
 redis-ephemeral:
-  extraSecretRedisConfigs: redis-extra-config
+  # must be same as extraSecretRedisConfigs
+  extraSecretRedisConfigs: redis-extra-secret-config
   image:
     tag: "7.4.6"
 
   haMode:
     enabled: false
 
-extraSecretRedisConfigs: redis-extra-config
+# must be same as redis-ephemeral.extraSecretRedisConfigs
+extraSecretRedisConfigs: redis-extra-secret-config
 
 configTemplate: |
   # dont write rdb to emptyDir disk - ephemeral setup
@@ -14,15 +16,10 @@ configTemplate: |
   {{- if .Values.auth.enabled }}
   requirepass {{ .Values.auth.password }}
   {{- end }}
+  {{ .Values.extraConfig }}
 
 auth:
   enabled: false
   # password: very-secure-redis-master-password
 
-tls:
-  enabled: false
-  # certificatesSecret: redis-certificate
-  # certFilename: "tls.crt"
-  # certKeyFilename: "tls.key"
-  # certCAFilename: "ca.crt"
-  # authClients: false
+extraConfig: ""

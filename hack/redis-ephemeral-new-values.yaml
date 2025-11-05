@@ -1,3 +1,19 @@
+redis-ephemeral:
+  extraRedisSecrets:
+    - name: redis-certificate
+      mountPath: /data/ssl
+
 auth:
-  enabled: true
+  enabled: false
   password: meh
+
+extraConfig: |
+  port 0
+  tls-port 6379
+  tls-cert-file /data/ssl/tls.crt
+  tls-key-file /data/ssl/tls.key
+  tls-ca-cert-file /data/ssl/ca.crt
+  tls-auth-clients no
+
+# TODO: custom liveness and readiness probes that use tls
+redis-ephemeral:
