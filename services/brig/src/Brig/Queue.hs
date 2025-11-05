@@ -22,14 +22,16 @@ module Brig.Queue
   )
 where
 
-import Brig.AWS qualified as AWS
 import Brig.DeleteQueue.Interpreter (QueueEnv (..))
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Control.Monad.Catch
 import Data.Aeson
 import Imports
+import Polysemy (embedFinal, runFinal)
 import System.Logger.Class as Log hiding (settings)
+import Wire.AWSSubsystem qualified as AWS
+import Wire.AWSSubsystem.AWS qualified as AWSI
 
 -- | Forever listen to messages coming from a queue and execute a callback
 -- for each incoming message.
@@ -48,5 +50,6 @@ listen ::
   m ()
 listen (StompQueueEnv env queue) callback =
   Stomp.listen env queue callback
-listen (SqsQueueEnv env throttleMillis queue) callback = do
-  withRunInIO $ \lower -> AWS.execute env $ AWS.listen throttleMillis queue $ lower . callback
+listen (SqsQueueEnv env throttleMillis queue) callback =
+  withRunInIO $ \lower ->
+    runFinal $ AWSI.runAWSSubsystem env $ AWS.listen throttleMillis queue $ embedFinal . lower . callback
