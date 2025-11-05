@@ -1,8 +1,3 @@
-redis-ephemeral:
-  extraRedisSecrets:
-    - name: redis-certificate
-      mountPath: /data/ssl
-
 auth:
   enabled: false
   password: meh
@@ -15,5 +10,37 @@ extraConfig: |
   tls-ca-cert-file /data/ssl/ca.crt
   tls-auth-clients no
 
-# TODO: custom liveness and readiness probes that use tls
+# redis-cli --tls -h redis-ephemeral --cacert /data/ssl/ca.crt ping
+
 redis-ephemeral:
+  extraRedisSecrets:
+    - name: redis-certificate
+      mountPath: /data/ssl
+
+  livenessProbe:
+    enabled: false
+  customLivenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+
+  readinessProbe:
+    enabled: false
+  customReadinessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+
+  startupProbe:
+    enabled: false
+  customStartupProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+
