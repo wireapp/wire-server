@@ -210,14 +210,14 @@ releases:
       - './helm_vars/opensearch/values.yaml.gotmpl'
 
   # Required for testing redis migration
-  - name: 'redis-ephemeral-2'
+  - name: redis-ephemeral-2
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/redis-ephemeral'
     values:
-      - './helm_vars/bitnami.yaml'
-      - './helm_vars/redis-ephemeral/values.yaml'
-      - auth:
-          password: very-secure-redis-master-password-2
+      - redis-ephemeral:
+          image:
+            registry: public.ecr.aws
+            repository: docker/library/redis
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
