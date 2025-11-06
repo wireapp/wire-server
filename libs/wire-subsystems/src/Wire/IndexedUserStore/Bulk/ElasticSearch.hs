@@ -86,7 +86,7 @@ syncAllUsersWithVersion interpreter mkVersion =
       .| mkUserDocs
       .| Conduit.mapM_ (interpreter . IndexedUserStore.bulkUpsert)
   where
-    pageSize = 1000
+    pageSize = 10000
 
     logPage :: ConduitT (Int32, [IndexUser]) [IndexUser] IO ()
     logPage = Conduit.mapM $ \(pageNumber, page) -> do
