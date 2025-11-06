@@ -15,6 +15,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Time
+import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
 import Data.Tuple.Extra
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
@@ -390,29 +391,34 @@ saveConvToPostgres allConvData = do
                                           $4 :: text[], $5 :: integer[], $6 :: bool[])
                             |]
 
-    subConvRows :: [(ConvId, SubConvId, Maybe CipherSuiteTag, Maybe Epoch, Maybe UTCTime, GroupId, Maybe GroupInfoData)]
-    subConvRows =
-      flip map allConvData.subConvs $ \scData ->
-        ( storedConv.id_,
-          scData.subConv.scSubConvId,
-          (.ciphersuite) <$> scData.subConv.scMLSData.cnvmlsActiveData,
-          (.epoch) <$> scData.subConv.scMLSData.cnvmlsActiveData,
-          (.epochTimestamp) <$> scData.subConv.scMLSData.cnvmlsActiveData,
-          scData.subConv.scMLSData.cnvmlsGroupId,
-          scData.groupInfoData
-        )
+    zeroTime :: UTCTime
+    zeroTime = UTCTime (fromOrdinalDate 1970 1) 0
 
-    subConvColumns :: ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Maybe Epoch], [Maybe UTCTime], [GroupId], [Maybe GroupInfoData])
+    subConvRows :: [(ConvId, SubConvId, Maybe CipherSuiteTag, Epoch, UTCTime, GroupId, Maybe GroupInfoData)]
+    subConvRows =
+      flip map allConvData.subConvs $ \scData -> do
+        let mEpoch = (.epoch) <$> scData.subConv.scMLSData.cnvmlsActiveData
+            mEpochTimestamp = (.epochTimestamp) <$> scData.subConv.scMLSData.cnvmlsActiveData
+         in ( storedConv.id_,
+              scData.subConv.scSubConvId,
+              (.ciphersuite) <$> scData.subConv.scMLSData.cnvmlsActiveData,
+              fromMaybe (Epoch 0) mEpoch,
+              fromMaybe zeroTime mEpochTimestamp,
+              scData.subConv.scMLSData.cnvmlsGroupId,
+              scData.groupInfoData
+            )
+
+    subConvColumns :: ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData])
     subConvColumns = unzip7 subConvRows
 
-    insertSubConvs :: Hasql.Statement ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Maybe Epoch], [Maybe UTCTime], [GroupId], [Maybe GroupInfoData]) ()
+    insertSubConvs :: Hasql.Statement ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData]) ()
     insertSubConvs =
       lmapPG @_ @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO subconversation
                              (conv_id, subconv_id, cipher_suite, epoch, epoch_timestamp, group_id, public_group_state)
                              SELECT *
                              FROM UNNEST ($1 :: uuid[], $2 :: text[], $3 :: integer?[],
-                                          $4 :: bigint?[], $5 :: timestamptz?[], $6 :: bytea[], $7 :: bytea?[])
+                                          $4 :: bigint[], $5 :: timestamptz[], $6 :: bytea[], $7 :: bytea?[])
                             |]
 
 -- * Users
