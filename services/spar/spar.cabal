@@ -168,16 +168,10 @@ library
     , crypton-x509
     , exceptions
     , extended
-    , hasql-pool
     , hscim
-    , HsOpenSSL
     , hspec
-    , http-client
-    , http-client-openssl
     , http-types
-    , http2-manager
     , imports
-    , iso639
     , lens
     , metrics-wai
     , mtl
@@ -199,7 +193,6 @@ library
     , tinylog
     , transformers
     , types-common
-    , unordered-containers
     , uri-bytestring
     , utf8-string
     , uuid
