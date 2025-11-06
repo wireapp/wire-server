@@ -89,7 +89,7 @@ runSyncUserGroupAndChannel (SyncUserGroupAndChannel {..}) = do
         newUsers = V.filter (\u -> u `notElem` fmap (.id_) localMembers) usersFromGroup
 
     for_ (nonEmpty . V.toList $ newUsers) $ \newUsersUnqualified -> do
-      -- TODO(leif): check LH
+      -- FUTUREWORK: Currently legalhold is not compatible with MLS, but to avoid future issues, we need to verify that there is no LH conflict before adding users to a conversation.
       if length conv.localMembers + length newUsersUnqualified > hardTruncationLimit
         then
           -- FUTUREWORK: send an email to the admins of the team notifying them of this
