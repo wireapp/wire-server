@@ -1,6 +1,5 @@
 module Brig.CanonicalInterpreter where
 
-import Brig.AWS (amazonkaEnv)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -36,6 +35,8 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
+import Wire.AWSSubsystem (AWSSubsystem)
+import Wire.AWSSubsystem.AWS (amazonkaEnv, runAWSSubsystem)
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.ActivationCodeStore.Cassandra (interpretActivationCodeStoreToCassandra)
 import Wire.AppStore
@@ -152,6 +153,7 @@ type BrigLowerLevelEffects =
      PropertySubsystem,
      DeleteQueue,
      Wire.Events.Events,
+     AWSSubsystem,
      NotificationSubsystem,
      RateLimit,
      UserGroupStore,
@@ -364,6 +366,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
+              . runAWSSubsystem e.awsEnv
               . runEvents
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
