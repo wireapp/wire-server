@@ -1611,7 +1611,7 @@ server, verification can be turned off by settings `insecureSkipVerifyTls` to
 
 ## Configure PostgreSQL
 
-`brig` and `galley` require a PostgreSQL database. The configured user needs to
+`brig`, `galley`, and `background-worker` require a PostgreSQL database. The configured user needs to
 be able to write data and change the schema (e.g. create and alter tables.)
 
 The internal configuration YAML file format and the Helm charts for `brig` and
@@ -1778,45 +1778,74 @@ gundeck:
     cellsEventQueue: "cells_events"
 ```
 ## Background worker: Background jobs
-<!-- TODO(leif): rework this --->
 
-The background worker consumes jobs from RabbitMQ to process tasks asynchronously. The following configuration controls the consumer’s behavior:
+The background worker processes asynchronous jobs (conversation migrations, backend notifications). Configuration is supplied via Helm under `background-worker.config` and rendered into `background-worker.yaml`.
 
-Internal YAML file and Helm values (under `background-worker.config`):
-
-```yaml
-backgroundJobs:
-  # Maximum number of in-flight jobs per process
-  concurrency: 8
-  # Per-attempt timeout in seconds
-  jobTimeout: 60
-  # Total attempts including the first run
-  maxAttempts: 3
-```
-
-Notes:
-
-- `concurrency` controls the AMQP prefetch and caps parallel handler execution per process.
-- `jobTimeout` bounds each attempt; timed‑out attempts are retried until `maxAttempts` is reached.
-- `maxAttempts` is total tries (first run plus retries). On final failure, the job is dropped (NACK requeue=false) and counted in metrics.
-
-Additional background-worker configuration:
+Minimal Helm values (under `background-worker.config`):
 
 ```yaml
-# Cassandra clusters
+# RabbitMQ connection
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: /
+  enableTls: false
+  insecureSkipVerifyTls: false
+  # tlsCaSecretRef:
+  #   name: <secret-name>
+  #   key: <ca-attribute>
+  # When federation is enabled, background-worker also uses the admin API
+  # adminHost defaults to `host` if omitted
+  # adminPort: 15672
+
+# Cassandra clusters used by background-worker
 cassandra:
-  host: aws-cassandra
+  host: <gundeck-cassandra-host>
 cassandraBrig:
-  host: aws-cassandra
+  host: <brig-cassandra-host>
 cassandraGalley:
-  host: aws-cassandra
+  host: <galley-cassandra-host>
 
-# Conversation storage backend selection
+# PostgreSQL (conversation/user-group stores)
+postgresql:
+  host: postgresql
+  port: "5432"
+  user: wire-server
+  dbname: wire-server
+
+postgresqlPool:
+  size: 5
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
+# Controls where conversation data is read/written
 postgresMigration:
-  # Valid values: cassandra | migration-to-postgresql | postgresql
-  # Default: postgresql
+  # Valid: cassandra | migration-to-postgresql | postgresql
   conversation: postgresql
+
+# Start the migration worker when true
+migrateConversations: false
+
+# Background jobs consumer
+backgroundJobs:
+  concurrency: 8     # in-flight jobs per process
+  jobTimeout: 60     # seconds per attempt
+  maxAttempts: 3     # total attempts incl. first run
+
+# Required for addressing local vs remote backends
+domain: example.org
 ```
 
-- `cassandraGalley` configures the third Cassandra cluster used for conversation-related data; TLS may be configured via `tlsCa` or `tlsCaSecretRef` similarly to the other clusters.
-- `postgresMigration.conversation` selects the storage location for conversation data; values mirror `galley` and default to `postgresql`.
+Secrets
+
+- Set `background-worker.secrets.pgPassword` to pass the PostgreSQL password. The chart mounts it to `/etc/wire/background-worker/secrets/pgPassword` and sets `postgresqlPassword` accordingly.
+
+Notes
+
+- `postgresql` values follow libpq keywords; password is sourced via `secrets.pgPassword`.
+- RabbitMQ admin fields (`adminHost`, `adminPort`) are templated only when `config.enableFederation` is true.
+- `postgresMigration.conversation` must match `galley.config.postgresMigration.conversation` during migration phases.
+- `migrateConversations: true` triggers the migration job; leave it `false` for new installs and after migration.
+- `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
+- `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
