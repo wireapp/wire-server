@@ -118,9 +118,7 @@ journalEvent typ uid em loc tid nm = do
             & U.maybe'teamId .~ (toBytes <$> tid)
             & U.maybe'name .~ (toByteString' <$> nm)
         encoded = fromStrict $ B64.encode $ encodeMessage userEvent
-    embed $ appendFile "/tmp/x123" ("\n**************************" <> show encoded)
     void $ AWS.enqueueFIFO queueUrl "user.events" rnd encoded
-    embed $ appendFile "/tmp/x123" ("\n********************************* still here!")
 
 -- | Journal a Wire.API.UserEvent by pattern matching on its constructors
 journalUserEvent ::

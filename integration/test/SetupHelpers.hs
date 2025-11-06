@@ -558,7 +558,7 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId (iid, (meta, priv
       let mCookie = getCookie "zuid" rsp
       case mCookie of
         Nothing -> do
-          expectSuccess `shouldMatch` False -- !!
+          expectSuccess `shouldMatch` False
           pure Nothing
         Just cookie -> do
           expectSuccess `shouldMatch` True
