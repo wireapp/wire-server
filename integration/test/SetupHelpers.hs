@@ -535,7 +535,6 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId (iid, (meta, priv
           resp.status `shouldMatchInt` 200
           let bdy = cs resp.body
           bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
           bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
           bdy `shouldContain` "<title>wire:sso:success</title>"
           bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
