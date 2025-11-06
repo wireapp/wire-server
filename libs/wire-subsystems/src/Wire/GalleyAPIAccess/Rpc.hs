@@ -57,8 +57,13 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess (..), MLSOneToOneEstablished (..), 
 import Wire.ParseException
 import Wire.Rpc
 
+data GalleyAPIError
+  = GalleyAPIParseException ParseException -- TODO: where else is ParseException used?  can we declare it here, or in ./Error.hs?
+  | GalleyAPIForbidden
+  | GalleyAPIInternalError Text
+
 interpretGalleyAPIAccessToRpc ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member TinyLog r
   ) =>
@@ -98,10 +103,14 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamAdmins tid -> getTeamAdmins tid
           InternalGetConversation id' -> internalGetConversation id'
           GetTeamContacts uid -> getTeamContacts uid
+          AssertHasPermission tid perm uid -> assertHasPermission tid perm uid
+          AssertSSOEnabled tid -> assertSSOEnabled tid
+          IsEmailValidationEnabledTeam tid -> isEmailValidationEnabledTeam tid
+          UpdateTeamMember uid tid role -> updateTeamMember uid tid role
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
-    Member (Error ParseException) r,
+    Member (Error GalleyAPIError) r,
     Member Rpc r
   ) =>
   Local UserId ->
@@ -144,7 +153,7 @@ createSelfConv v u = do
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -177,7 +186,7 @@ getConv v usr lcnv = do
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -310,7 +319,7 @@ createTeam u t teamid = do
 
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
 getTeamMember ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -339,7 +348,7 @@ getTeamMember u tid = do
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
 getTeamMembers ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -358,7 +367,7 @@ getTeamMembers tid maxResults = do
         . expect2xx
 
 selectTeamMemberInfos ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -379,7 +388,7 @@ selectTeamMemberInfos tid uids = do
         . expect2xx
 
 getTeamAdmins ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -409,7 +418,7 @@ memberIsTeamOwner tid uid = do
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
 getTeamId ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -430,7 +439,7 @@ getTeamId u = do
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeam ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -448,7 +457,7 @@ getTeam tid = do
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeamName ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -466,7 +475,7 @@ getTeamName tid = do
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
 getTeamLegalHoldStatus ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -484,7 +493,7 @@ getTeamLegalHoldStatus tid = do
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
 getTeamSearchVisibility ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -507,7 +516,7 @@ getFeatureConfigForTeam ::
     Typeable feature,
     Member TinyLog r,
     Member Rpc r,
-    Member (Error ParseException) r
+    Member (Error GalleyAPIError) r
   ) =>
   TeamId ->
   Sem (Input Endpoint : r) (LockableFeature feature)
@@ -521,7 +530,7 @@ getFeatureConfigForTeam tid = do
         . expect2xx
 
 getVerificationCodeEnabled ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -541,8 +550,8 @@ getVerificationCodeEnabled tid = do
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
         . expect2xx
 
-decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
-decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
+decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error GalleyAPIError) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
+decodeBodyOrThrow ctx r = either (throw . GalleyAPIParseException . ParseException ctx) pure (responseJsonEither r)
 
 getAllTeamFeaturesForUser ::
   (Member Rpc r, Member (Input Endpoint) r) =>
@@ -580,7 +589,7 @@ changeTeamStatus tid s cur = do
 getTeamExposeInvitationURLsToTeamAdmin ::
   ( Member Rpc r,
     Member (Input Endpoint) r,
-    Member (Error ParseException) r,
+    Member (Error GalleyAPIError) r,
     Member TinyLog r
   ) =>
   TeamId ->
@@ -599,7 +608,7 @@ getTeamExposeInvitationURLsToTeamAdmin tid = do
         . expect2xx
 
 checkMLSOne2OneEstablished ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member (Input Endpoint) r,
     Member Rpc r,
     Member TinyLog r
@@ -630,7 +639,7 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
         . zUser (tUnqualified self)
 
 unblockConversation ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member (Input Endpoint) r,
     Member Rpc r,
     Member TinyLog r
@@ -667,7 +676,7 @@ remote = field "remote"
 getEJPDConvInfo ::
   forall r.
   ( Member TinyLog r,
-    Member (Error ParseException) r,
+    Member (Error GalleyAPIError) r,
     Member (Input Endpoint) r,
     Member Rpc r
   ) =>
@@ -684,7 +693,7 @@ getEJPDConvInfo uid = do
         . paths ["i", "user", toByteString' uid, "all-conversations"]
 
 internalGetConversation ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -707,7 +716,7 @@ internalGetConversation convId = do
         . expect [status200, status404]
 
 getTeamContacts ::
-  ( Member (Error ParseException) r,
+  ( Member (Error GalleyAPIError) r,
     Member Rpc r,
     Member (Input Endpoint) r,
     Member TinyLog r
@@ -728,3 +737,106 @@ getTeamContacts uid = do
       method GET
         . paths ["i", "users", toByteString' uid, "team", "members"]
         . expect [status200, status404]
+
+assertHasPermission ::
+  ( Member (Error GalleyAPIError) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r,
+    Member.IsPerm Member.TeamMember perm
+  ) =>
+  TeamId ->
+  perm ->
+  UserId ->
+  Sem r ()
+assertHasPermission tid perm uid = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . field "user" (toByteString uid)
+      . msg (val "Asserting user has permission")
+  rs <- galleyRequest req
+  case (Bilge.statusCode rs, responseJsonEither @Member.TeamMember rs) of
+    (200, Right member) | hasPermission member perm -> pure ()
+    _ -> throw GalleyAPIForbidden
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", toByteString' uid]
+        . expect [status200, status404]
+
+assertSSOEnabled ::
+  ( Member (Error GalleyAPIError) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem r ()
+assertSSOEnabled tid = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . msg (val "Asserting SSO is enabled")
+  rs <- galleyRequest req
+  unless (Bilge.statusCode rs == 200) $
+    throw $
+      ParseException "galley" "Failed to get SSO feature status"
+  feature <- decodeBodyOrThrow @(LockableFeature SSOConfig) "galley" rs
+  unless (feature.status == FeatureStatusEnabled) $
+    throw $
+      ParseException "galley" "SSO is not enabled for this team"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", "sso"]
+        . expect2xx
+
+isEmailValidationEnabledTeam ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem r Bool
+isEmailValidationEnabledTeam tid = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . msg (val "Checking if email validation is enabled")
+  rs <- galleyRequest req
+  pure $
+    Bilge.statusCode rs == 200
+      && ( ((.status) <$> responseJsonMaybe @(LockableFeature ValidateSAMLEmailsConfig) rs)
+             == Just FeatureStatusEnabled
+         )
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
+
+updateTeamMember ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  TeamId ->
+  Role ->
+  Sem r ()
+updateTeamMember uid tid role = do
+  debug $
+    remote "galley"
+      . field "team" (toByteString tid)
+      . field "user" (toByteString uid)
+      . msg (val "Updating team member")
+  void $ galleyRequest req
+  where
+    prm = Member.rolePermissions role
+    bdy = Member.mkNewTeamMember uid prm Nothing
+    req =
+      method PUT
+        . paths ["i", "teams", toByteString' tid, "members"]
+        . header "Content-Type" "application/json"
+        . expect2xx
+        . lbytes (encode bdy)

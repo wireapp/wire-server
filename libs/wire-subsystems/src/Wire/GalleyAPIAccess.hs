@@ -148,5 +148,22 @@ data GalleyAPIAccess m a where
   GetTeamContacts ::
     UserId ->
     GalleyAPIAccess m (Maybe Team.TeamMemberList)
+  AssertHasPermission ::
+    (Show perm, Team.IsPerm Team.TeamMember perm) =>
+    TeamId ->
+    perm ->
+    UserId ->
+    GalleyAPIAccess m ()
+  AssertSSOEnabled ::
+    TeamId ->
+    GalleyAPIAccess m ()
+  IsEmailValidationEnabledTeam ::
+    TeamId ->
+    GalleyAPIAccess m Bool
+  UpdateTeamMember ::
+    UserId ->
+    TeamId ->
+    Role ->
+    GalleyAPIAccess m ()
 
 makeSem ''GalleyAPIAccess

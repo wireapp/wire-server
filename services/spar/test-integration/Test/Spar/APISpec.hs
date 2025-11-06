@@ -72,7 +72,6 @@ import SAML2.WebSSO.Test.Util
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
-import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
@@ -95,6 +94,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim hiding (handle)
+import qualified Wire.BrigAPIAccess as BrigAPIAccess
 
 spec :: SpecWith TestEnv
 spec = do
@@ -1266,7 +1266,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       brig <- view teBrig
       resp <- call . delete $ brig . paths ["i", "users", toByteString' uid]
       liftIO $ responseStatus resp `shouldBe` status202
-      void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Deleted)
+      void $ aFewTimes (runSpar $ BrigAPIAccess.getStatus uid) (== Deleted)
 
 specScimAndSAML :: SpecWith TestEnv
 specScimAndSAML = do

@@ -185,7 +185,6 @@ import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Run
-import Spar.Sem.BrigAccess (getAccount)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
@@ -218,6 +217,7 @@ import qualified Wire.API.User as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
+import Wire.BrigAPIAccess (getAccount)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -275,25 +275,9 @@ mkEnv tstOpts opts = do
       sparCtxHttpManager = mgr
       sparCtxHttpBrig = brig empty
       sparCtxHttpGalley = galley empty
-      sparCtxHttpGalleyEndpoint = undefined
-      sparCtxHttpGundeckEndpoint = undefined
-      disabledVersions = undefined
       sparCtxRequestId = RequestId "<fake request id>"
       sparCtxScimSubsystemConfig = error "mkEnv: implement sparCtxScimSubsystemConfig when needed"
       sparCtxLocalUnit = error "mkEnv: implement sparCtxLocalUnit when needed"
-      sparCtxAuthenticationSubsystemConfig = undefined
-      sparCtxPasswordHashingOptions = undefined
-      sparCtxUserTemplates = undefined
-      sparCtxTeamTemplates = undefined
-      sparCtxTemplateBranding = undefined
-      sparCtxRateLimit = undefined
-      sparCtxFederationAPIAccessConfig = undefined
-      sparCtxIndexedUserStoreConfig = undefined
-      sparCtxUserSubsystemConfig = undefined
-      sparCtxHasqlPool = undefined
-      sparCtxSmtp = undefined
-      sparCtxAws = undefined
-      sparCtxInternalEvents = undefined
   pure $
     TestEnv
       mgr

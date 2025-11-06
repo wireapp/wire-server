@@ -47,7 +47,6 @@ import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
 import qualified Test.Spar.AppSpec
 import qualified Test.Spar.DataSpec
-import qualified Test.Spar.Intra.BrigSpec
 import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
 import Util
@@ -107,7 +106,6 @@ mkspecSaml = do
   describe "Spar.API" Test.Spar.APISpec.spec
   describe "Spar.App" Test.Spar.AppSpec.spec
   describe "Spar.Data" Test.Spar.DataSpec.spec
-  describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
 
 mkspecScim :: SpecWith TestEnv
 mkspecScim = do

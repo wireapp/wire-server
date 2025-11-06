@@ -1,15 +1,20 @@
 module Wire.BrigAPIAccess.Rpc where
 
 import Bilge
+import Brig.Types.Intra (NewUserScimInvitation (..))
 import Control.Monad.Catch (throwM)
 import Data.Aeson
 import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
+import Data.Code as Code
+import Data.Handle (Handle (fromHandle))
+import Data.HavePendingInvitations
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as Lazy
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
 import Network.HTTP.Client qualified as Http
@@ -20,12 +25,14 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import System.IO.Unsafe
+import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Logger
 import Util.Options
+import Web.Cookie
 import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Error.Galley
+import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..), GetBy)
 import Wire.API.Routes.Internal.Brig.Connection
@@ -33,10 +40,12 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Mul
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold.Internal
+import Wire.API.Team.Role
 import Wire.API.Team.Size
-import Wire.API.User (UpdateConnectionsInternal, User, UserIds (..), UserSet (..))
+import Wire.API.User (AccountStatus, AccountStatusResp (..), AccountStatusUpdate (..), EmailActivation (..), EmailAddress, EmailUpdate (..), HandleUpdate (..), LocaleUpdate (..), ManagedByUpdate (..), Name (..), NameUpdate (..), NewUserSpar (..), RichInfoUpdate (..), SelfProfile (..), UpdateConnectionsInternal, User, UserIds (..), UserSSOId (..), UserSet (..), VerificationAction, fromAccountStatusResp, userDeleted, userEmail, userId)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
+import Wire.API.User.Auth.Sso qualified as UserSso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile (ManagedBy)
@@ -106,6 +115,48 @@ interpretBrigAccess brigEndpoint =
         getAccountsBy localGetBy
       CreateGroupFull managedBy teamId creatorUserId newGroup ->
         createGroupFull managedBy teamId creatorUserId newGroup
+      CreateSAML uref uid teamid name managedBy handle richInfo mLocale role ->
+        createBrigUserSAML uref uid teamid name managedBy handle richInfo mLocale role
+      CreateNoSAML extId email uid teamid name locale role ->
+        createBrigUserNoSAML extId email uid teamid name locale role
+      UpdateEmail uid email activation ->
+        updateEmailAddress uid email activation
+      GetAccount havePending uid ->
+        getAccount havePending uid
+      GetByHandle handle ->
+        getByHandle handle
+      GetByEmail email ->
+        getByEmail email
+      SetName uid name ->
+        setName uid name
+      SetHandle uid handle ->
+        setHandle uid handle
+      SetManagedBy uid managedBy ->
+        setManagedBy uid managedBy
+      SetSSOId uid ssoId ->
+        setSSOId uid ssoId
+      SetRichInfo uid richInfo ->
+        setRichInfo uid richInfo
+      SetLocale uid locale ->
+        setLocale uid locale
+      GetRichInfo uid ->
+        getRichInfo uid
+      CheckHandleAvailable handle ->
+        checkHandleAvailable handle
+      EnsureReAuthorised muid mpwd mcode maction ->
+        ensureReAuthorised muid mpwd mcode maction
+      SsoLogin uid ->
+        ssoLogin uid
+      GetStatus uid ->
+        getAccountStatus uid
+      GetStatusMaybe uid ->
+        getAccountStatusMaybe uid
+      SetStatus uid status ->
+        setAccountStatus uid status
+      GetDefaultUserLocale ->
+        getDefaultUserLocale
+      CheckAdminGetTeamId uid ->
+        checkAdminGetTeamId uid
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -555,3 +606,393 @@ createGroupFull managedBy teamId creatorUserId newGroup = do
         . json req
         . expect2xx
   decodeBodyOrThrow "brig" r
+
+-- | Helper function to convert response to SetCookie.
+respToCookie :: (Member (Error ParseException) r) => ResponseLBS -> Sem r SetCookie
+respToCookie resp = do
+  unless (statusCode resp == 200) $ throw $ ParseException "brig" "Expected 200 status code"
+  case getHeader "Set-Cookie" resp of
+    Nothing -> throw $ ParseException "brig" "Could not retrieve cookie"
+    Just cookieHeader -> pure $ parseSetCookie cookieHeader
+
+createBrigUserSAML ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  SAML.UserRef ->
+  UserId ->
+  TeamId ->
+  Name ->
+  ManagedBy ->
+  Maybe Handle ->
+  Maybe RichInfo ->
+  Maybe Locale ->
+  Role ->
+  Sem r UserId
+createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale role = do
+  let newUser =
+        NewUserSpar
+          { newUserSparUUID = buid,
+            newUserSparDisplayName = name,
+            newUserSparSSOId = UserSSOId uref,
+            newUserSparTeamId = teamid,
+            newUserSparManagedBy = managedBy,
+            newUserSparHandle = handle,
+            newUserSparRichInfo = richInfo,
+            newUserSparLocale = mLocale,
+            newUserSparRole = role
+          }
+  resp <-
+    brigRequest $
+      method POST
+        . path "/i/users/spar"
+        . json newUser
+  if statusCode resp `elem` [200, 201]
+    then userId . selfUser <$> decodeBodyOrThrow @SelfProfile "brig" resp
+    else throw $ ParseException "brig" ("Failed to create SAML user: " ++ show (statusCode resp))
+
+createBrigUserNoSAML ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  Text ->
+  EmailAddress ->
+  UserId ->
+  TeamId ->
+  Name ->
+  Maybe Locale ->
+  Role ->
+  Sem r UserId
+createBrigUserNoSAML extId email uid teamid uname locale role = do
+  let newUser = NewUserScimInvitation teamid uid extId locale uname email role
+  resp <-
+    brigRequest $
+      method POST
+        . paths ["/i/teams", toByteString' teamid, "invitations"]
+        . json newUser
+  if statusCode resp `elem` [200, 201]
+    then userId <$> decodeBodyOrThrow @User "brig" resp
+    else throw $ ParseException "brig" ("Failed to create user from SCIM invitation: " ++ show (statusCode resp))
+
+updateEmailAddress ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  EmailAddress ->
+  EmailActivation ->
+  Sem r ()
+updateEmailAddress buid email activation = do
+  resp <-
+    brigRequest $
+      method PUT
+        . path "/i/self/email"
+        . header "Z-User" (toByteString' buid)
+        . query
+          [ ("activation", Just (toByteString' activation)),
+            ("validate", Just (boolToBS validate)),
+            ("activate", Just (boolToBS activate))
+          ]
+        . json (EmailUpdate email)
+  case statusCode resp of
+    204 -> pure ()
+    202 -> pure ()
+    _ -> throw $ ParseException "brig" ("Failed to update email: " ++ show (statusCode resp))
+  where
+    (validate, activate) = case activation of
+      AutoActivate -> (False, True)
+      SendActivationEmail -> (True, False)
+    boolToBS :: Bool -> ByteString
+    boolToBS True = "true"
+    boolToBS False = "false"
+
+getAccount ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  HavePendingInvitations ->
+  UserId ->
+  Sem r (Maybe User)
+getAccount havePending buid = do
+  resp <-
+    brigRequest $
+      method GET
+        . paths ["/i/users"]
+        . query
+          [ ("ids", Just $ toByteString' buid),
+            ( "includePendingInvitations",
+              Just . toByteString' $
+                case havePending of
+                  WithPendingInvitations -> True
+                  NoPendingInvitations -> False
+            )
+          ]
+  case statusCode resp of
+    200 ->
+      decodeBodyOrThrow @[User] "brig" resp >>= \case
+        [account] ->
+          pure $
+            if userDeleted account
+              then Nothing
+              else Just account
+        _ -> pure Nothing
+    404 -> pure Nothing
+    _ -> throw $ ParseException "brig" ("Failed to get account: " ++ show (statusCode resp))
+
+getByHandle ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  Handle ->
+  Sem r (Maybe User)
+getByHandle handle = do
+  resp <-
+    brigRequest $
+      method GET
+        . path "/i/users"
+        . queryItem "handles" (toByteString' handle)
+        . queryItem "includePendingInvitations" "true"
+  case statusCode resp of
+    200 -> listToMaybe <$> decodeBodyOrThrow @[User] "brig" resp
+    404 -> pure Nothing
+    _ -> throw $ ParseException "brig" ("Failed to get user by handle: " ++ show (statusCode resp))
+
+getByEmail ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  EmailAddress ->
+  Sem r (Maybe User)
+getByEmail email = do
+  resp <-
+    brigRequest $
+      method GET
+        . path "/i/users"
+        . queryItem "email" (toByteString' email)
+        . queryItem "includePendingInvitations" "true"
+  case statusCode resp of
+    200 -> do
+      macc <- listToMaybe <$> decodeBodyOrThrow @[User] "brig" resp
+      case userEmail =<< macc of
+        Just email' | email' == email -> pure macc
+        _ -> pure Nothing
+    404 -> pure Nothing
+    _ -> throw $ ParseException "brig" ("Failed to get user by email: " ++ show (statusCode resp))
+
+setName ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Name ->
+  Sem r ()
+setName buid (Name name) = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["/i/users", toByteString' buid, "name"]
+        . json (NameUpdate name)
+  let sCode = statusCode resp
+  if sCode < 300
+    then pure ()
+    else throw $ ParseException "brig" ("Failed to set user name: " ++ show sCode)
+
+setHandle ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Handle ->
+  Sem r ()
+setHandle buid handle = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["/i/users", toByteString' buid, "handle"]
+        . json (HandleUpdate (fromHandle handle))
+  case (statusCode resp, Wai.label <$> responseJsonMaybe @Wai.Error resp) of
+    (200, Nothing) ->
+      pure ()
+    _ ->
+      throw $ ParseException "brig" ("Failed to set user handle: " ++ show (statusCode resp))
+
+setManagedBy ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  ManagedBy ->
+  Sem r ()
+setManagedBy buid managedBy = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["/i/users", toByteString' buid, "managed-by"]
+        . json (ManagedByUpdate managedBy)
+  unless (statusCode resp == 200) $
+    throw $
+      ParseException "brig" ("Failed to set user managedBy: " ++ show (statusCode resp))
+
+setSSOId ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  UserSSOId ->
+  Sem r ()
+setSSOId buid ssoId = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["i", "users", toByteString' buid, "sso-id"]
+        . json ssoId
+  case statusCode resp of
+    200 -> pure ()
+    _ -> throw $ ParseException "brig" ("Failed to set user SSO ID: " ++ show (statusCode resp))
+
+setRichInfo ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  RichInfo ->
+  Sem r ()
+setRichInfo buid richInfo = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["i", "users", toByteString' buid, "rich-info"]
+        . json (RichInfoUpdate $ unRichInfo richInfo)
+  unless (statusCode resp == 200) $
+    throw $
+      ParseException "brig" ("Failed to set user rich info: " ++ show (statusCode resp))
+
+setLocale ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Maybe Locale ->
+  Sem r ()
+setLocale buid = \case
+  Just locale -> do
+    resp <-
+      brigRequest $
+        method PUT
+          . paths ["i", "users", toByteString' buid, "locale"]
+          . json (LocaleUpdate locale)
+    unless (statusCode resp == 200) $
+      throw $
+        ParseException "brig" ("Failed to set user locale: " ++ show (statusCode resp))
+  Nothing -> do
+    resp <-
+      brigRequest $
+        method DELETE
+          . paths ["i", "users", toByteString' buid, "locale"]
+    unless (statusCode resp == 200) $
+      throw $
+        ParseException "brig" ("Failed to delete user locale: " ++ show (statusCode resp))
+
+getRichInfo ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Sem r RichInfo
+getRichInfo buid = do
+  resp <-
+    brigRequest $
+      method GET
+        . paths ["/i/users", toByteString' buid, "rich-info"]
+  case statusCode resp of
+    200 -> decodeBodyOrThrow "brig" resp
+    _ -> throw $ ParseException "brig" ("Failed to get user rich info: " ++ show (statusCode resp))
+
+checkHandleAvailable ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  Handle ->
+  Sem r Bool
+checkHandleAvailable hnd = do
+  resp <-
+    brigRequest $
+      method HEAD
+        . paths ["/i/users/handles", toByteString' hnd]
+  let sCode = statusCode resp
+  if
+    | sCode == 200 -> pure False
+    | sCode == 404 -> pure True
+    | otherwise -> throw $ ParseException "brig" ("Failed to check handle availability: " ++ show sCode)
+
+ensureReAuthorised ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  Maybe UserId ->
+  Maybe PlainTextPassword6 ->
+  Maybe Code.Value ->
+  Maybe VerificationAction ->
+  Sem r ()
+ensureReAuthorised Nothing _ _ _ = throw $ ParseException "brig" "Missing Z-User header"
+ensureReAuthorised (Just uid) secret mbCode mbAction = do
+  resp <-
+    brigRequest $
+      method GET
+        . paths ["/i/users", toByteString' uid, "reauthenticate"]
+        . json (ReAuthUser secret mbCode mbAction)
+  case (statusCode resp, errorLabel resp) of
+    (200, _) -> pure ()
+    (403, Just "code-authentication-required") -> throw $ ParseException "brig" "Code authentication required"
+    (403, Just "code-authentication-failed") -> throw $ ParseException "brig" "Code authentication failed"
+    (403, _) -> throw $ ParseException "brig" "Re-authentication required"
+    (_, _) -> throw $ ParseException "brig" ("Re-authentication failed: " ++ show (statusCode resp))
+  where
+    errorLabel :: ResponseLBS -> Maybe Lazy.Text
+    errorLabel = fmap Wai.label . responseJsonMaybe
+
+ssoLogin ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Sem r SetCookie
+ssoLogin buid = do
+  resp <-
+    brigRequest $
+      method POST
+        . path "/i/sso-login"
+        . json (UserSso.SsoLogin buid Nothing)
+        . queryItem "persist" "true"
+  if statusCode resp == 200
+    then respToCookie resp
+    else throw $ ParseException "brig" ("SSO login failed: " ++ show (statusCode resp))
+
+getAccountStatus ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Sem r AccountStatus
+getAccountStatus uid = do
+  resp <- getStatusResp uid
+  case statusCode resp of
+    200 -> fromAccountStatusResp <$> decodeBodyOrThrow @AccountStatusResp "brig" resp
+    _ -> throw $ ParseException "brig" ("Failed to get account status: " ++ show (statusCode resp))
+
+getAccountStatusMaybe ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Sem r (Maybe AccountStatus)
+getAccountStatusMaybe uid = do
+  resp <- getStatusResp uid
+  case statusCode resp of
+    200 -> Just . fromAccountStatusResp <$> decodeBodyOrThrow @AccountStatusResp "brig" resp
+    404 -> pure Nothing
+    _ -> throw $ ParseException "brig" ("Failed to get account status: " ++ show (statusCode resp))
+
+getStatusResp ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  UserId ->
+  Sem r ResponseLBS
+getStatusResp uid = brigRequest $ method GET . paths ["/i/users", toByteString' uid, "status"]
+
+setAccountStatus ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  AccountStatus ->
+  Sem r ()
+setAccountStatus uid status = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["/i/users", toByteString' uid, "status"]
+        . json (AccountStatusUpdate status)
+  case statusCode resp of
+    200 -> pure ()
+    _ -> throw $ ParseException "brig" ("Failed to set account status: " ++ show (statusCode resp))
+
+getDefaultUserLocale ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  Sem r Locale
+getDefaultUserLocale = do
+  resp <- brigRequest $ method GET . paths ["/i/users/locale"]
+  case statusCode resp of
+    200 -> luLocale <$> decodeBodyOrThrow @LocaleUpdate "brig" resp
+    _ -> throw $ ParseException "brig" ("Failed to get default user locale: " ++ show (statusCode resp))
+
+checkAdminGetTeamId ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UserId ->
+  Sem r TeamId
+checkAdminGetTeamId uid = do
+  resp <- brigRequest $ method GET . paths ["/i/users", toByteString' uid, "check-admin-get-team-id"]
+  case statusCode resp of
+    200 -> decodeBodyOrThrow @TeamId "brig" resp
+    _ -> throw $ ParseException "brig" ("Failed to check admin and get team ID: " ++ show (statusCode resp))

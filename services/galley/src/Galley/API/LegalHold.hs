@@ -77,7 +77,7 @@ import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
-import Wire.BrigAPIAccess
+import Wire.BrigAPIAccess hiding (ensureReAuthorised)
 import Wire.ConversationStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

@@ -55,13 +55,13 @@ import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Sem.BrigAccess (BrigAccess)
-import qualified Spar.Sem.BrigAccess as BrigAccess
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm, TeamMember)
 import Wire.API.User
 import Wire.API.User.Scim (ValidScimId (..))
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import qualified Wire.BrigAPIAccess as BrigAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import qualified Wire.GalleyAPIAccess as GalleyAccess
 
 ----------------------------------------------------------------------
 
@@ -124,7 +124,7 @@ mkUserName Nothing =
 
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.
-getBrigUserTeam :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe TeamId)
+getBrigUserTeam :: (HasCallStack, Member BrigAPIAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe TeamId)
 getBrigUserTeam ifpend = fmap (userTeam =<<) . BrigAccess.getAccount ifpend
 
 -- | Pull team id for z-user from brig.  Check permission in galley.  Return team id.  Fail if
@@ -132,8 +132,8 @@ getBrigUserTeam ifpend = fmap (userTeam =<<) . BrigAccess.getAccount ifpend
 getZUsrCheckPerm ::
   forall r perm.
   ( HasCallStack,
-    ( Member BrigAccess r,
-      Member GalleyAccess r,
+    ( Member BrigAPIAccess r,
+      Member GalleyAPIAccess r,
       Member (Error SparError) r
     ),
     IsPerm TeamMember perm,
@@ -152,8 +152,8 @@ getZUsrCheckPerm (Just uid) perm = do
 authorizeScimTokenManagement ::
   forall r.
   ( HasCallStack,
-    ( Member BrigAccess r,
-      Member GalleyAccess r,
+    ( Member BrigAPIAccess r,
+      Member GalleyAPIAccess r,
       Member (Error SparError) r
     )
   ) =>
@@ -180,7 +180,7 @@ authorizeScimTokenManagement (Just uid) = do
 -- We cannot simply respond with 404 in this case, because the user exists.  404 would suggest
 -- do the scim peer that it should post the user to create it, but that would create a new
 -- user instead of finding the old that should be put under scim control.
-giveDefaultHandle :: (HasCallStack, Member BrigAccess r) => User -> Sem r Handle
+giveDefaultHandle :: (HasCallStack, Member BrigAPIAccess r) => User -> Sem r Handle
 giveDefaultHandle usr = case userHandle usr of
   Just handle -> pure handle
   Nothing -> do

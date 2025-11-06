@@ -51,6 +51,10 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
   InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
   GetTeamContacts _ -> pure Nothing
+  AssertHasPermission {} -> error "AssertHasPermission not implemented in miniGalleyAPIAccess"
+  AssertSSOEnabled _ -> error "AssertSSOEnabled not implemented in miniGalleyAPIAccess"
+  IsEmailValidationEnabledTeam _ -> error "IsEmailValidationEnabledTeam not implemented in miniGalleyAPIAccess"
+  UpdateTeamMember {} -> error "UpdateTeamMember not implemented in miniGalleyAPIAccess"
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

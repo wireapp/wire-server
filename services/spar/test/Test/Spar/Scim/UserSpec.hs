@@ -10,7 +10,6 @@ import Imports
 import Polysemy
 import Polysemy.TinyLog
 import Spar.Scim.User (deleteScimUser)
-import Spar.Sem.BrigAccess
 import Spar.Sem.IdPConfigStore
 import Spar.Sem.IdPConfigStore.Mem (idPToMem)
 import Spar.Sem.SAMLUserStore
@@ -23,8 +22,9 @@ import System.Logger (Msg)
 import Test.Hspec
 import Test.QuickCheck
 import Web.Scim.Schema.Error
-import Wire.API.User
+import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.Scim
+import Wire.BrigAPIAccess (BrigAPIAccess (DeleteUser, GetAccount))
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec
@@ -33,32 +33,32 @@ spec = describe "deleteScimUser" $ do
     tokenInfo <- generate arbitrary
     acc <- someActiveUser tokenInfo
     r <-
-      interpretWithBrigAccessMock
-        (mockBrig (withActiveUser acc) AccountDeleted)
+      interpretWithBrigAPIAccessMock
+        (mockBrig (withActiveUser acc))
         (deleteUserAndAssertDeletionInSpar acc tokenInfo)
     r `shouldBe` Right ()
   it "is idempotent" $ do
     tokenInfo <- generate arbitrary
     acc <- someActiveUser tokenInfo
     r <-
-      interpretWithBrigAccessMock
-        (mockBrig (withActiveUser acc) AccountAlreadyDeleted)
+      interpretWithBrigAPIAccessMock
+        (mockBrig (withActiveUser acc))
         (deleteUserAndAssertDeletionInSpar acc tokenInfo)
     r `shouldBe` Right ()
   it "works if there never was an account" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
     r <-
-      interpretWithBrigAccessMock
-        (mockBrig (const Nothing) NoUser)
+      interpretWithBrigAPIAccessMock
+        (mockBrig (const Nothing))
         (runExceptT $ deleteScimUser tokenInfo uid)
     r `shouldBe` Right ()
   it "returns no error when there was a partially deleted account" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
     r <-
-      interpretWithBrigAccessMock
-        (mockBrig (const Nothing) AccountDeleted)
+      interpretWithBrigAPIAccessMock
+        (mockBrig (const Nothing))
         (runExceptT $ deleteScimUser tokenInfo uid)
     r `shouldBe` Right ()
 
@@ -66,7 +66,7 @@ deleteUserAndAssertDeletionInSpar ::
   forall (r :: EffectRow).
   ( Members
       '[ Logger (Msg -> Msg),
-         BrigAccess,
+         BrigAPIAccess,
          ScimExternalIdStore.ScimExternalIdStore,
          ScimUserTimesStore,
          SAMLUserStore,
@@ -98,13 +98,13 @@ type EffsWithoutBrigAccess =
      Final IO
    ]
 
-interpretWithBrigAccessMock ::
-  ( Sem (BrigAccess ': EffsWithoutBrigAccess) a ->
+interpretWithBrigAPIAccessMock ::
+  ( Sem (BrigAPIAccess ': EffsWithoutBrigAccess) a ->
     Sem EffsWithoutBrigAccess a
   ) ->
-  Sem (BrigAccess ': EffsWithoutBrigAccess) a ->
+  Sem (BrigAPIAccess ': EffsWithoutBrigAccess) a ->
   IO a
-interpretWithBrigAccessMock mock =
+interpretWithBrigAPIAccessMock mock =
   runFinal
     . embedToFinal @IO
     . discardTinyLogs
@@ -121,12 +121,11 @@ mockBrig ::
   forall (r :: EffectRow) a.
   (Member (Embed IO) r) =>
   (UserId -> Maybe User) ->
-  DeleteUserResult ->
-  Sem (BrigAccess ': r) a ->
+  Sem (BrigAPIAccess ': r) a ->
   Sem r a
-mockBrig lookup_user delete_response = interpret $ \case
+mockBrig lookup_user = interpret $ \case
   (GetAccount WithPendingInvitations uid) -> pure $ lookup_user uid
-  (Spar.Sem.BrigAccess.DeleteUser _) -> pure delete_response
+  (DeleteUser _) -> pure ()
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Throw error here to avoid implementation of all cases."
