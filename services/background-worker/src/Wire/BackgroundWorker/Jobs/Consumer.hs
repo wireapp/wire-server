@@ -65,9 +65,17 @@ startWorker rabbitmqOpts = do
             void $ QL.consumeMsgs chan backgroundJobsQueueName Q.Ack (void . runAppT env . handleDelivery metrics cfg)
             runAppT env $ markAsWorking BackgroundJobConsumer
             forever $ threadDelay maxBound,
-          onChannelException = \_ -> do
-            -- mark not working; TODO: only log unexpected exceptions
-            runAppT env $ markAsNotWorking BackgroundJobConsumer,
+          onChannelException = \e -> do
+            runAppT env $ markAsNotWorking BackgroundJobConsumer
+            let connClosed =
+                  case (fromException e :: Maybe Q.AMQPException) of
+                    Just (Q.ConnectionClosedException _ _) -> True
+                    _ -> False
+            unless (Q.isNormalChannelClose e || connClosed) $
+              runAppT env $
+                Log.err $
+                  Log.msg (Log.val "Unexpected RabbitMQ channel exception in background job consumer")
+                    . Log.field "exception" (displayException e),
           onConnectionClose =
             runAppT env $ do
               markAsNotWorking BackgroundJobConsumer
