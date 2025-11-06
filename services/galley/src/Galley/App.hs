@@ -189,9 +189,10 @@ createEnv o l = do
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
   postgres <- initPostgresPool o._postgresqlPool o._postgresql o._postgresqlPassword
+  let disableTlsV1 = True
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
-    <*> initExtEnv
+    <*> initExtEnv disableTlsV1
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)

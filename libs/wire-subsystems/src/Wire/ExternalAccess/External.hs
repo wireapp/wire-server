@@ -15,11 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ExternalAccess.External (interpretExternalAccess, ExtEnv (..)) where
+module Wire.ExternalAccess.External
+  ( interpretExternalAccess,
+    ExtEnv (..),
+    initExtEnv,
+  )
+where
 
 import Bilge.Request
-import Bilge.Retry (httpHandlers)
-import Control.Concurrent.Async (Async)
+import Bilge.Retry
+import Control.Concurrent.Async
 import Control.Exception (try)
 import Control.Lens
 import Control.Retry
@@ -28,28 +33,55 @@ import Data.Id
 import Data.Misc
 import Imports
 import Network.HTTP.Client qualified as Http
+import Network.HTTP.Client.OpenSSL
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status (status410)
-import OpenSSL.Session qualified as Ssl
+import Network.HTTP.Types.Status
+import OpenSSL.EVP.Digest
+import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async qualified as Async
 import Polysemy.TinyLog
-import Ssl.Util (withVerifiedSslConnection)
-import System.Logger.Message (field, msg, val, (~~))
+import Ssl.Util
+import System.Logger.Message
 import URI.ByteString
 import Wire.API.Bot.Service
-import Wire.API.Event.Conversation (Event)
+import Wire.API.Event.Conversation
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
 import Wire.BrigAPIAccess
 import Wire.ExternalAccess (ExternalAccess (..))
 import Wire.FireAndForget
 import Wire.ServiceStore
-import Wire.StoredConversation (BotMember, botMemId, botMemService)
+import Wire.StoredConversation
 import Wire.Util
 
 data ExtEnv = ExtEnv
   { extGetManager :: (Http.Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
   }
+
+initExtEnv :: Bool -> IO ExtEnv
+initExtEnv disableTlsV1 = do
+  ctx <- Ssl.context
+  -- We use public key pinning with service providers and want to
+  -- support self-signed certificates as well, hence 'VerifyNone'.
+  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+  when disableTlsV1 $ Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+  Ssl.contextSetCiphers ctx rsaCiphers
+  Ssl.contextSetDefaultVerifyPaths ctx
+  mgr <-
+    Http.newManager
+      (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
+        { Http.managerConnCount = 100,
+          Http.managerIdleConnectionCount = 512, -- this is the default setting
+          Http.managerResponseTimeout = Http.responseTimeoutMicro 10000000
+        }
+  Just sha <- getDigestByName "SHA256"
+  pure $ ExtEnv (mgr, mkVerify sha)
+  where
+    mkVerify sha fprs =
+      let pinset = map toByteString' fprs
+       in verifyRsaFingerprint sha pinset
 
 interpretExternalAccess ::
   ( Member TinyLog r,
@@ -115,7 +147,7 @@ deliver ::
   ExtEnv ->
   [(BotMember, Event)] ->
   Sem r [BotMember]
-deliver env pp = mapM (Async.async . exec) pp >>= foldM eval [] . zip (map fst pp)
+deliver env pp = mapM (Async.async . exec) pp >>= foldM evaluate [] . zip (map fst pp)
   where
     exec :: (BotMember, Event) -> Sem r (Either SomeException Bool)
     exec (b, e) =
@@ -123,8 +155,8 @@ deliver env pp = mapM (Async.async . exec) pp >>= foldM eval [] . zip (map fst p
         Nothing -> pure $ Right False
         Just s ->
           embedFinal $ try $ (deliver1 env s b e $> True)
-    eval :: [BotMember] -> (BotMember, Async (Maybe (Either SomeException Bool))) -> Sem r [BotMember]
-    eval gone (b, a) = do
+    evaluate :: [BotMember] -> (BotMember, Async (Maybe (Either SomeException Bool))) -> Sem r [BotMember]
+    evaluate gone (b, a) = do
       let s = botMemService b
       r <- Async.await a
       case r of

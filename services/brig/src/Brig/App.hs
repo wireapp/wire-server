@@ -124,7 +124,6 @@ import Control.Error
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
@@ -152,7 +151,6 @@ import Polysemy.Fail
 import Polysemy.Final
 import Polysemy.Input (Input, input)
 import Prometheus
-import Ssl.Util
 import System.FSNotify qualified as FS
 import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
@@ -167,6 +165,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.ExternalAccess.External
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
@@ -428,31 +427,11 @@ initHttp2Manager = do
 -- judging by comments at https://github.com/snoyberg/http-client/pull/227,
 -- it should be fine to reuse the context, and reusing it is probably
 -- faster. So, we reuse the context.
-
--- TODO: somewhat duplicates Galley.App.initExtEnv
 initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
 initExtGetManager = do
-  ctx <- SSL.context
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-  SSL.contextSetCiphers ctx rsaCiphers
-  -- We use public key pinning with service providers and want to
-  -- support self-signed certificates as well, hence 'VerifyNone'.
-  SSL.contextSetVerificationMode ctx SSL.VerifyNone
-  SSL.contextSetDefaultVerifyPaths ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
-        { managerConnCount = 100,
-          managerIdleConnectionCount = 512,
-          managerResponseTimeout = responseTimeoutMicro 10000000
-        }
-  Just sha <- getDigestByName "SHA256"
-  pure (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
+  let disableTlsV1 = False
+  extEnv <- initExtEnv disableTlsV1
+  pure $ extEnv.extGetManager
 
 initLogger :: Opts -> IO Logger
 initLogger opts =

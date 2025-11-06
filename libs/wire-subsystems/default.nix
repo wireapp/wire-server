@@ -52,6 +52,7 @@
 , html-entities
 , http-api-data
 , http-client
+, http-client-openssl
 , http-types
 , http2-manager
 , imports
@@ -169,6 +170,7 @@ mkDerivation {
     html-entities
     http-api-data
     http-client
+    http-client-openssl
     http-types
     http2-manager
     imports
@@ -275,6 +277,7 @@ mkDerivation {
     hspec
     html-entities
     http-client
+    http-client-openssl
     http-types
     http2-manager
     imports

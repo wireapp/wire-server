@@ -30,6 +30,7 @@
 , metrics-wai
 , monad-control
 , polysemy
+, polysemy-conc
 , polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
@@ -78,6 +79,7 @@ mkDerivation {
     metrics-wai
     monad-control
     polysemy
+    polysemy-conc
     polysemy-wire-zoo
     prometheus-client
     retry

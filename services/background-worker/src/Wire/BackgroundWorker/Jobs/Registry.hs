@@ -3,23 +3,17 @@ module Wire.BackgroundWorker.Jobs.Registry
   )
 where
 
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Qualified
 import Data.Text qualified as T
 import Hasql.Pool (UsageError)
 import Imports
-import Network.HTTP.Client
-import Network.HTTP.Client.OpenSSL
-import OpenSSL.EVP.Digest
-import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async (asyncToIOFinal)
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
-import Ssl.Util
 import System.Logger as Logger
 import Wire.API.BackgroundJobs (Job (..))
 import Wire.API.Federation.Error (FederationError)
@@ -49,7 +43,8 @@ import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 dispatchJob :: Job -> AppT IO (Either Text ())
 dispatchJob job = do
   env <- ask @Env
-  extEnv <- liftIO initExtEnv
+  let disableTlsV1 = True
+  extEnv <- liftIO (initExtEnv disableTlsV1)
   liftIO $ runInterpreters env extEnv $ runJob job
   where
     convStoreInterpreter env =
@@ -109,25 +104,3 @@ interpretTinyLog ::
   Sem r a
 interpretTinyLog e reqId jobId = interpret $ \case
   P.Log l m -> Logger.log e.logger l ((("request" .=) . unRequestId) reqId . (("job" .=) . idToText) jobId . m)
-
-initExtEnv :: IO ExtEnv
-initExtEnv = do
-  ctx <- Ssl.context
-  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
-  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
-  Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextSetDefaultVerifyPaths ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx))
-        { managerResponseTimeout = responseTimeoutMicro 10000000,
-          managerConnCount = 100
-        }
-  Just sha <- getDigestByName "SHA256"
-  pure $ ExtEnv (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset

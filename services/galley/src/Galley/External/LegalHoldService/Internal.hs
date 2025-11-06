@@ -38,7 +38,7 @@ import OpenSSL.Session qualified as SSL
 import Ssl.Util
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
-import Wire.ExternalAccess.External (ExtEnv (..))
+import Wire.ExternalAccess.External
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
@@ -96,5 +96,6 @@ makeVerifiedRequestFreshManager ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequestFreshManager fpr url reqBuilder = do
-  ExtEnv (mgr, verifyFingerprints) <- liftIO initExtEnv
+  let disableTlsV1 = True
+  ExtEnv (mgr, verifyFingerprints) <- liftIO (initExtEnv disableTlsV1)
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
