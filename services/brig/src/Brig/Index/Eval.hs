@@ -25,7 +25,8 @@ import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Options as IxOpts
 import Brig.Options as Opt
 import Brig.User.Search.Index
-import Cassandra (Client, runClient)
+import Cassandra (Client, ClientState, runClient)
+import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Exception (throwIO)
 import Control.Lens
@@ -41,6 +42,7 @@ import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Hasql.Pool
 import Hasql.Pool.Extended
 import Imports
+import Network.HTTP.Client (Manager)
 import Polysemy
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
@@ -70,8 +72,8 @@ import Wire.UserSearch.Migration (MigrationException)
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem.Error
 
-runSem :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Endpoint -> Logger -> Sem BulkEffectStack a -> IO a
-runSem esConn cas pg galleyEndpoint logger action = do
+mkSemDeps :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Logger -> IO (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
+mkSemDeps esConn cas pg logger = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
@@ -93,6 +95,10 @@ runSem esConn cas pg galleyEndpoint logger action = do
           }
       reqId = (RequestId "brig-index")
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
+  pure (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName)
+
+runSem :: (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName) -> Endpoint -> Logger -> Sem BulkEffectStack a -> IO a
+runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) galleyEndpoint logger action = do
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @ClientError
@@ -135,14 +141,17 @@ runCommand l = \case
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas pg galley -> do
-    IndexedUserStoreBulk.syncAllUsers (runSem (es ^. esConnection) cas pg galley l)
+    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+    IndexedUserStoreBulk.syncAllUsers (runSem semDeps galley l)
   ReindexSameOrNewer es cas pg galley -> do
-    IndexedUserStoreBulk.forceSyncAllUsers (runSem (es ^. esConnection) cas pg galley l)
+    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps galley l)
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
   Migrate es cas pg galley -> do
-    IndexedUserStoreBulk.migrateData (runSem (es ^. esConnection) cas pg galley l)
+    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+    IndexedUserStoreBulk.migrateData (runSem semDeps galley l)
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig
