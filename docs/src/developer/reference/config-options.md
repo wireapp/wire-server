@@ -1678,22 +1678,26 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig` and `galley`. Its content is
+The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
 used as `password` field.
 
 ### Using PostgreSQL for storing conversation data
-<!-- TODO(leif): update when rebased -->
 
 #### New Installations
 
-New installations can use this by configuring the wire-server helm
-chart like this:
+For new installations, configure both `galley` and `background-worker` to use
+PostgreSQL for conversation data:
 
 ```yaml
 galley:
   config:
-    postgresqlMigration:
+    postgresMigration:
       conversation: postgresql
+background-worker:
+  config:
+    postgresMigration:
+      conversation: postgresql
+    migrateConversations: false
 ```
 
 #### Migration for existing installations
@@ -1710,11 +1714,20 @@ The migration needs to happen in 3 steps:
    This step make sure that wire-server keep working as expected during the
    migration. To do this deploy wire-server with this config change:
 
+   Configure both `galley` and `background-worker` so that newly created
+   conversations are written to PostgreSQL while existing data still reads from
+   Cassandra:
+
    ```yaml
    galley:
      config:
-       postgresqlMigration:
-         conversation: migrate-to-postgresql
+       postgresMigration:
+         conversation: migration-to-postgresql
+   background-worker:
+     config:
+       postgresMigration:
+         conversation: migration-to-postgresql
+       migrateConversations: false
    ```
 
    This change should restart all the galley pods, any new conversations will
@@ -1744,10 +1757,12 @@ The migration needs to happen in 3 steps:
    ```yaml
    galley:
      config:
-       postgresqlMigration:
+       postgresMigration:
          conversation: postgresql
    background-worker:
      config:
+       postgresMigration:
+         conversation: postgresql
        migrateConversations: false
    ```
 
@@ -1798,8 +1813,10 @@ cassandraGalley:
 
 # Conversation storage backend selection
 postgresMigration:
-  conversation: cassandra # or postgresql
+  # Valid values: cassandra | migration-to-postgresql | postgresql
+  # Default: postgresql
+  conversation: postgresql
 ```
 
 - `cassandraGalley` configures the third Cassandra cluster used for conversation-related data; TLS may be configured via `tlsCa` or `tlsCaSecretRef` similarly to the other clusters.
-- `postgresMigration.conversation` selects the storage location for conversation data; aligns with galley’s option and defaults to `cassandra`.
+- `postgresMigration.conversation` selects the storage location for conversation data; values mirror `galley` and default to `postgresql`.
