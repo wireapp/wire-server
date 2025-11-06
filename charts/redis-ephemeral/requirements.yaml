@@ -1,5 +1,0 @@
-dependencies:
-- name: redis
-  version: 19.6.4 # redis 7.2.5
-  repository: oci://registry-1.docker.io/bitnamicharts
-  alias: redis-ephemeral
