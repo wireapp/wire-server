@@ -20,7 +20,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import System.IO.Unsafe
 import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
