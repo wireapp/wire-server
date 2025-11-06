@@ -1,6 +1,6 @@
 auth:
-  enabled: false
-  password: meh
+  enabled: true
+  password: very-secure-redis-master-password
 
 extraConfig: |
   port 0
@@ -13,6 +13,10 @@ extraConfig: |
 # redis-cli --tls -h redis-ephemeral --cacert /data/ssl/ca.crt ping
 
 redis-ephemeral:
+  image:
+    registry: public.ecr.aws
+    repository: docker/library/redis
+
   extraRedisSecrets:
     - name: redis-certificate
       mountPath: /data/ssl

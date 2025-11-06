@@ -116,21 +116,7 @@ releases:
     chart: '../.local/charts/redis-ephemeral'
     values:
       - './helm_vars/bitnami.yaml'
-      - redis-ephemeral:
-          image:
-            # public.ecr.aws doesn't host bitnamilegacy/redis
-            repository: bitnami/redis
-          fullnameOverride: databases-ephemeral-redis-ephemeral
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password
-          tls:
-            enabled: true
-            certificatesSecret: redis-certificate
-            certFilename: "tls.crt"
-            certKeyFilename: "tls.key"
-            certCAFilename: "ca.crt"
-            authClients: false
+      - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
 
@@ -163,21 +149,7 @@ releases:
     chart: '../.local/charts/redis-ephemeral'
     values:
       - './helm_vars/bitnami.yaml'
-      - redis-ephemeral:
-          image:
-            # public.ecr.aws doesn't host bitnamilegacy/redis
-            repository: bitnami/redis
-          fullnameOverride: databases-ephemeral-redis-ephemeral
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password
-          tls:
-            enabled: true
-            certificatesSecret: redis-certificate
-            certFilename: "tls.crt"
-            certKeyFilename: "tls.key"
-            certCAFilename: "ca.crt"
-            authClients: false
+      - './helm_vars/redis-ephemeral/values.yaml'
     needs:
       - certs
 
@@ -243,14 +215,9 @@ releases:
     chart: '../.local/charts/redis-ephemeral'
     values:
       - './helm_vars/bitnami.yaml'
-      - redis-ephemeral:
-          image:
-            # public.ecr.aws doesn't host bitnamilegacy/redis
-            repository: bitnami/redis
-          fullnameOverride: redis-ephemeral-2
-          auth:
-            enabled: true
-            password: very-secure-redis-master-password-2
+      - './helm_vars/redis-ephemeral/values.yaml'
+      - auth:
+          password: very-secure-redis-master-password-2
 
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
