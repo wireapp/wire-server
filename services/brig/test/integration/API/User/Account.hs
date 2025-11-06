@@ -27,7 +27,6 @@ import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.AWS qualified as AWS
 import Brig.AWS.Types
 import Brig.Options qualified as Opt
 import Brig.Types.Activation
@@ -70,6 +69,7 @@ import Network.HTTP.Types qualified as Http
 import Network.Wai qualified as Wai
 import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
+import Polysemy (runFinal)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon, Timeout)
@@ -93,8 +93,10 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
+import Wire.AWSSubsystem qualified as AWS
+import Wire.AWSSubsystem.AWS qualified as AWSI
 
-tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
+tests :: ConnectionLimit -> Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWSI.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
   testGroup
     "account"
@@ -471,7 +473,7 @@ testCreateUserInvalidEmail _ brig = do
 
 -- @END
 
-testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
+testCreateUserBlacklist :: Opt.Opts -> Brig -> AWSI.Env -> Http ()
 testCreateUserBlacklist (Opt.restrictUserCreation . Opt.settings -> Just True) _ _ = pure ()
 testCreateUserBlacklist _ brig aws =
   mapM_ ensureBlacklist ["bounce", "complaint"]
@@ -511,7 +513,7 @@ testCreateUserBlacklist _ brig aws =
           ]
     -- If there is no queue available, we need to force it either by publishing an event or using the API
     forceBlacklist :: Text -> EmailAddress -> Http ()
-    forceBlacklist typ em = case aws ^. AWS.sesQueue of
+    forceBlacklist typ em = case aws ^. AWSI.sesQueue of
       Just queue -> publishMessage typ em queue
       Nothing -> Bilge.post (brig . path "i/users/blacklist" . queryItem "email" (toByteString' em)) !!! const 200 === statusCode
     publishMessage :: Text -> EmailAddress -> Text -> Http ()
@@ -520,7 +522,7 @@ testCreateUserBlacklist _ brig aws =
             "bounce" -> MailBounce BouncePermanent [Mailbox Nothing em]
             "complaint" -> MailComplaint [Mailbox Nothing em]
             x -> error ("Unsupported message type: " ++ show x)
-      void . AWS.execute aws $ AWS.enqueueStandard queue bdy
+      void . liftIO . runFinal . AWSI.runAWSSubsystem aws $ AWS.enqueueStandard queue bdy
     awaitBlacklist :: Int -> EmailAddress -> Http ()
     awaitBlacklist n e = do
       r <- Bilge.head (brig . path "i/users/blacklist" . queryItem "email" (toByteString' e))
