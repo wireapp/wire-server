@@ -48,6 +48,7 @@ interpretUserGroupStoreToPostgres =
     CreateUserGroup team newUserGroup managedBy -> createUserGroup team newUserGroup managedBy
     GetUserGroup team userGroupId includeChannels -> getUserGroup team userGroupId includeChannels
     GetUserGroups req -> getUserGroups req
+    GetUserGroupsForConv convId -> getUserGroupsForConv convId
     UpdateUserGroup tid gid gup -> updateGroup tid gid gup
     DeleteUserGroup tid gid -> deleteGroup tid gid
     AddUser gid uid -> addUser gid uid
@@ -56,6 +57,39 @@ interpretUserGroupStoreToPostgres =
     AddUserGroupChannels gid convIds -> updateUserGroupChannels True gid convIds
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels False gid convIds
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsers uids
+
+getUserGroupsForConv :: (UserGroupStorePostgresEffectConstraints r) => ConvId -> Sem r (Vector UserGroup)
+getUserGroupsForConv convId = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session (Vector UserGroup)
+    session = statement convId stmt
+
+    decodeRow :: (UUID, Text, Int32, UTCTime, Vector UUID) -> Either Text UserGroup
+    decodeRow (uuid, nameTxt, managedByInt, createdAtUtc, memberIds) = do
+      name <- userGroupNameFromText nameTxt
+      managedBy <- managedByFromInt32 managedByInt
+      let id_ = Id uuid
+          members = Identity (fmap Id memberIds)
+          membersCount = Nothing
+          channels = Nothing
+          channelsCount = Nothing
+          createdAt = toUTCTimeMillis createdAtUtc
+      pure UserGroup_ {..}
+
+    stmt :: Statement ConvId (Vector UserGroup)
+    stmt =
+      lmap (.toUUID)
+        . refineResult (mapM decodeRow)
+        $ [vectorStatement|
+            select (ug.id :: uuid), (ug.name :: text), (ug.managed_by :: int), (ug.created_at :: timestamptz),
+                   coalesce((select array_agg(ugm.user_id) from user_group_member ugm where ugm.user_group_id = ug.id), array[]::uuid[]) :: uuid[]
+            from user_group ug
+            inner join user_group_channel ugc on ugc.user_group_id = ug.id
+            where ugc.conv_id = ($1 :: uuid)
+          |]
 
 getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
 getUserGroupIdsForUsers uidsList = do

@@ -36,6 +36,7 @@ data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> Bool -> UserGroupStore m (Maybe UserGroup)
   GetUserGroups :: UserGroupPageRequest -> UserGroupStore m UserGroupPage
+  GetUserGroupsForConv :: ConvId -> UserGroupStore m (Vector UserGroup)
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe ())
   DeleteUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe ())
   AddUser :: UserGroupId -> UserId -> UserGroupStore m ()
