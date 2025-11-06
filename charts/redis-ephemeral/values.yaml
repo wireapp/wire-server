@@ -1,6 +1,4 @@
 redis-ephemeral:
-  # will be overridden by template
-  extraSecretRedisConfigs: placeholder
   image:
     tag: "7.4.6"
 
