@@ -1,25 +1,58 @@
 redis-ephemeral:
-  # must be same as extraSecretRedisConfigs
-  extraSecretRedisConfigs: redis-extra-secret-config
+  # will be overridden by template
+  extraSecretRedisConfigs: placeholder
   image:
     tag: "7.4.6"
 
   haMode:
     enabled: false
 
-# must be same as redis-ephemeral.extraSecretRedisConfigs
-extraSecretRedisConfigs: redis-extra-secret-config
+  redisConfig: |
+    # dont write rdb to emptyDir disk for an ephemeral setup
+    save ""
 
-configTemplate: |
-  # dont write rdb to emptyDir disk - ephemeral setup
-  save ""
-  {{- if .Values.auth.enabled }}
-  requirepass {{ .Values.auth.password }}
-  {{- end }}
-  {{ .Values.extraConfig }}
+  # Example entries for redisConfig
+  # requirepass plaintext-password
+  #
+  # For TLS setup - requires also overwriting probes!
+  # port 0
+  # tls-port 6379
+  # tls-cert-file /data/ssl/tls.crt
+  # tls-key-file /data/ssl/tls.key
+  # tls-ca-cert-file /data/ssl/ca.crt
+  # tls-auth-clients no
+  #
 
-auth:
-  enabled: false
-  # password: very-secure-redis-master-password
-
-extraConfig: ""
+# Required for enabling SSL
+#
+#  extraRedisSecrets:
+#    - name: redis-certificate
+#      mountPath: /data/ssl
+#
+#  livenessProbe:
+#    enabled: false
+#  customLivenessProbe:
+#    exec:
+#      command:
+#        - sh
+#        - -c
+#        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+#
+#  readinessProbe:
+#    enabled: false
+#  customReadinessProbe:
+#    exec:
+#      command:
+#        - sh
+#        - -c
+#        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+#
+#  startupProbe:
+#    enabled: false
+#  customStartupProbe:
+#    exec:
+#      command:
+#        - sh
+#        - -c
+#        - redis-cli --tls --cacert /data/ssl/ca.crt ping
+#

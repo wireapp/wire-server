@@ -1,21 +1,17 @@
-auth:
-  enabled: true
-  password: very-secure-redis-master-password
-
-extraConfig: |
-  port 0
-  tls-port 6379
-  tls-cert-file /data/ssl/tls.crt
-  tls-key-file /data/ssl/tls.key
-  tls-ca-cert-file /data/ssl/ca.crt
-  tls-auth-clients no
-
-# redis-cli --tls -h redis-ephemeral --cacert /data/ssl/ca.crt ping
-
 redis-ephemeral:
   image:
     registry: public.ecr.aws
     repository: docker/library/redis
+
+  redisConfig: |
+    save ""
+
+    port 0
+    tls-port 6379
+    tls-cert-file /data/ssl/tls.crt
+    tls-key-file /data/ssl/tls.key
+    tls-ca-cert-file /data/ssl/ca.crt
+    tls-auth-clients no
 
   extraRedisSecrets:
     - name: redis-certificate
@@ -29,7 +25,6 @@ redis-ephemeral:
         - sh
         - -c
         - redis-cli --tls --cacert /data/ssl/ca.crt ping
-
   readinessProbe:
     enabled: false
   customReadinessProbe:
@@ -38,7 +33,6 @@ redis-ephemeral:
         - sh
         - -c
         - redis-cli --tls --cacert /data/ssl/ca.crt ping
-
   startupProbe:
     enabled: false
   customStartupProbe:
