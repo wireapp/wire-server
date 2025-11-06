@@ -4,6 +4,9 @@ redis-ephemeral:
     repository: docker/library/redis
 
   redisConfig: |
+    requirepass very-secure-redis-master-password
+
+    # ephemeral
     save ""
 
     port 0

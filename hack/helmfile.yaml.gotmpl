@@ -222,6 +222,12 @@ releases:
             registry: public.ecr.aws
             repository: docker/library/redis
 
+          redisConfig: |
+            requirepass very-secure-redis-master-password-2
+
+            # ephemeral
+            save ""
+
   - name: 'certs'
     namespace: '{{ .Values.namespace2 }}'
     chart: bedag/raw
