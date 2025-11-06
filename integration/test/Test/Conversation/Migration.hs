@@ -153,9 +153,9 @@ testMigrationToPostgresProteus = do
       otherMelConvs <- getAllConvIds mel 100
 
       -- Other convs which just exist
-      pooledReplicateConcurrentlyN_ parallellism 100 $ createTestConv mia miaTid []
-      pooledReplicateConcurrentlyN_ parallellism 100 $ createTestConv alice aliceTid [mia]
-      pooledReplicateConcurrentlyN_ parallellism 100 $ createTestConv bob bobTid [mia]
+      pooledReplicateConcurrentlyN_ parallelism 100 $ createTestConv mia miaTid []
+      pooledReplicateConcurrentlyN_ parallelism 100 $ createTestConv alice aliceTid [mia]
+      pooledReplicateConcurrentlyN_ parallelism 100 $ createTestConv bob bobTid [mia]
 
       domainAConvs <- createTestConvs alice aliceTid mel mark []
       domainBConvs <- createTestConvs bob bobTid mel mark []
@@ -199,10 +199,10 @@ testMigrationToPostgresProteus = do
         runPhase 5
   where
     n = 20
-    parallellism = 8
+    parallelism = 8
     createTestConvs :: (HasCallStack) => Value -> String -> Value -> Value -> [Value] -> App TestConvList
     createTestConvs creatorC tid mel mark others = do
-      unmodifiedConvs <- pooledReplicateConcurrentlyN parallellism n $ do
+      unmodifiedConvs <- pooledReplicateConcurrentlyN parallelism n $ do
         createTestConv creatorC tid (mel : mark : others)
 
       kickMelConvs <- forPhase $ createTestConv creatorC tid (mel : others)
@@ -219,7 +219,7 @@ testMigrationToPostgresProteus = do
 
     forPhase :: App a -> App (IntMap [a])
     forPhase action =
-      fmap IntMap.fromList . pooledForConcurrentlyN parallellism [1 .. 5] $ \phase -> do
+      fmap IntMap.fromList . pooledForConcurrentlyN parallelism [1 .. 5] $ \phase -> do
         convs <- replicateM n $ action
         pure (phase, convs)
 
@@ -233,26 +233,26 @@ testMigrationToPostgresProteus = do
     runPhaseOperations :: (HasCallStack) => Int -> Value -> String -> TestConvList -> Value -> Value -> App [ConvId]
     runPhaseOperations phase convAdmin tid TestConvList {..} mel mark = do
       withWebSocket mel $ \melWS -> do
-        pooledForConcurrentlyN_ parallellism (IntMap.findWithDefault [] phase kickMelConvs) $ \convId -> do
+        pooledForConcurrentlyN_ parallelism (IntMap.findWithDefault [] phase kickMelConvs) $ \convId -> do
           retry500Once (removeMember convAdmin convId mel) >>= assertSuccess
 
         void $ awaitNMatches n isConvLeaveNotif melWS
 
-        pooledForConcurrentlyN_ parallellism (IntMap.findWithDefault [] phase kickMarkConvs) $ \convId -> do
+        pooledForConcurrentlyN_ parallelism (IntMap.findWithDefault [] phase kickMarkConvs) $ \convId -> do
           retry500Once (removeMember convAdmin convId mark) >>= assertSuccess
 
         void $ awaitNMatches n isConvLeaveNotif melWS
 
-        pooledForConcurrentlyN_ parallellism (IntMap.findWithDefault [] phase delConvs) $ \convId -> do
+        pooledForConcurrentlyN_ parallelism (IntMap.findWithDefault [] phase delConvs) $ \convId -> do
           retry500Once (deleteTeamConversation tid convId convAdmin) >>= assertSuccess
 
-        pooledForConcurrentlyN_ parallellism (IntMap.findWithDefault [] phase addMelConvs) $ \convId -> do
+        pooledForConcurrentlyN_ parallelism (IntMap.findWithDefault [] phase addMelConvs) $ \convId -> do
           retry500Once (addMembers convAdmin convId (def {users = [mel]})) >>= assertSuccess
 
         void $ awaitNMatches n isConvDeleteNotif melWS
 
         convIds <-
-          pooledReplicateConcurrentlyN parallellism n
+          pooledReplicateConcurrentlyN parallelism n
             $ createTestConv convAdmin tid [mel]
 
         void $ awaitNMatches n isMemberJoinNotif melWS
