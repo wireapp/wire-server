@@ -139,7 +139,7 @@ syncAllUsersWithVersion interpreter mkVersion =
     logAndHush (docId@(ES.DocId idText), eithUserDoc, eithVersion) =
       case (,) <$> eithUserDoc <*> eithVersion of
         Left e -> do
-          Log.info $
+          Log.err $
             Log.msg (Log.val "Error ocurred while indexing user")
               . Log.field "userId" idText
               . Log.field "error" (show e)
