@@ -33,6 +33,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Proxy
 import Data.Qualified
 import Data.Range
+import GHC.IO
 import Imports hiding (local)
 import Polysemy
 import Polysemy.Input (Input, input)
@@ -109,20 +110,28 @@ notifyUserDeletionLocals ::
   Event ->
   Sem r ()
 notifyUserDeletionLocals deleted conn event = do
+  unsafePerformIO (appendFile "/tmp/x123" $ "notifyUserDeletionLocals: 1") `seq` pure ()
+
   luid <- qualifyLocal' deleted
   -- first we send a notification to the deleted user's devices
   notify event deleted V2.RouteDirect conn (pure (deleted :| []))
+
+  unsafePerformIO (appendFile "/tmp/x123" $ "notifyUserDeletionLocals: not crashed?") `seq` pure ()
+
   -- then to all their connections
   connectionPages Nothing luid (toRange (Proxy @500))
   where
     handler :: [UserConnection] -> Sem r ()
     handler connections = do
-      -- sent event to connections that are accepted
+      unsafePerformIO (appendFile "/tmp/x123" $ "notifyUserDeletionLocals: handler: 1 " <> show ()) `seq` pure () -- sent event to connections that are accepted
       case qUnqualified . ucTo <$> filter ((==) Accepted . ucStatus) connections of
         x : xs -> notify event deleted V2.RouteDirect conn (pure (x :| xs))
         [] -> pure ()
       -- also send a connection cancelled event to connections that are pending
       d <- tDomain <$> input
+
+      unsafePerformIO (appendFile "/tmp/x123" $ "notifyUserDeletionLocals: handler: 2 " <> show ()) `seq` pure ()
+
       forM_
         (filter ((==) Sent . ucStatus) connections)
         ( \uc -> do
@@ -145,8 +154,11 @@ notifyUserDeletionLocals deleted conn event = do
     connectionPages mbStart user pageSize = do
       page <- CS.lookupLocalConnections user mbStart pageSize
       case resultList page of
-        [] -> pure ()
+        [] -> do
+          unsafePerformIO (appendFile "/tmp/x123" $ "notifyUserDeletionLocals: no connections!") `seq` pure () -- This is reached!
+          pure ()
         xs -> do
+          unsafePerformIO (appendFile "/tmp/x123" $ "notifyUserDeletionLocals: yes connections!") `seq` pure () -- This is reached?
           handler xs
           when (resultHasMore page) $
             connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize

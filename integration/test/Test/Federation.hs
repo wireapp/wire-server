@@ -110,7 +110,7 @@ testNotificationsForOfflineBackends = do
         void $ awaitMatch isOtherUser2LeaveUpConvNotif ws
         void $ awaitMatch isDelUserLeaveUpConvNotif ws
 
-        delUserDeletedNotif <- nPayload $ awaitMatch isDeleteUserNotif ws
+        delUserDeletedNotif <- nPayload $ awaitMatch isDeleteUserNotif ws -- !!
         objQid delUserDeletedNotif `shouldMatch` objQid delUser
 
     runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do

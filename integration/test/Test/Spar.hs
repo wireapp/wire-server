@@ -865,7 +865,7 @@ testIdpUpdate = do
     scimUser <- randomScimUser
     email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
     uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-    void $ loginWithSamlEmail True tid email idp
+    void $ loginWithSamlEmail True tid email idp -- !!
     activateEmail OwnDomain email
     getScimUser OwnDomain tok uid `bindResponse` \res -> do
       res.status `shouldMatchInt` 200

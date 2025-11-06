@@ -146,6 +146,7 @@ mkEnv lgr o cred =
 enqueueInternal :: (ToJSON a) => Text -> a -> Stomp ()
 enqueueInternal q m = do
   b <- view broker
+  liftIO $ appendFile "/tmp/x123" "" -- ("**********************" <> show (encode m))
   retrying (retryPolicy b) (retryPredicate b) (const $ enqueueAction b) >>= either throwIO pure
   where
     retryPredicate _ _ res = pure (isLeft res)
@@ -163,8 +164,11 @@ enqueueInternal q m = do
                   [OWithReceipt, OWaitReceipt]
                   []
                   oconv
-                  $ \w ->
-                    writeQ w jsonType [("persistent", "true")] m
+                  $ \w -> do
+                    liftIO $ appendFile "/tmp/x123" "enqueueInternal: 1"
+                    result <- writeQ w jsonType [("persistent", "true")] m
+                    liftIO $ appendFile "/tmp/x123" "enqueueInternal: 2"
+                    pure result
 
 -- Note [receipts]
 -- ~~~

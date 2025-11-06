@@ -81,7 +81,9 @@ sendUserEvent ::
   UserEvent ->
   Sem r ()
 sendUserEvent orig conn e = do
+  embed $ appendFile "/tmp/x123" $ "sendUserEvent: 1 " <> show (orig, conn, e)
   Notifications.dispatchNotifications orig conn e
+  embed $ appendFile "/tmp/x123" $ "sendUserEvent: 2 *****************************"
   Journal.journalUserEvent orig e
 
 onConnectionEvent ::

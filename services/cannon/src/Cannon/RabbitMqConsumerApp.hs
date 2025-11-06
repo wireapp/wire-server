@@ -218,6 +218,8 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
                   Left event -> EventMessage event
                   Right sync -> EventSyncMessage sync
 
+            liftIO $ appendFile "/tmp/x123" $ "***************** RECEIVED!! >>" <> show (eventData, msg)
+
             catch (WS.sendBinaryData wsConn.inner (encode msg)) $
               \(err :: SomeException) -> do
                 logSendFailure err
