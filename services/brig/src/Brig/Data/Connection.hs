@@ -48,7 +48,6 @@ module Brig.Data.Connection
 where
 
 import Brig.App
-import Brig.Data.Types as T
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
@@ -64,6 +63,7 @@ import Imports hiding (local)
 import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.ConnectionStore.Types as T
 
 insertConnection ::
   (MonadClient m) =>

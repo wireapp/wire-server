@@ -109,7 +109,6 @@ library
     Brig.Data.Connection
     Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
-    Brig.Data.Types
     Brig.Data.User
     Brig.Effects.JwtTools
     Brig.Effects.PublicKeyBundle

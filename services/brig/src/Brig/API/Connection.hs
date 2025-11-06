@@ -39,7 +39,6 @@ import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
@@ -66,6 +65,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.ConnectionStore.Types (resultHasMore, resultList)
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
