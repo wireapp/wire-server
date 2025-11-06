@@ -25,7 +25,6 @@ module Brig.IO.Journal
   )
 where
 
-import Brig.AWS qualified as AWS
 import Brig.App
 import Control.Lens
 import Data.ByteString.Base64 qualified as B64
@@ -37,11 +36,14 @@ import Data.Proto
 import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.ProtoLens.Encoding (encodeMessage)
-import Data.UUID.V4 (nextRandom)
+-- import Data.UUID.V4 (nextRandom) -- TODO: this not needed anymore?
 import Imports
+import Polysemy (runFinal)
 import Proto.UserEvents (UserEvent, UserEvent'EventType (..))
 import Proto.UserEvents_Fields qualified as U
 import Wire.API.User
+import Wire.AWSSubsystem
+import Wire.AWSSubsystem.AWS qualified as AWSI
 
 -- Note [journaling]
 -- ~~~~~~~~~~~~~~~~~
@@ -64,9 +66,9 @@ journalEvent :: (MonadReader Env m, MonadIO m) => UserEvent'EventType -> UserId 
 journalEvent typ uid em loc tid nm =
   -- this may be the only place that uses awsEnv from brig Env.  refactor it to use the
   -- DeleteQueue effect instead?
-  asks (.awsEnv) >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
+  asks (.awsEnv) >>= \env -> for_ (view AWSI.userJournalQueue env) $ \queue -> do
     ts <- now
-    rnd <- liftIO nextRandom
+    -- rnd <- liftIO nextRandom -- TODO this not needed anymore?
     let userEvent :: UserEvent =
           defMessage
             & U.eventType .~ typ
@@ -77,4 +79,4 @@ journalEvent typ uid em loc tid nm =
             & U.maybe'teamId .~ (toBytes <$> tid)
             & U.maybe'name .~ (toByteString' <$> nm) -- []
         encoded = fromStrict $ B64.encode $ encodeMessage userEvent
-    AWS.execute env (AWS.enqueueFIFO queue "user.events" rnd encoded)
+    liftIO $ runFinal $ AWSI.runAWSSubsystem env (enqueueStandard queue encoded)
