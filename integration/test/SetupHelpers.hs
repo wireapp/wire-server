@@ -522,7 +522,12 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId (iid, (meta, priv
   let spMetaData = toSPMetaData spmeta.body
       parsedAuthnReq = parseAuthnReqResp authnreq.body
   authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+
+  -- in the next line, validateLoginResp fails: we expect success (and on develop we get it), but here we get --
   mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+
+  -- <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"><html xml:lang="en" xmlns="http://www.w3.org/1999/xhtml"><head>  <title>wire:sso:success</title>   <script type="text/javascript">       const receiverOrigin = '*';       ;   </script></head></html>
+
   pure (mUid, authnReqResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
@@ -555,6 +560,7 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId (iid, (meta, priv
     hasPersistentCookieHeader :: Response -> App (Maybe String)
     hasPersistentCookieHeader rsp = do
       let mCookie = getCookie "zuid" rsp
+      () <- error $ show (rsp, mCookie) -- in testIdpUpdateMinimal, there should be a set-cookie header, but there isn't.
       case mCookie of
         Nothing -> do
           expectSuccess `shouldMatch` False

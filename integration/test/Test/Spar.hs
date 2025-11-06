@@ -886,6 +886,25 @@ testIdpUpdate = do
   for_ uids $ \(_, email) -> do
     void $ loginWithSamlEmail True tid email idp3
 
+testIdpUpdateMinimal :: (HasCallStack) => App ()
+testIdpUpdateMinimal = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  -- register an IdP
+  idp@(idpId, _) <- do
+    (resp, meta) <- registerTestIdPWithMetaWithPrivateCreds owner
+    (,meta) <$> asString (resp.json %. "id")
+  -- create a SCIM token
+  tok <-
+    createScimToken owner (def {idp = Just idpId}) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "token" >>= asString
+  -- create a user via scim and try to login with saml
+  scimUser <- randomScimUser
+  createScimUser owner tok scimUser >>= assertSuccess
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  void $ loginWithSamlEmail True tid email idp
+
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
 -- Allow updates of E2EI enabled users only via SCIM
