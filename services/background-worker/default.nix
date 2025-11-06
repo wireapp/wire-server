@@ -21,7 +21,6 @@
 , HsOpenSSL
 , hspec
 , http-client
-, http-client-openssl
 , http-media
 , http-types
 , http2-manager
@@ -39,7 +38,6 @@
 , servant-client
 , servant-client-core
 , servant-server
-, ssl-util
 , text
 , tinylog
 , transformers
@@ -73,7 +71,6 @@ mkDerivation {
     hasql-pool
     HsOpenSSL
     http-client
-    http-client-openssl
     http2-manager
     imports
     metrics-wai
@@ -85,7 +82,6 @@ mkDerivation {
     retry
     servant-client
     servant-server
-    ssl-util
     text
     tinylog
     transformers
