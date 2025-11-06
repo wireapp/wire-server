@@ -7,7 +7,9 @@
 , aeson-pretty
 , amazonka
 , amazonka-core
+, amazonka-dynamodb
 , amazonka-ses
+, amazonka-sqs
 , amqp
 , async
 , attoparsec
@@ -121,7 +123,9 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -223,7 +227,9 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
