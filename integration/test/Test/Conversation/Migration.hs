@@ -250,8 +250,14 @@ testMigrationToPostgresProteus = do
           retry500Once (addMembers convAdmin convId (def {users = [mel]})) >>= assertSuccess
 
         void $ awaitNMatches n isConvDeleteNotif melWS
-        pooledReplicateConcurrentlyN parallellism n
-          $ createTestConv convAdmin tid [mel]
+
+        convIds <-
+          pooledReplicateConcurrentlyN parallellism n
+            $ createTestConv convAdmin tid [mel]
+
+        void $ awaitNMatches n isMemberJoinNotif melWS
+
+        pure convIds
 
 -- Test Helpers
 
