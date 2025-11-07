@@ -38,11 +38,9 @@ interpretBackendNotificationQueueAccess mEnv = interpret $ \case
     env <- note FederationNotConfigured mEnv
     embed $ enqueueSingleNotification env (tDomain remote) deliveryMode action
   EnqueueNotificationsConcurrently m xs rpc -> runError do
-    env <- note FederationNotConfigured mEnv
-    embed $ enqueueNotificationsConcurrently env m xs rpc
+    embed $ enqueueNotificationsConcurrently mEnv m xs rpc
   EnqueueNotificationsConcurrentlyBuckets m xs rpc -> runError do
-    env <- note FederationNotConfigured mEnv
-    embed $ enqueueNotificationsConcurrentlyBuckets env m xs rpc
+    embed $ enqueueNotificationsConcurrentlyBuckets mEnv m xs rpc
 
 enqueueSingleNotification :: Env -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
 enqueueSingleNotification env remoteDomain deliveryMode action = do
@@ -69,7 +67,7 @@ enqueueSingleNotification env remoteDomain deliveryMode action = do
 
 enqueueNotificationsConcurrently ::
   (Foldable f, Functor f) =>
-  Env ->
+  Maybe Env ->
   Q.DeliveryMode ->
   f (Remote x) ->
   (Remote [x] -> FedQueueClient c a) ->
@@ -79,19 +77,22 @@ enqueueNotificationsConcurrently env m xs f =
 
 enqueueNotificationsConcurrentlyBuckets ::
   (Foldable f) =>
-  Env ->
+  Maybe Env ->
   Q.DeliveryMode ->
   f (Remote x) ->
   (Remote x -> FedQueueClient c a) ->
   IO [Remote a]
-enqueueNotificationsConcurrentlyBuckets env m xs f = do
+enqueueNotificationsConcurrentlyBuckets mEnv m xs f = do
   case toList xs of
     -- only attempt to get a channel if there is at least one notification to send
     [] -> pure []
     _ -> do
-      pooledForConcurrentlyN 8 (toList xs) $ \r ->
-        qualifyAs r
-          <$> enqueueSingleNotification env (tDomain r) m (f r)
+      case mEnv of
+        Nothing -> throwM FederationNotConfigured
+        Just env ->
+          pooledForConcurrentlyN 8 (toList xs) $ \r ->
+            qualifyAs r
+              <$> enqueueSingleNotification env (tDomain r) m (f r)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

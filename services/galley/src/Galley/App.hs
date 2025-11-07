@@ -273,7 +273,7 @@ evalGalley e =
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretConversationStoreToPostgres
-      localUnit = (toLocalUnsafe (e ^. options . settings . federationDomain) ())
+      localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       backendNotificationQueueAccessEnv =
         case e._rabbitmqChannel of
           Nothing -> Nothing
