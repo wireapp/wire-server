@@ -12,7 +12,6 @@
 , attoparsec
 , auto-update
 , base
-, base-prelude
 , base16-bytestring
 , base64-bytestring
 , bilge
@@ -165,7 +164,6 @@ mkDerivation {
     async
     auto-update
     base
-    base-prelude
     base64-bytestring
     bilge
     bloodhound

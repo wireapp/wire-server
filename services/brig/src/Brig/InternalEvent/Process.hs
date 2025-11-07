@@ -21,7 +21,6 @@ import Brig.API.User qualified as API
 import Brig.App
 import Brig.IO.Intra (rmClient)
 import Brig.IO.Intra qualified as Intra
-import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, deleteThrottleMillis)
 import Brig.Provider.API qualified as API
 import Control.Monad.Catch
@@ -37,6 +36,7 @@ import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
 import Wire.Events (Events)
+import Wire.InternalEvent
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Delay

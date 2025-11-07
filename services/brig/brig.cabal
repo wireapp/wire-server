@@ -120,7 +120,6 @@ library
     Brig.Index.Options
     Brig.Index.Types
     Brig.InternalEvent.Process
-    Brig.InternalEvent.Types
     Brig.IO.Intra
     Brig.IO.Logging
     Brig.Main
@@ -209,7 +208,6 @@ library
     , async                                 >=2.1
     , auto-update                           >=0.1
     , base                                  >=4       && <5
-    , base-prelude
     , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
     , bloodhound                            >=0.13
