@@ -30,4 +30,5 @@ migration =
       [r| CREATE TABLE conversation_out_of_sync (
               conv_id uuid PRIMARY KEY,
               out_of_sync boolean
+          )
       |]

@@ -20,6 +20,7 @@ module Galley.Schema.Run where
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
+import Galley.Schema.V100_OutOfSync qualified as V100_OutOfSync
 import Galley.Schema.V20 qualified as V20
 import Galley.Schema.V21 qualified as V21
 import Galley.Schema.V22 qualified as V22
@@ -200,7 +201,8 @@ migrations =
     V96_GroupConversationType.migration,
     V97_CellsConversation.migration,
     V98_ChannelAddPermission.migration,
-    V99_ConversationAddParent.migration
+    V99_ConversationAddParent.migration,
+    V100_OutOfSync.migration
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files
