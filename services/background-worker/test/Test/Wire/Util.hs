@@ -40,7 +40,7 @@ testEnv = do
       hasqlPool = undefined
       amqpJobsPublisherChannel = undefined
       amqpBackendNotificationsChannel = undefined
-      domain = Domain "local"
+      federationDomain = Domain "local"
       gundeckEndpoint = undefined
       brigEndpoint = undefined
   pure Env {..}

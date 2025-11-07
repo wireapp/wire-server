@@ -65,7 +65,7 @@ dispatchJob job = do
         . mapError @MigrationError (T.pack . show)
         . interpretTinyLog env job.requestId job.jobId
         . runInputConst env.hasqlPool
-        . runInputConst (toLocalUnsafe env.domain ())
+        . runInputConst (toLocalUnsafe env.federationDomain ())
         . interpretServiceStoreToCassandra env.cassandraBrig
         . interpretUserStoreCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
@@ -91,7 +91,7 @@ dispatchJob job = do
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,
           logger = env.logger,
-          local = toLocalUnsafe env.domain (),
+          local = toLocalUnsafe env.federationDomain (),
           requestId = job.requestId
         }
 

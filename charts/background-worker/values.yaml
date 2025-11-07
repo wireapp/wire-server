@@ -81,8 +81,6 @@ config:
     # Total attempts, including the first try
     maxAttempts: 3
 
-  domain: example.org
-
   # Controls where conversation data is stored/accessed
   postgresMigration:
     conversation: postgresql

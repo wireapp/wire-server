@@ -33,7 +33,7 @@ data Opts = Opts
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: Bool,
     backgroundJobs :: BackgroundJobsConfig,
-    domain :: Domain
+    federationDomain :: Domain
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts

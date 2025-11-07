@@ -65,7 +65,7 @@ data:
     postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
     {{- end }}
 
-    domain: {{ .domain }}
+    federationDomain: {{ .federationDomain }}
 
     {{- with .rabbitmq }}
     rabbitmq:

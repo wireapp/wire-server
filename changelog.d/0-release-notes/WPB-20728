@@ -2,7 +2,7 @@ Background-worker configuration: required values when supplying your own Helm va
 
 Add the following fields under `background-worker`:
 
-- `config.domain`
+- `config.federationDomain`
 - `config.postgresql`
 - `config.cassandraBrig`
 - `config.cassandraGalley`

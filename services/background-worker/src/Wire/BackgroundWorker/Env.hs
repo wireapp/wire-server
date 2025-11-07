@@ -64,7 +64,7 @@ data Env = Env
     -- Dedicated AMQP channels per concern
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
-    domain :: Domain,
+    federationDomain :: Domain,
     postgresMigration :: PostgresMigrationOpts,
     gundeckEndpoint :: Endpoint,
     brigEndpoint :: Endpoint
@@ -112,7 +112,7 @@ mkEnv opts = do
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
       backgroundJobsConfig = opts.backgroundJobs
-      domain = opts.domain
+      federationDomain = opts.federationDomain
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
       gundeckEndpoint = opts.gundeck

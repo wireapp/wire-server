@@ -1834,7 +1834,7 @@ backgroundJobs:
   maxAttempts: 3     # total attempts incl. first run
 
 # Required for addressing local vs remote backends
-domain: example.org
+federationDomain: example.org
 ```
 
 Secrets

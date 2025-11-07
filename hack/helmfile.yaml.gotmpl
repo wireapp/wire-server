@@ -330,6 +330,8 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
+      - name: background-worker.config.federationDomain
+        value: {{ .Values.federationDomain1 }}
       - name: brig.config.wireServerEnterprise.enabled
         value: true
       - name: galley.config.postgresMigration.conversation
@@ -351,6 +353,8 @@ releases:
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
+        value: {{ .Values.federationDomain2 }}
+      - name: background-worker.config.federationDomain
         value: {{ .Values.federationDomain2 }}
       - name: galley.config.postgresMigration.conversation
         value: {{ .Values.conversationStore }}

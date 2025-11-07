@@ -47,7 +47,7 @@ postgresqlPool:
   agingTimeout: 1d
   idlenessTimeout: 10m
 
-domain: example.org
+federationDomain: example.org
 
 rabbitmq:
   host: 127.0.0.1

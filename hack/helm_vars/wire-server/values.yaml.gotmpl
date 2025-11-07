@@ -639,7 +639,7 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
-    domain: {{ .Values.domain }}
+    federationDomain: integration.example.com
     rabbitmq:
       port: 5671
       adminPort: 15671
