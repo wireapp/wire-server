@@ -46,8 +46,8 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
   getGroup ::
     AuthInfo SparTag ->
     SCG.GroupId SparTag ->
-    ScimHandler m (SCG.StoredGroup SparTag)
-  getGroup = undefined
+    ScimHandler (Sem r) (SCG.StoredGroup SparTag)
+  getGroup ((.stiTeam) -> tid) gid = lift $ scimGetUserGroup tid gid
 
   -- \| Create a new group.
   --
