@@ -69,6 +69,8 @@ spec:
           volumeMounts:
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"
+          - name: "background-worker-secrets"
+            mountPath: "/etc/wire/background-worker/secrets"
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
           - name: "background-worker-cassandra"
             mountPath: "/etc/wire/background-worker/cassandra"
