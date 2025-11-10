@@ -26,7 +26,7 @@ data HttpError where
 
 instance Eq HttpError where
   StdError e == StdError e' = e == e'
-  e@(RichError _ _ hds) == e'@(RichError _ _ hds') = toJSON e == toJSON e'
+  e@(RichError _ _ hds) == e'@(RichError _ _ hds') = toJSON e == toJSON e' && hds == hds'
   StdError {} == RichError {} = False
   RichError {} == StdError {} = False
 
