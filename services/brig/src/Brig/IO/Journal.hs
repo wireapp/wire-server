@@ -36,7 +36,7 @@ import Data.Proto
 import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.ProtoLens.Encoding (encodeMessage)
--- import Data.UUID.V4 (nextRandom) -- TODO: this not needed anymore?
+import Data.UUID.V4 (nextRandom)
 import Imports
 import Polysemy (runFinal)
 import Proto.UserEvents (UserEvent, UserEvent'EventType (..))
@@ -68,7 +68,7 @@ journalEvent typ uid em loc tid nm =
   -- DeleteQueue effect instead?
   asks (.awsEnv) >>= \env -> for_ (view AWSI.userJournalQueue env) $ \queue -> do
     ts <- now
-    -- rnd <- liftIO nextRandom -- TODO this not needed anymore?
+    rnd <- liftIO nextRandom
     let userEvent :: UserEvent =
           defMessage
             & U.eventType .~ typ
@@ -79,4 +79,4 @@ journalEvent typ uid em loc tid nm =
             & U.maybe'teamId .~ (toBytes <$> tid)
             & U.maybe'name .~ (toByteString' <$> nm) -- []
         encoded = fromStrict $ B64.encode $ encodeMessage userEvent
-    liftIO $ runFinal $ AWSI.runAWSSubsystem env (enqueueStandard queue encoded)
+    liftIO $ runFinal $ AWSI.runAWSSubsystem env (enqueueFIFO queue "user.events" rnd encoded)
