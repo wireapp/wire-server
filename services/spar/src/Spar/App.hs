@@ -46,8 +46,6 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.CaseInsensitive as CI
 import Data.Id
-import HTTP2.Client.Manager (Http2Manager)
-import qualified Network.AMQP as Q
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Qualified
@@ -57,7 +55,9 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
+import HTTP2.Client.Manager (Http2Manager)
 import Imports hiding (MonadReader, asks, log)
+import qualified Network.AMQP as Q
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy

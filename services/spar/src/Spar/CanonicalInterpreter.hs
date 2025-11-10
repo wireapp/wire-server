@@ -26,6 +26,7 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except hiding (mapError)
+import Control.Retry (constantDelay, limitRetries)
 import Data.Qualified
 import Imports
 import Polysemy
@@ -70,9 +71,8 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
-import Wire.API.User.Saml (TTLError)
-import Control.Retry (constantDelay, limitRetries)
 import qualified Wire.API.Federation.Client
+import Wire.API.User.Saml (TTLError)
 import Wire.BackendNotificationSubsystem
 import Wire.BackendNotificationSubsystem.InMemory (runBackendNotificationSubsystemNoOp)
 import Wire.BackendNotificationSubsystem.RabbitMQ (BackendNotificationConfig (..), runBackendNotificationSubsystemRabbitMQ)
@@ -84,13 +84,13 @@ import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
-import Wire.Sem.Concurrency
-import Wire.Sem.Concurrency.IO
 
 type CanonicalEffs =
   '[ScimSubsystem]

@@ -107,17 +107,17 @@ import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
-import Wire.API.Federation.Error
 import Wire.API.Federation.Client qualified
+import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.BackendNotificationSubsystem.InMemory (runBackendNotificationSubsystemNoOp)
 import Wire.BackendNotificationSubsystem.RabbitMQ (BackendNotificationConfig (..), runBackendNotificationSubsystemRabbitMQ)
 import Wire.BrigAPIAccess.Rpc
-import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.Error
+import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)

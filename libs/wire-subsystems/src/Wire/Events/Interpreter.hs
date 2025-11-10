@@ -46,10 +46,10 @@ import Wire.API.UserEvent
 import Wire.AWSSubsystem (AWSSubsystem)
 import Wire.BackendNotificationSubsystem
 import Wire.ConnectionStore (ConnectionStore)
-import Wire.FederationAPIAccess
 import Wire.Events
 import Wire.Events.Journal qualified as Journal
 import Wire.Events.Notifications qualified as Notifications
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

@@ -37,8 +37,8 @@ import Imports hiding (local)
 import Polysemy
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
-import System.Logger.Message hiding ((.=))
 import Servant.Client.Core.RunClient (RunClient)
+import System.Logger.Message hiding ((.=))
 import Wire.API.Connection
 import Wire.API.Federation.API (FederationMonad, fedClient, fedQueueClient)
 import Wire.API.Federation.API.Brig (NewConnectionRequest (..), RemoteConnectionAction (..))
@@ -52,9 +52,9 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.BackendNotificationSubsystem
 import Wire.ConnectionStore (ConnectionStore)
-import Wire.FederationAPIAccess
 import Wire.ConnectionStore qualified as CS
 import Wire.ConnectionStore.Types (resultHasMore, resultList)
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPI
 import Wire.NotificationSubsystem
@@ -205,8 +205,8 @@ notifyUserDeletionRemotes deleted = do
 
           -- Send connection cancelled events for pending connections
           let remotePendingConns =
-                qualifyAs ucs <$>
-                filter ((==) Sent . ucStatus) (fromRange rangedUcs)
+                qualifyAs ucs
+                  <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
           forM_ remotePendingConns $ sendCancelledEvent luidDeleted
 
     sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()

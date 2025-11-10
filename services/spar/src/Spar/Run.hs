@@ -36,15 +36,13 @@ import Control.Lens (to, (^.), (^?), _Just)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain
 import Data.Id
-import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import qualified Network.AMQP.Extended as Q
-import OpenSSL.Session (SSLOption (..))
-import qualified OpenSSL.Session as SSL
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Text.Encoding
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
+import qualified Network.AMQP.Extended as Q
 import Network.URI
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
@@ -52,6 +50,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
+import OpenSSL.Session (SSLOption (..))
+import qualified OpenSSL.Session as SSL
 import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
 import Spar.App
