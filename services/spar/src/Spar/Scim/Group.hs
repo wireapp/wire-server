@@ -68,8 +68,8 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
     AuthInfo SparTag ->
     SCG.GroupId SparTag ->
     SCG.Group ->
-    ScimHandler m (SCG.StoredGroup SparTag)
-  putGroup = undefined
+    ScimHandler (Sem r) (SCG.StoredGroup SparTag)
+  putGroup ((.stiTeam) -> tid) gid grp = lift $ scimUpdateUserGroup tid gid grp
 
   -- \| Modify an existing group.
   --

@@ -425,6 +425,50 @@ testSparScimCreateGetUserGroup = do
   resp2 <- getScimUserGroup OwnDomain tok gid
   resp.json `shouldMatch` resp2.json
 
+testSparScimUpdateUserGroup :: (HasCallStack) => App ()
+testSparScimUpdateUserGroup = do
+  (owner, _, u1 : u2 : u3 : _) <- createTeam OwnDomain 4
+  u1Id <- u1 %. "id" >>= asString
+  u2Id <- u2 %. "id" >>= asString
+  u3Id <- u3 %. "id" >>= asString
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  let scimUserGroup =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "My funky group",
+            "members"
+              .= [ object
+                     [ "value" .= u1Id,
+                       "type" .= "User",
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u1Id)
+                     ],
+                   object
+                     [ "value" .= u2Id,
+                       "type" .= "User",
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u2Id)
+                     ]
+                 ]
+          ]
+  gid <- createScimUserGroup OwnDomain tok scimUserGroup >>= getJSON 200 >>= (%. "id") >>= asString
+  let scimUserGroupUpdated =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "My even funkier group",
+            "members"
+              .= [ object
+                     [ "value" .= u2Id,
+                       "type" .= "User",
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u2Id)
+                     ],
+                   object
+                     [ "value" .= u3Id,
+                       "type" .= "User",
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u3Id)
+                     ]
+                 ]
+          ]
+  updateScimUserGroup OwnDomain tok gid scimUserGroupUpdated >>= assertSuccess
+
 ----------------------------------------------------------------------
 -- saml stuff
 

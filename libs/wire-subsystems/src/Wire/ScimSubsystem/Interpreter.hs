@@ -22,6 +22,7 @@ import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
+import Wire.UserGroupStore qualified as UGStore
 import Wire.UserSubsystem
 
 data ScimSubsystemConfig = ScimSubsystemConfig
@@ -37,6 +38,7 @@ interpretScimSubsystem ::
 interpretScimSubsystem = interpret $ \case
   ScimCreateUserGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
   ScimGetUserGroup tid gid -> scimGetUserGroupImpl tid gid
+  ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
 
 data ScimSubsystemError
   = ScimSubsystemError ScimError
@@ -59,9 +61,7 @@ createScimGroupImpl ::
 createScimGroupImpl teamId grp = do
   membersNotManagedByScim <- do
     let uidsAsText = (.value) <$> grp.members
-    uids :: [UserId] <-
-      let thrw = throw . ScimSubsystemInvalidGroupMemberId
-       in forM uidsAsText $ either (thrw . Text.pack) pure . parseIdFromText
+    uids :: [UserId] <- uidsAsText `mapM` parseMember
     users <- BrigAPI.getAccountsBy def {getByUserId = uids}
     pure $
       users
@@ -103,6 +103,53 @@ scimGetUserGroupImpl tid gid = do
       ScimSubsystemConfig scimBaseUri <- input
       pure $ toStoredGroup scimBaseUri g
 
+scimUpdateUserGroupImpl ::
+  forall r.
+  ( Member UGStore.UserGroupStore r,
+    Member (Input ScimSubsystemConfig) r,
+    Member (Error ScimSubsystemError) r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  SCG.Group ->
+  Sem r (SCG.StoredGroup SparTag)
+scimUpdateUserGroupImpl teamId gid grp = do
+  let includeChannels = False
+  mExisting <- UGStore.getUserGroup teamId gid includeChannels
+  existing <- maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) pure mExisting
+  when (existing.managedBy /= ManagedByScim) do
+    scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
+
+  ugName <- either (scimThrow . badRequest InvalidValue . Just) pure $ userGroupNameFromText grp.displayName
+
+  reqMemberIds <- for grp.members parseMember
+
+  let currentSet = Set.fromList (toList (runIdentity existing.members))
+      requestedSet = Set.fromList reqMemberIds
+      toAdd = requestedSet `Set.difference` currentSet
+
+  unless (null toAdd) do
+    accounts <- inputQualifyLocal def {getByUserId = Set.toList toAdd} >>= getAccountsBy
+    let nonScim = [userId u | u <- accounts, u.userManagedBy /= ManagedByScim]
+        found = Set.fromList (userId <$> accounts)
+        missing = Set.toList (toAdd `Set.difference` found)
+    unless (null nonScim) do
+      throw (ScimSubsystemScimGroupWithNonScimMembers nonScim)
+    case missing of
+      [] -> pure ()
+      (u : _) -> scimThrow $ notFound "User" (idToText u)
+
+  when (existing.name /= ugName) do
+    _ <- UGStore.updateUserGroup teamId gid UserGroupUpdate {name = ugName}
+    pure ()
+
+  UGStore.updateUsers gid (V.fromList reqMemberIds)
+
+  ScimSubsystemConfig scimBaseUri <- input
+  maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri) =<< UGStore.getUserGroup teamId gid includeChannels
+
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
 toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
   where
@@ -133,3 +180,9 @@ toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
               | uid <- toList (runIdentity ug.members)
             ]
         }
+
+parseMember ::
+  (Member (Error ScimSubsystemError) r) =>
+  SCG.Member ->
+  Sem r UserId
+parseMember m = parseIdFromText m.value & either (throw . ScimSubsystemInvalidGroupMemberId) pure
