@@ -426,13 +426,15 @@ mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
     ( ES.Filter
         . ES.QueryBoolQuery
         $ boolQuery
-          { ES.boolQueryMustNotMatch = maybeToList (matchSelf searcher) <>
-              -- The following matches both where searchable is true
-              -- or where the field is missing. There didn't seem to
-              -- be a more readable way to express
-              -- "not(exists(searchable) or searchable = true" in
-              -- Elastic Search.
-              [ES.TermQuery (ES.Term "searchable" "false") Nothing],
+          { ES.boolQueryMustNotMatch =
+              maybeToList (matchSelf searcher)
+                <>
+                -- The following matches both where searchable is true
+                -- or where the field is missing. There didn't seem to
+                -- be a more readable way to express
+                -- "not(exists(searchable) or searchable = true" in
+                -- Elastic Search.
+                [ES.TermQuery (ES.Term "searchable" "false") Nothing],
             ES.boolQueryMustMatch =
               [ restrictSearchSpace mSearcherTeamId teamSearchInfo,
                 ES.QueryBoolQuery
