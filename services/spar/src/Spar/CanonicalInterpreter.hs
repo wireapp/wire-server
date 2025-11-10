@@ -25,11 +25,14 @@ module Spar.CanonicalInterpreter
 where
 
 import qualified Cassandra as Cas
-import Control.Monad.Except
+import Control.Monad.Except hiding (mapError)
+import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
+import Polysemy.Internal.Kind
+import Polysemy.TinyLog hiding (err)
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
@@ -67,8 +70,13 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
-import Wire.API.User.Saml
-import Wire.Sem.Logger (Logger)
+import Wire.API.User.Saml (TTLError)
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
+import Wire.ParseException (ParseException, parseExceptionToHttpError)
+import Wire.Rpc (Rpc, runRpcWithHttp)
+import Wire.ScimSubsystem
+import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
@@ -76,11 +84,21 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 
 type CanonicalEffs =
-  '[ SAML2,
+  '[ScimSubsystem]
+    `Append` LowerLevelCanonicalEffs
+
+type LowerLevelCanonicalEffs =
+  '[ BrigAPIAccess,
+     SAML2,
      SamlProtocolSettings,
      AssIDStore,
      AReqIDStore,
      VerdictFormatStore,
+     Error ParseException,
+     Rpc,
+     Input (Local ()),
+     Input ScimSubsystemConfig,
+     Error ScimSubsystemError,
      ScimExternalIdStore,
      ScimUserTimesStore,
      ScimTokenStore,
@@ -107,7 +125,7 @@ type CanonicalEffs =
    ]
 
 runSparToIO :: Env -> Sem CanonicalEffs a -> IO (Either SparError a)
-runSparToIO ctx action =
+runSparToIO ctx =
   runFinal
     . embedToFinal @IO
     . nowToIO
@@ -130,18 +148,24 @@ runSparToIO ctx action =
     . scimTokenStoreToCassandra
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
+    . mapScimSubsystemErrors
+    . runInputConst (ctx.sparCtxScimSubsystemConfig)
+    . runInputConst (ctx.sparCtxLocalUnit)
+    . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
+    . iParseException
     . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
     . assIDStoreToCassandra
     . sparRouteToServant (saml $ sparCtxOpts ctx)
-    $ saml2ToSaml2WebSso action
+    . saml2ToSaml2WebSso
+    . interpretBrigAccess ctx.sparCtxOpts.brig
+    . interpretScimSubsystem
+
+iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
+iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
-  err <- liftIO $ runSparToIO ctx spar
-  throwErrorAsHandlerException err
-  where
-    throwErrorAsHandlerException :: Either SparError a -> Handler a
-    throwErrorAsHandlerException (Left err) =
-      sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
-    throwErrorAsHandlerException (Right a) = pure a
+  liftIO (runSparToIO ctx spar) >>= \case
+    Right val -> pure val
+    Left err -> sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

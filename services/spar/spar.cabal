@@ -52,6 +52,7 @@ library
     Spar.Schema.V9
     Spar.Scim
     Spar.Scim.Auth
+    Spar.Scim.Group
     Spar.Scim.Types
     Spar.Scim.User
     Spar.Sem.AReqIDStore

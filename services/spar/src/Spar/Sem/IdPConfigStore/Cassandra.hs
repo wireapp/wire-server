@@ -40,6 +40,7 @@ import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (.
 import URI.ByteString
 import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
 import qualified Wire.API.User.IdentityProvider as IP
+import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 
 idPToCassandra ::
   forall m r a.

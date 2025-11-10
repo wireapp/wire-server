@@ -4,6 +4,7 @@
 module Wire.UserSubsystem
   ( module Wire.UserSubsystem,
     module Data.HavePendingInvitations,
+    GetBy (..),
   )
 where
 
@@ -25,6 +26,7 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Brig (GetBy (..))
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
@@ -90,21 +92,6 @@ instance Default UserProfileUpdate where
         locale = Nothing,
         supportedProtocols = Nothing
       }
-
--- | Parameters for `getExternalAccountsBy` operation below.
-data GetBy = MkGetBy
-  { -- | whether or not to include pending invitations when getting users by ids.
-    includePendingInvitations :: HavePendingInvitations,
-    -- | get accounts by 'UserId'.
-    getByUserId :: [UserId],
-    -- | get accounts by their 'Handle'
-    getByHandle :: [Handle]
-  }
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform GetBy
-
-instance Default GetBy where
-  def = MkGetBy NoPendingInvitations [] []
 
 -- | Outcome of email change invariant checks.
 data ChangeEmailResult

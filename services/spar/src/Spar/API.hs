@@ -114,6 +114,7 @@ import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
@@ -149,6 +150,7 @@ api ::
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
     Member ScimTokenStore r,
+    Member ScimSubsystem r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -165,6 +167,7 @@ api ::
         Final IO
       )
       r,
+    Member ScimSubsystem r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Opts ->
@@ -191,6 +194,7 @@ apiSSO ::
     Member SAML2 r,
     Member SamlProtocolSettings r,
     Member Reporter r,
+    Member ScimSubsystem r,
     Member SAMLUserStore r
   ) =>
   Opts ->
