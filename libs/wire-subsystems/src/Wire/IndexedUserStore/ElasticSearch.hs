@@ -222,13 +222,7 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
                 ],
-              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")],
-              -- The following matches both where searchable is true
-              -- or where the field is missing. There didn't seem to
-              -- be a more readable way to express
-              -- "not(exists(searchable) or searchable = true" in
-              -- Elastic Search.
-              ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing]
+              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on users not in team of search by 90% (no
       -- science behind that number). If the searcher is not part of a team the
@@ -432,7 +426,13 @@ mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
     ( ES.Filter
         . ES.QueryBoolQuery
         $ boolQuery
-          { ES.boolQueryMustNotMatch = maybeToList $ matchSelf searcher,
+          { ES.boolQueryMustNotMatch = maybeToList (matchSelf searcher) <>
+              -- The following matches both where searchable is true
+              -- or where the field is missing. There didn't seem to
+              -- be a more readable way to express
+              -- "not(exists(searchable) or searchable = true" in
+              -- Elastic Search.
+              [ES.TermQuery (ES.Term "searchable" "false") Nothing],
             ES.boolQueryMustMatch =
               [ restrictSearchSpace mSearcherTeamId teamSearchInfo,
                 ES.QueryBoolQuery
