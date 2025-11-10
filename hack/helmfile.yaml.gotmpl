@@ -18,7 +18,6 @@ environments:
       - imagePullPolicy: Always
       - storageClass: hcloud-volumes
       - cassandraHost: cassandra-ephemeral
-      - domain: example.org
       - useK8ssandraSSL:
           enabled: false
       - elasticsearch:
@@ -31,7 +30,6 @@ environments:
       - imagePullPolicy: Always
       - storageClass: hcloud-volumes
       - cassandraHost: k8ssandra-cluster-datacenter-1-service
-      - domain: example.org
       - useK8ssandraSSL:
           enabled: true
       - elasticsearch:
@@ -44,7 +42,6 @@ environments:
       - imagePullPolicy: Never
       - storageClass: standard
       - cassandraHost: cassandra-ephemeral
-      - domain: example.org
       - useK8ssandraSSL:
           enabled: false
       - elasticsearch:
@@ -57,7 +54,6 @@ environments:
       - imagePullPolicy: Never
       - storageClass: standard
       - cassandraHost: k8ssandra-cluster-datacenter-1-service
-      - domain: example.org
       - useK8ssandraSSL:
           enabled: true
       - elasticsearch:
