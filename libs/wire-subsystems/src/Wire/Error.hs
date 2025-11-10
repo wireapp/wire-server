@@ -26,8 +26,9 @@ data HttpError where
 
 instance Eq HttpError where
   StdError e == StdError e' = e == e'
-  -- RichErrors are always different because we don't know the types a, a' here
-  _ == _ = False
+  e@(RichError _ _ hds) == e'@(RichError _ _ hds') = toJSON e == toJSON e'
+  StdError {} == RichError {} = False
+  RichError {} == StdError {} = False
 
 instance Show HttpError where
   show (StdError werr) = "StdError (" <> show werr <> ")"
