@@ -187,6 +187,7 @@ library
     Galley.Queue
     Galley.Run
     Galley.Schema.Run
+    Galley.Schema.V100_OutOfSync
     Galley.Schema.V20
     Galley.Schema.V21
     Galley.Schema.V22

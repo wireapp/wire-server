@@ -34,6 +34,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tagged
@@ -309,6 +310,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value.path
+        lift $ updateOutOfSyncFlag senderIdentity.client lConvOrSub
         pure ([], [])
     lift $ do
       storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
@@ -607,3 +609,20 @@ getMLSConv u mGroupId ctype lcnv = do
     when (groupId /= mlsConv.mcMLSData.cnvmlsGroupId) $
       throw (mlsProtocolError "The message group ID does not match the conversation")
   pure mlsConv
+
+updateOutOfSyncFlag ::
+  (Member ConversationStore r) =>
+  ClientIdentity ->
+  Local ConvOrSubConv ->
+  Sem r ()
+updateOutOfSyncFlag sender lconv = case tUnqualified lconv of
+  SubConv _ _ -> pure ()
+  Conv c -> do
+    let convMembers =
+          Set.fromList $
+            map (tUntagged . qualifyAs lconv . (.id_)) c.mcLocalMembers
+              <> map (tUntagged . (.id_)) c.mcRemoteMembers
+    let groupMembers = Map.keysSet c.mcMembers <> Set.singleton (cidQualifiedUser sender)
+
+    when (convMembers == groupMembers) $ do
+      setConversationOutOfSync c.mcId False

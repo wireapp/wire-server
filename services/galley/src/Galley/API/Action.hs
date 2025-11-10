@@ -631,6 +631,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
   checkTeamMemberAddPermission lusr
+  setOutOfSyncFlag lconv newMembers
   addMembersToLocalConversation (fmap (.id_) lconv) newMembers role joinType
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -953,6 +954,18 @@ addMembersToLocalConversation lcnv users role joinType = do
   neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
   let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)
+
+setOutOfSyncFlag :: (Member ConversationStore r) => Local StoredConversation -> UserList UserId -> Sem r ()
+setOutOfSyncFlag (tUnqualified -> conv) newMembers =
+  let goingOutOfSync
+        | ulNull newMembers = False
+        | otherwise = case conv.protocol of
+            ProtocolMLS _ -> True
+            ProtocolProteus -> False
+            -- no need to keep track of out of sync flag for mixed conversations
+            ProtocolMixed _ -> False
+   in when goingOutOfSync $
+        E.setConversationOutOfSync conv.id_ True
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.

@@ -851,6 +851,15 @@ listSubConversations cid = do
           }
       )
 
+setConversationOutOfSync :: ConvId -> Bool -> Client ()
+setConversationOutOfSync cid outOfSync =
+  retry x5 (write Cql.insertConvOutOfSync (params LocalQuorum (cid, outOfSync)))
+
+isConversationOutOfSync :: ConvId -> Client Bool
+isConversationOutOfSync cid =
+  maybe False (fromMaybe False . runIdentity)
+    <$> retry x1 (query1 Cql.lookupConvOutOfSync (params LocalQuorum (Identity cid)))
+
 interpretMLSCommitLockStoreToCassandra :: (Member (Embed IO) r, Member TinyLog r) => ClientState -> InterpreterFor MLSCommitLockStore r
 interpretMLSCommitLockStoreToCassandra client = interpret $ \case
   AcquireCommitLock gId epoch ttl -> do
@@ -1045,6 +1054,12 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SearchConversations _ -> do
     logEffect "ConversationStore.SearchConversations"
     pure []
+  SetConversationOutOfSync convId outOfSync -> do
+    logEffect "ConversationStore.SetConversationOutOfSync"
+    runEmbedded (runClient client) $ embed $ setConversationOutOfSync convId outOfSync
+  IsConversationOutOfSync convId -> do
+    logEffect "ConversationStore.IsConversationOutOfSync"
+    runEmbedded (runClient client) $ embed $ isConversationOutOfSync convId
   HaveRemoteConvs uids ->
     embedClient client $ haveRemoteConvs uids
 
@@ -1459,6 +1474,18 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     -- transition.
     logEffect "ConversationStore.SearchConversations"
     pure []
+  SetConversationOutOfSync convId outOfSync -> do
+    logEffect "ConversationStore.SetConversationOutOfSync"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ setConversationOutOfSync convId outOfSync
+        True -> interpretConversationStoreToPostgres $ ConvStore.setConversationOutOfSync convId outOfSync
+  IsConversationOutOfSync convId -> do
+    logEffect "ConversationStore.SetConversationOutOfSync"
+    withMigrationLockAndCleanup client LockShared (Left convId) $
+      isConvInPostgres convId >>= \case
+        False -> embedClient client $ isConversationOutOfSync convId
+        True -> interpretConversationStoreToPostgres $ ConvStore.isConversationOutOfSync convId
   HaveRemoteConvs uids -> do
     logEffect "ConversationStore.DeleteSubConversation"
     withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
