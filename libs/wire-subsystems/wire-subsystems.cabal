@@ -203,6 +203,9 @@ library
     Wire.AWS
     Wire.AWSSubsystem
     Wire.AWSSubsystem.AWS
+    Wire.BackendNotificationSubsystem
+    Wire.BackendNotificationSubsystem.InMemory
+    Wire.BackendNotificationSubsystem.RabbitMQ
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess

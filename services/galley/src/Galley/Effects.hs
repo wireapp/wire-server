@@ -23,6 +23,8 @@ module Galley.Effects
     BrigAPIAccess,
     FederatorAccess,
     SparAccess,
+    FederationAPIAccess,
+    BackendNotificationSubsystem,
 
     -- * External services
     ExternalAccess,
@@ -88,9 +90,12 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client qualified
 import Wire.API.Team.Feature
+import Wire.BackendNotificationSubsystem (BackendNotificationSubsystem)
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
@@ -109,6 +114,8 @@ import Wire.UserGroupStore
 type GalleyEffects1 =
   '[ ExternalAccess,
      BrigAPIAccess,
+     BackendNotificationSubsystem,
+     FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      SparAccess,
      TeamCollaboratorsSubsystem,
      NotificationSubsystem,

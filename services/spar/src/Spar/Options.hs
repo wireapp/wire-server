@@ -41,6 +41,7 @@ import Data.Time
 import qualified Data.Yaml as Yaml
 import qualified Database.Bloodhound.Types as ES
 import Imports
+import Network.AMQP.Extended (AmqpEndpoint)
 import Options.Applicative
 import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
@@ -63,6 +64,10 @@ data Opts = Opts
     brig :: !Endpoint,
     galley :: !Endpoint,
     cassandra :: !CassandraOpts,
+    -- | Federator address
+    federatorInternal :: !(Maybe Endpoint),
+    -- | RabbitMQ settings, required when federation is enabled.
+    rabbitmq :: !(Maybe AmqpEndpoint),
     maxttlAuthreq :: !(TTL "authreq"),
     maxttlAuthresp :: !(TTL "authresp"),
     -- | The maximum number of SCIM tokens that we will allow teams to have.

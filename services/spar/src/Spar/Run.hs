@@ -36,6 +36,10 @@ import Control.Lens (to, (^.), (^?), _Just)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain
 import Data.Id
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import qualified Network.AMQP.Extended as Q
+import OpenSSL.Session (SSLOption (..))
+import qualified OpenSSL.Session as SSL
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
@@ -131,6 +135,9 @@ mkApp sparCtxOpts = do
 
     pure (ScimSubsystemConfig scimUri, localUnit)
 
+  sparCtxHttp2Manager <- initHttp2Manager
+  sparCtxRabbitmqChannel <- traverse (Q.mkRabbitMqChannelMVar sparCtxLogger (Just "spar")) sparCtxOpts.rabbitmq
+
   let ctx0 = Env {..}
   let heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =
@@ -151,3 +158,15 @@ mkApp sparCtxOpts = do
           -- outages.
           . SAML.setHttpCachePolicy
   pure (middleware $ app ctx0, ctx0)
+
+initHttp2Manager :: IO Http2Manager
+initHttp2Manager = do
+  ctx <- SSL.context
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
+  SSL.contextSetCiphers ctx "HIGH"
+  SSL.contextSetVerificationMode ctx $
+    SSL.VerifyPeer True True Nothing
+  SSL.contextSetDefaultVerifyPaths ctx
+  http2ManagerWithSSLCtx ctx

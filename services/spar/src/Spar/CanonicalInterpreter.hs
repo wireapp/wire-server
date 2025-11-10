@@ -71,8 +71,15 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml (TTLError)
+import Control.Retry (constantDelay, limitRetries)
+import qualified Wire.API.Federation.Client
+import Wire.BackendNotificationSubsystem
+import Wire.BackendNotificationSubsystem.InMemory (runBackendNotificationSubsystemNoOp)
+import Wire.BackendNotificationSubsystem.RabbitMQ (BackendNotificationConfig (..), runBackendNotificationSubsystemRabbitMQ)
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
+import Wire.FederationAPIAccess
+import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
@@ -82,6 +89,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 
 type CanonicalEffs =
   '[ScimSubsystem]
@@ -89,6 +98,8 @@ type CanonicalEffs =
 
 type LowerLevelCanonicalEffs =
   '[ BrigAPIAccess,
+     BackendNotificationSubsystem,
+     FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      SAML2,
      SamlProtocolSettings,
      AssIDStore,
@@ -119,6 +130,7 @@ type LowerLevelCanonicalEffs =
      Input TinyLog.Logger,
      Random,
      Now,
+     Concurrency Unsafe,
      Embed IO,
      Final IO
    ]
@@ -127,6 +139,7 @@ runSparToIO :: Env -> Sem CanonicalEffs a -> IO (Either SparError a)
 runSparToIO ctx =
   runFinal
     . embedToFinal @IO
+    . unsafelyPerformConcurrency
     . nowToIO
     . randomToIO
     . runInputConst (sparCtxLogger ctx)
@@ -157,11 +170,39 @@ runSparToIO ctx =
     . assIDStoreToCassandra
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     . saml2ToSaml2WebSso
-    . interpretBrigAccess ctx.sparCtxOpts.brig
+    . interpretFederationAPIAccess (federationAPIAccessConfig ctx)
+    . runBackendNotificationSubsystem ctx
+    . interpretBrigAccess @Wire.API.Federation.Client.FederatorClient ctx.sparCtxOpts.brig
     . interpretScimSubsystem
 
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)
+
+federationAPIAccessConfig :: Env -> FederationAPIAccessConfig
+federationAPIAccessConfig ctx =
+  FederationAPIAccessConfig
+    { ownDomain = ctx.sparCtxOpts.settings.federationDomain,
+      federatorEndpoint = ctx.sparCtxOpts.federatorInternal,
+      http2Manager = ctx.sparCtxHttp2Manager,
+      requestId = ctx.sparCtxRequestId
+    }
+
+runBackendNotificationSubsystem ::
+  (Member (Embed IO) r, Member TinyLog r) =>
+  Env ->
+  InterpreterFor BackendNotificationSubsystem r
+runBackendNotificationSubsystem ctx =
+  case ctx.sparCtxRabbitmqChannel of
+    Just channelVar ->
+      runBackendNotificationSubsystemRabbitMQ $
+        BackendNotificationConfig
+          { rabbitmqChannelVar = channelVar,
+            retryPolicy = limitRetries 3 <> constantDelay 1000000,
+            channelTimeout = 1,
+            requestId = ctx.sparCtxRequestId
+          }
+    Nothing ->
+      runBackendNotificationSubsystemNoOp
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do

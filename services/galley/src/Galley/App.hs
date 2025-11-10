@@ -48,6 +48,7 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Control.Retry (constantDelay, limitRetries)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -107,9 +108,13 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
+import Wire.API.Federation.Client qualified
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.BackendNotificationSubsystem.InMemory (runBackendNotificationSubsystemNoOp)
+import Wire.BackendNotificationSubsystem.RabbitMQ (BackendNotificationConfig (..), runBackendNotificationSubsystemRabbitMQ)
 import Wire.BrigAPIAccess.Rpc
+import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.Error
@@ -120,6 +125,8 @@ import Wire.ParseException
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
@@ -147,6 +154,7 @@ type GalleyEffects0 =
      Delay,
      Fail,
      TinyLog,
+     Concurrency Unsafe,
      Embed IO,
      Error JSONResponse,
      Resource,
@@ -277,6 +285,7 @@ evalGalley e =
         . resourceToIOFinal
         . runError
         . embedToFinal @IO
+        . unsafelyPerformConcurrency
         . interpretTinyLog e
         . failToEmbed @IO
         . runDelay
@@ -333,10 +342,38 @@ evalGalley e =
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretTeamCollaboratorsSubsystem
         . interpretSparAccess
-        . interpretBrigAccess (e ^. brig)
+        . interpretFederationAPIAccess (federationAPIAccessConfig e)
+        . runBackendNotificationSubsystem e
+        . interpretBrigAccess @Wire.API.Federation.Client.FederatorClient (e ^. brig)
         . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
+
+federationAPIAccessConfig :: Env -> FederationAPIAccessConfig
+federationAPIAccessConfig e =
+  FederationAPIAccessConfig
+    { ownDomain = e ^. options . settings . federationDomain,
+      federatorEndpoint = e ^. federator,
+      http2Manager = e ^. Galley.Env.http2Manager,
+      requestId = e ^. reqId
+    }
+
+runBackendNotificationSubsystem ::
+  (Member (Embed IO) r, Member TinyLog r) =>
+  Env ->
+  InterpreterFor BackendNotificationSubsystem r
+runBackendNotificationSubsystem e =
+  case e ^. rabbitmqChannel of
+    Just channelVar ->
+      runBackendNotificationSubsystemRabbitMQ $
+        BackendNotificationConfig
+          { rabbitmqChannelVar = channelVar,
+            retryPolicy = limitRetries 3 <> constantDelay 1000000,
+            channelTimeout = 1,
+            requestId = e ^. reqId
+          }
+    Nothing ->
+      runBackendNotificationSubsystemNoOp
 
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =

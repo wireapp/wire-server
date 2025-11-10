@@ -14,6 +14,7 @@ import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
 import Control.Lens (to, (^.), _Just)
 import Control.Monad.Catch (throwM)
+import Control.Retry (constantDelay, limitRetries)
 import Data.Coerce (coerce)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
@@ -42,6 +43,9 @@ import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.BackendNotificationSubsystem
+import Wire.BackendNotificationSubsystem.InMemory (runBackendNotificationSubsystemNoOp)
+import Wire.BackendNotificationSubsystem.RabbitMQ (BackendNotificationConfig (..), runBackendNotificationSubsystemRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.ConnectionStore (ConnectionStore)
@@ -154,6 +158,7 @@ type BrigLowerLevelEffects =
      Wire.Events.Events,
      AWSSubsystem,
      NotificationSubsystem,
+     BackendNotificationSubsystem,
      RateLimit,
      UserGroupStore,
      Error AppSubsystemError,
@@ -364,6 +369,7 @@ runBrigToIO e (AppT ma) = do
               . mapError appSubsystemErrorToHttpError
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
+              . runBackendNotificationSubsystem e
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runAWSSubsystem e.awsEnv
               . runEvents
@@ -387,6 +393,27 @@ runBrigToIO e (AppT ma) = do
           )
     )
     $ runReaderT ma e
+
+-- | Choose the appropriate BackendNotificationSubsystem interpreter
+-- based on whether RabbitMQ is configured
+runBackendNotificationSubsystem ::
+  (Member (Embed IO) r, Member TinyLog r) =>
+  Env ->
+  InterpreterFor BackendNotificationSubsystem r
+runBackendNotificationSubsystem env =
+  case env.rabbitmqChannel of
+    Just channelVar ->
+      -- RabbitMQ is configured, use real implementation
+      runBackendNotificationSubsystemRabbitMQ $
+        BackendNotificationConfig
+          { rabbitmqChannelVar = channelVar,
+            retryPolicy = limitRetries 3 <> constantDelay 1_000_000,
+            channelTimeout = 1,
+            requestId = env.requestId
+          }
+    Nothing ->
+      -- RabbitMQ not configured, use no-op with warnings
+      runBackendNotificationSubsystemNoOp
 
 mkEnterpriseLoginSubsystemEmailConfig :: Env -> Maybe EnterpriseLoginSubsystemEmailConfig
 mkEnterpriseLoginSubsystemEmailConfig env = do

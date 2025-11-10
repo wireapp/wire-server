@@ -153,6 +153,7 @@ library
 
   build-depends:
       aeson
+    , amqp
     , base
     , base64-bytestring
     , bilge
@@ -169,8 +170,10 @@ library
     , exceptions
     , extended
     , hscim
+    , HsOpenSSL
     , hspec
     , http-types
+    , http2-manager
     , imports
     , lens
     , metrics-wai
@@ -183,6 +186,7 @@ library
     , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq
+    , retry
     , saml2-web-sso
     , semigroupoids
     , servant-multipart
@@ -201,6 +205,7 @@ library
     , wai-utilities
     , warp
     , wire-api
+    , wire-api-federation
     , wire-subsystems
     , yaml
 

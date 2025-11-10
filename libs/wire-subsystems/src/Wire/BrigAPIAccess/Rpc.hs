@@ -8,6 +8,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Imports
@@ -20,11 +21,17 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Servant.Client.Core.RunClient (RunClient)
 import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Error.Galley
+import Wire.API.Federation.API (FederationMonad, fedClient, fedQueueClient)
+import Wire.API.Federation.API.Brig (NewConnectionRequest (..), NewConnectionResponse, RemoteConnectionAction)
+import Wire.API.Federation.API.Brig.Notifications (BrigNotificationTag (..), UserDeletedConnectionsNotification (..))
+import Wire.API.Federation.Component
+import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..), GetBy)
 import Wire.API.Routes.Internal.Brig.Connection
@@ -41,14 +48,23 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.BackendNotificationSubsystem
 import Wire.BrigAPIAccess (BrigAPIAccess (..), OpaqueAuthToken (..))
+import Wire.FederationAPIAccess
 import Wire.ParseException
 import Wire.Rpc
 
 interpretBrigAccess ::
+  forall fedM r a.
   ( Member TinyLog r,
     Member Rpc r,
-    Member (Error ParseException) r
+    Member (Error ParseException) r,
+    Member (FederationAPIAccess fedM) r,
+    Member BackendNotificationSubsystem r,
+    Member (Input (Local ())) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   Endpoint ->
   Sem (BrigAPIAccess ': r) a ->
@@ -105,6 +121,10 @@ interpretBrigAccess brigEndpoint =
         getAccountsBy localGetBy
       CreateGroupFull managedBy teamId creatorUserId newGroup ->
         createGroupFull managedBy teamId creatorUserId newGroup
+      SendConnectionAction localUid mTeamId remoteUid action -> do
+        sendConnectionAction localUid mTeamId remoteUid action
+      NotifyUserDeleted localUid remoteConns -> do
+        notifyUserDeleted localUid remoteConns
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -554,3 +574,45 @@ createGroupFull managedBy teamId creatorUserId newGroup = do
         . json req
         . expect2xx
   decodeBodyOrThrow "brig" r
+
+sendConnectionAction ::
+  forall fedM r.
+  ( Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
+  ) =>
+  Local UserId ->
+  Maybe (Local TeamId) ->
+  Remote UserId ->
+  RemoteConnectionAction ->
+  Sem r (Either FederationError NewConnectionResponse)
+sendConnectionAction localUid mTeamId remoteUid action = do
+  let req =
+        NewConnectionRequest
+          (tUnqualified localUid)
+          (tUnqualified <$> mTeamId)
+          (tUnqualified remoteUid)
+          action
+  runFederatedEither
+    remoteUid
+    (fedClient @'Brig @"send-connection-action" req)
+
+notifyUserDeleted ::
+  forall r.
+  ( Member BackendNotificationSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  Local UserId ->
+  Remote (Range 1 1000 [UserId]) ->
+  Sem r ()
+notifyUserDeleted localUid remoteConns = do
+  let notif =
+        UserDeletedConnectionsNotification
+          (tUnqualified localUid)
+          (tUnqualified remoteConns)
+  ownDomain <- input
+  sendBackendNotification
+    ownDomain
+    (tDomain remoteConns)
+    (fedQueueClient @'OnUserDeletedConnectionsTag notif)

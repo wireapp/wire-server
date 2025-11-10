@@ -1103,8 +1103,7 @@ deleteUserNoVerify ::
   (Member DeleteQueue r) =>
   UserId ->
   Sem r ()
-deleteUserNoVerify uid = do
-  enqueueUserDeletion uid
+deleteUserNoVerify = enqueueUserDeletion
 
 deleteUsersNoVerify ::
   (Member DeleteQueue r) =>

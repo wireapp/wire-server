@@ -46,6 +46,8 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.CaseInsensitive as CI
 import Data.Id
+import HTTP2.Client.Manager (Http2Manager)
+import qualified Network.AMQP as Q
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Qualified
@@ -114,11 +116,13 @@ data Env = Env
     sparCtxLogger :: TinyLog.Logger,
     sparCtxCas :: Cas.ClientState,
     sparCtxHttpManager :: Bilge.Manager,
+    sparCtxHttp2Manager :: Http2Manager,
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxRequestId :: RequestId,
     sparCtxLocalUnit :: Local (),
-    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig,
+    sparCtxRabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 -- | Get a user by UserRef, no matter what the team.

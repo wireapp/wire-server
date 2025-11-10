@@ -478,8 +478,7 @@ deleteLocalIfExpired user =
     Nothing -> pure ()
     Just (fromUTCTimeMillis -> e) -> do
       t <- Now.get
-      when (diffUTCTime e t < 0) $
-        enqueueUserDeletion (qUnqualified user.userQualifiedId)
+      when (diffUTCTime e t < 0) $ enqueueUserDeletion $ qUnqualified user.userQualifiedId
 
 getUserProfilesWithErrorsImpl ::
   forall r fedM.
@@ -1031,7 +1030,8 @@ getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHan
     -- there are certainly other ways to improve this, but they probably involve a non-trivial
     -- database schema re-design.
     gcHack :: Bool -> UserId -> Sem r ()
-    gcHack hasInvitation uid = unless hasInvitation (enqueueUserDeletion uid)
+    gcHack hasInvitation uid =
+      unless hasInvitation $ enqueueUserDeletion uid
 
 acceptTeamInvitationImpl ::
   ( Member (Input UserSubsystemConfig) r,

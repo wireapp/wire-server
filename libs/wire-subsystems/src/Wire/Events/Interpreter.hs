@@ -35,13 +35,18 @@ import Imports
 import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
+import Servant.Client.Core.RunClient (RunClient)
 import Wire.API.Connection
+import Wire.API.Federation.API (FederationMonad)
+import Wire.API.Federation.Component (Component (Brig))
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.User (Name (..))
 import Wire.API.UserEvent
 import Wire.AWSSubsystem (AWSSubsystem)
+import Wire.BackendNotificationSubsystem
 import Wire.ConnectionStore (ConnectionStore)
+import Wire.FederationAPIAccess
 import Wire.Events
 import Wire.Events.Journal qualified as Journal
 import Wire.Events.Notifications qualified as Notifications
@@ -52,6 +57,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -- | Interpreter for the Events effect
 runEvents ::
+  forall fedM r.
   ( Member (Embed IO) r,
     Member NotificationSubsystem r,
     Member AWSSubsystem r,
@@ -59,7 +65,12 @@ runEvents ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member BackendNotificationSubsystem r,
+    Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
@@ -67,6 +78,7 @@ runEvents = interpret \case
   GeneratePropertyEvent uid connid event -> onPropertyEvent uid connid event
 
 sendUserEvent ::
+  forall fedM r.
   ( Member (Embed IO) r,
     Member AWSSubsystem r,
     Member NotificationSubsystem r,
@@ -74,7 +86,12 @@ sendUserEvent ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member BackendNotificationSubsystem r,
+    Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   UserId ->
   Maybe ConnId ->

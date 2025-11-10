@@ -47,6 +47,10 @@ module Wire.BrigAPIAccess
 
     -- * User Groups
     createGroupFull,
+
+    -- * Federation
+    sendConnectionAction,
+    notifyUserDeleted,
   )
 where
 
@@ -55,12 +59,15 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.Range
 import Imports
 import Network.HTTP.Types.Status
 import Polysemy
 import Polysemy.Error
 import Wire.API.Connection
 import Wire.API.Error.Galley
+import Wire.API.Federation.API.Brig (NewConnectionResponse, RemoteConnectionAction)
+import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig (GetBy)
 import Wire.API.Routes.Internal.Brig.Connection
@@ -132,6 +139,16 @@ data BrigAPIAccess m a where
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
+  SendConnectionAction ::
+    Local UserId ->
+    Maybe (Local TeamId) ->
+    Remote UserId ->
+    RemoteConnectionAction ->
+    BrigAPIAccess m (Either FederationError NewConnectionResponse)
+  NotifyUserDeleted ::
+    Local UserId ->
+    Remote (Range 1 1000 [UserId]) ->
+    BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 

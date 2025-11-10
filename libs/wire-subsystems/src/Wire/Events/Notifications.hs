@@ -38,14 +38,21 @@ import Polysemy
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message hiding ((.=))
+import Servant.Client.Core.RunClient (RunClient)
 import Wire.API.Connection
+import Wire.API.Federation.API (FederationMonad, fedClient, fedQueueClient)
+import Wire.API.Federation.API.Brig (NewConnectionRequest (..), RemoteConnectionAction (..))
+import Wire.API.Federation.API.Brig.Notifications (BrigNotificationTag (..), UserDeletedConnectionsNotification (..))
+import Wire.API.Federation.Component (Component (Brig))
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.Member (ListType (ListComplete), TeamMemberList, teamMemberListType, teamMembers)
 import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.BackendNotificationSubsystem
 import Wire.ConnectionStore (ConnectionStore)
+import Wire.FederationAPIAccess
 import Wire.ConnectionStore qualified as CS
 import Wire.ConnectionStore.Types (resultHasMore, resultList)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -63,12 +70,18 @@ qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input
 
 -- | Notify users about events
 dispatchNotifications ::
+  forall fedM r.
   ( Member (ConnectionStore InternalPaging) r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
-    Member Now r
+    Member Now r,
+    Member BackendNotificationSubsystem r,
+    Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -153,10 +166,15 @@ notifyUserDeletionLocals deleted conn event = do
 
 -- | Notify remote backends about a user deletion
 notifyUserDeletionRemotes ::
-  forall r.
+  forall fedM r.
   ( Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    Member BackendNotificationSubsystem r,
+    Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   UserId ->
   Sem r ()
@@ -169,15 +187,43 @@ notifyUserDeletionRemotes deleted = do
 
     notifyBackend :: Remote [UserConnection] -> Sem r ()
     notifyBackend ucs = do
-      -- FUTUREWORK: Federation notifications for user deletion
-      -- This requires Brig-specific federation client functions that
-      -- haven't been moved to wire-subsystem yet. For now, federation
-      -- notifications are handled by Brig directly.
-      -- See: Brig.Federation.Client.notifyUserDeleted and sendConnectionAction
-      unless (null (tUnqualified ucs)) $
-        Log.warn $
-          field "domain" (show (tDomain ucs))
-            . msg (val "Skipping federation notification for user deletion (not yet implemented in wire-subsystem)")
+      case tUnqualified (checked <$> ucs) of
+        Nothing -> pure () -- No connections or invalid range
+        Just rangedUcs -> do
+          luidDeleted <- qualifyLocal' deleted
+          ownDomain <- input
+
+          -- Send async user deleted notification
+          let notif =
+                UserDeletedConnectionsNotification
+                  (tUnqualified luidDeleted)
+                  (mapRange (qUnqualified . ucTo) rangedUcs)
+          sendBackendNotification
+            ownDomain
+            (tDomain ucs)
+            (fedQueueClient @'OnUserDeletedConnectionsTag notif)
+
+          -- Send connection cancelled events for pending connections
+          let remotePendingConns =
+                qualifyAs ucs <$>
+                filter ((==) Sent . ucStatus) (fromRange rangedUcs)
+          forM_ remotePendingConns $ sendCancelledEvent luidDeleted
+
+    sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
+    sendCancelledEvent luidDeleted ruc = do
+      let req =
+            NewConnectionRequest
+              (tUnqualified luidDeleted)
+              Nothing
+              (tUnqualified (qUnqualified . ucTo <$> ruc))
+              RemoteRescind
+      result <- runFederatedEither ruc (fedClient @'Brig @"send-connection-action" req)
+      case result of
+        Left e ->
+          Log.err $
+            field "error" (show e)
+              . msg (val "Failed to send connection cancelled to remote")
+        Right _ -> pure ()
 
 -- | (Asynchronously) notifies other users of events.
 notify ::

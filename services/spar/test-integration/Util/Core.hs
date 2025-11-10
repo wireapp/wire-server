@@ -278,6 +278,8 @@ mkEnv tstOpts opts = do
       sparCtxRequestId = RequestId "<fake request id>"
       sparCtxScimSubsystemConfig = error "mkEnv: implement sparCtxScimSubsystemConfig when needed"
       sparCtxLocalUnit = error "mkEnv: implement sparCtxLocalUnit when needed"
+      sparCtxHttp2Manager = error "mkEnv: implement sparCtxHttp2Manager when needed"
+      sparCtxRabbitmqChannel = Nothing
   pure $
     TestEnv
       mgr
