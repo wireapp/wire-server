@@ -353,16 +353,13 @@ catchVerdictErrors = (`catch` hndlr)
   where
     hndlr :: SparError -> Sem r VerdictHandlerResult
     hndlr err = do
-      serr <- renderSparErrorWithLogging err
-      pure $ case serr of
-        StdError (werr :: Wai.Error) ->
-          VerifyHandlerError
-            (LText.toStrict $ Wai.label werr)
-            (LText.toStrict $ Wai.message werr)
-        RichError (werr :: Wai.Error) _bdy _hdrs ->
-          VerifyHandlerError
-            (LText.toStrict $ Wai.label werr)
-            (LText.toStrict $ Wai.message werr) -- TODO: do we want to keep the entire RichError for logging?
+      werr <- renderSparErrorWithLogging err <&> httpErrorToWaiError
+      -- TODO: we don't want to include the RichError part of
+      -- HttpError in the response, but maybe we should log it?
+      pure $
+        VerifyHandlerError
+          (LText.toStrict $ Wai.label werr)
+          (LText.toStrict $ Wai.message werr)
 
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
@@ -575,10 +572,7 @@ errorPage err mpInputs =
       errHeaders = [("Content-Type", "text/html")]
     }
   where
-    werr =
-      renderSparError err & \case
-        StdError e -> e
-        RichError e _ _ -> e
+    werr = httpErrorToWaiError $ renderSparError err
 
     errbody :: [LText]
     errbody =
@@ -628,10 +622,5 @@ sparToServerErrorWithLogging err = do
 
 renderSparErrorWithLogging :: (Member Reporter r) => SparError -> Sem r HttpError
 renderSparErrorWithLogging (renderSparError -> err) = do
-  Reporter.report
-    Nothing
-    ( err & \case
-        StdError e -> e
-        RichError e _ _ -> e
-    )
+  Reporter.report Nothing (httpErrorToWaiError err)
   pure err
