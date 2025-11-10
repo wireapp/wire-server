@@ -82,21 +82,12 @@ import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 
-import Wire.UserGroupSubsystem
-import Wire.UserGroupSubsystem.Interpreter
-import Data.Qualified
-import Wire.UserGroupStore
-import Wire.UserGroupStore.Postgres
-
 type CanonicalEffs =
   '[ScimSubsystem]
     `Append` LowerLevelCanonicalEffs
 
 type LowerLevelCanonicalEffs =
-  '[ UserGroupSubsystem,
-     UserGroupStore,
-     Input (Local ()), -- xxx
-     BrigAPIAccess,
+  '[ BrigAPIAccess,
      SAML2,
      SamlProtocolSettings,
      AssIDStore,
@@ -120,7 +111,6 @@ type LowerLevelCanonicalEffs =
      Error TTLError,
      Error SparError,
      Reporter,
-     -- TODO(sandy): Make this a Logger Text instead
      Logger String,
      Logger (TinyLog.Msg -> TinyLog.Msg),
      Input Opts,
@@ -165,18 +155,7 @@ runSparToIO ctx =
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     . saml2ToSaml2WebSso
     . interpretBrigAccess ctx.sparCtxOpts.brig
-    . (undefined :: InterpreterFor (Input (Data.Qualified.Local ())) r) -- xxx
-    . (interpretUserGroupStoreToPostgres :: InterpreterFor UserGroupStore r)
-    . (interpretUserGroupSubsystem :: InterpreterFor UserGroupSubsystem r)
     . interpretScimSubsystem
-
-{-
-
-src/Spar/CanonicalInterpreter.hs:168:8: error: [GHC-39999]
-    • No instance for ‘Member (Input (Local ())) r’
-        arising from a use of ‘interpretUserGroupSubsystem’
-...
--}
 
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)

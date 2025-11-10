@@ -243,6 +243,17 @@ type CreateGroupFullInternal =
         :> Post '[Servant.JSON] UserGroup
     )
 
+type GetGroupInternal =
+  Named
+    "i-get-group"
+    ( Summary "Create user group with full control (internal)"
+        :> "user-groups"
+        :> Capture "tid" TeamId
+        :> Capture "gid" UserGroupId
+        :> Capture "includeChannels" Bool
+        :> Get '[Servant.JSON] (Maybe UserGroup)
+    )
+
 type AccountAPI =
   Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
     :<|> Named "i-put-account-conference-calling-config" PutAccountConferenceCallingConfig
@@ -551,6 +562,7 @@ type AccountAPI =
            )
     :<|> GetAccountsByInternal
     :<|> CreateGroupFullInternal
+    :<|> GetGroupInternal
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

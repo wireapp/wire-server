@@ -105,6 +105,8 @@ interpretBrigAccess brigEndpoint =
         getAccountsBy localGetBy
       CreateGroupFull managedBy teamId creatorUserId newGroup ->
         createGroupFull managedBy teamId creatorUserId newGroup
+      GetGroupUnsafe tid gid includeChannels ->
+        getGroupUnsafe tid gid includeChannels
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -552,5 +554,19 @@ createGroupFull managedBy teamId creatorUserId newGroup = do
       method POST
         . path "/i/user-groups/full"
         . json req
+        . expect2xx
+  decodeBodyOrThrow "brig" r
+
+getGroupUnsafe ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  TeamId ->
+  UserGroupId ->
+  Bool ->
+  Sem r (Maybe UserGroup)
+getGroupUnsafe tid gid includeChannels = do
+  r <-
+    brigRequest $
+      method GET
+        . paths ["i", "user-groups", toByteString' tid, toByteString' gid, toByteString' includeChannels]
         . expect2xx
   decodeBodyOrThrow "brig" r

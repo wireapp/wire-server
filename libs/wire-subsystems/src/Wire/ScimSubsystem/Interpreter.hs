@@ -1,10 +1,10 @@
 module Wire.ScimSubsystem.Interpreter where
 
-import Data.UUID qualified as UUID
 import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Text qualified as Text
+import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Network.URI (parseURI)
@@ -22,8 +22,6 @@ import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
-import Wire.UserGroupSubsystem
-import Wire.UserGroupStore qualified as UGStore
 import Wire.UserSubsystem
 
 data ScimSubsystemConfig = ScimSubsystemConfig
@@ -31,9 +29,7 @@ data ScimSubsystemConfig = ScimSubsystemConfig
   }
 
 interpretScimSubsystem ::
-  ( Member UserGroupSubsystem r,
-    Member UGStore.UserGroupStore r,
-    Member (Input ScimSubsystemConfig) r,
+  ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
     Member BrigAPIAccess r
   ) =>
@@ -93,20 +89,19 @@ scimGetUserGroupImpl ::
   forall r.
   ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
-    Member UGStore.UserGroupStore r,
-    () ~ ()
+    Member BrigAPIAccess r
   ) =>
   TeamId ->
   UserGroupId ->
   Sem r (SCG.StoredGroup SparTag)
 scimGetUserGroupImpl tid gid = do
   let includeChannels = False -- SCIM has no notion of channels.
-  maybe groupNotFound returnStoredGroup =<< UGStore.getUserGroup tid gid includeChannels
+  maybe groupNotFound returnStoredGroup =<< BrigAPI.getGroupUnsafe tid gid includeChannels
   where
     groupNotFound = scimThrow $ notFound "Group" $ UUID.toText $ toUUID gid
     returnStoredGroup g = do
       ScimSubsystemConfig scimBaseUri <- input
-      return $ toStoredGroup scimBaseUri g
+      pure $ toStoredGroup scimBaseUri g
 
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
 toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
