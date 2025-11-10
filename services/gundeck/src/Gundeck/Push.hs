@@ -49,6 +49,7 @@ import Data.Text qualified as Text
 import Data.These
 import Data.Timeout
 import Data.UUID qualified as UUID
+import Debug.Trace
 import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
@@ -131,9 +132,12 @@ publishToPulsar routingKey payload =
             P.namespace = "default",
             P.name = P.TopicName routingKey
           }
-   in liftIO . P.runPulsar conn $ do
+   in liftIO . P.runPulsar (traceM "Connecting" >> conn >>= \c -> trace "Connected" (pure c)) $ do
+        traceM $ "publishToPulsar create producer"
         P.Producer {..} <- P.newProducer topic
+        traceM $ "publishToPulsar sending"
         send (P.PulsarMessage payload)
+        traceM $ "publishToPulsar sending DONE"
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -320,7 +324,9 @@ pushViaRabbitMq newNotif = do
                 Set.fromList $ map (clientRoutingKey r._recipientId) cs
   for_ routingKeys $ \routingKey -> do
     mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
+    traceM $ "pushViaRabbitMq pushing to pulsar"
     mpaPublishToPulsar routingKey (mkPulsarMessage newNotif.nnNotification)
+    traceM $ "pushViaRabbitMq pushing to pulsar DONE"
 
 pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m ()
 pushAllToCells newNotifs = do

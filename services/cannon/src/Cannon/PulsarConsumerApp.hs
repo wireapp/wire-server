@@ -8,8 +8,10 @@ import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Control.Concurrent.Async
-import Control.Exception (Handler (..), bracket, catch, catches, handle, throwIO, try)
+import Control.Exception (Handler (..), bracket, catch, catches, throwIO, try)
+import Control.Exception.Base
 import Control.Lens hiding ((#))
+import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
 import Data.Aeson qualified as A
@@ -22,6 +24,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
+import Debug.Trace
 import Imports hiding (min, threadDelay)
 import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
@@ -47,6 +50,7 @@ data PulsarQueueInfo = PulsarQueueInfo
   { queueNames :: [Text],
     messageCount :: Int
   }
+  deriving (Show)
 
 data PulsarMessage = PulsarMessage
   { msgBody :: Text,
@@ -69,6 +73,7 @@ createPulsarChannel uid mCid = do
 
   liftIO $ for_ queueNames $ \qn ->
     do
+      traceM $ "Connecting ..."
       P.runPulsar (P.connect P.defaultConnectData) $ do
         let topic =
               P.Topic
@@ -78,8 +83,10 @@ createPulsarChannel uid mCid = do
                   P.name = P.TopicName qn
                 }
             subscription = P.Subscription P.Shared "cannon-websocket"
-        P.Consumer {..} <- P.newConsumer topic subscription
-        liftIO $ void . async . forever @IO $ do
+        traceM $ "newConsumer " ++ show topic
+        P.Consumer {..} <- liftIO . handle (\(e :: SomeException) -> trace ("Caugth" ++ show e) (throw e)) $ P.newConsumer topic subscription
+        traceM $ "Ready"
+        liftIO . handle (\(e :: SomeException) -> trace ("Caugth" ++ show e) (throw e)) . void . async . forever @IO $ do
           pMsg@(P.Message pMsgId _) <- fetch
           putMVar msgVar (Just pMsg)
           ack pMsgId
@@ -91,6 +98,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   handle handleTooManyChannels . lowerCodensity $
     do
       (chan, queueInfo) <- createPulsarChannel uid mcid
+      traceM $ "pulsarWebSocketApp " ++ show queueInfo
       conn <- Codensity $ bracket openWebSocket closeWebSocket
       activity <- liftIO newEmptyMVar
       let wsConn =

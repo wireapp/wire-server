@@ -22,6 +22,7 @@ library
     Data.Time.Clock.DiffTime
     Hasql.Pool.Extended
     Network.AMQP.Extended
+    Network.PulsarAdmin
     Network.RabbitMqAdmin
     Servant.API.Extended
     Servant.API.Extended.Endpath

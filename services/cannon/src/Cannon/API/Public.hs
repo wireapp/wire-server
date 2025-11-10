@@ -27,7 +27,9 @@ import Cannon.WS
 import Control.Monad.IO.Class
 import Data.Id
 import Data.Text
+import Debug.Trace
 import GHC.Base
+import Imports
 import Network.WebSockets.Connection
 import Servant
 import Wire.API.Routes.Named
@@ -46,5 +48,6 @@ streamData userId connId clientId con = do
 
 consumeEvents :: UserId -> Maybe ClientId -> Maybe Text -> PendingConnection -> Cannon ()
 consumeEvents userId mClientId mSyncMarker con = do
+  traceM $ "consumeEvents ++ " ++ show userId ++ " " ++ show mClientId
   e <- wsenv
   liftIO $ pulsarWebSocketApp userId mClientId mSyncMarker e con

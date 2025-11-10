@@ -100,7 +100,7 @@ newSettings (Server h p l t) =
     . setBeforeMainLoop logStart
     . setOnOpen (const $ connStart >> pure True)
     . setOnClose (const connEnd)
-    . setTimeout (fromMaybe 300 t)
+    . setTimeout (fromMaybe 3000 t)
     $ defaultSettings
   where
     connStart = Prom.incGauge netConnections
