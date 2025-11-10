@@ -3,6 +3,7 @@ module Wire.ScimSubsystem.Interpreter where
 import Data.Default
 import Data.Id
 import Data.Json.Util
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
@@ -60,8 +61,7 @@ createScimGroupImpl ::
   Sem r (SCG.StoredGroup SparTag)
 createScimGroupImpl teamId grp = do
   membersNotManagedByScim <- do
-    let uidsAsText = (.value) <$> grp.members
-    uids :: [UserId] <- uidsAsText `mapM` parseMember
+    uids :: [UserId] <- parseMember `mapM` grp.members
     users <- BrigAPI.getAccountsBy def {getByUserId = uids}
     pure $
       users
@@ -105,11 +105,9 @@ scimGetUserGroupImpl tid gid = do
 
 scimUpdateUserGroupImpl ::
   forall r.
-  ( Member UGStore.UserGroupStore r,
-    Member (Input ScimSubsystemConfig) r,
+  ( Member (Input ScimSubsystemConfig) r,
     Member (Error ScimSubsystemError) r,
-    Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member BrigAPIAccess r
   ) =>
   TeamId ->
   UserGroupId ->
