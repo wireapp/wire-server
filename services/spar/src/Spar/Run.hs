@@ -107,8 +107,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . to port)
           $ Bilge.empty
   let sparCtxRequestId = RequestId defRequestId
-
-  (sparCtxScimSubsystemConfig, sparCtxLocalUnit) <- do
+  sparCtxScimSubsystemConfig <- do
     let bsUri :: URI.URI
         bsUri = sparCtxOpts.scimBaseUri
 
@@ -122,14 +121,7 @@ mkApp sparCtxOpts = do
         . URI.normalizeURIRef' URI.noNormalization
         $ bsUri
 
-    localUnit :: Local () <- do
-      bs <-
-        maybe (crash "no host") (pure . URI.hostBS)
-          . (^? URI.authorityL . _Just . URI.authorityHostL)
-          $ bsUri
-      either crash (pure . (`toLocalUnsafe` ())) (mkDomainFromBS bs)
-
-    pure (ScimSubsystemConfig scimUri, localUnit)
+    pure (ScimSubsystemConfig scimUri)
 
   let ctx0 = Env {..}
   let heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)

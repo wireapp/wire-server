@@ -26,7 +26,6 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except hiding (mapError)
-import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -96,7 +95,6 @@ type LowerLevelCanonicalEffs =
      VerdictFormatStore,
      Error ParseException,
      Rpc,
-     Input (Local ()),
      Input ScimSubsystemConfig,
      Error ScimSubsystemError,
      ScimExternalIdStore,
@@ -150,7 +148,6 @@ runSparToIO ctx =
     . scimExternalIdStoreToCassandra
     . mapScimSubsystemErrors
     . runInputConst (ctx.sparCtxScimSubsystemConfig)
-    . runInputConst (ctx.sparCtxLocalUnit)
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
     . iParseException
     . verdictFormatStoreToCassandra
