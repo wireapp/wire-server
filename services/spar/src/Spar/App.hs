@@ -1,4 +1,3 @@
-
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
