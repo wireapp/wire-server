@@ -32,13 +32,11 @@ import qualified Bilge
 import Cassandra as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
-import Control.Lens (to, (^.), (^?), _Just)
+import Control.Lens (to, (^.))
 import qualified Data.ByteString.UTF8 as UTF8
-import Data.Domain
 import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified
 import Data.Text.Encoding
 import Imports
 import Network.URI

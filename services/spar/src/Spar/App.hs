@@ -48,7 +48,6 @@ import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Qualified
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Encoding as Text
@@ -117,7 +116,6 @@ data Env = Env
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxRequestId :: RequestId,
-    sparCtxLocalUnit :: Local (),
     sparCtxScimSubsystemConfig :: ScimSubsystemConfig
   }
 
