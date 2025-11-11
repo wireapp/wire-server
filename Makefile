@@ -34,10 +34,6 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # get executed. This is set here as the CI uses this Makefile, this could live
 # in several Makefiles we have in this repository, but there is little point of
 # doing so.
-#
-# Additionally, if stack is being used with nix, environment variables do not
-# make it into the shell where hspec is run, to tackle that this variable is
-# also exported in stack-deps.nix.
 export HSPEC_OPTIONS ?= --fail-on=focused
 
 default: install
