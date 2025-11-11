@@ -275,7 +275,7 @@ formatc:
 .PHONY: add-license
 add-license:
 	command -v headroom
-	headroom run
+	headroom run -a
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
