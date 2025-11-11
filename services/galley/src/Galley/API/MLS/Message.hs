@@ -51,6 +51,7 @@ import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfoCheck
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
+import Galley.API.MLS.OutOfSync
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
@@ -121,7 +122,8 @@ type MLSBundleStaticErrors =
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature
+       ErrorS 'MLSInvalidLeafNodeSignature,
+       ErrorS MLSGroupOutOfSync
      ]
 
 postMLSMessageFromLocalUser ::
@@ -140,6 +142,7 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (ErrorS MLSGroupOutOfSync) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
   Local UserId ->
@@ -413,6 +416,7 @@ postMLSMessage ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (ErrorS MLSGroupOutOfSync) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
   Local x ->
@@ -457,6 +461,7 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
+    Member (ErrorS MLSGroupOutOfSync) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Qualified UserId ->
@@ -487,6 +492,10 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
       -- reject all application messages if the conv is in mixed state
       when (convOrSub.migrationState == MLSMigrationMixed) $
         throwS @'MLSUnsupportedMessage
+
+      -- reject message if the conversation is out of sync
+      outOfSync <- checkConversationOutOfSync lConvOrSub
+      when outOfSync $ throwS @'MLSGroupOutOfSync
 
       -- reject application messages older than 2 epochs
       -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0

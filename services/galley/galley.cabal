@@ -93,6 +93,7 @@ library
     Galley.API.MLS
     Galley.API.MLS.CheckClients
     Galley.API.MLS.Commit
+    Galley.API.MLS.OutOfSync
     Galley.API.MLS.Commit.Core
     Galley.API.MLS.Commit.ExternalCommit
     Galley.API.MLS.Commit.InternalCommit
