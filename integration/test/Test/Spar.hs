@@ -427,11 +427,21 @@ testSparScimCreateGetUserGroup = do
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
-  (owner, _, u1 : u2 : u3 : _) <- createTeam OwnDomain 4
-  u1Id <- u1 %. "id" >>= asString
-  u2Id <- u2 %. "id" >>= asString
-  u3Id <- u3 %. "id" >>= asString
+  (owner, tid, []) <- createTeam OwnDomain 1
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  let mkMemberCandidate :: App String
+      mkMemberCandidate = do
+        assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+        assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+        void $ registerTestIdPWithMetaWithPrivateCreds owner
+
+        scimUserEmail <- randomEmail
+        scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
+        createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+
+  [u1Id, u2Id, u3Id] <- replicateM 3 mkMemberCandidate
+
   let scimUserGroup =
         object
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
@@ -468,6 +478,8 @@ testSparScimUpdateUserGroup = do
                  ]
           ]
   updateScimUserGroup OwnDomain tok gid scimUserGroupUpdated >>= assertSuccess
+  getScimUserGroup OwnDomain tok gid `bindResponse` \resp -> do
+    resp.json %. "thing.value.displayName" `shouldMatch` "my even funkier group"
 
 ----------------------------------------------------------------------
 -- saml stuff

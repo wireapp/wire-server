@@ -48,6 +48,7 @@ module Wire.BrigAPIAccess
     -- * User Groups
     createGroupFull,
     getGroupUnsafe,
+    updateGroup,
   )
 where
 
@@ -74,7 +75,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
-import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup
 
 -- | When receiving tokens from other services which are 'just passing through'
 -- it's error-prone useless extra work to parse and render them from JSON over and over again.
@@ -134,6 +135,7 @@ data BrigAPIAccess m a where
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
   GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
+  UpdateGroup :: TeamId -> UserGroupId -> Maybe UserGroupName -> Maybe [UserId] -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 

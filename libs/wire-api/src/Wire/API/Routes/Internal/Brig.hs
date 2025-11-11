@@ -37,6 +37,7 @@ module Wire.API.Routes.Internal.Brig
     GetRichInfoMultiResponse (..),
     GetBy (..),
     CreateGroupFullRequest (..),
+    UpdateGroupInternalRequest (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
@@ -95,7 +96,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
-import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup
 import Wire.Arbitrary
 
 -- | Parameters for getting user accounts by various criteria
@@ -151,6 +152,26 @@ instance ToSchema CreateGroupFullRequest where
         <*> (.teamId) .= field "team_id" schema
         <*> (.creatorUserId) .= optField "creator_user_id" (maybeWithDefault Null schema)
         <*> (.newGroup) .= field "new_group" schema
+
+data UpdateGroupInternalRequest = UpdateGroupInternalRequest
+  { teamId :: TeamId,
+    groupId :: UserGroupId,
+    -- | if name is Nothing, user group name will not be touched
+    name :: Maybe UserGroupName,
+    -- | if members is Nothing, member set will not be touched
+    members :: Maybe [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UpdateGroupInternalRequest
+
+instance ToSchema UpdateGroupInternalRequest where
+  schema =
+    object "UpdateGroupInternalRequest" $
+      UpdateGroupInternalRequest
+        <$> (.teamId) .= field "team_id" schema
+        <*> (.groupId) .= field "group_id" schema
+        <*> (.name) .= optField "name" (maybeWithDefault Null schema)
+        <*> (.members) .= optField "members" (maybeWithDefault Null (array schema))
 
 type EJPDRequest =
   Named
@@ -252,6 +273,15 @@ type GetGroupInternal =
         :> Capture "gid" UserGroupId
         :> Capture "includeChannels" Bool
         :> Get '[Servant.JSON] (Maybe UserGroup)
+    )
+
+type UpdateGroupInternal =
+  Named
+    "i-update-group"
+    ( Summary "Create user group with full control (internal)"
+        :> "user-groups"
+        :> ReqBody '[Servant.JSON] UpdateGroupInternalRequest
+        :> Get '[Servant.JSON] ()
     )
 
 type AccountAPI =
@@ -563,6 +593,7 @@ type AccountAPI =
     :<|> GetAccountsByInternal
     :<|> CreateGroupFullInternal
     :<|> GetGroupInternal
+    :<|> UpdateGroupInternal
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

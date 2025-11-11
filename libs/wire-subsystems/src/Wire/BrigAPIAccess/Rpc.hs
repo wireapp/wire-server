@@ -26,7 +26,7 @@ import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..), GetBy)
+import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..), GetBy, UpdateGroupInternalRequest (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -40,7 +40,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
-import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess (..), OpaqueAuthToken (..))
 import Wire.ParseException
 import Wire.Rpc
@@ -107,6 +107,8 @@ interpretBrigAccess brigEndpoint =
         createGroupFull managedBy teamId creatorUserId newGroup
       GetGroupUnsafe tid gid includeChannels ->
         getGroupUnsafe tid gid includeChannels
+      UpdateGroup tid gid mbName mbMembers ->
+        updateGroup (UpdateGroupInternalRequest tid gid mbName mbMembers)
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -570,3 +572,15 @@ getGroupUnsafe tid gid includeChannels = do
         . paths ["i", "user-groups", toByteString' tid, toByteString' gid, toByteString' includeChannels]
         . expect2xx
   decodeBodyOrThrow "brig" r
+
+updateGroup ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  UpdateGroupInternalRequest ->
+  Sem r ()
+updateGroup reqBody =
+  void $
+    brigRequest $
+      method PUT
+        . paths ["i", "user-groups"]
+        . json reqBody
+        . expect2xx
