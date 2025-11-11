@@ -46,7 +46,7 @@ testObject_Event_user_1 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com")))
     (read "1864-05-22 09:51:07.104 UTC")
     (Just (Id (fromJust (UUID.fromString "90eda181-bb05-4525-a5cc-d0038deda9b7"))))
     EdConvDelete
@@ -56,7 +56,7 @@ testObject_Event_user_2 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "0000064d-0000-7a7f-0000-5749000029e1"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2"))) (Domain "faraway.example.com")))
     (read "1864-06-05 23:01:18.769 UTC")
     Nothing
     ( EdConvAccessUpdate
@@ -72,7 +72,7 @@ testObject_Event_user_3 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00006f8c-0000-00d6-0000-1568000001e9"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188"))) (Domain "faraway.example.com")))
     (read "1864-04-27 15:44:23.844 UTC")
     Nothing
     ( EdOtrMessage
@@ -90,7 +90,7 @@ testObject_Event_user_4 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00004f04-0000-3939-0000-472d0000316b"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7"))) (Domain "faraway.example.com")))
     (read "1864-05-12 00:59:09.2 UTC")
     Nothing
     EdConvCodeDelete
@@ -100,7 +100,7 @@ testObject_Event_user_5 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00003c8c-0000-6394-0000-294b0000098b"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9"))) (Domain "faraway.example.com")))
     (read "1864-04-12 03:04:00.298 UTC")
     Nothing
     ( EdMemberUpdate
@@ -129,7 +129,7 @@ testObject_Event_user_6 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00001fdb-0000-3127-0000-23ef00007183"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8"))) (Domain "faraway.example.com")))
     (read "1864-05-09 05:44:41.382 UTC")
     Nothing
     (EdConvMessageTimerUpdate (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 5029817038083912})}))
@@ -139,7 +139,7 @@ testObject_Event_user_7 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00006ac1-0000-543e-0000-7c8f00000be7"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))) (Domain "faraway.example.com")))
     (read "1864-04-18 05:01:13.761 UTC")
     Nothing
     (EdTyping StoppedTyping)
@@ -149,7 +149,7 @@ testObject_Event_user_8 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))) (Domain "faraway.example.com")))
     (read "1864-05-29 19:31:31.226 UTC")
     Nothing
     ( EdConversation
@@ -218,7 +218,7 @@ testObject_Event_user_9 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00000b98-0000-618d-0000-19e200004651"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726"))) (Domain "faraway.example.com")))
     (read "1864-05-01 11:57:35.123 UTC")
     Nothing
     (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -10505}}))
@@ -228,7 +228,7 @@ testObject_Event_user_10 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00005e43-0000-3b56-0000-7c270000538c"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d"))) (Domain "faraway.example.com")))
     (read "1864-05-25 01:31:49.802 UTC")
     Nothing
     ( EdConnect
@@ -249,7 +249,7 @@ testObject_Event_user_11 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "0000303b-0000-23a9-0000-25de00002f80"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com")))
     (read "1864-04-12 01:28:25.705 UTC")
     Nothing
     ( EdMembersLeave
@@ -268,7 +268,7 @@ testObject_Event_user_12 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com")))
     (read "1864-05-12 20:29:47.483 UTC")
     Nothing
     ( EdMembersJoin
@@ -293,7 +293,7 @@ testObject_Event_user_13 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com")))
     (read "1864-05-12 20:29:47.483 UTC")
     Nothing
     (EdConvRename (ConversationRename "New conversation name"))
@@ -303,7 +303,7 @@ testObject_Event_user_14 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com")))
     (read "1864-05-12 20:29:47.483 UTC")
     Nothing
     (EdConvCodeUpdate cc)
@@ -323,7 +323,7 @@ testObject_Event_user_15 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "7cd50991-3cdd-40ec-bb0f-63ae17b2309d"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "04e68c50-027e-4e84-a33a-e2e28a7b8ea3"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "04e68c50-027e-4e84-a33a-e2e28a7b8ea3"))) (Domain "faraway.example.com")))
     (read "2021-11-10 05:39:44.297 UTC")
     Nothing
     (EdMLSMessage "hello world")
@@ -333,7 +333,7 @@ testObject_Event_user_16 =
   Event
     (Qualified (Id (fromJust (UUID.fromString "6ec1c834-9ae6-4825-8809-61dde80be5ea"))) (Domain "faraway.example.com"))
     Nothing
-    (Qualified (Id (fromJust (UUID.fromString "e8f48b8f-fad3-4f60-98e3-a6df082c328d"))) (Domain "faraway.example.com"))
+    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "e8f48b8f-fad3-4f60-98e3-a6df082c328d"))) (Domain "faraway.example.com")))
     (read "2021-05-12 13:12:01.005 UTC")
     Nothing
     (EdMLSWelcome "welcome message content")

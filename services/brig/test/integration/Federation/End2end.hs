@@ -458,7 +458,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       ntfTransient n @?= False
       evtConv e @?= qconvId
       evtType e @?= OtrMessageAdd
-      evtFrom e @?= userQualifiedId bob
+      evtFrom e @?= EventFromUser (userQualifiedId bob)
       evtData e
         @?= EdOtrMessage
           ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
@@ -521,7 +521,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
       ntfTransient n @?= False
       evtConv e @?= qconvId
       evtType e @?= OtrMessageAdd
-      evtFrom e @?= userQualifiedId bob
+      evtFrom e @?= EventFromUser (userQualifiedId bob)
       evtData e
         @?= EdOtrMessage
           ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
@@ -630,7 +630,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
           ntfTransient n @?= True
           evtConv e @?= cnv.qualifiedId
           evtType e @?= Typing
-          evtFrom e @?= userQualifiedId u
+          evtFrom e @?= EventFromUser (userQualifiedId u)
           evtData e @?= EdTyping s
 
   -- -- alice is typing, bob gets events

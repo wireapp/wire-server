@@ -11,5 +11,6 @@
         "id": "04e68c50-027e-4e84-a33a-e2e28a7b8ea3"
     },
     "time": "2021-11-10T05:39:44.297Z",
-    "type": "conversation.mls-message-add"
+    "type": "conversation.mls-message-add",
+    "via": "user"
 }

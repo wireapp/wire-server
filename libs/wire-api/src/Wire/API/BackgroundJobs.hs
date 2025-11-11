@@ -70,7 +70,7 @@ data SyncUserGroupAndChannel = SyncUserGroupAndChannel
   { teamId :: TeamId,
     userGroupId :: UserGroupId,
     convId :: ConvId,
-    actor :: UserId
+    actor :: Maybe UserId
   }
   deriving (Show, Eq, Generic)
   deriving (Aeson.ToJSON, Aeson.FromJSON) via (Schema SyncUserGroupAndChannel)
@@ -83,12 +83,12 @@ instance ToSchema SyncUserGroupAndChannel where
         <$> (.teamId) .= field "team_id" schema
         <*> (.userGroupId) .= field "user_group_id" schema
         <*> (.convId) .= field "conv_id" schema
-        <*> (.actor) .= field "actor" schema
+        <*> (.actor) .= maybe_ (optField "actor" schema)
 
 data SyncUserGroup = SyncUserGroup
   { teamId :: TeamId,
     userGroupId :: UserGroupId,
-    actor :: UserId
+    actor :: Maybe UserId
   }
   deriving (Show, Eq, Generic)
   deriving (Aeson.ToJSON, Aeson.FromJSON) via (Schema SyncUserGroup)
@@ -100,7 +100,7 @@ instance ToSchema SyncUserGroup where
       SyncUserGroup
         <$> (.teamId) .= field "team_id" schema
         <*> (.userGroupId) .= field "user_group_id" schema
-        <*> (.actor) .= field "actor" schema
+        <*> (.actor) .= maybe_ (optField "actor" schema)
 
 makePrisms ''JobPayload
 

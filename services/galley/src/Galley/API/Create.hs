@@ -733,7 +733,7 @@ createConnectConversation lusr conn j = do
     create lcnv nc = do
       c <- E.upsertConversation lcnv nc
       now <- Now.get
-      let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConnect j)
+      let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConnect j)
       notifyCreatedConversation lusr conn c def
       pushNotifications
         [ def
@@ -778,7 +778,7 @@ createConnectConversation lusr conn j = do
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
           t <- Now.get
-          let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t Nothing (EdConnect j)
+          let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
           pushNotifications
             [ def
                 { origin = Just (tUnqualified lusr),
@@ -903,7 +903,7 @@ notifyCreatedConversation lusr conn c joinType = do
           localOthers = map (localMemberToOther (tDomain lusr)) $ c.localMembers
           lconv = qualifyAs lusr c.id_
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr m.id_)
-      let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t Nothing (EdConversation c')
+      let e = Event (tUntagged lconv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConversation c')
       pure $
         def
           { origin = Just (tUnqualified lusr),

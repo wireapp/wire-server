@@ -13,5 +13,6 @@
         "id": "a471447c-aa30-4592-81b0-dec6c1c02bca"
     },
     "time": "2018-01-01T00:00:00.000Z",
-    "type": "conversation.protocol-update"
+    "type": "conversation.protocol-update",
+    "via": "user"
 }

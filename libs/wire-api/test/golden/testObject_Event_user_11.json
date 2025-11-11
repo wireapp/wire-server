@@ -27,5 +27,6 @@
         "id": "000043a6-0000-1627-0000-490300002017"
     },
     "time": "1864-04-12T01:28:25.705Z",
-    "type": "conversation.member-leave"
+    "type": "conversation.member-leave",
+    "via": "user"
 }

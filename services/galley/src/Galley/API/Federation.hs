@@ -198,7 +198,7 @@ onConversationCreated domain rc = do
           Event
             (tUntagged (cnvId qrcConnected))
             Nothing
-            (tUntagged (ccRemoteOrigUserId qrcConnected))
+            (EventFromUser (tUntagged (ccRemoteOrigUserId qrcConnected)))
             qrcConnected.time
             Nothing
             (EdConversation c)
@@ -895,7 +895,7 @@ onMLSMessageSent domain rmm =
               $ rmm.recipients
       -- FUTUREWORK: support local bots
       let e =
-            Event (tUntagged rcnv) rmm.subConversation rmm.sender rmm.time Nothing $
+            Event (tUntagged rcnv) rmm.subConversation (EventFromUser rmm.sender) rmm.time Nothing $
               EdMLSMessage (fromBase64ByteString rmm.message)
 
       runMessagePush loc (Just (tUntagged rcnv)) $

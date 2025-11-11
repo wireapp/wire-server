@@ -87,7 +87,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
         Event
           { evtConv = qcnv,
             evtSubConv = sconv,
-            evtFrom = qusr,
+            evtFrom = EventFromUser qusr,
             evtTime = now,
             evtTeam = Nothing,
             evtData = EdMLSMessage msg.raw

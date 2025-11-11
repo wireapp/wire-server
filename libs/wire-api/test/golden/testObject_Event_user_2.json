@@ -22,5 +22,6 @@
         "id": "00006a88-0000-2acb-0000-6aa0000061b2"
     },
     "time": "1864-06-05T23:01:18.769Z",
-    "type": "conversation.access-update"
+    "type": "conversation.access-update",
+    "via": "user"
 }

@@ -25,6 +25,9 @@ module Wire.API.Event.Conversation
     evtType,
     EventType (..),
     EventData (..),
+    EventVia (..),
+    EventFrom (..),
+    eventFromUserId,
     AddCodeResult (..),
     isCellsConversationEvent,
 
@@ -109,10 +112,41 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 --------------------------------------------------------------------------------
 -- Event
 
+data EventVia = EventViaUserAction | EventViaSCIM
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EventVia)
+
+instance ToSchema EventVia where
+  schema =
+    enum @Text "EventVia" $
+      mconcat
+        [ element "scim" EventViaSCIM,
+          element "user" EventViaUserAction
+        ]
+
+data EventFrom
+  = EventFromUser (Qualified UserId)
+  | -- | This needs a user id for backwards compat.
+    EventFromSCIM (Qualified UserId)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EventFrom)
+
+eventFromUserId :: EventFrom -> Qualified UserId
+eventFromUserId (EventFromUser uid) = uid
+eventFromUserId (EventFromSCIM uid) = uid
+
+eventVia :: EventFrom -> EventVia
+eventVia (EventFromUser _) = EventViaUserAction
+eventVia (EventFromSCIM _) = EventViaSCIM
+
+mkEventFrom :: EventVia -> Qualified UserId -> EventFrom
+mkEventFrom EventViaSCIM = EventFromSCIM
+mkEventFrom EventViaUserAction = EventFromUser
+
 data Event = Event
   { evtConv :: Qualified ConvId,
     evtSubConv :: Maybe SubConvId,
-    evtFrom :: Qualified UserId,
+    evtFrom :: EventFrom,
     evtTime :: UTCTime,
     evtTeam :: Maybe TeamId,
     evtData :: EventData
@@ -489,12 +523,13 @@ eventObjectSchema =
     <* (qUnqualified . evtConv) .= optional (field "conversation" schema)
     <*> evtConv .= field "qualified_conversation" schema
     <*> evtSubConv .= maybe_ (optField "subconv" schema)
-    <* (qUnqualified . evtFrom) .= optional (field "from" schema)
-    <*> evtFrom .= field "qualified_from" schema
+    <* (qUnqualified . eventFromUserId . evtFrom) .= optional (field "from" schema)
+    <*> (eventFromUserId . evtFrom) .= field "qualified_from" schema
+    <*> (eventVia . evtFrom) .= field "via" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
     <*> evtTeam .= maybe_ (optField "team" schema)
   where
-    mk (_, d) cid sconvid uid tm tid = Event cid sconvid uid tm tid d
+    mk (_, d) cid sconvid uid fromTag tm tid = Event cid sconvid (mkEventFrom fromTag uid) tm tid d
 
 instance ToJSONObject Event where
   toJSONObject =

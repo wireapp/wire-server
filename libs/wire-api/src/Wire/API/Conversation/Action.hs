@@ -189,20 +189,21 @@ conversationActionToEvent ::
   forall tag.
   Sing tag ->
   UTCTime ->
-  Qualified UserId ->
+  EventFrom ->
   Qualified ConvId ->
   ExtraConversationData ->
   Maybe SubConvId ->
   Maybe TeamId ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv convData subconv tid action =
+conversationActionToEvent tag now eventFrom qcnv convData subconv tid action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role joinType = action
            in EdMembersJoin $ MembersJoin (map (`SimpleMember` role) (toList newMembers)) joinType
         SConversationLeaveTag ->
-          EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
+          let quid = eventFromUserId eventFrom
+           in EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
           EdMembersLeave (crmReason action) (QualifiedUserIdList . toList . crmTargets $ action)
         SConversationMemberUpdateTag ->
@@ -220,7 +221,7 @@ conversationActionToEvent tag now quid qcnv convData subconv tid action =
    in Event
         { evtConv = qcnv,
           evtSubConv = subconv,
-          evtFrom = quid,
+          evtFrom = eventFrom,
           evtTime = now,
           evtTeam = tid,
           evtData = edata

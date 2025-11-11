@@ -452,7 +452,7 @@ memberJoinEvent ::
   [RemoteMember] ->
   Event
 memberJoinEvent lorig qconv t lmems rmems =
-  Event qconv Nothing (tUntagged lorig) t Nothing $
+  Event qconv Nothing (EventFromUser (tUntagged lorig)) t Nothing $
     EdMembersJoin (MembersJoin (map localToSimple lmems <> map remoteToSimple rmems) InternalAdd)
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig u.id_)) (u.convRoleName)
@@ -764,7 +764,8 @@ pushConversationEvent conn st e lusers bots = do
 
 newConversationEventPush :: (HasCellsState a) => a -> Event -> Local [UserId] -> Push
 newConversationEventPush st e users =
-  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+  let eventFromUser = eventFromUserId e.evtFrom
+      musr = guard (tDomain users == qDomain eventFromUser) $> qUnqualified eventFromUser
    in def
         { origin = musr,
           json = toJSONObject e,

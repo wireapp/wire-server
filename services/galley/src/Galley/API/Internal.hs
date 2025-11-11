@@ -408,7 +408,7 @@ rmUser lusr conn = do
                     Event
                       { evtConv = tUntagged (qualifyAs lusr c.id_),
                         evtSubConv = Nothing,
-                        evtFrom = tUntagged lusr,
+                        evtFrom = EventFromUser (tUntagged lusr),
                         evtTime = now,
                         evtTeam = Nothing,
                         evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])

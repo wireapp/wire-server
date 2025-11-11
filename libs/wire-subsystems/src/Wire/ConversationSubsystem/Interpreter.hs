@@ -47,7 +47,7 @@ notifyConversationActionImpl ::
     Member NotificationSubsystem r
   ) =>
   Sing tag ->
-  Qualified UserId ->
+  EventFrom ->
   Bool ->
   Maybe ConnId ->
   Local StoredConversation ->
@@ -57,12 +57,13 @@ notifyConversationActionImpl ::
   ConversationAction (tag :: ConversationActionTag) ->
   ExtraConversationData ->
   Sem r LocalConversationUpdate
-notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData = do
+notifyConversationActionImpl tag eventFrom notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData = do
   now <- Now.get
   let lcnv = fmap (.id_) lconv
       conv = tUnqualified lconv
       tid = conv.metadata.cnvmTeam
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) extraData Nothing tid action
+      e = conversationActionToEvent tag now eventFrom (tUntagged lcnv) extraData Nothing tid action
+      quid = eventFromUserId eventFrom
       mkUpdate uids =
         ConversationUpdate
           { time = now,
@@ -104,7 +105,8 @@ pushConversationEvent conn st e lusers bots = do
   where
     newConversationEventPush :: Local [UserId] -> Push
     newConversationEventPush users =
-      let musr = guard (tDomain users == qDomain e.evtFrom) $> qUnqualified e.evtFrom
+      let eventFromUser = eventFromUserId e.evtFrom
+          musr = guard (tDomain users == qDomain eventFromUser) $> qUnqualified eventFromUser
        in def
             { origin = musr,
               json = toJSONObject e,

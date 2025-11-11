@@ -104,7 +104,9 @@ createUserGroupFullImpl ::
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
   ) =>
   ManagedBy ->
   TeamId {- home team of the user group.-} ->
@@ -116,7 +118,7 @@ createUserGroupFullImpl managedBy team mbCreator newGroup = do
   guardMembersInTeam
   ug <- Store.createUserGroup team newGroup managedBy
   notifyAdmins ug
-  triggerSyncUserGroup team creator ug.id_
+  triggerSyncUserGroup team mbCreator ug.id_
   pure ug
   where
     guardMembersInTeam :: Sem r ()
@@ -308,7 +310,7 @@ addUser adder groupId addeeId = do
     pushNotifications
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
-    triggerSyncUserGroup team adder groupId
+    triggerSyncUserGroup team (Just adder) groupId
 
 addUsers ::
   ( Member Random.Random r,
@@ -337,7 +339,7 @@ addUsers adder groupId addeeIds = do
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
-  triggerSyncUserGroup team adder groupId
+  triggerSyncUserGroup team (Just adder) groupId
 
 updateUsers ::
   ( Member Random.Random r,
@@ -362,7 +364,7 @@ updateUsers updater groupId uids = do
   pushNotifications
     [ mkEvent updater (UserGroupUpdated groupId) admins
     ]
-  triggerSyncUserGroup team updater groupId
+  triggerSyncUserGroup team (Just updater) groupId
 
 removeUser ::
   ( Member Random.Random r,
@@ -387,7 +389,7 @@ removeUser remover groupId removeeId = do
     pushNotifications
       [ mkEvent remover (UserGroupUpdated groupId) admins
       ]
-    triggerSyncUserGroup team remover groupId
+    triggerSyncUserGroup team (Just remover) groupId
 
 removeUserFromAllGroups ::
   ( Member Store.UserGroupStore r,
@@ -453,7 +455,7 @@ updateChannels appendOnly performer groupId channelIds = do
     then Store.addUserGroupChannels groupId channelIds
     else Store.updateUserGroupChannels groupId channelIds
 
-  triggerSyncUserGroup teamId performer groupId
+  triggerSyncUserGroup teamId (Just performer) groupId
 
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
   pushNotifications
@@ -465,7 +467,7 @@ triggerSyncUserGroup ::
     Member BackgroundJobsPublisher r
   ) =>
   TeamId ->
-  UserId ->
+  Maybe UserId ->
   UserGroupId ->
   Sem r ()
 triggerSyncUserGroup teamId actor userGroupId = do

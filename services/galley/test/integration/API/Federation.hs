@@ -480,7 +480,7 @@ notifyUpdate extras action etype edata = do
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= etype
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= edata
       -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
       WS.assertNoEventExcept (1 # Second) [wsC] $ wsIsEventOfType "user.activate"
@@ -527,7 +527,7 @@ notifyUpdateUnavailable extras action etype edata = do
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= etype
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= edata
       WS.assertNoEvent (1 # Second) [wsC]
 
@@ -825,7 +825,7 @@ onMessageSent = do
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= OtrMessageAdd
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= EdOtrMessage (OtrMessage fromc aliceC1 txt Nothing)
 
       -- alice should receive the message on her second client
@@ -834,7 +834,7 @@ onMessageSent = do
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= OtrMessageAdd
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= EdOtrMessage (OtrMessage fromc aliceC2 txt Nothing)
 
       -- These should be the only events for each device of alice. This verifies

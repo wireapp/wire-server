@@ -9,13 +9,14 @@ import Imports
 import Polysemy
 import Wire.API.Conversation (ExtraConversationData)
 import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation
 import Wire.NotificationSubsystem (LocalConversationUpdate)
 import Wire.StoredConversation
 
 data ConversationSubsystem m a where
   NotifyConversationAction ::
     Sing tag ->
-    Qualified UserId ->
+    EventFrom ->
     Bool ->
     Maybe ConnId ->
     Local StoredConversation ->

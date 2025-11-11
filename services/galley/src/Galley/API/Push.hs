@@ -96,7 +96,7 @@ runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
 toPush :: MessagePush -> Push
 toPush (MessagePush mconn mm rs _ event) =
   def
-    { origin = Just (qUnqualified (evtFrom event)),
+    { origin = Just (qUnqualified (eventFromUserId (evtFrom event))),
       conn = mconn,
       json = toJSONObject event,
       recipients = rs,

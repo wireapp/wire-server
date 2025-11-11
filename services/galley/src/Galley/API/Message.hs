@@ -724,7 +724,7 @@ newMessageEvent ::
   Event
 newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
   let convId = fromMaybe (tUntagged (fmap selfConv receiver)) mconvId
-   in Event convId Nothing sender time Nothing . EdOtrMessage $
+   in Event convId Nothing (EventFromUser sender) time Nothing . EdOtrMessage $
         OtrMessage
           { otrSender = senderClient,
             otrRecipient = receiverClient,

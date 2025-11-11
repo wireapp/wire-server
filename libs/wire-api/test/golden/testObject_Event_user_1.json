@@ -12,5 +12,6 @@
     },
     "team": "90eda181-bb05-4525-a5cc-d0038deda9b7",
     "time": "1864-05-22T09:51:07.104Z",
-    "type": "conversation.delete"
+    "type": "conversation.delete",
+    "via": "user"
 }

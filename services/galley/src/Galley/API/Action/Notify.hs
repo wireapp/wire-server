@@ -9,6 +9,7 @@ import Imports hiding ((\\))
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation
 import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.StoredConversation
@@ -29,7 +30,7 @@ sendConversationActionNotifications ::
 sendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData = do
   notifyConversationAction
     tag
-    quid
+    (EventFromUser quid)
     notifyOrigDomain
     con
     lconv

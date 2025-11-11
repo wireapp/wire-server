@@ -1055,7 +1055,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId (fromMaybe def cu.extraConversationData) Nothing Nothing action
+    let event = conversationActionToEvent tag cu.time (EventFromUser cu.origUserId) qconvId (fromMaybe def cu.extraConversationData) Nothing Nothing action
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
@@ -1147,7 +1147,7 @@ pushTypingIndicatorEvents ::
   TypingStatus ->
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
-  let e = Event qcnv Nothing qusr tEvent Nothing (EdTyping ts)
+  let e = Event qcnv Nothing (EventFromUser qusr) tEvent Nothing (EdTyping ts)
   pushNotifications
     [ def
         { origin = Just (qUnqualified qusr),

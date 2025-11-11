@@ -4,10 +4,12 @@ module Wire.BackgroundJobsRunner.Interpreter where
 
 import Data.ByteString.Conversion (toByteString)
 import Data.Default
+import Data.Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
+import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Polysemy
@@ -16,9 +18,10 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message (field, msg, val)
 import Wire.API.BackgroundJobs
-import Wire.API.Conversation (ConversationJoin (..), JoinType (ExternalAdd))
+import Wire.API.Conversation (ConversationJoin (..))
 import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role (roleNameWireMember)
+import Wire.API.Event.Conversation
 import Wire.API.Team.HardTruncationLimit (hardTruncationLimit)
 import Wire.API.UserGroup
 import Wire.BackgroundJobsPublisher
@@ -102,13 +105,18 @@ runSyncUserGroupAndChannel (SyncUserGroupAndChannel {..}) = do
           let role = roleNameWireMember
               users = fmap (flip Qualified (tDomain loc)) newUsersUnqualified
               userList = toUserList loc users
+              -- Just set it to zeros, so the old clients don't fail to parse
+              -- this notification.
+              nilId = Qualified (Id UUID.nil) (tDomain loc)
+              qActor = flip Qualified (tDomain loc) <$> actor
+              notificationFrom = maybe (EventFromSCIM nilId) EventFromUser qActor
               action = ConversationJoin {joinType = ExternalAdd, ..}
 
           (extraLocals, extraRemotes) <- upsertMembers convId (fmap (,role) userList)
           void $
             notifyConversationAction
               (sing @'ConversationJoinTag)
-              (Qualified actor (tDomain loc))
+              notificationFrom
               False
               Nothing
               (loc $> conv)
