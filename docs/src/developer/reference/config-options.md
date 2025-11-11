@@ -1830,7 +1830,7 @@ migrateConversations: false
 # Background jobs consumer
 backgroundJobs:
   concurrency: 8     # in-flight jobs per process
-  jobTimeout: 60     # seconds per attempt
+  jobTimeout: 60s    # per attempt
   maxAttempts: 3     # total attempts incl. first run
 
 # Required for addressing local vs remote backends

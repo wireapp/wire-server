@@ -77,7 +77,7 @@ config:
     # Maximum number of in-flight jobs per process
     concurrency: 8
     # Per-attempt timeout in seconds
-    jobTimeout: 60
+    jobTimeout: 60s
     # Total attempts, including the first try
     maxAttempts: 3
 

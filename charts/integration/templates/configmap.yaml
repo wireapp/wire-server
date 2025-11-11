@@ -59,7 +59,7 @@ data:
       # Background jobs defaults for integration tests
       backgroundJobs:
         concurrency: 4
-        jobTimeout: 5
+        jobTimeout: 5s
         maxAttempts: 3
 
     stern:

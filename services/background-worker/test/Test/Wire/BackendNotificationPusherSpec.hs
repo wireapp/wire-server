@@ -13,6 +13,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Misc
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
@@ -336,7 +337,7 @@ spec = do
           backgroundJobsConfig =
             BackgroundJobsConfig
               { concurrency = toRange (Proxy @1),
-                jobTimeout = toRange (Proxy @100),
+                jobTimeout = Duration 100,
                 maxAttempts = toRange (Proxy @3)
               }
           hasqlPool = undefined
@@ -370,7 +371,7 @@ spec = do
           backgroundJobsConfig =
             BackgroundJobsConfig
               { concurrency = toRange (Proxy @1),
-                jobTimeout = toRange (Proxy @100),
+                jobTimeout = Duration 100,
                 maxAttempts = toRange (Proxy @3)
               }
           hasqlPool = undefined

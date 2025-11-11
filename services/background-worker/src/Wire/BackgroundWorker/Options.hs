@@ -2,6 +2,7 @@ module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
 import Data.Domain (Domain)
+import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
 import Hasql.Pool.Extended
@@ -69,7 +70,7 @@ data BackgroundJobsConfig = BackgroundJobsConfig
   { -- | Maximum parallel jobs processed by this process
     concurrency :: Range 1 1000 Int,
     -- | Per-attempt timeout (seconds)
-    jobTimeout :: Range 1 1000 Int,
+    jobTimeout :: Duration,
     -- | Total attempts including first run
     maxAttempts :: Range 1 1000 Int
   }

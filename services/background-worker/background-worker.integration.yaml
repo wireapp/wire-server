@@ -69,7 +69,7 @@ migrateConversations: false
 # Background jobs consumer configuration for integration
 backgroundJobs:
   concurrency: 4
-  jobTimeout: 5
+  jobTimeout: 5s
   maxAttempts: 3
 
 postgresMigration:

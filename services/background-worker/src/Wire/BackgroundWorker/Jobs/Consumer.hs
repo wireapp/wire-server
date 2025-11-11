@@ -5,6 +5,7 @@ module Wire.BackgroundWorker.Jobs.Consumer (startWorker, BackgroundJobsMetrics (
 import Control.Concurrent.Timeout qualified as Timeout
 import Control.Retry
 import Data.Aeson qualified as Aeson
+import Data.Misc hiding (duration)
 import Data.Range (Range (fromRange))
 import Data.Timeout
 import Imports
@@ -121,7 +122,7 @@ handleDelivery metrics cfg (msg, env) = do
         (dur, r) <-
           duration $
             fromMaybe (Left "job timeout")
-              <$> timeout (fromRange cfg.jobTimeout * 1000000) (dispatchJob job)
+              <$> timeout (durationToMicros cfg.jobTimeout) (dispatchJob job)
         withLabel metrics.jobDuration lbl (`observe` dur)
         pure r
       where

@@ -3,6 +3,7 @@
 module Test.Wire.Util where
 
 import Data.Domain (Domain (Domain))
+import Data.Misc
 import Data.Proxy
 import Data.Range
 import Imports
@@ -34,7 +35,7 @@ testEnv = do
       backgroundJobsConfig =
         BackgroundJobsConfig
           { concurrency = toRange (Proxy @1),
-            jobTimeout = toRange (Proxy @100),
+            jobTimeout = Duration 100,
             maxAttempts = toRange (Proxy @3)
           }
       hasqlPool = undefined
