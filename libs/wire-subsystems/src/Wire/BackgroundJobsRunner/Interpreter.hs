@@ -145,7 +145,7 @@ runSyncUserGroup ::
 runSyncUserGroup SyncUserGroup {..} = do
   mChannels <- getUserGroupChannels teamId userGroupId
   when (isNothing mChannels) $
-    Log.warn $
+    Log.info $
       field "team" (toByteString teamId)
         . field "user_group" (toByteString userGroupId)
         . msg (val "No channels found for user group")
