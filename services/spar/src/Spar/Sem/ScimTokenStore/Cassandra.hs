@@ -34,6 +34,7 @@ import Spar.Data.Instances ()
 import Spar.Sem.ScimTokenStore
 import Text.RawString.QQ
 import Wire.API.User.Scim
+import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 import qualified Prelude
 
 scimTokenStoreToCassandra ::

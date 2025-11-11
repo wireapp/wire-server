@@ -976,7 +976,7 @@ getAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [User]
-getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
+getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkUserFromStored domain config.defaultLocale

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 
-module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
+module Wire.UserGroupSubsystem.InterpreterSpec where
 
 import Control.Error.Util (hush)
 import Control.Lens ((.~), (^.))
@@ -70,9 +70,16 @@ runDependencies ::
   Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
-  run
-    . runError
-    . evalState mempty
+  run . runError . interpretDependencies initialUsers initialTeams
+
+interpretDependencies ::
+  forall r a.
+  [User] ->
+  Map TeamId [TeamMember] ->
+  Sem (AllDependencies `Append` r) a ->
+  Sem ('[Error UserGroupSubsystemError] `Append` r) a
+interpretDependencies initialUsers initialTeams =
+  evalState mempty
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())

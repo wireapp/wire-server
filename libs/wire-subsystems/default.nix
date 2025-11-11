@@ -45,6 +45,7 @@
 , hasql-th
 , hasql-transaction
 , hex
+, hscim
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -64,6 +65,7 @@
 , mime-mail
 , network
 , network-conduit-tls
+, network-uri
 , polysemy
 , polysemy-conc
 , polysemy-plugin
@@ -102,6 +104,7 @@
 , unliftio
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
@@ -158,6 +161,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
@@ -175,6 +179,7 @@ mkDerivation {
     mime-mail
     network
     network-conduit-tls
+    network-uri
     polysemy
     polysemy-conc
     polysemy-plugin
@@ -209,8 +214,10 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
+    wai
     wai-utilities
     wire-api
     wire-api-federation
@@ -259,6 +266,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
@@ -275,6 +283,7 @@ mkDerivation {
     mime-mail
     network
     network-conduit-tls
+    network-uri
     polysemy
     polysemy-conc
     polysemy-plugin
@@ -312,6 +321,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai

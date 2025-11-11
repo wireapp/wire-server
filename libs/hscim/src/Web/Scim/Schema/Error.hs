@@ -30,15 +30,21 @@ module Web.Scim.Schema.Error
     forbidden,
     serverError,
 
-    -- * Servant interoperability
+    -- * Servant/Wai interoperability
     scimToServerError,
+    scimToWaiError,
   )
 where
 
 import Control.Exception
 import Data.Aeson hiding (Error)
+import Data.ByteString.UTF8 (fromString)
 import Data.Text (Text, pack)
+import qualified Data.Text.Lazy.Encoding as LText
 import GHC.Generics (Generic)
+import qualified Network.HTTP.Types.Header as HTTP
+import qualified Network.HTTP.Types.Status as HTTP
+import qualified Network.Wai.Utilities.Error as Wai
 import Servant (ServerError (..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
@@ -174,6 +180,16 @@ serverError details =
 
 ----------------------------------------------------------------------------
 -- Servant
+
+-- | Convert a SCIM 'Error' to a Servant one by encoding it with the
+-- appropriate headers.
+-- We would like to use Wire.Error.HttpError from wire-subsystems,
+-- but hscim can't depend on that.
+scimToWaiError :: ScimError -> (Wai.Error, [HTTP.Header])
+scimToWaiError err = (Wai.mkError e "scim-error" (LText.decodeUtf8 $ encode err), hs)
+  where
+    e = HTTP.Status (unStatus (status err)) (fromString $ reasonPhrase (status err))
+    hs = [("Content-Type", "application/scim+json;charset=utf-8")]
 
 -- | Convert a SCIM 'Error' to a Servant one by encoding it with the
 -- appropriate headers.

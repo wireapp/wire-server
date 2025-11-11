@@ -115,6 +115,7 @@ common common-all
     , hasql-th
     , hasql-transaction
     , hex
+    , hscim
     , HsOpenSSL
     , hspec
     , html-entities
@@ -131,6 +132,7 @@ common common-all
     , mime-mail
     , network
     , network-conduit-tls
+    , network-uri
     , polysemy
     , polysemy-conc
     , polysemy-plugin
@@ -164,8 +166,10 @@ common common-all
     , unliftio
     , unordered-containers
     , uri-bytestring
+    , utf8-string
     , uuid
     , vector
+    , wai
     , wai-utilities
     , wire-api
     , wire-api-federation
@@ -263,6 +267,8 @@ library
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
+    Wire.ScimSubsystem
+    Wire.ScimSubsystem.Interpreter
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SparAPIAccess
@@ -453,6 +459,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec

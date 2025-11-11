@@ -5,7 +5,7 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Vector (Vector)
 import Imports
@@ -45,6 +45,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
+  CreateGroupFull managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
@@ -84,22 +85,49 @@ createUserGroup ::
   NewUserGroup ->
   Sem r UserGroup
 createUserGroup creator newGroup = do
-  let managedBy = ManagedByWire
   team <- getTeamAsAdmin creator >>= note UserGroupNotATeamAdmin
-  luids <- qualifyLocal $ toList newGroup.members
-  profiles <- getLocalUserProfiles luids
-  let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
-  let actualIds = Set.fromList $ toList newGroup.members
-  let allInSameTeam = all (\p -> p.profileTeam == Just team) profiles
-  when (existingIds /= actualIds || not allInSameTeam) $
-    throw $
-      UserGroupMemberIsNotInTheSameTeam
+  createUserGroupFullImpl ManagedByWire team (Just creator) newGroup
+
+createUserGroupFullImpl ::
+  forall r.
+  ( Member UserSubsystem r,
+    Member (Error UserGroupSubsystemError) r,
+    Member Store.UserGroupStore r,
+    Member (Input (Local ())) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  ManagedBy ->
+  TeamId {- home team of the user group.-} ->
+  Maybe UserId {- creator of the user group (just needed for exclusion from event; this is not
+                checked for consistency with TeamId. -} ->
+  NewUserGroup ->
+  Sem r UserGroup
+createUserGroupFullImpl managedBy team mbCreator newGroup = do
+  guardMembersInTeam
   ug <- Store.createUserGroup team newGroup managedBy
-  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-  pushNotifications
-    [ mkEvent creator (UserGroupCreated ug.id_) admins
-    ]
+  notifyAdmins ug
   pure ug
+  where
+    guardMembersInTeam :: Sem r ()
+    guardMembersInTeam = do
+      groupMembersFound :: [UserProfile] <- getLocalUserProfiles =<< qualifyLocal (toList newGroup.members)
+      let groupMemberIdsRequested :: [UserId] = toList newGroup.members
+          groupMemberIdsFound :: [UserId] = qUnqualified . profileQualifiedId <$> groupMembersFound
+          nobodyMissing = Set.fromList groupMemberIdsRequested == Set.fromList groupMemberIdsFound
+
+          allTeams :: [Maybe TeamId] = nub $ profileTeam <$> groupMembersFound
+          nobodyFromOtherTeam = allTeams == [Just team] || null (toList newGroup.members)
+
+      unless (nobodyMissing && nobodyFromOtherTeam) do
+        throw UserGroupMemberIsNotInTheSameTeam
+
+    notifyAdmins :: UserGroup -> Sem r ()
+    notifyAdmins ug = do
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+      pushNotifications
+        [ mmkEvent mbCreator (UserGroupCreated ug.id_) admins
+        ]
 
 getTeamAsAdmin ::
   ( Member UserSubsystem r,
@@ -123,14 +151,17 @@ getTeamAsMember memberId = runMaybeT do
   mbr <- MaybeT $ internalGetTeamMember memberId team
   pure (team, mbr)
 
-mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
-mkEvent author evt recipients =
+mmkEvent :: Maybe UserId -> UserGroupEvent -> [UserId] -> Push
+mmkEvent mAuthor evt recipients =
   def
-    { origin = Just author,
+    { origin = mAuthor,
       json = toJSONObject $ UserGroupEvent evt,
       recipients = (\uid -> Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}) <$> recipients,
       transient = True
     }
+
+mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
+mkEvent = mmkEvent . Just
 
 qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
 qualifyLocal a = do

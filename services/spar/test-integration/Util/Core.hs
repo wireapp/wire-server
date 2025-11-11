@@ -276,6 +276,7 @@ mkEnv tstOpts opts = do
       sparCtxHttpBrig = brig empty
       sparCtxHttpGalley = galley empty
       sparCtxRequestId = RequestId "<fake request id>"
+      sparCtxScimSubsystemConfig = error "mkEnv: implement sparCtxScimSubsystemConfig when needed"
   pure $
     TestEnv
       mgr

@@ -220,7 +220,7 @@ instance Scim.User.UserTypes SparTag where
   supportedSchemas = userSchemas
 
 instance Scim.Group.GroupTypes SparTag where
-  type GroupId SparTag = ()
+  type GroupId SparTag = UserGroupId
 
 instance Scim.Auth.AuthTypes SparTag where
   type AuthData SparTag = ScimToken

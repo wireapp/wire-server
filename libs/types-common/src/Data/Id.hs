@@ -39,6 +39,7 @@ module Data.Id
     ScimTokenId,
     parseIdFromText,
     idToText,
+    idToString,
     idObjectSchema,
     IdObject (..),
 
@@ -262,6 +263,9 @@ parseIdFromText = maybe (Left "UUID.fromText failed") (Right . Id) . UUID.fromTe
 
 idToText :: Id a -> Text
 idToText = UUID.toText . toUUID
+
+idToString :: Id a -> String
+idToString = UUID.toString . toUUID
 
 instance Cql (Id a) where
   ctype = retag (ctype :: Tagged UUID ColumnType)

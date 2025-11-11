@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
@@ -52,7 +51,6 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Encoding as Text
-import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
@@ -100,6 +98,8 @@ import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.Error
+import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -115,7 +115,8 @@ data Env = Env
     sparCtxHttpManager :: Bilge.Manager,
     sparCtxHttpBrig :: Bilge.Request,
     sparCtxHttpGalley :: Bilge.Request,
-    sparCtxRequestId :: RequestId
+    sparCtxRequestId :: RequestId,
+    sparCtxScimSubsystemConfig :: ScimSubsystemConfig
   }
 
 -- | Get a user by UserRef, no matter what the team.
@@ -350,19 +351,13 @@ catchVerdictErrors = (`catch` hndlr)
   where
     hndlr :: SparError -> Sem r VerdictHandlerResult
     hndlr err = do
-      waiErr <- renderSparErrorWithLogging err
-      pure $ case waiErr of
-        Right (werr :: Wai.Error) ->
-          VerifyHandlerError
-            (LText.toStrict $ Wai.label werr)
-            (LText.toStrict $ Wai.message werr)
-        Left (serr :: ServerError) ->
-          VerifyHandlerError
-            "unknown-error"
-            ( Text.pack (errReasonPhrase serr)
-                <> " "
-                <> (Text.decodeUtf8With lenientDecode . toStrict . errBody $ serr)
-            )
+      werr <- renderSparErrorWithLogging err <&> httpErrorToWaiError
+      -- TODO: we don't want to include the RichError part of
+      -- HttpError in the response, but maybe we should log it?
+      pure $
+        VerifyHandlerError
+          (LText.toStrict $ Wai.label werr)
+          (LText.toStrict $ Wai.message werr)
 
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
@@ -575,12 +570,7 @@ errorPage err mpInputs =
       errHeaders = [("Content-Type", "text/html")]
     }
   where
-    werr = either forceWai id $ renderSparError err
-    forceWai ServerError {..} =
-      Wai.mkError
-        (Http.Status errHTTPCode "")
-        (LText.pack errReasonPhrase)
-        (LText.decodeUtf8With lenientDecode errBody)
+    werr = httpErrorToWaiError $ renderSparError err
     errbody :: [LText]
     errbody =
       [ "<head>",
@@ -622,13 +612,10 @@ deleteTeam team' = do
     IdPConfigStore.deleteConfig idp
 
 sparToServerErrorWithLogging :: (Member Reporter r) => SparError -> Sem r ServerError
-sparToServerErrorWithLogging err = do
-  let errServant = sparToServerError err
-  Reporter.report Nothing (servantToWaiError errServant)
-  pure errServant
+sparToServerErrorWithLogging = fmap httpErrorToServerError . renderSparErrorWithLogging
 
-renderSparErrorWithLogging :: (Member Reporter r) => SparError -> Sem r (Either ServerError Wai.Error)
+renderSparErrorWithLogging :: (Member Reporter r) => SparError -> Sem r HttpError
 renderSparErrorWithLogging err = do
-  let errPossiblyWai = renderSparError err
-  Reporter.report Nothing (either servantToWaiError id $ errPossiblyWai)
-  pure errPossiblyWai
+  let serr = renderSparError err
+  Reporter.report Nothing (httpErrorToWaiError serr)
+  pure serr

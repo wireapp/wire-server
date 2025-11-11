@@ -30,6 +30,7 @@ import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
 import Spar.Sem.IdPRawMetadataStore
+import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 
 idpRawMetadataStoreToCassandra ::
   forall m r a.

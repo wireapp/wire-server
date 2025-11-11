@@ -26,6 +26,7 @@ import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
+import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..), GetBy)
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -37,7 +38,9 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
+import Wire.API.UserGroup (NewUserGroup, UserGroup)
 import Wire.BrigAPIAccess (BrigAPIAccess (..), OpaqueAuthToken (..))
 import Wire.ParseException
 import Wire.Rpc
@@ -98,6 +101,10 @@ interpretBrigAccess brigEndpoint =
       DeleteBot convId botId ->
         deleteBot convId botId
       UpdateSearchIndex uid -> updateSearchIndex uid
+      GetAccountsBy localGetBy ->
+        getAccountsBy localGetBy
+      CreateGroupFull managedBy teamId creatorUserId newGroup ->
+        createGroupFull managedBy teamId creatorUserId newGroup
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -509,3 +516,41 @@ updateSearchIndex uid = do
     method POST
       . paths ["i", "index", "update", toByteString' uid]
       . expect2xx
+
+-- | Calls 'Brig.API.Internal.getAccountsByInternalH'.
+getAccountsBy ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  GetBy ->
+  Sem r [User]
+getAccountsBy localGetBy = do
+  r <-
+    brigRequest $
+      method POST
+        . path "/i/users/accounts-by"
+        . json localGetBy
+        . expect2xx
+  decodeBodyOrThrow "brig" r
+
+-- | Calls 'Brig.API.Internal.createGroupFullInternalH'.
+createGroupFull ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  ManagedBy ->
+  TeamId ->
+  Maybe UserId ->
+  NewUserGroup ->
+  Sem r UserGroup
+createGroupFull managedBy teamId creatorUserId newGroup = do
+  let req =
+        CreateGroupFullRequest
+          { managedBy,
+            teamId,
+            creatorUserId,
+            newGroup
+          }
+  r <-
+    brigRequest $
+      method POST
+        . path "/i/user-groups/full"
+        . json req
+        . expect2xx
+  decodeBodyOrThrow "brig" r

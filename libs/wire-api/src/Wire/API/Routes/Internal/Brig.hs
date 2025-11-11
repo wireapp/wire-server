@@ -35,6 +35,8 @@ module Wire.API.Routes.Internal.Brig
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
     GetRichInfoMultiResponse (..),
+    GetBy (..),
+    CreateGroupFullRequest (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
@@ -43,16 +45,18 @@ module Wire.API.Routes.Internal.Brig
 where
 
 import Control.Lens ((.~), (?~))
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON, Value (Null))
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
+import Data.Default (Default (..))
 import Data.Domain (Domain)
 import Data.Handle (Handle)
+import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id as Id
 import Data.Misc (PlainTextPassword8)
 import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified, qualifiedSchema)
 import Data.Schema hiding (swaggerDoc)
 import Data.Text qualified as Text
 import GHC.TypeLits
@@ -91,6 +95,62 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
+import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.Arbitrary
+
+-- | Parameters for getting user accounts by various criteria
+data GetBy = GetBy
+  { includePendingInvitations :: HavePendingInvitations,
+    getByUserId :: [UserId],
+    getByHandle :: [Handle]
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform GetBy
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetBy
+
+instance Default GetBy where
+  def =
+    GetBy
+      { includePendingInvitations = NoPendingInvitations,
+        getByUserId = [],
+        getByHandle = []
+      }
+
+instance ToSchema GetBy where
+  schema =
+    object "GetBy" $
+      GetBy
+        <$> (.includePendingInvitations) .= field "include_pending_invitations" schema
+        <*> (.getByUserId) .= field "ids" (array schema)
+        <*> (.getByHandle) .= field "handles" (array schema)
+
+instance ToSchema (Qualified GetBy) where
+  schema = qualifiedSchema "GetBy" "get_by" schema
+
+deriving via (Schema (Qualified GetBy)) instance FromJSON (Qualified GetBy)
+
+deriving via (Schema (Qualified GetBy)) instance ToJSON (Qualified GetBy)
+
+deriving via (Schema (Qualified GetBy)) instance S.ToSchema (Qualified GetBy)
+
+-- | Request type for creating user groups with full control
+data CreateGroupFullRequest = CreateGroupFullRequest
+  { managedBy :: ManagedBy,
+    teamId :: TeamId,
+    creatorUserId :: Maybe UserId,
+    newGroup :: NewUserGroup
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupFullRequest
+
+instance ToSchema CreateGroupFullRequest where
+  schema =
+    object "CreateGroupFullRequest" $
+      CreateGroupFullRequest
+        <$> (.managedBy) .= field "managed_by" schema
+        <*> (.teamId) .= field "team_id" schema
+        <*> (.creatorUserId) .= optField "creator_user_id" (maybeWithDefault Null schema)
+        <*> (.newGroup) .= field "new_group" schema
 
 type EJPDRequest =
   Named
@@ -162,6 +222,26 @@ type GetAllConnections =
     :> "v2"
     :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
     :> Post '[Servant.JSON] [ConnectionStatusV2]
+
+type GetAccountsByInternal =
+  Named
+    "i-get-accounts-by"
+    ( Summary "Get user accounts by various criteria (internal)"
+        :> "users"
+        :> "accounts-by"
+        :> ReqBody '[Servant.JSON] GetBy
+        :> Post '[Servant.JSON] [User]
+    )
+
+type CreateGroupFullInternal =
+  Named
+    "i-create-group-full"
+    ( Summary "Create user group with full control (internal)"
+        :> "user-groups"
+        :> "full"
+        :> ReqBody '[Servant.JSON] CreateGroupFullRequest
+        :> Post '[Servant.JSON] UserGroup
+    )
 
 type AccountAPI =
   Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
@@ -469,6 +549,8 @@ type AccountAPI =
                :> Capture "uid" UserId
                :> Delete '[Servant.JSON] NoContent
            )
+    :<|> GetAccountsByInternal
+    :<|> CreateGroupFullInternal
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef
