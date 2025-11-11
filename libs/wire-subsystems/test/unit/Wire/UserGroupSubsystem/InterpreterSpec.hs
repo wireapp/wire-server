@@ -40,7 +40,6 @@ import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
 import Wire.BackgroundJobsPublisher qualified as BackgroundJobsPublisher
-import Wire.BackgroundJobsPublisher.Null qualified as BackgroundJobsPublisher
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
@@ -87,7 +86,7 @@ interpretDependencies ::
 interpretDependencies initialUsers initialTeams =
   Random.randomToNull
     . evalState mempty
-    . BackgroundJobsPublisher.interpretBackgroundJobsPublisherNoConfig
+    . noopBackgroundJobsPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
@@ -106,7 +105,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runError
     . Random.randomToNull
     . runState mempty
-    . BackgroundJobsPublisher.interpretBackgroundJobsPublisherNoConfig
+    . noopBackgroundJobsPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())

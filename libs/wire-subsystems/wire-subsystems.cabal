@@ -203,7 +203,6 @@ library
     Wire.BackendNotificationQueueAccess
     Wire.BackendNotificationQueueAccess.RabbitMq
     Wire.BackgroundJobsPublisher
-    Wire.BackgroundJobsPublisher.Null
     Wire.BackgroundJobsPublisher.RabbitMQ
     Wire.BackgroundJobsRunner
     Wire.BackgroundJobsRunner.Interpreter
@@ -443,6 +442,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.AppStore
+    Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
