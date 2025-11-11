@@ -25,6 +25,7 @@ import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
+import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..))
 
 data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
@@ -40,12 +41,14 @@ interpretScimSubsystem = interpret $ \case
   ScimCreateUserGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
   ScimGetUserGroup tid gid -> scimGetUserGroupImpl tid gid
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
+  ScimDeleteUserGroup teamId groupId -> deleteScimGroupImpl teamId groupId
 
 data ScimSubsystemError
   = ScimSubsystemError ScimError -- TODO: replace this with custom constructors.  (also, where are ScimSubsystemInvalidGroupMemberId etc. translated back into ScimErrors?)
   | ScimSubsystemInvalidGroupMemberId Text
   | ScimSubsystemGroupMembersNotFound [UserId]
   | ScimSubsystemInternal Wai.Error
+  | ScimSubsystemInternalError UserGroupSubsystemError
   deriving (Show, Eq)
 
 scimThrow :: (Member (Error ScimSubsystemError) r) => ScimError -> Sem r a
@@ -149,6 +152,20 @@ scimUpdateUserGroupImpl teamId gid grp = do
   ScimSubsystemConfig scimBaseUri <- input
   maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
     =<< BrigAPI.getGroupInternal teamId gid includeChannels
+
+deleteScimGroupImpl ::
+  forall r.
+  ( Member (Error ScimSubsystemError) r,
+    Member BrigAPIAccess r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  Sem r ()
+deleteScimGroupImpl teamId groupId = do
+  eResult <- BrigAPI.deleteGroupInternal ManagedByScim teamId groupId
+  case eResult of
+    Right () -> pure ()
+    Left BrigAPI.DeleteGroupManagedManagedByMismatch -> scimThrow (forbidden "Cannot delete group not managed by SCIM")
 
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
 toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)

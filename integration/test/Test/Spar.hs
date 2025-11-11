@@ -372,11 +372,10 @@ testSparScimCreateGetUserGroup = do
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
 
-  let -- this function looks messy and may be overdoing it in the head
-      -- of the debate with the compiler.  its only purpose is to make
-      -- a team member that satisfies all conditions for being added
-      -- to a scim group.
-      mkMemberCandidate :: App String
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMetaWithPrivateCreds owner
+  let mkMemberCandidate :: App String
       mkMemberCandidate = do
         scimUserEmail <- randomEmail
         scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
@@ -568,6 +567,49 @@ testSparScimUpdateUserGroupRejectsInvalidMembers = do
                  ]
           ]
   bindResponse (updateScimUserGroup OwnDomain tok1 gid updateNonExisting) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+
+testSparScimDeleteUserGroup :: (HasCallStack) => App ()
+testSparScimDeleteUserGroup = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
+
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMetaWithPrivateCreds owner
+  let mkMemberCandidate :: App String
+      mkMemberCandidate = do
+        scimUserEmail <- randomEmail
+        scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
+        uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+        void $ make OwnDomain
+
+        getScimUser OwnDomain tok uid `bindResponse` \res -> do
+          res.status `shouldMatchInt` 200
+
+        registerInvitedUser OwnDomain tid scimUserEmail
+
+        pure uid
+
+  scimUserId <- mkMemberCandidate
+  let scimUserGroup =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "ze groop",
+            "members"
+              .= [ object
+                     [ "type" .= "User",
+                       "$ref" .= "...", -- something like
+                       -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
+                       -- but since we're just receiving this it's ok
+                       -- to ignore.
+                       "value" .= scimUserId
+                     ]
+                 ]
+          ]
+  gid <- createScimUserGroup OwnDomain tok scimUserGroup >>= getJSON 201 >>= (%. "id") >>= asString
+  deleteScimUserGroup OwnDomain tok gid >>= assertSuccess
+  getScimUserGroup OwnDomain tok gid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 404
 
 ----------------------------------------------------------------------

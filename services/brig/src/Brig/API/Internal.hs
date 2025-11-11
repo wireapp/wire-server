@@ -287,6 +287,7 @@ accountAPI =
     :<|> Named @"i-create-group-full" createGroupInternalH
     :<|> Named @"i-get-group" getGroupInternalH
     :<|> Named @"i-update-group" updateGroupInternalH
+    :<|> Named @"i-delete-group-managed" deleteGroupManagedInternalH
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
@@ -1029,3 +1030,14 @@ updateGroupInternalH ::
   Handler r ()
 updateGroupInternalH req =
   lift . liftSem $ resetUserGroupInternal req
+
+deleteGroupManagedInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  ManagedBy ->
+  Handler r NoContent
+deleteGroupManagedInternalH tid gid managedBy = do
+  lift . liftSem $ deleteGroupManaged managedBy tid gid
+  pure NoContent

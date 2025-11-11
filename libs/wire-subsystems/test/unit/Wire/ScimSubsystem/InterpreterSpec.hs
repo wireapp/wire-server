@@ -42,13 +42,25 @@ type AllDependencies =
 
 runDependencies ::
   forall a.
+  (HasCallStack) =>
   [User] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
   Either ScimSubsystemError a
 runDependencies initialUsers initialTeams =
+  either (error . show) id . runDependenciesSafe initialUsers initialTeams
+
+runDependenciesSafe ::
+  forall a.
+  (HasCallStack) =>
+  [User] ->
+  Map TeamId [TeamMember] ->
+  Sem AllDependencies a ->
+  Either UGS.UserGroupSubsystemError (Either ScimSubsystemError a)
+runDependenciesSafe initialUsers initialTeams =
   run
-    . lowerLevelStuff
+    . runError
+    . UGS.interpretDependencies initialUsers initialTeams
     . UGS.interpretUserGroupSubsystem
     . mockBrigAPIAccess initialUsers
     . runError
@@ -57,11 +69,6 @@ runDependencies initialUsers initialTeams =
   where
     scimBaseUri :: Common.URI
     scimBaseUri = Common.URI . fromJust . parseURI $ "http://nowhere.net/scim/v2"
-
-    lowerLevelStuff :: InterpretersFor UGS.AllDependencies r
-    lowerLevelStuff = crashOnLowerErrors . UGS.interpretDependencies initialUsers initialTeams
-      where
-        crashOnLowerErrors = fmap (either (error . show) id) . runError
 
     -- Mock BrigAPIAccess interpreter for tests
     mockBrigAPIAccess :: (Member UGS.UserGroupSubsystem r) => [User] -> InterpreterFor BrigAPIAccess r
@@ -72,6 +79,8 @@ runDependencies initialUsers initialTeams =
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
       GetGroupInternal tid gid False -> do
         UGS.getGroupInternal tid gid False
+      DeleteGroupInternal managedBy teamId groupId ->
+        UGS.deleteGroupManaged managedBy teamId groupId $> Right ()
       _ -> error "Unimplemented BrigAPIAccess operation in mock"
 
 instance Arbitrary Group.Group where
@@ -140,3 +149,44 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
               else isLeft
       unless (want have) do
         expectationFailure . show $ ((.userManagedBy) <$> UGS.allUsers team)
+
+  describe "scimDeleteUserGroup" $ do
+    prop "deletes a SCIM-managed group" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
+      let newScimGroup =
+            newScimGroup_
+              { Group.members =
+                  let scimUsers = filter (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
+                   in mkScimGroupMember <$> scimUsers
+              }
+          resultOrError = do
+            runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
+              -- Create a SCIM group
+              createdGroup :: Group.StoredGroup SparTag <- scimCreateUserGroup team.tid newScimGroup
+              -- Delete it
+              scimDeleteUserGroup team.tid createdGroup.thing.id
+              -- Verify it's gone
+              retrievedGroup :: Maybe UserGroup <- UGS.getGroup (UGS.ownerId team) createdGroup.thing.id False
+              pure retrievedGroup
+       in case resultOrError of
+            Left err -> counterexample ("Left: " ++ show err) False
+            Right retrievedGroup -> retrievedGroup === Nothing
+
+    it "fails to delete non-SCIM-managed groups" $ do
+      team :: UGS.ArbitraryTeam <- generate arbitrary
+      let ugName = either (error . show) id $ userGroupNameFromText "test-group"
+      let newGroup = NewUserGroup {name = ugName, members = mempty}
+      let have =
+            runDependenciesSafe (UGS.allUsers team) (UGS.galleyTeam team) $ do
+              -- Create non-SCIM group
+              group' <- UGS.createGroup (UGS.ownerId team) newGroup
+              -- Try to delete via SCIM (should fail)
+              scimDeleteUserGroup team.tid group'.id_
+      have `shouldSatisfy` isLeft
+
+    it "works to delete non-existent groups" $ do
+      team :: UGS.ArbitraryTeam <- generate arbitrary
+      randomGroupId <- generate arbitrary
+      let have =
+            runDependenciesSafe (UGS.allUsers team) (UGS.galleyTeam team) $ do
+              scimDeleteUserGroup team.tid randomGroupId
+      have `shouldSatisfy` isRight

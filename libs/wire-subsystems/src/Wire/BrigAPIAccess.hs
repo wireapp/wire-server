@@ -49,6 +49,8 @@ module Wire.BrigAPIAccess
     createGroupInternal,
     getGroupInternal,
     updateGroup,
+    deleteGroupInternal,
+    DeleteGroupManagedError (..),
   )
 where
 
@@ -77,6 +79,9 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
+
+data DeleteGroupManagedError = DeleteGroupManagedManagedByMismatch
+  deriving (Eq, Show)
 
 -- | When receiving tokens from other services which are 'just passing through'
 -- it's error-prone useless extra work to parse and render them from JSON over and over again.
@@ -137,6 +142,7 @@ data BrigAPIAccess m a where
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
   GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m ()
+  DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
 
 makeSem ''BrigAPIAccess
 
