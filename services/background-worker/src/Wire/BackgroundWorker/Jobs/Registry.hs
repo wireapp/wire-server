@@ -34,6 +34,8 @@ import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException
 import Wire.Rpc
 import Wire.Sem.Delay (runDelay)
+import Wire.Sem.Logger (mapLogger)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO (randomToIO)
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
@@ -101,5 +103,7 @@ interpretTinyLog ::
   JobId ->
   Sem (P.TinyLog ': r) a ->
   Sem r a
-interpretTinyLog e reqId jobId = interpret $ \case
-  P.Log l m -> Logger.log e.logger l ((("request" .=) . unRequestId) reqId . (("job" .=) . idToText) jobId . m)
+interpretTinyLog e reqId jobId =
+  loggerToTinyLog e.logger
+    . mapLogger ((field "request" (unRequestId reqId) . field "job" (idToText jobId)) .)
+    . raiseUnder @P.TinyLog
