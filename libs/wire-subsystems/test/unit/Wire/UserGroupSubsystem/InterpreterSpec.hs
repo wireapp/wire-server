@@ -63,8 +63,8 @@ type AllDependencies =
                 NotificationSubsystem,
                 BackgroundJobsPublisher.BackgroundJobsPublisher,
                 State [Push],
-                Error UserGroupSubsystemError,
-                Random.Random
+                Random.Random,
+                Error UserGroupSubsystemError
               ]
 
 runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
@@ -76,9 +76,16 @@ runDependencies ::
   Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
-  run
-    . Random.randomToNull
-    . runError
+  run . runError . interpretDependencies initialUsers initialTeams
+
+interpretDependencies ::
+  forall r a.
+  [User] ->
+  Map TeamId [TeamMember] ->
+  Sem (AllDependencies `Append` r) a ->
+  Sem ('[Error UserGroupSubsystemError] `Append` r) a
+interpretDependencies initialUsers initialTeams =
+  Random.randomToNull
     . evalState mempty
     . BackgroundJobsPublisher.interpretBackgroundJobsPublisherNoConfig
     . inMemoryNotificationSubsystemInterpreter
@@ -96,8 +103,8 @@ runDependenciesWithReturnState ::
   Either UserGroupSubsystemError ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
-    . Random.randomToNull
     . runError
+    . Random.randomToNull
     . runState mempty
     . BackgroundJobsPublisher.interpretBackgroundJobsPublisherNoConfig
     . inMemoryNotificationSubsystemInterpreter
