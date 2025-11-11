@@ -45,8 +45,6 @@ module Galley.API.Action
   )
 where
 
---
-
 import Control.Arrow ((&&&))
 import Control.Error (headMay)
 import Control.Lens
