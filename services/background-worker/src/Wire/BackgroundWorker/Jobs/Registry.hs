@@ -69,8 +69,7 @@ dispatchJob job = do
         . interpretServiceStoreToCassandra env.cassandraBrig
         . interpretUserStoreCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
-        . runInputSem (readMVar env.amqpJobsPublisherChannel)
-        . interpretBackgroundJobsPublisherRabbitMQ job.requestId
+        . interpretBackgroundJobsPublisherRabbitMQ job.requestId env.amqpJobsPublisherChannel
         . nowToIO
         . randomToIO
         . interpretFireAndForget

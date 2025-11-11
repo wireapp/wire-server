@@ -6,35 +6,18 @@ import Data.Text.Encoding qualified as T
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
-import Polysemy.Input
 import Wire.API.BackgroundJobs
 import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher (..))
-import Wire.BackgroundJobsPublisher.Null (interpretBackgroundJobsPublisherNoConfig)
-
-interpretBackgroundJobsPublisherRabbitMQOptional ::
-  ( Member (Embed IO) r
-  ) =>
-  RequestId ->
-  Maybe (MVar Q.Channel) ->
-  InterpreterFor BackgroundJobsPublisher r
-interpretBackgroundJobsPublisherRabbitMQOptional requestId =
-  \case
-    Nothing -> interpretBackgroundJobsPublisherNoConfig
-    Just channelRef ->
-      runInputSem (readMVar channelRef)
-        . interpretBackgroundJobsPublisherRabbitMQ requestId
-        . raiseUnder
 
 interpretBackgroundJobsPublisherRabbitMQ ::
-  ( Member (Embed IO) r,
-    Member (Input Q.Channel) r
-  ) =>
+  (Member (Embed IO) r) =>
   RequestId ->
+  MVar Q.Channel ->
   InterpreterFor BackgroundJobsPublisher r
-interpretBackgroundJobsPublisherRabbitMQ requestId =
+interpretBackgroundJobsPublisherRabbitMQ requestId channelMVar =
   interpret $ \case
     PublishJob jobId jobPayload -> do
-      channel <- input
+      channel <- readMVar channelMVar
       publishJob requestId channel jobId jobPayload
 
 publishJob ::

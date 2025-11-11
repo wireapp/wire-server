@@ -215,25 +215,17 @@ data Env = Env
     indexEnv :: IndexEnv,
     randomPrekeyLocalLock :: Maybe (MVar ()),
     keyPackageLocalLock :: MVar (),
-    rabbitmqChannel :: Maybe (MVar Q.Channel),
+    rabbitmqChannel :: MVar Q.Channel,
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
-    amqpJobsPublisherChannel :: Maybe (MVar Q.Channel)
+    amqpJobsPublisherChannel :: MVar Q.Channel
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
-validateOptions :: Opts -> IO ()
-validateOptions o =
-  case (o.federatorInternal, o.rabbitmq) of
-    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
-    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
-    _ -> pure ()
-
 newEnv :: Opts -> IO Env
 newEnv opts = do
-  validateOptions opts
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
@@ -276,12 +268,12 @@ newEnv opts = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr (Just "brig")) opts.rabbitmq
+  rabbitChan <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp opts.settings.disabledAPIVersions
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
-  amqpJobsPublisherChannel <- traverse (Q.mkRabbitMqChannelMVar lgr (Just "brig")) opts.rabbitmq
+  amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pure $!
     Env
       { cargohold = mkEndpoint $ opts.cargohold,

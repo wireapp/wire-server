@@ -46,7 +46,7 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
-import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQOptional)
+import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.DeleteQueue
@@ -366,7 +366,7 @@ runBrigToIO e (AppT ma) = do
               . mapError appSubsystemErrorToHttpError
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
-              . interpretBackgroundJobsPublisherRabbitMQOptional e.requestId e.amqpJobsPublisherChannel
+              . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents
