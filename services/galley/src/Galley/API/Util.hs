@@ -514,8 +514,8 @@ instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) whe
       (fmap Right . getConvMember loc conv)
 
 data ActorContext mem = ActorContext
-  { acConvMember :: Maybe mem,
-    acTeamMember :: Maybe TeamMember
+  { convMember :: Maybe mem,
+    teamMember :: Maybe TeamMember
   }
 
 class IsConvMember mem where
