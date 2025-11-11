@@ -529,7 +529,7 @@ eventObjectSchema =
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
     <*> evtTeam .= maybe_ (optField "team" schema)
   where
-    mk (_, d) cid sconvid uid fromTag tm tid = Event cid sconvid (mkEventFrom fromTag uid) tm tid d
+    mk (_, d) cid sconvid uid evVia tm tid = Event cid sconvid (mkEventFrom evVia uid) tm tid d
 
 instance ToJSONObject Event where
   toJSONObject =
