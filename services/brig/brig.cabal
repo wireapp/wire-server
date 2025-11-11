@@ -341,6 +341,7 @@ executable brig-index
   build-depends:
     , base
     , brig
+    , extended
     , imports
     , optparse-applicative
     , tinylog
