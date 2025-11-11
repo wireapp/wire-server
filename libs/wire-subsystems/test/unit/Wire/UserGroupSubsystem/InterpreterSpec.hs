@@ -471,7 +471,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            let newUserGroup' = (newUserGroup newUserGroupName) { members = User.userId <$> V.fromList (allUsers team) } :: NewUserGroup
+            let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList (allUsers team)} :: NewUserGroup
                 [nonAdminUser] = someAdminsOrOwners 1 team
             grp <- createGroup (ownerId team) newUserGroup'
             void $ updateGroup (User.userId nonAdminUser) grp.id_ (UserGroupUpdate newUserGroupName2)
