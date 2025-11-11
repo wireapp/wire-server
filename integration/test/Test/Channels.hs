@@ -728,28 +728,48 @@ testConversationOutOfSync = do
     s <- isConversationOutOfSync convId >>= getJSON 200
     s `shouldMatch` False
 
-testTeamAdminCanUpdateMembersWithJoining :: (HasCallStack) => App ()
-testTeamAdminCanUpdateMembersWithJoining = do
-  (alice, tid, bob : _charlie : _) <- createTeam OwnDomain 3
+testTeamAdminCanManageChannel :: (HasCallStack) => TaggedBool "isMember" -> App ()
+testTeamAdminCanManageChannel (TaggedBool isMember) = do
+  (alice, tid, bob : charlie : _) <- createTeam OwnDomain 3
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
   void $ setTeamFeatureConfig alice tid "channels" (config "admins")
   channel <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
 
-  -- the admin adds themselves to the channel
-  addMembersToChannel alice channel def {users = [alice]} `bindResponse` \resp -> do
+  when isMember $ do
+    addMembersToChannel alice channel def {users = [alice]} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members.others" & asList
+      for [alice] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
+  -- ADD MEMBERS
+  addMembersToChannel alice channel def {users = [bob, charlie]} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
 
   I.getConversation channel `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     convMems <- resp.json %. "members.others" & asList
-    for [alice] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+    let expected = if isMember then [alice, bob, charlie] else [bob, charlie]
+    for expected (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
 
-  -- add members
-  -- TODO: remove, update(replace) members tests
-  addMembersToChannel alice channel def {users = [bob]} `bindResponse` \resp -> do
+  -- REMOVE MEMBER
+  removeMember alice channel bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 204
+
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    let expected = if isMember then [alice, charlie] else [charlie]
+    for expected (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
+  -- REPLACE MEMBERS
+  replaceMembers alice channel def {users = [alice, bob]} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
 
   I.getConversation channel `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     convMems <- resp.json %. "members.others" & asList
-    for [bob, alice] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+    let expected = [alice, bob]
+    for expected (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))

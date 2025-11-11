@@ -59,6 +59,7 @@ module Galley.API.Update
     removeMemberUnqualified,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
+    MLSCommitMode (..),
 
     -- * Talking
     postProteusMessage,
@@ -898,6 +899,9 @@ joinConversation lusr zcon conv access = do
         action
         def
 
+-- this internal type is isomorphic to the JoinType, however it better conveys the intent
+data MLSCommitMode = WithCommit | WithoutCommit
+
 addMembers ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
@@ -932,12 +936,13 @@ addMembers ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
+  MLSCommitMode ->
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembers lusr zcon qcnv (InviteQualified users role) = do
+addMembers mlsCommitMode lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
@@ -949,8 +954,10 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
             permissionCheck JoinRegularConversations . Just
 
-  let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
-  let action = ConversationJoin users role joinType
+  let joinType = case mlsCommitMode of
+        WithCommit -> InternalAdd
+        WithoutCommit -> ExternalAdd
+      action = ConversationJoin {..}
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
 
@@ -1038,7 +1045,7 @@ addMembersUnqualified ::
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+  addMembers WithoutCommit lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
 
 -- | Replace conversation members by computing the difference between desired and
 -- current members, then executing removals followed by additions within a commit
@@ -1079,12 +1086,13 @@ replaceMembers ::
     Member UserGroupStore r,
     Member ConversationSubsystem r
   ) =>
+  MLSCommitMode ->
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
   Sem r ()
-replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
+replaceMembers mlsCommitMode lusr zcon qcnv (InviteQualified invitedUsers role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
@@ -1110,17 +1118,21 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
   -- If both sets are empty, return Unchanged
   unless (Set.null toRemove && Set.null toAdd) $ do
     -- Add members first
-    for_ (nonEmpty $ Set.toList toAdd) $ \addList -> do
-      let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
-      let action = ConversationJoin addList role joinType
+    for_ (nonEmpty $ Set.toList toAdd) $ \users -> do
+      let joinType = case mlsCommitMode of
+            WithoutCommit -> ExternalAdd
+            WithCommit -> InternalAdd
+          action = ConversationJoin {..}
       getUpdateResult . fmap lcuEvent $
         updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
 
     -- Remove members
     for_ (nonEmpty $ Set.toList toRemove) $ \removeList -> do
-      if notIsConvMember lusr conv (tUntagged lusr) && conv.metadata.cnvmGroupConvType == Just Channel
-        then
-          -- FUTUREWORK: we need a proper implementation for bulk removals of users from TM, and push the checks down into updateLocalConversation
+      if conv.metadata.cnvmGroupConvType == Just Channel
+        then do
+          -- For channels, always perform removals via the channel-specific path
+          -- to ensure MLS proposals are created and protocol constraints are respected.
+          -- FUTUREWORK: implement bulk removal in the generic updateLocalConversation path for both regular conversations and channels
           for_ removeList $ removeMemberQualified lusr zcon qcnv
         else
           void . getUpdateResult . fmap lcuEvent $
@@ -1421,10 +1433,11 @@ removeMemberFromLocalConv lcnv lusr con victim
   | otherwise = do
       conv <- getConversationWithError lcnv
       let lconv = qualifyAs lusr conv
-      if not (isConvMemberL lconv lusr) && conv.metadata.cnvmGroupConvType == Just Channel
+      if conv.metadata.cnvmGroupConvType == Just Channel
         then
-          -- FUTUREWORK: we need a proper implementation for removals of users from TM, and push the checks down into updateLocalConversation
-          -- The current implementation works, but is a short-term solution, taken for pragmatic reasons.
+          -- For channels, always use the channel-specific removal path so that
+          -- MLS proposals are generated and the protocol flow is respected.
+          -- FUTUREWORK: implement the removal via the generic updateLocalConversation path
           fmap (const Nothing) . runError @NoChanges $ removeMemberFromChannel (tUntagged lusr) lconv victim
         else
           fmap (fmap lcuEvent . hush)
@@ -1461,9 +1474,10 @@ removeMemberFromChannel ::
 removeMemberFromChannel qusr lconv victim = do
   let conv = tUnqualified lconv
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
-  self :: ConvOrTeamMember (Either LocalMember RemoteMember) <- noteS @'ConvNotFound $ TeamMember <$> mTeamMember
+  _ <- noteS @'ConvNotFound mTeamMember
   let action = ConversationRemoveMembers {crmTargets = pure victim, crmReason = EdReasonRemoved}
-  ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv self
+  let actorContext = ActorContext (Nothing :: Maybe (Either LocalMember RemoteMember)) mTeamMember
+  ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv actorContext
   let notificationTargets = convBotsAndMembers conv
   kickMember qusr lconv notificationTargets victim
   where

@@ -483,6 +483,7 @@ data HiddenPerm
   | RemoveTeamCollaborator
   | SetMemberSearchable
   | SearchChannels
+  | ManageChannels
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -572,7 +573,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             ManageApps,
             RemoveTeamCollaborator,
             SetMemberSearchable,
-            SearchChannels
+            SearchChannels,
+            ManageChannels
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $

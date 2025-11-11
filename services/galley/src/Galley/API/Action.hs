@@ -423,24 +423,25 @@ ensureAllowed ::
   forall tag mem r x.
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
-    Member (ErrorS ConvNotFound) r
+    Member (ErrorS ConvNotFound) r,
+    Member (Error FederationError) r
   ) =>
   Sing tag ->
   Local x ->
   ConversationAction tag ->
   StoredConversation ->
-  ConvOrTeamMember mem ->
+  ActorContext mem ->
   Sem r ()
-ensureAllowed tag _ action conv (TeamMember tm) = do
+ensureAllowed tag _ action conv (ActorContext Nothing (Just tm)) = do
   case tag of
-    SConversationRenameTag -> ensureChannelAndTeamAdmin conv tm
+    SConversationRenameTag -> ensureManageChannelsPermission conv tm
     SConversationJoinTag -> do
       case action of
         ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
-        ConversationJoin _ _ ExternalAdd -> ensureChannelAndTeamAdmin conv tm
-    SConversationRemoveMembersTag -> ensureChannelAndTeamAdmin conv tm
+        ConversationJoin _ _ ExternalAdd -> ensureManageChannelsPermission conv tm
+    SConversationRemoveMembersTag -> ensureManageChannelsPermission conv tm
     _ -> throwS @'ConvNotFound
-ensureAllowed tag loc action conv (ConvMember origUser) = do
+ensureAllowed tag loc action conv (ActorContext (Just origUser) mTm) = do
   case tag of
     SConversationJoinTag ->
       mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
@@ -460,8 +461,9 @@ ensureAllowed tag loc action conv (ConvMember origUser) = do
       case convTeam conv of
         Just _ -> do
           -- Access mode change might result in members being removed from the
-          -- conversation, so the user must have the necessary permission flag
-          ensureActionAllowed SRemoveConversationMember origUser
+          -- conversation, so the user must have the necessary permission flag,
+          -- unless the actor is a team member with ManageChannels on a channel.
+          unless (maybe False (hasManageChannelsPermission conv) mTm) $ ensureActionAllowed SRemoveConversationMember origUser
         Nothing ->
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
@@ -473,6 +475,7 @@ ensureAllowed tag loc action conv (ConvMember origUser) = do
       when (convProtocolTag conv == ProtocolMLSTag) $
         throwS @MLSReadReceiptsNotAllowed
     _ -> pure ()
+ensureAllowed _ _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 data PerformActionResult tag
   = PerformActionResult
@@ -743,7 +746,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
                   --   note: external partners can be allowed to create channels, in which case they will always be the channel's admin
                   -- - or the add-permission is set to everyone (including exteral partners) => they can add members
                   -- - or the user is a team admin => they can add members
-                  unless (isConversationAdmin || isAddPermissionEveryone || isAdminOrOwner (tm ^. permissions)) $ throwS @'InvalidOperation
+                  unless (isConversationAdmin || isAddPermissionEveryone || tm `hasPermission` ManageChannels) $ throwS @'InvalidOperation
                 else do
                   -- we know this is a group conversation and the user is a team member and they are conversation admin.
                   -- if they do not have the add/remove permission (which is currently only the case for external partners) they are not allowed to add members
@@ -915,25 +918,38 @@ updateLocalConversationUnchecked lconv qusr con action = do
 
     ensureConversationActionAllowed :: Sing tag -> Local x -> StoredConversation -> Maybe TeamMember -> Sem r ()
     ensureConversationActionAllowed tag loc conv mTeamMember = do
-      self <-
-        noteS @'ConvNotFound $
-          ConvMember <$> getConvMember lconv conv (maybe (ConvMemberNoTeam qusr) ConvMemberTeam mTeamMember) <|> TeamMember <$> mTeamMember
-
+      let hasChannelManagePerm = maybe False (hasManageChannelsPermission conv) mTeamMember
+          mMem = getConvMember lconv conv qusr :: Maybe (Either LocalMember RemoteMember)
+      -- If the actor is a conversation member, enforce conversation-role
+      -- permission unless we intentionally skip it (channel overrides or
+      -- special join case).
       unless
-        (skipConversationRoleCheck tag conv mTeamMember)
-        case self of
-          ConvMember mem -> ensureActionAllowed (sConversationActionPermission tag) mem
-          -- TeamMember is a special case, which will be handled in ensureAllowed
-          TeamMember _ -> pure ()
+        (skipConversationRoleCheck tag conv mTeamMember || (hasChannelManagePerm && channelAdminOverride tag))
+        (for_ mMem (ensureActionAllowed (sConversationActionPermission tag)))
 
       checkConversationType (fromSing tag) conv
 
       -- extra action-specific checks
-      ensureAllowed tag loc action conv self
+      ensureAllowed tag loc action conv (ActorContext mMem mTeamMember)
 
     skipConversationRoleCheck :: Sing tag -> StoredConversation -> Maybe TeamMember -> Bool
     skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
     skipConversationRoleCheck _ _ _ = False
+
+    -- channelAdminOverride is necessary to let team admins act as "channel admins" even if their conversation_role isn't wire_admin,
+    -- but only for the intended actions. It’s placed here so we bypass only the generic role check and still enforce
+    -- all channel- and protocol-specific rules afterwards.
+    channelAdminOverride :: Sing tag -> Bool
+    channelAdminOverride = \case
+      SConversationJoinTag -> True
+      SConversationRemoveMembersTag -> True
+      SConversationMemberUpdateTag -> True
+      SConversationRenameTag -> True
+      SConversationMessageTimerUpdateTag -> True
+      SConversationAccessDataTag -> True
+      SConversationUpdateAddPermissionTag -> True
+      SConversationDeleteTag -> True
+      _ -> False
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
