@@ -1,0 +1,18 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": {
+        "protocol": "mixed"
+    },
+    "from": "a471447c-aa30-4592-81b0-dec6c1c02bca",
+    "qualified_conversation": {
+        "domain": "example.com",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "example.com",
+        "id": "a471447c-aa30-4592-81b0-dec6c1c02bca"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.protocol-update",
+    "via": "scim"
+}
