@@ -42,7 +42,7 @@ interpretScimSubsystem = interpret $ \case
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
 
 data ScimSubsystemError
-  = ScimSubsystemError ScimError
+  = ScimSubsystemError ScimError -- TODO: replace this with custom constructors.  (also, where are those translated back into ScimErrors?)
   | ScimSubsystemInvalidGroupMemberId Text
   | ScimSubsystemScimGroupWithNonScimMembers [UserId]
   deriving (Show, Eq)
@@ -121,7 +121,6 @@ scimUpdateUserGroupImpl teamId gid grp = do
     scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
 
   ugName <- either (scimThrow . badRequest InvalidValue . Just) pure $ userGroupNameFromText grp.displayName
-
   reqMemberIds <- for grp.members parseMember
 
   let currentSet = Set.fromList (toList (runIdentity existing.members))
@@ -129,7 +128,7 @@ scimUpdateUserGroupImpl teamId gid grp = do
       toAdd = requestedSet `Set.difference` currentSet
 
   unless (null toAdd) do
-    accounts <- inputQualifyLocal def {getByUserId = Set.toList toAdd} >>= getAccountsBy
+    accounts <- BrigAPI.getUsers (Set.toList toAdd)
     let nonScim = [userId u | u <- accounts, u.userManagedBy /= ManagedByScim]
         found = Set.fromList (userId <$> accounts)
         missing = Set.toList (toAdd `Set.difference` found)
@@ -139,14 +138,11 @@ scimUpdateUserGroupImpl teamId gid grp = do
       [] -> pure ()
       (u : _) -> scimThrow $ notFound "User" (idToText u)
 
-  when (existing.name /= ugName) do
-    _ <- UGStore.updateUserGroup teamId gid UserGroupUpdate {name = ugName}
-    pure ()
-
-  UGStore.updateUsers gid (V.fromList reqMemberIds)
+  BrigAPI.updateGroup teamId gid (Just ugName) (Just reqMemberIds)
 
   ScimSubsystemConfig scimBaseUri <- input
-  maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri) =<< UGStore.getUserGroup teamId gid includeChannels
+  maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
+    =<< BrigAPI.getGroupUnsafe teamId gid includeChannels
 
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
 toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
