@@ -212,7 +212,7 @@ type TeamMemberAPI =
     :<|> Named
            "update-team-collaborator"
            ( Summary "Update a collaborator permissions from the team."
-               :> From 'V11
+               :> From 'V13
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
