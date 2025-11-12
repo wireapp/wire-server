@@ -286,6 +286,7 @@ accountAPI =
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
     :<|> Named @"i-get-accounts-by" getAccountsByInternalH
     :<|> Named @"i-create-group-full" createGroupFullInternalH
+    :<|> Named @"i-get-group" getGroupInternalH
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
@@ -1010,3 +1011,13 @@ createGroupFullInternalH req =
       req.teamId
       req.creatorUserId
       req.newGroup
+
+getGroupInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  Bool ->
+  Handler r (Maybe UserGroup)
+getGroupInternalH tid uid includeChannels =
+  lift . liftSem $ getGroupUnsafe tid uid includeChannels

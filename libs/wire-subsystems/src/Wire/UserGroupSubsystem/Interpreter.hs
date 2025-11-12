@@ -47,6 +47,7 @@ interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
   CreateGroupFull managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
+  GetGroupUnsafe tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
@@ -180,10 +181,19 @@ getUserGroup ::
 getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
-  userGroup <- MaybeT $ Store.getUserGroup team gid includeChannels
+  userGroup <- MaybeT $ getUserGroupUnsafe team gid includeChannels
   if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
+
+getUserGroupUnsafe ::
+  (Member Store.UserGroupStore r) =>
+  TeamId ->
+  UserGroupId ->
+  Bool ->
+  Sem r (Maybe UserGroup)
+getUserGroupUnsafe tid gid includeChannels = runMaybeT $ do
+  MaybeT $ Store.getUserGroup tid gid includeChannels
 
 mkGetterCanSeeAll ::
   forall r.

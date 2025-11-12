@@ -44,6 +44,7 @@ data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> UserGroupSubsystem r UserGroup
   GetGroup :: UserId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
+  GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
   GetGroups :: UserId -> GroupSearch -> UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()

@@ -4,6 +4,7 @@
 module Wire.ScimSubsystem.InterpreterSpec (spec) where
 
 import Data.Id
+import Data.Json.Util
 import Data.Text qualified as Text
 import Imports
 import Network.URI
@@ -15,6 +16,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Web.Scim.Class.Group qualified as Group
+import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Meta qualified as Common
 import Wire.API.Routes.Internal.Brig (GetBy (..))
@@ -68,6 +70,8 @@ runDependencies initialUsers initialTeams =
         UGS.createGroupFull managedBy teamId creatorUserId newGroup
       GetAccountsBy getBy -> do
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
+      GetGroupUnsafe tid gid False -> do
+        UGS.getGroupUnsafe tid gid False
       _ -> error "Unimplemented BrigAPIAccess operation in mock"
 
 instance Arbitrary Group.Group where
@@ -88,7 +92,7 @@ mkScimGroupMember (idToText . User.userId -> value) =
 
 spec :: Spec
 spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
-  describe "scimCreateUserGroup" $ do
+  describe "scimCreateUserGroup, scimGetUserGroup" $ do
     prop "creates a group returns it" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
       let newScimGroup =
             newScimGroup_
@@ -99,12 +103,29 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
           resultOrError = do
             runDependencies (UGS.allUsers team) (UGS.galleyTeam team) $ do
               createdGroup :: Group.StoredGroup SparTag <- scimCreateUserGroup team.tid newScimGroup
-              retrievedGroup :: Maybe UserGroup <- UGS.getGroup (UGS.ownerId team) createdGroup.thing.id False
-              pure (createdGroup, retrievedGroup)
+              retrievedGroupScimAPI :: SCG.StoredGroup SparTag <- scimGetUserGroup team.tid createdGroup.thing.id
+              retrievedGroupPublicAPI :: Maybe UserGroup <- UGS.getGroup (UGS.ownerId team) createdGroup.thing.id False
+              pure (createdGroup, retrievedGroupScimAPI, retrievedGroupPublicAPI)
        in case resultOrError of
             Left err -> counterexample ("Left: " ++ show err) False
-            Right (createdGroup, retrievedGroup) ->
-              Just createdGroup.thing.id === ((.id_) <$> retrievedGroup)
+            Right (createdGroup, retrievedGroupScimAPI, retrievedGroupPublicAPI) ->
+              createdGroup === retrievedGroupScimAPI
+                .&&. case retrievedGroupPublicAPI of
+                  Nothing -> counterexample "*** group not found over public api" False
+                  Just grp ->
+                    createdGroup.thing.id === grp.id_
+                      .&&. createdGroup.thing.value.displayName === userGroupNameToText grp.name
+                      .&&. Nothing === grp.channels
+                      .&&. Nothing === grp.membersCount
+                      .&&. Nothing === grp.channelsCount
+                      .&&. ManagedByScim === grp.managedBy
+                      .&&. toUTCTimeMillis createdGroup.meta.created === grp.createdAt
+                      .&&. ( nub ((.typ) <$> createdGroup.thing.value.members)
+                               === ["User" | not $ null createdGroup.thing.value.members]
+                           )
+                      .&&. ( sort ((.value) <$> createdGroup.thing.value.members)
+                               === sort (toList $ idToText <$> runIdentity grp.members)
+                           )
 
     prop "does not allow non-scim members" $ \team newScimGroup_ -> do
       let newScimGroup = newScimGroup_ {Group.members = mkScimGroupMember <$> groupMembers}
@@ -119,7 +140,3 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
               else isLeft
       unless (want have) do
         expectationFailure . show $ ((.userManagedBy) <$> UGS.allUsers team)
-
-  describe "getScimGroup" $ do
-    it "retrieves metadata intact" $ do
-      pendingWith "we actually haven't implemented metadata storage in store, because it was weird to test it without get."

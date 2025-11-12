@@ -549,9 +549,7 @@ retryRequestUntilDebug mProcessDebug reqAction err = do
         mPh <- liftIO $ readIORef phRef
         let stdOutStr = List.intercalate "\n" stdOut'
             stdErrStr = List.intercalate "\n" stdErr'
-        mExitCode <- liftIO $ case mPh of
-          Nothing -> pure Nothing
-          Just ph -> Just <$> getProcessExitCode ph
+        mExitCode <- maybe (pure Nothing) (liftIO . getProcessExitCode) mPh
         let msg =
               "Timed out waiting for service "
                 <> err

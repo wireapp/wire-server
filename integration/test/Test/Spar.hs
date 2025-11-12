@@ -365,8 +365,8 @@ testSparCreateScimTokenWithName = do
 ----------------------------------------------------------------------
 -- scim group stuff
 
-testSparScimCreateUserGroup :: (HasCallStack) => App ()
-testSparScimCreateUserGroup = do
+testSparScimCreateGetUserGroup :: (HasCallStack) => App ()
+testSparScimCreateGetUserGroup = do
   (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
 
@@ -418,7 +418,12 @@ testSparScimCreateUserGroup = do
                      ]
                  ]
           ]
-  createScimUserGroup OwnDomain tok scimUserGroup >>= assertSuccess
+  resp <- createScimUserGroup OwnDomain tok scimUserGroup
+  assertSuccess resp
+
+  gid <- resp.json %. "id" & asString
+  resp2 <- getScimUserGroup OwnDomain tok gid
+  resp.json `shouldMatch` resp2.json
 
 ----------------------------------------------------------------------
 -- saml stuff

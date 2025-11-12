@@ -47,6 +47,7 @@ module Wire.BrigAPIAccess
 
     -- * User Groups
     createGroupFull,
+    getGroupUnsafe,
   )
 where
 
@@ -132,6 +133,7 @@ data BrigAPIAccess m a where
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
+  GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
 
 makeSem ''BrigAPIAccess
 

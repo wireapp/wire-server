@@ -318,7 +318,7 @@ type UserGroupAPI =
     )
     :<|> Named
            "get-user-group"
-           ( Summary "Fetch a group accessible from the logged-in user"
+           ( Summary "Fetch a group accessible to the logged-in user"
                :> From 'V10
                :> ZLocalUser
                :> CanThrow 'UserGroupNotFound
@@ -335,7 +335,7 @@ type UserGroupAPI =
            )
     :<|> Named
            "get-user-groups"
-           ( Summary "Fetch groups accessible from the logged-in user"
+           ( Summary "Fetch groups accessible to the logged-in user"
                :> From 'V10
                :> ZLocalUser
                :> "user-groups"
