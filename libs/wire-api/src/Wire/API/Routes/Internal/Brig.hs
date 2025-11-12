@@ -254,7 +254,7 @@ type GetAccountsByInternal =
         :> Post '[Servant.JSON] [User]
     )
 
-type CreateGroupInternalInternal =
+type CreateGroupInternal =
   Named
     "i-create-group-full"
     ( Summary "Create user group with full control (internal)"
@@ -603,7 +603,7 @@ type AccountAPI =
                :> Delete '[Servant.JSON] NoContent
            )
     :<|> GetAccountsByInternal
-    :<|> CreateGroupInternalInternal
+    :<|> CreateGroupInternal
     :<|> GetGroupInternal
     :<|> UpdateGroupInternal
     :<|> DeleteGroupManagedInternal

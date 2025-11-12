@@ -85,7 +85,7 @@ interpretUserGroupSubsystem = interpret $ \case
   UpdateChannels performer groupId channelIds -> updateChannels False performer groupId channelIds
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
-  GetGroupInternal tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
+  GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -217,18 +217,18 @@ getUserGroup ::
 getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
-  userGroup <- MaybeT $ getUserGroupUnsafe team gid includeChannels
+  userGroup <- MaybeT $ getUserGroupInternal team gid includeChannels
   if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
 
-getUserGroupUnsafe ::
+getUserGroupInternal ::
   (Member Store.UserGroupStore r) =>
   TeamId ->
   UserGroupId ->
   Bool ->
   Sem r (Maybe UserGroup)
-getUserGroupUnsafe tid gid includeChannels = runMaybeT $ do
+getUserGroupInternal tid gid includeChannels = runMaybeT $ do
   MaybeT $ Store.getUserGroup tid gid includeChannels
 
 mkGetterCanSeeAll ::
@@ -444,7 +444,7 @@ updateUsersNoAccessControl ::
   Vector UserId ->
   Sem r ()
 updateUsersNoAccessControl teamId mbUpdater groupId uids = do
-  void $ getUserGroupUnsafe teamId groupId False >>= note UserGroupNotFound
+  void $ getUserGroupInternal teamId groupId False >>= note UserGroupNotFound
   forM_ uids $ \uid ->
     internalGetTeamMember uid teamId >>= note UserGroupMemberIsNotInTheSameTeam
   Store.updateUsers groupId uids

@@ -40,7 +40,7 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
     ScimHandler m (ListResponse (SCG.StoredGroup SparTag))
   getGroups = undefined
 
-  -- \| Get a single group by ID.
+  -- | Get a single group by ID.
   --
   -- Should throw 'notFound' if the group does not.
   getGroup ::
@@ -49,7 +49,7 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
     ScimHandler (Sem r) (SCG.StoredGroup SparTag)
   getGroup ((.stiTeam) -> tid) gid = lift $ scimGetUserGroup tid gid
 
-  -- \| Create a new group.
+  -- | Create a new group.
   --
   -- Should throw 'conflict' if uniqueness constraints are violated.
   postGroup ::
@@ -60,7 +60,7 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
 
   -- no additional helpers
 
-  -- \| Overwrite an existing group.
+  -- | Overwrite an existing group.
   --
   -- Should throw 'notFound' if the group does not exist, and 'conflict' if uniqueness
   -- constraints are violated.
@@ -71,7 +71,7 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
     ScimHandler (Sem r) (SCG.StoredGroup SparTag)
   putGroup ((.stiTeam) -> tid) gid grp = lift $ scimUpdateUserGroup tid gid grp
 
-  -- \| Modify an existing group.
+  -- | Modify an existing group.
   --
   -- Should throw 'notFound' if the group doesn't exist, and 'conflict' if uniqueness
   -- constraints are violated.
@@ -81,12 +81,12 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
   patchGroup ::
     AuthInfo SparTag ->
     SCG.GroupId SparTag ->
-    -- \| PATCH payload
+    -- | PATCH payload
     Aeson.Value ->
     ScimHandler m (SCG.StoredGroup SparTag)
   patchGroup = undefined
 
-  -- \| Delete a group.
+  -- | Delete a group.
   --
   -- Should throw 'notFound' if the group does not exist.
   deleteGroup ::
