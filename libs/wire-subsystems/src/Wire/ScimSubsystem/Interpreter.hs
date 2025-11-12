@@ -17,14 +17,13 @@ import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.Meta qualified as Meta
 import Web.Scim.Schema.ResourceType qualified as RT
+import Wire.API.Routes.Internal.Brig
 import Wire.API.User
 import Wire.API.User.Scim (SparTag)
 import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
-import Wire.UserGroupStore qualified as UGStore
-import Wire.UserSubsystem
 
 data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
@@ -42,7 +41,7 @@ interpretScimSubsystem = interpret $ \case
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
 
 data ScimSubsystemError
-  = ScimSubsystemError ScimError -- TODO: replace this with custom constructors.  (also, where are those translated back into ScimErrors?)
+  = ScimSubsystemError ScimError -- TODO: replace this with custom constructors.  (also, where are ScimSubsystemInvalidGroupMemberId etc. translated back into ScimErrors?)
   | ScimSubsystemInvalidGroupMemberId Text
   | ScimSubsystemScimGroupWithNonScimMembers [UserId]
   deriving (Show, Eq)
@@ -115,7 +114,7 @@ scimUpdateUserGroupImpl ::
   Sem r (SCG.StoredGroup SparTag)
 scimUpdateUserGroupImpl teamId gid grp = do
   let includeChannels = False
-  mExisting <- UGStore.getUserGroup teamId gid includeChannels
+  mExisting <- BrigAPI.getGroupUnsafe teamId gid includeChannels
   existing <- maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) pure mExisting
   when (existing.managedBy /= ManagedByScim) do
     scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
@@ -138,7 +137,7 @@ scimUpdateUserGroupImpl teamId gid grp = do
       [] -> pure ()
       (u : _) -> scimThrow $ notFound "User" (idToText u)
 
-  BrigAPI.updateGroup teamId gid (Just ugName) (Just reqMemberIds)
+  BrigAPI.updateGroup (UpdateGroupInternalRequest teamId gid (Just ugName) (Just reqMemberIds))
 
   ScimSubsystemConfig scimBaseUri <- input
   maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
@@ -179,4 +178,6 @@ parseMember ::
   (Member (Error ScimSubsystemError) r) =>
   SCG.Member ->
   Sem r UserId
-parseMember m = parseIdFromText m.value & either (throw . ScimSubsystemInvalidGroupMemberId) pure
+parseMember m =
+  parseIdFromText m.value
+    & either (throw . ScimSubsystemInvalidGroupMemberId . Text.pack) pure

@@ -429,16 +429,16 @@ testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
   (owner, tid, []) <- createTeam OwnDomain 1
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMetaWithPrivateCreds owner
 
   let mkMemberCandidate :: App String
       mkMemberCandidate = do
-        assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
-        assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
-        void $ registerTestIdPWithMetaWithPrivateCreds owner
-
         scimUserEmail <- randomEmail
         scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
         createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+        error "TODO: activate user"
 
   [u1Id, u2Id, u3Id] <- replicateM 3 mkMemberCandidate
 

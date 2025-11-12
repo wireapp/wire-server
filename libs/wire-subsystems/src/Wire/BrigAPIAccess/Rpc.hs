@@ -107,8 +107,8 @@ interpretBrigAccess brigEndpoint =
         createGroupFull managedBy teamId creatorUserId newGroup
       GetGroupUnsafe tid gid includeChannels ->
         getGroupUnsafe tid gid includeChannels
-      UpdateGroup tid gid mbName mbMembers ->
-        updateGroup (UpdateGroupInternalRequest tid gid mbName mbMembers)
+      UpdateGroup req ->
+        updateGroup req
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do

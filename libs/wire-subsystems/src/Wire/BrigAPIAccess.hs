@@ -64,7 +64,7 @@ import Polysemy.Error
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.Internal.Brig (GetBy)
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -135,7 +135,7 @@ data BrigAPIAccess m a where
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
   GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
-  UpdateGroup :: TeamId -> UserGroupId -> Maybe UserGroupName -> Maybe [UserId] -> BrigAPIAccess m ()
+  UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 
