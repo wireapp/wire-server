@@ -67,7 +67,7 @@ runDependencies initialUsers initialTeams =
     mockBrigAPIAccess :: (Member UGS.UserGroupSubsystem r) => [User] -> InterpreterFor BrigAPIAccess r
     mockBrigAPIAccess users = interpret $ \case
       CreateGroupFull managedBy teamId creatorUserId newGroup -> do
-        UGS.createGroupFull managedBy teamId creatorUserId newGroup
+        Right <$> UGS.createGroupFull managedBy teamId creatorUserId newGroup
       GetAccountsBy getBy -> do
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
       GetGroupUnsafe tid gid False -> do

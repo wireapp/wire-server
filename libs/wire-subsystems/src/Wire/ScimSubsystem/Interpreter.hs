@@ -9,6 +9,7 @@ import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Network.URI (parseURI)
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -43,7 +44,8 @@ interpretScimSubsystem = interpret $ \case
 data ScimSubsystemError
   = ScimSubsystemError ScimError -- TODO: replace this with custom constructors.  (also, where are ScimSubsystemInvalidGroupMemberId etc. translated back into ScimErrors?)
   | ScimSubsystemInvalidGroupMemberId Text
-  | ScimSubsystemScimGroupWithNonScimMembers [UserId]
+  | ScimSubsystemGroupMembersNotFound [UserId]
+  | ScimSubsystemInternal Wai.Error
   deriving (Show, Eq)
 
 scimThrow :: (Member (Error ScimSubsystemError) r) => ScimError -> Sem r a
@@ -59,15 +61,16 @@ createScimGroupImpl ::
   SCG.Group ->
   Sem r (SCG.StoredGroup SparTag)
 createScimGroupImpl teamId grp = do
-  membersNotManagedByScim <- do
+  membersNotFound <- do
     uids :: [UserId] <- parseMember `mapM` grp.members
     users <- BrigAPI.getAccountsBy def {getByUserId = uids}
     pure $
       users
+        & filter (\u -> u.userTeam /= Just teamId)
         & filter (\u -> u.userManagedBy /= ManagedByScim)
         & fmap userId
-  unless (null membersNotManagedByScim) do
-    throw (ScimSubsystemScimGroupWithNonScimMembers membersNotManagedByScim)
+  unless (null membersNotFound) do
+    throw (ScimSubsystemGroupMembersNotFound membersNotFound)
 
   ugName <-
     userGroupNameFromText grp.displayName
@@ -80,9 +83,12 @@ createScimGroupImpl teamId grp = do
      in go `mapM` grp.members
 
   let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
-  ug <- BrigAPI.createGroupFull ManagedByScim teamId Nothing newGroup
-  ScimSubsystemConfig scimBaseUri <- input
-  pure $ toStoredGroup scimBaseUri ug
+  BrigAPI.createGroupFull ManagedByScim teamId Nothing newGroup >>= \case
+    Right ug -> do
+      ScimSubsystemConfig scimBaseUri <- input
+      pure $ toStoredGroup scimBaseUri ug
+    Left err -> do
+      throw (ScimSubsystemInternal err)
 
 scimGetUserGroupImpl ::
   forall r.
@@ -128,11 +134,11 @@ scimUpdateUserGroupImpl teamId gid grp = do
 
   unless (null toAdd) do
     accounts <- BrigAPI.getUsers (Set.toList toAdd)
-    let nonScim = [userId u | u <- accounts, u.userManagedBy /= ManagedByScim]
+    let notInTeamOrNotScim = [userId u | u <- accounts, u.userManagedBy /= ManagedByScim, u.userTeam /= Just teamId]
         found = Set.fromList (userId <$> accounts)
         missing = Set.toList (toAdd `Set.difference` found)
-    unless (null nonScim) do
-      throw (ScimSubsystemScimGroupWithNonScimMembers nonScim)
+    unless (null notInTeamOrNotScim) do
+      throw (ScimSubsystemGroupMembersNotFound notInTeamOrNotScim)
     case missing of
       [] -> pure ()
       (u : _) -> scimThrow $ notFound "User" (idToText u)

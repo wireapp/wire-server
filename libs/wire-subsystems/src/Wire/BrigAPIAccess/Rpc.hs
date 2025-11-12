@@ -536,13 +536,13 @@ getAccountsBy localGetBy = do
   decodeBodyOrThrow "brig" r
 
 -- | Calls 'Brig.API.Internal.createGroupFullInternalH'.
-createGroupFull ::
+createGroupFull :: -- TODO: rename to createGroupInternal?
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   ManagedBy ->
   TeamId ->
   Maybe UserId ->
   NewUserGroup ->
-  Sem r UserGroup
+  Sem r (Either Wai.Error UserGroup)
 createGroupFull managedBy teamId creatorUserId newGroup = do
   let req =
         CreateGroupFullRequest
@@ -556,8 +556,9 @@ createGroupFull managedBy teamId creatorUserId newGroup = do
       method POST
         . path "/i/user-groups/full"
         . json req
-        . expect2xx
-  decodeBodyOrThrow "brig" r
+  if statusCode r >= 200 && statusCode r < 300
+    then Left <$> decodeBodyOrThrow @Wai.Error "brig" r
+    else Right <$> decodeBodyOrThrow @UserGroup "brig" r
 
 getGroupUnsafe ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>

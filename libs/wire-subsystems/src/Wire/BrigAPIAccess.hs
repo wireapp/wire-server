@@ -59,6 +59,7 @@ import Data.Misc
 import Data.Qualified
 import Imports
 import Network.HTTP.Types.Status
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Wire.API.Connection
@@ -133,7 +134,7 @@ data BrigAPIAccess m a where
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
-  CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
+  CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
   GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m ()
 

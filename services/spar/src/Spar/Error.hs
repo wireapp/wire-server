@@ -47,9 +47,10 @@ import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
 import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.ByteString.Lazy as ByteString
+import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.Typeable (typeRep)
@@ -159,7 +160,7 @@ renderSparError (SAML.CustomError SparNoSuchRequest) = StdError $ Wai.mkError st
 renderSparError (SAML.CustomError (SparRequestMissingTryIdpInitiatedLogin (issuer :: LText))) = RichError (Wai.mkError status303 "" "") () [("Location", cs issuer)]
   where
     cs :: LText -> ByteString
-    cs = mconcat . ByteString.toChunks . LText.encodeUtf8
+    cs = mconcat . LBS.toChunks . LText.encodeUtf8
 renderSparError (SAML.CustomError (SparNoRequestRefInResponse msg)) = StdError $ Wai.mkError status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = StdError $ Wai.mkError status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = StdError $ Wai.mkError status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
@@ -294,8 +295,10 @@ mapScimSubsystemErrors =
         err
       ScimSubsystemInvalidGroupMemberId badIds ->
         Scim.notFound "group members" badIds
-      ScimSubsystemScimGroupWithNonScimMembers badIds ->
-        Scim.badRequest Scim.InvalidValue (Just $ "These users are not \"managed_by\" = \"scim\": " <> renderIds badIds)
+      ScimSubsystemGroupMembersNotFound badIds ->
+        Scim.badRequest Scim.InvalidValue (Just $ "These users are not in your team or not \"managed_by\" = \"scim\": " <> renderIds badIds)
+      ScimSubsystemInternal waiErr ->
+        Scim.serverError (Text.decodeUtf8 . LBS.toStrict $ encode waiErr)
   where
     renderIds :: [UserId] -> Text
     renderIds = Text.intercalate ", " . fmap idToText
