@@ -284,7 +284,7 @@ accountAPI =
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
     :<|> Named @"i-get-accounts-by" getAccountsByInternalH
-    :<|> Named @"i-create-group-full" createGroupFullInternalH
+    :<|> Named @"i-create-group-full" createGroupInternalInternalH
     :<|> Named @"i-get-group" getGroupInternalH
     :<|> Named @"i-update-group" updateGroupInternalH
 
@@ -999,14 +999,14 @@ getAccountsByInternalH getByData = do
   loc <- lift $ liftSem input
   lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
 
-createGroupFullInternalH ::
+createGroupInternalInternalH ::
   ( Member UserGroupSubsystem r
   ) =>
-  CreateGroupFullRequest ->
+  CreateGroupInternalRequest ->
   Handler r UserGroup
-createGroupFullInternalH req =
+createGroupInternalInternalH req =
   lift . liftSem $
-    createGroupFull
+    createGroupInternal
       req.managedBy
       req.teamId
       req.creatorUserId
@@ -1020,7 +1020,7 @@ getGroupInternalH ::
   Bool ->
   Handler r (Maybe UserGroup)
 getGroupInternalH tid uid includeChannels =
-  lift . liftSem $ getGroupUnsafe tid uid includeChannels
+  lift . liftSem $ getGroupInternal tid uid includeChannels
 
 updateGroupInternalH ::
   ( Member UserGroupSubsystem r

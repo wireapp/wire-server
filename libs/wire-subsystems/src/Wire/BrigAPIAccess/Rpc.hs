@@ -26,7 +26,7 @@ import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..), GetBy, UpdateGroupInternalRequest (..))
+import Wire.API.Routes.Internal.Brig (CreateGroupInternalRequest (..), GetBy, UpdateGroupInternalRequest (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -103,10 +103,10 @@ interpretBrigAccess brigEndpoint =
       UpdateSearchIndex uid -> updateSearchIndex uid
       GetAccountsBy localGetBy ->
         getAccountsBy localGetBy
-      CreateGroupFull managedBy teamId creatorUserId newGroup ->
-        createGroupFull managedBy teamId creatorUserId newGroup
-      GetGroupUnsafe tid gid includeChannels ->
-        getGroupUnsafe tid gid includeChannels
+      CreateGroupInternal managedBy teamId creatorUserId newGroup ->
+        createGroupInternal managedBy teamId creatorUserId newGroup
+      GetGroupInternal tid gid includeChannels ->
+        getGroupInternal tid gid includeChannels
       UpdateGroup req ->
         updateGroup req
 
@@ -535,17 +535,17 @@ getAccountsBy localGetBy = do
         . expect2xx
   decodeBodyOrThrow "brig" r
 
--- | Calls 'Brig.API.Internal.createGroupFullInternalH'.
-createGroupFull :: -- TODO: rename to createGroupInternal?
+-- | Calls 'Brig.API.Internal.createGroupInternalInternalH'.
+createGroupInternal ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   ManagedBy ->
   TeamId ->
   Maybe UserId ->
   NewUserGroup ->
   Sem r (Either Wai.Error UserGroup)
-createGroupFull managedBy teamId creatorUserId newGroup = do
+createGroupInternal managedBy teamId creatorUserId newGroup = do
   let req =
-        CreateGroupFullRequest
+        CreateGroupInternalRequest
           { managedBy,
             teamId,
             creatorUserId,
@@ -560,13 +560,13 @@ createGroupFull managedBy teamId creatorUserId newGroup = do
     then Right <$> decodeBodyOrThrow @UserGroup "brig" r
     else Left <$> decodeBodyOrThrow @Wai.Error "brig" r
 
-getGroupUnsafe ::
+getGroupInternal ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   TeamId ->
   UserGroupId ->
   Bool ->
   Sem r (Maybe UserGroup)
-getGroupUnsafe tid gid includeChannels = do
+getGroupInternal tid gid includeChannels = do
   r <-
     brigRequest $
       method GET

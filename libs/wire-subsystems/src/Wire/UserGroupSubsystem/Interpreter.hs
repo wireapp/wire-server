@@ -54,9 +54,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
-  CreateGroupFull managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
-  GetGroupUnsafe tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
@@ -68,6 +66,8 @@ interpretUserGroupSubsystem = interpret $ \case
   AddChannels performer groupId channelIds -> updateChannels True performer groupId channelIds
   UpdateChannels performer groupId channelIds -> updateChannels False performer groupId channelIds
   -- Internal API handlers
+  CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
+  GetGroupInternal tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError

@@ -82,7 +82,7 @@ createScimGroupImpl teamId grp = do
      in go `mapM` grp.members
 
   let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
-  BrigAPI.createGroupFull ManagedByScim teamId Nothing newGroup >>= \case
+  BrigAPI.createGroupInternal ManagedByScim teamId Nothing newGroup >>= \case
     Right ug -> do
       ScimSubsystemConfig scimBaseUri <- input
       pure $ toStoredGroup scimBaseUri ug
@@ -100,7 +100,7 @@ scimGetUserGroupImpl ::
   Sem r (SCG.StoredGroup SparTag)
 scimGetUserGroupImpl tid gid = do
   let includeChannels = False -- SCIM has no notion of channels.
-  maybe groupNotFound returnStoredGroup =<< BrigAPI.getGroupUnsafe tid gid includeChannels
+  maybe groupNotFound returnStoredGroup =<< BrigAPI.getGroupInternal tid gid includeChannels
   where
     groupNotFound = scimThrow $ notFound "Group" $ UUID.toText $ toUUID gid
     returnStoredGroup g = do
@@ -119,15 +119,16 @@ scimUpdateUserGroupImpl ::
   Sem r (SCG.StoredGroup SparTag)
 scimUpdateUserGroupImpl teamId gid grp = do
   let includeChannels = False
-  mExisting <- BrigAPI.getGroupUnsafe teamId gid includeChannels
-  existing <- maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) pure mExisting
-  when (existing.managedBy /= ManagedByScim) do
+  ug <-
+    BrigAPI.getGroupInternal teamId gid includeChannels
+      >>= note (ScimSubsystemError $ notFound "Group" (UUID.toText $ gid.toUUID))
+  when (ug.managedBy /= ManagedByScim) do
     scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
 
   ugName <- either (scimThrow . badRequest InvalidValue . Just) pure $ userGroupNameFromText grp.displayName
   reqMemberIds <- for grp.members parseMember
 
-  let currentSet = Set.fromList (toList (runIdentity existing.members))
+  let currentSet = Set.fromList (toList (runIdentity ug.members))
       requestedSet = Set.fromList reqMemberIds
       toAdd = requestedSet `Set.difference` currentSet
 
@@ -146,7 +147,7 @@ scimUpdateUserGroupImpl teamId gid grp = do
 
   ScimSubsystemConfig scimBaseUri <- input
   maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
-    =<< BrigAPI.getGroupUnsafe teamId gid includeChannels
+    =<< BrigAPI.getGroupInternal teamId gid includeChannels
 
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
 toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)

@@ -454,12 +454,12 @@ testSparScimUpdateUserGroup = do
               .= [ object
                      [ "value" .= bobId,
                        "type" .= "User",
-                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> bobId)
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> bobId)
                      ],
                    object
                      [ "value" .= charlieId,
                        "type" .= "User",
-                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> charlieId)
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> charlieId)
                      ]
                  ]
           ]
@@ -472,12 +472,12 @@ testSparScimUpdateUserGroup = do
               .= [ object
                      [ "value" .= charlieId,
                        "type" .= "User",
-                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> charlieId)
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> charlieId)
                      ],
                    object
                      [ "value" .= dianaId,
                        "type" .= "User",
-                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> dianaId)
+                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> dianaId)
                      ]
                  ]
           ]
@@ -485,23 +485,13 @@ testSparScimUpdateUserGroup = do
   replicateM_ 2 $ do
     updateScimUserGroup OwnDomain tok gid scimUserGroupUpdated `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      let expectedMembers =
-            [ object
-                [ "value" .= charlieId,
-                  "type" .= "User",
-                  "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> charlieId)
-                ],
-              object
-                [ "value" .= dianaId,
-                  "type" .= "User",
-                  "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> dianaId)
-                ]
-            ]
       resp.json %. "displayName" `shouldMatch` "My even funkier group"
-      asList (resp.json %. "members") `shouldMatchSet` expectedMembers
+      let expectedMembers = [charlieId, dianaId]
+      actualMembers <- resp.json %. "members" >>= asList >>= mapM ((%. "value") >=> asString)
+      actualMembers `shouldMatchSet` expectedMembers
       resp.json %. "id" `shouldMatch` gid
       resp.json %. "schemas" `shouldMatch` (toJSON ["urn:ietf:params:scim:schemas:core:2.0:Group"])
-    -- TODO: check meta, too?
+      (isJust <$> lookupField resp.json "meta") `shouldMatch` True
     getScimUserGroup OwnDomain tok gid `bindResponse` \resp -> do
       resp.json %. "displayName" `shouldMatch` "My even funkier group"
       memberValues <- (resp.json %. "members") >>= asListOf (\m -> m %. "value" >>= asString)
@@ -527,7 +517,7 @@ testSparScimUpdateUserGroupRejectsInvalidMembers = do
         object
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "displayName" .= "Test Group",
-            "members" .= [object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)]]
+            "members" .= [object ["value" .= validId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> validId)]]
           ]
   gid <- createScimUserGroup OwnDomain tok1 groupBody >>= getJSON 201 >>= (%. "id") >>= asString
 
@@ -538,8 +528,8 @@ testSparScimUpdateUserGroupRejectsInvalidMembers = do
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "displayName" .= "Test Group",
             "members"
-              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)],
-                   object ["value" .= ownerId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> ownerId)]
+              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> validId)],
+                   object ["value" .= ownerId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> ownerId)]
                  ]
           ]
   bindResponse (updateScimUserGroup OwnDomain tok1 gid updateWithNonScim) $ \resp -> do
@@ -561,8 +551,8 @@ testSparScimUpdateUserGroupRejectsInvalidMembers = do
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "displayName" .= "Test Group",
             "members"
-              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)],
-                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> otherId)]
+              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> validId)],
+                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> otherId)]
                  ]
           ]
   bindResponse (updateScimUserGroup OwnDomain tok1 gid updateWithOtherTeamMember) $ \resp -> do
@@ -575,8 +565,8 @@ testSparScimUpdateUserGroupRejectsInvalidMembers = do
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "displayName" .= "Test Group",
             "members"
-              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)],
-                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> nonExistingId)]
+              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> validId)],
+                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> nonExistingId)]
                  ]
           ]
   bindResponse (updateScimUserGroup OwnDomain tok1 gid updateNonExisting) $ \resp -> do

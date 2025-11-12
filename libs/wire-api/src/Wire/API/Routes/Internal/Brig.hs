@@ -36,7 +36,7 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     GetRichInfoMultiResponse (..),
     GetBy (..),
-    CreateGroupFullRequest (..),
+    CreateGroupInternalRequest (..),
     UpdateGroupInternalRequest (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
@@ -135,19 +135,19 @@ deriving via (Schema (Qualified GetBy)) instance ToJSON (Qualified GetBy)
 deriving via (Schema (Qualified GetBy)) instance S.ToSchema (Qualified GetBy)
 
 -- | Request type for creating user groups with full control
-data CreateGroupFullRequest = CreateGroupFullRequest
+data CreateGroupInternalRequest = CreateGroupInternalRequest
   { managedBy :: ManagedBy,
     teamId :: TeamId,
     creatorUserId :: Maybe UserId,
     newGroup :: NewUserGroup
   }
   deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupFullRequest
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupInternalRequest
 
-instance ToSchema CreateGroupFullRequest where
+instance ToSchema CreateGroupInternalRequest where
   schema =
-    object "CreateGroupFullRequest" $
-      CreateGroupFullRequest
+    object "CreateGroupInternalRequest" $
+      CreateGroupInternalRequest
         <$> (.managedBy) .= field "managed_by" schema
         <*> (.teamId) .= field "team_id" schema
         <*> (.creatorUserId) .= optField "creator_user_id" (maybeWithDefault Null schema)
@@ -254,13 +254,13 @@ type GetAccountsByInternal =
         :> Post '[Servant.JSON] [User]
     )
 
-type CreateGroupFullInternal =
+type CreateGroupInternalInternal =
   Named
     "i-create-group-full"
     ( Summary "Create user group with full control (internal)"
         :> "user-groups"
         :> "full"
-        :> ReqBody '[Servant.JSON] CreateGroupFullRequest
+        :> ReqBody '[Servant.JSON] CreateGroupInternalRequest
         :> Post '[Servant.JSON] UserGroup
     )
 
@@ -591,7 +591,7 @@ type AccountAPI =
                :> Delete '[Servant.JSON] NoContent
            )
     :<|> GetAccountsByInternal
-    :<|> CreateGroupFullInternal
+    :<|> CreateGroupInternalInternal
     :<|> GetGroupInternal
     :<|> UpdateGroupInternal
 

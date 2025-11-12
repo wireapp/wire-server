@@ -43,9 +43,7 @@ instance Default GroupSearch where
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
-  CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> UserGroupSubsystem r UserGroup -- TODO: rename to Internal; move to the bottom of this list
   GetGroup :: UserId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
-  GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup) -- TODO: rename to Internal; move to the bottom of this list
   GetGroups :: UserId -> GroupSearch -> UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
@@ -57,6 +55,8 @@ data UserGroupSubsystem m a where
   AddChannels :: UserId -> UserGroupId -> Vector ConvId -> UserGroupSubsystem m ()
   UpdateChannels :: UserId -> UserGroupId -> Vector ConvId -> UserGroupSubsystem m ()
   -- Internal API handlers
+  CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> UserGroupSubsystem r UserGroup
+  GetGroupInternal :: TeamId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
   ResetUserGroupInternal :: UpdateGroupInternalRequest -> UserGroupSubsystem m ()
 
 makeSem ''UserGroupSubsystem

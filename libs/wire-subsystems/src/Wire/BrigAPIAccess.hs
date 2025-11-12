@@ -46,8 +46,8 @@ module Wire.BrigAPIAccess
     deleteBot,
 
     -- * User Groups
-    createGroupFull,
-    getGroupUnsafe,
+    createGroupInternal,
+    getGroupInternal,
     updateGroup,
   )
 where
@@ -134,8 +134,8 @@ data BrigAPIAccess m a where
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
-  CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
-  GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
+  CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
+  GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
