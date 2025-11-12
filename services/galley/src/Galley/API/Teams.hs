@@ -1325,17 +1325,13 @@ checkAdminLimit adminCount =
 -- | Updating a team collaborator permissions eventually cleaning their conversations
 updateTeamCollaborator ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member ConversationStore r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS NotATeamMember) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
     Member P.TinyLog r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member ConversationSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
