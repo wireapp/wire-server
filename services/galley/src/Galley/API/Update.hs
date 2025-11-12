@@ -902,6 +902,13 @@ joinConversation lusr zcon conv access = do
 -- this internal type is isomorphic to the JoinType, however it better conveys the intent
 data MLSCommitMode = WithCommit | WithoutCommit
 
+mkJoinType :: MLSCommitMode -> StoredConversation -> JoinType
+mkJoinType mlsCommitMode conv = case mlsCommitMode of
+  WithoutCommit | isTeamChannel -> ExternalAdd
+  _ -> InternalAdd
+  where
+    isTeamChannel = conv.metadata.cnvmGroupConvType == Just Channel && isJust conv.metadata.cnvmTeam
+
 addMembers ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
@@ -954,9 +961,7 @@ addMembers mlsCommitMode lusr zcon qcnv (InviteQualified users role) = do
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
             permissionCheck JoinRegularConversations . Just
 
-  let joinType = case mlsCommitMode of
-        WithCommit -> InternalAdd
-        WithoutCommit -> ExternalAdd
+  let joinType = mkJoinType mlsCommitMode conv
       action = ConversationJoin {..}
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
@@ -1119,9 +1124,7 @@ replaceMembers mlsCommitMode lusr zcon qcnv (InviteQualified invitedUsers role) 
   unless (Set.null toRemove && Set.null toAdd) $ do
     -- Add members first
     for_ (nonEmpty $ Set.toList toAdd) $ \users -> do
-      let joinType = case mlsCommitMode of
-            WithoutCommit -> ExternalAdd
-            WithCommit -> InternalAdd
+      let joinType = mkJoinType mlsCommitMode conv
           action = ConversationJoin {..}
       getUpdateResult . fmap lcuEvent $
         updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
