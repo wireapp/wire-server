@@ -66,8 +66,7 @@ createScimGroupImpl teamId grp = do
     users <- BrigAPI.getAccountsBy def {getByUserId = uids}
     pure $
       users
-        & filter (\u -> u.userTeam /= Just teamId)
-        & filter (\u -> u.userManagedBy /= ManagedByScim)
+        & filter (\u -> u.userTeam /= Just teamId || u.userManagedBy /= ManagedByScim)
         & fmap userId
   unless (null membersNotFound) do
     throw (ScimSubsystemGroupMembersNotFound membersNotFound)
@@ -134,7 +133,7 @@ scimUpdateUserGroupImpl teamId gid grp = do
 
   unless (null toAdd) do
     accounts <- BrigAPI.getUsers (Set.toList toAdd)
-    let notInTeamOrNotScim = [userId u | u <- accounts, u.userManagedBy /= ManagedByScim, u.userTeam /= Just teamId]
+    let notInTeamOrNotScim = [userId u | u <- accounts, u.userManagedBy /= ManagedByScim || u.userTeam /= Just teamId]
         found = Set.fromList (userId <$> accounts)
         missing = Set.toList (toAdd `Set.difference` found)
     unless (null notInTeamOrNotScim) do

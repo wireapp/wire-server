@@ -293,8 +293,8 @@ mapScimSubsystemErrors =
     SAML.CustomError . SparScimError . \case
       ScimSubsystemError err ->
         err
-      ScimSubsystemInvalidGroupMemberId badIds ->
-        Scim.notFound "group members" badIds
+      ScimSubsystemInvalidGroupMemberId badId ->
+        Scim.badRequest Scim.InvalidValue (Just $ "Invalid group member ID: " <> badId)
       ScimSubsystemGroupMembersNotFound badIds ->
         Scim.badRequest Scim.InvalidValue (Just $ "These users are not in your team or not \"managed_by\" = \"scim\": " <> renderIds badIds)
       ScimSubsystemInternal waiErr ->

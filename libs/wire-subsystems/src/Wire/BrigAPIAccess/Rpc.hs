@@ -557,8 +557,8 @@ createGroupFull managedBy teamId creatorUserId newGroup = do
         . path "/i/user-groups/full"
         . json req
   if statusCode r >= 200 && statusCode r < 300
-    then Left <$> decodeBodyOrThrow @Wai.Error "brig" r
-    else Right <$> decodeBodyOrThrow @UserGroup "brig" r
+    then Right <$> decodeBodyOrThrow @UserGroup "brig" r
+    else Left <$> decodeBodyOrThrow @Wai.Error "brig" r
 
 getGroupUnsafe ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>

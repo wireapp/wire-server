@@ -281,7 +281,7 @@ type UpdateGroupInternal =
     ( Summary "Create user group with full control (internal)"
         :> "user-groups"
         :> ReqBody '[Servant.JSON] UpdateGroupInternalRequest
-        :> Get '[Servant.JSON] ()
+        :> Put '[Servant.JSON] ()
     )
 
 type AccountAPI =

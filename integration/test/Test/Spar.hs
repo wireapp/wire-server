@@ -427,20 +427,24 @@ testSparScimCreateGetUserGroup = do
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
-  (owner, tid, []) <- createTeam OwnDomain 1
-  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
-  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
-  assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
-  void $ registerTestIdPWithMetaWithPrivateCreds owner
+  (alice, tid, []) <- createTeam OwnDomain 1
+  void $ putSelf alice def {name = Just "alice"}
+  tok <- createScimToken alice def >>= getJSON 200 >>= (%. "token") >>= asString
+  assertSuccess =<< setTeamFeatureStatus alice tid "validateSAMLemails" "disabled"
+  assertSuccess =<< setTeamFeatureStatus alice tid "sso" "enabled"
 
-  let mkMemberCandidate :: App String
-      mkMemberCandidate = do
+  let mkMemberCandidate :: String -> App String
+      mkMemberCandidate displayName = do
         scimUserEmail <- randomEmail
         scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
-        createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-        error "TODO: activate user"
+        scimUserNamed <- setField "displayName" displayName scimUser
+        uid <- createScimUser alice tok scimUserNamed >>= getJSON 201 >>= (%. "id") >>= asString
+        registerInvitedUser OwnDomain tid scimUserEmail
+        pure uid
 
-  [u1Id, u2Id, u3Id] <- replicateM 3 mkMemberCandidate
+  bobId <- mkMemberCandidate "bob"
+  charlieId <- mkMemberCandidate "charlie"
+  dianaId <- mkMemberCandidate "diana"
 
   let scimUserGroup =
         object
@@ -448,38 +452,135 @@ testSparScimUpdateUserGroup = do
             "displayName" .= "My funky group",
             "members"
               .= [ object
-                     [ "value" .= u1Id,
+                     [ "value" .= bobId,
                        "type" .= "User",
-                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u1Id)
+                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> bobId)
                      ],
                    object
-                     [ "value" .= u2Id,
+                     [ "value" .= charlieId,
                        "type" .= "User",
-                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u2Id)
+                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> charlieId)
                      ]
                  ]
           ]
-  gid <- createScimUserGroup OwnDomain tok scimUserGroup >>= getJSON 200 >>= (%. "id") >>= asString
+  gid <- createScimUserGroup OwnDomain tok scimUserGroup >>= getJSON 201 >>= (%. "id") >>= asString
   let scimUserGroupUpdated =
         object
           [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "displayName" .= "My even funkier group",
             "members"
               .= [ object
-                     [ "value" .= u2Id,
+                     [ "value" .= charlieId,
                        "type" .= "User",
-                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u2Id)
+                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> charlieId)
                      ],
                    object
-                     [ "value" .= u3Id,
+                     [ "value" .= dianaId,
                        "type" .= "User",
-                       "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> u3Id)
+                       "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> dianaId)
                      ]
                  ]
           ]
-  updateScimUserGroup OwnDomain tok gid scimUserGroupUpdated >>= assertSuccess
-  getScimUserGroup OwnDomain tok gid `bindResponse` \resp -> do
-    resp.json %. "thing.value.displayName" `shouldMatch` "my even funkier group"
+  -- run this twice to check for idempotency
+  replicateM_ 2 $ do
+    updateScimUserGroup OwnDomain tok gid scimUserGroupUpdated `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      let expectedMembers =
+            [ object
+                [ "value" .= charlieId,
+                  "type" .= "User",
+                  "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> charlieId)
+                ],
+              object
+                [ "value" .= dianaId,
+                  "type" .= "User",
+                  "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> dianaId)
+                ]
+            ]
+      resp.json %. "displayName" `shouldMatch` "My even funkier group"
+      asList (resp.json %. "members") `shouldMatchSet` expectedMembers
+      resp.json %. "id" `shouldMatch` gid
+      resp.json %. "schemas" `shouldMatch` (toJSON ["urn:ietf:params:scim:schemas:core:2.0:Group"])
+    -- TODO: check meta, too?
+    getScimUserGroup OwnDomain tok gid `bindResponse` \resp -> do
+      resp.json %. "displayName" `shouldMatch` "My even funkier group"
+      memberValues <- (resp.json %. "members") >>= asListOf (\m -> m %. "value" >>= asString)
+      memberValues `shouldMatchSet` [charlieId, dianaId]
+
+testSparScimUpdateUserGroupRejectsInvalidMembers :: (HasCallStack) => App ()
+testSparScimUpdateUserGroupRejectsInvalidMembers = do
+  (alice, tid1, []) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus alice tid1 "sso" "enabled"
+  tok1 <- createScimToken alice def >>= getJSON 200 >>= (%. "token") >>= asString
+
+  -- one valid SCIM-managed member in team 1
+  let mkTeam1Member name = do
+        email <- randomEmail
+        su <- randomScimUserWith def {mkExternalId = pure email} >>= setField "displayName" name
+        uid <- createScimUser OwnDomain tok1 su >>= getJSON 201 >>= (%. "id") >>= asString
+        registerInvitedUser OwnDomain tid1 email
+        pure uid
+  validId <- mkTeam1Member "charlie"
+
+  -- create the group with one valid member
+  let groupBody =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "Test Group",
+            "members" .= [object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)]]
+          ]
+  gid <- createScimUserGroup OwnDomain tok1 groupBody >>= getJSON 201 >>= (%. "id") >>= asString
+
+  -- Case 1: user is in team but not managed by SCIM (the owner)
+  ownerId <- alice %. "id" >>= asString
+  let updateWithNonScim =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "Test Group",
+            "members"
+              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)],
+                   object ["value" .= ownerId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> ownerId)]
+                 ]
+          ]
+  bindResponse (updateScimUserGroup OwnDomain tok1 gid updateWithNonScim) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+
+  -- Case 2: user is SCIM-managed but not in the team (create in a second team)
+  otherId <- do
+    (bob, tid2, []) <- createTeam OwnDomain 1
+    void $ setTeamFeatureStatus bob tid2 "sso" "enabled"
+    tok2 <- createScimToken bob def >>= getJSON 200 >>= (%. "token") >>= asString
+    email <- randomEmail
+    su <- randomScimUserWith def {mkExternalId = pure email} >>= setField "displayName" "diana"
+    uid <- createScimUser OwnDomain tok2 su >>= getJSON 201 >>= (%. "id") >>= asString
+    registerInvitedUser OwnDomain tid2 email
+    pure uid
+
+  let updateWithOtherTeamMember =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "Test Group",
+            "members"
+              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)],
+                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> otherId)]
+                 ]
+          ]
+  bindResponse (updateScimUserGroup OwnDomain tok1 gid updateWithOtherTeamMember) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+
+  -- Case 3: user does not exist
+  nonExistingId <- randomId
+  let updateNonExisting =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName" .= "Test Group",
+            "members"
+              .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> validId)],
+                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://localhost:8088/scim/v2/Users/" <> nonExistingId)]
+                 ]
+          ]
+  bindResponse (updateScimUserGroup OwnDomain tok1 gid updateNonExisting) $ \resp -> do
+    resp.status `shouldMatchInt` 400
 
 ----------------------------------------------------------------------
 -- saml stuff
