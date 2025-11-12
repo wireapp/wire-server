@@ -86,7 +86,6 @@ import Galley.API.Update qualified as API
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
@@ -132,6 +131,8 @@ import Wire.API.User qualified as U
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem
+import Wire.ExternalAccess qualified as E
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -444,7 +445,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event qconvId Nothing (tUntagged lusr) now (Just tid) Conv.EdConvDelete
+      let e = Conv.Event qconvId Nothing (Conv.EventFromUser (tUntagged lusr)) now (Just tid) Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p =
             def
@@ -755,21 +756,19 @@ updateTeamMember lzusr zcon tid newMem = do
         && permissionsRole targetPermissions /= Just RoleOwner
 
 deleteTeamMember ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
-    Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -783,21 +782,19 @@ deleteTeamMember ::
 deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid remove (Just body)
 
 deleteNonBindingTeamMember ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
-    Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -811,21 +808,19 @@ deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon ti
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember' ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error InvalidInput) r,
-    Member (Error FederationError) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -880,11 +875,9 @@ deleteTeamMember' lusr zcon tid remove mBody = do
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedDeleteTeamMember ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member NotificationSubsystem r,
-    Member (Error FederationError) r,
-    Member ExternalAccess r,
+    Member ConversationSubsystem r,
     Member Now r,
     Member TeamStore r
   ) =>
@@ -943,12 +936,8 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
 
 removeFromConvsAndPushConvLeaveEvent ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r
+  ( Member ConversationStore r,
+    Member ConversationSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -973,7 +962,7 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
                       (Set.fromList $ (.id_) <$> dc.remoteMembers)
                       (Set.fromList bots)
               void $
-                notifyConversationAction
+                sendConversationActionNotifications
                   (sing @'ConversationRemoveMembersTag)
                   (tUntagged lusr)
                   True
@@ -1035,9 +1024,7 @@ deleteTeamConversation ::
     Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
     Member FederatorAccess r,
     Member ProposalStore r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1335,13 +1322,11 @@ checkAdminLimit adminCount =
 -- | Removing a team collaborator and clean their conversations
 removeTeamCollaborator ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member ConversationStore r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS NotATeamMember) r,
-    Member ExternalAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Opts) r,
     Member Now r,
     Member P.TinyLog r,

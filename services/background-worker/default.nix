@@ -11,8 +11,10 @@
 , cassandra-util
 , containers
 , data-default
+, data-timeout
 , exceptions
 , extended
+, extra
 , federator
 , gitignoreSource
 , hasql-pool
@@ -26,6 +28,9 @@
 , lib
 , metrics-wai
 , monad-control
+, polysemy
+, polysemy-conc
+, polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
 , retry
@@ -59,8 +64,10 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    data-timeout
     exceptions
     extended
+    extra
     hasql-pool
     HsOpenSSL
     http-client
@@ -68,6 +75,9 @@ mkDerivation {
     imports
     metrics-wai
     monad-control
+    polysemy
+    polysemy-conc
+    polysemy-wire-zoo
     prometheus-client
     retry
     servant-client
@@ -113,6 +123,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
   ];
   description = "Runs background work";
   license = lib.licenses.agpl3Only;

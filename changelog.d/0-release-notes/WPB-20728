@@ -1,0 +1,19 @@
+Background-worker configuration: required values when supplying your own Helm values
+
+Add the following fields under `background-worker`:
+
+- `config.federationDomain`
+- `config.postgresql`
+- `config.cassandraBrig`
+- `config.cassandraGalley`
+- `secrets.pgPassword`
+
+Notes
+- `config.cassandra` (for gundeck) already exists; no change needed.
+- `config.backgroundJobs` and `config.postgresqlPool` have defaults; override only if needed.
+- `config.postgresMigration.conversation` defaults to `postgresql`; change only if migrating conversations to PostgreSQL.
+- `config.brig` and `config.gundeck` endpoints have in-cluster defaults; override only if your service DNS/ports differ.
+
+PostgreSQL migration note
+- Conversation migration settings have to be aligned across galley and background-worker.
+  See `docs/src/developer/reference/config-options.md` for the full migration steps and configuration details.

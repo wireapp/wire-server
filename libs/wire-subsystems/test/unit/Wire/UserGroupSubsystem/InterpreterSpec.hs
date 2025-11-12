@@ -39,9 +39,12 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
+import Wire.BackgroundJobsPublisher qualified as BackgroundJobsPublisher
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.Sem.Random qualified as Random
+import Wire.Sem.Random.Null qualified as Random
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
@@ -57,7 +60,9 @@ type AllDependencies =
     `Append` '[ Input (Local ()),
                 MockNow,
                 NotificationSubsystem,
+                BackgroundJobsPublisher.BackgroundJobsPublisher,
                 State [Push],
+                Random.Random,
                 Error UserGroupSubsystemError
               ]
 
@@ -79,7 +84,9 @@ interpretDependencies ::
   Sem (AllDependencies `Append` r) a ->
   Sem ('[Error UserGroupSubsystemError] `Append` r) a
 interpretDependencies initialUsers initialTeams =
-  evalState mempty
+  Random.randomToNull
+    . evalState mempty
+    . noopBackgroundJobsPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
@@ -96,7 +103,9 @@ runDependenciesWithReturnState ::
 runDependenciesWithReturnState initialUsers initialTeams =
   run
     . runError
+    . Random.randomToNull
     . runState mempty
+    . noopBackgroundJobsPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())

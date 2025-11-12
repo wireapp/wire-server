@@ -29,9 +29,12 @@ config:
     # tlsCaSecretRef:
     #   name: <secret-name>
     #   key: <ca-attribute>
+  # Cassandra clusters used by background-worker
   cassandra:
     host: aws-cassandra
   cassandraGalley:
+    host: aws-cassandra
+  cassandraBrig:
     host: aws-cassandra
 
   # Postgres connection settings
@@ -57,7 +60,6 @@ config:
     agingTimeout: 1d
     idlenessTimeout: 10m
 
-
   # Setting this to `true` will start conversation migration to postgresql.
   #
   # NOTE: It is very important that galley be configured to with
@@ -70,7 +72,22 @@ config:
     pushBackoffMaxWait: 300000000 # microseconds, so 300s
     remotesRefreshInterval: 300000000 # microseconds, so 300s
 
-secrets: {}
+  # Background jobs consumer configuration
+  backgroundJobs:
+    # Maximum number of in-flight jobs per process
+    concurrency: 8
+    # Per-attempt timeout in seconds
+    jobTimeout: 60s
+    # Total attempts, including the first try
+    maxAttempts: 3
+
+  # Controls where conversation data is stored/accessed
+  postgresMigration:
+    conversation: postgresql
+
+secrets:
+  {}
+  # pgPassword: <postgres-password>
 
 podSecurityContext:
   allowPrivilegeEscalation: false

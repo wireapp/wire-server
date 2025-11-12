@@ -1611,7 +1611,7 @@ server, verification can be turned off by settings `insecureSkipVerifyTls` to
 
 ## Configure PostgreSQL
 
-`brig` and `galley` require a PostgreSQL database. The configured user needs to
+`brig`, `galley`, and `background-worker` require a PostgreSQL database. The configured user needs to
 be able to write data and change the schema (e.g. create and alter tables.)
 
 The internal configuration YAML file format and the Helm charts for `brig` and
@@ -1678,21 +1678,26 @@ The `port` needs to be a number provided as string.
 Besides the password file (`postgresqlPassword`), the fields correspond to
 [libpq-connect
 parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-The `postgresqlPassword` file is read by `brig` and `galley`. Its content is
+The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
 used as `password` field.
 
 ### Using PostgreSQL for storing conversation data
 
 #### New Installations
 
-New installations can use this by configuring the wire-server helm
-chart like this:
+For new installations, configure both `galley` and `background-worker` to use
+PostgreSQL for conversation data:
 
 ```yaml
 galley:
   config:
-    postgresqlMigration:
+    postgresMigration:
       conversation: postgresql
+background-worker:
+  config:
+    postgresMigration:
+      conversation: postgresql
+    migrateConversations: false
 ```
 
 #### Migration for existing installations
@@ -1709,11 +1714,20 @@ The migration needs to happen in 3 steps:
    This step make sure that wire-server keep working as expected during the
    migration. To do this deploy wire-server with this config change:
 
+   Configure both `galley` and `background-worker` so that newly created
+   conversations are written to PostgreSQL while existing data still reads from
+   Cassandra:
+
    ```yaml
    galley:
      config:
-       postgresqlMigration:
-         conversation: migrate-to-postgresql
+       postgresMigration:
+         conversation: migration-to-postgresql
+   background-worker:
+     config:
+       postgresMigration:
+         conversation: migration-to-postgresql
+       migrateConversations: false
    ```
 
    This change should restart all the galley pods, any new conversations will
@@ -1743,10 +1757,12 @@ The migration needs to happen in 3 steps:
    ```yaml
    galley:
      config:
-       postgresqlMigration:
+       postgresMigration:
          conversation: postgresql
    background-worker:
      config:
+       postgresMigration:
+         conversation: postgresql
        migrateConversations: false
    ```
 
@@ -1761,3 +1777,75 @@ gundeck:
   settings:
     cellsEventQueue: "cells_events"
 ```
+## Background worker: Background jobs
+
+The background worker processes asynchronous jobs (conversation migrations, backend notifications). Configuration is supplied via Helm under `background-worker.config` and rendered into `background-worker.yaml`.
+
+Minimal Helm values (under `background-worker.config`):
+
+```yaml
+# RabbitMQ connection
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  vHost: /
+  enableTls: false
+  insecureSkipVerifyTls: false
+  # tlsCaSecretRef:
+  #   name: <secret-name>
+  #   key: <ca-attribute>
+  # When federation is enabled, background-worker also uses the admin API
+  # adminHost defaults to `host` if omitted
+  # adminPort: 15672
+
+# Cassandra clusters used by background-worker
+cassandra:
+  host: <gundeck-cassandra-host>
+cassandraBrig:
+  host: <brig-cassandra-host>
+cassandraGalley:
+  host: <galley-cassandra-host>
+
+# PostgreSQL (conversation/user-group stores)
+postgresql:
+  host: postgresql
+  port: "5432"
+  user: wire-server
+  dbname: wire-server
+
+postgresqlPool:
+  size: 5
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
+# Controls where conversation data is read/written
+postgresMigration:
+  # Valid: cassandra | migration-to-postgresql | postgresql
+  conversation: postgresql
+
+# Start the migration worker when true
+migrateConversations: false
+
+# Background jobs consumer
+backgroundJobs:
+  concurrency: 8     # in-flight jobs per process
+  jobTimeout: 60s    # per attempt
+  maxAttempts: 3     # total attempts incl. first run
+
+# Required for addressing local vs remote backends
+federationDomain: example.org
+```
+
+Secrets
+
+- Set `background-worker.secrets.pgPassword` to pass the PostgreSQL password. The chart mounts it to `/etc/wire/background-worker/secrets/pgPassword` and sets `postgresqlPassword` accordingly.
+
+Notes
+
+- `postgresql` values follow libpq keywords; password is sourced via `secrets.pgPassword`.
+- RabbitMQ admin fields (`adminHost`, `adminPort`) are templated only when `config.enableFederation` is true.
+- `postgresMigration.conversation` must match `galley.config.postgresMigration.conversation` during migration phases.
+- `migrateConversations: true` triggers the migration job; leave it `false` for new installs and after migration.
+- `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
+- `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.

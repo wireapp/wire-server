@@ -13,6 +13,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Misc
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
@@ -51,6 +52,7 @@ import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
+import Wire.ConversationStore
 
 spec :: Spec
 spec = do
@@ -324,7 +326,7 @@ spec = do
       httpManager <- newManager defaultManagerSettings
       let cassandra = undefined
           cassandraGalley = undefined
-          hasqlPool = undefined
+          cassandraBrig = undefined
           federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -332,6 +334,19 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+          backgroundJobsConfig =
+            BackgroundJobsConfig
+              { concurrency = toRange (Proxy @1),
+                jobTimeout = Duration 100,
+                maxAttempts = toRange (Proxy @3)
+              }
+          hasqlPool = undefined
+          amqpJobsPublisherChannel = undefined
+          amqpBackendNotificationsChannel = undefined
+          federationDomain = Domain "local"
+          postgresMigration = PostgresMigrationOpts CassandraStorage
+          gundeckEndpoint = undefined
+          brigEndpoint = undefined
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
@@ -344,15 +359,28 @@ spec = do
       logger <- Logger.new Logger.defSettings
       let cassandra = undefined
           cassandraGalley = undefined
-          hasqlPool = undefined
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
+          cassandraBrig = undefined
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+          backgroundJobsConfig =
+            BackgroundJobsConfig
+              { concurrency = toRange (Proxy @1),
+                jobTimeout = Duration 100,
+                maxAttempts = toRange (Proxy @3)
+              }
+          hasqlPool = undefined
+          amqpJobsPublisherChannel = undefined
+          amqpBackendNotificationsChannel = undefined
+          federationDomain = Domain "local"
+          postgresMigration = PostgresMigrationOpts CassandraStorage
+          gundeckEndpoint = undefined
+          brigEndpoint = undefined
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

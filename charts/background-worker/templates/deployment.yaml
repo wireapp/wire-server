@@ -27,7 +27,6 @@ spec:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
         checksum/cassandra-secret: {{ include (print .Template.BasePath "/cassandra-secret.yaml") . | sha256sum }}
-        checksum/cassandra-galley-secret: {{ include (print .Template.BasePath "/cassandra-galley-secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
       serviceAccount: null
@@ -40,15 +39,20 @@ spec:
         - name: "background-worker-secrets"
           secret:
             secretName: "background-worker"
-        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
-        - name: "background-worker-cassandra"
+        {{- if eq (include "useGundeckCassandraTLS" .Values.config) "true" }}
+        - name: "background-worker-cassandra-gundeck"
           secret:
-            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+            secretName: {{ (include "gundeckTlsSecretRef" .Values.config | fromYaml).name }}
         {{- end }}
-        {{- if eq (include "useCassandraTLSGalley" .Values.config) "true" }}
+        {{- if eq (include "useBrigCassandraTLS" .Values.config) "true" }}
+        - name: "background-worker-cassandra-brig"
+          secret:
+            secretName: {{ (include "brigTlsSecretRef" .Values.config | fromYaml).name }}
+        {{- end }}
+        {{- if eq (include "useGalleyCassandraTLS" .Values.config) "true" }}
         - name: "background-worker-cassandra-galley"
           secret:
-            secretName: {{ (include "tlsSecretRefGalley" .Values.config | fromYaml).name }}
+            secretName: {{ (include "galleyTlsSecretRef" .Values.config | fromYaml).name }}
         {{- end }}
         {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
@@ -67,15 +71,19 @@ spec:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
         {{- end }}
           volumeMounts:
-          - name: "background-worker-config"
-            mountPath: "/etc/wire/background-worker/conf"
           - name: "background-worker-secrets"
             mountPath: "/etc/wire/background-worker/secrets"
-          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
-          - name: "background-worker-cassandra"
-            mountPath: "/etc/wire/background-worker/cassandra"
+          - name: "background-worker-config"
+            mountPath: "/etc/wire/background-worker/conf"
+          {{- if eq (include "useGundeckCassandraTLS" .Values.config) "true" }}
+          - name: "background-worker-cassandra-gundeck"
+            mountPath: "/etc/wire/background-worker/cassandra-gundeck"
           {{- end }}
-          {{- if eq (include "useCassandraTLSGalley" .Values.config) "true" }}
+          {{- if eq (include "useBrigCassandraTLS" .Values.config) "true" }}
+          - name: "background-worker-cassandra-brig"
+            mountPath: "/etc/wire/background-worker/cassandra-brig"
+          {{- end }}
+          {{- if eq (include "useGalleyCassandraTLS" .Values.config) "true" }}
           - name: "background-worker-cassandra-galley"
             mountPath: "/etc/wire/background-worker/cassandra-galley"
           {{- end }}

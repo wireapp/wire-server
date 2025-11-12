@@ -1,4 +1,4 @@
-module Galley.Effects.BackendNotificationQueueAccess where
+module Wire.BackendNotificationQueueAccess where
 
 import Data.Qualified
 import Imports

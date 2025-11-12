@@ -17,6 +17,7 @@
             "service"
         ],
         "add_permission": null,
+        "cells_state": "disabled",
         "creator": "00000000-0000-0000-0000-000200000001",
         "group_conv_type": "group_conversation",
         "id": "00000000-0000-0000-0000-000100000001",
@@ -60,7 +61,6 @@
         "name": "\u0007\u000e\r",
         "parent": null,
         "protocol": "proteus",
-        "cells_state": "disabled",
         "qualified_id": {
             "domain": "golden.example.com",
             "id": "00000000-0000-0000-0000-000100000001"
@@ -79,5 +79,6 @@
         "id": "00000457-0000-0689-0000-77a00000021c"
     },
     "time": "1864-05-29T19:31:31.226Z",
-    "type": "conversation.create"
+    "type": "conversation.create",
+    "via": "user"
 }

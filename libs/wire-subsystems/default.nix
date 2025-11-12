@@ -52,6 +52,7 @@
 , html-entities
 , http-api-data
 , http-client
+, http-client-openssl
 , http-types
 , http2-manager
 , imports
@@ -87,7 +88,9 @@
 , servant
 , servant-client-core
 , servant-server
+, singletons
 , sodium-crypto-sign
+, ssl-util
 , statistics
 , stomp-queue
 , string-conversions
@@ -167,6 +170,7 @@ mkDerivation {
     html-entities
     http-api-data
     http-client
+    http-client-openssl
     http-types
     http2-manager
     imports
@@ -198,7 +202,9 @@ mkDerivation {
     servant
     servant-client-core
     servant-server
+    singletons
     sodium-crypto-sign
+    ssl-util
     statistics
     stomp-queue
     template
@@ -271,6 +277,7 @@ mkDerivation {
     hspec
     html-entities
     http-client
+    http-client-openssl
     http-types
     http2-manager
     imports
@@ -304,7 +311,9 @@ mkDerivation {
     servant
     servant-client-core
     servant-server
+    singletons
     sodium-crypto-sign
+    ssl-util
     statistics
     stomp-queue
     string-conversions

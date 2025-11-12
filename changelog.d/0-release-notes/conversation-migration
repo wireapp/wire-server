@@ -13,9 +13,11 @@ The migration needs to happen in 3 steps:
    ```yaml
    galley:
      config:
-       postgresqlMigration:
-         conversation: migrate-to-postgresql
+       postgresMigration:
+         conversation: migration-to-postgresql
    ```
+
+   Once set to `migration-to-postgresql`, do not switch back to `cassandra`.
 
    This change should restart all the galley pods, any new conversations will
    now be written to PostgreSQL.
@@ -44,7 +46,7 @@ The migration needs to happen in 3 steps:
    ```yaml
    galley:
      config:
-       postgresqlMigration:
+       postgresMigration:
          conversation: postgresql
    background-worker:
      config:

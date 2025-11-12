@@ -16,5 +16,6 @@
         "id": "00004b11-0000-5504-0000-55d800002188"
     },
     "time": "1864-04-27T15:44:23.844Z",
-    "type": "conversation.otr-message-add"
+    "type": "conversation.otr-message-add",
+    "via": "user"
 }

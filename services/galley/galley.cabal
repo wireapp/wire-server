@@ -78,7 +78,6 @@ library
     Galley.API.Action.Leave
     Galley.API.Action.Notify
     Galley.API.Action.Reset
-    Galley.API.Cells
     Galley.API.Clients
     Galley.API.Create
     Galley.API.CustomBackend
@@ -144,7 +143,6 @@ library
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
-    Galley.Cassandra.Services
     Galley.Cassandra.Store
     Galley.Cassandra.Team
     Galley.Cassandra.TeamFeatures
@@ -154,28 +152,22 @@ library
     Galley.Data.TeamNotifications
     Galley.Data.Types
     Galley.Effects
-    Galley.Effects.BackendNotificationQueueAccess
     Galley.Effects.ClientStore
     Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
-    Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
-    Galley.Effects.FireAndForget
     Galley.Effects.LegalHoldStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
-    Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
     Galley.Effects.TeamStore
     Galley.Env
-    Galley.External
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Intra.BackendNotificationQueue
     Galley.Intra.Effects
     Galley.Intra.Federator
     Galley.Intra.Journal

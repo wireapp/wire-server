@@ -18,6 +18,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
@@ -31,6 +32,7 @@ kickMember ::
   ( Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Now r,
@@ -46,7 +48,7 @@ kickMember ::
   Sem r ()
 kickMember qusr lconv targets victim = void . runError @NoChanges $ do
   leaveConversation victim lconv
-  notifyConversationAction
+  sendConversationActionNotifications
     (sing @'ConversationRemoveMembersTag)
     qusr
     True

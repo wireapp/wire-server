@@ -16,6 +16,8 @@ library
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Health
+    Wire.BackgroundWorker.Jobs.Consumer
+    Wire.BackgroundWorker.Jobs.Registry
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
@@ -36,8 +38,10 @@ library
     , bytestring-conversion
     , cassandra-util
     , containers
+    , data-timeout
     , exceptions
     , extended
+    , extra
     , hasql-pool
     , HsOpenSSL
     , http-client
@@ -45,6 +49,9 @@ library
     , imports
     , metrics-wai
     , monad-control
+    , polysemy
+    , polysemy-conc
+    , polysemy-wire-zoo
     , prometheus-client
     , retry
     , servant-client
@@ -208,6 +215,7 @@ test-suite background-worker-test
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , wire-subsystems
 
   default-extensions:
     AllowAmbiguousTypes

@@ -45,5 +45,6 @@ data UserGroupStore m a where
   AddUserGroupChannels :: UserGroupId -> Vector ConvId -> UserGroupStore m ()
   UpdateUserGroupChannels :: UserGroupId -> Vector ConvId -> UserGroupStore m ()
   GetUserGroupIdsForUsers :: [UserId] -> UserGroupStore m (Map UserId [UserGroupId])
+  GetUserGroupChannels :: TeamId -> UserGroupId -> UserGroupStore m (Maybe (Vector ConvId))
 
 makeSem ''UserGroupStore

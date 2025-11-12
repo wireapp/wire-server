@@ -20,5 +20,6 @@
         "id": "00007f28-0000-40b1-0000-56ab0000748d"
     },
     "time": "1864-05-25T01:31:49.802Z",
-    "type": "conversation.connect-request"
+    "type": "conversation.connect-request",
+    "via": "user"
 }

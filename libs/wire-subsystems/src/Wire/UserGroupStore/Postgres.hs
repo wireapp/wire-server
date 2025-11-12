@@ -57,6 +57,7 @@ interpretUserGroupStoreToPostgres =
     AddUserGroupChannels gid convIds -> updateUserGroupChannels True gid convIds
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannels False gid convIds
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsers uids
+    GetUserGroupChannels tid gid -> getUserGroupChannels tid gid
 
 getUserGroupsForConv :: (UserGroupStorePostgresEffectConstraints r) => ConvId -> Sem r (Vector UserGroup)
 getUserGroupsForConv convId = do
@@ -466,6 +467,35 @@ updateUserGroupChannels appendOnly gid convIds = do
           insert into user_group_channel (user_group_id, conv_id)  select * from unnest ($1 :: uuid[], $2 :: uuid[])
           on conflict (user_group_id, conv_id) do nothing
           |]
+
+getUserGroupChannels ::
+  forall r.
+  (UserGroupStorePostgresEffectConstraints r) =>
+  TeamId ->
+  UserGroupId ->
+  Sem r (Maybe (Vector ConvId))
+getUserGroupChannels tid gid = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session (Maybe (Vector ConvId))
+    session = do
+      mbUuids <- statement (gid, tid) getChannelsStatement
+      pure (fmap (fmap Id) mbUuids)
+
+    getChannelsStatement :: Statement (UserGroupId, TeamId) (Maybe (Vector UUID))
+    getChannelsStatement =
+      lmap (\(g, t) -> (g.toUUID, t.toUUID)) $
+        [maybeStatement|
+          select
+            coalesce(
+              (select array_agg(ugc.conv_id) from user_group_channel ugc where ugc.user_group_id = ug.id),
+              array[]::uuid[]
+            ) :: uuid[]
+          from user_group ug
+          where ug.id = ($1 :: uuid) and ug.team_id = ($2 :: uuid)
+        |]
 
 crudUser ::
   forall r.

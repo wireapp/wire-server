@@ -50,6 +50,7 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
 import Wire.API.Connection
+import Wire.API.Event.Conversation
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API.Brig qualified as F
@@ -399,7 +400,7 @@ matchConvLeaveNotification conv remover removeds reason n = do
   ntfTransient n @?= False
   Conv.evtConv e @?= conv
   Conv.evtType e @?= Conv.MemberLeave
-  Conv.evtFrom e @?= remover
+  Conv.evtFrom e @?= EventFromUser remover
   sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave reason (Conv.QualifiedUserIdList removeds))
   where
     sorted (Conv.EdMembersLeave r (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave r (Conv.QualifiedUserIdList (sort m))

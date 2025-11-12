@@ -33,7 +33,7 @@ module Galley.API.Action
 
     -- * Utilities
     addMembersToLocalConversation,
-    notifyConversationAction,
+    sendConversationActionNotifications,
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
     ConversationUpdate,
@@ -79,7 +79,6 @@ import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.ProposalStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
@@ -120,6 +119,8 @@ import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem
+import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -496,6 +497,7 @@ performAction ::
     Member BackendNotificationQueueAccess r,
     Member TeamCollaboratorsSubsystem r,
     Member (Error FederationError) r,
+    Member ConversationSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
   Sing tag ->
@@ -612,6 +614,7 @@ performConversationJoin ::
   forall r.
   ( HasConversationActionEffects 'ConversationJoinTag r,
     Member BackendNotificationQueueAccess r,
+    Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r
   ) =>
   Qualified UserId ->
@@ -757,7 +760,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
     Member (Error FederationError) r,
-    Member BackendNotificationQueueAccess r
+    Member BackendNotificationQueueAccess r,
+    Member ConversationSubsystem r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
@@ -843,9 +847,7 @@ updateLocalConversation ::
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     SingI tag,
     Member TeamStore r,
@@ -881,9 +883,7 @@ updateLocalConversationUnchecked ::
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
@@ -900,7 +900,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
   par <- performAction (sing @tag) qusr lconv action
-  notifyConversationAction
+  sendConversationActionNotifications
     (sing @tag)
     qusr
     False
@@ -1053,7 +1053,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId (fromMaybe def cu.extraConversationData) Nothing Nothing action
+    let event = conversationActionToEvent tag cu.time (EventFromUser cu.origUserId) qconvId (fromMaybe def cu.extraConversationData) Nothing Nothing action
     -- FUTUREWORK: support bots?
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
@@ -1145,7 +1145,7 @@ pushTypingIndicatorEvents ::
   TypingStatus ->
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
-  let e = Event qcnv Nothing qusr tEvent Nothing (EdTyping ts)
+  let e = Event qcnv Nothing (EventFromUser qusr) tEvent Nothing (EdTyping ts)
   pushNotifications
     [ def
         { origin = Just (qUnqualified qusr),

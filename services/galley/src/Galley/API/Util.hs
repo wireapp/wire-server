@@ -40,15 +40,12 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.TeamStore
@@ -67,6 +64,7 @@ import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.CellsState (HasCellsState)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -90,8 +88,10 @@ import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ExternalAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
@@ -452,7 +452,7 @@ memberJoinEvent ::
   [RemoteMember] ->
   Event
 memberJoinEvent lorig qconv t lmems rmems =
-  Event qconv Nothing (tUntagged lorig) t Nothing $
+  Event qconv Nothing (EventFromUser (tUntagged lorig)) t Nothing $
     EdMembersJoin (MembersJoin (map localToSimple lmems <> map remoteToSimple rmems) InternalAdd)
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig u.id_)) (u.convRoleName)
@@ -764,7 +764,8 @@ pushConversationEvent conn st e lusers bots = do
 
 newConversationEventPush :: (HasCellsState a) => a -> Event -> Local [UserId] -> Push
 newConversationEventPush st e users =
-  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+  let eventFromUser = eventFromUserId e.evtFrom
+      musr = guard (tDomain users == qDomain eventFromUser) $> qUnqualified eventFromUser
    in def
         { origin = musr,
           json = toJSONObject e,

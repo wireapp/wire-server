@@ -2,13 +2,18 @@
 
 module Test.Wire.Util where
 
+import Data.Domain (Domain (Domain))
+import Data.Misc
+import Data.Proxy
+import Data.Range
 import Imports
-import Network.HTTP.Client
+import Network.HTTP.Client hiding (Proxy)
 import System.Logger.Class qualified as Logger
 import Util.Options (Endpoint (..))
 import Wire.BackgroundWorker.Env hiding (federatorInternal)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
+import Wire.ConversationStore
 
 testEnv :: IO Env
 testEnv = do
@@ -16,7 +21,8 @@ testEnv = do
   logger <- Logger.new Logger.defSettings
   let cassandra = undefined
       cassandraGalley = undefined
-      hasqlPool = undefined
+      cassandraBrig = undefined
+      postgresMigration = PostgresMigrationOpts CassandraStorage
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
   workerRunningGauge <- mkWorkerRunningGauge
@@ -26,6 +32,18 @@ testEnv = do
       rabbitmqVHost = undefined
       defederationTimeout = responseTimeoutNone
       backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+      backgroundJobsConfig =
+        BackgroundJobsConfig
+          { concurrency = toRange (Proxy @1),
+            jobTimeout = Duration 100,
+            maxAttempts = toRange (Proxy @3)
+          }
+      hasqlPool = undefined
+      amqpJobsPublisherChannel = undefined
+      amqpBackendNotificationsChannel = undefined
+      federationDomain = Domain "local"
+      gundeckEndpoint = undefined
+      brigEndpoint = undefined
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a

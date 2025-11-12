@@ -293,6 +293,8 @@ galley:
         name: "rabbitmq-certificate"
         key: "ca.crt"
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
+    postgresMigration:
+      conversation: {{ .Values.conversationStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -609,6 +611,11 @@ background-worker:
       port: "5432"
       user: wire-server
       dbname: wire-server
+    backgroundJobs:
+      concurrency: 8
+      jobTimeout: 60s
+      maxAttempts: 3
+    # Cassandra clusters used by background-worker
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -625,6 +632,17 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
+    cassandraBrig:
+      host: {{ .Values.cassandraHost }}
+      replicaCount: 1
+      {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+      {{- end }}
+    federationDomain: integration.example.com
+    postgresMigration:
+      conversation: {{ .Values.conversationStore }}
     rabbitmq:
       port: 5671
       adminPort: 15671
@@ -638,6 +656,7 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+    pgPassword: "posty-the-gres"
 
 integration:
   ingress:

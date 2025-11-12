@@ -21,13 +21,36 @@ data:
       host: federator
       port: 8080
 
+    brig:
+      host: brig
+      port: 8080
+
+    gundeck:
+      host: gundeck
+      port: 8080
+
     cassandra:
       endpoint:
         host: {{ .cassandra.host }}
         port: 9042
       keyspace: gundeck
-      {{- if eq (include "useCassandraTLS" .) "true" }}
-      tlsCa: /etc/wire/background-worker/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- if hasKey .cassandra "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "useGundeckCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-gundeck/{{- (include "gundeckTlsSecretRef" . | fromYaml).key }}
+      {{- end }}
+
+    cassandraBrig:
+      endpoint:
+        host: {{ .cassandraBrig.host }}
+        port: 9042
+      keyspace: brig
+      {{- if hasKey .cassandraBrig "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandraBrig.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "useBrigCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-brig/{{- (include "brigTlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     cassandraGalley:
@@ -38,8 +61,8 @@ data:
       {{- if hasKey .cassandraGalley "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandraGalley.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useCassandraTLSGalley" .) "true" }}
-      tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
+      {{- if eq (include "useGalleyCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "galleyTlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
@@ -47,6 +70,8 @@ data:
     {{- if hasKey $.Values.secrets "pgPassword" }}
     postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
     {{- end }}
+
+    federationDomain: {{ .federationDomain }}
 
     {{- with .rabbitmq }}
     rabbitmq:
@@ -68,4 +93,11 @@ data:
 
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}
+    {{- with .backgroundJobs }}
+    backgroundJobs:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+    {{- if .postgresMigration }}
+    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+    {{- end }}
   {{- end }}

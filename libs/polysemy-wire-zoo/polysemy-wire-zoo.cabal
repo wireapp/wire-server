@@ -33,6 +33,7 @@ library
     Wire.Sem.Paging.Cassandra
     Wire.Sem.Random
     Wire.Sem.Random.IO
+    Wire.Sem.Random.Null
 
   other-modules:      Paths_polysemy_wire_zoo
   hs-source-dirs:     src

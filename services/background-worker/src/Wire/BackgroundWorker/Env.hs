@@ -8,11 +8,13 @@ import Cassandra.Util (defInitCassandra)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Data.Domain (Domain)
 import Data.Map.Strict qualified as Map
 import HTTP2.Client.Manager
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
 import Imports
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.HTTP.Client
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
@@ -25,6 +27,7 @@ import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
+import Wire.ConversationStore (PostgresMigrationOpts)
 
 type IsWorking = Bool
 
@@ -32,12 +35,14 @@ type IsWorking = Bool
 data Worker
   = BackendNotificationPusher
   | DeadUserNotificationWatcher
+  | BackgroundJobConsumer
   deriving (Eq, Ord)
 
 workerName :: Worker -> Text
 workerName = \case
   BackendNotificationPusher -> "backend-notification-pusher"
   DeadUserNotificationWatcher -> "dead-user-notification-watcher"
+  BackgroundJobConsumer -> "background-job-consumer"
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -49,11 +54,20 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
+    backgroundJobsConfig :: BackgroundJobsConfig,
     workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
     cassandra :: ClientState,
     cassandraGalley :: ClientState,
-    hasqlPool :: Hasql.Pool
+    cassandraBrig :: ClientState,
+    hasqlPool :: Hasql.Pool,
+    -- Dedicated AMQP channels per concern
+    amqpJobsPublisherChannel :: MVar Q.Channel,
+    amqpBackendNotificationsChannel :: MVar Q.Channel,
+    federationDomain :: Domain,
+    postgresMigration :: PostgresMigrationOpts,
+    gundeckEndpoint :: Endpoint,
+    brigEndpoint :: Endpoint
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -78,9 +92,9 @@ mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
   cassandraGalley <- defInitCassandra opts.cassandraGalley =<< setLoggerName "cassandra-galley" logger
+  cassandraBrig <- defInitCassandra opts.cassandraBrig =<< setLoggerName "cassandra-brig" logger
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
-  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   let federatorInternal = opts.federatorInternal
       defederationTimeout =
         maybe
@@ -92,11 +106,24 @@ mkEnv opts = do
   statuses <-
     newIORef $
       Map.fromList
-        [ (BackendNotificationPusher, False)
+        [ (BackendNotificationPusher, False),
+          (BackgroundJobConsumer, False)
         ]
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
+      backgroundJobsConfig = opts.backgroundJobs
+      federationDomain = opts.federationDomain
+      postgresMigration = opts.postgresMigration
+      brigEndpoint = opts.brig
+      gundeckEndpoint = opts.gundeck
   workerRunningGauge <- mkWorkerRunningGauge
+  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  amqpJobsPublisherChannel <-
+    mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
+      either id demoteOpts opts.rabbitmq.unRabbitMqOpts
+  amqpBackendNotificationsChannel <-
+    mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
+      either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

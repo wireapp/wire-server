@@ -14,6 +14,7 @@ randomToStatefulStdGen = interpret $ \case
   Bytes n -> do
     fromShort <$> withStatefulGen (genShortByteString n)
   Uuid -> withStatefulGen random
+  NewId -> Id <$> withStatefulGen random
   ScimTokenId -> Id <$> withStatefulGen random
   LiftRandom m -> do
     seedInt <- withStatefulGen (random @Int)

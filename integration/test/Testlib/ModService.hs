@@ -203,6 +203,7 @@ startDynamicBackend resource beOverrides = do
           backgroundWorkerCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "federationDomain" resource.berDomain
               >=> setField "rabbitmq.vHost" resource.berVHost,
           federatorInternalCfg =
             setField "federatorInternal.port" resource.berFederatorInternal

@@ -317,7 +317,7 @@ postProteusConvOk = do
       let e = List1.head (WS.unpackPayload n)
       evtConv e @?= cnvQualifiedId cnv
       evtType e @?= ConvCreate
-      evtFrom e @?= qalice
+      evtFrom e @?= EventFromUser qalice
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
@@ -2470,7 +2470,7 @@ postMembersOk = do
     evtConv e @?= qconv
     evtType e @?= MemberJoin
     evtData e @?= EdMembersJoin (MembersJoin [SimpleMember qeve roleNameWireAdmin] InternalAdd)
-    evtFrom e @?= qalice
+    evtFrom e @?= EventFromUser qalice
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
     _ <- getSelfMember u conv <!! const 200 === statusCode
@@ -2758,7 +2758,7 @@ putQualifiedConvRenameOk = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putConvDeprecatedRenameOk :: TestM ()
@@ -2788,7 +2788,7 @@ putConvDeprecatedRenameOk = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putConvRenameOk :: TestM ()
@@ -2807,7 +2807,7 @@ putConvRenameOk = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putQualifiedOtherMemberOk :: TestM ()
@@ -2841,7 +2841,7 @@ putQualifiedOtherMemberOk = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdMemberUpdate expectedMemberUpdateData
 
 putOtherMemberOk :: TestM ()
@@ -2875,7 +2875,7 @@ putOtherMemberOk = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdMemberUpdate expectedMemberUpdateData
 
 putMemberOtrMuteOk :: TestM ()
@@ -2965,7 +2965,7 @@ putMemberOk update = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       case evtData e of
         EdMemberUpdate mis -> do
           assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
@@ -3036,7 +3036,7 @@ putRemoteConvMemberOk update = do
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qalice
+      evtFrom e @?= EventFromUser qalice
       case evtData e of
         EdMemberUpdate mis -> do
           assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
@@ -3120,7 +3120,7 @@ putReceiptModeOk = do
       let e = List1.head (WS.unpackPayload n)
       evtConv e @?= qcnv
       evtType e @?= ConvReceiptModeUpdate
-      evtFrom e @?= qalice
+      evtFrom e @?= EventFromUser qalice
       case evtData e of
         EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)) ->
           assertEqual "modes should match" mode 0

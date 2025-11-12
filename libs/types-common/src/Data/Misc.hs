@@ -43,6 +43,7 @@ module Data.Misc
     Duration (..),
     diffTimeParser,
     parseDuration,
+    durationToMicros,
 
     -- * HttpsUrl
     HttpsUrl (..),
@@ -282,6 +283,11 @@ diffTimeParser = do
 
 parseDuration :: Text -> Either String Duration
 parseDuration = fmap Duration . Atto.parseOnly (diffTimeParser <* Atto.endOfInput)
+
+-- | Useful for threadDelay, timeout, etc.
+durationToMicros :: Duration -> Int
+durationToMicros =
+  fromInteger . flip div 1_000_000 . diffTimeToPicoseconds . duration
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration

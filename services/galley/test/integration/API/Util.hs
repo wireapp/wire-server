@@ -1740,7 +1740,7 @@ wsAssertOtr' evData conv usr from to txt n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= OtrMessageAdd
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 wsAssertMLSWelcome ::
@@ -1755,7 +1755,7 @@ wsAssertMLSWelcome u cid welcome n = do
   ntfTransient n @?= False
   evtConv e @?= cid
   evtType e @?= MLSWelcome
-  evtFrom e @?= u
+  evtFrom e @?= EventFromUser u
   evtData e @?= EdMLSWelcome welcome
 
 wsAssertMLSMessage ::
@@ -1818,7 +1818,7 @@ assertMLSMessageEvent qcs u message e = do
     SubConv _ subconvId ->
       evtSubConv e @?= Just subconvId
   evtType e @?= MLSMessageAdd
-  evtFrom e @?= u
+  evtFrom e @?= EventFromUser u
   evtData e @?= EdMLSMessage message
 
 wsAssertMemberJoinWithRole :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
@@ -1831,7 +1831,7 @@ assertJoinEvent :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] ->
 assertJoinEvent conv usr new role e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
@@ -1860,7 +1860,7 @@ assertLeaveEvent ::
 assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave . _2) @?= Just (sort leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
@@ -1869,7 +1869,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= MemberStateUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   case evtData e of
     Conv.EdMemberUpdate mis -> do
       assertEqual "target" (Qualified target (qDomain conv)) (misTarget mis)
@@ -1882,7 +1882,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= ConvAccessUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   evtData e @?= EdConvAccessUpdate new
 
 wsAssertConvMessageTimerUpdate :: Qualified ConvId -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
@@ -1891,7 +1891,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= ConvMessageTimerUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   evtData e @?= EdConvMessageTimerUpdate new
 
 wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
@@ -1900,7 +1900,7 @@ wsAssertMemberLeave conv usr old reason n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   sorted (evtData e) @?= sorted (EdMembersLeave reason (QualifiedUserIdList old))
   where
     sorted (EdMembersLeave _ (QualifiedUserIdList m)) = EdMembersLeave reason (QualifiedUserIdList (sort m))
@@ -1912,7 +1912,7 @@ wsAssertTyping conv usr ts n = do
   ntfTransient n @?= True
   evtConv e @?= conv
   evtType e @?= Conv.Typing
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   evtData e @?= EdTyping ts
 
 assertNoMsg :: (HasCallStack) => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -2684,7 +2684,7 @@ wsAssertConvCreate conv eventFrom n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.ConvCreate
-  evtFrom e @?= eventFrom
+  evtFrom e @?= EventFromUser eventFrom
 
 wsAssertConvCreateWithRole ::
   (HasCallStack) =>
@@ -2699,7 +2699,7 @@ wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.ConvCreate
-  evtFrom e @?= eventFrom
+  evtFrom e @?= EventFromUser eventFrom
   fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just selfMember
   fmap (sort . cmOthers . cnvMembers) (evtData e ^? _EdConversation) @?= Just (sort (toOtherMember <$> otherMembers))
   where
@@ -2814,7 +2814,7 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= ConvReceiptModeUpdate
-  evtFrom e @?= usr
+  evtFrom e @?= EventFromUser usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
 
 wsAssertBackendRemoveProposalWithEpoch :: (HasCallStack) => Qualified UserId -> Qualified ConvId -> LeafIndex -> Epoch -> Notification -> IO ByteString
@@ -2832,7 +2832,7 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   ntfTransient n @?= False
   evtConv e @?= (.conv) <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
-  evtFrom e @?= fromUser
+  evtFrom e @?= EventFromUser fromUser
   let bs = getMLSMessageData (evtData e)
   let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
   liftIO $ case msg.content of
@@ -2861,7 +2861,7 @@ wsAssertAddProposal fromUser convId n = do
   ntfTransient n @?= False
   evtConv e @?= convId
   evtType e @?= MLSMessageAdd
-  evtFrom e @?= fromUser
+  evtFrom e @?= EventFromUser fromUser
   let bs = getMLSMessageData (evtData e)
   let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @Message bs
   liftIO $ case msg.content of

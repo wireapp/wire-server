@@ -8,6 +8,8 @@ import Data.Default
 import Data.Id
 import Imports
 import Polysemy
+import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.Arbitrary
 
@@ -31,6 +33,12 @@ data Push = Push
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform Push
+
+data LocalConversationUpdate = LocalConversationUpdate
+  { lcuEvent :: Event,
+    lcuUpdate :: ConversationUpdate
+  }
+  deriving (Show)
 
 -- | This subsystem governs mechanisms to send notifications to users.
 data NotificationSubsystem m a where

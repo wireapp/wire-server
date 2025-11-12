@@ -13,5 +13,6 @@
         "id": "00004bee-0000-45a0-0000-2c0300005726"
     },
     "time": "1864-05-01T11:57:35.123Z",
-    "type": "conversation.receipt-mode-update"
+    "type": "conversation.receipt-mode-update",
+    "via": "user"
 }

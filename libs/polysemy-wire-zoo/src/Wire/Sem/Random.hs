@@ -21,6 +21,7 @@ module Wire.Sem.Random
   ( Random (..),
     bytes,
     uuid,
+    newId,
     scimTokenId,
     liftRandom,
     nDigitNumber,
@@ -28,7 +29,7 @@ module Wire.Sem.Random
 where
 
 import Crypto.Random.Types
-import Data.Id (ScimTokenId)
+import Data.Id (Id, ScimTokenId)
 import Data.UUID (UUID)
 import Imports
 import Polysemy
@@ -36,6 +37,7 @@ import Polysemy
 data Random m a where
   Bytes :: Int -> Random m ByteString
   Uuid :: Random m UUID
+  NewId :: Random m (Id a)
   ScimTokenId :: Random m ScimTokenId
   LiftRandom :: (forall mr. (MonadRandom mr) => mr a) -> Random m a
   NDigitNumber :: Int -> Random m Integer

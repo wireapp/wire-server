@@ -22,5 +22,6 @@
         "id": "00002a12-0000-73e1-0000-71f700002ec9"
     },
     "time": "1864-04-12T03:04:00.298Z",
-    "type": "conversation.member-update"
+    "type": "conversation.member-update",
+    "via": "user"
 }
