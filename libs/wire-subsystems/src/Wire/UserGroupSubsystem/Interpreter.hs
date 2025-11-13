@@ -10,6 +10,7 @@ import Data.Json.Util
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -20,6 +21,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as TM
 import Wire.API.User
@@ -52,9 +54,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
-  CreateGroupFull managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
-  GetGroupUnsafe tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
@@ -65,6 +65,10 @@ interpretUserGroupSubsystem = interpret $ \case
   RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
   AddChannels performer groupId channelIds -> updateChannels True performer groupId channelIds
   UpdateChannels performer groupId channelIds -> updateChannels False performer groupId channelIds
+  -- Internal API handlers
+  CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
+  GetGroupInternal tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
+  ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
@@ -264,11 +268,25 @@ updateGroup ::
   Sem r ()
 updateGroup updater groupId groupUpdate = do
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
-  found <- isJust <$> Store.updateUserGroup team groupId groupUpdate
+  updateGroupNoAccessControl team (Just updater) groupId groupUpdate
+
+updateGroupNoAccessControl ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  TeamId ->
+  Maybe UserId ->
+  UserGroupId ->
+  UserGroupUpdate ->
+  Sem r ()
+updateGroupNoAccessControl teamId mbUpdater groupId groupUpdate = do
+  found <- isJust <$> Store.updateUserGroup teamId groupId groupUpdate
   if found
     then do
-      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-      pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
+      pushNotifications [mmkEvent mbUpdater (UserGroupUpdated groupId) admins]
     else throw UserGroupNotFound
 
 deleteGroup ::
@@ -365,16 +383,32 @@ updateUsers ::
   Vector UserId ->
   Sem r ()
 updateUsers updater groupId uids = do
-  void $ getUserGroup updater groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
+  updateUsersNoAccessControl team (Just updater) groupId uids
+
+updateUsersNoAccessControl ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  TeamId ->
+  Maybe UserId ->
+  UserGroupId ->
+  Vector UserId ->
+  Sem r ()
+updateUsersNoAccessControl teamId mbUpdater groupId uids = do
+  void $ getUserGroupUnsafe teamId groupId False >>= note UserGroupNotFound
   forM_ uids $ \uid ->
-    internalGetTeamMember uid team >>= note UserGroupMemberIsNotInTheSameTeam
+    internalGetTeamMember uid teamId >>= note UserGroupMemberIsNotInTheSameTeam
   Store.updateUsers groupId uids
-  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
   pushNotifications
-    [ mkEvent updater (UserGroupUpdated groupId) admins
+    [ mmkEvent mbUpdater (UserGroupUpdated groupId) admins
     ]
-  triggerSyncUserGroup team (Just updater) groupId
+  triggerSyncUserGroup teamId mbUpdater groupId
 
 removeUser ::
   ( Member Random.Random r,
@@ -483,3 +517,17 @@ triggerSyncUserGroup ::
 triggerSyncUserGroup teamId actor userGroupId = do
   jobId <- Random.newId
   publishJob jobId $ JobSyncUserGroup SyncUserGroup {..}
+
+resetUserGroupInternal ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member TeamSubsystem r,
+    Member NotificationSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  UpdateGroupInternalRequest ->
+  Sem r ()
+resetUserGroupInternal UpdateGroupInternalRequest {..} = do
+  forM_ name $ updateGroupNoAccessControl teamId Nothing groupId . UserGroupUpdate
+  forM_ members $ updateUsersNoAccessControl teamId Nothing groupId . V.fromList

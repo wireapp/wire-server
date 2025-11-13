@@ -46,8 +46,9 @@ module Wire.BrigAPIAccess
     deleteBot,
 
     -- * User Groups
-    createGroupFull,
-    getGroupUnsafe,
+    createGroupInternal,
+    getGroupInternal,
+    updateGroup,
   )
 where
 
@@ -58,12 +59,13 @@ import Data.Misc
 import Data.Qualified
 import Imports
 import Network.HTTP.Types.Status
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.Internal.Brig (GetBy)
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -74,7 +76,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
-import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup
 
 -- | When receiving tokens from other services which are 'just passing through'
 -- it's error-prone useless extra work to parse and render them from JSON over and over again.
@@ -132,8 +134,9 @@ data BrigAPIAccess m a where
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
-  CreateGroupFull :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m UserGroup
-  GetGroupUnsafe :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
+  CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
+  GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
+  UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 

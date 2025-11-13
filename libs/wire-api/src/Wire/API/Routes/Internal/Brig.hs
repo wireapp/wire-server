@@ -36,7 +36,8 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     GetRichInfoMultiResponse (..),
     GetBy (..),
-    CreateGroupFullRequest (..),
+    CreateGroupInternalRequest (..),
+    UpdateGroupInternalRequest (..),
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
@@ -95,7 +96,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
-import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup
 import Wire.Arbitrary
 
 -- | Parameters for getting user accounts by various criteria
@@ -134,23 +135,43 @@ deriving via (Schema (Qualified GetBy)) instance ToJSON (Qualified GetBy)
 deriving via (Schema (Qualified GetBy)) instance S.ToSchema (Qualified GetBy)
 
 -- | Request type for creating user groups with full control
-data CreateGroupFullRequest = CreateGroupFullRequest
+data CreateGroupInternalRequest = CreateGroupInternalRequest
   { managedBy :: ManagedBy,
     teamId :: TeamId,
     creatorUserId :: Maybe UserId,
     newGroup :: NewUserGroup
   }
   deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupFullRequest
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupInternalRequest
 
-instance ToSchema CreateGroupFullRequest where
+instance ToSchema CreateGroupInternalRequest where
   schema =
-    object "CreateGroupFullRequest" $
-      CreateGroupFullRequest
+    object "CreateGroupInternalRequest" $
+      CreateGroupInternalRequest
         <$> (.managedBy) .= field "managed_by" schema
         <*> (.teamId) .= field "team_id" schema
         <*> (.creatorUserId) .= optField "creator_user_id" (maybeWithDefault Null schema)
         <*> (.newGroup) .= field "new_group" schema
+
+data UpdateGroupInternalRequest = UpdateGroupInternalRequest
+  { teamId :: TeamId,
+    groupId :: UserGroupId,
+    -- | if name is Nothing, user group name will not be touched
+    name :: Maybe UserGroupName,
+    -- | if members is Nothing, member set will not be touched
+    members :: Maybe [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UpdateGroupInternalRequest
+
+instance ToSchema UpdateGroupInternalRequest where
+  schema =
+    object "UpdateGroupInternalRequest" $
+      UpdateGroupInternalRequest
+        <$> (.teamId) .= field "team_id" schema
+        <*> (.groupId) .= field "group_id" schema
+        <*> (.name) .= optField "name" (maybeWithDefault Null schema)
+        <*> (.members) .= optField "members" (maybeWithDefault Null (array schema))
 
 type EJPDRequest =
   Named
@@ -233,25 +254,34 @@ type GetAccountsByInternal =
         :> Post '[Servant.JSON] [User]
     )
 
-type CreateGroupFullInternal =
+type CreateGroupInternalInternal =
   Named
     "i-create-group-full"
     ( Summary "Create user group with full control (internal)"
         :> "user-groups"
         :> "full"
-        :> ReqBody '[Servant.JSON] CreateGroupFullRequest
+        :> ReqBody '[Servant.JSON] CreateGroupInternalRequest
         :> Post '[Servant.JSON] UserGroup
     )
 
 type GetGroupInternal =
   Named
     "i-get-group"
-    ( Summary "Create user group with full control (internal)"
+    ( Summary "Fetch user group (internal)"
         :> "user-groups"
         :> Capture "tid" TeamId
         :> Capture "gid" UserGroupId
         :> Capture "includeChannels" Bool
         :> Get '[Servant.JSON] (Maybe UserGroup)
+    )
+
+type UpdateGroupInternal =
+  Named
+    "i-update-group"
+    ( Summary "Overwrite user group (name and member set) (internal)"
+        :> "user-groups"
+        :> ReqBody '[Servant.JSON] UpdateGroupInternalRequest
+        :> Put '[Servant.JSON] ()
     )
 
 type AccountAPI =
@@ -561,8 +591,9 @@ type AccountAPI =
                :> Delete '[Servant.JSON] NoContent
            )
     :<|> GetAccountsByInternal
-    :<|> CreateGroupFullInternal
+    :<|> CreateGroupInternalInternal
     :<|> GetGroupInternal
+    :<|> UpdateGroupInternal
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

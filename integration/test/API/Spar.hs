@@ -102,6 +102,12 @@ getScimUserGroup domain token gid = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["/scim/v2/Groups", gid]
   submit "GET" $ req & addHeader "Authorization" ("Bearer " <> token)
 
+updateScimUserGroup :: (HasCallStack, MakesValue domain, MakesValue scimUserGroup) => domain -> String -> String -> scimUserGroup -> App Response
+updateScimUserGroup domain token groupId scimUserGroup = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Groups", groupId]
+  body <- make scimUserGroup
+  submit "PUT" $ req & addJSON body . addHeader "Authorization" ("Bearer " <> token)
+
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
 createIdp user metadata = do

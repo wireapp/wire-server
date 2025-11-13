@@ -84,8 +84,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
-import Wire.API.Routes.Internal.Brig (CreateGroupFullRequest (..))
-import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
+import Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
@@ -285,8 +284,9 @@ accountAPI =
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
     :<|> Named @"i-get-accounts-by" getAccountsByInternalH
-    :<|> Named @"i-create-group-full" createGroupFullInternalH
+    :<|> Named @"i-create-group-full" createGroupInternalH
     :<|> Named @"i-get-group" getGroupInternalH
+    :<|> Named @"i-update-group" updateGroupInternalH
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
@@ -999,14 +999,14 @@ getAccountsByInternalH getByData = do
   loc <- lift $ liftSem input
   lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
 
-createGroupFullInternalH ::
+createGroupInternalH ::
   ( Member UserGroupSubsystem r
   ) =>
-  CreateGroupFullRequest ->
+  CreateGroupInternalRequest ->
   Handler r UserGroup
-createGroupFullInternalH req =
+createGroupInternalH req =
   lift . liftSem $
-    createGroupFull
+    createGroupInternal
       req.managedBy
       req.teamId
       req.creatorUserId
@@ -1020,4 +1020,12 @@ getGroupInternalH ::
   Bool ->
   Handler r (Maybe UserGroup)
 getGroupInternalH tid uid includeChannels =
-  lift . liftSem $ getGroupUnsafe tid uid includeChannels
+  lift . liftSem $ getGroupInternal tid uid includeChannels
+
+updateGroupInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  UpdateGroupInternalRequest ->
+  Handler r ()
+updateGroupInternalH req =
+  lift . liftSem $ resetUserGroupInternal req

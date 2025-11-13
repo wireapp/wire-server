@@ -66,12 +66,12 @@ runDependencies initialUsers initialTeams =
     -- Mock BrigAPIAccess interpreter for tests
     mockBrigAPIAccess :: (Member UGS.UserGroupSubsystem r) => [User] -> InterpreterFor BrigAPIAccess r
     mockBrigAPIAccess users = interpret $ \case
-      CreateGroupFull managedBy teamId creatorUserId newGroup -> do
-        UGS.createGroupFull managedBy teamId creatorUserId newGroup
+      CreateGroupInternal managedBy teamId creatorUserId newGroup -> do
+        Right <$> UGS.createGroupInternal managedBy teamId creatorUserId newGroup
       GetAccountsBy getBy -> do
         pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
-      GetGroupUnsafe tid gid False -> do
-        UGS.getGroupUnsafe tid gid False
+      GetGroupInternal tid gid False -> do
+        UGS.getGroupInternal tid gid False
       _ -> error "Unimplemented BrigAPIAccess operation in mock"
 
 instance Arbitrary Group.Group where
