@@ -244,6 +244,10 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
     note (mlsProtocolError "Unsupported ciphersuite") $
       cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
 
+  -- reject message if the conversation is out of sync
+  outOfSync <- checkConversationOutOfSync mempty lConvOrSub ciphersuite
+  when outOfSync $ throwS @'MLSGroupOutOfSync
+
   -- when a user tries to join any mls conversation while being under legalhold
   -- they receive a 409 stating that mls and legalhold are incompatible
   case qusr `relativeTo` lConvOrSubId of
