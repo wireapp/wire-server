@@ -369,6 +369,9 @@ testSparScimCreateGetUserGroup :: (HasCallStack) => App ()
 testSparScimCreateGetUserGroup = do
   (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMetaWithPrivateCreds owner
 
   let -- this function looks messy and may be overdoing it in the head
       -- of the debate with the compiler.  its only purpose is to make
@@ -376,10 +379,6 @@ testSparScimCreateGetUserGroup = do
       -- to a scim group.
       mkMemberCandidate :: App String
       mkMemberCandidate = do
-        assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
-        assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
-        void $ registerTestIdPWithMetaWithPrivateCreds owner
-
         scimUserEmail <- randomEmail
         scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
         uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
