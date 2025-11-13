@@ -388,9 +388,9 @@ getUserProfilesLocalPart ::
   Sem r [UserProfile]
 getUserProfilesLocalPart requestingUser luids = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
-  requestingUserInfo :: Maybe (TeamId, TeamMember) <- join @Maybe <$> traverse getRequestingUserInfo requestingUser
+  requestingUserInfo <- join <$> traverse getRequestingUserInfo requestingUser
   let canSeeEmails = maybe False (isAdminOrOwner . view (newTeamMember . nPermissions) . snd) requestingUserInfo
-  emailVisibilityConfigWithViewer :: EmailVisibility (Maybe (TeamId, TeamMember)) <-
+  emailVisibilityConfigWithViewer <-
     case (canSeeEmails, emailVisibilityConfig) of
       (True, _) -> pure (EmailVisibleIfOnSameTeam requestingUserInfo)
       (_, EmailVisibleIfOnTeam) -> pure EmailVisibleIfOnTeam
