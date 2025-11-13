@@ -28,6 +28,7 @@ import Web.Scim.Class.Auth
 import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Handler
 import Web.Scim.Schema.ListResponse
+import Web.Scim.Filter
 import Wire.API.User.Scim
 import Wire.ScimSubsystem
 
@@ -37,6 +38,7 @@ import Wire.ScimSubsystem
 instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag (Sem r) where
   getGroups ::
     AuthInfo SparTag ->
+    Maybe Filter ->
     ScimHandler m (ListResponse (SCG.StoredGroup SparTag))
   getGroups = undefined
 

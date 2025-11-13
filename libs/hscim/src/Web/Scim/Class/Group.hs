@@ -40,6 +40,7 @@ import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
+import Web.Scim.Filter
 
 ----------------------------------------------------------------------------
 -- /Groups API
@@ -83,7 +84,8 @@ type StoredGroup tag = WithMeta (WithId (GroupId tag) Group)
 data GroupSite tag route = GroupSite
   { gsGetGroups ::
       route
-        :- Get '[SCIM] (ListResponse (StoredGroup tag)),
+        :- QueryParam "filter" Filter
+          :> Get '[SCIM] (ListResponse (StoredGroup tag)),
     gsGetGroup ::
       route
         :- Capture "id" (GroupId tag)
@@ -116,6 +118,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   -- | Get all groups.
   getGroups ::
     AuthInfo tag ->
+    Maybe Filter ->
     ScimHandler m (ListResponse (StoredGroup tag))
 
   -- | Get a single group by ID.
@@ -176,9 +179,9 @@ groupServer ::
   GroupSite tag (AsServerT (ScimHandler m))
 groupServer authData =
   GroupSite
-    { gsGetGroups = do
+    { gsGetGroups = \mbFilter -> do
         auth <- authCheck @tag authData
-        getGroups @tag auth,
+        getGroups @tag auth mbFilter,
       gsGetGroup = \gid -> do
         auth <- authCheck @tag authData
         getGroup @tag auth gid,
