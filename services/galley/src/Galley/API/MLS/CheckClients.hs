@@ -15,7 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.CheckClients (checkClients) where
+module Galley.API.MLS.CheckClients
+  ( checkClients,
+    getClientData,
+    ClientData (..),
+  )
+where
 
 import Control.Comonad
 import Control.Error.Util (hush)
@@ -81,10 +86,7 @@ checkClients lConvOrSub ciphersuite clients = do
       cm = convOrSub.members
   fmap catMaybes . forM (Map.assocs clients) $
     \(qtarget, newclients) -> do
-      -- get list of mls clients from Brig (local or remote)
-      mClientData <-
-        fmap mkClientData . hush
-          <$> runError @FederationError (getClientInfo lConvOrSub qtarget ciphersuite)
+      mClientData <- getClientData lConvOrSub ciphersuite qtarget
       unreachable <- case (mClientData, Map.lookup qtarget cm) of
         -- user is already present, skip check in this case
         (_, Just existingClients) -> do
@@ -153,3 +155,16 @@ mkClientData clientInfo =
               key <- toList info.mlsSignatureKey
           ]
     }
+
+-- | Get list of mls clients from Brig (local or remote).
+getClientData ::
+  ( Member BrigAPIAccess r,
+    Member FederatorAccess r
+  ) =>
+  Local x ->
+  CipherSuiteTag ->
+  Qualified UserId ->
+  Sem r (Maybe ClientData)
+getClientData loc ciphersuite qtarget =
+  fmap mkClientData . hush
+    <$> runError @FederationError (getClientInfo loc qtarget ciphersuite)

@@ -494,8 +494,9 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
         throwS @'MLSUnsupportedMessage
 
       -- reject message if the conversation is out of sync
-      outOfSync <- checkConversationOutOfSync lConvOrSub
-      when outOfSync $ throwS @'MLSGroupOutOfSync
+      for_ convOrSub.ciphersuite $ \ciphersuite -> do
+        outOfSync <- checkConversationOutOfSync mempty lConvOrSub ciphersuite
+        when outOfSync $ throwS @'MLSGroupOutOfSync
 
       -- reject application messages older than 2 epochs
       -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0

@@ -47,6 +47,7 @@ import GHC.Records (HasField (..))
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.LeafNode
@@ -238,3 +239,6 @@ instance HasField "id" ConvOrSubConv ConvOrSubConvId where
 instance HasField "migrationState" ConvOrSubConv MLSMigrationState where
   getField (Conv c) = c.mcMigrationState
   getField (SubConv _ _) = MLSMigrationMLS
+
+instance HasField "ciphersuite" ConvOrSubConv (Maybe CipherSuiteTag) where
+  getField x = x.mlsMeta.ciphersuite

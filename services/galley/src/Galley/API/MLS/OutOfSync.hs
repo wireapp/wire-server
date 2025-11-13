@@ -25,8 +25,11 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
+import Galley.API.MLS.CheckClients
+import Galley.Effects
 import Imports
 import Polysemy
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
@@ -34,18 +37,43 @@ import Wire.ConversationStore.MLS.Types
 import Wire.StoredConversation
 
 checkConversationOutOfSync ::
-  (Member ConversationStore r) =>
+  ( Member ConversationStore r,
+    Member BrigAPIAccess r,
+    Member FederatorAccess r
+  ) =>
+  Set (Qualified UserId) ->
   Local ConvOrSubConv ->
+  CipherSuiteTag ->
   Sem r Bool
-checkConversationOutOfSync lConvOrSub = case tUnqualified lConvOrSub of
+checkConversationOutOfSync newMembers lConvOrSub ciphersuite = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure False
   Conv mc -> do
     flag <- isConversationOutOfSync mc.mcId
     if flag
       then do
-        pure True
+        let outOfSyncUsers = getOutOfSyncUsers newMembers (qualifyAs lConvOrSub mc)
+        -- check if all users are reachable and have usable key packages
+        getAll
+          <$> foldMap
+            ( fmap All
+                . checkOutOfSyncUser lConvOrSub ciphersuite
+            )
+            outOfSyncUsers
       else
         pure False
+
+checkOutOfSyncUser ::
+  ( Member BrigAPIAccess r,
+    Member FederatorAccess r
+  ) =>
+  Local x ->
+  CipherSuiteTag ->
+  Qualified UserId ->
+  Sem r Bool
+checkOutOfSyncUser loc ciphersuite qtarget =
+  getClientData loc ciphersuite qtarget >>= \case
+    Nothing -> pure False
+    Just cdata -> pure (not (Set.null cdata.allMLSClients))
 
 updateOutOfSyncFlag ::
   (Member ConversationStore r) =>
