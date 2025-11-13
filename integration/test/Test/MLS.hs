@@ -1097,3 +1097,11 @@ testGroupInfoCheckDisabled = do
   bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
     $ \resp -> do
       resp.status `shouldMatchInt` 201
+
+testAddUsersDirectlyShouldFail :: (HasCallStack) => App ()
+testAddUsersDirectlyShouldFail = do
+  [alice, bob] <- replicateM 2 $ randomUser OwnDomain def
+  conv <- postConversation alice defMLS >>= getJSON 201
+  addMembers alice conv def {users = [bob]} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "invalid-op"

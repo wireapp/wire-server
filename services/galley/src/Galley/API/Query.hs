@@ -108,7 +108,7 @@ import Wire.API.Pagination
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (HiddenPerm (..), TeamMember, isAdminOrOwner, permissions)
+import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
@@ -1035,16 +1035,8 @@ ensureConvAdmin ::
   UserId ->
   Maybe TeamMember ->
   Sem r ()
-ensureConvAdmin conversation uid mTeamMember = do
-  case find (\m -> m.id_ == uid) conversation.localMembers of
-    Nothing -> throwS @'ConvNotFound
-    Just lm -> unless (hasAdminPermissions lm) $ throwS @'ConvAccessDenied
-  where
-    hasAdminPermissions :: LocalMember -> Bool
-    hasAdminPermissions lm = lm.convRoleName == roleNameWireAdmin || isChannelAdmin mTeamMember
-
-    isChannelAdmin :: Maybe TeamMember -> Bool
-    isChannelAdmin Nothing = False
-    isChannelAdmin (Just tm) =
-      conversation.metadata.cnvmGroupConvType == Just Channel
-        && isAdminOrOwner (tm ^. permissions)
+ensureConvAdmin conv uid mTeamMember = do
+  unless (maybe False (hasManageChannelsPermission conv) mTeamMember) $
+    case find (\m -> m.id_ == uid) conv.localMembers of
+      Nothing -> throwS @'ConvNotFound
+      Just lm -> unless (lm.convRoleName == roleNameWireAdmin) $ throwS @'ConvAccessDenied

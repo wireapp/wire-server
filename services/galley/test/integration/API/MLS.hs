@@ -149,7 +149,6 @@ tests s =
       testGroup
         "Protocol mismatch"
         [ test s "send a commit to a proteus conversation" testAddUsersToProteus,
-          test s "add users bypassing MLS" testAddUsersDirectly,
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
         ],
@@ -418,24 +417,6 @@ testAddUsersToProteus = do
       responseJsonError
         =<< localPostCommitBundle alice1 bundle <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
-
-testAddUsersDirectly :: (HasCallStack) => TestM ()
-testAddUsersDirectly = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  charlie <- randomQualifiedUser
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ uploadNewKeyPackage bob1
-    qcnv <- snd <$> setupMLSGroup alice1
-    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommitBundle
-    e <-
-      responseJsonError
-        =<< postMembers
-          (qUnqualified alice)
-          (pure charlie)
-          qcnv
-          <!! const 403 === statusCode
-    liftIO $ Wai.label e @?= "invalid-op"
 
 testRemoveUsersDirectly :: (HasCallStack) => TestM ()
 testRemoveUsersDirectly = do

@@ -236,10 +236,13 @@ ensureReAuthorised ::
 ensureReAuthorised u secret mbAction mbCode =
   reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
-ensureChannelAndTeamAdmin :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
-ensureChannelAndTeamAdmin conv tm = do
-  unless (conv.metadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions)) $
-    throwS @'ConvNotFound
+ensureManageChannelsPermission :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
+ensureManageChannelsPermission conv tm = do
+  unless (hasManageChannelsPermission conv tm) $ throwS @'ConvNotFound
+
+hasManageChannelsPermission :: StoredConversation -> TeamMember -> Bool
+hasManageChannelsPermission conv tm =
+  conv.metadata.cnvmGroupConvType == Just Channel && tm `hasPermission` ManageChannels
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, or if it has a
@@ -510,30 +513,10 @@ instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) whe
       (fmap Left . getConvMember loc conv)
       (fmap Right . getConvMember loc conv)
 
-instance IsConvMemberId LocalConvMember (Either LocalMember RemoteMember) where
-  getConvMember loc conv (ConvMemberNoTeam quid) =
-    getConvMember loc conv quid
-  getConvMember loc conv (ConvMemberTeam tm) =
-    Left . updateChannelPermissions <$> getConvMember loc conv (tm ^. Mem.userId)
-    where
-      updateChannelPermissions :: LocalMember -> LocalMember
-      updateChannelPermissions lm =
-        if hasChannelAdminPermissions
-          then lm {convRoleName = roleNameWireAdmin}
-          else lm
-
-      hasChannelAdminPermissions :: Bool
-      hasChannelAdminPermissions =
-        conv.metadata.cnvmGroupConvType == Just Channel
-          && isAdminOrOwner (tm ^. permissions)
-
-data LocalConvMember = ConvMemberNoTeam (Qualified UserId) | ConvMemberTeam TeamMember
-
--- | This type indicates whether a member is a conversation member or a team member.
--- This is a simplification because a user could be both a conversation member and a team member.
-data ConvOrTeamMember mem where
-  ConvMember :: (IsConvMember mem) => mem -> ConvOrTeamMember mem
-  TeamMember :: TeamMember -> ConvOrTeamMember mem
+data ActorContext mem = ActorContext
+  { convMember :: Maybe mem,
+    teamMember :: Maybe TeamMember
+  }
 
 class IsConvMember mem where
   convMemberRole :: mem -> RoleName
@@ -710,7 +693,7 @@ getConversationAsViewer qusr lcnv = do
           ( do
               uid <- hoistMaybe $ foldQualified lcnv (Just . tUnqualified) (const Nothing) qusr
               tm <- MaybeT $ E.getTeamMember tid uid
-              guard (c.metadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
+              guard $ hasManageChannelsPermission c tm
           )
     (Nothing, Nothing) -> throwAccessDenied
   pure $ ConvView (isJust mMember) c
