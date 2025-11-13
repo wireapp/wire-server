@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, libpulsar, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -102,4 +102,11 @@ hself: hsuper: {
         unix
       ];
     });
+
+  pulsar-client-hs = hlib.doJailbreak (hlib.overrideCabal hsuper.pulsar-client-hs (drv: {
+    # TODO: This should just replace `pulsar` (broken package, not related to
+    # message brokers) with the `libpulsar` patched by us. However, we only
+    # want to try `pulsar-client-hs` now...
+    librarySystemDepends = [ libpulsar ];
+  }));
 }
