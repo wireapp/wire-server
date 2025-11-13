@@ -30,7 +30,7 @@ INSTRUCTIONS:
 3. Rebase onto the base commit yourself.
    $ git rebase \$BASE_COMMIT
 4. Make sure the formatting tool is installed with the correct version and settings.
-   $ stack install ormolu
+   Ormolu is part of our Nix env.
 5. Run this script.
    $ $0 \$BASE_COMMIT \$TARGET_COMMIT
 

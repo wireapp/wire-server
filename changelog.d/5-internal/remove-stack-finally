@@ -1,0 +1,1 @@
+In the past, we built wire-server with Stack. Now, we’re using Cabal. Some traces of stack were still around in our project setup. These have been removed them to decrease build times and avoid confusion.
