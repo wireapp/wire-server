@@ -390,12 +390,11 @@ getUserProfilesLocalPart requestingUser luids = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
   requestingUserInfo <- join <$> traverse getRequestingUserInfo requestingUser
   let canSeeEmails = maybe False (isAdminOrOwner . view (newTeamMember . nPermissions) . snd) requestingUserInfo
-  emailVisibilityConfigWithViewer <-
-    case emailVisibilityConfig of
-      _ | canSeeEmails -> pure (EmailVisibleIfOnSameTeam requestingUserInfo)
-      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
-      EmailVisibleToSelf -> pure EmailVisibleToSelf
-      EmailVisibleIfOnSameTeam () -> pure (EmailVisibleIfOnSameTeam requestingUserInfo)
+      emailVisibilityConfigWithViewer = case emailVisibilityConfig of
+        EmailVisibleToSelf | canSeeEmails -> EmailVisibleIfOnSameTeam requestingUserInfo
+        EmailVisibleToSelf -> EmailVisibleToSelf
+        EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
+        EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
   catMaybes <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
