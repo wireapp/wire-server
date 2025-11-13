@@ -39,8 +39,8 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
   getGroups ::
     AuthInfo SparTag ->
     Maybe Filter ->
-    ScimHandler m (ListResponse (SCG.StoredGroup SparTag))
-  getGroups = undefined
+    ScimHandler (Sem r) (ListResponse (SCG.StoredGroup SparTag))
+  getGroups ((.stiTeam) -> tid) mbFilter = lift $ scimGetUserGroups tid mbFilter
 
   -- | Get a single group by ID.
   --
