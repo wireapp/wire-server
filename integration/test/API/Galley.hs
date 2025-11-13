@@ -891,6 +891,14 @@ resetConversation user groupId epoch = do
   let payload = object ["group_id" .= groupId, "epoch" .= epoch]
   submit "POST" $ req & addJSON payload
 
+updateTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
+updateTeamCollaborator owner tid collaborator permissions = do
+  (_, collabId) <- objQid collaborator
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  submit "PUT"
+    $ req
+    & addJSON permissions
+
 removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
 removeTeamCollaborator owner tid collaborator = do
   (_, collabId) <- objQid collaborator

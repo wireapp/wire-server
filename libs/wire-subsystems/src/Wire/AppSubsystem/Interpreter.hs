@@ -93,7 +93,7 @@ createAppImpl lusr tid new = do
   Store.createUser u Nothing
 
   -- generate a team event
-  generateTeamEvent creator.id tid (EdAppCreate u.id)
+  generateTeamEvents creator.id tid [EdAppCreate u.id]
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
   pure

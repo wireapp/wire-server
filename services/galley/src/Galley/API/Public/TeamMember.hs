@@ -33,4 +33,5 @@ teamMemberAPI =
     <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
     <@> mkNamedAPI @"update-team-member" updateTeamMember
     <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV
+    <@> mkNamedAPI @"update-team-collaborator" updateTeamCollaborator
     <@> mkNamedAPI @"remove-team-collaborator" removeTeamCollaborator
