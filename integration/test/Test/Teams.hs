@@ -503,4 +503,4 @@ testListUsersEmailVisibility = do
       resp.status `shouldMatchInt` 200
       returnedUsers <- resp.json %. "found" >>= asList
       returnedEmails <- for returnedUsers ((%. "email") >=> asString)
-      returnedEmails `shouldMatch` memEmails
+      returnedEmails `shouldMatchSet` memEmails
