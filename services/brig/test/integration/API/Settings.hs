@@ -35,7 +35,6 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Team.Member (rolePermissions)
-import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
 
@@ -169,8 +168,8 @@ setup :: Brig -> Galley -> ViewingUserIs -> Http (UserId, User, User, User)
 setup brig galley viewingUserIs = do
   (creatorId, tid) <- createUserWithTeam brig
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig
-  userA <- createTeamMember brig galley creatorId tid fullPermissions
-  userB <- createTeamMember brig galley otherTeamCreatorId otherTid fullPermissions
+  userA <- createTeamMember brig galley creatorId tid (rolePermissions RoleMember)
+  userB <- createTeamMember brig galley otherTeamCreatorId otherTid (rolePermissions RoleMember)
   nonTeamUser <- createUser "joe" brig
   viewerId <- case viewingUserIs of
     Creator -> pure creatorId
