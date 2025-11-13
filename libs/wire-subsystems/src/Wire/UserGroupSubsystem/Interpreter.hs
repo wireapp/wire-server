@@ -390,7 +390,9 @@ updateUsersNoAccessControl ::
   ( Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -406,7 +408,7 @@ updateUsersNoAccessControl teamId mbUpdater groupId uids = do
   pushNotifications
     [ mmkEvent mbUpdater (UserGroupUpdated groupId) admins
     ]
-  triggerSyncUserGroup team (Just updater) groupId
+  triggerSyncUserGroup teamId mbUpdater groupId
 
 removeUser ::
   ( Member Random.Random r,
@@ -520,7 +522,9 @@ resetUserGroupInternal ::
   ( Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member TeamSubsystem r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
   ) =>
   UpdateGroupInternalRequest ->
   Sem r ()

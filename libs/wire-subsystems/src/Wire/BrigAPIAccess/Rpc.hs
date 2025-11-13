@@ -535,7 +535,7 @@ getAccountsBy localGetBy = do
         . expect2xx
   decodeBodyOrThrow "brig" r
 
--- | Calls 'Brig.API.Internal.createGroupInternalInternalH'.
+-- | Calls 'Brig.API.Internal.createGroupInternalH'.
 createGroupInternal ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   ManagedBy ->

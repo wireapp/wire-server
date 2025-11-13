@@ -371,7 +371,6 @@ testSparScimCreateGetUserGroup = do
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
-  void $ registerTestIdPWithMetaWithPrivateCreds owner
 
   let -- this function looks messy and may be overdoing it in the head
       -- of the debate with the compiler.  its only purpose is to make
@@ -565,11 +564,11 @@ testSparScimUpdateUserGroupRejectsInvalidMembers = do
             "displayName" .= "Test Group",
             "members"
               .= [ object ["value" .= validId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> validId)],
-                   object ["value" .= otherId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> nonExistingId)]
+                   object ["value" .= nonExistingId, "type" .= "User", "$ref" .= ("http://example.com:8088/scim/v2/Users/" <> nonExistingId)]
                  ]
           ]
   bindResponse (updateScimUserGroup OwnDomain tok1 gid updateNonExisting) $ \resp -> do
-    resp.status `shouldMatchInt` 400
+    resp.status `shouldMatchInt` 404
 
 ----------------------------------------------------------------------
 -- saml stuff

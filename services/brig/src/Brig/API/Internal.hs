@@ -284,7 +284,7 @@ accountAPI =
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
     :<|> Named @"i-get-accounts-by" getAccountsByInternalH
-    :<|> Named @"i-create-group-full" createGroupInternalInternalH
+    :<|> Named @"i-create-group-full" createGroupInternalH
     :<|> Named @"i-get-group" getGroupInternalH
     :<|> Named @"i-update-group" updateGroupInternalH
 
@@ -999,12 +999,12 @@ getAccountsByInternalH getByData = do
   loc <- lift $ liftSem input
   lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
 
-createGroupInternalInternalH ::
+createGroupInternalH ::
   ( Member UserGroupSubsystem r
   ) =>
   CreateGroupInternalRequest ->
   Handler r UserGroup
-createGroupInternalInternalH req =
+createGroupInternalH req =
   lift . liftSem $
     createGroupInternal
       req.managedBy

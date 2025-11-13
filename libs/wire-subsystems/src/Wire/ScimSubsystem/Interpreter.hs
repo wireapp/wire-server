@@ -143,6 +143,7 @@ scimUpdateUserGroupImpl teamId gid grp = do
       [] -> pure ()
       (u : _) -> scimThrow $ notFound "User" (idToText u)
 
+  -- replace the members of the user group
   BrigAPI.updateGroup (UpdateGroupInternalRequest teamId gid (Just ugName) (Just reqMemberIds))
 
   ScimSubsystemConfig scimBaseUri <- input

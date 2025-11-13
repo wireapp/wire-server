@@ -278,7 +278,7 @@ type GetGroupInternal =
 type UpdateGroupInternal =
   Named
     "i-update-group"
-    ( Summary "Overwrite user group (name and member set) control (internal)"
+    ( Summary "Overwrite user group (name and member set) (internal)"
         :> "user-groups"
         :> ReqBody '[Servant.JSON] UpdateGroupInternalRequest
         :> Put '[Servant.JSON] ()
