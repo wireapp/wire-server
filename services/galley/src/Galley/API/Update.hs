@@ -59,7 +59,6 @@ module Galley.API.Update
     removeMemberUnqualified,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
-    MLSCommitMode (..),
 
     -- * Talking
     postProteusMessage,
@@ -899,15 +898,11 @@ joinConversation lusr zcon conv access = do
         action
         def
 
--- this internal type is isomorphic to the JoinType, however it better conveys the intent
-data MLSCommitMode = WithCommit | WithoutCommit
-
-mkJoinType :: MLSCommitMode -> StoredConversation -> JoinType
-mkJoinType mlsCommitMode conv = case mlsCommitMode of
-  WithoutCommit | isTeamChannel -> ExternalAdd
-  _ -> InternalAdd
-  where
-    isTeamChannel = conv.metadata.cnvmGroupConvType == Just Channel && isJust conv.metadata.cnvmTeam
+mkJoinType :: StoredConversation -> JoinType
+mkJoinType conv =
+  if conv.metadata.cnvmGroupConvType == Just Channel && isJust conv.metadata.cnvmTeam
+    then ExternalAdd
+    else InternalAdd
 
 addMembers ::
   forall r.
@@ -943,13 +938,12 @@ addMembers ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
-  MLSCommitMode ->
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembers mlsCommitMode lusr zcon qcnv (InviteQualified users role) = do
+addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
@@ -961,7 +955,7 @@ addMembers mlsCommitMode lusr zcon qcnv (InviteQualified users role) = do
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
             permissionCheck JoinRegularConversations . Just
 
-  let joinType = mkJoinType mlsCommitMode conv
+  let joinType = mkJoinType conv
       action = ConversationJoin {..}
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
@@ -1050,7 +1044,7 @@ addMembersUnqualified ::
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers WithoutCommit lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
 
 -- | Replace conversation members by computing the difference between desired and
 -- current members, then executing removals followed by additions within a commit
@@ -1091,13 +1085,12 @@ replaceMembers ::
     Member UserGroupStore r,
     Member ConversationSubsystem r
   ) =>
-  MLSCommitMode ->
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
   Sem r ()
-replaceMembers mlsCommitMode lusr zcon qcnv (InviteQualified invitedUsers role) = do
+replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
@@ -1124,7 +1117,7 @@ replaceMembers mlsCommitMode lusr zcon qcnv (InviteQualified invitedUsers role) 
   unless (Set.null toRemove && Set.null toAdd) $ do
     -- Add members first
     for_ (nonEmpty $ Set.toList toAdd) $ \users -> do
-      let joinType = mkJoinType mlsCommitMode conv
+      let joinType = mkJoinType conv
           action = ConversationJoin {..}
       getUpdateResult . fmap lcuEvent $
         updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
