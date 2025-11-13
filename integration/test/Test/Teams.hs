@@ -485,3 +485,22 @@ testSelectTeamMembersByIds = do
     resp.status `shouldMatchInt` 200
     tms <- resp.json %. "members" >>= asList
     length tms `shouldMatchInt` 5
+
+testListUsersEmailVisibility :: (HasCallStack) => App ()
+testListUsersEmailVisibility = do
+  let overrides :: ServiceOverrides =
+        def {brigCfg = setField "optSettings.setEmailVisibility" "visible_to_self"}
+
+  withModifiedBackend overrides $ \dom -> do
+    let userToQId mem = do
+          memId <- mem %. "id" >>= asString
+          pure $ object ["domain" .= dom, "id" .= memId]
+
+    (owner, _tid, mems) <- createTeam dom 5
+    memQIds <- for mems userToQId
+    memEmails <- for mems ((%. "email") >=> asString)
+    listUsers owner memQIds `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      returnedUsers <- resp.json %. "found" >>= asList
+      returnedEmails <- for returnedUsers ((%. "email") >=> asString)
+      returnedEmails `shouldMatch` memEmails
