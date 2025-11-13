@@ -36,6 +36,7 @@ import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
@@ -131,7 +132,7 @@ spec = describe "UserSubsystem.Interpreter" do
 
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
         \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) config domain sameTeam ->
-          let teamMember = mkTeamMember viewer.id fullPermissions Nothing defUserLegalHoldStatus
+          let teamMember = mkTeamMember viewer.id (rolePermissions RoleMember) Nothing defUserLegalHoldStatus
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} :: StoredUser else targetUserNoTeam
               localBackend = def {users = [targetUser, viewer]}
               galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
