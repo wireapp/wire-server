@@ -267,7 +267,7 @@ type CreateGroupInternalInternal =
 type GetGroupInternal =
   Named
     "i-get-group"
-    ( Summary "Create user group with full control (internal)"
+    ( Summary "Fetch user group (internal)"
         :> "user-groups"
         :> Capture "tid" TeamId
         :> Capture "gid" UserGroupId
@@ -278,7 +278,7 @@ type GetGroupInternal =
 type UpdateGroupInternal =
   Named
     "i-update-group"
-    ( Summary "Create user group with full control (internal)"
+    ( Summary "Overwrite user group (name and member set) control (internal)"
         :> "user-groups"
         :> ReqBody '[Servant.JSON] UpdateGroupInternalRequest
         :> Put '[Servant.JSON] ()
