@@ -119,9 +119,11 @@ observationHandler connsRef metrics (ConnectionObservation connId status) = do
       (inUseSize, readyForUseSize) <- atomicModifyIORef' connsRef $ \conns ->
         let newConns =
               conns
-                { readyForUse = Set.delete connId conns.readyForUse,
+                { connecting = Set.delete connId conns.connecting,
+                  readyForUse = Set.delete connId conns.readyForUse,
                   inUse = Set.delete connId conns.inUse
                 }
          in (newConns, (Set.size newConns.inUse, Set.size newConns.readyForUse))
+      incCounter metrics.terminationCounter
       setGauge metrics.readyForUseGauge (fromIntegral readyForUseSize)
       setGauge metrics.inUseGauge (fromIntegral inUseSize)
