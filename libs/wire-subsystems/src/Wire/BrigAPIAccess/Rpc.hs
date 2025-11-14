@@ -608,7 +608,6 @@ getGroupsInternal tid mbFilter = do
       FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
       _ -> throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
     Nothing -> pure Nothing
-  -- error $ "XXX 1 " <> show maybeDisplayName
   r <-
     brigRequest $
       method GET
