@@ -282,15 +282,16 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   (events, newClients) <- handleGroupInfoMismatch lConvOrSubId bundle $ lowerCodensity $ do
     (events, newClients) <- case senderIdentity.index of
       Just _ -> do
-        -- reject message if the conversation is out of sync
-        lift $ do
-          outOfSync <- checkConversationOutOfSync mempty lConvOrSub ciphersuite
-          when outOfSync $ throwS @'MLSGroupOutOfSync
-
         -- extract added/removed clients from bundle
         (newIndexMap, action) <-
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+
+        -- reject message if the conversation is out of sync
+        lift $ do
+          let newUsers = Map.keysSet action.paAdd
+          outOfSync <- checkConversationOutOfSync newUsers lConvOrSub ciphersuite
+          when outOfSync $ throwS @'MLSGroupOutOfSync
 
         lift $
           checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
@@ -322,9 +323,9 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value.path
-        lift $ updateOutOfSyncFlag senderIdentity.client lConvOrSub
         pure ([], [])
     lift $ do
+      updateOutOfSyncFlag senderIdentity.client lConvOrSub
       storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
       propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage convOrSub.members
     pure (events, newClients)

@@ -53,9 +53,9 @@ checkConversationOutOfSync newMembers lConvOrSub ciphersuite = case tUnqualified
       then do
         let outOfSyncUsers = getOutOfSyncUsers newMembers (qualifyAs lConvOrSub mc)
         -- check if all users are reachable and have usable key packages
-        getAll
+        getAny
           <$> foldMap
-            ( fmap All
+            ( fmap Any
                 . checkOutOfSyncUser lConvOrSub ciphersuite
             )
             outOfSyncUsers
