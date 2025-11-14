@@ -810,7 +810,7 @@ testOutOfSyncError = do
       resp.status `shouldMatchInt` 409
       resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
       resp.json %. "code" `shouldMatchInt` 409
-      resp.json %. "message"
+      resp.json %. "message" `shouldMatch` "Group is out of sync"
       missing <- resp.json %. "missing_users" & asList
       length missing `shouldMatchInt` 2
 
