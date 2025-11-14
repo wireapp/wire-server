@@ -40,8 +40,8 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
-import Wire.API.UserGroup
-import Wire.BrigAPIAccess (BrigAPIAccess (..), OpaqueAuthToken (..))
+import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.BrigAPIAccess (BrigAPIAccess (..), DeleteGroupManagedError (..), OpaqueAuthToken (..))
 import Wire.ParseException
 import Wire.Rpc
 
@@ -109,6 +109,8 @@ interpretBrigAccess brigEndpoint =
         getGroupInternal tid gid includeChannels
       UpdateGroup req ->
         updateGroup req
+      DeleteGroupInternal managedBy teamId groupId ->
+        deleteGroupInternal managedBy teamId groupId
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -118,7 +120,7 @@ brigRequest req = do
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe LByteString) -> Sem r a
 decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
--- | Get statuses of all connections between two groups of users (the usual
+-- \| Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
 -- several users to one).
 --
@@ -585,3 +587,30 @@ updateGroup reqBody =
         . paths ["i", "user-groups"]
         . json reqBody
         . expect2xx
+
+deleteGroupInternal ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member (Error ParseException) r
+  ) =>
+  ManagedBy ->
+  TeamId ->
+  UserGroupId ->
+  Sem r (Either DeleteGroupManagedError ())
+deleteGroupInternal managedBy teamId groupId = do
+  resp <-
+    brigRequest $
+      method DELETE
+        . paths ["i", "user-groups", toByteString' teamId, toByteString' groupId, "managed", toByteString' managedBy]
+  case (statusCode resp, errorLabel resp) of
+    (status, _) | status >= 200 && status < 300 -> pure $ Right ()
+    (403, Just "user-group-managed-by-mismatch") -> pure $ Left DeleteGroupManagedManagedByMismatch
+    (status, label) ->
+      throw $
+        ParseException
+          { _parseExceptionRemote = "brig",
+            _parseExceptionMsg = "unexpected delete group managed response: " <> show status <> " / " <> show label
+          }
+  where
+    errorLabel :: ResponseLBS -> Maybe LText
+    errorLabel = fmap Wai.label . responseJsonMaybe

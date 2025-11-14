@@ -58,6 +58,7 @@ interpretUserGroupSubsystem = interpret $ \case
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
+  DeleteGroupManaged managedBy team groupId -> deleteGroupManagedImpl managedBy team groupId
   AddUser adder groupId addeeId -> addUser adder groupId addeeId
   AddUsers adder groupId addeeIds -> addUsers adder groupId addeeIds
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
@@ -75,6 +76,7 @@ data UserGroupSubsystemError
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
   | UserGroupChannelNotFound
+  | UserGroupManagedByMismatch
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -84,6 +86,7 @@ userGroupSubsystemErrorToHttpError =
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
     UserGroupChannelNotFound -> errorToWai @E.UserGroupChannelNotFound
+    UserGroupManagedByMismatch -> errorToWai @E.UserGroupManagedByMismatch
 
 createUserGroup ::
   ( Member Random.Random r,
@@ -303,17 +306,41 @@ deleteGroup deleter groupId =
   getTeamAsMember deleter >>= \case
     Nothing -> throw UserGroupNotFound
     Just (team, member) -> do
-      if isAdminOrOwner (member ^. permissions)
+      unless (isAdminOrOwner (member ^. permissions)) $
+        throw UserGroupNotATeamAdmin
+
+      Store.deleteUserGroup team groupId >>= note UserGroupNotFound
+
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+      pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
+
+deleteGroupManagedImpl ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  ManagedBy ->
+  TeamId ->
+  UserGroupId ->
+  Sem r ()
+deleteGroupManagedImpl managedBy team groupId = do
+  -- First, get the group to verify it exists and check its managedBy field
+  maybeGroup <- Store.getUserGroup team groupId False
+  case maybeGroup of
+    Nothing -> pure () -- idempotency
+    Just group' ->
+      if group'.managedBy == managedBy
         then do
-          found <- isJust <$> Store.deleteUserGroup team groupId
-          if found
-            then do
-              admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-              pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
-            else
-              throw UserGroupNotFound
-        else do
-          throw UserGroupNotATeamAdmin
+          -- Delete the group
+          mUserGroup <- Store.deleteUserGroup team groupId
+
+          for_ mUserGroup $ \_ -> do
+            -- Send notifications to team admins
+            admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+            pushNotifications [mmkEvent Nothing (UserGroupDeleted groupId) admins]
+        else
+          throw UserGroupManagedByMismatch
 
 addUser ::
   ( Member Random.Random r,

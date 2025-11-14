@@ -47,6 +47,7 @@ data UserGroupSubsystem m a where
   GetGroups :: UserId -> GroupSearch -> UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
+  DeleteGroupManaged :: ManagedBy -> TeamId -> UserGroupId -> UserGroupSubsystem m ()
   AddUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()
   AddUsers :: UserId -> UserGroupId -> Vector UserId -> UserGroupSubsystem m ()
   UpdateUsers :: UserId -> UserGroupId -> Vector UserId -> UserGroupSubsystem m ()

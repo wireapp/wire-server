@@ -299,6 +299,8 @@ mapScimSubsystemErrors =
         Scim.badRequest Scim.InvalidValue (Just $ "These users are not in your team or not \"managed_by\" = \"scim\": " <> renderIds badIds)
       ScimSubsystemInternal waiErr ->
         Scim.serverError (Text.decodeUtf8 . LBS.toStrict $ encode waiErr)
+      ScimSubsystemInternalError _ ->
+        Scim.serverError "unexpected error"
   where
     renderIds :: [UserId] -> Text
     renderIds = Text.intercalate ", " . fmap idToText

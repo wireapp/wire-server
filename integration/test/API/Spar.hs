@@ -108,6 +108,11 @@ updateScimUserGroup domain token groupId scimUserGroup = do
   body <- make scimUserGroup
   submit "PUT" $ req & addJSON body . addHeader "Authorization" ("Bearer " <> token)
 
+deleteScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+deleteScimUserGroup domain token groupId = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Groups", groupId]
+  submit "DELETE" $ req & addHeader "Authorization" ("Bearer " <> token)
+
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
 createIdp user metadata = do

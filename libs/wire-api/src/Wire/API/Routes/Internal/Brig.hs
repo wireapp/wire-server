@@ -284,6 +284,18 @@ type UpdateGroupInternal =
         :> Put '[Servant.JSON] ()
     )
 
+type DeleteGroupManagedInternal =
+  Named
+    "i-delete-group-managed"
+    ( Summary "Delete a managed user group (internal)"
+        :> "user-groups"
+        :> Capture "tid" TeamId
+        :> Capture "gid" UserGroupId
+        :> "managed"
+        :> Capture "managedBy" ManagedBy
+        :> Delete '[Servant.JSON] NoContent
+    )
+
 type AccountAPI =
   Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
     :<|> Named "i-put-account-conference-calling-config" PutAccountConferenceCallingConfig
@@ -594,6 +606,7 @@ type AccountAPI =
     :<|> CreateGroupInternalInternal
     :<|> GetGroupInternal
     :<|> UpdateGroupInternal
+    :<|> DeleteGroupManagedInternal
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

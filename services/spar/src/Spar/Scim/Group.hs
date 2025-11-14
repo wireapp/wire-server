@@ -92,5 +92,5 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
   deleteGroup ::
     AuthInfo SparTag ->
     SCG.GroupId SparTag ->
-    ScimHandler m ()
-  deleteGroup = undefined
+    ScimHandler (Sem r) ()
+  deleteGroup ((.stiTeam) -> team) groupId = lift $ scimDeleteUserGroup team groupId
