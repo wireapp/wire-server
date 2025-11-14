@@ -22,13 +22,12 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.String.Conversions (cs)
 import Data.String.Conversions.Monomorphic (fromLT)
 import GHC.Stack
-import Network.HTTP.Client.MultipartFormData
 import Network.HTTP.Client (Request)
+import Network.HTTP.Client.MultipartFormData
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Testlib.Prelude
 import qualified Text.XML as XML
-import Network.HTTP.Types (urlEncode)
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_scim_auth_tokens
 getScimTokens :: (HasCallStack, MakesValue caller) => caller -> App Response
@@ -88,9 +87,10 @@ deleteScimUser domain token uid = do
     & addHeader "Authorization" ("Bearer " <> token)
 
 scimCommonHeaders :: String -> Request -> Request
-scimCommonHeaders scimToken req = req
-  & addHeader "Authorization" ("Bearer " <> scimToken)
-  & addHeader "Accept" "application/scim+json"
+scimCommonHeaders scimToken req =
+  req
+    & addHeader "Authorization" ("Bearer " <> scimToken)
+    & addHeader "Accept" "application/scim+json"
 
 findUsersByExternalId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 findUsersByExternalId domain scimToken externalId = do

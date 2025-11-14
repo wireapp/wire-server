@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -32,20 +34,20 @@ import Polysemy.Error
 import Polysemy.Input
 import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Filter qualified as Scim
-import Web.Scim.Schema.ListResponse qualified as Scim
 import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Error
+import Web.Scim.Schema.ListResponse qualified as Scim
 import Web.Scim.Schema.Meta qualified as Meta
 import Web.Scim.Schema.ResourceType qualified as RT
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User
 import Wire.API.User.Scim (SparTag)
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..))
-import Wire.API.UserGroup.Pagination
 
 data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
@@ -140,11 +142,14 @@ scimGetUserGroupsImpl ::
   Maybe Scim.Filter ->
   Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
 scimGetUserGroupsImpl tid mbFilter = do
-  groups@UserGroupPage{page} :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
+  groups@UserGroupPage {page} :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
   ScimSubsystemConfig scimBaseUri <- input
   -- TODO: convert UserGroupPage to StoredGroup SparTag
   -- error $ "XXX " <> show groups
-  Scim.fromList $ toStoredGroup scimBaseUri <$> page
+  pure . Scim.fromList $ toStoredGroup scimBaseUri . userGroupFromMeta <$> page
+  where
+    userGroupFromMeta :: UserGroupMeta -> UserGroup
+    userGroupFromMeta UserGroup_ {..} = UserGroup_ {members = pure mempty, ..}
 
 scimUpdateUserGroupImpl ::
   forall r.

@@ -26,11 +26,11 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
-import Control.Lens (to, (^.), (.~))
+import Control.Lens (to, (.~), (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Types as A
 import qualified Data.Aeson.Lens as A
+import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
 import qualified Data.Text as ST
@@ -444,10 +444,7 @@ testSparScimCreateGetUserGroup = do
   assertSuccess resp3
   foundGroups <- resp3.json %. "Resources" & asList
   createdGroup <- resp.json
-  foundGroups `shouldMatch` [removeMembers createdGroup]
-  where
-    removeMembers group = group & A.atKey (fromString "members") .~ Nothing
-
+  foundGroups `shouldMatch` [createdGroup & A.atKey (fromString "members") .~ Just (toJSON ([] :: [()]))]
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
