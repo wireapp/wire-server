@@ -59,11 +59,10 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup.Pagination
 import Wire.BrigAPIAccess (BrigAPIAccess (..), DeleteGroupManagedError (..), OpaqueAuthToken (..))
 import Wire.ParseException
 import Wire.Rpc
-import Wire.API.UserGroup.Pagination
-import System.IO.Unsafe
 
 interpretBrigAccess ::
   ( Member TinyLog r,
@@ -607,10 +606,7 @@ getGroupsInternal tid mbFilter = do
   maybeDisplayName :: Maybe Text <- case mbFilter of
     Just filter' -> case filter' of
       FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
-      -- FilterAttrCompare (AttrPath Nothing (AttrName "displayName") Nothing) OpCo (ValString "ze groop")
-      _  -> do
-        () <- unsafePerformIO (writeFile "/home/markus/wd/wire-server/WPB-20057-scim-user-group-search/debug.log" $ "Unsupported SCIM filter: " <> show filter') `seq` pure ()
-        throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
+      _ -> throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
     Nothing -> pure Nothing
   -- error $ "XXX 1 " <> show maybeDisplayName
   r <-

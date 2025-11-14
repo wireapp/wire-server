@@ -36,11 +36,11 @@ import Servant.API.Generic
 import Servant.Server.Generic
 import Web.Scim.Class.Auth
 import Web.Scim.ContentType
+import Web.Scim.Filter
 import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
-import Web.Scim.Filter
 
 ----------------------------------------------------------------------------
 -- /Groups API

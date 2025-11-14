@@ -19,8 +19,8 @@
 
 module Wire.ScimSubsystem where
 
-import Data.Maybe
 import Data.Id
+import Data.Maybe
 import Polysemy
 import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Filter qualified as Scim

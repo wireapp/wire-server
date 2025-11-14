@@ -95,6 +95,7 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.API.UserGroup (UserGroup)
+import Wire.API.UserGroup.Pagination
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
@@ -138,7 +139,6 @@ import Wire.UserSubsystem.UserSubsystemConfig
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
-import Wire.API.UserGroup.Pagination
 
 servantSitemap ::
   forall r p.

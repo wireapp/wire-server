@@ -97,8 +97,8 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
-import Wire.Arbitrary
 import Wire.API.UserGroup.Pagination
+import Wire.Arbitrary
 
 -- | Parameters for getting user accounts by various criteria
 data GetBy = GetBy
@@ -282,7 +282,7 @@ type GetGroupsInternal =
     ( Summary "Get user groups with filtering (internal)"
         :> "user-groups"
         :> Capture "tid" TeamId
-        :> QueryParam' [ Optional, Strict ] "nameContains" Text.Text
+        :> QueryParam' [Optional, Strict] "nameContains" Text.Text
         :> Get '[Servant.JSON] UserGroupPage
     )
 
