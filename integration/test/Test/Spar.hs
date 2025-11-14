@@ -420,8 +420,8 @@ testSparScimCreateGetUserGroup = do
   scimUserId <- mkMemberCandidate
   scimUserId2 <- mkMemberCandidate
 
-  resp <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze groop" [ mkScimUser scimUserId, mkScimUser scimUserId2 ]
-  resp4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze group" [ mkScimUser scimUserId, mkScimUser scimUserId2 ]
+  resp <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze groop" [mkScimUser scimUserId, mkScimUser scimUserId2]
+  resp4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze group" [mkScimUser scimUserId, mkScimUser scimUserId2]
   assertSuccess resp
 
   gid <- resp.json %. "id" & asString
@@ -443,21 +443,23 @@ testSparScimCreateGetUserGroup = do
     removeMembers g = g & A.atKey (fromString "members") .~ Just (toJSON ([] :: [()]))
 
 mkScimGroup :: String -> [Value] -> Value
-mkScimGroup name members = object
-  [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-    "displayName" .= name,
-    "members" .= members
-  ]
+mkScimGroup name members =
+  object
+    [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+      "displayName" .= name,
+      "members" .= members
+    ]
 
 mkScimUser :: String -> Value
-mkScimUser scimUserId = object
-  [ "type" .= "User",
-    "$ref" .= "...", -- something like
-    -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
-    -- but since we're just receiving this it's ok
-    -- to ignore.
-    "value" .= scimUserId
-  ]
+mkScimUser scimUserId =
+  object
+    [ "type" .= "User",
+      "$ref" .= "...", -- something like
+      -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
+      -- but since we're just receiving this it's ok
+      -- to ignore.
+      "value" .= scimUserId
+    ]
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
