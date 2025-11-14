@@ -456,7 +456,7 @@ testRemoteAddUser = do
   -- Support for remote admins is not implemeted yet, but this shows that add
   -- proposal is being applied action
   bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
-    resp.status `shouldMatchInt` 500
+    resp.status `shouldMatchInt` 501
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
 
 testRemoteRemoveClient :: (HasCallStack) => Ciphersuite -> App ()

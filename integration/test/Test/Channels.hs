@@ -345,7 +345,7 @@ testFederatedChannel = do
     assertAddFails convId userClient userToAdd = do
       mp <- createAddCommit userClient convId [userToAdd]
       postMLSCommitBundle userClient (mkBundle mp) `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 500
+        resp.status `shouldMatchInt` 501
         resp.json %. "label" `shouldMatch` "federation-not-implemented"
 
 -- if the federation queue gets stuck, the second test run will fail
