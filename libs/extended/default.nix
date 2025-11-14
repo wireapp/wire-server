@@ -26,6 +26,7 @@
 , lib
 , metrics-wai
 , monad-control
+, prometheus-client
 , retry
 , servant
 , servant-client
@@ -41,6 +42,7 @@
 , transformers
 , types-common
 , unliftio
+, uuid
 , wai
 }:
 mkDerivation {
@@ -67,6 +69,7 @@ mkDerivation {
     imports
     metrics-wai
     monad-control
+    prometheus-client
     retry
     servant
     servant-client
@@ -80,6 +83,7 @@ mkDerivation {
     transformers
     types-common
     unliftio
+    uuid
     wai
   ];
   testHaskellDepends = [
