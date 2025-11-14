@@ -41,6 +41,7 @@ import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
 import Web.Scim.Filter as Scim
+import Web.Scim.Schema.Schema as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
@@ -63,6 +64,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess (..), DeleteGroupManagedError (..), Opa
 import Wire.ParseException
 import Wire.Rpc
 import Wire.API.UserGroup.Pagination
+import System.IO.Unsafe
 
 interpretBrigAccess ::
   ( Member TinyLog r,
@@ -606,14 +608,19 @@ getGroupsInternal tid mbFilter = do
   maybeDisplayName :: Maybe Text <- case mbFilter of
     Just filter' -> case filter' of
       FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
-      _  -> throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
+      -- FilterAttrCompare (AttrPath Nothing (AttrName "displayName") Nothing) OpCo (ValString "ze groop")
+      _  -> do
+        () <- unsafePerformIO (writeFile "/home/markus/wd/wire-server/WPB-20057-scim-user-group-search/debug.log" $ "Unsupported SCIM filter: " <> show filter') `seq` pure ()
+        throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
     Nothing -> pure Nothing
+  -- error $ "XXX 1 " <> show maybeDisplayName
   r <-
     brigRequest $
       method GET
         . paths ["i", "user-groups", toByteString' tid]
         . maybe id (queryItem "nameContains" . Text.encodeUtf8) maybeDisplayName
         . expect2xx
+  -- error $ "XXX 2 "
   decodeBodyOrThrow "brig" r
 
 updateGroup ::

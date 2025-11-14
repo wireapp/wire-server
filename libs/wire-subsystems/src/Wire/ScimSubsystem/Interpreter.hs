@@ -143,7 +143,8 @@ scimGetUserGroupsImpl tid mbFilter = do
   groups :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
   ScimSubsystemConfig scimBaseUri <- input
   -- TODO: convert UserGroupPage to StoredGroup SparTag
-  undefined
+  -- error $ "XXX " <> show groups
+  pure $ Scim.fromList []
 
 scimUpdateUserGroupImpl ::
   forall r.

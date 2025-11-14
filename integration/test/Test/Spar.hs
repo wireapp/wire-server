@@ -439,7 +439,7 @@ testSparScimCreateGetUserGroup = do
   resp2 <- getScimUserGroup OwnDomain tok gid
   resp.json `shouldMatch` resp2.json
 
-  resp3 <- filterScimUserGroup OwnDomain tok $ Just "displayName eq \"ze groop\""
+  resp3 <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"ze groop\""
   assertSuccess resp3
   foundGroups <- resp3.json %. "Resources" & asList
   createdGroup <- resp.json
