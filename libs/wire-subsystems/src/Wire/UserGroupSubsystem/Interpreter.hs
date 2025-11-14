@@ -85,7 +85,8 @@ interpretUserGroupSubsystem = interpret $ \case
   UpdateChannels performer groupId channelIds -> updateChannels False performer groupId channelIds
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
-  GetGroupInternal tid gid includeChannels -> getUserGroupUnsafe tid gid includeChannels
+  GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
+  GetGroupsInternal tid displayNameSubstring -> getUserGroupsInternal tid displayNameSubstring
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -217,18 +218,18 @@ getUserGroup ::
 getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
-  userGroup <- MaybeT $ getUserGroupUnsafe team gid includeChannels
+  userGroup <- MaybeT $ getUserGroupInternal team gid includeChannels
   if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
 
-getUserGroupUnsafe ::
+getUserGroupInternal ::
   (Member Store.UserGroupStore r) =>
   TeamId ->
   UserGroupId ->
   Bool ->
   Sem r (Maybe UserGroup)
-getUserGroupUnsafe tid gid includeChannels = runMaybeT $ do
+getUserGroupInternal tid gid includeChannels = runMaybeT $ do
   MaybeT $ Store.getUserGroup tid gid includeChannels
 
 mkGetterCanSeeAll ::
@@ -274,6 +275,29 @@ getUserGroups getter search = do
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
+
+getUserGroupsInternal ::
+  forall r.
+  ( Member Store.UserGroupStore r
+  ) =>
+  TeamId ->
+  Maybe Text ->
+  Sem r UserGroupPage
+getUserGroupsInternal team displayNameSubstring = do
+  let -- hscim doesn't support pagination at the time of writing this,
+      -- so we better fit all groups into one page!
+      pageSize = pageSizeFromIntUnsafe 500
+      pageReq =
+        UserGroupPageRequest
+          { pageSize = pageSize,
+            sortOrder = Asc,
+            paginationState = mkPaginationState SortByName (Just "displayName") Nothing Nothing,
+            team = team,
+            searchString = displayNameSubstring,
+            includeMemberCount = True,
+            includeChannels = False
+          }
+  Store.getUserGroups pageReq
 
 updateGroup ::
   ( Member UserSubsystem r,
@@ -444,7 +468,7 @@ updateUsersNoAccessControl ::
   Vector UserId ->
   Sem r ()
 updateUsersNoAccessControl teamId mbUpdater groupId uids = do
-  void $ getUserGroupUnsafe teamId groupId False >>= note UserGroupNotFound
+  void $ getUserGroupInternal teamId groupId False >>= note UserGroupNotFound
   forM_ uids $ \uid ->
     internalGetTeamMember uid teamId >>= note UserGroupMemberIsNotInTheSameTeam
   Store.updateUsers groupId uids

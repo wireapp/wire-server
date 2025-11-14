@@ -95,6 +95,7 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.API.UserGroup (UserGroup)
+import Wire.API.UserGroup.Pagination
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
@@ -286,6 +287,7 @@ accountAPI =
     :<|> Named @"i-get-accounts-by" getAccountsByInternalH
     :<|> Named @"i-create-group-full" createGroupInternalH
     :<|> Named @"i-get-group" getGroupInternalH
+    :<|> Named @"i-get-groups" getGroupsInternalH
     :<|> Named @"i-update-group" updateGroupInternalH
     :<|> Named @"i-delete-group-managed" deleteGroupManagedInternalH
 
@@ -1022,6 +1024,15 @@ getGroupInternalH ::
   Handler r (Maybe UserGroup)
 getGroupInternalH tid uid includeChannels =
   lift . liftSem $ getGroupInternal tid uid includeChannels
+
+getGroupsInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  TeamId ->
+  Maybe T.Text ->
+  Handler r UserGroupPage
+getGroupsInternalH tid nameContains =
+  lift . liftSem $ getGroupsInternal tid nameContains
 
 updateGroupInternalH ::
   ( Member UserGroupSubsystem r

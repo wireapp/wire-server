@@ -26,9 +26,10 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
-import Control.Lens (to, (^.))
+import Control.Lens (to, (?~), (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Lens as A
 import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
@@ -417,27 +418,48 @@ testSparScimCreateGetUserGroup = do
         pure uid
 
   scimUserId <- mkMemberCandidate
-  let scimUserGroup =
-        object
-          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-            "displayName" .= "ze groop",
-            "members"
-              .= [ object
-                     [ "type" .= "User",
-                       "$ref" .= "...", -- something like
-                       -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
-                       -- but since we're just receiving this it's ok
-                       -- to ignore.
-                       "value" .= scimUserId
-                     ]
-                 ]
-          ]
-  resp <- createScimUserGroup OwnDomain tok scimUserGroup
+  scimUserId2 <- mkMemberCandidate
+
+  resp <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze groop" [mkScimUser scimUserId, mkScimUser scimUserId2]
+  resp4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze group" [mkScimUser scimUserId, mkScimUser scimUserId2]
   assertSuccess resp
 
   gid <- resp.json %. "id" & asString
   resp2 <- getScimUserGroup OwnDomain tok gid
   resp.json `shouldMatch` resp2.json
+
+  filterResp <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"e gro\""
+  assertSuccess filterResp
+  filterResultJson <- filterResp.json
+  foundGroups <- filterResultJson %. "Resources" & asList
+  createdGroup1 <- resp.json
+  createdGroup2 <- resp4.json
+  foundGroups `shouldMatch` (map removeMembers [createdGroup1, createdGroup2])
+
+  filterResultJson %. "totalResults" `shouldMatchInt` 2
+  filterResultJson %. "itemsPerPage" `shouldMatchInt` 2
+  filterResultJson %. "startIndex" `shouldMatchInt` 1
+  where
+    removeMembers g = g & A.atKey (fromString "members") ?~ toJSON ([] :: [()])
+
+mkScimGroup :: String -> [Value] -> Value
+mkScimGroup name members =
+  object
+    [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+      "displayName" .= name,
+      "members" .= members
+    ]
+
+mkScimUser :: String -> Value
+mkScimUser scimUserId =
+  object
+    [ "type" .= "User",
+      "$ref" .= "...", -- something like
+      -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
+      -- but since we're just receiving this it's ok
+      -- to ignore.
+      "value" .= scimUserId
+    ]
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do

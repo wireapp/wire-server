@@ -40,6 +40,7 @@ import Polysemy.TinyLog
 import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
+import Web.Scim.Filter as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
@@ -58,6 +59,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup.Pagination
 import Wire.BrigAPIAccess (BrigAPIAccess (..), DeleteGroupManagedError (..), OpaqueAuthToken (..))
 import Wire.ParseException
 import Wire.Rpc
@@ -122,6 +124,8 @@ interpretBrigAccess brigEndpoint =
         getAccountsBy localGetBy
       CreateGroupInternal managedBy teamId creatorUserId newGroup ->
         createGroupInternal managedBy teamId creatorUserId newGroup
+      GetGroupsInternal tid mbFilter ->
+        getGroupsInternal tid mbFilter
       GetGroupInternal tid gid includeChannels ->
         getGroupInternal tid gid includeChannels
       UpdateGroup req ->
@@ -590,6 +594,25 @@ getGroupInternal tid gid includeChannels = do
     brigRequest $
       method GET
         . paths ["i", "user-groups", toByteString' tid, toByteString' gid, toByteString' includeChannels]
+        . expect2xx
+  decodeBodyOrThrow "brig" r
+
+getGroupsInternal ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  TeamId ->
+  Maybe Scim.Filter ->
+  Sem r UserGroupPage
+getGroupsInternal tid mbFilter = do
+  maybeDisplayName :: Maybe Text <- case mbFilter of
+    Just filter' -> case filter' of
+      FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
+      _ -> throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
+    Nothing -> pure Nothing
+  r <-
+    brigRequest $
+      method GET
+        . paths ["i", "user-groups", toByteString' tid]
+        . maybe id (queryItem "nameContains" . Text.encodeUtf8) maybeDisplayName
         . expect2xx
   decodeBodyOrThrow "brig" r
 

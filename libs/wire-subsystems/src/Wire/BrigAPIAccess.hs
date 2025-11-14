@@ -65,6 +65,7 @@ module Wire.BrigAPIAccess
     -- * User Groups
     createGroupInternal,
     getGroupInternal,
+    getGroupsInternal,
     updateGroup,
     deleteGroupInternal,
     DeleteGroupManagedError (..),
@@ -81,6 +82,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
+import Web.Scim.Filter qualified as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
@@ -96,6 +98,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 
 data DeleteGroupManagedError = DeleteGroupManagedManagedByMismatch
   deriving (Eq, Show)
@@ -158,6 +161,7 @@ data BrigAPIAccess m a where
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
   GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
+  GetGroupsInternal :: TeamId -> Maybe Scim.Filter -> BrigAPIAccess m UserGroupPage
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m ()
   DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
 

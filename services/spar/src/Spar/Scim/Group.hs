@@ -26,6 +26,7 @@ import Imports
 import Polysemy
 import Web.Scim.Class.Auth
 import Web.Scim.Class.Group qualified as SCG
+import Web.Scim.Filter
 import Web.Scim.Handler
 import Web.Scim.Schema.ListResponse
 import Wire.API.User.Scim
@@ -37,8 +38,9 @@ import Wire.ScimSubsystem
 instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag (Sem r) where
   getGroups ::
     AuthInfo SparTag ->
-    ScimHandler m (ListResponse (SCG.StoredGroup SparTag))
-  getGroups = undefined
+    Maybe Filter ->
+    ScimHandler (Sem r) (ListResponse (SCG.StoredGroup SparTag))
+  getGroups ((.stiTeam) -> tid) mbFilter = lift $ scimGetUserGroups tid mbFilter
 
   -- \| Get a single group by ID.
   --

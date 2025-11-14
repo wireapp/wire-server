@@ -20,8 +20,11 @@
 module Wire.ScimSubsystem where
 
 import Data.Id
+import Data.Maybe
 import Polysemy
 import Web.Scim.Class.Group qualified as SCG
+import Web.Scim.Filter qualified as Scim
+import Web.Scim.Schema.ListResponse qualified as Scim
 import Wire.API.User.Scim (SparTag)
 
 data ScimSubsystem m a where
@@ -29,5 +32,6 @@ data ScimSubsystem m a where
   ScimGetUserGroup :: TeamId -> UserGroupId -> ScimSubsystem m (SCG.StoredGroup SparTag)
   ScimUpdateUserGroup :: TeamId -> UserGroupId -> SCG.Group -> ScimSubsystem m (SCG.StoredGroup SparTag)
   ScimDeleteUserGroup :: TeamId -> SCG.GroupId SparTag -> ScimSubsystem m ()
+  ScimGetUserGroups :: TeamId -> Maybe Scim.Filter -> ScimSubsystem m (Scim.ListResponse (SCG.StoredGroup SparTag))
 
 makeSem ''ScimSubsystem

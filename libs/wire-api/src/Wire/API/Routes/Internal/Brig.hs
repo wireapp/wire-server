@@ -97,6 +97,7 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
 
 -- | Parameters for getting user accounts by various criteria
@@ -254,7 +255,7 @@ type GetAccountsByInternal =
         :> Post '[Servant.JSON] [User]
     )
 
-type CreateGroupInternalInternal =
+type CreateGroupInternal =
   Named
     "i-create-group-full"
     ( Summary "Create user group with full control (internal)"
@@ -273,6 +274,16 @@ type GetGroupInternal =
         :> Capture "gid" UserGroupId
         :> Capture "includeChannels" Bool
         :> Get '[Servant.JSON] (Maybe UserGroup)
+    )
+
+type GetGroupsInternal =
+  Named
+    "i-get-groups"
+    ( Summary "Get user groups with filtering (internal)"
+        :> "user-groups"
+        :> Capture "tid" TeamId
+        :> QueryParam' [Optional, Strict] "nameContains" Text.Text
+        :> Get '[Servant.JSON] UserGroupPage
     )
 
 type UpdateGroupInternal =
@@ -603,8 +614,9 @@ type AccountAPI =
                :> Delete '[Servant.JSON] NoContent
            )
     :<|> GetAccountsByInternal
-    :<|> CreateGroupInternalInternal
+    :<|> CreateGroupInternal
     :<|> GetGroupInternal
+    :<|> GetGroupsInternal
     :<|> UpdateGroupInternal
     :<|> DeleteGroupManagedInternal
 

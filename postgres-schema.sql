@@ -7,7 +7,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Hl9XxATRAdecxBiFt8PPZgKxbcBTtxdglRrKHEan0Af69hORYkknDeYWBzNNCd6
+\restrict 7mIWfK3KzS3dh5XHiAV6Z4AKzhK7lHVugezBtZY2vcFi7gDC9DiStSTii9adK62
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -120,6 +120,30 @@ CREATE TABLE public.conversation_member (
 
 
 ALTER TABLE public.conversation_member OWNER TO "wire-server";
+
+--
+-- Name: conversation_migration_pending_deletes; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.conversation_migration_pending_deletes (
+    typ text NOT NULL,
+    id uuid NOT NULL
+);
+
+
+ALTER TABLE public.conversation_migration_pending_deletes OWNER TO "wire-server";
+
+--
+-- Name: conversation_out_of_sync; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.conversation_out_of_sync (
+    conv_id uuid NOT NULL,
+    out_of_sync boolean NOT NULL
+);
+
+
+ALTER TABLE public.conversation_out_of_sync OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -264,6 +288,22 @@ ALTER TABLE ONLY public.conversation_member
 
 
 --
+-- Name: conversation_migration_pending_deletes conversation_migration_pending_deletes_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_migration_pending_deletes
+    ADD CONSTRAINT conversation_migration_pending_deletes_pkey PRIMARY KEY (typ, id);
+
+
+--
+-- Name: conversation_out_of_sync conversation_out_of_sync_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_out_of_sync
+    ADD CONSTRAINT conversation_out_of_sync_pkey PRIMARY KEY (conv_id);
+
+
+--
 -- Name: conversation conversation_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -379,6 +419,14 @@ ALTER TABLE ONLY public.conversation_member
 
 
 --
+-- Name: conversation_out_of_sync conversation_out_of_sync_conv_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_out_of_sync
+    ADD CONSTRAINT conversation_out_of_sync_conv_id_fkey FOREIGN KEY (conv_id) REFERENCES public.conversation(id) ON DELETE CASCADE;
+
+
+--
 -- Name: conversation conversation_parent_conv_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -429,4 +477,4 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Hl9XxATRAdecxBiFt8PPZgKxbcBTtxdglRrKHEan0Af69hORYkknDeYWBzNNCd6
+\unrestrict 7mIWfK3KzS3dh5XHiAV6Z4AKzhK7lHVugezBtZY2vcFi7gDC9DiStSTii9adK62

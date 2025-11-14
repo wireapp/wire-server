@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -31,14 +33,17 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Web.Scim.Class.Group qualified as SCG
+import Web.Scim.Filter qualified as Scim
 import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Error
+import Web.Scim.Schema.ListResponse qualified as Scim
 import Web.Scim.Schema.Meta qualified as Meta
 import Web.Scim.Schema.ResourceType qualified as RT
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User
 import Wire.API.User.Scim (SparTag)
 import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
@@ -57,6 +62,7 @@ interpretScimSubsystem ::
 interpretScimSubsystem = interpret $ \case
   ScimCreateUserGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
   ScimGetUserGroup tid gid -> scimGetUserGroupImpl tid gid
+  ScimGetUserGroups tid mbFilter -> scimGetUserGroupsImpl tid mbFilter
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
   ScimDeleteUserGroup teamId groupId -> deleteScimGroupImpl teamId groupId
 
@@ -126,6 +132,22 @@ scimGetUserGroupImpl tid gid = do
     returnStoredGroup g = do
       ScimSubsystemConfig scimBaseUri <- input
       pure $ toStoredGroup scimBaseUri g
+
+scimGetUserGroupsImpl ::
+  forall r.
+  ( Member (Input ScimSubsystemConfig) r,
+    Member BrigAPIAccess r
+  ) =>
+  TeamId ->
+  Maybe Scim.Filter ->
+  Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
+scimGetUserGroupsImpl tid mbFilter = do
+  UserGroupPage {page} :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
+  ScimSubsystemConfig scimBaseUri <- input
+  pure . Scim.fromList $ toStoredGroup scimBaseUri . userGroupFromMeta <$> page
+  where
+    userGroupFromMeta :: UserGroupMeta -> UserGroup
+    userGroupFromMeta UserGroup_ {..} = UserGroup_ {members = pure mempty, ..}
 
 scimUpdateUserGroupImpl ::
   forall r.
