@@ -144,8 +144,6 @@ scimGetUserGroupsImpl ::
 scimGetUserGroupsImpl tid mbFilter = do
   groups@UserGroupPage {page} :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
   ScimSubsystemConfig scimBaseUri <- input
-  -- TODO: convert UserGroupPage to StoredGroup SparTag
-  -- error $ "XXX " <> show groups
   pure . Scim.fromList $ toStoredGroup scimBaseUri . userGroupFromMeta <$> page
   where
     userGroupFromMeta :: UserGroupMeta -> UserGroup
