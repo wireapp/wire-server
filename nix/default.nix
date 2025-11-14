@@ -10,7 +10,7 @@ let
       (import (builtins.fetchGit
         {
           url = "https://github.com/wireapp/pulsar-hs.git";
-          rev = "d6021c45c088be67446ba92472eb993b8aafa947";
+          rev = "c5e8520b0c3efbd022659ceb642fb73e903bd933";
         } + "/nix/overlay.nix"))
       # All wire-server specific packages
       (import ./overlay.nix)
