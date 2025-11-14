@@ -83,7 +83,6 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Web.Scim.Filter qualified as Scim
-import Web.Scim.Schema.ListResponse as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite

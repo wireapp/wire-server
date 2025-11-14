@@ -140,11 +140,11 @@ scimGetUserGroupsImpl ::
   Maybe Scim.Filter ->
   Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
 scimGetUserGroupsImpl tid mbFilter = do
-  groups :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
+  groups@UserGroupPage{page} :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
   ScimSubsystemConfig scimBaseUri <- input
   -- TODO: convert UserGroupPage to StoredGroup SparTag
   -- error $ "XXX " <> show groups
-  pure $ Scim.fromList []
+  Scim.fromList $ toStoredGroup scimBaseUri <$> page
 
 scimUpdateUserGroupImpl ::
   forall r.

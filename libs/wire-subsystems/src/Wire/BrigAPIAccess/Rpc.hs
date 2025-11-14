@@ -41,7 +41,6 @@ import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
 import Web.Scim.Filter as Scim
-import Web.Scim.Schema.Schema as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
