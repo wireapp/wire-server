@@ -292,8 +292,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         -- reject message if the conversation is out of sync
         lift $ do
           let newUsers = Map.keysSet action.paAdd
-          outOfSync <- checkConversationOutOfSync newUsers lConvOrSub ciphersuite
-          when outOfSync $ throw (MLSOutOfSyncError mempty)
+          checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
         lift $
           checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
@@ -505,8 +504,7 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 
       -- reject message if the conversation is out of sync
       for_ convOrSub.ciphersuite $ \ciphersuite -> do
-        outOfSync <- checkConversationOutOfSync mempty lConvOrSub ciphersuite
-        when outOfSync $ throw (MLSOutOfSyncError mempty)
+        checkConversationOutOfSync mempty lConvOrSub ciphersuite
 
       -- reject application messages older than 2 epochs
       -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0
