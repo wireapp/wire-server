@@ -529,6 +529,7 @@ in
       pkgs.nix-prefetch-git
       pkgs.haskellPackages.cabal-plan
       pkgs.lsof
+      pkgs.haskellPackages.headroom
       profileEnv
     ]
     ++ ghcWithPackages
