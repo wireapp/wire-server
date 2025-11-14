@@ -85,7 +85,7 @@ data GroupSite tag route = GroupSite
   { gsGetGroups ::
       route
         :- QueryParam "filter" Filter
-          :> Get '[SCIM] (ListResponse (StoredGroup tag)),
+        :> Get '[SCIM] (ListResponse (StoredGroup tag)),
     gsGetGroup ::
       route
         :- Capture "id" (GroupId tag)
