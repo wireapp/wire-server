@@ -26,7 +26,7 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
-import Control.Lens (to, (.~), (^.))
+import Control.Lens (to, (?~), (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Lens as A
@@ -440,7 +440,7 @@ testSparScimCreateGetUserGroup = do
   filterResultJson %. "itemsPerPage" `shouldMatchInt` 2
   filterResultJson %. "startIndex" `shouldMatchInt` 1
   where
-    removeMembers g = g & A.atKey (fromString "members") .~ Just (toJSON ([] :: [()]))
+    removeMembers g = g & A.atKey (fromString "members") ?~ toJSON ([] :: [()])
 
 mkScimGroup :: String -> [Value] -> Value
 mkScimGroup name members =
