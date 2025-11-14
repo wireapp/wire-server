@@ -156,7 +156,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
           -- Again, for subconversations there is no need to check anything
           -- here, so we simply return the empty list.
           failedAddFetching <- case convOrSub.id of
-            SubConv _ _ -> pure [] -- TODO: fold this case into checkClients
+            SubConv _ _ -> pure [] -- FUTUREWORK: fold this case into checkClients
             Conv _ -> checkClients lConvOrSub ciphersuite (paAdd action)
           for_
             (unreachableFromList failedAddFetching)
