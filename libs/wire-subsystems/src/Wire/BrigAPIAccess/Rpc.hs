@@ -614,7 +614,6 @@ getGroupsInternal tid mbFilter = do
         . paths ["i", "user-groups", toByteString' tid]
         . maybe id (queryItem "nameContains" . Text.encodeUtf8) maybeDisplayName
         . expect2xx
-  -- error $ "XXX 2 "
   decodeBodyOrThrow "brig" r
 
 updateGroup ::
