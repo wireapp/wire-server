@@ -86,6 +86,7 @@ interpretUserGroupSubsystem = interpret $ \case
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
+  GetGroupsInternal tid displayNameSubstring -> getUserGroupsInternal tid displayNameSubstring
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -274,6 +275,29 @@ getUserGroups getter search = do
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
+
+getUserGroupsInternal ::
+  forall r.
+  ( Member Store.UserGroupStore r
+  ) =>
+  TeamId ->
+  Maybe Text ->
+  Sem r UserGroupPage
+getUserGroupsInternal team displayNameSubstring = do
+  let -- hscim doesn't support pagination at the time of writing this,
+      -- so we better fit all groups into one page!
+      pageSize = pageSizeFromIntUnsafe 500
+      pageReq =
+        UserGroupPageRequest
+          { pageSize = pageSize,
+            sortOrder = Asc,
+            paginationState = mkPaginationState SortByName (Just "displayName") Nothing Nothing,
+            team = team,
+            searchString = displayNameSubstring,
+            includeMemberCount = True,
+            includeChannels = False
+          }
+  Store.getUserGroups pageReq
 
 updateGroup ::
   ( Member UserSubsystem r,

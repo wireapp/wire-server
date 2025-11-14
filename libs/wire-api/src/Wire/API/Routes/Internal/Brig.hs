@@ -98,6 +98,7 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
 import Wire.Arbitrary
+import Wire.API.UserGroup.Pagination
 
 -- | Parameters for getting user accounts by various criteria
 data GetBy = GetBy
@@ -273,6 +274,16 @@ type GetGroupInternal =
         :> Capture "gid" UserGroupId
         :> Capture "includeChannels" Bool
         :> Get '[Servant.JSON] (Maybe UserGroup)
+    )
+
+type GetGroupsInternal =
+  Named
+    "i-get-groups"
+    ( Summary "Get user groups with filtering (internal)"
+        :> "user-groups"
+        :> Capture "tid" TeamId
+        :> QueryParam' [ Optional, Strict ] "nameContains" Text.Text
+        :> Get '[Servant.JSON] UserGroupPage
     )
 
 type UpdateGroupInternal =
@@ -605,6 +616,7 @@ type AccountAPI =
     :<|> GetAccountsByInternal
     :<|> CreateGroupInternal
     :<|> GetGroupInternal
+    :<|> GetGroupsInternal
     :<|> UpdateGroupInternal
     :<|> DeleteGroupManagedInternal
 
