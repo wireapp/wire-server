@@ -24,51 +24,24 @@ where
 
 import Control.Comonad
 import Control.Error.Util (hush)
-import Control.Lens
-import Control.Lens.Extras (is)
-import Control.Monad.Codensity
-import Data.Default
 import Data.Id
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
-import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS.Commit.Core
-import Galley.API.MLS.Conversation
-import Galley.API.MLS.IncomingMessage
-import Galley.API.MLS.One2One
-import Galley.API.MLS.Proposal
-import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Resource (Resource)
-import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Action
-import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Commit
-import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
-import Wire.API.MLS.Proposal qualified as Proposal
-import Wire.API.MLS.SubConversation
-import Wire.API.Unreachable
 import Wire.API.User.Client
-import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.StoredConversation
 
 checkClients ::
   ( Member BrigAPIAccess r,
@@ -81,10 +54,10 @@ checkClients ::
   CipherSuiteTag ->
   ClientMap (LeafIndex, Maybe KeyPackage) ->
   Sem r [Qualified UserId]
-checkClients lConvOrSub ciphersuite clients = do
+checkClients lConvOrSub ciphersuite newCM = do
   let convOrSub = tUnqualified lConvOrSub
       cm = convOrSub.members
-  fmap catMaybes . forM (Map.assocs clients) $
+  fmap catMaybes . forM (Map.assocs newCM) $
     \(qtarget, newclients) -> do
       mClientData <- getClientData lConvOrSub ciphersuite qtarget
       unreachable <- case (mClientData, Map.lookup qtarget cm) of
