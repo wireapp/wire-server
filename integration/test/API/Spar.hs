@@ -28,6 +28,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Testlib.Prelude
 import qualified Text.XML as XML
+import Network.HTTP.Types (urlEncode)
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_scim_auth_tokens
 getScimTokens :: (HasCallStack, MakesValue caller) => caller -> App Response
@@ -132,6 +133,13 @@ deleteScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> 
 deleteScimUserGroup domain token groupId = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Groups", groupId]
   submit "DELETE" $ req & addHeader "Authorization" ("Bearer " <> token)
+
+filterScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
+filterScimUserGroup domain token mbFilter = do
+  req <- baseRequest domain Spar Versioned "/scim/v2/Groups"
+  submit "GET" $ req
+    & scimCommonHeaders token
+    & maybe id (\f -> addQueryParams [("filter", f)]) mbFilter
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response

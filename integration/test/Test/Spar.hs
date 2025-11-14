@@ -439,6 +439,12 @@ testSparScimCreateGetUserGroup = do
   resp2 <- getScimUserGroup OwnDomain tok gid
   resp.json `shouldMatch` resp2.json
 
+  resp3 <- filterScimUserGroup OwnDomain tok $ Just "displayName eq \"ze groop\""
+  assertSuccess resp3
+  foundGroups <- resp3.json %. "Resources" & asList
+  createdGroup <- resp.json
+  foundGroups `shouldMatch` [createdGroup]
+
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
   (alice, tid, []) <- createTeam OwnDomain 1
