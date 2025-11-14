@@ -122,8 +122,7 @@ type MLSBundleStaticErrors =
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature,
-       ErrorS MLSGroupOutOfSync
+       ErrorS 'MLSInvalidLeafNodeSignature
      ]
 
 postMLSMessageFromLocalUser ::
@@ -142,7 +141,7 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member (ErrorS MLSGroupOutOfSync) r,
+    Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
   Local UserId ->
@@ -164,6 +163,7 @@ postMLSCommitBundle ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
+    Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member TeamFeatureStore r,
     Member Random r,
@@ -192,6 +192,7 @@ postMLSCommitBundleFromLocalUser ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
+    Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member TeamFeatureStore r,
     Member Random r,
@@ -220,6 +221,7 @@ postMLSCommitBundleToLocalConv ::
   ( Member (ErrorS MLSLegalholdIncompatible) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error GroupInfoDiagnostics) r,
+    Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member TeamFeatureStore r,
     Member Random r,
@@ -291,7 +293,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         lift $ do
           let newUsers = Map.keysSet action.paAdd
           outOfSync <- checkConversationOutOfSync newUsers lConvOrSub ciphersuite
-          when outOfSync $ throwS @'MLSGroupOutOfSync
+          when outOfSync $ throw (MLSOutOfSyncError mempty)
 
         lift $
           checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
@@ -362,6 +364,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member (Error GroupInfoDiagnostics) r,
+    Member (Error MLSOutOfSyncError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -399,6 +402,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
     MLSMessageResponseGroupInfoDiagnostics e -> throw e
+    MLSMessageResponseOutOfSyncError e -> throw e
     MLSMessageResponseUpdates updates -> do
       fmap fst . runOutputList . runInputConst (void loc) $
         for_ updates $ \update -> do
@@ -422,7 +426,7 @@ postMLSMessage ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member (ErrorS MLSGroupOutOfSync) r,
+    Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
   Local x ->
@@ -467,7 +471,7 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member (ErrorS MLSGroupOutOfSync) r,
+    Member (Error MLSOutOfSyncError) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Qualified UserId ->
@@ -502,7 +506,7 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
       -- reject message if the conversation is out of sync
       for_ convOrSub.ciphersuite $ \ciphersuite -> do
         outOfSync <- checkConversationOutOfSync mempty lConvOrSub ciphersuite
-        when outOfSync $ throwS @'MLSGroupOutOfSync
+        when outOfSync $ throw (MLSOutOfSyncError mempty)
 
       -- reject application messages older than 2 epochs
       -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0
@@ -523,7 +527,8 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
     HasProposalEffects r,
-    Member (Error GroupInfoDiagnostics) r
+    Member (Error GroupInfoDiagnostics) r,
+    Member (Error MLSOutOfSyncError) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -565,6 +570,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
           for_ me $ \e -> output (LocalConversationUpdate e update)
     MLSMessageResponseNonFederatingBackends e -> throw e
     MLSMessageResponseGroupInfoDiagnostics e -> throw e
+    MLSMessageResponseOutOfSyncError e -> throw e
 
 storeGroupInfo ::
   ( Member ConversationStore r

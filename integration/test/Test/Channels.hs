@@ -809,6 +809,10 @@ testOutOfSyncError = do
     bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+      resp.json %. "code" `shouldMatchInt` 409
+      resp.json %. "message"
+  -- missing <- resp.json %. "missing_users" & asList
+  -- length missing `shouldMatchInt` 2
 
   -- adding only one of the users should fail
   do
@@ -817,6 +821,8 @@ testOutOfSyncError = do
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+    -- missing <- resp.json %. "missing_users" & asList
+    -- length missing `shouldMatchInt` 1
     setClientGroupState alice1 gs
 
   -- adding a new user should fail
@@ -826,6 +832,8 @@ testOutOfSyncError = do
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+    -- missing <- resp.json %. "missing_users" & asList
+    -- length missing `shouldMatchInt` 2
     setClientGroupState alice1 gs
 
   -- adding both users should work

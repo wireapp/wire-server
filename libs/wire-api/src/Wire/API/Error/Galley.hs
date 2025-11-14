@@ -48,14 +48,17 @@ module Wire.API.Error.Galley
     unreachableUsersToUnreachableBackends,
     UnreachableBackendsLegacy (..),
     GroupInfoDiagnostics (..),
+    MLSOutOfSyncError (..),
   )
 where
 
 import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson qualified as A
 import Data.Containers.ListUtils
 import Data.Domain
 import Data.HashMap.Strict.InsOrd (singleton)
+import Data.Id
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -133,7 +136,6 @@ data GalleyError
     -- tries to create an MLS group while being under legalhold
     MLSLegalholdIncompatible
   | MLSIdentityMismatch
-  | MLSGroupOutOfSync
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -296,8 +298,6 @@ type instance MapError 'GroupIdVersionNotSupported = 'StaticError 400 "mls-group
 type instance MapError MLSLegalholdIncompatible = 'StaticError 409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
 
 type instance MapError 'MLSIdentityMismatch = 'StaticError 403 "mls-identity-mismatch" "Leaf node signature key does not match the client's key"
-
-type instance MapError 'MLSGroupOutOfSync = 'StaticError 409 "mls-group-out-of-sync" "Group is out of sync"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
@@ -669,4 +669,53 @@ instance IsSwaggerError GroupInfoDiagnostics where
 type instance ErrorEffect GroupInfoDiagnostics = Error GroupInfoDiagnostics
 
 instance (Member (Error JSONResponse) r) => ServerEffect (Error GroupInfoDiagnostics) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- MLSOutOfSyncError
+
+data MLSOutOfSyncError = MLSOutOfSyncError
+  {missingUsers :: [Qualified UserId]}
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSOutOfSyncError
+
+mlsOutOfSyncErrorStatus :: HTTP.Status
+mlsOutOfSyncErrorStatus = HTTP.status409
+
+instance APIError MLSOutOfSyncError where
+  toResponse e =
+    JSONResponse
+      { status = mlsOutOfSyncErrorStatus,
+        value =
+          A.object
+            ( fold (schemaOut mlsOutOfSyncErrorObjectSchema e)
+                <> [ "label" A..= ("mls-group-out-of-sync" :: Text),
+                     "message" A..= ("Group is out of sync" :: Text),
+                     "code" A..= HTTP.statusCode mlsOutOfSyncErrorStatus
+                   ]
+            ),
+        headers = []
+      }
+
+mlsOutOfSyncErrorObjectSchema :: ObjectSchema SwaggerDoc MLSOutOfSyncError
+mlsOutOfSyncErrorObjectSchema =
+  MLSOutOfSyncError
+    <$> (.missingUsers) .= field "missing_users" (array schema)
+
+instance ToSchema MLSOutOfSyncError where
+  schema = object "MLSOutOfSyncError" mlsOutOfSyncErrorObjectSchema
+
+instance IsSwaggerError MLSOutOfSyncError where
+  addToOpenApi =
+    addErrorResponseToSwagger (HTTP.statusCode mlsOutOfSyncErrorStatus) $
+      mempty
+        & S.description .~ "Group is out of sync"
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @MLSOutOfSyncError))
+
+type instance ErrorEffect MLSOutOfSyncError = Error MLSOutOfSyncError
+
+instance (Member (Error JSONResponse) r) => ServerEffect (Error MLSOutOfSyncError) r where
   interpretServerEffect = mapError toResponse
