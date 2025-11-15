@@ -527,6 +527,7 @@ data MLSMessageResponse
     MLSMessageResponseUpdates [ConversationUpdate]
   | MLSMessageResponseNonFederatingBackends NonFederatingBackends
   | MLSMessageResponseGroupInfoDiagnostics GroupInfoDiagnostics
+  | MLSMessageResponseOutOfSyncError MLSOutOfSyncError
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

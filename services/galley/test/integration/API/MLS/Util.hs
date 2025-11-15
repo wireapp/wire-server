@@ -180,6 +180,9 @@ remotePostCommitBundle rsender qcs bundle = do
       e@(MLSMessageResponseNonFederatingBackends _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e
+      e@(MLSMessageResponseOutOfSyncError _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
       MLSMessageResponseUpdates _ -> pure []
 
 postCommitBundle ::

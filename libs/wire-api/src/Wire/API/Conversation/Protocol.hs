@@ -45,9 +45,10 @@ import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Json.Util
 import Data.OpenApi qualified as S
-import Data.Schema
+import Data.Schema hiding (HasField)
 import Data.Text qualified as Text
 import Data.Time.Clock
+import GHC.Records
 import Imports
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
@@ -94,6 +95,9 @@ data ConversationMLSData = ConversationMLSData
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via Schema ConversationMLSData
+
+instance HasField "ciphersuite" ConversationMLSData (Maybe CipherSuiteTag) where
+  getField m = fmap (.ciphersuite) m.cnvmlsActiveData
 
 arbitraryActiveData :: Gen (Maybe ActiveMLSConversationData)
 arbitraryActiveData = do

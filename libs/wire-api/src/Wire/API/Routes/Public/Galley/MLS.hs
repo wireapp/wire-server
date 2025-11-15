@@ -82,6 +82,7 @@ type MLSMessagingAPI =
         :> CanThrow UnreachableBackends
         :> CanThrow GroupInfoDiagnostics
         :> CanThrow 'MLSInvalidLeafNodeSignature
+        :> CanThrow MLSOutOfSyncError
         :> "messages"
         :> ZLocalUser
         :> ZClient
@@ -120,6 +121,7 @@ type MLSMessagingAPI =
                :> CanThrow UnreachableBackends
                :> CanThrow GroupIdVersionNotSupported
                :> CanThrow MLSInvalidLeafNodeSignature
+               :> CanThrow MLSOutOfSyncError
                :> "commit-bundles"
                :> ZLocalUser
                :> ZClient

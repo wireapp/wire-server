@@ -91,6 +91,7 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.CheckClients
     Galley.API.MLS.Commit
     Galley.API.MLS.Commit.Core
     Galley.API.MLS.Commit.ExternalCommit
@@ -104,6 +105,7 @@ library
     Galley.API.MLS.Message
     Galley.API.MLS.Migration
     Galley.API.MLS.One2One
+    Galley.API.MLS.OutOfSync
     Galley.API.MLS.Propagate
     Galley.API.MLS.Proposal
     Galley.API.MLS.Removal
