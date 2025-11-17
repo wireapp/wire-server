@@ -5,6 +5,8 @@ source-paths:
   - services
   - tools
   - integration
+excluded-paths:
+  - services/wire-server-enterprise
 template-paths:
   - tools/headroom-templates
 variables:
