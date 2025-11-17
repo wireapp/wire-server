@@ -605,7 +605,7 @@ getGroupsInternal ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   TeamId ->
   Maybe Scim.Filter ->
-  Sem r UserGroupPage
+  Sem r UserGroupPageWithMembers
 getGroupsInternal tid mbFilter = do
   maybeDisplayName :: Maybe Text <- case mbFilter of
     Just filter' -> case filter' of

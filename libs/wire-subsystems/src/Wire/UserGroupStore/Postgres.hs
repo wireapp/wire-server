@@ -65,6 +65,7 @@ interpretUserGroupStoreToPostgres =
     CreateUserGroup team newUserGroup managedBy -> createUserGroup team newUserGroup managedBy
     GetUserGroup team userGroupId includeChannels -> getUserGroup team userGroupId includeChannels
     GetUserGroups req -> getUserGroups req
+    GetUserGroupsWithMembers req -> getUserGroupsWithMembers req
     GetUserGroupsForConv convId -> getUserGroupsForConv convId
     UpdateUserGroup tid gid gup -> updateGroup tid gid gup
     DeleteUserGroup tid gid -> deleteGroup tid gid
@@ -219,6 +220,16 @@ getUserGroup team id_ includeChannels = do
             from user_group ug
             where ug.id = ($1 :: uuid) and ug.team_id = ($2 :: uuid)
           |]
+
+
+getUserGroupsWithMembers ::
+  forall r.
+  ( UserGroupStorePostgresEffectConstraints r,
+    Member (Input (Local ())) r
+  ) =>
+  UserGroupPageRequest ->
+  Sem r UserGroupPageWithMembers
+getUserGroupsWithMembers _req = pure $ UserGroupPage [] 0 -- this is the stub
 
 getUserGroups ::
   forall r.

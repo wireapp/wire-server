@@ -29,6 +29,9 @@ import Wire.Arbitrary as Arbitrary
 -- | User group without members
 type UserGroupPage = UserGroupPage_ UserGroupMeta
 
+-- | User group with members
+type UserGroupPageWithMembers = UserGroupPage_ UserGroup
+
 -- * User group pages
 --
 -- | User group pages with different types of user groups.

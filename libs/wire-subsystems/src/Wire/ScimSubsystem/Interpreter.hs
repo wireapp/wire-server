@@ -143,12 +143,9 @@ scimGetUserGroupsImpl ::
   Maybe Scim.Filter ->
   Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
 scimGetUserGroupsImpl tid mbFilter = do
-  UserGroupPage {page} :: UserGroupPage <- BrigAPI.getGroupsInternal tid mbFilter
+  UserGroupPage {page} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter
   ScimSubsystemConfig scimBaseUri <- input
-  pure . Scim.fromList $ toStoredGroup scimBaseUri . userGroupFromMeta <$> page
-  where
-    userGroupFromMeta :: UserGroupMeta -> UserGroup
-    userGroupFromMeta UserGroup_ {..} = UserGroup_ {members = pure mempty, ..}
+  pure . Scim.fromList $ toStoredGroup scimBaseUri <$> page
 
 scimUpdateUserGroupImpl ::
   forall r.

@@ -282,7 +282,7 @@ getUserGroupsInternal ::
   ) =>
   TeamId ->
   Maybe Text ->
-  Sem r UserGroupPage
+  Sem r UserGroupPageWithMembers
 getUserGroupsInternal team displayNameSubstring = do
   let -- hscim doesn't support pagination at the time of writing this,
       -- so we better fit all groups into one page!
@@ -297,7 +297,7 @@ getUserGroupsInternal team displayNameSubstring = do
             includeMemberCount = True,
             includeChannels = False
           }
-  Store.getUserGroups pageReq
+  Store.getUserGroupsWithMembers pageReq
 
 updateGroup ::
   ( Member UserSubsystem r,
