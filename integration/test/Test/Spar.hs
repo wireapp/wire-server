@@ -26,7 +26,7 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
-import Control.Lens (to, (?~), (^.))
+import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Lens as A
@@ -383,8 +383,8 @@ testSparCreateScimTokenWithName = do
 ----------------------------------------------------------------------
 -- scim group stuff
 
-testSparScimCreateGetUserGroup :: (HasCallStack) => App ()
-testSparScimCreateGetUserGroup = do
+testSparScimCreateGetSearchUserGroup :: (HasCallStack) => App ()
+testSparScimCreateGetSearchUserGroup = do
   (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
@@ -419,47 +419,29 @@ testSparScimCreateGetUserGroup = do
 
   scimUserId <- mkMemberCandidate
   scimUserId2 <- mkMemberCandidate
+  scimUserId3 <- mkMemberCandidate
 
-  resp <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze groop" [mkScimUser scimUserId, mkScimUser scimUserId2]
-  resp4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "ze group" [mkScimUser scimUserId, mkScimUser scimUserId2]
-  assertSuccess resp
+  respGroup1 <- createScimUserGroup OwnDomain tok $ mkScimGroup "a group" [mkScimUser scimUserId, mkScimUser scimUserId2]
+  respGroup2 <- createScimUserGroup OwnDomain tok $ mkScimGroup "another group" [mkScimUser scimUserId, mkScimUser scimUserId2]
+  respGroup3 <- createScimUserGroup OwnDomain tok $ mkScimGroup "yet another group" [mkScimUser scimUserId2, mkScimUser scimUserId3]
 
-  gid <- resp.json %. "id" & asString
-  resp2 <- getScimUserGroup OwnDomain tok gid
-  resp.json `shouldMatch` resp2.json
+  createdGroup1 <- respGroup1.json
+  createdGroup2 <- respGroup2.json
+  createdGroup3 <- respGroup3.json
 
-  filterResp <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"e gro\""
-  assertSuccess filterResp
-  filterResultJson <- filterResp.json
-  foundGroups <- filterResultJson %. "Resources" & asList
-  createdGroup1 <- resp.json
-  createdGroup2 <- resp4.json
-  foundGroups `shouldMatch` (map removeMembers [createdGroup1, createdGroup2])
+  -- Test geting a single SCIM group by id
+  gid <- respGroup1.json %. "id" & asString
+  gottenGroup1 <- getScimUserGroup OwnDomain tok gid
+  respGroup1.json `shouldMatch` gottenGroup1.json
 
-  filterResultJson %. "totalResults" `shouldMatchInt` 2
-  filterResultJson %. "itemsPerPage" `shouldMatchInt` 2
-  filterResultJson %. "startIndex" `shouldMatchInt` 1
-  where
-    removeMembers g = g & A.atKey (fromString "members") ?~ toJSON ([] :: [()])
+  -- Test filter (get in bulk) SCIM groups
+  -- 1. Match "group", results in finding all three groups created above.
+  allThreeResp <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"group\""
+  (allThreeResp.json %. "Resources" & asList) `shouldMatchSet` [createdGroup1, createdGroup2, createdGroup3]
 
-mkScimGroup :: String -> [Value] -> Value
-mkScimGroup name members =
-  object
-    [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-      "displayName" .= name,
-      "members" .= members
-    ]
-
-mkScimUser :: String -> Value
-mkScimUser scimUserId =
-  object
-    [ "type" .= "User",
-      "$ref" .= "...", -- something like
-      -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
-      -- but since we're just receiving this it's ok
-      -- to ignore.
-      "value" .= scimUserId
-    ]
+  -- 2. Match "another group", results in finding "another group" and "yet another group".
+  justTwo <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"another group\""
+  (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
