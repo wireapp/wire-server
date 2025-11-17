@@ -92,6 +92,10 @@ expectEmailVisible (EmailVisibleIfOnSameTeam _) = \case
     DifferentTeam -> False
     NoTeam -> False
 expectEmailVisible EmailVisibleToSelf = \case
+  Creator -> \case
+    SameTeam -> True
+    DifferentTeam -> False
+    NoTeam -> False
   _ -> \case
     SameTeam -> False
     DifferentTeam -> False
@@ -169,10 +173,10 @@ setup brig galley viewingUserIs = do
   (creatorId, tid) <- createUserWithTeam brig
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig
   userA <- createTeamMember brig galley creatorId tid (rolePermissions RoleMember)
-  userB <- createTeamMember brig galley otherTeamCreatorId otherTid (rolePermissions RoleMember)
+  userB <- createTeamMember brig galley otherTeamCreatorId otherTid (rolePermissions RoleExternalPartner)
   nonTeamUser <- createUser "joe" brig
   viewerId <- case viewingUserIs of
     Creator -> pure creatorId
-    Member -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleOwner)
+    Member -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleMember)
     Guest -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleExternalPartner)
   pure (viewerId, userA, userB, nonTeamUser)
