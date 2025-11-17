@@ -83,4 +83,16 @@ self: super: {
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
   sbomqs = super.callPackage ./pkgs/sbomqs { };
+
+  # TODO: Quick and dirty patching. Using the overlay causes troubles to HLS
+  # (why ever...). This is good enough for experimenting, though.
+  libpulsar = super.libpulsar.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [
+      (builtins.fetchGit
+        {
+          url = "https://github.com/wireapp/pulsar-hs.git";
+          rev = "c5e8520b0c3efbd022659ceb642fb73e903bd933";
+        } + /nix/add-stdbool-table-view.patch)
+    ];
+  });
 }

@@ -108,5 +108,7 @@ hself: hsuper: {
     # message brokers) with the `libpulsar` patched by us. However, we only
     # want to try `pulsar-client-hs` now...
     librarySystemDepends = [ libpulsar ];
+    # This is really evil: Nix ignores Cabal's ghc-options!
+    configureFlags = [ "--ghc-options=-optl-Wl,--wrap=pulsar_client_configuration_set_logger_t" ];
   }));
 }

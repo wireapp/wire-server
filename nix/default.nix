@@ -4,14 +4,6 @@ let
   pkgs = import sources.nixpkgs {
     config.allowUnfree = true;
     overlays = [
-      # TODO: We do this to get a patched version of `libpulsar`. And, then
-      # have to declare `pulsar-client-hs` elsewhere. Good enough for
-      # experimenting. Should be fixed before merge.
-      (import (builtins.fetchGit
-        {
-          url = "https://github.com/wireapp/pulsar-hs.git";
-          rev = "c5e8520b0c3efbd022659ceb642fb73e903bd933";
-        } + "/nix/overlay.nix"))
       # All wire-server specific packages
       (import ./overlay.nix)
       (import ./overlay-docs.nix)
