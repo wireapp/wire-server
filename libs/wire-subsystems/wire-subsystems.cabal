@@ -282,6 +282,7 @@ library
     Wire.RateLimit.Interpreter
     Wire.Rpc
     Wire.ScimSubsystem
+    Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra

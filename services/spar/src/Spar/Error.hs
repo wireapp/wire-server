@@ -48,9 +48,6 @@ import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Data.Id
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.Typeable (typeRep)
@@ -289,18 +286,4 @@ parseResponse serviceName resp = do
 
 mapScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
 mapScimSubsystemErrors =
-  Polysemy.Error.mapError $
-    SAML.CustomError . SparScimError . \case
-      ScimSubsystemError err ->
-        err
-      ScimSubsystemInvalidGroupMemberId badId ->
-        Scim.badRequest Scim.InvalidValue (Just $ "Invalid group member ID: " <> badId)
-      ScimSubsystemGroupMembersNotFound badIds ->
-        Scim.badRequest Scim.InvalidValue (Just $ "These users are not in your team or not \"managed_by\" = \"scim\": " <> renderIds badIds)
-      ScimSubsystemInternal waiErr ->
-        Scim.serverError (Text.decodeUtf8 . LBS.toStrict $ encode waiErr)
-      ScimSubsystemInternalError _ ->
-        Scim.serverError "unexpected error"
-  where
-    renderIds :: [UserId] -> Text
-    renderIds = Text.intercalate ", " . fmap idToText
+  Polysemy.Error.mapError (SAML.CustomError . SparScimError . scimSubsystemErrorToScimError)
