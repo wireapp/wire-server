@@ -226,7 +226,7 @@ testMigrationToPostgresProteus = do
     retry500Once :: App Response -> App Response
     retry500Once action = do
       action `bindResponse` \resp -> do
-        if resp.status >= 500 && resp.status <= 599
+        if resp.status == 500 || resp.status == 422
           then action
           else pure resp
 

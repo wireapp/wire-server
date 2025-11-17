@@ -1110,5 +1110,5 @@ testReplaceMembersConvNotFoundOtherDomain = do
 
   bobId <- bob %. "qualified_id"
   bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
-    resp.status `shouldMatchInt` 501
+    resp.status `shouldMatchInt` 422
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
