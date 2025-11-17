@@ -330,6 +330,7 @@ pushNativeWithBudget notif psh dontPush = do
 
 pushAllViaMessageBroker :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
 pushAllViaMessageBroker newNotifs userClientsFull = do
+  -- TODO: Stop pushing to RabbitMQ to prevent the rabbit from slowing us down.
   for_ newNotifs $ pushViaRabbitMq
   for_ newNotifs $ pushViaPulsar
   mpaForkIO $ do
