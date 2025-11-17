@@ -15,6 +15,11 @@ The migration needs to happen in 3 steps:
      config:
        postgresMigration:
          conversation: migration-to-postgresql
+   background-worker:
+     config:
+       migrateConversations: false
+       postgresMigration:
+         conversation: migration-to-postgresql
    ```
 
    Once set to `migration-to-postgresql`, do not switch back to `cassandra`.
@@ -31,6 +36,8 @@ The migration needs to happen in 3 steps:
    background-worker:
      config:
        migrateConversations: true
+       postgresMigration:
+         conversation: migration-to-postgresql
    ```
 
    This change should restart the background-worker pods. It is recommended to
@@ -51,4 +58,6 @@ The migration needs to happen in 3 steps:
    background-worker:
      config:
        migrateConversations: false
+       postgresMigration:
+         conversation: postgresql
    ```
