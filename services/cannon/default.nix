@@ -34,7 +34,6 @@
 , metrics-wai
 , mwc-random
 , prometheus-client
-, pulsar-client-hs
 , QuickCheck
 , random
 , retry
@@ -96,7 +95,6 @@ mkDerivation {
     metrics-wai
     mwc-random
     prometheus-client
-    pulsar-client-hs
     retry
     safe-exceptions
     servant-conduit

@@ -52,6 +52,7 @@
 , optparse-applicative
 , prometheus-client
 , psqueues
+, pulsar-client-hs
 , QuickCheck
 , quickcheck-instances
 , quickcheck-state-machine
@@ -133,6 +134,7 @@ mkDerivation {
     network-uri
     prometheus-client
     psqueues
+    pulsar-client-hs
     raw-strings-qq
     resourcet
     retry
