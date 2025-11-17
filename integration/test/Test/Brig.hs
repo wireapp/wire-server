@@ -25,6 +25,7 @@ import qualified API.BrigInternal as BrigI
 import API.Common
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
+import Control.Retry
 import Data.Aeson.Types hiding ((.=))
 import Data.List.Split
 import Data.String.Conversions
@@ -164,27 +165,35 @@ testSFTCredentials = do
               ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
                   . setField "sft.sftToken.ttl" ttl
                   . setField "sft.sftToken.secret" secretFile
+                  . setField "sft.sftDiscoveryIntervalSeconds" (1 :: Int)
                   . setField "optSettings.setSftListAllServers" "enabled"
               )
           }
       )
       $ \domain -> do
         user <- randomUser domain def
-        bindResponse (getCallsConfigV2 user) \resp -> do
-          sftServersAll <- resp.json %. "sft_servers_all" & asList
-          when (null sftServersAll) $ assertFailure "sft_servers_all missing"
-          for_ sftServersAll $ \s -> do
-            cred <- s %. "credential" & asString
-            when (null cred) $ assertFailure "credential missing"
-            usr <- s %. "username" & asString
-            let parts = splitOn "." usr
-            when (length parts /= 5) $ assertFailure "username should have 5 parts"
-            when (take 2 (head parts) /= "d=") $ assertFailure "missing expiry time identifier"
-            when (take 2 (parts !! 1) /= "v=") $ assertFailure "missing version identifier"
-            when (take 2 (parts !! 2) /= "k=") $ assertFailure "missing key ID identifier"
-            when (take 2 (parts !! 3) /= "s=") $ assertFailure "missing federation identifier"
-            when (take 2 (parts !! 4) /= "r=") $ assertFailure "missing random data identifier"
-            for_ parts $ \part -> when (length part < 3) $ assertFailure ("value missing for " <> part)
+
+        sftServersAll <-
+          retrying
+            (limitRetriesByCumulativeDelay 2_000_000 $ fullJitterBackoff 50_000)
+            (\_ xs -> let shouldRetry = null xs in pure shouldRetry)
+            $ \_ -> do
+              resp <- getCallsConfigV2 user
+              resp.json %. "sft_servers_all" & asList
+
+        when (null sftServersAll) $ assertFailure "sft_servers_all empty"
+        for_ sftServersAll $ \s -> do
+          cred <- s %. "credential" & asString
+          when (null cred) $ assertFailure "credential missing"
+          usr <- s %. "username" & asString
+          let parts = splitOn "." usr
+          when (length parts /= 5) $ assertFailure "username should have 5 parts"
+          when (take 2 (head parts) /= "d=") $ assertFailure "missing expiry time identifier"
+          when (take 2 (parts !! 1) /= "v=") $ assertFailure "missing version identifier"
+          when (take 2 (parts !! 2) /= "k=") $ assertFailure "missing key ID identifier"
+          when (take 2 (parts !! 3) /= "s=") $ assertFailure "missing federation identifier"
+          when (take 2 (parts !! 4) /= "r=") $ assertFailure "missing random data identifier"
+          for_ parts $ \part -> when (length part < 3) $ assertFailure ("value missing for " <> part)
 
 testSFTNoCredentials :: (HasCallStack) => App ()
 testSFTNoCredentials = withModifiedBackend
