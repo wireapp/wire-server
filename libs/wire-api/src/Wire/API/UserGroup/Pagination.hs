@@ -26,19 +26,25 @@ import Wire.API.Pagination
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
 
-data UserGroupPage = UserGroupPage
-  { page :: [UserGroupMeta],
+-- | User group without members
+type UserGroupPage = UserGroupPage_ UserGroupMeta
+
+-- * User group pages
+--
+-- | User group pages with different types of user groups.
+data UserGroupPage_ a = UserGroupPage
+  { page :: [a],
     total :: Int
   }
   deriving (Eq, Show, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema UserGroupPage
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (UserGroupPage_ a)
 
-instance ToSchema UserGroupPage where
+instance ToSchema a => ToSchema (UserGroupPage_ a) where
   schema =
     objectWithDocModifier "UserGroupPage" addPageDocs $
       UserGroupPage
         <$> page .= field "page" (array schema)
         <*> total .= field "total" schema
 
-instance Arbitrary UserGroupPage where
+instance Arbitrary a => Arbitrary (UserGroupPage_ a) where
   arbitrary = UserGroupPage <$> arbitrary <*> arbitrary
