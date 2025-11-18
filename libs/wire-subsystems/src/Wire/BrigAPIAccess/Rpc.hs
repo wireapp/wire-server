@@ -333,10 +333,12 @@ getUserExportData ::
 getUserExportData uid = do
   resp <-
     brigRequest $
-      method GET
+      check [status200, status404]
+        . method GET
         . paths ["i/users", toByteString' uid, "export-data"]
-        . expect2xx
-  decodeBodyOrThrow "brig" resp
+  if statusCode resp == 404
+    then pure Nothing
+    else decodeBodyOrThrow "brig" resp
 
 getAccountConferenceCallingConfigClient ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -579,7 +581,7 @@ createGroupInternal managedBy teamId creatorUserId newGroup = do
       method POST
         . path "/i/user-groups/full"
         . json req
-  if statusCode r >= 200 && statusCode r < 300
+  if is2xx r
     then Right <$> decodeBodyOrThrow @UserGroup "brig" r
     else Left <$> decodeBodyOrThrow @Wai.Error "brig" r
 
@@ -592,10 +594,12 @@ getGroupInternal ::
 getGroupInternal tid gid includeChannels = do
   r <-
     brigRequest $
-      method GET
+      check [status200, status404]
+        . method GET
         . paths ["i", "user-groups", toByteString' tid, toByteString' gid, toByteString' includeChannels]
-        . expect2xx
-  decodeBodyOrThrow "brig" r
+  if statusCode r == 404
+    then pure Nothing
+    else decodeBodyOrThrow "brig" r
 
 getGroupsInternal ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -617,16 +621,18 @@ getGroupsInternal tid mbFilter = do
   decodeBodyOrThrow "brig" r
 
 updateGroup ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UpdateGroupInternalRequest ->
-  Sem r ()
-updateGroup reqBody =
-  void $
+  Sem r (Either Wai.Error ())
+updateGroup reqBody = do
+  resp <-
     brigRequest $
       method PUT
         . paths ["i", "user-groups"]
         . json reqBody
-        . expect2xx
+  if is2xx resp
+    then pure (Right ())
+    else Left <$> decodeBodyOrThrow @Wai.Error "brig" resp
 
 deleteGroupInternal ::
   ( Member Rpc r,
@@ -643,7 +649,8 @@ deleteGroupInternal managedBy teamId groupId = do
       method DELETE
         . paths ["i", "user-groups", toByteString' teamId, toByteString' groupId, "managed", toByteString' managedBy]
   case (statusCode resp, errorLabel resp) of
-    (status, _) | status >= 200 && status < 300 -> pure $ Right ()
+    (status, _) | statusIs2xx status -> pure $ Right ()
+    (404, _) -> pure $ Right ()
     (403, Just "user-group-managed-by-mismatch") -> pure $ Left DeleteGroupManagedManagedByMismatch
     (status, label) ->
       throw $
@@ -654,3 +661,9 @@ deleteGroupInternal managedBy teamId groupId = do
   where
     errorLabel :: ResponseLBS -> Maybe LText
     errorLabel = fmap Wai.label . responseJsonMaybe
+
+is2xx :: ResponseLBS -> Bool
+is2xx = statusIs2xx . statusCode
+
+statusIs2xx :: Int -> Bool
+statusIs2xx s = s >= 200 && s < 300

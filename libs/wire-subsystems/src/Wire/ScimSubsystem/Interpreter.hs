@@ -27,6 +27,7 @@ import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
+import Network.HTTP.Types.Status (notFound404)
 import Network.URI (parseURI)
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
@@ -185,8 +186,13 @@ scimUpdateUserGroupImpl teamId gid grp = do
       [] -> pure ()
       (u : _) -> scimThrow $ notFound "User" (idToText u)
 
-  -- replace the members of the user group
-  BrigAPI.updateGroup (UpdateGroupInternalRequest teamId gid (Just ugName) (Just reqMemberIds))
+  -- replace the members of the user group; propagate Brig errors
+  BrigAPI.updateGroup (UpdateGroupInternalRequest teamId gid (Just ugName) (Just reqMemberIds)) >>= \case
+    Right () -> pure ()
+    Left err ->
+      if err.code == notFound404
+        then scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
+        else throw (ScimSubsystemInternal err)
 
   ScimSubsystemConfig scimBaseUri <- input
   maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
