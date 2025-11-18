@@ -315,6 +315,7 @@ let
     coreutils
     dig
     curl
+    iproute2
     less
     gnutar
     gzip

@@ -175,6 +175,20 @@ spec:
           lifecycle:
             preStop:
               exec:
-                command: ["sh", "-c", "sleep 10"]
+                command:
+                  - sh
+                  - -eu
+                  - -c
+                  - |
+                    PORT={{ .Values.service.internalPort }}
+                    curl -sS -m 2 "http://127.0.0.1:${PORT}/i/drain" || true
+                    i=1
+                    while [ "$i" -le {{ .Values.preStopDrainSeconds }} ]; do
+                      if connections=$(ss -tan "sport = :${PORT}" state established 2>/dev/null | sed -n '2,$p' | wc -l); then
+                        printf 'gundeck preStop: connections=%s\n' "$connections"
+                      fi
+                      sleep 1
+                      i=$((i+1))
+                    done
           resources:
 {{ toYaml .Values.resources | indent 12 }}

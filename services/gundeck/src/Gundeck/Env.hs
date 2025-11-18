@@ -27,6 +27,7 @@ import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.ByteString.Char8 qualified as BSChar8
+import UnliftIO.IORef qualified as URef
 import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Text qualified as Text
@@ -61,7 +62,8 @@ data Env = Env
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
-    _rabbitMqChannel :: MVar Channel
+    _rabbitMqChannel :: MVar Channel,
+    _drainMode :: URef.IORef Bool
   }
 
 makeLenses ''Env
@@ -105,7 +107,8 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  drainingRef <- URef.newIORef False
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar drainingRef
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
@@ -158,3 +161,7 @@ createRedisPool l ep username password identifier = do
 
 safeShowConnInfo :: Redis.ConnectInfo -> String
 safeShowConnInfo connInfo = show $ connInfo {Redis.connectAuth = "[REDACTED]" <$ Redis.connectAuth connInfo}
+
+-- | Set drain mode on or off
+setDrainModeIO :: Env -> Bool -> IO ()
+setDrainModeIO env v = URef.writeIORef (env ^. drainMode) v

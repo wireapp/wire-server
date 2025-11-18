@@ -43,6 +43,7 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
+import UnliftIO.IORef qualified as URef
 import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
@@ -151,13 +152,30 @@ run opts = withTracer \tracer -> do
     middleware env = do
       otelMiddleWare <- newOpenTelemetryWaiMiddleware
       pure $
-        versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
+        serverIdentityHeaderMiddleware
+          . drainConnectionCloseMiddleware env
+          . versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
           . otelMiddleWare
           . requestIdMiddleware (env ^. applog) defaultRequestIdHeaderName
           . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> InternalAPI))
           . GZip.gunzip
           . GZip.gzip GZip.def
           . catchErrors (env ^. applog) defaultRequestIdHeaderName
+
+    drainConnectionCloseMiddleware :: Env -> Middleware
+    drainConnectionCloseMiddleware env app req sendResponse = do
+      draining <- URef.readIORef (env ^. drainMode)
+      if draining
+        then app req (sendResponse . addClose)
+        else app req sendResponse
+      where
+        addClose res = mapResponseHeaders (("Connection", "close") :) res
+
+    serverIdentityHeaderMiddleware :: Middleware
+    serverIdentityHeaderMiddleware app req sendResponse = do
+      hostname <- lookupEnv "HOSTNAME"
+      let addHdr = maybe id (\hn -> mapResponseHeaders (("X-Serving-Pod", fromString hn) :)) hostname
+      app req (sendResponse . addHdr)
 
 mkApp :: Env -> Wai.Application
 mkApp env0 req cont = do
