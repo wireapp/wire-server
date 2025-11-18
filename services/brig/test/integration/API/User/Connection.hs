@@ -78,6 +78,8 @@ tests cl _at p b _c g fedBrigClient db =
       test p "put /connections/:id block" $ testBlockConnection b,
       test p "put /connections/:domain/:id block" $ testBlockConnectionQualified b,
       test p "put /connections/:id block-resend" $ testBlockAndResendConnection b g,
+      test p "put /connections/:id resend when ignored" $ testResendUnblockedConnection Ignore opts b,
+      test p "put /connections/:id resend when blocked" $ testResendUnblockedConnection Block opts b,
       test p "put /connections/:domain/:id block-resend" $ testBlockAndResendConnectionQualified b g,
       test p "put /connections/:id unblock pending" $ testUnblockPendingConnection b,
       test p "put /connections/:domain/:id unblock pending" $ testUnblockPendingConnectionQualified b,
@@ -473,6 +475,41 @@ testBlockAndResendConnection brig galley = do
   -- A can see the conversation and is a current member
   getConversationQualified galley uid1 qcnv !!! do
     const 200 === statusCode
+
+data ConnectRequestReaction = Ignore | Block
+
+testResendUnblockedConnection :: ConnectRequestReaction -> Opt.Opts -> Brig -> Http ()
+testResendUnblockedConnection reqReact opts brig = do
+  let throttleCount :: Int = 3 -- times (default value for prod: 3 times)
+      throttleTimeWindow :: Int = 3 -- seconds (default value for prod: 7 days)
+      newOpts = error "TODO" opts throttleCount throttleTimeWindow
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  let uid1 = userId u1
+  let uid2 = userId u2
+
+  -- TODO: i'm pretty sure this is not how `withSettingsOverrides` works, but it's used like
+  -- this all over the place?!  we shouldn't pass in an (unaltered) brig that we're then
+  -- calling, but we should use the application from the `Session` context to run the requests
+  -- again.  need to investigate!
+
+  withSettingsOverrides newOpts $ do
+    -- Initiate a new connection (A -> B)
+    postConnection brig uid1 uid2 !!! const 201 === statusCode
+    -- User B reacts
+    case reqReact of
+      Ignore -> putConnection brig uid2 uid1 Ignored !!! const 200 === statusCode
+      Block -> putConnection brig uid2 uid1 Blocked !!! const 200 === statusCode
+    -- Resend succeeds a few times...
+    -- TODO: make sure the recipient does not receive multiple events.
+    forM_ [2 .. throttleCount] $ \_ -> postConnection brig uid1 uid2 !!! const 201 === statusCode
+    -- ...  then throttle kicks in.
+    postConnection brig uid1 uid2 !!! do
+      const 403 === statusCode
+      const (Just "connection-request-limit-reached") === fmap Error.label . responseJsonMaybe
+    -- when throttle time window closes, new invitations can be sent.
+    liftIO $ threadDelay (throttleTimeWindow * 1000000 + 100000)
+    postConnection brig uid1 uid2 !!! const 201 === statusCode
 
 testBlockAndResendConnectionQualified :: Brig -> Galley -> Http ()
 testBlockAndResendConnectionQualified brig galley = do
