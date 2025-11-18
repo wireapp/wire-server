@@ -212,7 +212,7 @@ deleteBot cid bot = do
         . header "Z-Type" "bot"
         . header "Z-Bot" (toByteString' bot)
         . header "Z-Conversation" (toByteString' cid)
-        . expect2xx
+        . expect2xxOr404
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser ::
@@ -296,7 +296,7 @@ deleteUser uid = do
     brigRequest $
       method DELETE
         . paths ["/i/users", toByteString' uid]
-        . expect2xx
+        . expect2xxOr404
 
 -- | Calls 'Brig.API.getContactListH'.
 getContactList ::
@@ -417,7 +417,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
     method POST
       . paths ["i", "clients", "legalhold", toByteString' targetUid, "request"]
       . json (LegalHoldClientRequest requesterUid lastPrekey')
-      . expect2xx
+      . expect2xxOr404
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
@@ -478,7 +478,7 @@ removeLegalHoldClientFromUser targetUid = do
     method DELETE
       . paths ["i", "clients", "legalhold", toByteString' targetUid]
       . contentJson
-      . expect2xx
+      . expect2xxOr404
 
 -- | Calls 'Brig.API.addClientInternalH'.
 brigAddClient ::
