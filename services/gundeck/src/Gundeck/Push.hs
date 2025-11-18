@@ -142,16 +142,16 @@ publishToRabbitMq exchangeName routingKey qMsg = do
 publishToPulsar :: Text -> Q.Message -> Gundeck ()
 publishToPulsar routingKey qMsg = do
   Pulsar.withClient Pulsar.defaultClientConfiguration "pulsar://localhost:6650" $
-    Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName onPulsarError $ do
+    Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName logPulsarError $ do
       result <- runResourceT $ do
         (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ B.toStrict (Q.msgBody qMsg)}
         lift $ Pulsar.sendMessage message
       lift $ logPulsarResult result
   where
-    topicName = Pulsar.TopicName $ "persistent://wire/user-notifications" ++ Text.unpack routingKey
+    topicName = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ Text.unpack routingKey
 
-    onPulsarError :: Pulsar.RawResult -> Gundeck ()
-    onPulsarError result =
+    logPulsarError :: Pulsar.RawResult -> Gundeck ()
+    logPulsarError result =
       case Pulsar.renderResult result of
         Just r -> Log.err $ Log.msg errorMsg . Log.field "error" (show r)
         Nothing -> Log.err $ Log.msg errorMsg . Log.field "error" (show (Pulsar.unRawResult result))
@@ -162,8 +162,11 @@ publishToPulsar routingKey qMsg = do
     logPulsarResult :: Pulsar.RawResult -> Gundeck ()
     logPulsarResult result =
       case Pulsar.renderResult result of
-        Just r -> Log.err $ Log.msg errorMsg . Log.field "error" (show r)
-        Nothing -> Log.err $ Log.msg errorMsg . Log.field "error" (show (Pulsar.unRawResult result))
+        Just r -> Log.err $ Log.msg resultMsg . Log.field "result" (show r)
+        Nothing -> Log.err $ Log.msg resultMsg . Log.field "result" (show (Pulsar.unRawResult result))
+
+    resultMsg :: String
+    resultMsg = "Result of sending Pulsar message." :: String
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
