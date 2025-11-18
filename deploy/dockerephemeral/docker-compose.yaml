@@ -422,6 +422,7 @@ services:
   pulsar:
     image: apachepulsar/pulsar:latest
     container_name: pulsar
+    # TODO: Change the mapping of port 8080. It has already been taken by nginz.
     ports:
       - 6650:6650
       - 8080:8080
@@ -450,14 +451,14 @@ services:
       timeout: 5s
       retries: 100
 
-  pulsar-manager-init:
-    container_name: pulsar-manager-init
+  pulsar-init:
+    container_name: pulsar-init
     image: curlimages/curl:latest
     networks:
       - demo_wire
-    command: create-superuser
+    command: init-pulsar
     volumes:
-      - ./pulsar-config/create-superuser.sh:/bin/create-superuser
+      - ./pulsar-config/init-pulsar.sh:/bin/init-pulsar
     depends_on:
       pulsar-manager:
         condition: service_healthy
