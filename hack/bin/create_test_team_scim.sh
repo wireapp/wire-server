@@ -208,3 +208,23 @@ echo "user 2 handle: $scimUserName"
 echo "user 2 email: $scimUserEmail"
 echo "user 2 password: $scimUserPassword"
 echo "user 2 externalId: $scimUserExternalId"
+
+SCIM_GROUP=$(cat <<EOF
+{
+    "DisplayName": "ze groop",
+    "Schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+    "Members": [
+      {"value": "$SCIM_USER_UUID", "type": "User", "\$ref": "$SPAR_HOST/scim/v2/Users/$SCIM_USER_UUID"}
+    ]
+}
+EOF
+)
+
+echo $SCIM_GROUP | jq .
+
+CURL_OUT_SCIM_POST_2=$(curl --location --request POST "$SPAR_HOST/scim/v2/Groups" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $SCIM_TOKEN" \
+    -d "$SCIM_GROUP")
+
+echo $CURL_OUT_SCIM_POST_2 | jq .
