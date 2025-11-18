@@ -251,6 +251,12 @@ listUsersClients usr qualifiedUserIds = do
   req <- baseRequest usr Brig Versioned $ joinHttpPath ["users", "list-clients"]
   submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
 
+listUsers :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
+listUsers usr qualifiedUserIds = do
+  qUsers <- mapM objQidObject qualifiedUserIds
+  req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
+  submit "POST" (req & addJSONObject ["qualified_ids" .= qUsers])
+
 searchContacts ::
   ( MakesValue user,
     MakesValue searchTerm,
