@@ -86,6 +86,7 @@ import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import Pulsar.Client qualified as Pulsar
+import System.Logger qualified as Logger
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
@@ -141,7 +142,8 @@ publishToRabbitMq exchangeName routingKey qMsg = do
 
 publishToPulsar :: Text -> Q.Message -> Gundeck ()
 publishToPulsar routingKey qMsg = do
-  Pulsar.withClient Pulsar.defaultClientConfiguration "pulsar://localhost:6650" $
+  logger <- view applog
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (internalLogger logger)}) "pulsar://localhost:6650" $
     Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName logPulsarError $ do
       result <- runResourceT $ do
         (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ B.toStrict (Q.msgBody qMsg)}
@@ -167,6 +169,12 @@ publishToPulsar routingKey qMsg = do
 
     resultMsg :: String
     resultMsg = "Result of sending Pulsar message." :: String
+
+    -- TODO: Far from perfect, ignores log level and uses no fields
+    internalLogger :: Log.Logger -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
+    internalLogger logger level file line message =
+      Logger.debug logger $
+        Log.msg ("[" <> show level <> "] " <> file <> ":" <> show line <> ":" <> message)
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
