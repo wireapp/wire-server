@@ -1098,3 +1098,17 @@ testReplaceMembersConvNotFound = do
   bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "no-conversation"
+
+testReplaceMembersConvNotFoundOtherDomain :: (HasCallStack) => App ()
+testReplaceMembersConvNotFoundOtherDomain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+  connectTwoUsers alice bob
+
+  -- Create a fake conversation ID
+  let fakeConv = object ["qualified_id" .= object ["id" .= ("00000000-0000-0000-0000-000000000000" :: String), "domain" .= ("other.example.com" :: String)]]
+
+  bobId <- bob %. "qualified_id"
+  bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 422
+    resp.json %. "label" `shouldMatch` "federation-not-implemented"

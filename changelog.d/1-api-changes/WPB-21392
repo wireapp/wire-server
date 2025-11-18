@@ -1,0 +1,1 @@
+Change `federation-not-implemented` error status from 500 to 422.
