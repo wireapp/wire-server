@@ -1015,17 +1015,16 @@ removeMemberFromChannel user channel userToBeRemoved = do
       }
 
 resetMLSConversation ::
-  (HasCallStack, MakesValue user, MakesValue conv) =>
-  user ->
+  (HasCallStack, MakesValue conv) =>
   ClientIdentity ->
   conv ->
   App Value
-resetMLSConversation user cid conv = do
+resetMLSConversation cid conv = do
   convId <- objConvId conv
   mlsConv <- getMLSConv convId
-  resetConversation user mlsConv.groupId mlsConv.epoch >>= assertStatus 200
+  resetConversation cid mlsConv.groupId mlsConv.epoch >>= assertStatus 200
 
-  conv' <- getConversation user convId >>= getJSON 200
+  conv' <- getConversation cid convId >>= getJSON 200
   groupId <- conv' %. "group_id" & asString
   groupId `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
@@ -1046,6 +1045,6 @@ resetMLSConversation user cid conv = do
       }
 
   mlsConv' <- getMLSConv convId'
-  keys <- getMLSPublicKeys user >>= getJSON 200
+  keys <- getMLSPublicKeys cid >>= getJSON 200
   resetClientGroup mlsConv'.ciphersuite cid mlsConv'.groupId convId' keys
   pure conv'

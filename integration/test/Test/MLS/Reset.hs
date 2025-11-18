@@ -62,7 +62,7 @@ testResetSelfConversation = do
   void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
-  conv' <- resetMLSConversation alice alice1 conv
+  conv' <- resetMLSConversation alice1 conv
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   convId' <- objConvId conv'
@@ -91,7 +91,7 @@ testResetOne2OneConversation = do
   void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
-  conv' <- resetMLSConversation user cid (conv %. "conversation")
+  conv' <- resetMLSConversation cid (conv %. "conversation")
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   convId' <- objConvId conv'

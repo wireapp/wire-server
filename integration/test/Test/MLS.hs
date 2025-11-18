@@ -105,7 +105,7 @@ testEpochZeroApplicationMessage = do
   postMLSMessage alice1 msg.message >>= assertStatus 201
 
   -- reset conversation, so it exists on server and client with epoch 0
-  convId' <- objConvId =<< resetMLSConversation alice alice1 conv
+  convId' <- objConvId =<< resetMLSConversation alice1 conv
 
   -- send message, make sure that's failing
   msg' <- createApplicationMessage convId' alice1 "group not initialised"
