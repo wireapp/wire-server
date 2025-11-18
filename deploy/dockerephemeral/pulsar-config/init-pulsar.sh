@@ -14,4 +14,7 @@ curl -v -X PUT http://pulsar:8080/admin/v2/tenants/wire \
  -H "Content-Type: application/json" \
  -d '{"adminRoles": ["pulsar"], "allowedClusters": ["standalone"]}'
 
-curl -v -X PUT http://pulsar:8080/admin/v2/namespaces/wire/user-notifications
+curl -v -X PUT \
+  http://pulsar:8080/admin/v2/namespaces/wire/user-notifications \
+  -H "Content-Type: application/json" \
+  -d '{"message_ttl_in_seconds":3600}'
