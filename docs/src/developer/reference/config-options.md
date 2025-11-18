@@ -448,6 +448,11 @@ settings:
   federationDomain: example.com
 ```
 
+**NOTE** If you are setting up a multi-ingress installation, an important requirement is that all 
+of the ingresses/wire-server installation share the exact same federation domain configuration value.
+If they have differing values, issues are expected to occur. Make sure each and every wire backend 
+in the multi-ingress setup have the exact same value for all three config options above.
+
 ### Federation allow list
 
 See [Configure federation strategy (whom to federate with) in brig](../../understand/configure-federation.md#configure-federation-strategy-in-brig) (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
