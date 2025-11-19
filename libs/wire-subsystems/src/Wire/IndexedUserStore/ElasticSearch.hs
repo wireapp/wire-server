@@ -432,7 +432,7 @@ mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
                 -- The following matches both where searchable is true
                 -- or where the field is missing. There didn't seem to
                 -- be a more readable way to express
-                -- "not(exists(searchable) or searchable = true" in
+                -- "not(exists(searchable)) or searchable = true" in
                 -- Elastic Search.
                 [ES.TermQuery (ES.Term "searchable" "false") Nothing],
             ES.boolQueryMustMatch =
