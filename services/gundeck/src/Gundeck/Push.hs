@@ -353,28 +353,12 @@ pushNativeWithBudget notif psh dontPush = do
 
 pushAllViaMessageBroker :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
 pushAllViaMessageBroker newNotifs userClientsFull = do
-  -- TODO: Stop pushing to RabbitMQ to prevent the rabbit from slowing us down.
-  for_ newNotifs $ pushViaRabbitMq
   for_ newNotifs $ pushViaPulsar
   mpaForkIO $ do
     for_ newNotifs $ \newNotif -> do
       let cassandraClients = Map.map (Set.filter $ not . supportsConsumableNotifications) userClientsFull.userClientsFull
           cassandraClientIds = Map.foldMapWithKey (\uid clients -> Set.map (\c -> (uid, c.clientId)) clients) cassandraClients
       pushNativeWithBudget newNotif.nnNotification newNotif.nnPush (Set.toList $ cassandraClientIds)
-
-pushViaRabbitMq :: (MonadPushAll m) => NewNotification -> m ()
-pushViaRabbitMq newNotif = do
-  qMsg <- mkMessage newNotif.nnNotification
-  let routingKeys =
-        Set.unions $
-          flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
-            case r._recipientClients of
-              RecipientClientsAll ->
-                Set.singleton $ userRoutingKey r._recipientId
-              RecipientClientsSome (toList -> cs) ->
-                Set.fromList $ map (clientRoutingKey r._recipientId) cs
-  for_ routingKeys $ \routingKey ->
-    mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
 
 pushViaPulsar :: (MonadPushAll m) => NewNotification -> m ()
 pushViaPulsar newNotif = do
