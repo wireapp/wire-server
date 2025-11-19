@@ -26,8 +26,6 @@ import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
 import Debug.Trace
 import Imports hiding (min, threadDelay)
-import Network.AMQP (newQueue)
-import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection
@@ -74,10 +72,9 @@ createPulsarChannel uid mCid = do
   liftIO $ for_ queueNames $ \qn ->
     do
       traceM $ "Connecting ..."
-      -- TODO: Add logger
-      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Nothing}) "pulsar://localhost:6650" $ do
+      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel")}) "pulsar://localhost:6650" $ do
         -- TODO: Is the `default` namespace correct? Not `user-notifications`?
-        let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/default/" ++ unpack qn
+        let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack qn
         --              Pulsar.Topic
         --                { Pulsar.type' = Pulsar.Persistent,
         --                  Pulsar.tenant = "wire",
@@ -87,24 +84,42 @@ createPulsarChannel uid mCid = do
         -- subscription = Pulsar.Subscription Pulsar.Shared "cannon-websocket"
         traceM $ "newConsumer " ++ show topic
         -- Pulsar.Consumer {..} <- liftIO . handle (\(e :: SomeException) -> trace ("Caugth" ++ show e) (throw e)) $ Pulsar.newConsumer topic subscription
-        -- TODO: Add error logger
-        Pulsar.withConsumer Pulsar.defaultConsumerConfiguration "cannon-websocket" topic undefined $ do
+        Pulsar.withConsumer Pulsar.defaultConsumerConfiguration "cannon-websocket" topic (onPulsarError "createPulsarChannel consumer") $ do
           traceM $ "Ready"
           env :: Pulsar.Consumer <- ask
           void . liftIO . async . forever . flip runReaderT env $ do
-            Pulsar.receiveMessage (onError) $ do
+            Pulsar.receiveMessage (onPulsarError "receiveMessage") $ do
               content <- Pulsar.messageContent
               msgId :: ByteString <- Pulsar.messageId Pulsar.messageIdSerialize
               putMVar msgVar (Just (msgId, content))
-              Pulsar.acknowledgeMessage
+              void $ logPulsarResult "createPulsarChannel" <$> Pulsar.acknowledgeMessage
       --          pMsg@(Pulsar.Message pMsgId _) <- fetch
       --          putMVar msgVar (Just pMsg)
       --          ack pMsgId
       pure ()
   pure (PulsarChannel msgVar, PulsarQueueInfo queueNames undefined)
-  where
-    -- TODO: Log error
-    onError = undefined
+
+-- TODO: Replace Debug.Trace with regular logging
+onPulsarError :: String -> Pulsar.RawResult -> IO ()
+onPulsarError provenance result =
+  traceM $
+    provenance ++ case Pulsar.renderResult result of
+      Just r -> " error: " ++ (show r)
+      Nothing -> " error: " ++ (show (Pulsar.unRawResult result))
+
+-- TODO: Replace Debug.Trace with regular logging
+pulsarClientLogger :: String -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
+pulsarClientLogger provenance level file line message = traceM $ provenance ++ " [" <> show level <> "] " <> file <> ":" <> show line <> ":" <> message
+
+-- TODO: Replace Debug.Trace with regular logging
+logPulsarResult :: String -> Pulsar.RawResult -> Pulsar.RawResult
+logPulsarResult provenance result =
+  trace
+    ( provenance ++ case Pulsar.renderResult result of
+        Just r -> " result: " ++ (show r)
+        Nothing -> " result: " ++ (show (Pulsar.unRawResult result))
+    )
+    result
 
 pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
@@ -153,11 +168,10 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   where
     publishSyncMessage :: [Text] -> ByteString -> IO ()
     publishSyncMessage queueNames message = for_ queueNames $ \qn ->
-      -- TODO: Set logger
-      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Nothing}) "pulsar://localhost:6650" $
-        let topic = Pulsar.TopicName $ "persistent://wire/default" ++ unpack qn
+      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishSyncMessage")}) "pulsar://localhost:6650" $
+        let topic = Pulsar.TopicName $ "persistent://wire/user-notifications" ++ unpack qn
          in -- TODO: Set logging callback
-            Pulsar.withProducer Pulsar.defaultProducerConfiguration topic undefined $ do
+            Pulsar.withProducer Pulsar.defaultProducerConfiguration topic (onPulsarError "publishSyncMessage producer") $ do
               -- Pulsar.runPulsar (Pulsar.connect Pulsar.defaultConnectData) $ do
               -- let topic =
               --       Pulsar.Topic
@@ -170,6 +184,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               result <- runResourceT $ do
                 (_, message') <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ message}
                 lift $ Pulsar.sendMessage message'
+              void . pure $ logPulsarResult "consumeWebsocket" result
               pure ()
 
     logClient =
@@ -288,21 +303,6 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
             rejectBody = ""
           }
 
-    createQueue chan = case mcid of
-      Nothing -> Codensity $ \k -> do
-        (queueName, messageCount, _) <-
-          Q.declareQueue chan $
-            newQueue
-              { Q.queueExclusive = True,
-                Q.queueAutoDelete = True
-              }
-        for_ [userRoutingKey uid, temporaryRoutingKey uid] $
-          Q.bindQueue chan queueName userNotificationExchangeName
-        k $ QueueInfo {queueName = queueName, messageCount = messageCount}
-      Just cid -> Codensity $ \k -> do
-        (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
-        k $ QueueInfo queueName messageCount
-
     mkSynchronizationMessage :: StrictText -> ByteString
     mkSynchronizationMessage markerId =
       -- TODO: Check all fromStrict/toStrict calls: It makes not sense to be "sometimes lazy".
@@ -334,13 +334,14 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
                 logAckReceived ackData
                 -- TODO: ACKing for all queues seems to be a bit too rough...
                 -- TODO: Define logger
-                Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Nothing}) "pulsar://localhost:6650" $
+                Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "sendNotifications")}) "pulsar://localhost:6650" $
                   for_ queueInfo.queueNames $ \qn -> do
-                    let topic = Pulsar.TopicName $ "persistent://wire/default" ++ unpack qn
-                    Pulsar.withConsumer Pulsar.defaultConsumerConfiguration "cannon-websocket-ack" (Pulsar.Topic topic) undefined $ do
+                    let topic = Pulsar.TopicName $ "persistent://wire/user-notifications" ++ unpack qn
+                    Pulsar.withConsumer Pulsar.defaultConsumerConfiguration "cannon-websocket-ack" (Pulsar.Topic topic) (onPulsarError "publishSyncMessage consumer") $ do
                       consumer <- ask
-                      Pulsar.withDeserializedMessageId consumer (decodeMsgId ackData.deliveryTag) $ do
-                        Pulsar.acknowledgeMessageId
+                      Pulsar.withDeserializedMessageId consumer (decodeMsgId ackData.deliveryTag) $
+                        void $
+                          logPulsarResult "consumeWebsocket consumer" <$> Pulsar.acknowledgeMessageId
       -- let topic =
       --      Pulsar.Topic
       --        { Pulsar.type' = Pulsar.Persistent,
