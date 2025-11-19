@@ -53,8 +53,10 @@ import Control.Error
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (throwError)
+import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as B
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
@@ -63,6 +65,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TE
 import Data.These
 import Data.Timeout
 import Data.UUID qualified as UUID
@@ -146,7 +149,7 @@ publishToPulsar routingKey qMsg = do
   Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (internalLogger logger)}) "pulsar://localhost:6650" $
     Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName logPulsarError $ do
       result <- runResourceT $ do
-        (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ B.toStrict (Q.msgBody qMsg)}
+        (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ BS.toStrict (A.encode pulsarMessage)}
         lift $ Pulsar.sendMessage message
       lift $ logPulsarResult result
   where
@@ -175,6 +178,15 @@ publishToPulsar routingKey qMsg = do
     internalLogger logger level file line message =
       Logger.debug logger $
         Log.msg ("[" <> show level <> "] " <> file <> ":" <> show line <> ":" <> message)
+
+    pulsarMessage :: PulsarMessage
+    pulsarMessage =
+      PulsarMessage
+        { msgBody = TE.decodeUtf8 . B.toStrict $ (Q.msgBody qMsg),
+          msgContentType = "application/json",
+          -- TODO: This could be a sum type
+          msgType = Nothing
+        }
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
