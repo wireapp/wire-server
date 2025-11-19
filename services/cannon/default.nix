@@ -8,6 +8,7 @@
 , api-field-json-th
 , async
 , base
+, base64
 , bilge
 , binary
 , bytestring
@@ -34,6 +35,8 @@
 , metrics-wai
 , mwc-random
 , prometheus-client
+, proto-lens
+, pulsar-client-hs
 , QuickCheck
 , random
 , retry
@@ -50,6 +53,7 @@
 , types-common
 , unix
 , unliftio
+, utf8-string
 , uuid
 , vector
 , wai
@@ -72,6 +76,7 @@ mkDerivation {
     api-field-json-th
     async
     base
+    base64
     bilge
     binary
     bytestring
@@ -95,6 +100,8 @@ mkDerivation {
     metrics-wai
     mwc-random
     prometheus-client
+    proto-lens
+    pulsar-client-hs
     retry
     safe-exceptions
     servant-conduit
@@ -106,6 +113,7 @@ mkDerivation {
     types-common
     unix
     unliftio
+    utf8-string
     vector
     wai
     wai-extra

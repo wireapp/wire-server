@@ -1,45 +1,37 @@
 {-# LANGUAGE RecordWildCards #-}
 
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp) where
+module Cannon.PulsarConsumerApp (pulsarWebSocketApp) where
 
 import Cannon.App (rejectOnError)
 import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
+import Conduit (runResourceT)
 import Control.Concurrent.Async
-import Control.Exception (Handler (..), bracket, catch, catches, handle, throwIO, try)
+import Control.Exception (Handler (..), catches)
+import Control.Exception.Base
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
 import Data.Aeson hiding (Key)
+import Data.Aeson qualified as A
+import Data.Base64.Types
+import Data.ByteString qualified as BS
+import Data.ByteString.Base64
+import Data.ByteString.UTF8 qualified as BSUTF8
 import Data.Id
 import Data.Text
-import Data.Text qualified as Text
+import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
+import Debug.Trace
 import Imports hiding (min, threadDelay)
 import Network.AMQP (newQueue)
 import Network.AMQP qualified as Q
 import Network.WebSockets
 import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection
+import Pulsar.Client qualified as Pulsar
 import System.Logger qualified as Log
 import System.Timeout
 import Wire.API.Event.WebSocketProtocol
@@ -50,11 +42,76 @@ data InactivityTimeout = InactivityTimeout
 
 instance Exception InactivityTimeout
 
-rabbitMQWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
-rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
+-- TODO: The name is a misleading. However, while developing, it's useful to keep the analogies with RabbitMQ.
+data PulsarChannel = PulsarChannel
+  {msgVar :: MVar (Maybe (ByteString, ByteString))}
+
+data PulsarQueueInfo = PulsarQueueInfo
+  { queueNames :: [Text],
+    messageCount :: Int
+  }
+  deriving (Show)
+
+data PulsarMessage = PulsarMessage
+  { msgBody :: Text,
+    msgContentType :: String,
+    -- TODO: This could be a sum type
+    msgType :: Maybe String
+  }
+  deriving (Generic)
+
+instance FromJSON PulsarMessage
+
+instance ToJSON PulsarMessage
+
+createPulsarChannel :: UserId -> Maybe ClientId -> Codensity IO (PulsarChannel, PulsarQueueInfo)
+createPulsarChannel uid mCid = do
+  msgVar :: MVar (Maybe (ByteString, ByteString)) <- lift newEmptyMVar
+  let queueNames = case mCid of
+        Nothing -> [userRoutingKey uid, temporaryRoutingKey uid]
+        Just cid -> pure $ clientNotificationQueueName uid cid
+
+  liftIO $ for_ queueNames $ \qn ->
+    do
+      traceM $ "Connecting ..."
+      -- TODO: Add logger
+      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Nothing}) "pulsar://localhost:6650" $ do
+        -- TODO: Is the `default` namespace correct? Not `user-notifications`?
+        let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/default/" ++ unpack qn
+        --              Pulsar.Topic
+        --                { Pulsar.type' = Pulsar.Persistent,
+        --                  Pulsar.tenant = "wire",
+        --                  Pulsar.namespace = "default",
+        --                  Pulsar.name = Pulsar.TopicName qn
+        --                }
+        -- subscription = Pulsar.Subscription Pulsar.Shared "cannon-websocket"
+        traceM $ "newConsumer " ++ show topic
+        -- Pulsar.Consumer {..} <- liftIO . handle (\(e :: SomeException) -> trace ("Caugth" ++ show e) (throw e)) $ Pulsar.newConsumer topic subscription
+        -- TODO: Add error logger
+        Pulsar.withConsumer Pulsar.defaultConsumerConfiguration "cannon-websocket" topic undefined $ do
+          traceM $ "Ready"
+          env :: Pulsar.Consumer <- ask
+          void . liftIO . async . forever . flip runReaderT env $ do
+            Pulsar.receiveMessage (onError) $ do
+              content <- Pulsar.messageContent
+              msgId :: ByteString <- Pulsar.messageId Pulsar.messageIdSerialize
+              putMVar msgVar (Just (msgId, content))
+              Pulsar.acknowledgeMessage
+      --          pMsg@(Pulsar.Message pMsgId _) <- fetch
+      --          putMVar msgVar (Just pMsg)
+      --          ack pMsgId
+      pure ()
+  pure (PulsarChannel msgVar, PulsarQueueInfo queueNames undefined)
+  where
+    -- TODO: Log error
+    onError = undefined
+
+pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
+pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   handle handleTooManyChannels . lowerCodensity $
     do
-      (chan, queueInfo) <- createChannel uid mcid e.pool createQueue
+      (chan, queueInfo) <- createPulsarChannel uid mcid
+      traceM $ "pulsarWebSocketApp " ++ show queueInfo
       conn <- Codensity $ bracket openWebSocket closeWebSocket
       activity <- liftIO newEmptyMVar
       let wsConn =
@@ -77,8 +134,9 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
           ]
         $ do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
-          sendNotifications chan wsConn
+          --          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
+          traverse_ (publishSyncMessage queueInfo.queueNames . mkSynchronizationMessage) mSyncMarkerId
+          sendNotifications chan queueInfo wsConn
 
       let monitor = do
             timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
@@ -93,6 +151,27 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
 
       liftIO $ wait main
   where
+    publishSyncMessage :: [Text] -> ByteString -> IO ()
+    publishSyncMessage queueNames message = for_ queueNames $ \qn ->
+      -- TODO: Set logger
+      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Nothing}) "pulsar://localhost:6650" $
+        let topic = Pulsar.TopicName $ "persistent://wire/default" ++ unpack qn
+         in -- TODO: Set logging callback
+            Pulsar.withProducer Pulsar.defaultProducerConfiguration topic undefined $ do
+              -- Pulsar.runPulsar (Pulsar.connect Pulsar.defaultConnectData) $ do
+              -- let topic =
+              --       Pulsar.Topic
+              --         { Pulsar.type' = Pulsar.Persistent,
+              --           Pulsar.tenant = "wire",
+              --           Pulsar.namespace = "default",
+              --           Pulsar.name = Pulsar.TopicName qn
+              --         }
+              -- TODO: log result
+              result <- runResourceT $ do
+                (_, message') <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ message}
+                lift $ Pulsar.sendMessage message'
+              pure ()
+
     logClient =
       Log.field "user" (idToText uid)
         . Log.field "client" (maybe "<temporary>" clientToText mcid)
@@ -106,19 +185,23 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
       -- ignore any exceptions when sending the close message
       void . try @SomeException $ WS.sendClose wsConn ("" :: ByteString)
 
-    getEventData :: RabbitMqChannel -> IO (Either EventData SynchronizationData)
+    getMessagePulsar :: PulsarChannel -> IO (ByteString, ByteString)
+    getMessagePulsar chan = takeMVar chan.msgVar >>= maybe (throwIO ChannelClosed) pure
+
+    getEventData :: PulsarChannel -> IO (Either EventData SynchronizationData)
     getEventData chan = do
-      (msg, envelope) <- getMessage chan
-      case msg.msgType of
+      (msgId, msg) <- getMessagePulsar chan
+      decMsg :: PulsarMessage <- either (\err -> logParseError err >> error "Unexpected parse error") pure $ A.eitherDecode (BS.fromStrict msg)
+      case decMsg.msgType of
         Just "synchronization" -> do
           let syncData =
                 SynchronizationData
-                  { markerId = TL.toStrict $ TLE.decodeUtf8 msg.msgBody,
-                    deliveryTag = envelope.envDeliveryTag
+                  { markerId = TL.toStrict $ TLE.decodeUtf8 (BS.fromStrict msg),
+                    deliveryTag = encodeMsgId msgId
                   }
           pure $ Right syncData
         _ -> do
-          case eitherDecode @QueuedNotification msg.msgBody of
+          case eitherDecode @QueuedNotification (BS.fromStrict msg) of
             Left err -> do
               logParseError err
               -- This message cannot be parsed, make sure it doesn't requeue. There
@@ -129,7 +212,9 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               -- en masse, if at some point we decide that Events should not be
               -- pushed as JSONs, hopefully we think of the parsing side if/when
               -- that happens.
-              Q.rejectEnv envelope False
+
+              -- TODO: We cannot reject, yet. This would require a change in Supernova. See https://pulsar.apache.org/docs/4.1.x/client-libraries-websocket/#negatively-acknowledge-messages
+              -- Q.rejectEnv envelope False
               -- try again
               getEventData chan
             Right notif -> do
@@ -138,7 +223,7 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
                 Left $
                   EventData
                     { event = notif,
-                      deliveryTag = envelope.envDeliveryTag
+                      deliveryTag = encodeMsgId msgId
                     }
 
     handleWebSocketExceptions wsConn =
@@ -218,17 +303,18 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
         (queueName, messageCount, _) <- Q.declareQueue chan $ queueOpts (clientNotificationQueueName uid cid)
         k $ QueueInfo queueName messageCount
 
-    mkSynchronizationMessage ttl markerId =
-      Q.newMsg
-        { Q.msgBody = TLE.encodeUtf8 (TL.fromStrict markerId),
-          Q.msgContentType = Just "text/plain; charset=utf-8",
-          Q.msgDeliveryMode = Just Q.Persistent,
-          Q.msgExpiration = Just (Text.pack $ show ttl),
-          Q.msgType = Just "synchronization"
-        }
+    mkSynchronizationMessage :: StrictText -> ByteString
+    mkSynchronizationMessage markerId =
+      -- TODO: Check all fromStrict/toStrict calls: It makes not sense to be "sometimes lazy".
+      BS.toStrict . encode $
+        PulsarMessage
+          { msgBody = markerId,
+            msgContentType = "text/plain; charset=utf-8",
+            msgType = Just "synchronization"
+          }
 
-    sendNotifications :: RabbitMqChannel -> WSConnection -> IO ()
-    sendNotifications chan wsConn = do
+    sendNotifications :: PulsarChannel -> PulsarQueueInfo -> WSConnection -> IO ()
+    sendNotifications chan queueInfo wsConn = do
       let consumeRabbitMq = forever $ do
             eventData <- getEventData chan
             let msg = case eventData of
@@ -246,12 +332,38 @@ rabbitMQWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                void $ ackMessage chan ackData.deliveryTag ackData.multiple
+                -- TODO: ACKing for all queues seems to be a bit too rough...
+                -- TODO: Define logger
+                Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Nothing}) "pulsar://localhost:6650" $
+                  for_ queueInfo.queueNames $ \qn -> do
+                    let topic = Pulsar.TopicName $ "persistent://wire/default" ++ unpack qn
+                    Pulsar.withConsumer Pulsar.defaultConsumerConfiguration "cannon-websocket-ack" (Pulsar.Topic topic) undefined $ do
+                      consumer <- ask
+                      Pulsar.withDeserializedMessageId consumer (decodeMsgId ackData.deliveryTag) $ do
+                        Pulsar.acknowledgeMessageId
+      -- let topic =
+      --      Pulsar.Topic
+      --        { Pulsar.type' = Pulsar.Persistent,
+      --          Pulsar.tenant = "wire",
+      --          Pulsar.namespace = "default",
+      --          Pulsar.name = Pulsar.TopicName qn
+      --        }
+      -- subscription = Pulsar.Subscription Pulsar.Shared "cannon-websocket-ack"
+      -- Pulsar.Consumer {..} <- Pulsar.newConsumer topic subscription
+      -- ack (decodeMsgId ackData.deliveryTag)
+
+      -- void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
       --  - exceptions on either side do not cause a deadlock
       concurrently_ consumeRabbitMq consumeWebsocket
+
+    decodeMsgId :: String -> ByteString
+    decodeMsgId = either (error . unpack) id . decodeBase64Untyped . BSUTF8.fromString
+
+    encodeMsgId :: ByteString -> String
+    encodeMsgId = T.unpack . extractBase64 . encodeBase64
 
     logParseError :: String -> IO ()
     logParseError err =
