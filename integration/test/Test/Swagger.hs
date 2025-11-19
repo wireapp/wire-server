@@ -30,7 +30,7 @@ import Testlib.Prelude
 import UnliftIO.Temporary
 
 existingVersions :: Set Int
-existingVersions = Set.fromList [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+existingVersions = Set.fromList [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
 internalApis :: Set String
 internalApis = Set.fromList ["brig", "cannon", "cargohold", "cannon", "spar"]
