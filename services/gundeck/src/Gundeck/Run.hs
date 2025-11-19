@@ -43,7 +43,6 @@ import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
-import UnliftIO.IORef qualified as URef
 import Data.Map qualified as Map
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
@@ -76,6 +75,7 @@ import Servant qualified
 import System.Logger qualified as Log
 import System.Logger.Class qualified as MonadLogger
 import UnliftIO.Async qualified as Async
+import UnliftIO.IORef qualified as URef
 import Util.Options
 import Wire.API.Notification
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)

@@ -27,7 +27,6 @@ import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.ByteString.Char8 qualified as BSChar8
-import UnliftIO.IORef qualified as URef
 import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Text qualified as Text
@@ -50,6 +49,7 @@ import Network.TLS as TLS
 import Network.TLS.Extra qualified as TLS
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
+import UnliftIO.IORef qualified as URef
 
 data Env = Env
   { _reqId :: !RequestId,
