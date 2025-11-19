@@ -64,7 +64,6 @@ createPulsarChannel uid mCid = do
         -- TODO: Is the `default` namespace correct? Not `user-notifications`?
         let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack qn
         traceM $ "newConsumer " ++ show topic
-        -- Pulsar.Consumer {..} <- liftIO . handle (\(e :: SomeException) -> trace ("Caugth" ++ show e) (throw e)) $ Pulsar.newConsumer topic subscription
         Pulsar.withConsumer
           ( Pulsar.defaultConsumerConfiguration
               { Pulsar.consumerType = Just Pulsar.ConsumerShared,
@@ -331,18 +330,6 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
                       Pulsar.withDeserializedMessageId consumer (decodeMsgId ackData.deliveryTag) $
                         void $
                           logPulsarResult "consumeWebsocket consumer" <$> Pulsar.acknowledgeMessageId
-      -- let topic =
-      --      Pulsar.Topic
-      --        { Pulsar.type' = Pulsar.Persistent,
-      --          Pulsar.tenant = "wire",
-      --          Pulsar.namespace = "default",
-      --          Pulsar.name = Pulsar.TopicName qn
-      --        }
-      -- subscription = Pulsar.Subscription Pulsar.Shared "cannon-websocket-ack"
-      -- Pulsar.Consumer {..} <- Pulsar.newConsumer topic subscription
-      -- ack (decodeMsgId ackData.deliveryTag)
-
-      -- void $ ackMessage chan ackData.deliveryTag ackData.multiple
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
