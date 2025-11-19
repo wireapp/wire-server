@@ -221,24 +221,64 @@ getUserGroup team id_ includeChannels = do
             where ug.id = ($1 :: uuid) and ug.team_id = ($2 :: uuid)
           |]
 
-
 getUserGroupsWithMembers ::
   forall r.
-  ( UserGroupStorePostgresEffectConstraints r,
-    Member (Input (Local ())) r
+  ( UserGroupStorePostgresEffectConstraints r
   ) =>
   UserGroupPageRequest ->
   Sem r UserGroupPageWithMembers
-getUserGroupsWithMembers _req = pure $ UserGroupPage [] 0 -- this is the stub
+getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSessions.Read $ do
+  groups :: [UserGroup] <- Tx.statement () $ refineResult (mapM toUserGroup) $ buildStatement query rows
+  count <- getUserGroupCount req
+  return $ UserGroupPage groups count
+  where
+    rows :: HD.Result [(UUID, Text, Int32, UTCTime, Vector UUID, Int32)]
+    rows = HD.rowList $
+      (,,,,,)
+        <$> HD.column (HD.nonNullable HD.uuid)
+        <*> HD.column (HD.nonNullable HD.text)
+        <*> HD.column (HD.nonNullable HD.int4)
+        <*> HD.column (HD.nonNullable HD.timestamptz)
+        <*> decodeUuidVector
+        <*> HD.column (HD.nonNullable HD.int4)
+
+    query :: QueryFragment
+    query = mconcat $ map literal [
+      "select", T.intercalate ", " [
+        "g.id :: uuid",
+        "g.name :: text",
+        "g.managed_by :: int",
+        "g.created_at :: timestamptz",
+        "coalesce(array_agg(gm.user_id), array[]::uuid[]) :: uuid[]",
+        "count(*) :: int"
+        ],
+      "from user_group g",
+      "left join user_group_member gm on g.id = gm.user_group_id"
+      ] <> [where_ (groupMatchIdName req <> groupPaginationWhereClause req)] <> map literal [
+      "group by g.team_id, g.id"
+      ] <> groupPaginationOrderBy req
+
+    toUserGroup :: (UUID, Text , Int32, UTCTime, Vector UUID, Int32) -> Either Text UserGroup
+    toUserGroup (Id -> id_, name', managedBy', createdAt', members', Just . fromIntegral -> membersCount)  = do
+      name <- userGroupNameFromText name'
+      managedBy <- parseManagedBy managedBy'
+      let createdAt = toUTCTimeMillis createdAt'
+          channels = Nothing
+          channelsCount = Nothing
+          members = Identity (fmap Id members' :: Vector UserId)
+      pure $ UserGroup_ {..}
 
 groupMatchIdName :: UserGroupPageRequest -> [QueryFragment]
 groupMatchIdName req =
   clause1 "team_id" "=" req.team :
-  [like "name" name | name <- toList $ req.searchString]
+  case req.searchString of
+    Just name -> [ like "name" name ]
+    Nothing -> []
 
 groupPaginationWhereClause :: UserGroupPageRequest -> [QueryFragment]
-groupPaginationWhereClause req =
-  [clause (sortOrderOperator req.sortOrder) ps | ps <- toList $ paginationClause req.paginationState]
+groupPaginationWhereClause req = case paginationClause req.paginationState of
+  Just c -> [clause (sortOrderOperator req.sortOrder) c]
+  Nothing -> []
 
 groupPaginationOrderBy :: UserGroupPageRequest -> [QueryFragment]
 groupPaginationOrderBy req =
@@ -253,8 +293,8 @@ groupPaginationOrderBy req =
        PaginationSortByName _ -> "name"
        PaginationSortByCreatedAt _ -> "created_at"
 
-getCountSession :: UserGroupPageRequest -> Tx.Transaction Int
-getCountSession req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder
+getUserGroupCount :: UserGroupPageRequest -> Tx.Transaction Int
+getUserGroupCount req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder
   where
     query = literal "select count(*) from user_group" <> where_ (groupMatchIdName req)
     decoder = HD.singleRow (HD.column (HD.nonNullable HD.int8))
@@ -279,7 +319,7 @@ getUserGroups ::
 getUserGroups req@(UserGroupPageRequest {..}) = do
   loc <- inputQualifyLocal ()
   runTransaction TxSessions.ReadCommitted TxSessions.Read $
-    UserGroupPage <$> getUserGroupsSession loc <*> getCountSession req
+    UserGroupPage <$> getUserGroupsSession loc <*> getUserGroupCount req
   where
     getUserGroupsSession :: Local () -> Tx.Transaction [UserGroupMeta]
     getUserGroupsSession loc =
