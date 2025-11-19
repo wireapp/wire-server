@@ -35,6 +35,7 @@
 , extended
 , extra
 , file-embed
+, galley-types
 , gitignoreSource
 , hashable
 , HaskellNet
@@ -104,6 +105,7 @@
 , token-bucket
 , transformers
 , types-common
+, types-common-journal
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -155,6 +157,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    galley-types
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -217,6 +220,7 @@ mkDerivation {
     token-bucket
     transformers
     types-common
+    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring
@@ -263,6 +267,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    galley-types
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -327,6 +332,7 @@ mkDerivation {
     token-bucket
     transformers
     types-common
+    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring
