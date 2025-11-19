@@ -106,6 +106,7 @@ common common-all
     , extended
     , extra
     , file-embed
+    , galley-types
     , hashable
     , HaskellNet
     , HaskellNet-SSL
@@ -166,6 +167,7 @@ common common-all
     , token-bucket
     , transformers
     , types-common
+    , types-common-journal
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -298,6 +300,8 @@ library
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
+    Wire.TeamStore
+    Wire.TeamStore.Cassandra.Queries
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
     Wire.TeamSubsystem.Util

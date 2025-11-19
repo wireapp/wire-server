@@ -41,7 +41,6 @@ import Data.Text.Encoding
 import Data.UUID.V4 (nextRandom)
 import Galley.Aws qualified as Aws
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
-import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamMemberStore
@@ -66,6 +65,7 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ListItems
 import Wire.Sem.Paging.Cassandra
+import Wire.TeamStore.Cassandra.Queries qualified as Cql
 
 interpretTeamStoreToCassandra ::
   ( Member (Embed IO) r,

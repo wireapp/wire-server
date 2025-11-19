@@ -56,6 +56,7 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User.Client.Prekey
 import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.TeamStore.Cassandra.Queries qualified as QTS
 
 interpretLegalHoldStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -164,7 +165,7 @@ isTeamLegalholdWhitelisted :: FeatureDefaults LegalholdConfig -> TeamId -> Clien
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
-  isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))
+  isJust <$> (runIdentity <$$> retry x5 (query1 QTS.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))
 
 -- | Copied unchanged from "Brig.Provider.API".  Interpret a service certificate and extract
 -- key and fingerprint.  (This only has to be in 'MonadIO' because the FFI in OpenSSL works
