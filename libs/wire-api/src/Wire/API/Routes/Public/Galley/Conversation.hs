@@ -860,7 +860,7 @@ type ConversationAPI =
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
                :> "members"
-               :> ReqBody '[Servant.JSON] InviteQualified
+               :> ReqBody '[Servant.JSON] ReplaceInviteQualified
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Conversation members replaced")
            )
     -- This endpoint can lead to the following events being sent:

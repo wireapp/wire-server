@@ -1112,3 +1112,17 @@ testReplaceMembersConvNotFoundOtherDomain = do
   bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
     resp.status `shouldMatchInt` 422
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
+
+testReplaceMembersEmpty :: (HasCallStack) => App ()
+testReplaceMembersEmpty = do
+  [alice, bob, charlie, dylan] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain, OwnDomain]
+  conv <- postConversation alice (defProteus {qualifiedUsers = [bob, charlie]}) >>= getJSON 201
+
+  -- Replace members: remove everyone
+  bindResponse (replaceMembers alice conv def {users = []}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- Verify conversation members
+  bindResponse (getConversation dylan conv) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "access-denied"

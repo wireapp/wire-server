@@ -74,6 +74,7 @@ module Wire.API.Conversation
     -- * invite
     Invite (..),
     InviteQualified (..),
+    ReplaceInviteQualified (..),
     InviteQualifiedInternal (..),
 
     -- * update
@@ -1100,7 +1101,23 @@ instance ToSchema InviteQualified where
     object "InviteQualified" $
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
-        <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+        <*> (.roleName) .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+
+data ReplaceInviteQualified = ReplaceInviteQualified
+  { users :: [Qualified UserId],
+    -- | This role name is to be applied to all users
+    roleName :: RoleName
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ReplaceInviteQualified)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ReplaceInviteQualified)
+
+instance ToSchema ReplaceInviteQualified where
+  schema =
+    object "ReplaceInviteQualified" $
+      ReplaceInviteQualified
+        <$> (.users) .= field "qualified_users" (array schema)
+        <*> (.roleName) .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 data InviteQualifiedInternal = InviteQualifiedInternal
   { actor :: UserId,

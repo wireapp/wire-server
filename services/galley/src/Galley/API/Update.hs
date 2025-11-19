@@ -98,7 +98,7 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (appendList, nonEmpty)
+import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Map.Strict qualified as Map
 import Data.Misc
@@ -1105,9 +1105,9 @@ replaceMembers ::
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
-  InviteQualified ->
+  ReplaceInviteQualified ->
   Sem r ()
-replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
+replaceMembers lusr zcon qcnv (ReplaceInviteQualified invitedUsers role) = do
   lcnv <- ensureLocal lusr qcnv
   conv <- getConversationWithError lcnv
 
@@ -1126,7 +1126,7 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
       invitedMembersSet = Set.fromList $ toList invitedUsers
       ugMembers = concatMap (fmap (flip Qualified (tDomain lusr)) . V.toList . runIdentity . (.members)) (V.toList ugs)
       -- the invited users plus all user group members should stay
-      allUsersThatShouldStay = Set.fromList $ toList $ appendList invitedUsers ugMembers
+      allUsersThatShouldStay = Set.fromList $ invitedUsers <> ugMembers
       toRemove = Set.difference currentMembers allUsersThatShouldStay
       toAdd = Set.difference invitedMembersSet currentMembers
 
