@@ -586,6 +586,55 @@ testTeamAdminCanReplaceMembers = do
       actual <- for convMems (%. "id")
       expected `shouldMatchSet` actual
 
+testTeamAdminCanReplaceMembersEmpty :: (HasCallStack) => App ()
+testTeamAdminCanReplaceMembersEmpty = do
+  (alice, tid, bob : charlie : dylan : guenter : horst : ilona : _) <- createTeam OwnDomain 7
+  [bobId, charlieId, dylanId, guenterId, horstId, ilonaId] <-
+    for [bob, charlie, dylan, guenter, horst, ilona] (%. "id")
+
+  -- these are the users added to the conversation via user groups
+  -- they should not be removed by the replace operation
+  let userGroupUsers = [guenterId, horstId, ilonaId]
+
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "admins")
+
+  -- the team admin creates a channel without joining
+  channel <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  convId <- objConvId channel
+
+  -- create 2 user groups and assign the channel to them
+  gid1 <- createUserGroup alice (object ["name" .= "ug 1", "members" .= [guenterId, horstId]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  gid2 <- createUserGroup alice (object ["name" .= "ug 2", "members" .= [horstId, ilonaId]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  updateUserGroupChannels alice gid1 [convId.id_] >>= assertSuccess
+  updateUserGroupChannels alice gid2 [convId.id_] >>= assertSuccess
+
+  -- let's add the users from the associated user group by hand for now (later this will be automatic)
+  addMembersToChannel alice channel def {users = [guenter, horst, ilona], role = Just "wire_member"} >>= assertSuccess
+
+  -- the team admin adds members to the channel using the PUT endpoint
+  bindResponse (replaceMembers alice channel def {users = [bob, charlie, dylan]}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- the members are added to the backend conversation
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    let expected = userGroupUsers <> [bobId, charlieId, dylanId]
+    actual <- for convMems (%. "id")
+    expected `shouldMatchSet` actual
+
+  -- the team admin replaces members in the channel using the PUT endpoint
+  bindResponse (replaceMembers alice channel def {users = []}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- the members are replaced in the backend conversation
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    actual <- for convMems (%. "id")
+    actual `shouldMatchSet` userGroupUsers
+
 testAdminCanRemoveMemberWithoutJoining :: (HasCallStack) => App ()
 testAdminCanRemoveMemberWithoutJoining = do
   (owner, tid, mems@(m1 : m2 : m3 : _)) <- createTeam OwnDomain 4
