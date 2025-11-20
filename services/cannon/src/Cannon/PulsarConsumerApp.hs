@@ -61,7 +61,6 @@ createPulsarChannel uid mCid = do
     do
       traceM $ "Connecting ..."
       void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel")}) "pulsar://localhost:6650" $ do
-        -- TODO: Is the `default` namespace correct? Not `user-notifications`?
         let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack qn
         traceM $ "newConsumer " ++ show topic
         Pulsar.withConsumer
@@ -137,7 +136,6 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
           ]
         $ do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
-          --          traverse_ (Q.publishMsg chan.inner "" queueInfo.queueName . mkSynchronizationMessage e.notificationTTL) (mcid *> mSyncMarkerId)
           traverse_ (publishSyncMessage queueInfo.queueNames . mkSynchronizationMessage) mSyncMarkerId
           sendNotifications chan queueInfo wsConn
 
@@ -160,15 +158,6 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
         let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack qn
          in -- TODO: Set logging callback
             Pulsar.withProducer Pulsar.defaultProducerConfiguration topic (onPulsarError "publishSyncMessage producer") $ do
-              -- Pulsar.runPulsar (Pulsar.connect Pulsar.defaultConnectData) $ do
-              -- let topic =
-              --       Pulsar.Topic
-              --         { Pulsar.type' = Pulsar.Persistent,
-              --           Pulsar.tenant = "wire",
-              --           Pulsar.namespace = "default",
-              --           Pulsar.name = Pulsar.TopicName qn
-              --         }
-              -- TODO: log result
               result <- runResourceT $ do
                 (_, message') <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ message}
                 lift $ Pulsar.sendMessage message'
@@ -321,7 +310,6 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               AckMessage ackData -> do
                 logAckReceived ackData
                 -- TODO: ACKing for all queues seems to be a bit too rough...
-                -- TODO: Define logger
                 Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "sendNotifications")}) "pulsar://localhost:6650" $
                   for_ queueInfo.queueNames $ \qn -> do
                     let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack qn
