@@ -56,7 +56,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -92,6 +91,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

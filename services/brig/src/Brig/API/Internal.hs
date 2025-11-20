@@ -44,7 +44,6 @@ import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
@@ -89,6 +88,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client

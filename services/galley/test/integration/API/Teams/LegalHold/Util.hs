@@ -27,7 +27,6 @@ import API.SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)

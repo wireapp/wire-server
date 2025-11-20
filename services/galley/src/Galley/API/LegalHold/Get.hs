@@ -24,7 +24,6 @@ import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Qualified
 import Galley.API.Error
 import Galley.Effects
-import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -36,6 +35,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.TeamStore
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.

@@ -5,9 +5,6 @@
 { mkDerivation
 , aeson
 , base
-, bytestring-conversion
-, cassandra-util
-, containers
 , gitignoreSource
 , imports
 , lib
@@ -15,23 +12,13 @@
 , QuickCheck
 , tasty
 , tasty-quickcheck
-, types-common
 , wire-api
 }:
 mkDerivation {
   pname = "brig-types";
   version = "1.35.0";
   src = gitignoreSource ./.;
-  libraryHaskellDepends = [
-    base
-    bytestring-conversion
-    cassandra-util
-    containers
-    imports
-    QuickCheck
-    types-common
-    wire-api
-  ];
+  libraryHaskellDepends = [ base wire-api ];
   testHaskellDepends = [
     aeson
     base

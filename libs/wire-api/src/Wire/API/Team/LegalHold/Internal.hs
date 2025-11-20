@@ -32,6 +32,7 @@ import Data.Misc
 import Data.OpenApi qualified as Swagger
 import Data.Schema qualified as Schema
 import Imports
+import Test.QuickCheck (Arbitrary (arbitrary))
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team.LegalHold
@@ -97,3 +98,12 @@ instance Schema.ToSchema LegalHoldClientRequest where
       $ LegalHoldClientRequest
         <$> lhcrRequester Schema..= Schema.field "requester" Schema.schema
         <*> lhcrLastPrekey Schema..= Schema.field "last_prekey" Schema.schema
+
+instance Arbitrary LegalHoldClientRequest where
+  arbitrary =
+    LegalHoldClientRequest
+      <$> arbitrary
+      <*> arbitrary
+
+instance Arbitrary LegalHoldService where
+  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

@@ -17,12 +17,11 @@
 
 module Wire.TeamStore.Env where
 
-import Data.Int (Int32)
 import Data.Range
 import Imports
 import Proto.TeamEvents qualified as E
-import Wire.API.Team.Feature.Defaults (FeatureDefaults)
 import Wire.API.Team.Feature
+import Wire.API.Team.Feature.Defaults (FeatureDefaults)
 import Wire.API.Team.Member (HardTruncationLimit)
 
 data TeamStoreEnv = TeamStoreEnv

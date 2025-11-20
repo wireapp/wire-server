@@ -141,7 +141,6 @@ library
     Galley.Cassandra.Client
     Galley.Cassandra.Code
     Galley.Cassandra.CustomBackend
-    Galley.Cassandra.LegalHold
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -158,7 +157,6 @@ library
     Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.FederatorAccess
-    Galley.Effects.LegalHoldStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
@@ -292,7 +290,6 @@ library
     , currency-codes                        >=2.0
     , data-default
     , data-timeout
-    , enclosed-exceptions                   >=1.0
     , errors                                >=2.0
     , exceptions                            >=0.4
     , extended

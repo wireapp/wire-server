@@ -51,7 +51,7 @@ module Wire.API.Provider.Service
   )
 where
 
-import Cassandra.CQL qualified as Cql
+import Cassandra.CQL hiding (Set)
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
@@ -124,6 +124,40 @@ instance ToSchema ServiceKey where
         <*> serviceKeySize .= field "size" schema
         <*> serviceKeyPEM .= field "pem" schema
 
+instance Cql ServiceKey where
+  ctype =
+    Tagged
+      ( UdtColumn
+          "pubkey"
+          [ ("typ", IntColumn),
+            ("size", IntColumn),
+            ("pem", BlobColumn)
+          ]
+      )
+
+  fromCql (CqlUdt fs) = do
+    t <- required "typ"
+    s <- required "size"
+    p <- required "pem"
+    case (t :: Int32) of
+      0 -> pure $! ServiceKey RsaServiceKey s p
+      _ -> Left $ "Unexpected service key type: " ++ show t
+    where
+      required :: (Cql r) => Text -> Either String r
+      required f =
+        maybe
+          (Left ("ServiceKey: Missing required field '" ++ show f ++ "'"))
+          fromCql
+          (lookup f fs)
+  fromCql _ = Left "service key: udt expected"
+
+  toCql (ServiceKey RsaServiceKey siz pem) =
+    CqlUdt
+      [ ("typ", CqlInt 0),
+        ("size", toCql siz),
+        ("pem", toCql pem)
+      ]
+
 -- | Other types may be supported in the future.
 data ServiceKeyType
   = RsaServiceKey
@@ -189,6 +223,18 @@ instance Arbitrary ServiceKeyPEM where
           "-----END PUBLIC KEY-----"
         ]
 
+instance Cql ServiceKeyPEM where
+  ctype = Tagged BlobColumn
+
+  fromCql (CqlBlob b) =
+    maybe
+      (Left "service key pem: malformed key")
+      pure
+      (fromByteString' b)
+  fromCql _ = Left "service key pem: blob expected"
+
+  toCql = CqlBlob . toByteString
+
 --------------------------------------------------------------------------------
 -- Service
 
@@ -236,7 +282,7 @@ instance S.ToSchema ServiceToken where
       tweak = fmap $ S.schema . S.example ?~ tok
       tok = "sometoken"
 
-deriving instance Cql.Cql ServiceToken
+deriving instance Cql ServiceToken
 
 --------------------------------------------------------------------------------
 -- ServiceProfile

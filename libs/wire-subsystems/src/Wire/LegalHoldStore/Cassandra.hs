@@ -1,49 +1,13 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra, validateServiceKey) where
 
-module Galley.Cassandra.LegalHold
-  ( interpretLegalHoldStoreToCassandra,
-    isTeamLegalholdWhitelisted,
-
-    -- * Used by tests
-    selectPendingPrekeys,
-    validateServiceKey,
-  )
-where
-
-import Brig.Types.Instances ()
-import Brig.Types.Team.LegalHold
 import Cassandra
-import Control.Exception.Enclosed (handleAny)
-import Control.Lens (unsnoc)
+import Control.Exception (catch)
 import Data.ByteString.Conversion.To
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.LegalHold
 import Data.Misc
-import Galley.Cassandra.Queries qualified as Q
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
-import Galley.Env
-import Galley.External.LegalHoldService.Internal
-import Galley.Monad
-import Galley.Types.Teams
-import Imports hiding (unsnoc)
+import Imports
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
 import OpenSSL.PEM qualified as SSL
@@ -53,15 +17,20 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.Feature.Defaults (FeatureDefaults (..))
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client.Prekey
-import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.LegalHoldStore (LegalHoldStore (..))
+import Wire.LegalHoldStore.Cassandra.Queries qualified as Q
+import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.TeamStore.Cassandra.Queries qualified as QTS
+import Wire.Util (embedClientInput, logEffect)
 
 interpretLegalHoldStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input Env) r,
+    Member (Input LegalHoldEnv) r,
     Member TinyLog r
   ) =>
   FeatureDefaults LegalholdConfig ->
@@ -70,57 +39,52 @@ interpretLegalHoldStoreToCassandra ::
 interpretLegalHoldStoreToCassandra lh = interpret $ \case
   CreateSettings s -> do
     logEffect "LegalHoldStore.CreateSettings"
-    embedClient $ createSettings s
+    embedClientInput $ createSettings s
   GetSettings tid -> do
     logEffect "LegalHoldStore.GetSettings"
-    embedClient $ getSettings tid
+    embedClientInput $ getSettings tid
   RemoveSettings tid -> do
     logEffect "LegalHoldStore.RemoveSettings"
-    embedClient $ removeSettings tid
+    embedClientInput $ removeSettings tid
   InsertPendingPrekeys uid pkeys -> do
     logEffect "LegalHoldStore.InsertPendingPrekeys"
-    embedClient $ insertPendingPrekeys uid pkeys
+    embedClientInput $ insertPendingPrekeys uid pkeys
   SelectPendingPrekeys uid -> do
     logEffect "LegalHoldStore.SelectPendingPrekeys"
-    embedClient $ selectPendingPrekeys uid
+    embedClientInput $ selectPendingPrekeys uid
   DropPendingPrekeys uid -> do
     logEffect "LegalHoldStore.DropPendingPrekeys"
-    embedClient $ dropPendingPrekeys uid
+    embedClientInput $ dropPendingPrekeys uid
   SetUserLegalHoldStatus tid uid st -> do
     logEffect "LegalHoldStore.SetUserLegalHoldStatus"
-    embedClient $ setUserLegalHoldStatus tid uid st
+    embedClientInput $ setUserLegalHoldStatus tid uid st
   SetTeamLegalholdWhitelisted tid -> do
     logEffect "LegalHoldStore.SetTeamLegalholdWhitelisted"
-    embedClient $ setTeamLegalholdWhitelisted tid
+    embedClientInput $ setTeamLegalholdWhitelisted tid
   UnsetTeamLegalholdWhitelisted tid -> do
     logEffect "LegalHoldStore.UnsetTeamLegalholdWhitelisted"
-    embedClient $ unsetTeamLegalholdWhitelisted tid
+    embedClientInput $ unsetTeamLegalholdWhitelisted tid
   IsTeamLegalholdWhitelisted tid -> do
     logEffect "LegalHoldStore.IsTeamLegalholdWhitelisted"
-    embedClient $ isTeamLegalholdWhitelisted lh tid
-  -- FUTUREWORK: should this action be part of a separate effect?
+    embedClientInput $ isTeamLegalholdWhitelisted lh tid
   MakeVerifiedRequestFreshManager fpr url r -> do
     logEffect "LegalHoldStore.MakeVerifiedRequestFreshManager"
-    embedApp $ makeVerifiedRequestFreshManager fpr url r
+    env <- input
+    embed @IO $ makeVerifiedRequestFreshManager env fpr url r
   MakeVerifiedRequest fpr url r -> do
     logEffect "LegalHoldStore.MakeVerifiedRequest"
-    embedApp $ makeVerifiedRequest fpr url r
+    env <- input
+    embed @IO $ makeVerifiedRequest env fpr url r
   ValidateServiceKey sk -> do
     logEffect "LegalHoldStore.ValidateServiceKey"
     embed @IO $ validateServiceKey sk
 
--- | Returns 'False' if legal hold is not enabled for this team
--- The Caller is responsible for checking whether legal hold is enabled for this team
 createSettings :: (MonadClient m) => LegalHoldService -> m ()
-createSettings (LegalHoldService tid url fpr tok key) = do
+createSettings (LegalHoldService tid url fpr tok key) =
   retry x1 $ write Q.insertLegalHoldSettings (params LocalQuorum (url, fpr, tok, key, tid))
 
--- | Returns 'Nothing' if no settings are saved
--- The Caller is responsible for checking whether legal hold is enabled for this team
 getSettings :: (MonadClient m) => TeamId -> m (Maybe LegalHoldService)
-getSettings tid =
-  fmap toLegalHoldService <$> do
-    retry x1 $ query1 Q.selectLegalHoldSettings (params LocalQuorum (Identity tid))
+getSettings tid = fmap toLegalHoldService <$> retry x1 (query1 Q.selectLegalHoldSettings (params LocalQuorum (Identity tid)))
   where
     toLegalHoldService (httpsUrl, fingerprint, tok, key) = LegalHoldService tid httpsUrl fingerprint tok key
 
@@ -128,38 +92,28 @@ removeSettings :: (MonadClient m) => TeamId -> m ()
 removeSettings tid = retry x5 (write Q.removeLegalHoldSettings (params LocalQuorum (Identity tid)))
 
 insertPendingPrekeys :: (MonadClient m) => UserId -> [Prekey] -> m ()
-insertPendingPrekeys uid keys = retry x5 . batch $
-  forM_ keys $
-    \key ->
-      addPrepQuery Q.insertPendingPrekeys (toTuple key)
-  where
-    toTuple (Prekey keyId key) = (uid, keyId, key)
+insertPendingPrekeys uid keys = retry x5 . batch $ do
+  forM_ keys $ \(Prekey keyId key) -> addPrepQuery Q.insertPendingPrekeys (uid, keyId, key)
 
 selectPendingPrekeys :: (MonadClient m) => UserId -> m (Maybe ([Prekey], LastPrekey))
-selectPendingPrekeys uid =
-  pickLastKey . fmap fromTuple
-    <$> retry x1 (query Q.selectPendingPrekeys (params LocalQuorum (Identity uid)))
+selectPendingPrekeys uid = pickLastKey . fmap fromTuple <$> retry x1 (query Q.selectPendingPrekeys (params LocalQuorum (Identity uid)))
   where
     fromTuple (keyId, key) = Prekey keyId key
-    pickLastKey allPrekeys =
-      case unsnoc allPrekeys of
-        Nothing -> Nothing
-        Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)
+    pickLastKey allPrekeys = case unsnoc allPrekeys of
+      Nothing -> Nothing
+      Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)
 
 dropPendingPrekeys :: (MonadClient m) => UserId -> m ()
 dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params LocalQuorum (Identity uid)))
 
 setUserLegalHoldStatus :: (MonadClient m) => TeamId -> UserId -> UserLegalHoldStatus -> m ()
-setUserLegalHoldStatus tid uid status =
-  retry x5 (write Q.updateUserLegalHoldStatus (params LocalQuorum (status, tid, uid)))
+setUserLegalHoldStatus tid uid status = retry x5 (write Q.updateUserLegalHoldStatus (params LocalQuorum (status, tid, uid)))
 
 setTeamLegalholdWhitelisted :: (MonadClient m) => TeamId -> m ()
-setTeamLegalholdWhitelisted tid =
-  retry x5 (write Q.insertLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
+setTeamLegalholdWhitelisted tid = retry x5 (write Q.insertLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
 
 unsetTeamLegalholdWhitelisted :: (MonadClient m) => TeamId -> m ()
-unsetTeamLegalholdWhitelisted tid =
-  retry x5 (write Q.removeLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
+unsetTeamLegalholdWhitelisted tid = retry x5 (write Q.removeLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid)))
 
 isTeamLegalholdWhitelisted :: FeatureDefaults LegalholdConfig -> TeamId -> Client Bool
 isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
@@ -167,12 +121,6 @@ isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
 isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
   isJust <$> (runIdentity <$$> retry x5 (query1 QTS.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))
 
--- | Copied unchanged from "Brig.Provider.API".  Interpret a service certificate and extract
--- key and fingerprint.  (This only has to be in 'MonadIO' because the FFI in OpenSSL works
--- like that.)
---
--- FUTUREWORK: It would be nice to move (part of) this to ssl-util, but it has types from
--- brig-types and types-common.
 validateServiceKey :: (MonadIO m) => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
 validateServiceKey pem =
   liftIO $
@@ -191,8 +139,10 @@ validateServiceKey pem =
               pure (Just (key, fpr))
   where
     readPublicKey =
-      handleAny
-        (const $ pure Nothing)
-        (SSL.readPublicKey (LC8.unpack (toByteString pem)) <&> Just)
+      ( do
+          pk <- SSL.readPublicKey (LC8.unpack (toByteString pem))
+          pure (Just pk)
+      )
+        `catch` (\(_ :: SomeException) -> pure Nothing)
     minRsaKeySize :: Int
-    minRsaKeySize = 256 -- Bytes (= 2048 bits)
+    minRsaKeySize = 256

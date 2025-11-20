@@ -31,7 +31,6 @@ module Galley.API.LegalHold
 where
 
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
-import Brig.Types.Team.LegalHold (legalHoldService, viewLegalHoldService)
 import Control.Exception (assert)
 import Control.Lens (view, (^.))
 import Data.ByteString.Conversion (toByteString)
@@ -50,7 +49,6 @@ import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Teams as Team
@@ -73,12 +71,14 @@ import Wire.API.Routes.Public.Galley.LegalHold
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
 import Wire.FireAndForget
+import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging

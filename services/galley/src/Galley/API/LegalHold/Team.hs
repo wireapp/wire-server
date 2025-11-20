@@ -28,7 +28,6 @@ import Data.Default
 import Data.Id
 import Data.Range
 import Galley.Effects
-import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamFeatureStore
 import Galley.Types.Teams as Team
 import Imports
@@ -38,6 +37,7 @@ import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
+import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.TeamStore
 
 assertLegalHoldEnabledForTeam ::

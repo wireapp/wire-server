@@ -57,7 +57,6 @@ import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
-import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
@@ -70,9 +69,11 @@ import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
+import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Keys
+import Galley.Monad (runApp)
 import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
@@ -119,6 +120,8 @@ import Wire.ExternalAccess.External
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
+import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
+import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -331,12 +334,13 @@ evalGalley e =
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
         . runInputConst teamStoreEnv
-        . interpretTeamStoreToCassandra lh
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
-        . interpretSearchVisibilityStoreToCassandra
+        . runInputConst legalHoldEnv
         . interpretLegalHoldStoreToCassandra lh
+        . interpretTeamStoreToCassandra
+        . interpretSearchVisibilityStoreToCassandra
         . interpretCustomBackendStoreToCassandra
         . randomToIO
         . runHashPassword e._options._settings._passwordHashingOptions
@@ -369,6 +373,10 @@ evalGalley e =
               legalholdDefaults = lh,
               enqueueTeamEvent = mEnqueue
             }
+    legalHoldEnv =
+      let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)
+          makeReqFresh fpr url rb = runApp e (LHInternal.makeVerifiedRequestFreshManager fpr url rb)
+       in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
 
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =

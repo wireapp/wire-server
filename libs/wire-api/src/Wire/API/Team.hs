@@ -73,7 +73,6 @@ import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Id (TeamId, UserId)
-import Data.Int (Int64)
 import Data.Misc (PlainTextPassword6)
 import Data.OpenApi (HasDeprecated (deprecated))
 import Data.OpenApi qualified as S

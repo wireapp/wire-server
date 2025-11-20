@@ -32,7 +32,6 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Range
-import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamMemberStore
@@ -41,7 +40,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
-import Wire.API.Team.Feature.Defaults (FeatureDefaults)
+import Wire.API.Team.Feature.Defaults (FeatureDefaults (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Permissions)
 import Wire.ListItems
@@ -154,6 +153,12 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
     mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
+
+isTeamLegalholdWhitelisted :: FeatureDefaults LegalholdConfig -> TeamId -> Client Bool
+isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
+isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
+isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
+  isJust <$> (runIdentity <$$> retry x5 (query1 Cql.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))
 
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
 

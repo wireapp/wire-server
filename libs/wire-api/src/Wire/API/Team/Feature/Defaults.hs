@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE StrictData #-}
@@ -128,11 +127,14 @@ instance FromJSON (FeatureDefaults SSOConfig) where
 
 instance GetFeatureDefaults (FeatureDefaults SSOConfig) where
   featureDefaults1 flag =
-    def
-      { status = case flag of
-          FeatureSSOEnabledByDefault -> FeatureStatusEnabled
-          FeatureSSODisabledByDefault -> FeatureStatusDisabled
-      }
+    let d :: LockableFeature SSOConfig = def
+     in LockableFeature
+          { status = case flag of
+              FeatureSSOEnabledByDefault -> FeatureStatusEnabled
+              FeatureSSODisabledByDefault -> FeatureStatusDisabled,
+            lockStatus = d.lockStatus,
+            config = d.config
+          }
 
 data instance FeatureDefaults SearchVisibilityAvailableConfig
   = FeatureTeamSearchVisibilityAvailableByDefault
@@ -149,11 +151,14 @@ instance FromJSON (FeatureDefaults SearchVisibilityAvailableConfig) where
 
 instance GetFeatureDefaults (FeatureDefaults SearchVisibilityAvailableConfig) where
   featureDefaults1 flag =
-    def
-      { status = case flag of
-          FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
-          FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-      }
+    let d :: LockableFeature SearchVisibilityAvailableConfig = def
+     in LockableFeature
+          { status = case flag of
+              FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
+              FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled,
+            lockStatus = d.lockStatus,
+            config = d.config
+          }
 
 newtype instance FeatureDefaults SearchVisibilityInboundConfig
   = SearchVisibilityInboundDefaults (Feature SearchVisibilityInboundConfig)

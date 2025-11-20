@@ -22,9 +22,8 @@ where
 
 import Cassandra
 import Cassandra.Util
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens hiding ((<|))
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch ()
 import Control.Monad.Extra (ifM)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
@@ -42,8 +41,6 @@ import Polysemy.TinyLog
 import UnliftIO qualified
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import Wire.API.Team.Feature
-import Wire.API.Team.Feature.Defaults
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfo (TeamMemberInfo))
 import Wire.API.Team.Member.Info qualified as Info
@@ -51,6 +48,8 @@ import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.LegalHoldStore qualified as LH
 import Wire.TeamStore (TeamStore (..))
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
 import Wire.TeamStore.Env (TeamStoreEnv (..))
@@ -61,12 +60,12 @@ interpretTeamStoreToCassandra ::
     Member (Input TeamStoreEnv) r,
     Member (Input ClientState) r,
     Member TinyLog r,
-    Member ConversationStore r
+    Member ConversationStore r,
+    Member LegalHoldStore r
   ) =>
-  FeatureDefaults LegalholdConfig ->
   Sem (TeamStore ': r) a ->
   Sem r a
-interpretTeamStoreToCassandra lh = interpret $ \case
+interpretTeamStoreToCassandra = interpret $ \case
   CreateTeamMember tid mem -> do
     logEffect "TeamStore.CreateTeamMember"
     embedClientInput (addTeamMember tid mem)
@@ -96,16 +95,16 @@ interpretTeamStoreToCassandra lh = interpret $ \case
     embedClientInput (teamIdsOf uid tids)
   GetTeamMember tid uid -> do
     logEffect "TeamStore.GetTeamMember"
-    embedClientInput (teamMember lh tid uid)
+    teamMember tid uid
   GetTeamMembersWithLimit tid n -> do
     logEffect "TeamStore.GetTeamMembersWithLimit"
-    embedClientInput (teamMembersWithLimit lh tid n)
+    teamMembersWithLimit tid n
   GetTeamMembers tid -> do
     logEffect "TeamStore.GetTeamMembers"
-    embedClientInput (teamMembersCollectedWithPagination lh tid)
+    teamMembersCollectedWithPagination tid
   SelectTeamMembers tid uids -> do
     logEffect "TeamStore.SelectTeamMembers"
-    embedClientInput (teamMembersLimited lh tid uids)
+    teamMembersLimited tid uids
   SelectTeamMemberInfos tid uids -> do
     logEffect "TeamStore.SelectTeamMemberInfos"
     embedClientInput (teamMemberInfos tid uids)
@@ -148,7 +147,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
     for_ mEnq $ \enq -> embed @IO (enq e)
   SelectTeamMembersPaginated tid uids mps lim -> do
     logEffect "TeamStore.SelectTeamMembersPaginated"
-    embedClientInput (selectSomeTeamMembersPaginated lh tid uids mps lim)
+    selectSomeTeamMembersPaginated tid uids mps lim
 
 createTeam ::
   ( Member (Input ClientState) r,
@@ -189,11 +188,19 @@ team tid = fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (
           status = if d then PendingDelete else fromMaybe Active s
        in TeamData t status (writetimeToUTC <$> st)
 
-teamMember :: FeatureDefaults LegalholdConfig -> TeamId -> UserId -> Client (Maybe TeamMember)
-teamMember lh t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params LocalQuorum (t, u)))
-  where
-    newTeamMember'' _ Nothing = pure Nothing
-    newTeamMember'' uid (Just (perms, minvu, minvt, mulhStatus)) = Just <$> newTeamMember' lh t (uid, perms, minvu, minvt, mulhStatus)
+teamMember ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r (Maybe TeamMember)
+teamMember t u = do
+  mres <- embedClientInput $ retry x1 (query1 Cql.selectTeamMember (params LocalQuorum (t, u)))
+  case mres of
+    Nothing -> pure Nothing
+    Just (perms, minvu, minvt, mulhStatus) -> Just <$> newTeamMember' t (u, perms, minvu, minvt, mulhStatus)
 
 addTeamMember :: TeamId -> TeamMember -> Client ()
 addTeamMember t m =
@@ -287,15 +294,15 @@ updateTeam tid u = retry x5 . batch $ do
   for_ (u ^. splashScreenUpdate) $ \ss -> addPrepQuery Cql.updateTeamSplashScreen (decodeUtf8 . toByteString' $ ss, tid)
 
 newTeamMember' ::
-  FeatureDefaults LegalholdConfig ->
+  (Member LegalHoldStore r) =>
   TeamId ->
   (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
-  Client TeamMember
-newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
+  Sem r TeamMember
+newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
   mk minvu minvt >>= maybeGrant
   where
     maybeGrant m =
-      ifM (isTeamLegalholdWhitelisted lh tid) (pure (grantImplicitConsent m)) (pure m)
+      ifM (LH.isTeamLegalholdWhitelisted tid) (pure (grantImplicitConsent m)) (pure m)
     grantImplicitConsent =
       legalHoldStatus %~ \case
         UserLegalHoldNoConsent -> UserLegalHoldDisabled
@@ -304,7 +311,24 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
         UserLegalHoldEnabled -> UserLegalHoldEnabled
     mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
-    mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
+    mk _ _ = error "TeamMember with incomplete metadata."
+
+-- let m0 = case (minvu, minvt) of
+--       (Just invu, Just invt) -> mkTeamMember uid perms (Just (invu, invt)) lhStatus
+--       (Nothing, Nothing) -> mkTeamMember uid perms Nothing lhStatus
+--       _ -> error "TeamMember with incomplete metadata."
+-- whitelisted <- LegalHoldStore.isTeamLegalholdWhitelisted tid
+-- pure $ if isImplicitConsentEnabled lh whitelisted then grantImplicitConsent m0 else m0
+-- where
+--   isImplicitConsentEnabled FeatureLegalHoldDisabledPermanently _ = False
+--   isImplicitConsentEnabled FeatureLegalHoldDisabledByDefault _ = False
+--   isImplicitConsentEnabled FeatureLegalHoldWhitelistTeamsAndImplicitConsent w = w
+--   grantImplicitConsent =
+--     legalHoldStatus %~ \case
+--       UserLegalHoldNoConsent -> UserLegalHoldDisabled
+--       UserLegalHoldDisabled -> UserLegalHoldDisabled
+--       UserLegalHoldPending -> UserLegalHoldPending
+--       UserLegalHoldEnabled -> UserLegalHoldEnabled
 
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
 
@@ -314,25 +338,49 @@ teamMembersForPagination tid start (fromRange -> max) =
     Just u -> paginate Cql.selectTeamMembersFrom (paramsP LocalQuorum (tid, u) max)
     Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)
 
-teamMembersCollectedWithPagination :: FeatureDefaults LegalholdConfig -> TeamId -> Client [TeamMember]
-teamMembersCollectedWithPagination lh tid = do
-  mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
+teamMembersCollectedWithPagination ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  Sem r [TeamMember]
+teamMembersCollectedWithPagination tid = do
+  mems <- embedClientInput $ teamMembersForPagination tid Nothing (unsafeRange 2000)
   collect [] mems
   where
     collect acc page = do
-      tMembers <- mapM (newTeamMember' lh tid) (result page)
+      tMembers <- mapM (newTeamMember' tid) (result page)
       if hasMore page
-        then collect (tMembers ++ acc) =<< nextPage page
+        then do
+          page' <- embedClientInput (nextPage page)
+          collect (tMembers ++ acc) page'
         else pure (tMembers ++ acc)
 
-teamMembersWithLimit :: FeatureDefaults LegalholdConfig -> TeamId -> Range 1 HardTruncationLimit Int32 -> Client TeamMemberList
-teamMembersWithLimit lh t (fromRange -> limit) = do
-  page <- retry x1 (paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity t) (limit + 1)))
-  ms <- mapM (newTeamMember' lh t) . take (fromIntegral limit) $ result page
+teamMembersWithLimit ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  Range 1 HardTruncationLimit Int32 ->
+  Sem r TeamMemberList
+teamMembersWithLimit t (fromRange -> limit) = do
+  page <- embedClientInput $ retry x1 (paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity t) (limit + 1)))
+  ms <- mapM (newTeamMember' t) . take (fromIntegral limit) $ result page
   pure $ if hasMore page then newTeamMemberList ms ListTruncated else newTeamMemberList ms ListComplete
 
-teamMembersLimited :: FeatureDefaults LegalholdConfig -> TeamId -> [UserId] -> Client [TeamMember]
-teamMembersLimited lh t u = mapM (\(uid, perms, _, minvu, minvt, mlh) -> newTeamMember' lh t (uid, perms, minvu, minvt, mlh)) =<< retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
+teamMembersLimited ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member LegalHoldStore r
+  ) =>
+  TeamId ->
+  [UserId] ->
+  Sem r [TeamMember]
+teamMembersLimited t u = do
+  rows <- embedClientInput $ retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
+  mapM (\(uid, perms, _, minvu, minvt, mlh) -> newTeamMember' t (uid, perms, minvu, minvt, mlh)) rows
 
 teamMemberInfos :: TeamId -> [UserId] -> Client [TeamMemberInfo]
 teamMemberInfos t u = mkTeamMemberInfo <$$> retry x1 (query Cql.selectTeamMembers' (params LocalQuorum (t, u)))
@@ -341,22 +389,18 @@ teamMemberInfos t u = mkTeamMemberInfo <$$> retry x1 (query Cql.selectTeamMember
       TeamMemberInfo {Info.userId = uid, Info.permissions = perms, Info.permissionsWriteTime = toUTCTimeMillis $ writetimeToUTC permsWT}
 
 selectSomeTeamMembersPaginated ::
-  FeatureDefaults LegalholdConfig ->
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member LegalHoldStore r
+  ) =>
   TeamId ->
   [UserId] ->
   Maybe PagingState ->
   Range 1 HardTruncationLimit Int32 ->
-  Client (PageWithState TeamMember)
-selectSomeTeamMembersPaginated lh tid uids pagingState (fromRange -> max) = do
-  page <- paginateWithState Cql.selectTeamMembers' (paramsPagingState LocalQuorum (tid, uids) max pagingState)
+  Sem r (PageWithState TeamMember)
+selectSomeTeamMembersPaginated tid uids pagingState (fromRange -> max) = do
+  page <- embedClientInput $ paginateWithState Cql.selectTeamMembers' (paramsPagingState LocalQuorum (tid, uids) max pagingState)
   members <- mapM mkTm (pwsResults page)
   pure $ PageWithState members (pwsState page)
   where
-    mkTm (uid, perms, _, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = newTeamMember' lh tid (uid, perms, minvu, minvt, Just lhStatus)
-
--- minimal helper to avoid depending on Galley.Cassandra.LegalHold, TODO: remove when ported to subsystems
-isTeamLegalholdWhitelisted :: FeatureDefaults LegalholdConfig -> TeamId -> Client Bool
-isTeamLegalholdWhitelisted FeatureLegalHoldDisabledPermanently _ = pure False
-isTeamLegalholdWhitelisted FeatureLegalHoldDisabledByDefault _ = pure False
-isTeamLegalholdWhitelisted FeatureLegalHoldWhitelistTeamsAndImplicitConsent tid =
-  isJust <$> (runIdentity <$$> retry x5 (query1 Cql.selectLegalHoldWhitelistedTeam (params LocalQuorum (Identity tid))))
+    mkTm (uid, perms, _, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = newTeamMember' tid (uid, perms, minvu, minvt, Just lhStatus)

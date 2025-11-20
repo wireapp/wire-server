@@ -21,7 +21,6 @@ module Main
 where
 
 import Imports
-import Test.Brig.Types.Common qualified
 import Test.Brig.Types.Team qualified
 import Test.Brig.Types.User qualified
 import Test.Tasty
@@ -31,7 +30,6 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Brig.Types.Common.tests,
-        Test.Brig.Types.Team.tests,
+      [ Test.Brig.Types.Team.tests,
         Test.Brig.Types.User.tests
       ]

@@ -265,6 +265,10 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.LegalHoldStore
+    Wire.LegalHoldStore.Cassandra
+    Wire.LegalHoldStore.Cassandra.Queries
+    Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter

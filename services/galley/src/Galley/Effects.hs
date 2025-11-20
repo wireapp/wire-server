@@ -66,7 +66,6 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.LegalHoldStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
@@ -92,6 +91,8 @@ import Wire.ExternalAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
+import Wire.LegalHoldStore
+import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
 import Wire.NotificationSubsystem
 import Wire.RateLimit
@@ -129,12 +130,13 @@ type GalleyEffects1 =
      HashPassword,
      Random,
      CustomBackendStore,
-     LegalHoldStore,
      SearchVisibilityStore,
+     TeamStore,
+     LegalHoldStore,
+     Input LegalHoldEnv,
      UserGroupStore,
      ServiceStore,
      TeamNotificationStore,
-     TeamStore,
      Input TeamStoreEnv,
      ConversationStore,
      MLSCommitLockStore,

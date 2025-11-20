@@ -47,7 +47,6 @@ import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.LegalHoldStore
 import Galley.Options
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
@@ -92,6 +91,7 @@ import Wire.ConversationStore
 import Wire.ExternalAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
+import Wire.LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
