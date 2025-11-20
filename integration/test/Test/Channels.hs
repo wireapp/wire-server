@@ -841,6 +841,12 @@ testOutOfSyncError = do
       length missing `shouldMatchInt` 2
     setClientGroupState alice1 gs
 
+  -- adding a new user should not fail in version < 13
+  withAPIVersion 12 $ do
+    mp <- createAddCommit alice1 convId [dee]
+    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
   -- adding both users should work
   do
     mp <- createAddCommit alice1 convId [bob, charlie]
