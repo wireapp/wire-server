@@ -49,7 +49,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
-import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
 import Galley.Options
 import Galley.Types.Teams
 import Imports
@@ -73,6 +72,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore (getLegalHoldFlag, getTeamMember)
 
 patchFeatureInternal ::
   forall cfg r.

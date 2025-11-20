@@ -32,7 +32,6 @@ import Data.Qualified (Local, tUnqualified)
 import Galley.Effects
 import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore (listTeamMembers)
-import Galley.Effects.TeamStore
 import Imports hiding (atomicModifyIORef, newEmptyMVar, newIORef, putMVar, readMVar, takeMVar, threadDelay, tryPutMVar)
 import Polysemy
 import Polysemy.Async
@@ -48,6 +47,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.TeamStore
 
 -- | Cache of inviter handles.
 --

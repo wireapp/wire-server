@@ -57,8 +57,6 @@ import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
-import Galley.Effects.TeamStore
-import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -102,6 +100,8 @@ import Wire.Sem.Paging.Cassandra
 import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.TeamStore
+import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 

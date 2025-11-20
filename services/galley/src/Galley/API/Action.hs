@@ -80,7 +80,6 @@ import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.ProposalStore qualified as E
-import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
 import Galley.Options
 import Galley.Validation
@@ -127,6 +126,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore qualified as E
 import Wire.UserList
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where

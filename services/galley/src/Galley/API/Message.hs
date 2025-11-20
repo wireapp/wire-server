@@ -55,7 +55,6 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.TeamStore
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
@@ -87,6 +86,7 @@ import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+import Wire.TeamStore
 
 data UserType = User | Bot
 

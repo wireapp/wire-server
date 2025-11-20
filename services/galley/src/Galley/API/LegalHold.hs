@@ -52,7 +52,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamMemberStore
-import Galley.Effects.TeamStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Teams as Team
 import Imports
@@ -87,6 +86,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
 
 createSettings ::
   forall r.

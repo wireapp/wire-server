@@ -30,7 +30,6 @@ import Data.Range
 import Galley.Effects
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamFeatureStore
-import Galley.Effects.TeamStore
 import Galley.Types.Teams as Team
 import Imports
 import Polysemy
@@ -39,6 +38,7 @@ import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
+import Wire.TeamStore
 
 assertLegalHoldEnabledForTeam ::
   forall r.

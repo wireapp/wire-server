@@ -61,6 +61,11 @@ import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
+  ( interpretInternalTeamListToCassandra,
+    interpretTeamListToCassandra,
+    interpretTeamMemberStoreToCassandra,
+    interpretTeamMemberStoreToCassandraWithPaging,
+  )
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
@@ -125,6 +130,8 @@ import Wire.Sem.Random.IO
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
+import Wire.TeamStore.Env (TeamStoreEnv (..))
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
@@ -323,6 +330,7 @@ evalGalley e =
         . interpretTeamFeatureStoreToCassandra
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
+        . runInputConst teamStoreEnv
         . interpretTeamStoreToCassandra lh
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
@@ -351,6 +359,16 @@ evalGalley e =
         . interpretSparAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
+    teamStoreEnv =
+      let fanout = currentFanoutLimit (e ^. options)
+          mEnqueue =
+            (\awsEnv ev -> Aws.execute awsEnv (Aws.enqueue ev))
+              <$> (e ^. aEnv)
+       in TeamStoreEnv
+            { fanoutLimit = fanout,
+              legalholdDefaults = lh,
+              enqueueTeamEvent = mEnqueue
+            }
 
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =

@@ -1,8 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,9 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamStore
-  ( module Wire.TeamStore,
-  )
-where
+module Wire.TeamStore.Env where
 
-import Wire.TeamStore
+import Data.Int (Int32)
+import Data.Range
+import Imports
+import Proto.TeamEvents qualified as E
+import Wire.API.Team.Feature.Defaults (FeatureDefaults)
+import Wire.API.Team.Feature
+import Wire.API.Team.Member (HardTruncationLimit)
+
+data TeamStoreEnv = TeamStoreEnv
+  { fanoutLimit :: Range 1 HardTruncationLimit Int32,
+    legalholdDefaults :: FeatureDefaults LegalholdConfig,
+    enqueueTeamEvent :: Maybe (E.TeamEvent -> IO ())
+  }

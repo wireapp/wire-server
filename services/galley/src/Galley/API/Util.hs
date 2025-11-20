@@ -48,8 +48,6 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.LegalHoldStore
-import Galley.Effects.TeamStore
-import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
@@ -100,6 +98,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
+import Wire.TeamStore qualified as E
 import Wire.UserList
 
 data NoChanges = NoChanges

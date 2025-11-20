@@ -166,7 +166,6 @@ library
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
-    Galley.Effects.TeamStore
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal

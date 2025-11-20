@@ -59,7 +59,6 @@ import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.TeamStore qualified as TeamStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -92,6 +91,7 @@ import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+import Wire.TeamStore qualified as TeamStore
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all

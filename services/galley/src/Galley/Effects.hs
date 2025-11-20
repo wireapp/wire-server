@@ -74,7 +74,6 @@ import Galley.Effects.SparAccess
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
-import Galley.Effects.TeamStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Teams
@@ -103,6 +102,8 @@ import Wire.Sem.Random
 import Wire.ServiceStore
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamStore
+import Wire.TeamStore.Env (TeamStoreEnv)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
 
@@ -134,6 +135,7 @@ type GalleyEffects1 =
      ServiceStore,
      TeamNotificationStore,
      TeamStore,
+     Input TeamStoreEnv,
      ConversationStore,
      MLSCommitLockStore,
      TeamFeatureStore,

@@ -31,15 +31,15 @@ import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Data.Time.Clock.POSIX
-import Galley.Effects.TeamStore
-import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
 import Polysemy
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import Proto.TeamEvents_Fields qualified as T
+import Wire.API.Team (TeamCreationTime (..))
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
+import Wire.TeamStore
 
 -- Note [journaling]
 -- ~~~~~~~~~~~~~~~~~
@@ -98,7 +98,7 @@ journalEvent ::
 journalEvent typ tid dat tim = do
   -- writetime is in microseconds in cassandra 3.11
   now <- round . utcTimeToPOSIXSeconds <$> Now.get
-  let ts = maybe now ((`div` 1000000) . view tcTime) tim
+  let ts = maybe now ((`div` 1000000) . _tcTime) tim
       ev =
         defMessage
           & T.eventType .~ typ

@@ -17,13 +17,13 @@
 
 module Galley.TeamSubsystem where
 
-import Galley.Effects.TeamStore (TeamStore)
-import Galley.Effects.TeamStore qualified as E
 import Imports
 import Polysemy
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (TeamMemberInfoList))
+import Wire.TeamStore (TeamStore)
+import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem
 
 -- This interpreter exists so galley code doesn't end up depending on

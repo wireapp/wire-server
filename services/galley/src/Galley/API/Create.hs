@@ -52,7 +52,6 @@ import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Teams (notTeamMember)
 import Galley.Validation
@@ -90,6 +89,7 @@ import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore qualified as E
 import Wire.UserList
 
 ----------------------------------------------------------------------------

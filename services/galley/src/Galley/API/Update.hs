@@ -119,7 +119,6 @@ import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Imports hiding (forkIO)
 import Polysemy
@@ -160,6 +159,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
 

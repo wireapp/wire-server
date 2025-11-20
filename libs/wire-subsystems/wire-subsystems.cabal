@@ -301,7 +301,9 @@ library
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamStore
+    Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries
+    Wire.TeamStore.Env
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
     Wire.TeamSubsystem.Util

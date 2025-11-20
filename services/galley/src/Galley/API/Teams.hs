@@ -109,7 +109,6 @@ import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore qualified as E
-import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Journal qualified as Journal
 import Galley.Options
 import Galley.Types.Teams
@@ -160,6 +159,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
