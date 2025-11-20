@@ -309,7 +309,6 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-                -- TODO: ACKing for all queues seems to be a bit too rough...
                 Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "sendNotifications")}) "pulsar://localhost:6650" $ do
                   let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
                   Pulsar.withConsumer (Pulsar.defaultConsumerConfiguration {Pulsar.consumerType = Just Pulsar.ConsumerShared}) ("cannon-websocket-ack-" ++ unpack queueInfo.subscription) (Pulsar.Topic topic) (onPulsarError "publishSyncMessage consumer") $ do
