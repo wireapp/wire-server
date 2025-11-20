@@ -128,7 +128,8 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
         $ withAsync
         $ flip
           catches
-          [ handleClientMisbehaving conn,
+          [ -- TODO: Review exceptions. pulsar-hs and amqp exceptions surely differ.
+            handleClientMisbehaving conn,
             handleWebSocketExceptions conn,
             handleRabbitMqChannelException conn,
             handleInactivity conn,
