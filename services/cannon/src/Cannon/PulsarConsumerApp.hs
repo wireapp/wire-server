@@ -24,8 +24,6 @@ import Data.Id
 import Data.Text
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TLE
 import Debug.Trace
 import Imports hiding (min, threadDelay)
 import Network.WebSockets
@@ -189,7 +187,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
         Just "synchronization" -> do
           let syncData =
                 SynchronizationData
-                  { markerId = TL.toStrict $ TLE.decodeUtf8 (BS.fromStrict msg),
+                  { markerId = decMsg.msgBody,
                     deliveryTag = encodeMsgId msgId
                   }
           pure $ Right syncData
