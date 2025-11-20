@@ -814,6 +814,11 @@ testOutOfSyncError = do
       missing <- resp.json %. "missing_users" & asList
       length missing `shouldMatchInt` 2
 
+  -- sending a message should not fail in version < 13
+  withAPIVersion 12 $ do
+    mp <- createApplicationMessage convId alice1 "foo"
+    void $ postMLSMessage mp.sender mp.message >>= getJSON 201
+
   -- adding only one of the users should fail
   do
     gs <- getClientGroupState alice1
