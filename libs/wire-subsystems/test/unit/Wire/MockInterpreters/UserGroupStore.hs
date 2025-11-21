@@ -130,7 +130,7 @@ getUserGroupsImpl req = do
   pure $ UserGroupPage (map removeMembers pages) count
   where
     removeMembers :: UserGroup -> UserGroupMeta
-    removeMembers UserGroup_{..} = UserGroup_{members = Const (), ..}
+    removeMembers UserGroup_ {..} = UserGroup_ {members = Const (), ..}
 
 getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPageWithMembers
 getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
