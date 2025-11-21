@@ -15,7 +15,10 @@ library
     Brig.Types.Activation
     Brig.Types.Connection
     Brig.Types.Intra
+    Brig.Types.Provider.Tag
     Brig.Types.Team
+    Brig.Types.Team.LegalHold
+    Brig.Types.Test.Arbitrary
     Brig.Types.User
 
   other-modules:      Paths_brig_types
@@ -68,7 +71,12 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base      >=4 && <5
+      base            >=4    && <5
+    , cassandra-util
+    , containers      >=0.5
+    , imports
+    , QuickCheck      >=2.9
+    , types-common    >=0.16
     , wire-api
 
   default-language:   GHC2021
@@ -79,6 +87,7 @@ test-suite brig-types-tests
   other-modules:
     Paths_brig_types
     Test.Brig.Roundtrip
+    Test.Brig.Types.Common
     Test.Brig.Types.Team
     Test.Brig.Types.User
 

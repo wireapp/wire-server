@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,23 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module Brig.Types.Test.Arbitrary
+  ( module Wire.Arbitrary,
   )
 where
 
+import Brig.Types.Team.LegalHold
 import Imports
-import Test.Brig.Types.Common qualified
-import Test.Brig.Types.Team qualified
-import Test.Brig.Types.User qualified
-import Test.Tasty
+import Test.QuickCheck
+import Wire.Arbitrary
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.Types.Team.tests,
-        Test.Brig.Types.User.tests,
-        Test.Brig.Types.Common.tests
-      ]
+instance Arbitrary LegalHoldClientRequest where
+  arbitrary =
+    LegalHoldClientRequest
+      <$> arbitrary
+      <*> arbitrary
+
+instance Arbitrary LegalHoldService where
+  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

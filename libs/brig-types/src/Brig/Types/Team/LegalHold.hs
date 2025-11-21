@@ -15,23 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module Brig.Types.Team.LegalHold
+  ( LegalHoldService (..),
+    legalHoldService,
+    viewLegalHoldService,
+    LegalHoldClientRequest (..),
   )
 where
 
-import Imports
-import Test.Brig.Types.Common qualified
-import Test.Brig.Types.Team qualified
-import Test.Brig.Types.User qualified
-import Test.Tasty
+import Wire.API.Team.LegalHold.Internal
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.Types.Team.tests,
-        Test.Brig.Types.User.tests,
-        Test.Brig.Types.Common.tests
-      ]

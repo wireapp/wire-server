@@ -1,3 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,23 +19,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+-- | This is where currently all the json roundtrip tests happen for brig-types and
+-- galley-types.
+module Test.Brig.Types.Common where
 
-import Imports
-import Test.Brig.Types.Common qualified
-import Test.Brig.Types.Team qualified
-import Test.Brig.Types.User qualified
+import Brig.Types.Team.LegalHold
+import Wire.API.Team.LegalHold.Internal ()
+import Brig.Types.Test.Arbitrary ()
+import Test.Brig.Roundtrip (testRoundTrip)
 import Test.Tasty
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.Types.Team.tests,
-        Test.Brig.Types.User.tests,
-        Test.Brig.Types.Common.tests
-      ]
+-- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
+
+tests :: TestTree
+tests =
+  testGroup
+    "Common (types vs. aeson)"
+    [ testRoundTrip @LegalHoldService,
+      testRoundTrip @LegalHoldClientRequest
+    ]

@@ -63,7 +63,6 @@ import Wire.API.Team.Feature qualified as Team.Feature
 import Wire.API.Team.Invitation qualified as Team.Invitation
 import Wire.API.Team.LegalHold qualified as Team.LegalHold
 import Wire.API.Team.LegalHold.External qualified as Team.LegalHold.External
-import Wire.API.Team.LegalHold.Internal qualified as LH
 import Wire.API.Team.Member qualified as Team.Member
 import Wire.API.Team.Permission qualified as Team.Permission
 import Wire.API.Team.Role qualified as Team.Role
@@ -359,9 +358,7 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testRoundTrip @BackgroundJobs.Job,
-      testRoundTrip @LH.LegalHoldService,
-      testRoundTrip @LH.LegalHoldClientRequest
+      testRoundTrip @BackgroundJobs.Job
     ]
 
 testRoundTrip ::
