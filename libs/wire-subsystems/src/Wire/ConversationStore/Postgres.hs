@@ -27,6 +27,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Time
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
@@ -1206,7 +1207,8 @@ searchConversationsImpl req =
             <> literal "count(*) filter (where m.conversation_role = 'wire_admin') as admin_count"
             <> literal "from conv left join conversation_member m on m.conv = conv.id"
             <> literal "group by conv.id, conv.name, conv.access"
-            <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
+            -- ordering is case-insensitive on name, must match the pagination comparison
+            <> orderBy [("lower(name)", req.sortOrder), ("id", req.sortOrder)]
         )
         ( HD.rowList
             ( RawResult
@@ -1229,14 +1231,16 @@ searchConversationsImpl req =
             ]
               <> [ clause
                      (sortOrderOperator req.sortOrder)
-                     (mkClause "name" lastName <> mkClause "id" lastId)
+                     -- the pagination cursor must match the ORDER BY. Therefore the comparison is case-insensitive.
+                     (mkClause "lower(name)" (Text.toLower lastName) <> mkClause "id" lastId)
                    | lastName <- toList req.lastName,
                      lastId <- toList req.lastId
                  ]
               <> toList (like "name" <$> req.searchString)
               <> discoverableClause
           )
-        <> orderBy [("name", req.sortOrder), ("id", req.sortOrder)]
+        -- keep ordering consistent with the outer query, therefore case-insensitive
+        <> orderBy [("lower(name)", req.sortOrder), ("id", req.sortOrder)]
         <> limit (pageSizeToInt32 req.pageSize)
         <> literal ")"
 
