@@ -35,12 +35,12 @@ import Data.Range
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Effects.TeamMemberStore
+import Galley.Types.Teams (FeatureDefaults (..))
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
-import Galley.Types.Teams (FeatureDefaults (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Permissions)
 import Wire.ListItems

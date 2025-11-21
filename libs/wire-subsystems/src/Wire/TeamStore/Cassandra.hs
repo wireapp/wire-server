@@ -313,23 +313,6 @@ newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
     mk _ _ = error "TeamMember with incomplete metadata."
 
--- let m0 = case (minvu, minvt) of
---       (Just invu, Just invt) -> mkTeamMember uid perms (Just (invu, invt)) lhStatus
---       (Nothing, Nothing) -> mkTeamMember uid perms Nothing lhStatus
---       _ -> error "TeamMember with incomplete metadata."
--- whitelisted <- LegalHoldStore.isTeamLegalholdWhitelisted tid
--- pure $ if isImplicitConsentEnabled lh whitelisted then grantImplicitConsent m0 else m0
--- where
---   isImplicitConsentEnabled FeatureLegalHoldDisabledPermanently _ = False
---   isImplicitConsentEnabled FeatureLegalHoldDisabledByDefault _ = False
---   isImplicitConsentEnabled FeatureLegalHoldWhitelistTeamsAndImplicitConsent w = w
---   grantImplicitConsent =
---     legalHoldStatus %~ \case
---       UserLegalHoldNoConsent -> UserLegalHoldDisabled
---       UserLegalHoldDisabled -> UserLegalHoldDisabled
---       UserLegalHoldPending -> UserLegalHoldPending
---       UserLegalHoldEnabled -> UserLegalHoldEnabled
-
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
 
 teamMembersForPagination :: TeamId -> Maybe UserId -> Range 1 HardTruncationLimit Int32 -> Client (Page RawTeamMember)

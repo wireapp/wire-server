@@ -7,6 +7,7 @@ import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.LegalHold
 import Data.Misc
+import Galley.Types.Teams (FeatureDefaults (..))
 import Imports
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
@@ -18,7 +19,6 @@ import Polysemy.TinyLog
 import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature (LegalholdConfig)
-import Galley.Types.Teams (FeatureDefaults (..))
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client.Prekey
 import Wire.LegalHoldStore (LegalHoldStore (..))
