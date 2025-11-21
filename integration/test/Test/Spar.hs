@@ -429,7 +429,7 @@ testSparScimCreateGetSearchUserGroup = do
   createdGroup2 <- respGroup2.json
   createdGroup3 <- respGroup3.json
 
-  -- Test geting a single SCIM group by id
+  -- Test getting a single SCIM group by id
   gid <- respGroup1.json %. "id" & asString
   gottenGroup1 <- getScimUserGroup OwnDomain tok gid
   respGroup1.json `shouldMatch` gottenGroup1.json
