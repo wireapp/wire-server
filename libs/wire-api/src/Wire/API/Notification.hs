@@ -263,7 +263,7 @@ data PulsarMessage = PulsarMessage
     -- TODO: This could be a sum type
     msgType :: Maybe String
   }
-  deriving (Generic)
+  deriving (Generic, Show)
 
 instance FromJSON PulsarMessage
 

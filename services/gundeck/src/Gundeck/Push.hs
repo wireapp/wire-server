@@ -366,11 +366,12 @@ pushViaPulsar newNotif = do
   let routingKeys =
         Set.unions $
           flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
+            -- TODO: This pattern match is pretty bogus now.
             case r._recipientClients of
               RecipientClientsAll ->
                 Set.singleton $ userRoutingKey r._recipientId
-              RecipientClientsSome (toList -> cs) ->
-                Set.fromList $ map (clientRoutingKey r._recipientId) cs
+              RecipientClientsSome _ ->
+                Set.singleton $ userRoutingKey r._recipientId
   for_ routingKeys $ \routingKey ->
     mpaPublishToPulsar routingKey qMsg
 

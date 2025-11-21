@@ -69,6 +69,6 @@ getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> 
 
 registerConsumableNotificationsClient :: UserId -> ClientId -> Gundeck NoContent
 registerConsumableNotificationsClient uid cid = do
-  chan <- getRabbitMqChan
-  void . liftIO $ setupConsumableNotifications chan uid cid
+  -- TODO: Care about long term subscriptions
+  -- liftIO $ setupConsumableNotifications uid cid
   pure NoContent

@@ -19,12 +19,14 @@ module Gundeck.Client where
 
 import Control.Lens (view)
 import Data.Id
+import Data.Text qualified as T
+import Debug.Trace
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Notifications
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
-import Network.AMQP
+import Pulsar.Client qualified as Pulsar
 import Wire.API.Notification
 
 unregister :: UserId -> ClientId -> Gundeck ()
@@ -42,16 +44,45 @@ removeUser user = do
   Notifications.deleteAll user
 
 setupConsumableNotifications ::
-  Channel ->
   UserId ->
   ClientId ->
-  IO Text
-setupConsumableNotifications chan uid cid = do
-  let qName = clientNotificationQueueName uid cid
-  void $
-    declareQueue
-      chan
-      (queueOpts qName)
-  for_ [userRoutingKey uid, clientRoutingKey uid cid] $
-    bindQueue chan qName userNotificationExchangeName
-  pure qName
+  IO ()
+setupConsumableNotifications uid cid = do
+  -- A hacky way to create a Pulsar subscription
+  let subscription = "cannon-websocket-" ++ T.unpack (clientNotificationQueueName uid cid)
+      subscriptionType = Pulsar.Earliest
+      topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ T.unpack (userRoutingKey uid)
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "setupConsumableNotifications")}) "pulsar://localhost:6650" $ do
+    Pulsar.withConsumer
+      ( Pulsar.defaultConsumerConfiguration
+          { Pulsar.consumerType = Just Pulsar.ConsumerShared,
+            Pulsar.consumerSubscriptionInitialPosition = Just subscriptionType
+          }
+      )
+      subscription
+      topic
+      (onPulsarError "setupConsumableNotifications consumer")
+      (pure ())
+  traceM $ "XXX - setupConsumableNotifications created subscription " <> show subscription <> " on topic " <> show topic
+
+-- TODO: Replace Debug.Trace with regular logging
+onPulsarError :: String -> Pulsar.RawResult -> IO ()
+onPulsarError provenance result =
+  traceM $
+    provenance ++ case Pulsar.renderResult result of
+      Just r -> " error: " ++ (show r)
+      Nothing -> " error: " ++ (show (Pulsar.unRawResult result))
+
+-- TODO: Replace Debug.Trace with regular logging
+pulsarClientLogger :: String -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
+pulsarClientLogger provenance level file line message = traceM $ provenance ++ " [" <> show level <> "] " <> file <> ":" <> show line <> ":" <> message
+
+-- TODO: Replace Debug.Trace with regular logging
+logPulsarResult :: String -> Pulsar.RawResult -> Pulsar.RawResult
+logPulsarResult provenance result =
+  trace
+    ( provenance ++ case Pulsar.renderResult result of
+        Just r -> " result: " ++ (show r)
+        Nothing -> " result: " ++ (show (Pulsar.unRawResult result))
+    )
+    result
