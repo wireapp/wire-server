@@ -87,8 +87,11 @@ createPulsarChannel uid mCid = do
             traceM $ "Ready"
             receiveMsgsAsync :: Async () <- receiveMsgs msgChannel
             blockOnCloseSignalAsync :: Async () <- blockOnCloseSignal closeSignal
-            void $ UnliftIO.waitAny [receiveMsgsAsync, blockOnCloseSignalAsync]
+            acknowledgeMsgsAsync <- acknowledgeMsgs acknowledgeMessages
+            rejectMsgsAsync <- rejectMsgs rejectMessages
+            void $ UnliftIO.waitAny [receiveMsgsAsync, blockOnCloseSignalAsync, acknowledgeMsgsAsync, rejectMsgsAsync]
       pure ()
+  -- TODO: Get rid of this delay.
   liftIO $ threadDelay 1_000_000
   traceM "createPulsarChannel: Done"
   pure $
@@ -113,6 +116,20 @@ createPulsarChannel uid mCid = do
 
     blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m (Async ())
     blockOnCloseSignal = UnliftIO.async . readMVar
+
+    acknowledgeMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> ReaderT Pulsar.Consumer m (Async ())
+    acknowledgeMsgs chan =
+      UnliftIO.async . forever $ do
+        msgId <- UnliftIO.readChan chan
+        consumer :: Pulsar.Consumer <- ask
+        logPulsarResult "createPulsarChannel - acknowledge message result: " <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
+
+    rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> ReaderT Pulsar.Consumer m (Async ())
+    rejectMsgs chan =
+      UnliftIO.async . forever $ do
+        msgId <- UnliftIO.readChan chan
+        consumer :: Pulsar.Consumer <- ask
+        Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeNegativeMessageId
 
 -- TODO: Replace Debug.Trace with regular logging
 onPulsarError :: String -> Pulsar.RawResult -> IO ()
@@ -226,42 +243,9 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
             Left err ->
               do
                 logParseError err
-                -- This message cannot be parsed, make sure it doesn't requeue. There
-                -- is no need to throw an error and kill the websocket as this is
-                -- probably caused by a bug or someone messing with RabbitMQ.
-                --
-                -- The bug case is slightly dangerous as it could drop a lot of events
-                -- en masse, if at some point we decide that Events should not be
-                -- pushed as JSONs, hopefully we think of the parsing side if/when
-                -- that happens.
-                let subscription = case mcid of
-                      Nothing -> temporaryRoutingKey uid
-                      Just cid -> clientNotificationQueueName uid cid
-                    subscriptionType = case mcid of
-                      Nothing -> Pulsar.Latest
-                      Just _cid -> Pulsar.Earliest
-                liftIO $ do
-                  -- TODO: This trick probably doesn't work. We need to get into the context of the consumer. E.g. via a MVar.
-                  -- traceM $ "Connecting ..."
-                  -- void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "getEventData")}) "pulsar://localhost:6650" $ do
-                  --   let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
-                  --   traceM $ "newConsumer " ++ show topic
-                  --   Pulsar.withConsumer
-                  --     ( Pulsar.defaultConsumerConfiguration
-                  --         { Pulsar.consumerType = Just Pulsar.ConsumerShared,
-                  --           Pulsar.consumerSubscriptionInitialPosition = Just subscriptionType
-                  --         }
-                  --     )
-                  --     ("cannon-websocket-" ++ unpack subscription)
-                  --     topic
-                  --     (onPulsarError "getEventData consumer")
-                  --     $ do
-                  --       consumer <- ask
-                  --       Pulsar.withDeserializedMessageId consumer msgId $
-                  --         Pulsar.acknowledgeNegativeMessageId
-
-                  -- TODO: Deadlettering hasn't been configured, yet. See e.g. https://pulsar.apache.org/docs/4.1.x/client-libraries-websocket/#negatively-acknowledge-messages
-                  getEventData chan
+                writeChan chan.rejectMessages msgId
+                -- TODO: Deadlettering hasn't been configured, yet. See e.g. https://pulsar.apache.org/docs/4.1.x/client-libraries-websocket/#negatively-acknowledge-messages
+                getEventData chan
             Right notif -> do
               logEvent notif
               pure $
@@ -364,15 +348,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
               AckFullSync -> throwIO UnexpectedAck
               AckMessage ackData -> do
                 logAckReceived ackData
-      -- TODO: This trick probably doesn't work. We need to get into the context of the consumer. E.g. via a MVar.
-      -- Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "sendNotifications")}) "pulsar://localhost:6650" $ do
-      --   let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
-      --   Pulsar.withConsumer (Pulsar.defaultConsumerConfiguration {Pulsar.consumerType = Just Pulsar.ConsumerShared}) ("cannon-websocket-" ++ unpack queueInfo.subscription) (Pulsar.Topic topic) (onPulsarError "publishSyncMessage consumer") $ do
-      --     consumer <- ask
-      --     -- TODO: This trick probably doesn't work. We need to get into the context of the consumer. E.g. via a MVar.
-      --     Pulsar.withDeserializedMessageId consumer (decodeMsgId ackData.deliveryTag) $
-      --       void $
-      --         logPulsarResult "consumeWebsocket consumer" <$> Pulsar.acknowledgeMessageId
+                writeChan chan.acknowledgeMessages $ decodeMsgId ackData.deliveryTag
 
       -- run both loops concurrently, so that
       --  - notifications are delivered without having to wait for acks
