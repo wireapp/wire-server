@@ -443,6 +443,13 @@ testSparScimCreateGetSearchUserGroup = do
   filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo ->
     (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
 
+  -- 3. Empty groups should have empty member list.
+  respGroup4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "empty group" []
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"empty group\"") `bindResponse` \foundResults -> do
+    singleEmptyGroup <- foundResults.json %. "Resources" >>= asList >>= assertOne
+    (singleEmptyGroup %. "members" & asList) `shouldMatch` ([] :: [Value])
+    respGroup4.json `shouldMatch` singleEmptyGroup
+
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
   (alice, tid, []) <- createTeam OwnDomain 1
