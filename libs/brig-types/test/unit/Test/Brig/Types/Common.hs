@@ -24,10 +24,10 @@
 module Test.Brig.Types.Common where
 
 import Brig.Types.Team.LegalHold
-import Wire.API.Team.LegalHold.Internal ()
 import Brig.Types.Test.Arbitrary ()
 import Test.Brig.Roundtrip (testRoundTrip)
 import Test.Tasty
+import Wire.API.Team.LegalHold.Internal ()
 
 -- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 

@@ -40,7 +40,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
-import Wire.API.Team.Feature.Defaults (FeatureDefaults (..))
+import Galley.Types.Teams (FeatureDefaults (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Permissions)
 import Wire.ListItems

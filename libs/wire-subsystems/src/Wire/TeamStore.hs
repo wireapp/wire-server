@@ -29,7 +29,7 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Feature
-import Wire.API.Team.Feature.Defaults
+import Galley.Types.Teams
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Member.Info (TeamMemberInfo)
 import Wire.API.Team.Permission

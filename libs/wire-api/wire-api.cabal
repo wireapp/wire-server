@@ -230,7 +230,6 @@ library
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature
-    Wire.API.Team.Feature.Defaults
     Wire.API.Team.Feature.Profunctor
     Wire.API.Team.Feature.TH
     Wire.API.Team.HardTruncationLimit

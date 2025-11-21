@@ -24,4 +24,3 @@ module Brig.Types.Team.LegalHold
 where
 
 import Wire.API.Team.LegalHold.Internal
-

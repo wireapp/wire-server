@@ -18,7 +18,7 @@ import Polysemy.TinyLog
 import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature (LegalholdConfig)
-import Wire.API.Team.Feature.Defaults (FeatureDefaults (..))
+import Galley.Types.Teams (FeatureDefaults (..))
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client.Prekey
 import Wire.LegalHoldStore (LegalHoldStore (..))

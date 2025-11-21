@@ -38,7 +38,7 @@ import Data.Bits
 import Data.Range
 import Data.Set qualified as Set
 import Imports
-import Wire.API.Provider.Service.Tag (ServiceTag(..))
+import Wire.API.Provider.Service.Tag (ServiceTag (..))
 
 newtype Bucket = Bucket Int32
   deriving newtype (Cql, Show)

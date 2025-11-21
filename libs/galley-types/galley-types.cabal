@@ -74,12 +74,15 @@ library
     , bytestring-conversion
     , containers             >=0.5
     , crypton
+    , data-default
     , errors
     , imports
     , lens                   >=4.12
     , memory
+    , sop-core
     , text                   >=0.11
     , types-common           >=0.16
+    , utf8-string
     , uuid
     , wire-api
 
