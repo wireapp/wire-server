@@ -55,6 +55,7 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.FederatorAccess
+import Galley.Env
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
@@ -259,7 +260,8 @@ postBroadcast ::
     Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -278,7 +280,7 @@ postBroadcast lusr con msg = runError $ do
   now <- Now.get
 
   tid <- lookupBindingTeam senderUser
-  limit <- fromIntegral . fromRange <$> fanoutLimit
+  limit <- fromIntegral . fromRange <$> input @FanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $
     throwS @'BroadcastLimitExceeded
@@ -347,7 +349,8 @@ postBroadcast lusr con msg = runError $ do
 
     maybeFetchAllMembersInTeam ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
-        Member TeamStore r
+        Member TeamStore r,
+        Member (Input FanoutLimit) r
       ) =>
       TeamId ->
       Sem r [TeamMember]

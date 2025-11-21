@@ -103,11 +103,11 @@ import Wire.Sem.Random
 import Wire.ServiceStore
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
 import Wire.TeamStore
 import Wire.TeamStore.Env (TeamStoreEnv)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
-import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -147,6 +147,7 @@ type GalleyEffects1 =
      TeamMemberStore CassandraPaging,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
+     Input FanoutLimit,
      Input AllTeamFeatures,
      Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
      Input (Local ()),

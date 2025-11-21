@@ -76,7 +76,6 @@ data TeamStore m a where
   DeleteTeam :: TeamId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
-  FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
   GetLegalHoldFlag :: TeamStore m (FeatureDefaults LegalholdConfig)
   EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 

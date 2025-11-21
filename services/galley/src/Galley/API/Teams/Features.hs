@@ -49,6 +49,7 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
+import Galley.Env (FanoutLimit)
 import Galley.Options
 import Galley.Types.Teams
 import Imports
@@ -84,7 +85,8 @@ patchFeatureInternal ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   LockableFeaturePatch cfg ->
@@ -121,7 +123,8 @@ setFeature ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r
   ) =>
   UserId ->
   TeamId ->
@@ -143,7 +146,8 @@ setFeatureInternal ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -162,7 +166,8 @@ setFeatureUnchecked ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -206,7 +211,8 @@ pushFeatureEvent ::
   ( IsFeatureConfig cfg,
     Member NotificationSubsystem r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   Event ->
@@ -243,7 +249,8 @@ setFeatureForTeam ::
     Member P.TinyLog r,
     Member NotificationSubsystem r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   LockableFeature cfg ->
@@ -340,7 +347,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member Random r,
         Member (Embed IO) r,
         Member TeamCollaboratorsSubsystem r,
-        Member MLSCommitLockStore r
+        Member MLSCommitLockStore r,
+        Member (Input FanoutLimit) r
       )
 
   prepareFeature tid feat = do

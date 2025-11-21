@@ -67,7 +67,7 @@ import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
-import Wire.AWS (sendCatch, canRetry)
+import Wire.AWS (canRetry, sendCatch)
 
 data Env = Env
   { _logger :: !Logger,

@@ -34,7 +34,6 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation
-import Wire.AWS qualified as Aws
 import Galley.Options hiding (endpoint)
 import Galley.Options qualified as O
 import Imports hiding (local)
@@ -54,6 +53,7 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 import Util.Test.SQS qualified as SQS
+import Wire.AWS qualified as Aws
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)

@@ -29,9 +29,11 @@ import Data.Id
 import Data.Range
 import Galley.Effects
 import Galley.Effects.TeamFeatureStore
+import Galley.Env
 import Galley.Types.Teams as Team
 import Imports
 import Polysemy
+import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
@@ -85,7 +87,8 @@ isLegalHoldEnabledForTeam tid = do
 ensureNotTooLargeToActivateLegalHold ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   Sem r ()
@@ -94,9 +97,14 @@ ensureNotTooLargeToActivateLegalHold tid = do
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
     throwS @'CannotEnableLegalHoldServiceLargeTeam
 
-teamSizeBelowLimit :: (Member TeamStore r) => Int -> Sem r Bool
+teamSizeBelowLimit ::
+  ( Member TeamStore r,
+    Member (Input FanoutLimit) r
+  ) =>
+  Int ->
+  Sem r Bool
 teamSizeBelowLimit teamSize = do
-  limit <- fromIntegral . fromRange <$> fanoutLimit
+  limit <- fromIntegral . fromRange <$> input @FanoutLimit
   let withinLimit = teamSize <= limit
   getLegalHoldFlag >>= \case
     FeatureLegalHoldDisabledPermanently -> pure withinLimit

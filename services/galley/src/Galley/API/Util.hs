@@ -47,6 +47,7 @@ import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.FederatorAccess
+import Galley.Env
 import Galley.Options
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
@@ -1129,9 +1130,14 @@ getLHStatusForUsers uids =
             (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
       )
 
-getTeamMembersForFanout :: (Member TeamStore r) => TeamId -> Sem r TeamMemberList
+getTeamMembersForFanout ::
+  ( Member TeamStore r,
+    Member (Input FanoutLimit) r
+  ) =>
+  TeamId ->
+  Sem r TeamMemberList
 getTeamMembersForFanout tid = do
-  lim <- fanoutLimit
+  lim <- input
   getTeamMembersWithLimit tid lim
 
 ensureMemberLimit ::

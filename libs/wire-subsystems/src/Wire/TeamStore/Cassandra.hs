@@ -138,10 +138,6 @@ interpretTeamStoreToCassandra = interpret $ \case
     logEffect "TeamStore.SetTeamStatus"
     embedClientInput (updateTeamStatus tid st)
   -- TODO(leif): remove and use input directly
-  FanoutLimit -> do
-    logEffect "TeamStore.FanoutLimit"
-    fanoutLimit <$> input
-  -- TODO(leif): remove and use input directly
   GetLegalHoldFlag -> do
     logEffect "TeamStore.GetLegalHoldFlag"
     legalholdDefaults <$> input

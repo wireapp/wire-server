@@ -56,6 +56,7 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
+import Galley.Env (FanoutLimit)
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -335,7 +336,8 @@ rmUser ::
     Member P.TinyLog r,
     Member Random r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   Maybe ConnId ->

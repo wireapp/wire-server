@@ -53,7 +53,6 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.Error
-import Wire.AWS qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
@@ -110,6 +109,7 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
@@ -133,10 +133,9 @@ import Wire.Sem.Random.IO
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamEventQueueAccess.Aws qualified as TEAws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamStore.Env (TeamStoreEnv (..))
-import Wire.TeamEventQueueAccess.Aws qualified as TEAws
-import Wire.AWS (awsEnv, eventQueue, QueueUrl (..))
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
@@ -328,6 +327,7 @@ evalGalley e =
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
         . runInputSem getAllTeamFeaturesForServer
+        . runInputConst (currentFanoutLimit (e ^. options))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
@@ -335,7 +335,7 @@ evalGalley e =
         . interpretTeamFeatureStoreToCassandra
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
-        . runInputConst teamStoreEnv
+        . runInputConst (TeamStoreEnv lh)
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
@@ -366,17 +366,10 @@ evalGalley e =
         . interpretSparAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
-    teamStoreEnv =
-      let fanout = currentFanoutLimit (e ^. options)
-       in TeamStoreEnv
-            { fanoutLimit = fanout,
-              legalholdDefaults = lh
-            }
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)
           makeReqFresh fpr url rb = runApp e (LHInternal.makeVerifiedRequestFreshManager fpr url rb)
-      in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
-
+       in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
 
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =

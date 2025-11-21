@@ -17,14 +17,9 @@
 
 module Wire.TeamStore.Env where
 
-import Data.Range
 import Galley.Types.Teams (FeatureDefaults)
-import Imports
-import Proto.TeamEvents qualified as E
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit)
 
 data TeamStoreEnv = TeamStoreEnv
-  { fanoutLimit :: Range 1 HardTruncationLimit Int32,
-    legalholdDefaults :: FeatureDefaults LegalholdConfig
+  { legalholdDefaults :: FeatureDefaults LegalholdConfig
   }

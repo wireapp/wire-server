@@ -1,19 +1,3 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE LambdaCase #-}
 
 -- This file is part of the Wire Server implementation.
@@ -108,6 +92,7 @@ import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore qualified as E
+import Galley.Env
 import Galley.Intra.Journal qualified as Journal
 import Galley.Options
 import Galley.Types.Teams
@@ -615,7 +600,8 @@ addTeamMember ::
     Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -655,7 +641,8 @@ uncheckedAddTeamMember ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamNotificationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -791,7 +778,8 @@ deleteTeamMember ::
     Member ConversationSubsystem r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -817,7 +805,8 @@ deleteNonBindingTeamMember ::
     Member ConversationSubsystem r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -843,7 +832,8 @@ deleteTeamMember' ::
     Member ConversationSubsystem r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1187,7 +1177,8 @@ ensureNotTooLargeForLegalHold ::
   ( Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   Int ->
@@ -1246,7 +1237,8 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input FanoutLimit) r
   ) =>
   UserId ->
   Sem r TeamMemberList
@@ -1273,7 +1265,8 @@ canUserJoinTeam ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+    Member (Input FanoutLimit) r
   ) =>
   TeamId ->
   Sem r ()
@@ -1378,7 +1371,8 @@ removeTeamCollaborator ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member (Input FanoutLimit) r
   ) =>
   Local UserId ->
   TeamId ->

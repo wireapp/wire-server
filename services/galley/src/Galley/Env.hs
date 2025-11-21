@@ -26,7 +26,6 @@ import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
-import Wire.AWS qualified as Aws
 import Galley.Options
 import Galley.Options qualified as O
 import Galley.Queue qualified as Q
@@ -39,12 +38,15 @@ import System.Logger
 import Util.Options
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
+import Wire.AWS qualified as Aws
 import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
 import Wire.RateLimit.Interpreter (RateLimitEnv)
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
+
+type FanoutLimit = Range 1 HardTruncationLimit Int32
 
 -- | Main application environment.
 data Env = Env
@@ -72,7 +74,7 @@ reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
+currentFanoutLimit :: Opts -> FanoutLimit
 currentFanoutLimit o = do
   let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defaultFanoutLimit (o ^. (O.settings . maxFanoutSize))
   let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
