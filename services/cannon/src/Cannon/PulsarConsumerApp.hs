@@ -47,7 +47,9 @@ instance Exception InactivityTimeout
 data PulsarChannel = PulsarChannel
   { -- TODO: Rename: msgChannel
     msgVar :: Chan (ByteString, ByteString),
-    closeSignal :: MVar ()
+    closeSignal :: MVar (),
+    acknowledgeMessages :: Chan ByteString,
+    rejectMessages :: Chan ByteString
   }
 
 data PulsarQueueInfo = PulsarQueueInfo
@@ -57,6 +59,8 @@ data PulsarQueueInfo = PulsarQueueInfo
 createPulsarChannel :: UserId -> Maybe ClientId -> Codensity IO (PulsarChannel, PulsarQueueInfo)
 createPulsarChannel uid mCid = do
   msgChannel :: Chan (ByteString, ByteString) <- lift newChan
+  acknowledgeMessages :: Chan ByteString <- lift newChan
+  rejectMessages :: Chan ByteString <- lift newChan
   closeSignal :: MVar () <- lift $ newEmptyMVar
   let subscription = case mCid of
         Nothing -> temporaryRoutingKey uid
@@ -81,14 +85,24 @@ createPulsarChannel uid mCid = do
           (onPulsarError "createPulsarChannel consumer")
           $ do
             traceM $ "Ready"
-            UnliftIO.race_ (receiveMsgs msgChannel) (blockOnCloseSignal closeSignal)
+            receiveMsgsAsync :: Async () <- receiveMsgs msgChannel
+            blockOnCloseSignalAsync :: Async () <- blockOnCloseSignal closeSignal
+            void $ UnliftIO.waitAny [receiveMsgsAsync, blockOnCloseSignalAsync]
       pure ()
   liftIO $ threadDelay 1_000_000
   traceM "createPulsarChannel: Done"
-  pure $ (PulsarChannel msgChannel closeSignal, PulsarQueueInfo subscription)
+  pure $
+    ( PulsarChannel
+        { msgVar = msgChannel,
+          closeSignal = closeSignal,
+          acknowledgeMessages = acknowledgeMessages,
+          rejectMessages = rejectMessages
+        },
+      PulsarQueueInfo subscription
+    )
   where
-    receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (ByteString, ByteString) -> ReaderT Pulsar.Consumer m ()
-    receiveMsgs msgChannel = forever $ do
+    receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (ByteString, ByteString) -> ReaderT Pulsar.Consumer m (Async ())
+    receiveMsgs msgChannel = UnliftIO.async . forever $ do
       Pulsar.receiveMessage (liftIO . onPulsarError "receiveMessage") $ do
         content <- Pulsar.messageContent
         traceM $ "XXX - received message with content " ++ BSUTF8.toString content
@@ -97,8 +111,8 @@ createPulsarChannel uid mCid = do
         traceM $ "XXX - wrote message to channel:" ++ BSUTF8.toString content
         void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> Pulsar.acknowledgeMessage
 
-    blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m ()
-    blockOnCloseSignal = readMVar
+    blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m (Async ())
+    blockOnCloseSignal = UnliftIO.async . readMVar
 
 -- TODO: Replace Debug.Trace with regular logging
 onPulsarError :: String -> Pulsar.RawResult -> IO ()
