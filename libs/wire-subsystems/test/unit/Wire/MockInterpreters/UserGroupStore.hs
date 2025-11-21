@@ -63,6 +63,7 @@ userGroupStoreTestInterpreter =
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
+    GetUserGroupsWithMembers req -> getUserGroupsWithMembersImpl req
     GetUserGroupsForConv cid -> getUserGroupsForConvImpl cid
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
@@ -124,8 +125,16 @@ filterChannels includeChannels ug =
     else (ug :: UserGroup) {channels = mempty}
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
-getUserGroupsImpl UserGroupPageRequest {..} = do
-  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
+getUserGroupsImpl req = do
+  UserGroupPage pages count <- getUserGroupsWithMembersImpl req
+  pure $ UserGroupPage (map removeMembers pages) count
+  where
+    removeMembers :: UserGroup -> UserGroupMeta
+    removeMembers UserGroup_{..} = UserGroup_{members = Const (), ..}
+
+getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPageWithMembers
+getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
   where
     sieve,
@@ -134,7 +143,7 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
       orderByKeys,
       narrowToSearchString,
       narrowToTeam ::
-        [((TeamId, UserGroupId), UserGroupMeta)] -> [((TeamId, UserGroupId), UserGroupMeta)]
+        [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
 
     sieve =
       dropAfterPageSize
@@ -166,7 +175,7 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
     dropBeforeStart = do
       dropWhile sqlConds
       where
-        sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
+        sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
         sqlConds ((_, _), row) =
           case (paginationState, sortOrder) of
             (PaginationSortByName (Just (name, tieBreaker)), Asc) ->
