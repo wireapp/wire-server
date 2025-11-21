@@ -40,20 +40,7 @@ testChannelSearch = do
     dee <- randomUser OwnDomain def
     traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
     I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
-    void
-      $ I.setTeamFeatureConfig
-        alice
-        tid
-        "channels"
-        ( object
-            [ "status" .= "enabled",
-              "config"
-                .= object
-                  [ "allowed_to_create_channels" .= "everyone",
-                    "allowed_to_open_channels" .= "everyone"
-                  ]
-            ]
-        )
+    I.setTeamFeatureConfig alice tid "channels" (config "everyone") >>= assertSuccess
 
     -- unnamed channel
     unnamed <-
@@ -155,3 +142,58 @@ testChannelSearch = do
       resp.status `shouldMatchInt` 403
     bindResponse (searchChannels dee tid def {discoverable = True}) $ \resp -> do
       resp.status `shouldMatchInt` 403
+
+testChannelSearchSortCaseInsensitive :: App ()
+testChannelSearchSortCaseInsensitive = do
+  mig <- getPostgresMigration %. "conversation" & asString
+  when (mig == "postgresql") $ do
+    (alice, tid, _) <- createTeam OwnDomain 1
+    I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
+    I.setTeamFeatureConfig alice tid "channels" (config "everyone") >>= assertSuccess
+
+    let names =
+          [ "apple",
+            "Banana",
+            "grape",
+            "Orange",
+            "pear",
+            "Peach",
+            "cherry",
+            "Mango",
+            "kiwi",
+            "Apricot"
+          ]
+        channelConf name =
+          defMLS
+            { groupConvType = Just "channel",
+              team = Just tid,
+              skipCreator = Just True,
+              name = Just name
+            }
+    for_ names $ \name -> postConversation alice (channelConf name) >>= assertSuccess
+
+    let namesSorted = sortOn (map toLower) names
+    bindResponse (searchChannels alice tid def {sortOrder = Just "asc"}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      results <- resp.json %. "page" & asList
+      length results `shouldMatchInt` 10
+      for_ (zip results namesSorted) $ \(result, expectedName) -> do
+        result %. "name" `shouldMatch` expectedName
+
+    bindResponse (searchChannels alice tid def {sortOrder = Just "desc"}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      results <- resp.json %. "page" & asList
+      length results `shouldMatchInt` 10
+      for_ (zip results (reverse namesSorted)) $ \(result, expectedName) -> do
+        result %. "name" `shouldMatch` expectedName
+
+config :: String -> Value
+config perms =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "allowed_to_create_channels" .= perms,
+            "allowed_to_open_channels" .= perms
+          ]
+    ]
