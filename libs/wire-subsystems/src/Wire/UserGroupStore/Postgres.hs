@@ -254,8 +254,8 @@ getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSession
         ],
       "from user_group ug",
       "left join user_group_member gm on ug.id = gm.user_group_id"
-      ] <> [where_ (groupMatchIdName req <> groupPaginationWhereClause req)] <> map literal [
-      "group by ug.team_id, ug.id"
+      ] <> [where_ (groupMatchIdName req <> groupPaginationWhereClause req)] <> [
+      literal "group by ug.team_id, ug.id"
       ] <> groupPaginationOrderBy req
 
     toUserGroup :: (UUID, Text , Int32, UTCTime, Vector UUID, Int32) -> Either Text UserGroup
