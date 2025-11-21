@@ -1,0 +1,1 @@
+The result of `GET /teams/:tid/channels/search` is now ordered case-insensitively
