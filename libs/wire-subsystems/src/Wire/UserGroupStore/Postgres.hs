@@ -227,10 +227,10 @@ getUserGroupsWithMembers ::
   ) =>
   UserGroupPageRequest ->
   Sem r UserGroupPageWithMembers
-getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSessions.Read $ do
-  groups :: [UserGroup] <- Tx.statement () $ refineResult (mapM toUserGroup) $ buildStatement query rows
-  count <- getUserGroupCount req
-  return $ UserGroupPage groups count
+getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSessions.Read $
+  UserGroupPage
+    <$> (Tx.statement () $ refineResult (mapM toUserGroup) $ buildStatement query rows)
+    <*> getUserGroupCount req
   where
     rows :: HD.Result [(UUID, Text, Int32, UTCTime, Vector UUID, Int32)]
     rows = HD.rowList $
