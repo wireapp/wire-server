@@ -29,7 +29,6 @@ import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Lens as A
 import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
 import Data.String.Conversions (cs)
