@@ -250,7 +250,7 @@ getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSession
         "g.managed_by :: int",
         "g.created_at :: timestamptz",
         "coalesce(array_agg(gm.user_id), array[]::uuid[]) :: uuid[]",
-        "count(*) :: int"
+        "count(gm.user_id) :: int"
         ],
       "from user_group g",
       "left join user_group_member gm on g.id = gm.user_group_id"
