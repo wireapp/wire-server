@@ -33,7 +33,9 @@ type UserGroupPage = UserGroupPage_ UserGroupMeta
 type UserGroupPageWithMembers = UserGroupPage_ UserGroup
 
 -- * User group pages
+
 --
+
 -- | User group pages with different types of user groups.
 data UserGroupPage_ a = UserGroupPage
   { page :: [a],
@@ -42,12 +44,12 @@ data UserGroupPage_ a = UserGroupPage
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (UserGroupPage_ a)
 
-instance ToSchema a => ToSchema (UserGroupPage_ a) where
+instance (ToSchema a) => ToSchema (UserGroupPage_ a) where
   schema =
     objectWithDocModifier "UserGroupPage" addPageDocs $
       UserGroupPage
         <$> page .= field "page" (array schema)
         <*> total .= field "total" schema
 
-instance Arbitrary a => Arbitrary (UserGroupPage_ a) where
+instance (Arbitrary a) => Arbitrary (UserGroupPage_ a) where
   arbitrary = UserGroupPage <$> arbitrary <*> arbitrary
