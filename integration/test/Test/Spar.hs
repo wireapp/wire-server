@@ -436,12 +436,12 @@ testSparScimCreateGetSearchUserGroup = do
 
   -- Test filter (get in bulk) SCIM groups
   -- 1. Match "group", results in finding all three groups created above.
-  allThreeResp <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"group\""
-  (allThreeResp.json %. "Resources" & asList) `shouldMatchSet` [createdGroup1, createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp ->
+    (allThreeResp.json %. "Resources" & asList) `shouldMatchSet` [createdGroup1, createdGroup2, createdGroup3]
 
   -- 2. Match "another group", results in finding "another group" and "yet another group".
-  justTwo <- filterScimUserGroup OwnDomain tok $ Just "displayName co \"another group\""
-  (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo ->
+    (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
