@@ -245,17 +245,17 @@ getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSession
     query :: QueryFragment
     query = mconcat $ map literal [
       "select", T.intercalate ", " [
-        "g.id :: uuid",
-        "g.name :: text",
-        "g.managed_by :: int",
-        "g.created_at :: timestamptz",
+        "ug.id :: uuid",
+        "ug.name :: text",
+        "ug.managed_by :: int",
+        "ug.created_at :: timestamptz",
         "coalesce(array_agg(gm.user_id), array[]::uuid[]) :: uuid[]",
         "count(gm.user_id) :: int"
         ],
-      "from user_group g",
-      "left join user_group_member gm on g.id = gm.user_group_id"
+      "from user_group ug",
+      "left join user_group_member gm on ug.id = gm.user_group_id"
       ] <> [where_ (groupMatchIdName req <> groupPaginationWhereClause req)] <> map literal [
-      "group by g.team_id, g.id"
+      "group by ug.team_id, ug.id"
       ] <> groupPaginationOrderBy req
 
     toUserGroup :: (UUID, Text , Int32, UTCTime, Vector UUID, Int32) -> Either Text UserGroup
@@ -270,9 +270,9 @@ getUserGroupsWithMembers req = runTransaction TxSessions.ReadCommitted TxSession
 
 groupMatchIdName :: UserGroupPageRequest -> [QueryFragment]
 groupMatchIdName req =
-  clause1 "team_id" "=" req.team :
+  clause1 "ug.team_id" "=" req.team :
   case req.searchString of
-    Just name -> [ like "name" name ]
+    Just name -> [ like "ug.name" name ]
     Nothing -> []
 
 groupPaginationWhereClause :: UserGroupPageRequest -> [QueryFragment]
@@ -283,15 +283,15 @@ groupPaginationWhereClause req = case paginationClause req.paginationState of
 groupPaginationOrderBy :: UserGroupPageRequest -> [QueryFragment]
 groupPaginationOrderBy req =
   [ orderBy [ (sortColumn req.paginationState, req.sortOrder),
-              ("id", req.sortOrder)
+              ("ug.id", req.sortOrder)
             ],
     limit (pageSizeToInt32 req.pageSize)
   ]
   where
     sortColumn :: PaginationState a -> Text
     sortColumn = \case
-       PaginationSortByName _ -> "name"
-       PaginationSortByCreatedAt _ -> "created_at"
+       PaginationSortByName _ -> "ug.name"
+       PaginationSortByCreatedAt _ -> "ug.created_at"
 
 getUserGroupCount :: UserGroupPageRequest -> Tx.Transaction Int
 getUserGroupCount req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder
