@@ -41,7 +41,7 @@ import Galley.API.Internal
 import Galley.API.Public.Servant
 import Galley.App
 import Galley.App qualified as App
-import Galley.Aws (awsEnv)
+import Wire.AWS (awsEnv)
 import Galley.Cassandra
 import Galley.Env
 import Galley.Monad

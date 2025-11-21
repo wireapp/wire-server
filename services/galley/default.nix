@@ -6,7 +6,6 @@
 , aeson
 , aeson-qq
 , amazonka
-, amazonka-sqs
 , amqp
 , asn1-encoding
 , asn1-types
@@ -76,7 +75,6 @@
 , quickcheck-instances
 , random
 , raw-strings-qq
-, resourcet
 , retry
 , safe-exceptions
 , servant
@@ -100,7 +98,6 @@
 , text
 , time
 , tinylog
-, tls
 , transformers
 , types-common
 , types-common-aws
@@ -134,13 +131,11 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
-    amazonka-sqs
     amqp
     asn1-encoding
     asn1-types
     async
     base
-    base64-bytestring
     bilge
     brig-types
     bytestring
@@ -183,7 +178,6 @@ mkDerivation {
     prometheus-client
     proto-lens
     raw-strings-qq
-    resourcet
     retry
     safe-exceptions
     servant
@@ -199,7 +193,6 @@ mkDerivation {
     text
     time
     tinylog
-    tls
     transformers
     types-common
     types-common-aws

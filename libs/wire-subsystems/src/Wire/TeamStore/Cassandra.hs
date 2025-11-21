@@ -50,6 +50,7 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore qualified as LH
+import Wire.TeamEventQueueAccess qualified as TEQ
 import Wire.TeamStore (TeamStore (..))
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
 import Wire.TeamStore.Env (TeamStoreEnv (..))
@@ -61,7 +62,8 @@ interpretTeamStoreToCassandra ::
     Member (Input ClientState) r,
     Member TinyLog r,
     Member ConversationStore r,
-    Member LegalHoldStore r
+    Member LegalHoldStore r,
+    Member TEQ.TeamEventQueueAccess r
   ) =>
   Sem (TeamStore ': r) a ->
   Sem r a
@@ -135,16 +137,18 @@ interpretTeamStoreToCassandra = interpret $ \case
   SetTeamStatus tid st -> do
     logEffect "TeamStore.SetTeamStatus"
     embedClientInput (updateTeamStatus tid st)
+  -- TODO(leif): remove and use input directly
   FanoutLimit -> do
     logEffect "TeamStore.FanoutLimit"
     fanoutLimit <$> input
+  -- TODO(leif): remove and use input directly
   GetLegalHoldFlag -> do
     logEffect "TeamStore.GetLegalHoldFlag"
     legalholdDefaults <$> input
+  -- TODO(leif): remove and use the TEQ directly
   EnqueueTeamEvent e -> do
     logEffect "TeamStore.EnqueueTeamEvent"
-    mEnq <- enqueueTeamEvent <$> input
-    for_ mEnq $ \enq -> embed @IO (enq e)
+    TEQ.enqueueTeamEvent e
   SelectTeamMembersPaginated tid uids mps lim -> do
     logEffect "TeamStore.SelectTeamMembersPaginated"
     selectSomeTeamMembersPaginated tid uids mps lim
@@ -311,6 +315,7 @@ newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -
         UserLegalHoldEnabled -> UserLegalHoldEnabled
     mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
+    -- TODO(leif): proper error handling
     mk _ _ = error "TeamMember with incomplete metadata."
 
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)

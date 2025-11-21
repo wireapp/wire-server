@@ -53,7 +53,7 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.Error
-import Galley.Aws qualified as Aws
+import Wire.AWS qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
@@ -135,6 +135,8 @@ import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPo
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamStore.Env (TeamStoreEnv (..))
+import Wire.TeamEventQueueAccess.Aws qualified as TEAws
+import Wire.AWS (awsEnv, eventQueue, QueueUrl (..))
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
@@ -203,7 +205,7 @@ createEnv o l = do
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
     <*> initExtEnv disableTlsV1
-    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
+    <*> maybe (pure Nothing) (\jo -> fmap Just (Aws.mkEnv l mgr (jo ^. O.endpoint) (jo ^. O.queueName))) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
     <*> pure codeURIcfg
@@ -339,6 +341,7 @@ evalGalley e =
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
         . interpretLegalHoldStoreToCassandra lh
+        . TEAws.interpretTeamEventQueueAccess (e ^. aEnv)
         . interpretTeamStoreToCassandra
         . interpretSearchVisibilityStoreToCassandra
         . interpretCustomBackendStoreToCassandra
@@ -365,18 +368,15 @@ evalGalley e =
     lh = view (options . settings . featureFlags . to npProject) e
     teamStoreEnv =
       let fanout = currentFanoutLimit (e ^. options)
-          mEnqueue =
-            (\awsEnv ev -> Aws.execute awsEnv (Aws.enqueue ev))
-              <$> (e ^. aEnv)
        in TeamStoreEnv
             { fanoutLimit = fanout,
-              legalholdDefaults = lh,
-              enqueueTeamEvent = mEnqueue
+              legalholdDefaults = lh
             }
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)
           makeReqFresh fpr url rb = runApp e (LHInternal.makeVerifiedRequestFreshManager fpr url rb)
-       in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
+      in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
+
 
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =

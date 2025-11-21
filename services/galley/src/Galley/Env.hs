@@ -26,7 +26,7 @@ import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
-import Galley.Aws qualified as Aws
+import Wire.AWS qualified as Aws
 import Galley.Options
 import Galley.Options qualified as O
 import Galley.Queue qualified as Q

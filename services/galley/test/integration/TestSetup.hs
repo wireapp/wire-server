@@ -55,7 +55,7 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Proxy
 import Data.Text qualified as Text
-import Galley.Aws qualified as Aws
+import Wire.AWS qualified as Aws
 import Galley.Options (Opts)
 import Imports
 import Network.HTTP.Client qualified as HTTP

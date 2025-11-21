@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,16 +17,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamStore.Env where
+module Wire.TeamEventQueueAccess where
 
-import Data.Range
-import Galley.Types.Teams (FeatureDefaults)
-import Imports
-import Proto.TeamEvents qualified as E
-import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit)
+import Polysemy
+import Proto.TeamEvents (TeamEvent)
 
-data TeamStoreEnv = TeamStoreEnv
-  { fanoutLimit :: Range 1 HardTruncationLimit Int32,
-    legalholdDefaults :: FeatureDefaults LegalholdConfig
-  }
+data TeamEventQueueAccess m a where
+  EnqueueTeamEvent :: TeamEvent -> TeamEventQueueAccess m ()
+
+makeSem ''TeamEventQueueAccess

@@ -107,6 +107,7 @@ import Wire.TeamStore
 import Wire.TeamStore.Env (TeamStoreEnv)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
+import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -132,6 +133,7 @@ type GalleyEffects1 =
      CustomBackendStore,
      SearchVisibilityStore,
      TeamStore,
+     TeamEventQueueAccess,
      LegalHoldStore,
      Input LegalHoldEnv,
      UserGroupStore,

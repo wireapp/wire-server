@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,16 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamStore.Env where
+module Wire.TeamEventQueueAccess.Aws
+  ( interpretTeamEventQueueAccess,
+  )
+where
 
-import Data.Range
-import Galley.Types.Teams (FeatureDefaults)
 import Imports
-import Proto.TeamEvents qualified as E
-import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit)
+import Polysemy
+import Wire.AWS qualified as WA
+import Wire.TeamEventQueueAccess (TeamEventQueueAccess (..))
 
-data TeamStoreEnv = TeamStoreEnv
-  { fanoutLimit :: Range 1 HardTruncationLimit Int32,
-    legalholdDefaults :: FeatureDefaults LegalholdConfig
-  }
+interpretTeamEventQueueAccess ::
+  (Member (Embed IO) r) =>
+  Maybe WA.Env ->
+  Sem (TeamEventQueueAccess ': r) a ->
+  Sem r a
+interpretTeamEventQueueAccess mEnv = interpret $ \case
+  EnqueueTeamEvent ev -> case mEnv of
+    Nothing -> pure ()
+    Just e -> embed $ WA.execute e (WA.enqueue ev)

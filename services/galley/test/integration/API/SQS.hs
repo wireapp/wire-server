@@ -28,8 +28,8 @@ import Data.Id
 import Data.Set qualified as Set
 import Data.Text (pack)
 import Data.UUID qualified as UUID
-import Galley.Aws qualified as Aws
-import Galley.Options (JournalOpts)
+import Wire.AWS qualified as Aws
+import Galley.Options (JournalOpts, endpoint, queueName)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
@@ -135,7 +135,7 @@ mkAWSEnv :: JournalOpts -> IO Aws.Env
 mkAWSEnv opts = do
   l <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings -- TODO: use mkLogger'?
   mgr <- initHttpManager
-  Aws.mkEnv l mgr opts
+  Aws.mkEnv l mgr (opts ^. endpoint) (opts ^. queueName)
 
 decodeIdFromBS :: ByteString -> Id a
 decodeIdFromBS = Id . fromMaybe (error "failed to decode userId") . UUID.fromByteString . fromStrict

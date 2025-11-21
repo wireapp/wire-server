@@ -80,6 +80,7 @@ common common-all
     , amazonka
     , amazonka-core
     , amazonka-ses
+    , amazonka-sqs
     , amqp
     , async
     , attoparsec
@@ -142,6 +143,7 @@ common common-all
     , polysemy-wire-zoo
     , profunctors
     , prometheus-client
+    , proto-lens
     , QuickCheck
     , raw-strings-qq
     , resource-pool
@@ -301,6 +303,8 @@ library
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem
     Wire.TeamCollaboratorsSubsystem.Interpreter
+    Wire.TeamEventQueueAccess
+    Wire.TeamEventQueueAccess.Aws
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
@@ -415,6 +419,7 @@ library
     , time-out
     , time-units
     , tinylog
+    , tls
     , token-bucket
     , transformers
     , types-common

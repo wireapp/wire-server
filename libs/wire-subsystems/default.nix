@@ -8,6 +8,7 @@
 , amazonka
 , amazonka-core
 , amazonka-ses
+, amazonka-sqs
 , amqp
 , async
 , attoparsec
@@ -76,6 +77,7 @@
 , postgresql-error-codes
 , profunctors
 , prometheus-client
+, proto-lens
 , QuickCheck
 , quickcheck-instances
 , random
@@ -102,6 +104,7 @@
 , time-out
 , time-units
 , tinylog
+, tls
 , token-bucket
 , transformers
 , types-common
@@ -130,6 +133,7 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -195,6 +199,7 @@ mkDerivation {
     postgresql-error-codes
     profunctors
     prometheus-client
+    proto-lens
     QuickCheck
     raw-strings-qq
     resource-pool
@@ -217,6 +222,7 @@ mkDerivation {
     time-out
     time-units
     tinylog
+    tls
     token-bucket
     transformers
     types-common
@@ -241,6 +247,7 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -303,6 +310,7 @@ mkDerivation {
     polysemy-wire-zoo
     profunctors
     prometheus-client
+    proto-lens
     QuickCheck
     quickcheck-instances
     random
