@@ -296,7 +296,7 @@ groupPaginationOrderBy req =
 getUserGroupCount :: UserGroupPageRequest -> Tx.Transaction Int
 getUserGroupCount req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder
   where
-    query = literal "select count(*) from user_group" <> where_ (groupMatchIdName req)
+    query = literal "select count(*) from user_group ug" <> where_ (groupMatchIdName req)
     decoder = HD.singleRow (HD.column (HD.nonNullable HD.int8))
 
 decodeUuidVector :: HD.Row (Vector UUID)
