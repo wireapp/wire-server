@@ -852,3 +852,54 @@ testOutOfSyncError = do
     mp <- createAddCommit alice1 convId [bob, charlie]
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 201
+
+testOutOfSyncFederation :: (HasCallStack) => App ()
+testOutOfSyncFederation = do
+  (owner, tid, [alice, bob, charlie, dee]) <- createTeam OwnDomain 5
+  alex <- randomUser OtherDomain def
+  connectTwoUsers alice alex
+
+  [alice1, alex1, bob1, charlie1, dee1] <-
+    traverse
+      (createMLSClient def)
+      [alice, alex, bob, charlie, dee]
+  replicateM_ 5 $ traverse_ (uploadNewKeyPackage def) [alex1, bob1, charlie1, dee1]
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  -- create empty channel
+  ch <-
+    postConversation
+      alice1
+      defMLS
+        { groupConvType = Just "channel",
+          team = Just tid
+        }
+      >>= getJSON 201
+
+  -- set up mls group
+  convId <- objConvId ch
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [alice, alex] >>= sendAndConsumeCommitBundle
+
+  -- make channel out of sync
+  void $ addMembers owner convId def {users = [bob, charlie]} >>= getJSON 200
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- sending messages from a remote backend should fail
+  do
+    mp <- createApplicationMessage convId alex1 "hello world"
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+      resp.json %. "code" `shouldMatchInt` 409
+      resp.json %. "message" `shouldMatch` "Group is out of sync"
+      missing <- resp.json %. "missing_users" & asList
+      length missing `shouldMatchInt` 2
+
+  -- sending a message should not fail in version < 13
+  withAPIVersion 12 $ do
+    mp <- createApplicationMessage convId alex1 "foo"
+    void $ postMLSMessage mp.sender mp.message >>= getJSON 201
