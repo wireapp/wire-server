@@ -52,6 +52,7 @@ import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Teams as Team
+import Galley.Types.Teams (FeatureDefaults (..))
 import Imports
 import Network.HTTP.Types.Status (status200)
 import Polysemy
@@ -69,6 +70,7 @@ import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
 import Wire.API.Team.LegalHold
+import Wire.API.Team.Feature (LegalholdConfig)
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.LegalHold.Internal
@@ -98,7 +100,8 @@ createSettings ::
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -126,7 +129,8 @@ getSettings ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -175,7 +179,8 @@ removeSettingsInternalPaging ::
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -218,7 +223,8 @@ removeSettings ::
     Member Random r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   UserId ->
   TeamId ->
@@ -238,7 +244,8 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   where
     assertNotWhitelisting :: Sem r ()
     assertNotWhitelisting = do
-      getLegalHoldFlag >>= \case
+      featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
+      case featureLegalHold of
         FeatureLegalHoldDisabledPermanently -> pure ()
         FeatureLegalHoldDisabledByDefault -> pure ()
         FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
@@ -274,7 +281,8 @@ removeSettings' ::
     Member P.TinyLog r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r ()
@@ -374,7 +382,8 @@ requestDevice ::
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -468,7 +477,8 @@ approveDevice ::
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   ConnId ->

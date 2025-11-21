@@ -135,7 +135,6 @@ import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPo
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamEventQueueAccess.Aws qualified as TEAws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
-import Wire.TeamStore.Env (TeamStoreEnv (..))
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
@@ -335,7 +334,6 @@ evalGalley e =
         . interpretTeamFeatureStoreToCassandra
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
-        . runInputConst (TeamStoreEnv lh)
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
@@ -371,9 +369,8 @@ evalGalley e =
           makeReqFresh fpr url rb = runApp e (LHInternal.makeVerifiedRequestFreshManager fpr url rb)
        in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
 
-interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext :: Env -> Sem (Input (FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =
   runInputConst
-    ( e ^. options . settings . exposeInvitationURLsTeamAllowlist,
-      e ^. options . settings . featureFlags . to npProject
+    ( e ^. options . settings . featureFlags . to npProject
     )

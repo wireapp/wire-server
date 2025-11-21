@@ -53,12 +53,10 @@ import Wire.LegalHoldStore qualified as LH
 import Wire.TeamEventQueueAccess qualified as TEQ
 import Wire.TeamStore (TeamStore (..))
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
-import Wire.TeamStore.Env (TeamStoreEnv (..))
 import Wire.Util (embedClientInput, logEffect)
 
 interpretTeamStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input TeamStoreEnv) r,
     Member (Input ClientState) r,
     Member TinyLog r,
     Member ConversationStore r,
@@ -137,10 +135,6 @@ interpretTeamStoreToCassandra = interpret $ \case
   SetTeamStatus tid st -> do
     logEffect "TeamStore.SetTeamStatus"
     embedClientInput (updateTeamStatus tid st)
-  -- TODO(leif): remove and use input directly
-  GetLegalHoldFlag -> do
-    logEffect "TeamStore.GetLegalHoldFlag"
-    legalholdDefaults <$> input
   -- TODO(leif): remove and use the TEQ directly
   EnqueueTeamEvent e -> do
     logEffect "TeamStore.EnqueueTeamEvent"

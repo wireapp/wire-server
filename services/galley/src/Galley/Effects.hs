@@ -105,7 +105,6 @@ import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
 import Wire.TeamStore
-import Wire.TeamStore.Env (TeamStoreEnv)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
 
@@ -139,7 +138,6 @@ type GalleyEffects1 =
      UserGroupStore,
      ServiceStore,
      TeamNotificationStore,
-     Input TeamStoreEnv,
      ConversationStore,
      MLSCommitLockStore,
      TeamFeatureStore,
@@ -149,7 +147,7 @@ type GalleyEffects1 =
      ListItems InternalPaging TeamId,
      Input FanoutLimit,
      Input AllTeamFeatures,
-     Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
+     Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
      Now,

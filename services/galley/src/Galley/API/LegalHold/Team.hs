@@ -31,6 +31,7 @@ import Galley.Effects
 import Galley.Effects.TeamFeatureStore
 import Galley.Env
 import Galley.Types.Teams as Team
+import Galley.Types.Teams (FeatureDefaults (..))
 import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
@@ -47,6 +48,7 @@ assertLegalHoldEnabledForTeam ::
   ( Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member (ErrorS 'LegalHoldNotEnabled) r
   ) =>
   TeamId ->
@@ -57,13 +59,15 @@ assertLegalHoldEnabledForTeam tid =
 
 computeLegalHoldFeatureStatus ::
   ( Member TeamStore r,
-    Member LegalHoldStore r
+    Member LegalHoldStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   DbFeature LegalholdConfig ->
   Sem r FeatureStatus
-computeLegalHoldFeatureStatus tid dbFeature =
-  getLegalHoldFlag >>= \case
+computeLegalHoldFeatureStatus tid dbFeature = do
+  featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
+  case featureLegalHold of
     FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
     FeatureLegalHoldDisabledByDefault ->
       pure (applyDbFeature dbFeature def).status
@@ -75,7 +79,8 @@ isLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
     Member TeamStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r Bool
@@ -88,7 +93,8 @@ ensureNotTooLargeToActivateLegalHold ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
     Member TeamStore r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r ()
@@ -99,14 +105,16 @@ ensureNotTooLargeToActivateLegalHold tid = do
 
 teamSizeBelowLimit ::
   ( Member TeamStore r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Int ->
   Sem r Bool
 teamSizeBelowLimit teamSize = do
   limit <- fromIntegral . fromRange <$> input @FanoutLimit
   let withinLimit = teamSize <= limit
-  getLegalHoldFlag >>= \case
+  featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
+  case featureLegalHold of
     FeatureLegalHoldDisabledPermanently -> pure withinLimit
     FeatureLegalHoldDisabledByDefault -> pure withinLimit
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->

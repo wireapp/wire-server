@@ -165,7 +165,8 @@ getAllTeamFeaturesForTeam ::
     Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -196,7 +197,8 @@ getAllTeamFeatures ::
   ( Member (Input Opts) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r AllTeamFeatures
@@ -225,7 +227,8 @@ getAllTeamFeaturesForUser ::
     Member (Input Opts) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   UserId ->
   Sem r AllTeamFeatures
@@ -310,13 +313,17 @@ instance GetFeatureConfig LegalholdConfig where
         Member TeamFeatureStore r,
         Member LegalHoldStore r,
         Member TeamStore r,
+        Member (Input (FeatureDefaults LegalholdConfig)) r,
         Member (ErrorS OperationDenied) r,
         Member (ErrorS 'NotATeamMember) r,
         Member (ErrorS 'TeamNotFound) r
       )
   type
     ComputeFeatureConstraints LegalholdConfig r =
-      (Member TeamStore r, Member LegalHoldStore r)
+      ( Member TeamStore r,
+        Member LegalHoldStore r,
+        Member (Input (FeatureDefaults LegalholdConfig)) r
+      )
 
   computeFeature tid defFeature dbFeature = do
     status <- computeLegalHoldFeatureStatus tid dbFeature

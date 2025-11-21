@@ -96,6 +96,7 @@ import Galley.Env
 import Galley.Intra.Journal qualified as Journal
 import Galley.Options
 import Galley.Types.Teams
+import Galley.Types.Teams (FeatureDefaults)
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -601,7 +602,8 @@ addTeamMember ::
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -642,7 +644,8 @@ uncheckedAddTeamMember ::
     Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -1178,7 +1181,8 @@ ensureNotTooLargeForLegalHold ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Int ->
@@ -1266,7 +1270,8 @@ canUserJoinTeam ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r ()

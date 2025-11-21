@@ -76,7 +76,6 @@ data TeamStore m a where
   DeleteTeam :: TeamId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
-  GetLegalHoldFlag :: TeamStore m (FeatureDefaults LegalholdConfig)
   EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 
 makeSem ''TeamStore

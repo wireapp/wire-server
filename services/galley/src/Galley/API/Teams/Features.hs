@@ -73,7 +73,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamCollaboratorsSubsystem
-import Wire.TeamStore (getLegalHoldFlag, getTeamMember)
+import Wire.TeamStore (getTeamMember)
 
 patchFeatureInternal ::
   forall cfg r.
@@ -336,6 +336,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member NotificationSubsystem r,
         Member ConversationSubsystem r,
         Member (Input (Local ())) r,
+        Member (Input (FeatureDefaults LegalholdConfig)) r,
         Member (Input Env) r,
         Member Now r,
         Member LegalHoldStore r,
@@ -355,7 +356,7 @@ instance SetFeatureConfig LegalholdConfig where
     -- this extra do is to encapsulate the assertions running before the actual operation.
     -- enabling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
-    featureLegalHold <- getLegalHoldFlag
+    featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
     case featureLegalHold of
       FeatureLegalHoldDisabledByDefault -> do
         pure ()
