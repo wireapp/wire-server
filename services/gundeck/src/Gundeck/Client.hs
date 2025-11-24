@@ -27,6 +27,7 @@ import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
 import Pulsar.Client qualified as Pulsar
+import Pulsar.Subscription qualified as Pulsar
 import Wire.API.Notification
 
 unregister :: UserId -> ClientId -> Gundeck ()
@@ -53,16 +54,15 @@ setupConsumableNotifications uid cid = do
       subscriptionType = Pulsar.Earliest
       topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ T.unpack (userRoutingKey uid)
   Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "setupConsumableNotifications")}) "pulsar://localhost:6650" $ do
-    Pulsar.withConsumer
+    Pulsar.createSubscription
       ( Pulsar.defaultConsumerConfiguration
-          { Pulsar.consumerType = Just Pulsar.ConsumerShared,
+          { Pulsar.consumerType = Just Pulsar.ConsumerExclusive,
             Pulsar.consumerSubscriptionInitialPosition = Just subscriptionType
           }
       )
       subscription
       topic
       (onPulsarError "setupConsumableNotifications consumer")
-      (pure ())
   traceM $ "XXX - setupConsumableNotifications created subscription " <> show subscription <> " on topic " <> show topic
 
 -- TODO: Replace Debug.Trace with regular logging

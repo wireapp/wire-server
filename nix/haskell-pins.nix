@@ -74,8 +74,8 @@ let
     pulsar-hs = {
       src = fetchgit {
         url = "https://github.com/wireapp/pulsar-hs";
-        rev = "1473ac3d78760d20d29e29c31077aad62b37a25a";
-        hash = "sha256-wqWSw9JerP5QyOJHf5AB5vbceUUp2RoRNmA3Qt9+/rI=";
+        rev = "8135d4ace819c6d4b8f5030a11c07aeaf8ad2498";
+        hash = "sha256-w+s365QpHwAiLMwo6h/GfyKAQxTOYbPg0hZ3xkZ0GII=";
       };
       packages = {
         pulsar-client-hs = "pulsar-client-hs";

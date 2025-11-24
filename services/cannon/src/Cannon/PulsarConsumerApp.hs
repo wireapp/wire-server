@@ -74,9 +74,9 @@ createPulsarChannel uid mCid = do
       void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel")}) "pulsar://localhost:6650" $ do
         let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
         traceM $ "newConsumer " ++ show topic
-        Pulsar.withConsumer
+        Pulsar.withConsumerNoUnsubscribe
           ( Pulsar.defaultConsumerConfiguration
-              { Pulsar.consumerType = Just Pulsar.ConsumerShared,
+              { Pulsar.consumerType = Just Pulsar.ConsumerExclusive,
                 Pulsar.consumerSubscriptionInitialPosition = Just subscriptionType
               }
           )
