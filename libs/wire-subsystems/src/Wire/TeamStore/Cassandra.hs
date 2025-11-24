@@ -99,7 +99,7 @@ interpretTeamStoreToCassandra = interpret $ \case
   GetTeamMembers tid -> do
     logEffect "TeamStore.GetTeamMembers"
     teamMembersCollectedWithPagination tid
-  SelectTeamMembers tid uids -> do
+  SelectTeamMembersTempName tid uids -> do
     logEffect "TeamStore.SelectTeamMembers"
     teamMembersLimited tid uids
   SelectTeamMemberInfos tid uids -> do

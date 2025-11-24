@@ -781,7 +781,8 @@ getMLSOne2OneConversationV5 ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -802,7 +803,8 @@ getMLSOne2OneConversationInternal ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -821,7 +823,8 @@ getMLSOne2OneConversationV6 ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -847,7 +850,8 @@ getMLSOne2OneConversation ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->

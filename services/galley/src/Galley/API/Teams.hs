@@ -546,7 +546,6 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
 bulkGetTeamMembers ::
   ( Member (ErrorS 'BulkGetMemberLimitExceeded) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -558,7 +557,7 @@ bulkGetTeamMembers lzusr tid mbMaxResults uids = do
   unless (length (U.mUsers uids) <= fromIntegral (fromRange (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))) $
     throwS @'BulkGetMemberLimitExceeded
   m <- TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid >>= noteS @'NotATeamMember
-  mems <- E.selectTeamMembers tid (U.mUsers uids)
+  mems <- TeamSubsystem.internalSelectTeamMembers tid (U.mUsers uids)
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
   pure $ setOptionalPermsMany withPerms (newTeamMemberList mems hasMore)

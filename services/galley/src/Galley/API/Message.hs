@@ -89,6 +89,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 data UserType = User | Bot
 
@@ -335,7 +336,7 @@ postBroadcast lusr con msg = runError $ do
   where
     maybeFetchLimitedTeamMemberList ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
-        Member TeamStore r
+        Member TeamSubsystem r
       ) =>
       Int ->
       TeamId ->
@@ -347,7 +348,7 @@ postBroadcast lusr con msg = runError $ do
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
         throwS @'BroadcastLimitExceeded
-      selectTeamMembers tid localUserIdsToLookup
+      TeamSubsystem.internalSelectTeamMembers tid localUserIdsToLookup
 
     maybeFetchAllMembersInTeam ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,

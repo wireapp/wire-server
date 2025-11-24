@@ -102,6 +102,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.TeamSubsystem qualified as TeamSubsytem
 import Wire.UserList
 
 data NoChanges = NoChanges
@@ -132,7 +133,8 @@ ensureConnectedOrSameTeam ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -153,7 +155,8 @@ ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   [UserId] ->
@@ -165,7 +168,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   icUsers <- getTeamCollaborators uTeams
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
-    fmap (view Mem.userId) <$> selectTeamMembers team uids
+    fmap (view Mem.userId) <$> TeamSubsytem.internalSelectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
   where

@@ -80,6 +80,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamMember id' id'' -> getTeamMember id' id''
           GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
           SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
+          SelectTeamMembers tid uids -> selectTeamMembers tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -374,6 +375,25 @@ selectTeamMemberInfos tid uids = do
     req bdy =
       method GET
         . paths ["i", "teams", toByteString' tid, "members", "by-ids"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode bdy)
+        . expect2xx
+
+selectTeamMembers ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  TeamId ->
+  [UserId] ->
+  Sem r [TeamMember]
+selectTeamMembers tid uids = do
+  let bdy = UserIds uids
+  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  where
+    req bdy =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "members", "get-by-ids"]
         . header "Content-Type" "application/json"
         . lbytes (encode bdy)
         . expect2xx

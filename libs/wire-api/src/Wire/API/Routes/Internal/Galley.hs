@@ -265,6 +265,12 @@ type ITeamsAPIBase =
                         :> Get '[JSON] TeamMemberInfoList
                     )
              :<|> Named
+                    "unchecked-select-team-members"
+                    ( "get-by-ids"
+                        :> ReqBody '[JSON] UserIds
+                        :> Post '[JSON] [TeamMember]
+                    )
+             :<|> Named
                     "unchecked-get-team-member"
                     ( Capture "uid" UserId
                         :> CanThrow 'TeamMemberNotFound
