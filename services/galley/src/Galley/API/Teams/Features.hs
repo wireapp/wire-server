@@ -73,7 +73,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamCollaboratorsSubsystem
-import Wire.TeamStore (getTeamMember)
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 patchFeatureInternal ::
   forall cfg r.
@@ -124,14 +125,15 @@ setFeature ::
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
-  zusrMembership <- getTeamMember tid uid
+  zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
   void $ permissionCheck ChangeTeamFeature zusrMembership
   setFeatureUnchecked tid feat
 
@@ -349,7 +351,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member (Embed IO) r,
         Member TeamCollaboratorsSubsystem r,
         Member MLSCommitLockStore r,
-        Member (Input FanoutLimit) r
+        Member (Input FanoutLimit) r,
+        Member TeamSubsystem r
       )
 
   prepareFeature tid feat = do

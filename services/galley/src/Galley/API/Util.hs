@@ -100,7 +100,8 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
-import Wire.TeamStore qualified as E
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 data NoChanges = NoChanges
@@ -382,13 +383,13 @@ assertTeamExists tid = do
 
 assertOnTeam ::
   ( Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Sem r ()
 assertOnTeam uid tid =
-  getTeamMember tid uid >>= \case
+  TeamSubsystem.internalGetTeamMember uid tid >>= \case
     Nothing -> throwS @'NotATeamMember
     Just _ -> pure ()
 
@@ -661,7 +662,7 @@ getConversationAsMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -677,7 +678,7 @@ getConversationAsViewer ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -693,7 +694,7 @@ getConversationAsViewer qusr lcnv = do
         =<< runMaybeT
           ( do
               uid <- hoistMaybe $ foldQualified lcnv (Just . tUnqualified) (const Nothing) qusr
-              tm <- MaybeT $ E.getTeamMember tid uid
+              tm <- MaybeT $ TeamSubsystem.internalGetTeamMember uid tid
               guard $ hasManageChannelsPermission c tm
           )
     (Nothing, Nothing) -> throwAccessDenied
@@ -787,7 +788,7 @@ ensureConversationAccess ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   StoredConversation ->
@@ -795,7 +796,7 @@ ensureConversationAccess ::
   Sem r ()
 ensureConversationAccess zusr conv access = do
   ensureAccess conv access
-  zusrMembership <- maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
+  zusrMembership <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
 
 ensureAccess ::
@@ -1050,7 +1051,7 @@ consentGiven = \case
   UserLegalHoldNoConsent -> ConsentNotGiven
 
 checkConsent ::
-  (Member TeamStore r) =>
+  (Member TeamSubsystem r) =>
   Map UserId TeamId ->
   UserId ->
   Sem r ConsentGiven
@@ -1060,7 +1061,7 @@ checkConsent teamsOfUsers other = do
 -- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
 -- doesn't belong to a team.
 getLHStatus ::
-  (Member TeamStore r) =>
+  (Member TeamSubsystem r) =>
   Maybe TeamId ->
   UserId ->
   Sem r UserLegalHoldStatus
@@ -1068,12 +1069,13 @@ getLHStatus teamOfUser other = do
   case teamOfUser of
     Nothing -> pure defUserLegalHoldStatus
     Just team -> do
-      mMember <- getTeamMember team other
+      mMember <- TeamSubsystem.internalGetTeamMember other team
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 anyLegalholdActivated ::
   ( Member (Input Opts) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamSubsystem r
   ) =>
   [UserId] ->
   Sem r Bool
@@ -1092,7 +1094,8 @@ anyLegalholdActivated uids = do
 allLegalholdConsentGiven ::
   ( Member (Input Opts) r,
     Member LegalHoldStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamSubsystem r
   ) =>
   [UserId] ->
   Sem r Bool
@@ -1117,7 +1120,7 @@ allLegalholdConsentGiven uids = do
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
-  (Member TeamStore r) =>
+  (Member TeamStore r, Member TeamSubsystem r) =>
   [UserId] ->
   Sem r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =

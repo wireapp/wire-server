@@ -103,6 +103,7 @@ import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamStore
 import Wire.TeamStore qualified as E
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
@@ -486,10 +487,10 @@ safeForever funName action =
 guardLegalholdPolicyConflictsH ::
   ( Member BrigAPIAccess r,
     Member (Input Opts) r,
-    Member TeamStore r,
     Member P.TinyLog r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MissingLegalholdConsentOldClients) r
+    Member (ErrorS 'MissingLegalholdConsentOldClients) r,
+    Member TeamSubsystem r
   ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()

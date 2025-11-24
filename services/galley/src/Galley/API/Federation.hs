@@ -100,6 +100,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserList (UserList (UserList))
 
 type FederationAPI = "federation" :> FedApi 'Galley
@@ -275,7 +276,7 @@ leaveConversation ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
@@ -399,7 +400,7 @@ sendMessage ::
     Member (Input Opts) r,
     Member Now r,
     Member ExternalAccess r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -489,7 +490,7 @@ updateConversation ::
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member TinyLog r,
     Member Resource r,
     Member ConversationStore r,
@@ -497,7 +498,8 @@ updateConversation ::
     Member TeamFeatureStore r,
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TeamStore r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -630,6 +632,7 @@ sendMLSCommitBundle ::
     Member TeamFeatureStore r,
     Member Resource r,
     Member TeamStore r,
+    Member TeamSubsystem r,
     Member P.TinyLog r,
     Member Random r,
     Member ProposalStore r,
@@ -686,10 +689,10 @@ sendMLSMessage ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member TeamStore r,
     Member P.TinyLog r,
     Member ProposalStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamStore r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -716,7 +719,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
 getSubConversationForRemoteUser ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Domain ->
   GetSubConversationsRequest ->
@@ -735,7 +738,7 @@ leaveSubConversation ::
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
   Domain ->
@@ -757,7 +760,7 @@ deleteSubConversationForRemoteUser ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
   Domain ->
@@ -972,7 +975,7 @@ updateTypingIndicator ::
     Member ConversationStore r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Domain ->
   TypingDataUpdateRequest ->

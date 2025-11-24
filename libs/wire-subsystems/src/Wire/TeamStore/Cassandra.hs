@@ -90,7 +90,7 @@ interpretTeamStoreToCassandra = interpret $ \case
   SelectTeams uid tids -> do
     logEffect "TeamStore.SelectTeams"
     embedClientInput (teamIdsOf uid tids)
-  GetTeamMember tid uid -> do
+  GetTeamMemberTempName tid uid -> do
     logEffect "TeamStore.GetTeamMember"
     teamMember tid uid
   GetTeamMembersWithLimit tid n -> do

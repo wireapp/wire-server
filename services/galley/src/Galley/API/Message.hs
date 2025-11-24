@@ -88,6 +88,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
 
 data UserType = User | Bot
 
@@ -261,7 +262,8 @@ postBroadcast ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -369,9 +371,9 @@ postQualifiedOtrMessage ::
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
-    Member TeamStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -529,8 +531,8 @@ guardQualifiedLegalholdPolicyConflictsWrapper ::
   ( Member BrigAPIAccess r,
     Member (Error (MessageNotSent MessageSendingStatus)) r,
     Member (Input Opts) r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamSubsystem r
   ) =>
   UserType ->
   Qualified UserId ->

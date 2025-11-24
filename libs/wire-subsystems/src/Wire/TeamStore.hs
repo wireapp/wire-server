@@ -51,7 +51,7 @@ data TeamStore m a where
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
-  GetTeamMember :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
+  GetTeamMemberTempName :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
   GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
   GetTeamMembers :: TeamId -> TeamStore m [TeamMember]
   SelectTeamMembers :: TeamId -> [UserId] -> TeamStore m [TeamMember]

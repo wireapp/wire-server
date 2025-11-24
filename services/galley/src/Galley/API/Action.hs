@@ -127,6 +127,8 @@ import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore qualified as E
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
@@ -424,7 +426,8 @@ ensureAllowed ::
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
     Member (ErrorS ConvNotFound) r,
-    Member (Error FederationError) r
+    Member (Error FederationError) r,
+    Member TeamSubsystem r
   ) =>
   Sing tag ->
   Local x ->
@@ -450,7 +453,7 @@ ensureAllowed tag loc action conv (ActorContext (Just origUser) mTm) = do
     SConversationDeleteTag ->
       for_ (convTeam conv) $ \tid -> do
         lusr <- ensureLocal loc (convMemberId loc origUser)
-        void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
+        void $ TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= noteS @'NotATeamMember
     SConversationAccessDataTag -> do
       -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
       -- so on; users not supposed to be able to make other conversations
@@ -501,7 +504,8 @@ performAction ::
     Member TeamCollaboratorsSubsystem r,
     Member (Error FederationError) r,
     Member ConversationSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -556,7 +560,7 @@ performAction tag origUser lconv action = do
 
       pure $ mkPerformActionResult action
     SConversationRenameTag -> do
-      zusrMembership <- join <$> forM conv.metadata.cnvmTeam (flip E.getTeamMember (qUnqualified origUser))
+      zusrMembership <- join <$> forM conv.metadata.cnvmTeam (TeamSubsystem.internalGetTeamMember (qUnqualified origUser))
       for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
@@ -618,7 +622,8 @@ performConversationJoin ::
   ( HasConversationActionEffects 'ConversationJoinTag r,
     Member BackendNotificationQueueAccess r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
@@ -730,7 +735,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
     checkTeamMemberAddPermission lusr = do
       case conv.metadata.cnvmTeam of
         Just tid -> do
-          maybeTeamMember <- E.getTeamMember tid (tUnqualified lusr)
+          maybeTeamMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
           case maybeTeamMember of
             Just tm -> do
               let isChannel = conv.metadata.cnvmGroupConvType == Just Channel
@@ -764,7 +769,8 @@ performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    Member ConversationSubsystem r
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
@@ -822,23 +828,23 @@ performConversationAccessData qusr lconv action = do
           -- FUTUREWORK: should we also remove non-activated remote users?
           pure $ bm {bmLocals = Set.fromList activated}
 
-    maybeRemoveNonTeamMembers :: (Member TeamStore r) => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveNonTeamMembers :: (Member TeamSubsystem r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveNonTeamMembers bm =
       if Set.member NonTeamMemberAccessRole (cupAccessRoles action)
         then pure bm
         else case convTeam conv of
           Just tid -> do
-            onlyTeamUsers <- filterM (fmap isJust . E.getTeamMember tid) (toList (bmLocals bm))
+            onlyTeamUsers <- filterM (fmap isJust . flip TeamSubsystem.internalGetTeamMember tid) (toList (bmLocals bm))
             pure $ bm {bmLocals = Set.fromList onlyTeamUsers, bmRemotes = mempty}
           Nothing -> pure bm
 
-    maybeRemoveTeamMembers :: (Member TeamStore r) => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveTeamMembers :: (Member TeamSubsystem r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveTeamMembers bm =
       if Set.member TeamMemberAccessRole (cupAccessRoles action)
         then pure bm
         else case convTeam conv of
           Just tid -> do
-            noTeamMembers <- filterM (fmap isNothing . E.getTeamMember tid) (toList (bmLocals bm))
+            noTeamMembers <- filterM (fmap isNothing . flip TeamSubsystem.internalGetTeamMember tid) (toList (bmLocals bm))
             pure $ bm {bmLocals = Set.fromList noTeamMembers}
           Nothing -> pure bm
 
@@ -853,9 +859,9 @@ updateLocalConversation ::
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     SingI tag,
-    Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -888,9 +894,9 @@ updateLocalConversationUnchecked ::
     Member (ErrorS 'InvalidOperation) r,
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
-    Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->
@@ -914,7 +920,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
     par.extraConversationData
   where
     getTeamMembership :: StoredConversation -> Local UserId -> Sem r (Maybe TeamMember)
-    getTeamMembership conv luid = maybe (pure Nothing) (`E.getTeamMember` tUnqualified luid) conv.metadata.cnvmTeam
+    getTeamMembership conv luid = maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified luid)) conv.metadata.cnvmTeam
 
     ensureConversationActionAllowed :: Sing tag -> Local x -> StoredConversation -> Maybe TeamMember -> Sem r ()
     ensureConversationActionAllowed tag loc conv mTeamMember = do

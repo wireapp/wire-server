@@ -60,7 +60,9 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Mul
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess (getAccountConferenceCallingConfigClient)
 import Wire.ConversationStore as ConversationStore
-import Wire.TeamStore (getOneUserTeam, getTeamMember)
+import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 data DoAuth = DoAuth UserId | DontDoAuth
 
@@ -118,13 +120,13 @@ getFeature ::
     Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Sem r (LockableFeature cfg)
 getFeature uid tid = do
-  void $ getTeamMember tid uid >>= noteS @'NotATeamMember
+  void $ TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'NotATeamMember
   getFeatureForTeam @cfg tid
 
 getFeatureInternal ::
@@ -147,14 +149,15 @@ toTeamStatus tid feat = Multi.TeamStatus tid feat.status
 getTeamAndCheckMembership ::
   ( Member TeamStore r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamNotFound) r
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r (Maybe TeamId)
 getTeamAndCheckMembership uid = do
-  mTid <- getOneUserTeam uid
+  mTid <- TeamStore.getOneUserTeam uid
   for_ mTid $ \tid -> do
-    zusrMembership <- getTeamMember tid uid
+    zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
     void $ maybe (throwS @'NotATeamMember) pure zusrMembership
     assertTeamExists tid
   pure mTid
@@ -166,13 +169,14 @@ getAllTeamFeaturesForTeam ::
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
   Sem r AllTeamFeatures
 getAllTeamFeaturesForTeam luid tid = do
-  void $ getTeamMember tid (tUnqualified luid) >>= noteS @'NotATeamMember
+  void $ TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid >>= noteS @'NotATeamMember
   getAllTeamFeatures tid
 
 class
@@ -228,7 +232,8 @@ getAllTeamFeaturesForUser ::
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r AllTeamFeatures
@@ -247,7 +252,8 @@ getSingleFeatureForUser ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     GetFeatureForUserConstraints cfg r,
-    ComputeFeatureConstraints cfg r
+    ComputeFeatureConstraints cfg r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r (LockableFeature cfg)

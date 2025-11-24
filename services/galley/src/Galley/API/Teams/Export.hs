@@ -47,7 +47,8 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-import Wire.TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 -- | Cache of inviter handles.
 --
@@ -121,15 +122,15 @@ getTeamMembersCSV ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'AccessDenied) r,
     Member (TeamMemberStore InternalPaging) r,
-    Member TeamStore r,
     Member (Final IO) r,
-    Member SparAccess r
+    Member SparAccess r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
   Sem r LowLevelStreamingBody
 getTeamMembersCSV lusr tid = do
-  getTeamMember tid (tUnqualified lusr) >>= \case
+  TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 

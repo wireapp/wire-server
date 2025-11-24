@@ -88,6 +88,8 @@ import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 createSettings ::
   forall r.
@@ -98,9 +100,9 @@ createSettings ::
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r,
     Member P.TinyLog r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -109,7 +111,7 @@ createSettings ::
 createSettings lzusr tid newService = do
   let zusr = tUnqualified lzusr
   assertLegalHoldEnabledForTeam tid
-  zusrMembership <- getTeamMember tid zusr
+  zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
   -- let zothers = map (view userId) membs
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -128,15 +130,15 @@ getSettings ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
     Member TeamFeatureStore r,
-    Member TeamStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
   Sem r Public.ViewLegalHoldService
 getSettings lzusr tid = do
   let zusr = tUnqualified lzusr
-  zusrMembership <- getTeamMember tid zusr
+  zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
   void $ maybe (throwS @'NotATeamMember) pure zusrMembership
   isenabled <- isLegalHoldEnabledForTeam tid
   mresult <- LegalHoldData.getSettings tid
@@ -179,7 +181,8 @@ removeSettingsInternalPaging ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -223,7 +226,8 @@ removeSettings ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -232,7 +236,7 @@ removeSettings ::
 removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   assertNotWhitelisting
   assertLegalHoldEnabledForTeam tid
-  zusrMembership <- getTeamMember tid zusr
+  zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
   -- let zothers = map (view userId) membs
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
@@ -280,7 +284,8 @@ removeSettings' ::
     Member P.TinyLog r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Sem r ()
@@ -329,7 +334,8 @@ grantConsent ::
     Member Random r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -337,7 +343,7 @@ grantConsent ::
 grantConsent lusr tid = do
   userLHStatus <-
     noteS @'TeamMemberNotFound
-      =<< fmap (view legalHoldStatus) <$> getTeamMember tid (tUnqualified lusr)
+      =<< fmap (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   case userLHStatus of
     lhs@UserLegalHoldNoConsent ->
       changeLegalholdStatusAndHandlePolicyConflicts tid lusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
@@ -381,7 +387,8 @@ requestDevice ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -394,9 +401,9 @@ requestDevice lzusr tid uid = do
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.requestDevice")
-  zusrMembership <- getTeamMember tid zusr
+  zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  member <- noteS @'TeamMemberNotFound =<< getTeamMember tid uid
+  member <- noteS @'TeamMemberNotFound =<< TeamSubsystem.internalGetTeamMember uid tid
   case member ^. legalHoldStatus of
     UserLegalHoldEnabled -> throwS @'UserLegalHoldAlreadyEnabled
     lhs@UserLegalHoldPending ->
@@ -476,7 +483,8 @@ approveDevice ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -495,7 +503,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
   assertOnTeam (tUnqualified luid) tid
   ensureReAuthorised zusr mPassword Nothing Nothing
   userLHStatus <-
-    maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
+    maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
   assertUserLHPending userLHStatus
   mPreKeys <- LegalHoldData.selectPendingPrekeys (tUnqualified luid)
   (prekeys, lastPrekey') <- case mPreKeys of
@@ -553,7 +561,8 @@ disableForUser ::
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -565,11 +574,11 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.disableForUser")
-  zusrMembership <- getTeamMember tid (tUnqualified lzusr)
+  zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
 
   userLHStatus <-
-    maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
+    maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
 
   let doDisable = disableLH (tUnqualified lzusr) luid userLHStatus $> DisableLegalHoldSuccess
   case userLHStatus of
@@ -617,7 +626,8 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member Random r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Local UserId ->
@@ -664,7 +674,8 @@ blockNonConsentingConnections ::
   ( Member BrigAPIAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (ErrorS 'LegalHoldCouldNotBlockConnections) r
+    Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r ()
@@ -733,7 +744,8 @@ handleGroupConvPolicyConflicts ::
     Member Random r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

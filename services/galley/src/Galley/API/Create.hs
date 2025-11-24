@@ -89,7 +89,9 @@ import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
-import Wire.TeamStore qualified as E
+import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 ----------------------------------------------------------------------------
@@ -124,7 +126,8 @@ createGroupConversationUpToV3 ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -170,7 +173,8 @@ createGroupOwnConversation ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -216,7 +220,8 @@ createGroupConversation ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -263,7 +268,8 @@ createGroupConvAndMkResponse ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -305,7 +311,8 @@ createGroupConversationGeneric ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -349,7 +356,8 @@ ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Input Opts) r,
     Member LegalHoldStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamSubsystem r
   ) =>
   UserList UserId ->
   Sem r ()
@@ -370,7 +378,8 @@ checkCreateConvPermissions ::
     Member TeamStore r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   NewConv ->
@@ -414,7 +423,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
         void $ permissionCheck AddRemoveConvMember teamAssociation
 
-  convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
+  convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
@@ -444,9 +453,9 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     ensureCreateChannelPermissions _ Nothing = do
       throwS @NotATeamMember
 
-getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
-getTeamMember uid (Just tid) = E.getTeamMember tid uid
-getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
+getTeamMember :: (Member TeamStore r, Member TeamSubsystem r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
+getTeamMember uid (Just tid) = TeamSubsystem.internalGetTeamMember uid tid
+getTeamMember uid Nothing = TeamStore.getUserTeams uid >>= maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember uid) . headMay
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
@@ -496,7 +505,8 @@ createOne2OneConversation ::
     Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -524,13 +534,13 @@ createOne2OneConversation lusr zcon j =
   where
     verifyMembership ::
       ( Member (ErrorS 'NoBindingTeamMembers) r,
-        Member TeamStore r
+        Member TeamSubsystem r
       ) =>
       TeamId ->
       UserId ->
       Sem r ()
     verifyMembership tid u = do
-      membership <- E.getTeamMember tid u
+      membership <- TeamSubsystem.internalGetTeamMember u tid
       when (isNothing membership) $
         throwS @'NoBindingTeamMembers
     checkBindingTeamPermissions ::
@@ -540,21 +550,22 @@ createOne2OneConversation lusr zcon j =
         Member (ErrorS OperationDenied) r,
         Member (ErrorS 'TeamNotFound) r,
         Member TeamCollaboratorsSubsystem r,
-        Member TeamStore r
+        Member TeamStore r,
+        Member TeamSubsystem r
       ) =>
       Local UserId ->
       TeamId ->
       Sem r (Maybe TeamId)
     checkBindingTeamPermissions lother tid = do
       mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
-      zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
+      zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
       case (mTeamCollaborator, zusrMembership) of
         (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
         (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
         (Just collaborator, Just member) ->
           unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
             throwS @OperationDenied
-      E.getTeamBinding tid >>= \case
+      TeamStore.getTeamBinding tid >>= \case
         Just Binding -> do
           when (isJust zusrMembership) $
             verifyMembership tid (tUnqualified lusr)
