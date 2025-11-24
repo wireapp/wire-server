@@ -4,7 +4,6 @@ module Cannon.PulsarConsumerApp (pulsarWebSocketApp) where
 
 import Cannon.App (rejectOnError)
 import Cannon.Options
-import Cannon.RabbitMq
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Conduit (runResourceT)
@@ -173,7 +172,7 @@ logPulsarResult provenance result =
 
 pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
-  handle handleTooManyChannels . lowerCodensity $
+  lowerCodensity $
     do
       (chan, queueInfo) <- createPulsarChannel uid mcid
       traceM $ "XXX pulsarWebSocketApp " ++ show queueInfo
@@ -194,14 +193,13 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
           [ -- TODO: Review exceptions. pulsar-hs and amqp exceptions surely differ.
             handleClientMisbehaving conn,
             handleWebSocketExceptions conn,
-            handleRabbitMqChannelException conn,
             handleInactivity conn,
             handleOtherExceptions conn
           ]
         $ do
           traverse_ (sendFullSyncMessageIfNeeded wsConn uid e) mcid
           traverse_ (publishSyncMessage uid . mkSynchronizationMessage) mSyncMarkerId
-          sendNotifications chan queueInfo wsConn
+          sendNotifications chan wsConn
 
       let monitor = do
             timeout wsConn.activityTimeout (takeMVar wsConn.activity) >>= \case
@@ -316,24 +314,10 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
                 . logClient
             WS.sendCloseCode wsConn 1003 ("unexpected-ack" :: ByteString)
 
-    handleRabbitMqChannelException wsConn = do
-      Handler $ \ChannelClosed -> do
-        Log.debug e.logg $ Log.msg (Log.val "RabbitMQ channel closed") . logClient
-        WS.sendCloseCode wsConn 1001 ("" :: ByteString)
-
     handleOtherExceptions wsConn = Handler $
       \(err :: SomeException) -> do
         WS.sendCloseCode wsConn 1003 ("internal-error" :: ByteString)
         throwIO err
-
-    handleTooManyChannels TooManyChannels =
-      rejectRequestWith pendingConn $
-        RejectRequest
-          { rejectCode = 503,
-            rejectMessage = "Service Unavailable",
-            rejectHeaders = [],
-            rejectBody = ""
-          }
 
     mkSynchronizationMessage :: StrictText -> ByteString
     mkSynchronizationMessage markerId =
@@ -345,8 +329,8 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
             msgType = Just "synchronization"
           }
 
-    sendNotifications :: PulsarChannel -> PulsarQueueInfo -> WSConnection -> IO ()
-    sendNotifications chan queueInfo wsConn = do
+    sendNotifications :: PulsarChannel -> WSConnection -> IO ()
+    sendNotifications chan wsConn = do
       traceM $ "XXX - sendNotifications called "
       let consumeRabbitMq = forever $ do
             traceM $ "XXX - sendNotifications consumeRabbitMq called "
