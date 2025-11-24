@@ -38,6 +38,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.RatchetTree
+import Wire.API.MLS.SubConversation
 import Wire.API.Team.Feature
 import Wire.ConversationStore.MLS.Types
 
@@ -73,6 +74,9 @@ checkGroupState mTid leaves groupInfo = do
     getIdentity leaf = case credentialIdentityAndKey leaf.credential of
       Left e -> throw (mlsProtocolError e)
       Right (cid, _) -> pure cid
+
+checkExistingGroupState :: ConvOrSubConvId -> Sem r ()
+checkExistingGroupState convOrSub = pure ()
 
 isGroupInfoCheckEnabled ::
   ( Member TeamFeatureStore r,
