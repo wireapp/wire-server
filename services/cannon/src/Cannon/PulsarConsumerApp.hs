@@ -46,21 +46,23 @@ instance Exception InactivityTimeout
 -- TODO: The name is a misleading. However, while developing, it's useful to keep the analogies with RabbitMQ.
 data PulsarChannel = PulsarChannel
   { -- TODO: Rename: msgChannel
-    msgVar :: Chan (ByteString, ByteString),
+    msgVar :: Chan (PulsarMsgId, ByteString),
     closeSignal :: MVar (),
-    acknowledgeMessages :: Chan ByteString,
-    rejectMessages :: Chan ByteString
+    acknowledgeMessages :: Chan PulsarMsgId,
+    rejectMessages :: Chan PulsarMsgId
   }
 
-data PulsarQueueInfo = PulsarQueueInfo
+newtype PulsarMsgId = PulsarMsgId {unPulsarMsgId :: ByteString}
+
+newtype PulsarQueueInfo = PulsarQueueInfo
   {subscription :: Text}
   deriving (Show)
 
 createPulsarChannel :: UserId -> Maybe ClientId -> Codensity IO (PulsarChannel, PulsarQueueInfo)
 createPulsarChannel uid mCid = do
-  msgChannel :: Chan (ByteString, ByteString) <- lift newChan
-  acknowledgeMessages :: Chan ByteString <- lift newChan
-  rejectMessages :: Chan ByteString <- lift newChan
+  msgChannel :: Chan (PulsarMsgId, ByteString) <- lift newChan
+  acknowledgeMessages :: Chan PulsarMsgId <- lift newChan
+  rejectMessages :: Chan PulsarMsgId <- lift newChan
   closeSignal :: MVar () <- lift $ newEmptyMVar
   unackedMsgsCounter :: TVar Int <- newTVarIO 0
   let subscription = case mCid of
@@ -105,14 +107,14 @@ createPulsarChannel uid mCid = do
       PulsarQueueInfo subscription
     )
   where
-    receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (ByteString, ByteString) -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
+    receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (PulsarMsgId, ByteString) -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
     receiveMsgs msgChannel unackedMsgsCounter = UnliftIO.async . forever $ do
       liftIO $ waitUntilCounterBelow unackedMsgsCounter 500
       Pulsar.receiveMessage (liftIO . onPulsarError "receiveMessage") $ do
         content <- Pulsar.messageContent
         traceM $ "XXX - received message with content " ++ BSUTF8.toString content
-        msgId :: ByteString <- Pulsar.messageId Pulsar.messageIdSerialize
-        liftIO $ writeChan msgChannel (msgId, content)
+        msgId <- Pulsar.messageId Pulsar.messageIdSerialize
+        liftIO $ writeChan msgChannel (PulsarMsgId msgId, content)
         liftIO $ incCounter unackedMsgsCounter
         traceM $ "XXX - wrote message to channel:" ++ BSUTF8.toString content
     -- void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> Pulsar.acknowledgeMessage
@@ -120,19 +122,19 @@ createPulsarChannel uid mCid = do
     blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m (Async ())
     blockOnCloseSignal = UnliftIO.async . readMVar
 
-    acknowledgeMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
+    acknowledgeMsgs :: (UnliftIO.MonadUnliftIO m) => Chan PulsarMsgId -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
     acknowledgeMsgs chan unackedMsgsCounter =
       UnliftIO.async . forever $ do
-        msgId <- UnliftIO.readChan chan
+        PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
         traceM $ "acknowledgeMsgs"
         void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
         liftIO $ decCounter unackedMsgsCounter
 
-    rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
+    rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan PulsarMsgId -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
     rejectMsgs chan unackedMsgsCounter =
       UnliftIO.async . forever $ do
-        msgId <- UnliftIO.readChan chan
+        PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
         Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeNegativeMessageId
         liftIO $ decCounter unackedMsgsCounter
@@ -357,11 +359,11 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
       --  - exceptions on either side do not cause a deadlock
       concurrently_ consumeRabbitMq consumeWebsocket
 
-    decodeMsgId :: String -> ByteString
-    decodeMsgId = either (error . ("decodeMsgId: " ++) . unpack) id . decodeBase64Untyped . BSUTF8.fromString
+    decodeMsgId :: String -> PulsarMsgId
+    decodeMsgId = either (error . ("decodeMsgId: " ++) . unpack) PulsarMsgId . decodeBase64Untyped . BSUTF8.fromString
 
-    encodeMsgId :: ByteString -> String
-    encodeMsgId = T.unpack . extractBase64 . encodeBase64
+    encodeMsgId :: PulsarMsgId -> String
+    encodeMsgId = T.unpack . extractBase64 . encodeBase64 . unPulsarMsgId
 
     logParseError :: String -> IO ()
     logParseError err =
