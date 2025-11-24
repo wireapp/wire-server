@@ -31,7 +31,7 @@ interpretTeamSubsystem = interpret $ \case
   InternalGetTeamMember uid tid ->
     -- TODO: LH Implicit consent logic
     E.getTeamMemberTempName tid uid
-  InternalGetTeamMembers tid maxResults ->
+  InternalGetTeamMembersWithLimit tid maxResults ->
     E.getTeamMembersWithLimitTempName tid $ fromMaybe hardTruncationLimitRange maxResults
   InternalSelectTeamMemberInfos tid uids -> TeamMemberInfoList <$> E.selectTeamMemberInfos tid uids
   InternalSelectTeamMembers tid uids -> E.selectTeamMembersTempName tid uids

@@ -1144,7 +1144,7 @@ getTeamMembersForFanout ::
   Sem r TeamMemberList
 getTeamMembersForFanout tid = do
   lim <- input
-  TeamSubsystem.internalGetTeamMembers tid (Just lim)
+  TeamSubsystem.internalGetTeamMembersWithLimit tid (Just lim)
 
 ensureMemberLimit ::
   ( Foldable f,

@@ -382,7 +382,7 @@ internalDeleteBindingTeam tid force = do
     Nothing -> throwS @'TeamNotFound
     Just team | team ^. teamBinding /= Binding -> throwS @'NoBindingTeam
     Just team -> do
-      mems <- TeamSubsystem.internalGetTeamMembers tid (Just (unsafeRange 2))
+      mems <- TeamSubsystem.internalGetTeamMembersWithLimit tid (Just (unsafeRange 2))
       case mems ^. teamMembers of
         [mem] -> queueTeamDeletion tid (mem ^. userId) Nothing
         -- if the team has more than one member (and deletion is forced) or no members we use the team creator's userId for deletion events
