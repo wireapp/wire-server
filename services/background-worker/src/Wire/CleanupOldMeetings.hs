@@ -23,14 +23,19 @@ module Wire.CleanupOldMeetings
   )
 where
 
+import Data.Bifunctor (first)
 import Data.Time.Clock
-import Hasql.Pool qualified as Hasql
-import Hasql.Session qualified as Hasql
-import Hasql.Statement qualified as Hasql
-import Hasql.TH qualified as TH
+import Hasql.Pool (UsageError)
 import Imports
+import Polysemy
+import Polysemy.Error (runError)
+import Polysemy.Input (runInputConst)
 import System.Logger qualified as Log
 import Wire.BackgroundWorker.Env
+import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
+import Wire.MeetingsSubsystem qualified as Meetings
+import Wire.MeetingsSubsystem.Interpreter (interpretMeetingsSubsystem)
 
 data CleanupConfig = CleanupConfig
   { retentionDays :: Int,
@@ -59,7 +64,9 @@ cleanupOldMeetings config = do
 
 cleanupLoop :: Env -> UTCTime -> Int -> Int64 -> AppT IO Int64
 cleanupLoop env cutoffTime batchSize totalSoFar = do
-  result <- liftIO $ Hasql.use env.hasqlPool (deleteOldMeetingsSession cutoffTime batchSize)
+  -- Run the subsystem to handle cleanup logic
+  result <- liftIO $ runMeetingsCleanup env cutoffTime batchSize
+
   case result of
     Left err -> do
       Log.err env.logger $
@@ -78,19 +85,15 @@ cleanupLoop env cutoffTime batchSize totalSoFar = do
         then cleanupLoop env cutoffTime batchSize newTotal
         else pure newTotal
 
-deleteOldMeetingsSession :: UTCTime -> Int -> Hasql.Session Int64
-deleteOldMeetingsSession cutoffTime batchSize =
-  Hasql.statement (cutoffTime, batchSize) deleteOldMeetingsStatement
-
-deleteOldMeetingsStatement :: Hasql.Statement (UTCTime, Int) Int64
-deleteOldMeetingsStatement =
-  [TH.singletonStatement|
-    DELETE FROM meetings
-    WHERE id IN (
-      SELECT id
-      FROM meetings
-      WHERE end_date < $1 :: timestamptz
-      ORDER BY end_date ASC
-      LIMIT $2 :: int4
-    )
-  |]
+-- Run the meetings cleanup using the subsystem
+runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either String Int64)
+runMeetingsCleanup env cutoffTime batchSize =
+  fmap (first show)
+    . runM
+    . runError @UsageError
+    . runInputConst env.hasqlPool
+    . interpretMeetingsStoreToPostgres
+    . runInputConst env.hasqlPool
+    . interpretConversationStoreToPostgres
+    . interpretMeetingsSubsystem
+    $ Meetings.cleanupOldMeetings cutoffTime batchSize

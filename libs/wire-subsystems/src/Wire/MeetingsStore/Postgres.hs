@@ -66,8 +66,10 @@ interpretMeetingsStoreToPostgres =
       addInvitedEmailImpl meetingId email
     RemoveInvitedEmail meetingId email ->
       removeInvitedEmailImpl meetingId email
-    DeleteOldMeetings cutoffTime ->
-      deleteOldMeetingsImpl cutoffTime
+    GetOldMeetings cutoffTime batchSize ->
+      getOldMeetingsImpl cutoffTime batchSize
+    DeleteMeetingBatch meetingIds ->
+      deleteMeetingBatchImpl meetingIds
 
 createMeetingImpl ::
   ( Member (Input Pool) r,
@@ -331,26 +333,63 @@ removeInvitedEmailImpl qMeetingId email = do
         WHERE domain = ($2 :: text) AND id :: text = ($3 :: text)
       |]
 
-deleteOldMeetingsImpl ::
+getOldMeetingsImpl ::
   ( Member (Input Pool) r,
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
   UTCTime ->
+  Int ->
+  Sem r [API.Meeting]
+getOldMeetingsImpl cutoffTime batchSize = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [API.Meeting]
+    session = statement (cutoffTime, fromIntegral batchSize) getOldStatement
+
+    getOldStatement :: Statement (UTCTime, Int32) [API.Meeting]
+    getOldStatement =
+      dimap
+        id
+        (fmap rowToMeeting . V.toList)
+        [vectorStatement|
+          SELECT id :: uuid, domain :: text, title :: text, creator :: uuid,
+                 start_date :: timestamptz, end_date :: timestamptz, schedule :: text?,
+                 conversation_id :: uuid, conversation_domain :: text,
+                 invited_emails :: text[], trial :: bool
+          FROM meetings
+          WHERE end_date < ($1 :: timestamptz)
+          ORDER BY end_date ASC
+          LIMIT ($2 :: int4)
+        |]
+
+deleteMeetingBatchImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  [Qualified API.MeetingId] ->
   Sem r Int64
-deleteOldMeetingsImpl cutoffTime = do
+deleteMeetingBatchImpl meetingIds = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
     session :: Session Int64
-    session = statement cutoffTime deleteOldStatement
+    session = foldM deleteSingle 0 meetingIds
 
-    deleteOldStatement :: Statement UTCTime Int64
-    deleteOldStatement =
+    deleteSingle :: Int64 -> Qualified API.MeetingId -> Session Int64
+    deleteSingle acc qMeetingId = do
+      count <- statement (UUID.toText (API.unMeetingId (qUnqualified qMeetingId)), _domainText (qDomain qMeetingId)) deleteStatement
+      pure (acc + count)
+
+    deleteStatement :: Statement (Text, Text) Int64
+    deleteStatement =
       [rowsAffectedStatement|
         DELETE FROM meetings
-        WHERE end_date < ($1 :: timestamptz)
+        WHERE id :: text = ($1 :: text) AND domain = ($2 :: text)
       |]
 
 -- Helper functions

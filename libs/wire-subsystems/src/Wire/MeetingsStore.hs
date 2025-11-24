@@ -66,8 +66,13 @@ data MeetingsStore m a where
     Qualified MeetingId ->
     EmailAddress ->
     MeetingsStore m ()
-  DeleteOldMeetings ::
+  -- Cleanup operations
+  GetOldMeetings ::
     UTCTime ->
+    Int ->
+    MeetingsStore m [Meeting]
+  DeleteMeetingBatch ::
+    [Qualified MeetingId] ->
     MeetingsStore m Int64
 
 makeSem ''MeetingsStore

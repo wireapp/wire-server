@@ -20,6 +20,7 @@ module Wire.MeetingsSubsystem.Interpreter where
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Clock (UTCTime)
 import Data.UUID.V4 qualified as UUIDV4
 import Imports
 import Polysemy
@@ -56,6 +57,8 @@ interpretMeetingsSubsystem = interpret $ \case
     addInvitedEmailImpl zUser meetingId email
   RemoveInvitedEmail zUser meetingId email ->
     removeInvitedEmailImpl zUser meetingId email
+  CleanupOldMeetings cutoffTime batchSize ->
+    cleanupOldMeetingsImpl cutoffTime batchSize
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -215,7 +218,9 @@ updateMeetingImpl zUser meetingId update = do
             update.schedule
 
 deleteMeetingImpl ::
-  (Member Store.MeetingsStore r) =>
+  ( Member Store.MeetingsStore r,
+    Member ConvStore.ConversationStore r
+  ) =>
   Local UserId ->
   Qualified MeetingId ->
   Sem r Bool
@@ -231,6 +236,16 @@ deleteMeetingImpl zUser meetingId = do
         else do
           -- Delete meeting
           Store.deleteMeeting meetingId
+
+          -- Delete associated conversation if it's a meeting conversation
+          let convId = qUnqualified meeting.conversationId
+          maybeConv <- ConvStore.getConversation convId
+          case maybeConv of
+            Just conv
+              | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
+                  ConvStore.deleteConversation convId
+            _ -> pure ()
+
           pure True
 
 addInvitedEmailImpl ::
@@ -272,3 +287,37 @@ removeInvitedEmailImpl zUser meetingId email = do
           -- Remove invited email
           Store.removeInvitedEmail meetingId email
           pure True
+
+cleanupOldMeetingsImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConvStore.ConversationStore r
+  ) =>
+  UTCTime ->
+  Int ->
+  Sem r Int64
+cleanupOldMeetingsImpl cutoffTime batchSize = do
+  -- 1. Fetch old meetings
+  oldMeetings <- Store.getOldMeetings cutoffTime batchSize
+
+  if null oldMeetings
+    then pure 0
+    else do
+      -- 2. Extract meeting IDs and conversation IDs
+      let meetingIds = map (.id) oldMeetings
+          convIds = map (.conversationId) oldMeetings
+
+      -- 3. Delete meetings from database
+      deletedCount <- Store.deleteMeetingBatch meetingIds
+
+      -- 4. Delete associated conversations if they are meeting conversations
+      -- We need to check if conversation has GroupConvType = MeetingConversation
+      for_ convIds $ \qConvId -> do
+        let convId = qUnqualified qConvId
+        maybeConv <- ConvStore.getConversation convId
+        case maybeConv of
+          Just conv
+            | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
+                ConvStore.deleteConversation convId
+          _ -> pure ()
+
+      pure deletedCount

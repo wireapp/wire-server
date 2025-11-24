@@ -58,6 +58,7 @@ library
     , servant-client
     , servant-server
     , text
+    , time
     , tinylog
     , transformers
     , transformers-base
