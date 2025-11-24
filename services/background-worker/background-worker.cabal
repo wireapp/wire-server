@@ -20,8 +20,8 @@ library
     Wire.BackgroundWorker.Jobs.Registry
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
-    Wire.CleanupOldMeetings
     Wire.DeadUserNotificationWatcher
+    Wire.MeetingsCleanupWorker
     Wire.MigrateConversations
 
   hs-source-dirs:     src

@@ -17,8 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.CleanupOldMeetings
-  ( cleanupOldMeetings,
+module Wire.MeetingsCleanupWorker
+  ( startWorker,
+    cleanupOldMeetings,
     CleanupConfig (..),
   )
 where
@@ -31,28 +32,69 @@ import Polysemy
 import Polysemy.Error (runError)
 import Polysemy.Input (runInputConst)
 import System.Logger qualified as Log
-import Wire.BackgroundWorker.Env
+import UnliftIO (async)
+import Wire.BackgroundWorker.Env (AppT, Env (..))
+import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
+import Wire.BackgroundWorker.Util (CleanupAction)
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem qualified as Meetings
 import Wire.MeetingsSubsystem.Interpreter (interpretMeetingsSubsystem)
 
 data CleanupConfig = CleanupConfig
-  { retentionDays :: Int,
+  { retentionHours :: Int,
     batchSize :: Int
   }
   deriving (Show, Eq)
 
+-- | Start the meetings cleanup worker thread
+--
+-- This worker runs periodically to clean up old meetings based on the configuration.
+-- It sleeps for the configured frequency and then runs the cleanup operation.
+startWorker ::
+  MeetingsCleanupConfig ->
+  AppT IO CleanupAction
+startWorker config = do
+  env <- ask
+  -- Start the worker loop in a separate thread
+  void . async $ workerLoop env config
+  -- Return a no-op cleanup action (worker will be killed when the process exits)
+  pure $ pure ()
+
+-- | Worker loop that runs periodically
+workerLoop :: Env -> MeetingsCleanupConfig -> AppT IO ()
+workerLoop env config = forever $ do
+  -- Sleep for the configured frequency (convert seconds to microseconds)
+  liftIO $ threadDelay (config.cleanFrequencySeconds * 1_000_000)
+
+  Log.info env.logger $
+    Log.msg (Log.val "Starting scheduled meetings cleanup")
+      . Log.field "clean_older_than_hours" config.cleanOlderThanHours
+      . Log.field "batch_size" config.batchSize
+      . Log.field "frequency_seconds" config.cleanFrequencySeconds
+
+  -- Run the cleanup
+  cleanupOldMeetings (configFromOptions config)
+
+-- | Convert MeetingsCleanupConfig to CleanupConfig
+configFromOptions :: MeetingsCleanupConfig -> CleanupConfig
+configFromOptions cfg =
+  CleanupConfig
+    { retentionHours = cfg.cleanOlderThanHours,
+      batchSize = cfg.batchSize
+    }
+
+-- | Main cleanup function that orchestrates the cleanup process
 cleanupOldMeetings :: CleanupConfig -> AppT IO ()
 cleanupOldMeetings config = do
   env <- ask
   now <- liftIO getCurrentTime
-  let cutoffTime = addUTCTime (negate $ fromIntegral config.retentionDays * 24 * 3600) now
+  let cutoffTime = addUTCTime (negate $ fromIntegral config.retentionHours * 3600) now
 
   Log.info env.logger $
     Log.msg (Log.val "Starting cleanup of old meetings")
       . Log.field "cutoff_time" (show cutoffTime)
-      . Log.field "retention_days" config.retentionDays
+      . Log.field "retention_hours" config.retentionHours
       . Log.field "batch_size" config.batchSize
 
   -- Loop until no more meetings are deleted
