@@ -94,6 +94,8 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.ListItems
+import Wire.MeetingsStore (MeetingsStore)
+import Wire.MeetingsSubsystem (MeetingsSubsystem)
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Rpc
@@ -110,6 +112,7 @@ import Wire.UserGroupStore
 type GalleyEffects1 =
   '[ SparAccess,
      TeamCollaboratorsSubsystem,
+     MeetingsSubsystem,
      ConversationSubsystem,
      NotificationSubsystem,
      ExternalAccess,
@@ -121,6 +124,7 @@ type GalleyEffects1 =
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,
+     MeetingsStore,
      ClientStore,
      CodeStore,
      ProposalStore,
@@ -150,5 +154,7 @@ type GalleyEffects1 =
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
-     ErrorS 'NotATeamMember
+     ErrorS 'NotATeamMember,
+     ErrorS 'MeetingNotFound,
+     ErrorS 'InvalidOperation
    ]

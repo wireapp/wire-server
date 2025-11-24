@@ -177,6 +177,8 @@ data GalleyError
   | NotAnMlsConversation
   | MLSReadReceiptsNotAllowed
   | MLSInvalidLeafNodeSignature
+  | -- Meeting errors
+    MeetingNotFound
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -374,6 +376,11 @@ type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-convers
 type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
 
 type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
+
+--------------------------------------------------------------------------------
+-- Meeting errors
+
+type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "Meeting not found"
 
 --------------------------------------------------------------------------------
 -- Team Member errors

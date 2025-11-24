@@ -335,10 +335,12 @@ defAccess :: ConvType -> Maybe [Access] -> [Access]
 defAccess SelfConv Nothing = [PrivateAccess]
 defAccess ConnectConv Nothing = [PrivateAccess]
 defAccess One2OneConv Nothing = [PrivateAccess]
+defAccess MeetingConv Nothing = [PrivateAccess]
 defAccess RegularConv Nothing = defRegularConvAccess
 defAccess SelfConv (Just []) = [PrivateAccess]
 defAccess ConnectConv (Just []) = [PrivateAccess]
 defAccess One2OneConv (Just []) = [PrivateAccess]
+defAccess MeetingConv (Just []) = [PrivateAccess]
 defAccess RegularConv (Just []) = defRegularConvAccess
 defAccess _ (Just xs@(_ : _)) = xs
 

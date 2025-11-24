@@ -157,6 +157,7 @@ ejpdGetConvInfo uid = do
             -- we don't want connect conversations, because the peer has not responded yet
             case conv.metadata.cnvmType of
               RegularConv -> Just ejpdConvInfo
+              MeetingConv -> Just ejpdConvInfo
               -- FUTUREWORK(mangoiv): with GHC 9.12 we can refactor this to or-patterns
               One2OneConv -> Nothing
               SelfConv -> Nothing
@@ -394,12 +395,8 @@ rmUser lusr conn = do
       let qUser = tUntagged lusr
       cc <- getConversations ids
       now <- Now.get
-      pp <- for cc $ \c -> case Data.convType c of
-        SelfConv -> pure Nothing
-        One2OneConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv
-          | tUnqualified lusr `isMember` c.localMembers -> do
+      pp <- for cc $ \c -> do
+        let regular = do
               runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
@@ -423,7 +420,16 @@ rmUser lusr conn = do
                     conn,
                     route = PushV2.RouteDirect
                   }
-          | otherwise -> pure Nothing
+        case Data.convType c of
+          SelfConv -> pure Nothing
+          One2OneConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+          ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+          RegularConv
+            | tUnqualified lusr `isMember` c.localMembers -> regular
+            | otherwise -> pure Nothing
+          MeetingConv
+            | tUnqualified lusr `isMember` c.localMembers -> regular
+            | otherwise -> pure Nothing
 
       pushNotifications (catMaybes pp)
 
