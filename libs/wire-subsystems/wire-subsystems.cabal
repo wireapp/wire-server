@@ -313,6 +313,7 @@ library
     Wire.TeamStore.Cassandra.Queries
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
+    Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres

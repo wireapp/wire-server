@@ -258,7 +258,6 @@ library
     Galley.Schema.V97_CellsConversation
     Galley.Schema.V98_ChannelAddPermission
     Galley.Schema.V99_ConversationAddParent
-    Galley.TeamSubsystem
     Galley.Types.Clients
     Galley.Validation
 

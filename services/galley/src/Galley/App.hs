@@ -77,7 +77,6 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
-import Galley.TeamSubsystem (interpretTeamSubsystem)
 import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
@@ -135,6 +134,7 @@ import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPo
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamJournal.Aws qualified as TEAws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
+import Wire.TeamSubsystem.Interpreter
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
