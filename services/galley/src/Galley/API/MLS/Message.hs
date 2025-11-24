@@ -81,8 +81,10 @@ import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message
+import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Routes.Version
 import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
@@ -125,6 +127,11 @@ type MLSBundleStaticErrors =
        ErrorS 'MLSInvalidLeafNodeSignature
      ]
 
+enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
+enableOutOfSyncCheckFromVersion v
+  | v < V13 = DisableOutOfSyncCheck
+  | otherwise = EnableOutOfSyncCheck
+
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -144,18 +151,20 @@ postMLSMessageFromLocalUser ::
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
+  Version ->
   Local UserId ->
   ClientId ->
   ConnId ->
   RawMLS Message ->
   Sem r MLSMessageSendingStatus
-postMLSMessageFromLocalUser lusr c conn smsg = do
+postMLSMessageFromLocalUser v lusr c conn smsg = do
   assertMLSEnabled
   imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
   (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
   events <-
-    map lcuEvent
-      <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) imsg
+    runInputConst (enableOutOfSyncCheckFromVersion v) $
+      map lcuEvent
+        <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) imsg
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus events t
 
@@ -165,6 +174,7 @@ postMLSCommitBundle ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member (Input EnableOutOfSyncCheck) r,
     Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
@@ -202,18 +212,21 @@ postMLSCommitBundleFromLocalUser ::
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r
   ) =>
+  Version ->
   Local UserId ->
   ClientId ->
   ConnId ->
   RawMLS CommitBundle ->
   Sem r MLSMessageSendingStatus
-postMLSCommitBundleFromLocalUser lusr c conn bundle = do
+postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
   assertMLSEnabled
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
+
   events <-
-    map lcuEvent
-      <$> postMLSCommitBundle lusr (tUntagged lusr) c ctype qConvOrSub (Just conn) ibundle
+    runInputConst (enableOutOfSyncCheckFromVersion v) $
+      map lcuEvent
+        <$> postMLSCommitBundle lusr (tUntagged lusr) c ctype qConvOrSub (Just conn) ibundle
   t <- toUTCTimeMillis <$> Now.get
   pure $ MLSMessageSendingStatus events t
 
@@ -223,6 +236,7 @@ postMLSCommitBundleToLocalConv ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member (Input EnableOutOfSyncCheck) r,
     Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
@@ -364,6 +378,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error UnreachableBackends) r,
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
+    Member (Input EnableOutOfSyncCheck) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
@@ -386,6 +401,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     -- only members may send commit bundles to a remote conversation
     flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
+  enableOutOfSyncCheck <- Just <$> input
   resp <-
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-commit-bundle" $
@@ -393,7 +409,8 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
           { convOrSubId = tUnqualified rConvOrSubId,
             sender = tUnqualified lusr,
             senderClient = c,
-            rawMessage = Base64ByteString bundle.serialized
+            rawMessage = Base64ByteString bundle.serialized,
+            enableOutOfSyncCheck
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
@@ -426,7 +443,8 @@ postMLSMessage ::
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r
+    Member (Error GroupInfoDiagnostics) r,
+    Member (Input EnableOutOfSyncCheck) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -471,7 +489,8 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (Input EnableOutOfSyncCheck) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -526,7 +545,8 @@ postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
     HasProposalEffects r,
     Member (Error GroupInfoDiagnostics) r,
-    Member (Error MLSOutOfSyncError) r
+    Member (Error MLSOutOfSyncError) r,
+    Member (Input EnableOutOfSyncCheck) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -541,6 +561,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only members may send messages to the remote conversation
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
+  enableOutOfSyncCheck <- Just <$> input
   resp <-
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-message" $
@@ -548,7 +569,8 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
           { convOrSubId = tUnqualified rConvOrSubId,
             sender = tUnqualified lusr,
             senderClient = senderClient,
-            rawMessage = Base64ByteString msg.rawMessage.raw
+            rawMessage = Base64ByteString msg.rawMessage.raw,
+            enableOutOfSyncCheck
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e

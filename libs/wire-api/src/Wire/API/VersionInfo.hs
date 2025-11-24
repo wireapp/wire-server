@@ -28,12 +28,14 @@ module Wire.API.VersionInfo
     -- * Servant combinators
     From,
     Until,
+    APIVersion,
     VersionedMonad (..),
   )
 where
 
 import Data.ByteString.Char8 qualified as B8
 import Data.CaseInsensitive qualified as CI
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
@@ -42,6 +44,7 @@ import Imports
 import Network.Wai qualified as Wai
 import Servant
 import Servant.Client.Core
+import Servant.OpenApi (HasOpenApi (..))
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Wire.API.Routes.ClientAlgebra
@@ -63,6 +66,17 @@ data Until v
 -- | Inclusive range ('From V5' means '[V5 ..]')
 data From v
 
+-- | Get API version as a parameter
+data APIVersion v
+
+getVersionHeader :: (Enum v) => Wai.Request -> v
+getVersionHeader req =
+  toEnum $
+    maybe
+      0
+      (fromRight 0 . parseHeader)
+      (lookup versionHeader (Wai.requestHeaders req))
+
 instance
   ( SingI n,
     Ord (Demote v),
@@ -80,13 +94,7 @@ instance
     where
       headerCheck :: Wai.Request -> DelayedIO ()
       headerCheck req = do
-        let v =
-              toEnum $
-                maybe
-                  0
-                  (fromRight 0 . parseHeader)
-                  (lookup versionHeader (Wai.requestHeaders req))
-        when (v >= demote @n) $
+        when (getVersionHeader req >= demote @n) $
           delayedFail err404
 
       -- this hack makes sure that the version check is executed before the method check
@@ -139,13 +147,7 @@ instance
     where
       headerCheck :: Wai.Request -> DelayedIO ()
       headerCheck req = do
-        let v =
-              toEnum $
-                maybe
-                  0
-                  (fromRight 0 . parseHeader)
-                  (lookup versionHeader (Wai.requestHeaders req))
-        when (v < demote @n) $
+        when (getVersionHeader req < demote @n) $
           delayedFail err404
 
   hoistServerWithContext _ ctx f =
@@ -169,3 +171,22 @@ instance
 
 instance (RoutesToPaths api) => RoutesToPaths (From v :> api) where
   getRoutes = getRoutes @api
+
+instance (Enum v, HasServer api ctx) => HasServer (APIVersion (v :: Type) :> api) ctx where
+  type ServerT (APIVersion v :> api) m = v -> ServerT api m
+
+  route _ ctx action =
+    route (Proxy @api) ctx $
+      action `addHeaderCheck` withRequest headerCheck
+    where
+      headerCheck :: Wai.Request -> DelayedIO v
+      headerCheck req = pure (getVersionHeader req)
+
+  hoistServerWithContext _ ctx f s =
+    hoistServerWithContext (Proxy @api) ctx f . s
+
+instance (RoutesToPaths api) => RoutesToPaths (APIVersion v :> api) where
+  getRoutes = getRoutes @api
+
+instance (HasOpenApi api) => HasOpenApi (APIVersion v :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)

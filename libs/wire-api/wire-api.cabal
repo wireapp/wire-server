@@ -133,6 +133,7 @@ library
     Wire.API.MLS.LeafNode
     Wire.API.MLS.Lifetime
     Wire.API.MLS.Message
+    Wire.API.MLS.OutOfSync
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion

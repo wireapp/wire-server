@@ -945,7 +945,8 @@ testRemoteToLocal = do
             { convOrSubId = Conv (qUnqualified qcnv),
               sender = qUnqualified bob,
               senderClient = ciClient bob1,
-              rawMessage = Base64ByteString (mpMessage message)
+              rawMessage = Base64ByteString (mpMessage message),
+              enableOutOfSyncCheck = Nothing
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
@@ -989,7 +990,8 @@ testRemoteToLocalWrongConversation = do
             { convOrSubId = Conv randomConfId,
               sender = qUnqualified bob,
               senderClient = ciClient bob1,
-              rawMessage = Base64ByteString (mpMessage message)
+              rawMessage = Base64ByteString (mpMessage message),
+              enableOutOfSyncCheck = Nothing
             }
 
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
@@ -1023,7 +1025,8 @@ testRemoteNonMemberToLocal = do
             { convOrSubId = Conv (qUnqualified qcnv),
               sender = qUnqualified bob,
               senderClient = ciClient bob1,
-              rawMessage = Base64ByteString (mpMessage message)
+              rawMessage = Base64ByteString (mpMessage message),
+              enableOutOfSyncCheck = Nothing
             }
 
     fedGalleyClient <- view tsFedGalleyClient

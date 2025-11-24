@@ -30,9 +30,11 @@ import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
@@ -42,7 +44,8 @@ checkConversationOutOfSync ::
   ( Member ConversationStore r,
     Member BrigAPIAccess r,
     Member FederatorAccess r,
-    Member (Error MLSOutOfSyncError) r
+    Member (Error MLSOutOfSyncError) r,
+    Member (Input EnableOutOfSyncCheck) r
   ) =>
   Set (Qualified UserId) ->
   Local ConvOrSubConv ->
@@ -51,13 +54,15 @@ checkConversationOutOfSync ::
 checkConversationOutOfSync newMembers lConvOrSub ciphersuite = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure ()
   Conv mc -> do
-    flag <- isConversationOutOfSync mc.mcId
-    when flag $ do
-      let outOfSyncUsers0 = getOutOfSyncUsers newMembers (qualifyAs lConvOrSub mc)
-      -- check if all users are reachable and have usable key packages
-      outOfSyncUsers <- filterM (checkOutOfSyncUser lConvOrSub ciphersuite) (toList outOfSyncUsers0)
-      unless (null outOfSyncUsers) $
-        throw (MLSOutOfSyncError outOfSyncUsers)
+    enabled <- input
+    when (enabled == EnableOutOfSyncCheck) $ do
+      flag <- isConversationOutOfSync mc.mcId
+      when flag $ do
+        let outOfSyncUsers0 = getOutOfSyncUsers newMembers (qualifyAs lConvOrSub mc)
+        -- check if all users are reachable and have usable key packages
+        outOfSyncUsers <- filterM (checkOutOfSyncUser lConvOrSub ciphersuite) (toList outOfSyncUsers0)
+        unless (null outOfSyncUsers) $
+          throw (MLSOutOfSyncError outOfSyncUsers)
 
 checkOutOfSyncUser ::
   ( Member BrigAPIAccess r,

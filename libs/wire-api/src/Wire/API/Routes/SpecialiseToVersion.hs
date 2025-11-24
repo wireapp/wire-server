@@ -120,3 +120,7 @@ type instance
 type instance
   SpecialiseToVersion v (Endpath :> api) =
     Endpath :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (APIVersion w :> api) =
+    APIVersion w :> SpecialiseToVersion v api

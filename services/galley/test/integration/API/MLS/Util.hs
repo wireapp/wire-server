@@ -154,7 +154,8 @@ remotePostCommitBundle rsender qcs bundle = do
           { convOrSubId = qUnqualified qcs,
             sender = ciUser (tUnqualified rsender),
             senderClient = ciClient (tUnqualified rsender),
-            rawMessage = Base64ByteString bundle
+            rawMessage = Base64ByteString bundle,
+            enableOutOfSyncCheck = Nothing
           }
   runFedClient
     @"send-mls-commit-bundle"
