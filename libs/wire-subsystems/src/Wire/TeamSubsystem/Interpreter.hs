@@ -17,32 +17,53 @@
 
 module Wire.TeamSubsystem.Interpreter where
 
+import Control.Lens ((%~), (^.))
+import Data.Id
+import Data.LegalHold (UserLegalHoldStatus (..))
 import Imports
 import Polysemy
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (TeamMemberInfoList))
+import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.LegalHoldStore qualified as LH
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem
 
-interpretTeamSubsystem :: (Member TeamStore r) => InterpreterFor TeamSubsystem r
+interpretTeamSubsystem :: (Member TeamStore r, Member LegalHoldStore r) => InterpreterFor TeamSubsystem r
 interpretTeamSubsystem = interpret $ \case
-  InternalGetTeamMember uid tid ->
-    -- TODO: move LH Implicit consent logic here
-    E.getTeamMemberTempName tid uid
+  InternalGetTeamMember uid tid -> do
+    tms <- E.getTeamMemberTempName tid uid
+    for tms $ \tm -> do
+      hasImplicitConsent <- LH.isTeamLegalholdWhitelisted tid
+      pure $ if hasImplicitConsent then grantImplicitConsent tm else tm
   InternalGetTeamMembers tid ->
-    -- TODO: move LH Implicit consent logic here
-    E.getTeamMembersTempName tid
-  InternalGetTeamMembersWithLimit tid maxResults ->
-    -- TODO: move LH Implicit consent logic here
-    E.getTeamMembersWithLimitTempName tid $ fromMaybe hardTruncationLimitRange maxResults
+    adjustMembersForImplicitConsent tid =<< E.getTeamMembersTempName tid
+  InternalGetTeamMembersWithLimit tid maxResults -> do
+    tmList <- E.getTeamMembersWithLimitTempName tid (fromMaybe hardTruncationLimitRange maxResults)
+    ms <- adjustMembersForImplicitConsent tid (tmList ^. teamMembers)
+    pure $ newTeamMemberList ms (tmList ^. teamMemberListType)
   InternalSelectTeamMemberInfos tid uids -> TeamMemberInfoList <$> E.selectTeamMemberInfos tid uids
-  InternalSelectTeamMembers tid uids ->
-    -- TODO: move LH Implicit consent logic here
-    E.selectTeamMembersTempName tid uids
+  InternalSelectTeamMembers tid uids -> do
+    tms <- E.selectTeamMembersTempName tid uids
+    adjustMembersForImplicitConsent tid tms
   InternalGetTeamAdmins tid -> do
-    -- TODO: move LH Implicit consent logic here
-    admins <- E.getTeamAdmins tid
-    membs <- E.selectTeamMembersTempName tid admins
-    pure $ newTeamMemberList membs ListComplete
+    admins <-
+      E.getTeamAdmins tid
+        >>= E.selectTeamMembersTempName tid
+        >>= adjustMembersForImplicitConsent tid
+    pure $ newTeamMemberList admins ListComplete
+
+adjustMembersForImplicitConsent :: (Member LegalHoldStore r) => TeamId -> [TeamMember] -> Sem r [TeamMember]
+adjustMembersForImplicitConsent tid ms = do
+  hasImplicitConsent <- LH.isTeamLegalholdWhitelisted tid
+  pure $ if hasImplicitConsent then map grantImplicitConsent ms else ms
+
+grantImplicitConsent :: TeamMember -> TeamMember
+grantImplicitConsent =
+  legalHoldStatus %~ \case
+    UserLegalHoldNoConsent -> UserLegalHoldDisabled
+    UserLegalHoldDisabled -> UserLegalHoldDisabled
+    UserLegalHoldPending -> UserLegalHoldPending
+    UserLegalHoldEnabled -> UserLegalHoldEnabled
