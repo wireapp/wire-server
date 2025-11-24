@@ -1134,14 +1134,14 @@ getLHStatusForUsers uids =
       )
 
 getTeamMembersForFanout ::
-  ( Member TeamStore r,
-    Member (Input FanoutLimit) r
+  ( Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Sem r TeamMemberList
 getTeamMembersForFanout tid = do
   lim <- input
-  getTeamMembersWithLimit tid lim
+  TeamSubsystem.internalGetTeamMembers tid (Just lim)
 
 ensureMemberLimit ::
   ( Foldable f,

@@ -87,7 +87,8 @@ patchFeatureInternal ::
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockableFeaturePatch cfg ->
@@ -121,7 +122,6 @@ setFeature ::
     Member (ErrorS OperationDenied) r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
@@ -149,7 +149,8 @@ setFeatureInternal ::
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -165,11 +166,11 @@ setFeatureUnchecked ::
     SetFeatureForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -212,9 +213,9 @@ pushFeatureEvent ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member NotificationSubsystem r,
-    Member TeamStore r,
     Member P.TinyLog r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Event ->
@@ -251,8 +252,8 @@ setFeatureForTeam ::
     Member P.TinyLog r,
     Member NotificationSubsystem r,
     Member TeamFeatureStore r,
-    Member TeamStore r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockableFeature cfg ->

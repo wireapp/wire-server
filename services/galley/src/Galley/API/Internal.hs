@@ -338,7 +338,8 @@ rmUser ::
     Member Random r,
     Member TeamFeatureStore r,
     Member TeamStore r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->

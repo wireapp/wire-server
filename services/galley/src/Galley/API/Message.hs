@@ -351,8 +351,8 @@ postBroadcast lusr con msg = runError $ do
 
     maybeFetchAllMembersInTeam ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
-        Member TeamStore r,
-        Member (Input FanoutLimit) r
+        Member (Input FanoutLimit) r,
+        Member TeamSubsystem r
       ) =>
       TeamId ->
       Sem r [TeamMember]
