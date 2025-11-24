@@ -39,6 +39,7 @@
 , servant-client-core
 , servant-server
 , text
+, time
 , tinylog
 , transformers
 , transformers-base
@@ -83,6 +84,7 @@ mkDerivation {
     servant-client
     servant-server
     text
+    time
     tinylog
     transformers
     transformers-base

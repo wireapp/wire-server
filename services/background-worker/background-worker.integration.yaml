@@ -75,5 +75,11 @@ backgroundJobs:
   jobTimeout: 5s
   maxAttempts: 3
 
+# Meetings cleanup configuration for integration
+meetingsCleanup:
+  cleanOlderThanHours: 24  # Clean meetings older than 24 hours (for testing)
+  batchSize: 100
+  cleanFrequencySeconds: 3600  # Run every hour
+
 postgresMigration:
   conversation: postgresql

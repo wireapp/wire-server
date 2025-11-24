@@ -53,6 +53,7 @@ data Opts = Opts
     migrateConversations :: !Bool,
     migrateConversationsOptions :: !MigrationOptions,
     backgroundJobs :: BackgroundJobsConfig,
+    meetingsCleanup :: MeetingsCleanupConfig,
     federationDomain :: Domain
   }
   deriving (Show, Generic)
@@ -95,3 +96,14 @@ data BackgroundJobsConfig = BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically BackgroundJobsConfig
+
+data MeetingsCleanupConfig = MeetingsCleanupConfig
+  { -- | Delete meetings older than this many hours
+    cleanOlderThanHours :: Int,
+    -- | Maximum number of meetings to delete per batch
+    batchSize :: Int,
+    -- | Frequency in seconds to run the cleanup job
+    cleanFrequencySeconds :: Int
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON) via Generically MeetingsCleanupConfig

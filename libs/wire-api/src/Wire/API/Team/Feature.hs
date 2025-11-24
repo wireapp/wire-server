@@ -111,6 +111,7 @@ module Wire.API.Team.Feature
     AppsConfig (..),
     SimplifiedUserConnectionRequestQRCodeConfig (..),
     StealthUsersConfig (..),
+    PayingTeamConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -275,6 +276,7 @@ data FeatureSingleton cfg where
   FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
   FeatureSingletonStealthUsersConfig :: FeatureSingleton StealthUsersConfig
   FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
+  FeatureSingletonPayingTeamConfig :: FeatureSingleton PayingTeamConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2049,6 +2051,30 @@ instance IsFeatureConfig StealthUsersConfig where
   type FeatureSymbol StealthUsersConfig = "stealthUsers"
   featureSingleton = FeatureSingletonStealthUsersConfig
 
+--------------------------------------------------------------------------------
+-- PayingTeam Feature
+--
+-- Indicates whether a team is a paying customer. When enabled, meetings created
+-- by team members are not marked as trial. When disabled, meetings are trial.
+
+data PayingTeamConfig = PayingTeamConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform PayingTeamConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName PayingTeamConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature PayingTeamConfig
+
+instance ToSchema PayingTeamConfig where
+  schema = object "PayingTeamConfig" objectSchema
+
+instance Default (LockableFeature PayingTeamConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig PayingTeamConfig where
+  type FeatureSymbol PayingTeamConfig = "payingTeam"
+  featureSingleton = FeatureSingletonPayingTeamConfig
+
+  objectSchema = pure PayingTeamConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -2142,7 +2168,8 @@ type Features =
     SimplifiedUserConnectionRequestQRCodeConfig,
     AssetAuditLogConfig,
     StealthUsersConfig,
-    CellsInternalConfig
+    CellsInternalConfig,
+    PayingTeamConfig
   ]
 
 -- | list of available features as a record

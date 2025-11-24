@@ -1,0 +1,1 @@
+Add payingTeam feature flag to distinguish paying teams from trial teams. Meetings created by paying team members are marked as non-trial. Public endpoints: GET/PUT /teams/:tid/features/payingTeam. Internal endpoints: GET/PUT/PATCH /i/teams/:tid/features/payingTeam and lock status management.

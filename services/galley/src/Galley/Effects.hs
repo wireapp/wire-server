@@ -92,6 +92,8 @@ import Wire.HashPassword
 import Wire.LegalHoldStore
 import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
+import Wire.MeetingsStore (MeetingsStore)
+import Wire.MeetingsSubsystem (MeetingsSubsystem)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.RateLimit
@@ -111,6 +113,7 @@ import Wire.UserGroupStore
 -- All the possible high-level effects.
 type GalleyEffects1 =
   '[ TeamCollaboratorsSubsystem,
+     MeetingsSubsystem,
      ConversationSubsystem,
      TeamSubsystem,
      SparAPIAccess,
@@ -123,6 +126,7 @@ type GalleyEffects1 =
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,
+     MeetingsStore,
      ClientStore,
      CodeStore,
      ProposalStore,
@@ -155,5 +159,7 @@ type GalleyEffects1 =
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
-     ErrorS 'NotATeamMember
+     ErrorS 'NotATeamMember,
+     ErrorS 'MeetingNotFound,
+     ErrorS 'InvalidOperation
    ]
