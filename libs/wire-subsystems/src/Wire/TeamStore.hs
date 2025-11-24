@@ -32,7 +32,6 @@ import Wire.API.Team.Member.Info (TeamMemberInfo)
 import Wire.API.Team.Permission
 import Wire.ListItems
 import Wire.Sem.Paging
-import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()
@@ -53,15 +52,9 @@ data TeamStore m a where
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
   GetTeamMemberTempName :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
   GetTeamMembersWithLimitTempName :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
-  GetTeamMembers :: TeamId -> TeamStore m [TeamMember]
+  GetTeamMembersTempName :: TeamId -> TeamStore m [TeamMember]
   SelectTeamMembersTempName :: TeamId -> [UserId] -> TeamStore m [TeamMember]
   SelectTeamMemberInfos :: TeamId -> [UserId] -> TeamStore m [TeamMemberInfo]
-  SelectTeamMembersPaginated ::
-    TeamId ->
-    [UserId] ->
-    Maybe (PagingState CassandraPaging TeamMember) ->
-    PagingBounds CassandraPaging TeamMember ->
-    TeamStore m (Page CassandraPaging TeamMember)
   -- FUTUREWORK(mangoiv): this should be a single 'TeamId' (@'Maybe' 'TeamId'@), there's no way
   -- a user could be part of multiple teams
   GetUserTeams :: UserId -> TeamStore m [TeamId]

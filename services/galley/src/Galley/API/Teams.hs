@@ -114,7 +114,7 @@ import Wire.API.Event.Team
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Routes.Internal.Galley.TeamsIntra
-import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingState (mtpsState))
+import Wire.API.Routes.MultiTablePaging (MultiTablePage (..), MultiTablePagingState (..))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import Wire.API.Team qualified as Public
@@ -401,7 +401,8 @@ uncheckedDeleteTeam ::
     Member SparAccess r,
     Member TeamStore r,
     Member ConversationStore r,
-    Member TeamJournal r
+    Member TeamJournal r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -418,7 +419,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     -- be fine as it is done once during the life team of a team and we still do not
     -- fanout this particular event to all team members anyway. And this is anyway
     -- done asynchronously
-    membs <- E.getTeamMembers tid
+    membs <- TeamSubsystem.internalGetTeamMembers tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent tid now EdTeamDelete
     pushDeleteEvents membs e ue
@@ -485,7 +486,6 @@ getTeamConversationRoles zusr tid = do
 
 getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r,
     Member BrigAPIAccess r,
     Member (TeamMemberStore CassandraPaging) r,
     Member P.TinyLog r,
@@ -531,16 +531,21 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
       -- we only return the person who invited them and the self user.
       let invitee = member ^. invitation <&> fst
       let uids = uid : maybeToList invitee
-      E.selectTeamMembersPaginated tid uids mState mLimit <&> toTeamMembersPage member
+      TeamSubsystem.internalSelectTeamMembers tid uids <&> toTeamSingleMembersPage member
   where
     toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
     toTeamMembersPage member p =
       let withPerms = (member `canSeePermsOf`)
        in TeamMembersPage $
             MultiTablePage
-              (map (setOptionalPerms withPerms) $ pwsResults p)
-              (pwsHasMore p)
-              (teamMemberPagingState p)
+              { mtpResults = map (setOptionalPerms withPerms) $ pwsResults p,
+                mtpHasMore = pwsHasMore p,
+                mtpPagingState = teamMemberPagingState p
+              }
+
+    toTeamSingleMembersPage :: TeamMember -> [TeamMember] -> TeamMembersPage
+    toTeamSingleMembersPage member =
+      mkSingleTeamMembersPage . map (setOptionalPerms (member `canSeePermsOf`))
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::

@@ -93,12 +93,12 @@ interpretTeamStoreToCassandra = interpret $ \case
   GetTeamMemberTempName tid uid -> do
     logEffect "TeamStore.GetTeamMember"
     teamMember tid uid
+  GetTeamMembersTempName tid -> do
+    logEffect "TeamStore.GetTeamMembers"
+    teamMembersCollectedWithPagination tid
   GetTeamMembersWithLimitTempName tid n -> do
     logEffect "TeamStore.GetTeamMembersWithLimit"
     teamMembersWithLimit tid n
-  GetTeamMembers tid -> do
-    logEffect "TeamStore.GetTeamMembers"
-    teamMembersCollectedWithPagination tid
   SelectTeamMembersTempName tid uids -> do
     logEffect "TeamStore.SelectTeamMembers"
     teamMembersLimited tid uids
@@ -132,9 +132,6 @@ interpretTeamStoreToCassandra = interpret $ \case
   SetTeamStatus tid st -> do
     logEffect "TeamStore.SetTeamStatus"
     embedClientInput (updateTeamStatus tid st)
-  SelectTeamMembersPaginated tid uids mps lim -> do
-    logEffect "TeamStore.SelectTeamMembersPaginated"
-    selectSomeTeamMembersPaginated tid uids mps lim
 
 createTeam ::
   ( Member (Input ClientState) r,
@@ -359,20 +356,3 @@ teamMemberInfos t u = mkTeamMemberInfo <$$> retry x1 (query Cql.selectTeamMember
   where
     mkTeamMemberInfo (uid, perms, permsWT, _, _, _) =
       TeamMemberInfo {Info.userId = uid, Info.permissions = perms, Info.permissionsWriteTime = toUTCTimeMillis $ writetimeToUTC permsWT}
-
-selectSomeTeamMembersPaginated ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member LegalHoldStore r
-  ) =>
-  TeamId ->
-  [UserId] ->
-  Maybe PagingState ->
-  Range 1 HardTruncationLimit Int32 ->
-  Sem r (PageWithState TeamMember)
-selectSomeTeamMembersPaginated tid uids pagingState (fromRange -> max) = do
-  page <- embedClientInput $ paginateWithState Cql.selectTeamMembers' (paramsPagingState LocalQuorum (tid, uids) max pagingState)
-  members <- mapM mkTm (pwsResults page)
-  pure $ PageWithState members (pwsState page)
-  where
-    mkTm (uid, perms, _, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = newTeamMember' tid (uid, perms, minvu, minvt, Just lhStatus)

@@ -29,13 +29,20 @@ import Wire.TeamSubsystem
 interpretTeamSubsystem :: (Member TeamStore r) => InterpreterFor TeamSubsystem r
 interpretTeamSubsystem = interpret $ \case
   InternalGetTeamMember uid tid ->
-    -- TODO: LH Implicit consent logic
+    -- TODO: move LH Implicit consent logic here
     E.getTeamMemberTempName tid uid
+  InternalGetTeamMembers tid ->
+    -- TODO: move LH Implicit consent logic here
+    E.getTeamMembersTempName tid
   InternalGetTeamMembersWithLimit tid maxResults ->
+    -- TODO: move LH Implicit consent logic here
     E.getTeamMembersWithLimitTempName tid $ fromMaybe hardTruncationLimitRange maxResults
   InternalSelectTeamMemberInfos tid uids -> TeamMemberInfoList <$> E.selectTeamMemberInfos tid uids
-  InternalSelectTeamMembers tid uids -> E.selectTeamMembersTempName tid uids
+  InternalSelectTeamMembers tid uids ->
+    -- TODO: move LH Implicit consent logic here
+    E.selectTeamMembersTempName tid uids
   InternalGetTeamAdmins tid -> do
+    -- TODO: move LH Implicit consent logic here
     admins <- E.getTeamAdmins tid
     membs <- E.selectTeamMembersTempName tid admins
     pure $ newTeamMemberList membs ListComplete

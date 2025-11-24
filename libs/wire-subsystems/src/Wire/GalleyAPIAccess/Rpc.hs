@@ -78,7 +78,8 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
-          GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
+          GetTeamMembers tid -> getTeamMembers tid
+          GetTeamMembersWithLimit tid maxResults -> getTeamMembersWithLimit tid maxResults
           SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
           SelectTeamMembers tid uids -> selectTeamMembers tid uids
           GetTeamId id' -> getTeamId id'
@@ -334,12 +335,29 @@ getTeamMember u tid = do
         . zUser u
         . expect [status200, status404]
 
+getTeamMembers ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  TeamId ->
+  Sem r [TeamMember]
+getTeamMembers tid = do
+  debug $ remote "galley" . msg (val "Get all team members")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", "unsafe-all"]
+        . expect2xx
+
 -- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
 --
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
-getTeamMembers ::
+getTeamMembersWithLimit ::
   ( Member (Error ParseException) r,
     Member Rpc r,
     Member (Input Endpoint) r,
@@ -348,7 +366,7 @@ getTeamMembers ::
   TeamId ->
   Maybe (Range 1 HardTruncationLimit Int32) ->
   Sem r TeamMemberList
-getTeamMembers tid maxResults = do
+getTeamMembersWithLimit tid maxResults = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
