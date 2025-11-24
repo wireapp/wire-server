@@ -443,24 +443,7 @@ onUserDeleted origDomain udcn = do
       mconv <- E.getConversation c
       E.deleteMembers c (UserList [] [deletedUser])
       for_ mconv $ \conv -> do
-        when (isRemoteMember deletedUser (conv.remoteMembers)) $ do
-          let regular = do
-                let botsAndMembers = convBotsAndMembers conv
-                removeUser (qualifyAs lc conv) RemoveUserIncludeMain (tUntagged deletedUser)
-                outcome <-
-                  runError @FederationError $
-                    sendConversationActionNotifications
-                      (sing @'ConversationLeaveTag)
-                      untaggedDeletedUser
-                      False
-                      Nothing
-                      (qualifyAs lc conv)
-                      botsAndMembers
-                      ()
-                      def
-                case outcome of
-                  Left e -> logFederationError lc e
-                  Right _ -> pure ()
+        when (isRemoteMember deletedUser (conv.remoteMembers)) $
           case Data.convType conv of
             -- No need for a notification on One2One conv as the user is being
             -- deleted and that notification should suffice.
@@ -470,8 +453,23 @@ onUserDeleted origDomain udcn = do
             Public.ConnectConv -> pure ()
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
-            Public.RegularConv -> regular
-            Public.MeetingConv -> regular
+            Public.RegularConv -> do
+              let botsAndMembers = convBotsAndMembers conv
+              removeUser (qualifyAs lc conv) RemoveUserIncludeMain (tUntagged deletedUser)
+              outcome <-
+                runError @FederationError $
+                  sendConversationActionNotifications
+                    (sing @'ConversationLeaveTag)
+                    untaggedDeletedUser
+                    False
+                    Nothing
+                    (qualifyAs lc conv)
+                    botsAndMembers
+                    ()
+                    def
+              case outcome of
+                Left e -> logFederationError lc e
+                Right _ -> pure ()
   pure EmptyResponse
 
 updateConversation ::

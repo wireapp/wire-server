@@ -70,7 +70,7 @@ createMeetingImpl zUser newMeeting = do
   meetingId <- liftIO $ MeetingId <$> UUIDV4.nextRandom
   let qMeetingId = tUntagged (qualifyAs zUser meetingId)
 
-  -- Use provided conversation or create a new one with MeetingConv type
+  -- Use provided conversation or create a new one with MeetingConversation type
   qConvId <- case newMeeting.conversationId of
     Just cid -> pure cid
     Nothing -> do
@@ -81,7 +81,7 @@ createMeetingImpl zUser newMeeting = do
       -- Create conversation metadata for a meeting
       let metadata =
             ConversationMetadata
-              { cnvmType = MeetingConv,
+              { cnvmType = RegularConv,
                 cnvmCreator = Just (tUnqualified zUser),
                 cnvmAccess = [],
                 cnvmAccessRoles = Set.empty,
@@ -89,7 +89,7 @@ createMeetingImpl zUser newMeeting = do
                 cnvmTeam = Nothing,
                 cnvmMessageTimer = Nothing,
                 cnvmReceiptMode = Nothing,
-                cnvmGroupConvType = Nothing,
+                cnvmGroupConvType = Just MeetingConversation,
                 cnvmChannelAddPermission = Nothing,
                 cnvmCellsState = CellsDisabled,
                 cnvmParent = Nothing
@@ -109,7 +109,7 @@ createMeetingImpl zUser newMeeting = do
       pure $ tUntagged (qualifyAs zUser storedConv.id_)
 
   -- Determine trial status
-  -- TODO: Check if user is a paying customer via ???
+  -- TODO: Check if user is a paying customer via Feature
   let trial = False
 
   -- Store meeting

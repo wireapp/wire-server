@@ -658,7 +658,6 @@ maybeRole :: ConvType -> Maybe (Set AccessRole) -> Set AccessRole
 maybeRole SelfConv _ = privateAccessRole
 maybeRole ConnectConv _ = privateAccessRole
 maybeRole One2OneConv _ = privateAccessRole
-maybeRole MeetingConv _ = privateAccessRole
 maybeRole RegularConv Nothing = defRole
 maybeRole RegularConv (Just r) = r
 
@@ -772,7 +771,6 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  | MeetingConv
   deriving stock (Eq, Show, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform ConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvType
@@ -784,8 +782,7 @@ instance ToSchema ConvType where
         [ element 0 RegularConv,
           element 1 SelfConv,
           element 2 One2OneConv,
-          element 3 ConnectConv,
-          element 4 MeetingConv
+          element 3 ConnectConv
         ]
 
 instance C.Cql ConvType where
@@ -808,7 +805,6 @@ convTypeToInt32 = \case
   SelfConv -> 1
   One2OneConv -> 2
   ConnectConv -> 3
-  MeetingConv -> 4
 
 convTypeFromInt32 :: Int32 -> Either Text ConvType
 convTypeFromInt32 = \case
@@ -816,7 +812,6 @@ convTypeFromInt32 = \case
   1 -> pure SelfConv
   2 -> pure One2OneConv
   3 -> pure ConnectConv
-  4 -> pure MeetingConv
   n -> Left $ "unexpected conversation-type: " <> Text.pack (show n)
 
 -- | Define whether receipts should be sent in the given conversation
@@ -846,7 +841,7 @@ instance PostgresMarshall ReceiptMode Int32 where
 --------------------------------------------------------------------------------
 -- create
 
-data GroupConvType = GroupConversation | Channel
+data GroupConvType = GroupConversation | Channel | MeetingConversation
   deriving stock (Eq, Show, Generic, Enum)
   deriving (Arbitrary) via (GenericUniform GroupConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvType
@@ -856,7 +851,8 @@ instance ToSchema GroupConvType where
     enum @Text "GroupConvType" $
       mconcat
         [ element "group_conversation" GroupConversation,
-          element "channel" Channel
+          element "channel" Channel,
+          element "meeting" MeetingConversation
         ]
 
 instance C.Cql GroupConvType where
