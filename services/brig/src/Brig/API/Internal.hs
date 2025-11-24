@@ -1030,7 +1030,7 @@ getGroupsInternalH ::
   ) =>
   TeamId ->
   Maybe T.Text ->
-  Handler r UserGroupPage
+  Handler r UserGroupPageWithMembers
 getGroupsInternalH tid nameContains =
   lift . liftSem $ getGroupsInternal tid nameContains
 

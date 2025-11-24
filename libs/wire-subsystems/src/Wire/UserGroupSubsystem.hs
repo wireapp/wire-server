@@ -75,7 +75,7 @@ data UserGroupSubsystem m a where
   -- Internal API handlers
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> UserGroupSubsystem r UserGroup
   GetGroupInternal :: TeamId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
-  GetGroupsInternal :: TeamId -> Maybe Text -> UserGroupSubsystem m UserGroupPage
+  GetGroupsInternal :: TeamId -> Maybe Text -> UserGroupSubsystem m UserGroupPageWithMembers
   ResetUserGroupInternal :: UpdateGroupInternalRequest -> UserGroupSubsystem m ()
 
 makeSem ''UserGroupSubsystem

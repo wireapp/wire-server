@@ -141,6 +141,24 @@ filterScimUserGroup domain token mbFilter = do
     & scimCommonHeaders token
     & maybe id (\f -> addQueryParams [("filter", f)]) mbFilter
 
+mkScimGroup :: String -> [Value] -> Value
+mkScimGroup name members =
+  object
+    [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+      "displayName" .= name,
+      "members" .= members
+    ]
+
+mkScimUser :: String -> Value
+mkScimUser scimUserId =
+  object
+    [ "type" .= "User",
+      "$ref" .= "...", -- something like
+      -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
+      -- but since we're just receiving this it's ok to ignore.
+      "value" .= scimUserId
+    ]
+
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
 createIdp user metadata = do

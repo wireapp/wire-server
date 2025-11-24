@@ -283,7 +283,7 @@ type GetGroupsInternal =
         :> "user-groups"
         :> Capture "tid" TeamId
         :> QueryParam' [Optional, Strict] "nameContains" Text.Text
-        :> Get '[Servant.JSON] UserGroupPage
+        :> Get '[Servant.JSON] UserGroupPageWithMembers
     )
 
 type UpdateGroupInternal =
