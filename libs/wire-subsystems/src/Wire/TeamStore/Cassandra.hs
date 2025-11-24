@@ -50,7 +50,6 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore qualified as LH
-import Wire.TeamEventQueueAccess qualified as TEQ
 import Wire.TeamStore (TeamStore (..))
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
 import Wire.Util (embedClientInput, logEffect)
@@ -60,8 +59,7 @@ interpretTeamStoreToCassandra ::
     Member (Input ClientState) r,
     Member TinyLog r,
     Member ConversationStore r,
-    Member LegalHoldStore r,
-    Member TEQ.TeamEventQueueAccess r
+    Member LegalHoldStore r
   ) =>
   Sem (TeamStore ': r) a ->
   Sem r a
@@ -135,10 +133,6 @@ interpretTeamStoreToCassandra = interpret $ \case
   SetTeamStatus tid st -> do
     logEffect "TeamStore.SetTeamStatus"
     embedClientInput (updateTeamStatus tid st)
-  -- TODO(leif): remove and use the TEQ directly
-  EnqueueTeamEvent e -> do
-    logEffect "TeamStore.EnqueueTeamEvent"
-    TEQ.enqueueTeamEvent e
   SelectTeamMembersPaginated tid uids mps lim -> do
     logEffect "TeamStore.SelectTeamMembersPaginated"
     selectSomeTeamMembersPaginated tid uids mps lim

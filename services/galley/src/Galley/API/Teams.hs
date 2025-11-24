@@ -96,7 +96,6 @@ import Galley.Env
 import Galley.Intra.Journal qualified as Journal
 import Galley.Options
 import Galley.Types.Teams
-import Galley.Types.Teams (FeatureDefaults)
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -145,6 +144,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -263,7 +263,8 @@ updateTeamStatus ::
     Member (ErrorS 'InvalidTeamStatusUpdate) r,
     Member (ErrorS 'TeamNotFound) r,
     Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamId ->
   TeamStatusUpdate ->
@@ -394,7 +395,8 @@ uncheckedDeleteTeam ::
     Member LegalHoldStore r,
     Member SparAccess r,
     Member TeamStore r,
-    Member ConversationStore r
+    Member ConversationStore r,
+    Member TeamEventQueueAccess r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -645,7 +647,8 @@ uncheckedAddTeamMember ::
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -666,7 +669,8 @@ uncheckedUpdateTeamMember ::
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamEventQueueAccess r
   ) =>
   Maybe (Local UserId) ->
   Maybe ConnId ->
@@ -725,7 +729,8 @@ updateTeamMember ::
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamEventQueueAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -782,7 +787,8 @@ deleteTeamMember ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamEventQueueAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -809,7 +815,8 @@ deleteNonBindingTeamMember ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamEventQueueAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -836,7 +843,8 @@ deleteTeamMember' ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (Input FanoutLimit) r
+    Member (Input FanoutLimit) r,
+    Member TeamEventQueueAccess r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1178,7 +1186,6 @@ ensureNotTooLarge tid = do
 ensureNotTooLargeForLegalHold ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input FanoutLimit) r,
@@ -1267,7 +1274,6 @@ canUserJoinTeam ::
   forall r.
   ( Member BrigAPIAccess r,
     Member LegalHoldStore r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input FanoutLimit) r,

@@ -31,7 +31,6 @@ import Galley.Effects
 import Galley.Effects.TeamFeatureStore
 import Galley.Env
 import Galley.Types.Teams as Team
-import Galley.Types.Teams (FeatureDefaults (..))
 import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
@@ -41,12 +40,10 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
 import Wire.LegalHoldStore qualified as LegalHoldData
-import Wire.TeamStore
 
 assertLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member (ErrorS 'LegalHoldNotEnabled) r
@@ -58,8 +55,7 @@ assertLegalHoldEnabledForTeam tid =
     throwS @'LegalHoldNotEnabled
 
 computeLegalHoldFeatureStatus ::
-  ( Member TeamStore r,
-    Member LegalHoldStore r,
+  ( Member LegalHoldStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
@@ -78,7 +74,6 @@ computeLegalHoldFeatureStatus tid dbFeature = do
 isLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
@@ -92,7 +87,6 @@ isLegalHoldEnabledForTeam tid = do
 ensureNotTooLargeToActivateLegalHold ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
-    Member TeamStore r,
     Member (Input FanoutLimit) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
@@ -104,8 +98,7 @@ ensureNotTooLargeToActivateLegalHold tid = do
     throwS @'CannotEnableLegalHoldServiceLargeTeam
 
 teamSizeBelowLimit ::
-  ( Member TeamStore r,
-    Member (Input FanoutLimit) r,
+  ( Member (Input FanoutLimit) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   Int ->

@@ -52,7 +52,6 @@ import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Teams as Team
-import Galley.Types.Teams (FeatureDefaults (..))
 import Imports
 import Network.HTTP.Types.Status (status200)
 import Polysemy
@@ -69,8 +68,8 @@ import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
-import Wire.API.Team.LegalHold
 import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.LegalHold.Internal
@@ -281,8 +280,7 @@ removeSettings' ::
     Member P.TinyLog r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member MLSCommitLockStore r
   ) =>
   TeamId ->
   Sem r ()

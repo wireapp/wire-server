@@ -39,6 +39,7 @@ import Proto.TeamEvents_Fields qualified as T
 import Wire.API.Team (TeamCreationTime (..))
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
+import Wire.TeamEventQueueAccess (TeamEventQueueAccess, enqueueTeamEvent)
 import Wire.TeamStore
 
 -- Note [journaling]
@@ -48,7 +49,8 @@ import Wire.TeamStore
 
 teamActivate ::
   ( Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamId ->
   Natural ->
@@ -60,8 +62,8 @@ teamActivate tid teamSize cur time = do
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize owners cur) time
 
 teamUpdate ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamId ->
   Natural ->
@@ -71,24 +73,24 @@ teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamId ->
   Sem r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamId ->
   Sem r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamEventQueueAccess r
   ) =>
   TeamEvent'EventType ->
   TeamId ->

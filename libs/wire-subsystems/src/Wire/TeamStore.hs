@@ -21,15 +21,12 @@ module Wire.TeamStore where
 
 import Data.Id
 import Data.Range
-import Galley.Types.Teams
 import Imports
 import Polysemy
-import Proto.TeamEvents qualified as E
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Member.Info (TeamMemberInfo)
 import Wire.API.Team.Permission
@@ -76,7 +73,6 @@ data TeamStore m a where
   DeleteTeam :: TeamId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
-  EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 
 makeSem ''TeamStore
 
