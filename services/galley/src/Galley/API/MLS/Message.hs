@@ -129,7 +129,7 @@ type MLSBundleStaticErrors =
 
 enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
 enableOutOfSyncCheckFromVersion v
-  | v < toEnum 13 = DisableOutOfSyncCheck
+  | v < V13 = DisableOutOfSyncCheck
   | otherwise = EnableOutOfSyncCheck
 
 postMLSMessageFromLocalUser ::
