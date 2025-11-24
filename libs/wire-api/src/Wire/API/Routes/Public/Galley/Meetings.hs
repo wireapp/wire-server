@@ -31,7 +31,7 @@ import Wire.API.Routes.Version
 type MeetingsAPI =
   Named
     "create-meeting"
-    ( Summary "TODO: Create a new meeting"
+    ( Summary "Create a new meeting"
         :> From 'V15
         :> ZLocalUser
         :> "meetings"
@@ -46,7 +46,7 @@ type MeetingsAPI =
     )
     :<|> Named
            "get-meeting"
-           ( Summary "TODO: Get a single meeting by ID"
+           ( Summary "Get a single meeting by ID"
                :> From 'V15
                :> ZLocalUser
                :> "meetings"

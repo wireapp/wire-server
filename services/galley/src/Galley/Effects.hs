@@ -96,6 +96,8 @@ import Wire.HashPassword
 import Wire.LegalHoldStore
 import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
+import Wire.MeetingsStore (MeetingsStore)
+import Wire.MeetingsSubsystem (MeetingsSubsystem)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.RateLimit
@@ -116,7 +118,8 @@ import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ ConversationSubsystem,
+  '[ MeetingsSubsystem,
+     ConversationSubsystem,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -132,6 +135,7 @@ type GalleyEffects1 =
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,
+     MeetingsStore,
      UserClientIndexStore,
      CodeStore,
      ProposalStore,
@@ -179,5 +183,8 @@ type GalleyEffects1 =
      ErrorS 'InvalidOperation,
      ErrorS 'ConvNotFound,
      ErrorS 'ChannelsNotEnabled,
-     ErrorS 'NotAnMlsConversation
+     ErrorS 'NotAnMlsConversation,
+     ErrorS 'NotATeamMember,
+     ErrorS 'MeetingNotFound,
+     ErrorS 'InvalidOperation
    ]

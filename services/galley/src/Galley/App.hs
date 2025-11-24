@@ -125,9 +125,12 @@ import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
+import Wire.MeetingsSubsystem.Interpreter
 import Wire.MigrationLock
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.Postgres (PGConstraints)
 import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
@@ -296,7 +299,17 @@ logAndMapError fErr fLog logMsg action =
 
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
-  let convStoreInterpreter =
+  let convStoreInterpreter ::
+        forall r a.
+        ( Member TinyLog r,
+          PGConstraints r,
+          Member Async r,
+          Member (Error MigrationError) r,
+          Member Race r
+        ) =>
+        Sem (ConversationStore ': r) a ->
+        Sem r a
+      convStoreInterpreter =
         case (e ^. options . postgresMigration).conversation of
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
@@ -369,21 +382,24 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
-        . mapError toResponse
+        . mapError toResponse -- ErrorS 'InvalidOperation
+        . mapError toResponse -- ErrorS 'MeetingNotFound
+        . mapError toResponse -- ErrorS 'NotATeamMember
+        . mapError toResponse -- ErrorS 'NotAnMlsConversation
+        . mapError toResponse -- ErrorS 'ChannelsNotEnabled
+        . mapError toResponse -- ErrorS 'ConvNotFound
+        . mapError toResponse -- ErrorS 'InvalidOperation
+        . mapError toResponse -- ErrorS 'TeamNotFound
+        . mapError toResponse -- ErrorS 'NoBindingTeamMembers
+        . mapError toResponse -- ErrorS 'NonBindingTeam
+        . mapError toResponse -- ErrorS 'MissingLegalholdConsent
+        . mapError toResponse -- ErrorS 'MLSNonEmptyMemberList
+        . mapError toResponse -- ErrorS 'MLSNotEnabled
+        . mapError toResponse -- ErrorS 'NotConnected
+        . mapError toResponse -- ErrorS 'ConvAccessDenied
+        . mapError toResponse -- ErrorS 'NotATeamMember
+        . mapError toResponse -- ErrorS 'HistoryNotSupported
+        . mapError toResponse -- ErrorS OperationDenied
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . interpretQueue (e ^. deleteQueue)
@@ -417,6 +433,7 @@ evalGalley e =
         . interpretProposalStoreToCassandra
         . convCodesStoreInterpreter
         . interpretUserClientIndexStoreToCassandra (e ^. cstate)
+        . interpretMeetingsStoreToPostgres
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
@@ -433,7 +450,10 @@ evalGalley e =
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
         . interpretConversationSubsystem
+        . interpretMeetingsSubsystem meetingValidityPeriod
   where
+    meetingValidityPeriod =
+      realToFrac $ fromMaybe 48.0 (e ^. options . settings . meetings >>= view validityPeriodHours) * 3600
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)

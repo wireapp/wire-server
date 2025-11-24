@@ -92,6 +92,9 @@ settings:
       - 127.0.0.1/8
     maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
 
+  meetings:
+    validityPeriodHours: 0.0014
+
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []

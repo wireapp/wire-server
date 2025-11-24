@@ -254,6 +254,8 @@ hasExplicitLockStatus "sndFactorPasswordChallenge" = True
 hasExplicitLockStatus "outlookCalIntegration" = True
 hasExplicitLockStatus "enforceFileDownloadLocation" = True
 hasExplicitLockStatus "domainRegistration" = True
+hasExplicitLockStatus "meetings" = True
+hasExplicitLockStatus "meetingsPremium" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()

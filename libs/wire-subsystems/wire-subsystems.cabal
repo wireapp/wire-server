@@ -314,6 +314,8 @@ library
     Wire.ListItems
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
+    Wire.MeetingsSubsystem
+    Wire.MeetingsSubsystem.Interpreter
     Wire.Migration
     Wire.MigrationLock
     Wire.NotificationSubsystem
