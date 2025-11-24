@@ -187,3 +187,8 @@ isConversationOutOfSync conv = do
     Unversioned
     (joinHttpPath ["i", "conversations", convId, "out-of-sync"])
     >>= submit "GET"
+
+getAllTeamMembers :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getAllTeamMembers domain tid = do
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "members", "unsafe-all"]
+  submit "GET" $ req
