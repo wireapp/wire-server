@@ -17,12 +17,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamEventQueueAccess where
+module Wire.TeamJournal where
 
 import Polysemy
 import Proto.TeamEvents (TeamEvent)
 
-data TeamEventQueueAccess m a where
-  EnqueueTeamEvent :: TeamEvent -> TeamEventQueueAccess m ()
+data TeamJournal m a where
+  EnqueueTeamEvent :: TeamEvent -> TeamJournal m ()
 
-makeSem ''TeamEventQueueAccess
+makeSem ''TeamJournal

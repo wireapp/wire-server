@@ -144,7 +144,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
-import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
+import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -264,7 +264,7 @@ updateTeamStatus ::
     Member (ErrorS 'TeamNotFound) r,
     Member Now r,
     Member TeamStore r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   TeamId ->
   TeamStatusUpdate ->
@@ -396,7 +396,7 @@ uncheckedDeleteTeam ::
     Member SparAccess r,
     Member TeamStore r,
     Member ConversationStore r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -648,7 +648,7 @@ uncheckedAddTeamMember ::
     Member TeamStore r,
     Member (Input FanoutLimit) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -670,7 +670,7 @@ uncheckedUpdateTeamMember ::
     Member Now r,
     Member P.TinyLog r,
     Member TeamStore r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   Maybe (Local UserId) ->
   Maybe ConnId ->
@@ -730,7 +730,7 @@ updateTeamMember ::
     Member Now r,
     Member P.TinyLog r,
     Member TeamStore r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   Local UserId ->
   ConnId ->
@@ -788,7 +788,7 @@ deleteTeamMember ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   Local UserId ->
   ConnId ->
@@ -816,7 +816,7 @@ deleteNonBindingTeamMember ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   Local UserId ->
   ConnId ->
@@ -844,7 +844,7 @@ deleteTeamMember' ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamEventQueueAccess r
+    Member TeamJournal r
   ) =>
   Local UserId ->
   ConnId ->

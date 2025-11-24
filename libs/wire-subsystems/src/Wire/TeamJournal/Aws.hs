@@ -15,22 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamEventQueueAccess.Aws
-  ( interpretTeamEventQueueAccess,
+module Wire.TeamJournal.Aws
+  ( interpretTeamJournal,
   )
 where
 
 import Imports
 import Polysemy
 import Wire.AWS qualified as WA
-import Wire.TeamEventQueueAccess (TeamEventQueueAccess (..))
+import Wire.TeamJournal (TeamJournal (..))
 
-interpretTeamEventQueueAccess ::
+interpretTeamJournal ::
   (Member (Embed IO) r) =>
   Maybe WA.Env ->
-  Sem (TeamEventQueueAccess ': r) a ->
+  Sem (TeamJournal ': r) a ->
   Sem r a
-interpretTeamEventQueueAccess mEnv = interpret $ \case
+interpretTeamJournal mEnv = interpret $ \case
   EnqueueTeamEvent ev -> case mEnv of
     Nothing -> pure ()
     Just e -> embed $ WA.execute e (WA.enqueue ev)

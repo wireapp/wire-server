@@ -303,11 +303,11 @@ library
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem
     Wire.TeamCollaboratorsSubsystem.Interpreter
-    Wire.TeamEventQueueAccess
-    Wire.TeamEventQueueAccess.Aws
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
+    Wire.TeamJournal
+    Wire.TeamJournal.Aws
     Wire.TeamStore
     Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries

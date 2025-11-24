@@ -133,7 +133,7 @@ import Wire.Sem.Random.IO
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
-import Wire.TeamEventQueueAccess.Aws qualified as TEAws
+import Wire.TeamJournal.Aws qualified as TEAws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
@@ -339,7 +339,7 @@ evalGalley e =
         . interpretUserGroupStoreToPostgres
         . runInputConst legalHoldEnv
         . interpretLegalHoldStoreToCassandra lh
-        . TEAws.interpretTeamEventQueueAccess (e ^. aEnv)
+        . TEAws.interpretTeamJournal (e ^. aEnv)
         . interpretTeamStoreToCassandra
         . interpretSearchVisibilityStoreToCassandra
         . interpretCustomBackendStoreToCassandra

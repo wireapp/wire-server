@@ -102,7 +102,7 @@ import Wire.Sem.Random
 import Wire.ServiceStore
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
-import Wire.TeamEventQueueAccess (TeamEventQueueAccess)
+import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
@@ -131,7 +131,7 @@ type GalleyEffects1 =
      CustomBackendStore,
      SearchVisibilityStore,
      TeamStore,
-     TeamEventQueueAccess,
+     TeamJournal,
      LegalHoldStore,
      Input LegalHoldEnv,
      UserGroupStore,
