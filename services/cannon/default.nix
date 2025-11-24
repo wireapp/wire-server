@@ -35,7 +35,6 @@
 , metrics-wai
 , mwc-random
 , prometheus-client
-, proto-lens
 , pulsar-client-hs
 , QuickCheck
 , random
@@ -43,6 +42,7 @@
 , safe-exceptions
 , servant-conduit
 , servant-server
+, stm
 , strict
 , tasty
 , tasty-hunit
@@ -100,12 +100,12 @@ mkDerivation {
     metrics-wai
     mwc-random
     prometheus-client
-    proto-lens
     pulsar-client-hs
     retry
     safe-exceptions
     servant-conduit
     servant-server
+    stm
     strict
     text
     tinylog

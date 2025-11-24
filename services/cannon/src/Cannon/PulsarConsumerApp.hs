@@ -15,6 +15,7 @@ import Control.Exception (Handler (..), catches)
 import Control.Exception.Base
 import Control.Lens hiding ((#))
 import Control.Monad.Codensity
+import Control.Monad.STM qualified as STM
 import Data.Aeson hiding (Key)
 import Data.Aeson qualified as A
 import Data.Base64.Types
@@ -62,6 +63,7 @@ createPulsarChannel uid mCid = do
   acknowledgeMessages :: Chan ByteString <- lift newChan
   rejectMessages :: Chan ByteString <- lift newChan
   closeSignal :: MVar () <- lift $ newEmptyMVar
+  unackedMsgsCounter :: TVar Int <- newTVarIO 0
   let subscription = case mCid of
         Nothing -> temporaryRoutingKey uid
         Just cid -> clientNotificationQueueName uid cid
@@ -85,10 +87,10 @@ createPulsarChannel uid mCid = do
           (onPulsarError "createPulsarChannel consumer")
           $ do
             traceM $ "Ready"
-            receiveMsgsAsync :: Async () <- receiveMsgs msgChannel
+            receiveMsgsAsync :: Async () <- receiveMsgs msgChannel unackedMsgsCounter
             blockOnCloseSignalAsync :: Async () <- blockOnCloseSignal closeSignal
-            acknowledgeMsgsAsync <- acknowledgeMsgs acknowledgeMessages
-            rejectMsgsAsync <- rejectMsgs rejectMessages
+            acknowledgeMsgsAsync <- acknowledgeMsgs acknowledgeMessages unackedMsgsCounter
+            rejectMsgsAsync <- rejectMsgs rejectMessages unackedMsgsCounter
             void $ UnliftIO.waitAnyCancel [receiveMsgsAsync, blockOnCloseSignalAsync, acknowledgeMsgsAsync, rejectMsgsAsync]
       pure ()
   -- TODO: Get rid of this delay.
@@ -104,32 +106,48 @@ createPulsarChannel uid mCid = do
       PulsarQueueInfo subscription
     )
   where
-    receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (ByteString, ByteString) -> ReaderT Pulsar.Consumer m (Async ())
-    receiveMsgs msgChannel = UnliftIO.async . forever $ do
+    receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (ByteString, ByteString) -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
+    receiveMsgs msgChannel unackedMsgsCounter = UnliftIO.async . forever $ do
+      liftIO $ waitUntilCounterBelow unackedMsgsCounter 500
       Pulsar.receiveMessage (liftIO . onPulsarError "receiveMessage") $ do
         content <- Pulsar.messageContent
         traceM $ "XXX - received message with content " ++ BSUTF8.toString content
         msgId :: ByteString <- Pulsar.messageId Pulsar.messageIdSerialize
         liftIO $ writeChan msgChannel (msgId, content)
+        liftIO $ incCounter unackedMsgsCounter
         traceM $ "XXX - wrote message to channel:" ++ BSUTF8.toString content
-        void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> Pulsar.acknowledgeMessage
+    -- void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> Pulsar.acknowledgeMessage
 
     blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m (Async ())
     blockOnCloseSignal = UnliftIO.async . readMVar
 
-    acknowledgeMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> ReaderT Pulsar.Consumer m (Async ())
-    acknowledgeMsgs chan =
+    acknowledgeMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
+    acknowledgeMsgs chan unackedMsgsCounter =
       UnliftIO.async . forever $ do
         msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
-        logPulsarResult "createPulsarChannel - acknowledge message result: " <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
+        traceM $ "acknowledgeMsgs"
+        void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
+        liftIO $ decCounter unackedMsgsCounter
 
-    rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> ReaderT Pulsar.Consumer m (Async ())
-    rejectMsgs chan =
+    rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan ByteString -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
+    rejectMsgs chan unackedMsgsCounter =
       UnliftIO.async . forever $ do
         msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
         Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeNegativeMessageId
+        liftIO $ decCounter unackedMsgsCounter
+
+    incCounter :: TVar Int -> IO ()
+    incCounter tv = atomically $ modifyTVar' tv (+ 1)
+
+    decCounter :: TVar Int -> IO ()
+    decCounter tv = atomically $ modifyTVar' tv (subtract 1)
+
+    waitUntilCounterBelow :: TVar Int -> Int -> IO ()
+    waitUntilCounterBelow tv threshold = atomically $ do
+      v <- readTVar tv
+      STM.check (v < threshold) -- blocks (retry) until v < threshold
 
 -- TODO: Replace Debug.Trace with regular logging
 onPulsarError :: String -> Pulsar.RawResult -> IO ()

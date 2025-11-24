@@ -114,6 +114,7 @@ library
     , safe-exceptions
     , servant-conduit
     , servant-server
+    , stm
     , strict                                >=0.3.2
     , text                                  >=1.1
     , tinylog                               >=0.10
