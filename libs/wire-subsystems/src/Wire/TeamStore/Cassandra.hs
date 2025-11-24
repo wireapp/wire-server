@@ -24,7 +24,6 @@ import Cassandra
 import Cassandra.Util
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch ()
-import Control.Monad.Extra (ifM)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
@@ -286,21 +285,22 @@ newTeamMember' ::
   TeamId ->
   (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
   Sem r TeamMember
-newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  mk minvu minvt >>= maybeGrant
+newTeamMember' tid (uid, perms, mInvUser, mInvTime, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
+  maybeGrant $ mkTeamMember uid perms ((,) <$> mInvUser <*> mInvTime) lhStatus
   where
-    maybeGrant m =
-      ifM (LH.isTeamLegalholdWhitelisted tid) (pure (grantImplicitConsent m)) (pure m)
+    maybeGrant tm = do
+      -- TODO: Make this logic happen outside the store effect
+      teamHasImplicitConsent <- LH.isTeamLegalholdWhitelisted tid
+      pure $
+        if teamHasImplicitConsent
+          then grantImplicitConsent tm
+          else tm
     grantImplicitConsent =
       legalHoldStatus %~ \case
         UserLegalHoldNoConsent -> UserLegalHoldDisabled
         UserLegalHoldDisabled -> UserLegalHoldDisabled
         UserLegalHoldPending -> UserLegalHoldPending
         UserLegalHoldEnabled -> UserLegalHoldEnabled
-    mk (Just invu) (Just invt) = pure $ mkTeamMember uid perms (Just (invu, invt)) lhStatus
-    mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
-    -- TODO(leif): proper error handling
-    mk _ _ = error "TeamMember with incomplete metadata."
 
 type RawTeamMember = (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus)
 
