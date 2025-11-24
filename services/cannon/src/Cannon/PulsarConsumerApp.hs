@@ -89,7 +89,7 @@ createPulsarChannel uid mCid = do
             blockOnCloseSignalAsync :: Async () <- blockOnCloseSignal closeSignal
             acknowledgeMsgsAsync <- acknowledgeMsgs acknowledgeMessages
             rejectMsgsAsync <- rejectMsgs rejectMessages
-            void $ UnliftIO.waitAny [receiveMsgsAsync, blockOnCloseSignalAsync, acknowledgeMsgsAsync, rejectMsgsAsync]
+            void $ UnliftIO.waitAnyCancel [receiveMsgsAsync, blockOnCloseSignalAsync, acknowledgeMsgsAsync, rejectMsgsAsync]
       pure ()
   -- TODO: Get rid of this delay.
   liftIO $ threadDelay 1_000_000
