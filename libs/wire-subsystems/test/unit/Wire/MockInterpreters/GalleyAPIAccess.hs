@@ -68,6 +68,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
   InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
   GetTeamContacts _ -> pure Nothing
+  SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

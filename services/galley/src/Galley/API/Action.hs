@@ -126,7 +126,6 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
-import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
@@ -670,7 +669,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
     checkLocals lusr (Just tid) newUsers = do
       tms <-
         Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
-          <$> E.selectTeamMembers tid newUsers
+          <$> TeamSubsystem.internalSelectTeamMembers tid newUsers
       let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
