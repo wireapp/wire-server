@@ -272,6 +272,10 @@ library
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.MeetingsStore
+    Wire.MeetingsStore.Postgres
+    Wire.MeetingsSubsystem
+    Wire.MeetingsSubsystem.Interpreter
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState

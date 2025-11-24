@@ -89,6 +89,7 @@ library
     Galley.API.LegalHold.Get
     Galley.API.LegalHold.Team
     Galley.API.Mapping
+    Galley.API.Meetings
     Galley.API.Message
     Galley.API.MLS
     Galley.API.MLS.CheckClients
@@ -119,6 +120,7 @@ library
     Galley.API.Public.CustomBackend
     Galley.API.Public.Feature
     Galley.API.Public.LegalHold
+    Galley.API.Public.Meetings
     Galley.API.Public.Messaging
     Galley.API.Public.MLS
     Galley.API.Public.Servant
@@ -362,6 +364,7 @@ executable galley-integration
     API.CustomBackend
     API.Federation
     API.Federation.Util
+    API.Meetings
     API.MessageTimer
     API.MLS
     API.MLS.Mocks

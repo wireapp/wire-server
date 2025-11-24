@@ -157,6 +157,7 @@ library
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
     Test.FeatureFlags.OutlookCalIntegration
+    Test.FeatureFlags.PayingTeam
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound
     Test.FeatureFlags.SelfDeletingMessages

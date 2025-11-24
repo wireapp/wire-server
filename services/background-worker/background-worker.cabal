@@ -21,6 +21,7 @@ library
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
+    Wire.MeetingsCleanupWorker
     Wire.MigrateConversations
 
   hs-source-dirs:     src
@@ -57,6 +58,7 @@ library
     , servant-client
     , servant-server
     , text
+    , time
     , tinylog
     , transformers
     , transformers-base

@@ -330,6 +330,13 @@ newtype instance FeatureDefaults StealthUsersConfig
   deriving (FromJSON) via Defaults (LockableFeature StealthUsersConfig)
   deriving (ParseFeatureDefaults) via OptionalField StealthUsersConfig
 
+newtype instance FeatureDefaults PayingTeamConfig
+  = PayingTeamDefaults (LockableFeature PayingTeamConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature PayingTeamConfig)
+  deriving (ParseFeatureDefaults) via OptionalField PayingTeamConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 
