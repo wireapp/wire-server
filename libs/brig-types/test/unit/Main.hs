@@ -31,7 +31,7 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Brig.Types.Team.tests,
-        Test.Brig.Types.User.tests,
-        Test.Brig.Types.Common.tests
+      [ Test.Brig.Types.Common.tests,
+        Test.Brig.Types.Team.tests,
+        Test.Brig.Types.User.tests
       ]
