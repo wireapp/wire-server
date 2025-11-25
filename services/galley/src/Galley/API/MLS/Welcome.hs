@@ -26,7 +26,6 @@ import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time

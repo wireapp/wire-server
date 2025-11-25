@@ -98,7 +98,7 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty, appendList, nonEmpty)
+import Data.List.NonEmpty (appendList, nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified

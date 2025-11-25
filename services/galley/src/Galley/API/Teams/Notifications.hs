@@ -41,7 +41,7 @@ where
 
 import Data.Id
 import Data.Json.Util (toJSONObject)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Range (Range)
 import Galley.Data.TeamNotifications qualified as DataTeamQueue
 import Galley.Effects
@@ -76,4 +76,4 @@ getTeamNotifications zusr since size = do
 pushTeamEvent :: (Member TeamNotificationStore r) => TeamId -> Event -> Sem r ()
 pushTeamEvent tid evt = do
   nid <- E.mkNotificationId
-  E.createTeamNotification tid nid (List1.singleton $ toJSONObject evt)
+  E.createTeamNotification tid nid (NonEmpty.singleton $ toJSONObject evt)
