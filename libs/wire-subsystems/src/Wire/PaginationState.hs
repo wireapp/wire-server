@@ -28,6 +28,7 @@ import Wire.Postgres
 data PaginationState a
   = PaginationSortByName (Maybe (Text, a))
   | PaginationSortByCreatedAt (Maybe (UTCTime, a))
+  | PaginationOffset Int32
 
 paginationClause :: (PostgresValue a) => PaginationState a -> Maybe Clause
 paginationClause s = case s of
@@ -35,4 +36,5 @@ paginationClause s = case s of
     Just (mkClause "name" name <> mkClause "id" x)
   PaginationSortByCreatedAt (Just (createdAt, x)) ->
     Just (mkClause "created_at" createdAt <> mkClause "id" x)
+  PaginationOffset _ -> Nothing
   _ -> Nothing
