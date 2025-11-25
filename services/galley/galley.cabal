@@ -159,17 +159,14 @@ library
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
-    Galley.Effects.SparAccess
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Intra.Effects
     Galley.Intra.Federator
     Galley.Intra.Journal
-    Galley.Intra.Spar
     Galley.Intra.Util
     Galley.Keys
     Galley.Monad

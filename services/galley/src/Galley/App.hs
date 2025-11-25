@@ -69,7 +69,6 @@ import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
-import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Keys
 import Galley.Monad (runApp)
@@ -130,6 +129,7 @@ import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
+import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamJournal.Aws
@@ -361,7 +361,7 @@ evalGalley e =
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
-        . interpretSparAccess
+        . interpretSparAPIAccessToRpc (e ^. options . spar)
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =

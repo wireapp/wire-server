@@ -30,6 +30,8 @@ miniSparAPIAccess :: (Member (Input (Map TeamId IdPList)) r) => InterpreterFor S
 miniSparAPIAccess = interpret $ \case
   GetIdentityProviders tid ->
     Map.findWithDefault (IdPList []) tid <$> input
+  DeleteTeam {} -> error "DeleteTeam not implemented in miniSparAPIAccess"
+  LookupScimUserInfo {} -> error "LookupScimUserInfo not implemented in miniSparAPIAccess"
 
 emptySparAPIAccess :: InterpreterFor SparAPIAccess r
 emptySparAPIAccess = runInputConst mempty . miniSparAPIAccess . raiseUnder

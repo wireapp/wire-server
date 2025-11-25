@@ -90,7 +90,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
-import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Env
 import Galley.Intra.Journal qualified as Journal
@@ -142,6 +141,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
+import Wire.SparAPIAccess qualified as Spar
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamJournal (TeamJournal)
@@ -398,7 +398,7 @@ uncheckedDeleteTeam ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member SparAccess r,
+    Member SparAPIAccess r,
     Member TeamStore r,
     Member ConversationStore r,
     Member TeamJournal r,

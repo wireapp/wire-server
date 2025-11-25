@@ -22,7 +22,7 @@ module Galley.Effects
     -- * Effects to access the Intra API
     BrigAPIAccess,
     FederatorAccess,
-    SparAccess,
+    SparAPIAccess,
 
     -- * External services
     ExternalAccess,
@@ -69,7 +69,6 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.SparAccess
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
@@ -100,6 +99,7 @@ import Wire.Sem.Now
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
 import Wire.ServiceStore
+import Wire.SparAPIAccess
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamJournal (TeamJournal)
@@ -109,7 +109,7 @@ import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ SparAccess,
+  '[ SparAPIAccess,
      TeamCollaboratorsSubsystem,
      ConversationSubsystem,
      NotificationSubsystem,
