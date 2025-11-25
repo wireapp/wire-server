@@ -92,7 +92,6 @@ import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Env
-import Galley.Intra.Journal qualified as Journal
 import Galley.Options
 import Galley.Types.Teams
 import Imports hiding (forkIO)
@@ -145,6 +144,7 @@ import Wire.SparAPIAccess qualified as Spar
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamJournal (TeamJournal)
+import Wire.TeamJournal qualified as Journal
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
