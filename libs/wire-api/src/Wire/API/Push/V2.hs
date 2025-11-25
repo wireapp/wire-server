@@ -77,8 +77,7 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.Json.Util
-import Data.List1
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
@@ -128,7 +127,7 @@ data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
-    RecipientClientsSome (List1 ClientId)
+    RecipientClientsSome (NonEmpty ClientId)
   deriving (Eq, Show, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RecipientClients)
 
@@ -140,7 +139,7 @@ instance Arbitrary RecipientClients where
       someClients =
         RecipientClientsSome <$> do
           firstClientId <- arbitrary
-          (List1.list1 firstClientId . filter (/= firstClientId) . Set.toList <$> setOf' arbitrary)
+          (:|) firstClientId . filter (/= firstClientId) . Set.toList <$> setOf' arbitrary
 
 instance ToSchema Recipient where
   schema =
@@ -163,7 +162,7 @@ instance ToSchema RecipientClients where
       i v =
         parseJSON @[ClientId] v >>= \case
           [] -> pure RecipientClientsAll
-          c : cs -> pure (RecipientClientsSome (list1 c cs))
+          c : cs -> pure (RecipientClientsSome (c :| cs))
 
       o :: RecipientClients -> Maybe A.Value
       o =
@@ -277,14 +276,14 @@ data Push = Push
     -- | Native push priority.
     _pushNativePriority :: !Priority,
     -- | Opaque payload
-    _pushPayload :: !(List1 Object),
+    _pushPayload :: !(NonEmpty Object),
     _pushIsCellsEvent :: !Bool
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
   deriving (Arbitrary) via (GenericUniform Push)
 
-newPush :: Maybe UserId -> Set Recipient -> List1 Object -> Push
+newPush :: Maybe UserId -> Set Recipient -> NonEmpty Object -> Push
 newPush from to pload =
   Push
     { _pushRecipients = to,
@@ -300,8 +299,8 @@ newPush from to pload =
       _pushIsCellsEvent = False
     }
 
-singletonPayload :: (ToJSONObject a) => a -> List1 Object
-singletonPayload = List1.singleton . toJSONObject
+singletonPayload :: (ToJSONObject a) => a -> NonEmpty Object
+singletonPayload a = toJSONObject a :| []
 
 instance ToSchema Push where
   schema =
@@ -322,7 +321,7 @@ instance ToSchema Push where
         <*> _pushNativeAps .= maybe_ (optField "native_aps" schema)
         <*> (ifNot (== HighPriority) . _pushNativePriority)
           .= maybe_ (fromMaybe HighPriority <$> optField "native_priority" schema)
-        <*> _pushPayload .= field "payload" schema
+        <*> _pushPayload .= field "payload" (nonEmptyArray schema)
         <*> _pushIsCellsEvent .= fmap (fromMaybe False) (optField "is_cells_event" schema)
     where
       ifNot f a = if f a then Nothing else Just a

@@ -46,8 +46,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 hiding (head)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
 import Data.Qualified
@@ -118,7 +117,7 @@ getConversationsAllFound = do
   let aliceQ = tUntagged rAlice
   carlQ <- randomQualifiedUser
 
-  connectUsers bob (singleton (qUnqualified carlQ))
+  connectUsers bob (qUnqualified carlQ :| [])
   connectWithRemoteUser bob aliceQ
 
   -- create & get group conv
@@ -184,7 +183,7 @@ getConversationsNotPartOf :: TestM ()
 getConversationsNotPartOf = do
   -- FUTUREWORK: make alice / bob remote users
   [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
+  connectUsers alice (bob :| [])
   localDomain <- viewFederationDomain
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
@@ -493,7 +492,7 @@ notifyUpdate extras action etype edata = do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= etype
@@ -540,7 +539,7 @@ notifyUpdateUnavailable extras action etype edata = do
           runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= etype
@@ -674,7 +673,7 @@ notifyDeletedConversation = do
 
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ConvDelete @=? evtType e
 
   do
@@ -838,7 +837,7 @@ onMessageSent = do
     liftIO $ do
       -- alice should receive the message on her first client
       WS.assertMatch_ (5 # Second) wsA1 $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= OtrMessageAdd
@@ -847,7 +846,7 @@ onMessageSent = do
 
       -- alice should receive the message on her second client
       WS.assertMatch_ (5 # Second) wsA2 $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= OtrMessageAdd

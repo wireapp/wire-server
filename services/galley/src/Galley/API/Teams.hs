@@ -87,7 +87,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold qualified as LH
 import Data.List.Extra qualified as List
-import Data.List1 (list1)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Qualified
@@ -442,7 +442,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
     pushDeleteEvents membs e ue = do
       o <- inputs (view settings)
-      let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
+      let r = userRecipient (tUnqualified lusr) :| membersToRecipients (Just (tUnqualified lusr)) membs
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. concurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)

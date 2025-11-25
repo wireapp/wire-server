@@ -42,8 +42,7 @@ import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.LegalHold qualified as LH
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.List1 hiding (head)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -387,7 +386,7 @@ testCreateOne2OneFailForNonTeamMembers = do
   let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   mem2 <- newTeamMember' p2 <$> Util.randomUser
-  Util.connectUsers owner (list1 (mem1 ^. userId) [mem2 ^. userId])
+  Util.connectUsers owner ((mem1 ^. userId) :| [mem2 ^. userId])
   -- Both have a binding team but not the same team
   owner1 <- Util.randomUser
   tid1 <- Util.createBindingTeamInternal "foo" owner1
@@ -515,7 +514,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
   assertTeamUpdate "team member join" tid 3 [ownerWithPassword, owner]
 
   refreshIndex
-  Util.connectUsers owner (List1.singleton mext)
+  Util.connectUsers owner (mext :| [])
   cid1 <- Util.createTeamConv owner tid [mem1 ^. userId, mext] (Just "blaa") Nothing Nothing
   when ownerHasPassword $ do
     -- request to remove a team member is handled by the by the endpoint do remove non-binding team member
@@ -645,7 +644,7 @@ testAddTeamConvLegacy = do
   let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
   mem1 <- newTeamMember' p <$> Util.randomUser
   mem2 <- newTeamMember' p <$> Util.randomUser
-  Util.connectUsers owner (list1 (mem1 ^. userId) [extern, mem2 ^. userId])
+  Util.connectUsers owner ((mem1 ^. userId) :| [extern, (mem2 ^. userId)])
   allUserIds <- for [owner, extern, mem1 ^. userId, mem2 ^. userId] $
     \u -> Qualified u <$> viewFederationDomain
   WS.bracketRN c (qUnqualified <$> allUserIds) $ \wss -> do
@@ -661,7 +660,7 @@ testAddTeamConvWithRole = do
   qOwner <- Qualified owner <$> viewFederationDomain
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
-  Util.connectUsers owner (list1 extern [])
+  Util.connectUsers owner (extern :| [])
   WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
     -- Regular conversation:
     cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
@@ -752,7 +751,7 @@ testAddTeamMemberToConv = do
   (ownerT2, qOwnerT2) <- Util.randomUserTuple
   mem1T2 <- newTeamMember' p <$> Util.randomUser
   qMem1T2 <- Qualified (mem1T2 ^. userId) <$> viewFederationDomain
-  Util.connectUsers ownerT1 (list1 mem1T1 [mem2T1, mem3T1, ownerT2, personalUser])
+  Util.connectUsers ownerT1 (mem1T1 :| [mem2T1, mem3T1, ownerT2, personalUser])
   tidT1 <- createBindingTeamInternal "foo" ownerT1
   do
     Util.addTeamMemberInternal tidT1 mem1T1 p Nothing
@@ -1153,7 +1152,7 @@ testDeleteTeamConv = do
   let members = [qOwner, qMember]
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
-  for_ members $ \m -> Util.connectUsers (m & qUnqualified) (list1 extern [])
+  for_ members $ \m -> Util.connectUsers (m & qUnqualified) (extern :| [])
   (cid1, qcid1) <- WS.bracketR c owner $ \wsOwner -> do
     cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
     qcid1 <- Qualified cid1 <$> viewFederationDomain
@@ -1372,7 +1371,7 @@ testUpdateTeamMember = do
             . json change
         )
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
-      let e = List1.head (WS.unpackPayload notif)
+      let e = NonEmpty.head (WS.unpackPayload notif)
       e ^. eventTeam @?= tid
       e ^. eventData @?= EdMemberUpdate uid mPerm
 
@@ -1417,7 +1416,7 @@ postCryptoBroadcastMessage bcast = do
   bc <- Util.randomClient bob (someLastPrekeys !! 1)
   cc <- Util.randomClient charlie (someLastPrekeys !! 2)
   (dan, dc) <- randomUserWithClient (someLastPrekeys !! 3)
-  connectUsers alice (list1 charlie [dan])
+  connectUsers alice (charlie :| [dan])
   -- A second client for Alice
   ac2 <- randomClient alice (someLastPrekeys !! 4)
   -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
@@ -1472,7 +1471,7 @@ postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
   bc <- Util.randomClient bob (someLastPrekeys !! 1)
   cc <- Util.randomClient charlie (someLastPrekeys !! 2)
   (dan, dc) <- randomUserWithClient (someLastPrekeys !! 3)
-  connectUsers alice (list1 charlie [dan])
+  connectUsers alice (charlie :| [dan])
   -- A second client for Alice
   ac2 <- randomClient alice (someLastPrekeys !! 4)
   -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
@@ -1551,7 +1550,7 @@ postCryptoBroadcastMessage2 bcast = do
   ac <- Util.randomClient alice (head someLastPrekeys)
   bc <- Util.randomClient bob (someLastPrekeys !! 1)
   cc <- Util.randomClient charlie (someLastPrekeys !! 2)
-  connectUsers alice (list1 charlie [])
+  connectUsers alice (charlie :| [])
   let t = 3 # Second -- WS receive timeout
   -- Missing charlie
   let m1 = [(bob, bc, toBase64Text "ciphertext1")]
@@ -1605,7 +1604,7 @@ postCryptoBroadcastMessageNoTeam bcast = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   let qalice = Qualified alice localDomain
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
-  connectUsers alice (list1 bob [])
+  connectUsers alice (bob :| [])
   let msg = [(bob, bc, toBase64Text "ciphertext1")]
   Util.postBroadcast qalice ac bcast {bMessage = msg} !!! const 404 === statusCode
 
@@ -1618,7 +1617,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
   tid <- createBindingTeamInternal "foo" alice
   assertTeamActivate "" tid
   ((bob, bc), others) <- createAndConnectUserWhileLimitNotReached alice (100 :: Int) [] (someLastPrekeys !! 1)
-  connectUsers alice (list1 bob (fst <$> others))
+  connectUsers alice (bob :| (fst <$> others))
   let t = 3 # Second -- WS receive timeout
   WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
     let f (u, clt) = (u, clt, toBase64Text "ciphertext")
@@ -1635,7 +1634,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
   where
     createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
       (uid, cid) <- randomUserWithClient pk
-      (r1, r2) <- List1.head <$> connectUsersUnchecked alice (List1.singleton uid)
+      (r1, r2) <- NonEmpty.head <$> connectUsersUnchecked alice (uid :| [])
       case (statusCode r1, statusCode r2, remaining, acc) of
         (201, 200, 0, []) -> error "Need to connect with at least 1 user"
         (201, 200, 0, x : xs) -> pure (x, xs)
@@ -1677,6 +1676,6 @@ putSearchVisibility g uid tid vis = do
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= True
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberJoin usr

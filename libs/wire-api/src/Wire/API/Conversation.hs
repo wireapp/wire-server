@@ -106,7 +106,6 @@ import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
-import Data.List1
 import Data.Map qualified as Map
 import Data.Misc
 import Data.OpenApi qualified as S
@@ -1069,7 +1068,7 @@ instance ToSchema NewOne2OneConv where
 -- invite
 
 data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
-  { invUsers :: List1 UserId,
+  { invUsers :: NonEmpty UserId,
     -- | This role name is to be applied to all users
     invRoleName :: RoleName
   }
@@ -1081,8 +1080,8 @@ instance ToSchema Invite where
   schema =
     object "Invite" $
       Invite
-        <$> (toNonEmpty . invUsers)
-          .= fmap List1 (field "users" (nonEmptyArray schema))
+        <$> (.invUsers)
+          .= field "users" (nonEmptyArray schema)
         <*> invRoleName
           .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 

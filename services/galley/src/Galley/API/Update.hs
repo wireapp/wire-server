@@ -98,8 +98,7 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (appendList, nonEmpty)
-import Data.List1
+import Data.List.NonEmpty (NonEmpty, appendList, nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
@@ -1060,7 +1059,7 @@ addMembersUnqualified ::
   Invite ->
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
-  let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
+  let qusers = fmap (tUntagged . qualifyAs lusr) users
   addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
 
 -- | Replace conversation members by computing the difference between desired and

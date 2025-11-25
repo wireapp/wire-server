@@ -38,7 +38,7 @@ import Data.Domain
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Kind
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified
 import Data.Range (unsafeRange)
 import Data.String.Conversions
@@ -386,7 +386,7 @@ downloadAsset c usr ast =
 
 matchDeleteUserNotification :: Qualified UserId -> Notification -> Assertion
 matchDeleteUserNotification quid n = do
-  let j = Object $ List1.head (ntfPayload n)
+  let j = Object $ NonEmpty.head (ntfPayload n)
   let etype = j ^? key "type" . _String
   let eUnqualifiedId = maybeFromJSON =<< j ^? key "id"
   let eQualifiedId = maybeFromJSON =<< j ^? key "qualified_id"
@@ -396,7 +396,7 @@ matchDeleteUserNotification quid n = do
 
 matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
 matchConvLeaveNotification conv remover removeds reason n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   Conv.evtConv e @?= conv
   Conv.evtType e @?= Conv.MemberLeave

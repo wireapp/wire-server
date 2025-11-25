@@ -34,7 +34,6 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 hiding (head)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
@@ -223,7 +222,7 @@ postMLSConvFail = do
   let alice = qUnqualified qalice
   let aliceClient = ClientId 0
   bob <- randomUser
-  connectUsers alice (list1 bob [])
+  connectUsers alice (bob :| [])
   postConvQualified
     alice
     (Just aliceClient)

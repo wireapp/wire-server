@@ -42,9 +42,8 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.List1 (List1)
-import Data.List1 qualified as List1
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
@@ -160,7 +159,7 @@ replacePresence = do
     assertTrue "Old Cannon is removed" $
       notElem localhost8080 . map resource . decodePresence
   where
-    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
+    pload = KeyMap.fromList ["foo" .= (42 :: Int)] :| []
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
 
 removeStalePresence :: TestM ()
@@ -180,16 +179,16 @@ removeStalePresence = do
     sendPush (push (Just uid) [uid])
     ensurePresent uid 0
   where
-    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
+    pload = KeyMap.fromList ["foo" .= (42 :: Int)] :| []
     push u us = newPush u (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
 
 singleUserPush :: TestM ()
 singleUserPush = testSingleUserPush smallMsgPayload
   where
     -- JSON: {"foo":42}
-    smallMsgPayload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
+    smallMsgPayload = KeyMap.fromList ["foo" .= (42 :: Int)] :| []
 
-testSingleUserPush :: List1 Object -> TestM ()
+testSingleUserPush :: NonEmpty Object -> TestM ()
 testSingleUserPush msgPayload = do
   ca <- view tsCannon
   uid <- randomId
@@ -209,7 +208,7 @@ singleUserPushLargeMessage :: TestM ()
 singleUserPushLargeMessage = testSingleUserPush largeMsgPayload
   where
     -- JSON: {"list":["1","2", ... ,"10000"]}
-    largeMsgPayload = List1.singleton $ KeyMap.fromList ["list" .= [show i | i <- [1 .. 10000] :: [Int]]]
+    largeMsgPayload = KeyMap.fromList ["list" .= [show i | i <- [1 .. 10000] :: [Int]]] :| []
 
 -- | Create a number of users with a number of connections each, and connect each user's connections
 -- | Create a number of users with a number of connections each, and connect each user's connections
@@ -250,16 +249,16 @@ bulkPush isE2E numUsers numConnsPerUser = do
         f1 shoulds ((uid, connids) : ucs') = (uid, zip connids shoulds) : f1 shoulds' ucs'
           where
             shoulds' = drop (length connids) shoulds
-    ploadGroup :: List1 Aeson.Object
-    ploadGroup = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
+    ploadGroup :: NonEmpty Aeson.Object
+    ploadGroup = KeyMap.fromList ["foo" .= (42 :: Int)] :| []
     pushGroup :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
     pushGroup u ucs = [newPush (Just u) (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
       where
         conns =
           [ connid | (_, cns) <- ucs, (connid, shouldSend) <- cns, shouldSend
           ]
-    ploadE2E :: ConnId -> List1 Aeson.Object
-    ploadE2E connid = List1.singleton $ KeyMap.fromList ["connid" .= connid]
+    ploadE2E :: ConnId -> NonEmpty Aeson.Object
+    ploadE2E connid = KeyMap.fromList ["connid" .= connid] :| []
     pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
     pushE2E u ucs =
       targets <&> \(uid, connid) ->
@@ -295,7 +294,7 @@ sendSingleUserNoPiggyback = do
     msg <- waitForMessage ch
     assertBool "Push message received" (isNothing msg)
   where
-    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
+    pload = KeyMap.fromList ["foo" .= (42 :: Int)] :| []
     push u us d = newPush u (toRecipients us) pload & pushOriginConnection ?~ d
 
 sendMultipleUsers :: TestM ()
@@ -327,7 +326,7 @@ sendMultipleUsers = do
   liftIO . forM_ [ntfs1, ntfs2] $ \ntfs -> do
     assertEqual "Not exactly 1 notification" 1 (length ntfs)
     let p = view queuedNotificationPayload (Prelude.head ntfs)
-    assertEqual "Wrong events in notification" (List1.toNonEmpty pload) p
+    assertEqual "Wrong events in notification" pload p
   -- 'uid3' should have two notifications, one for the message and one
   -- for the removed token.
   ntfs3 <- listNotifications uid3 Nothing
@@ -336,7 +335,7 @@ sendMultipleUsers = do
     let (n1, nx) = checkNotifications ntfs3
     -- The first notification must be the test payload
     let p1 = view queuedNotificationPayload n1
-    assertEqual "Wrong events in 1st notification" (List1.toNonEmpty pload) p1
+    assertEqual "Wrong events in 1st notification" pload p1
     -- Followed by at least one notification for the token removal
     forM_ nx $ \n ->
       let p2 = fromJSON (Object (NonEmpty.head (n ^. queuedNotificationPayload)))
@@ -344,7 +343,7 @@ sendMultipleUsers = do
   where
     checkNotifications [] = error "No notifications received!"
     checkNotifications (x : xs) = (x, xs)
-    pload = List1.singleton pevent
+    pload = pevent :| []
     pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
 
@@ -362,7 +361,7 @@ targetConnectionPush = do
     assertBool "No push message received" (isJust e1)
     assertBool "Unexpected push message received" (isNothing e2)
   where
-    pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
+    pload = KeyMap.fromList ["foo" .= (42 :: Int)] :| []
     push u t = newPush (Just u) (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
 targetClientPush :: TestM ()
@@ -395,13 +394,13 @@ targetClientPush = do
   liftIO . forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
     assertEqual "Not exactly 1 notification" 1 (length ns)
     let p = view queuedNotificationPayload (Prelude.head ns)
-    assertEqual "Wrong events in notification" (List1.toNonEmpty (pload c)) p
+    assertEqual "Wrong events in notification" (pload c) p
   where
     pevent c = KeyMap.fromList ["foo" .= clientToText c]
-    pload c = List1.singleton (pevent c)
+    pload c = pevent c :| []
     rcpt u c =
       recipient u RouteAny
-        & recipientClients .~ RecipientClientsSome (List1.singleton c)
+        & recipientClients .~ RecipientClientsSome (c :| [])
     push u c = newPush (Just u) (Set.singleton (rcpt u c)) (pload c)
 
 storeNotificationsEvenWhenRedisIsDown :: TestM ()
@@ -557,13 +556,13 @@ testFetchNotifById = do
   sendPush
     ( buildPush
         ally
-        [(ally, RecipientClientsSome (List1.singleton c1))]
+        [(ally, RecipientClientsSome (c1 :| []))]
         (textPayload "first")
     )
   sendPush
     ( buildPush
         ally
-        [(ally, RecipientClientsSome (List1.singleton c2))]
+        [(ally, RecipientClientsSome (c2 :| []))]
         (textPayload "second")
     )
   [n1, n2] <- listNotifications ally Nothing
@@ -590,7 +589,7 @@ testFilterNotifByClient = do
   sendPush
     ( buildPush
         alice
-        [(alice, RecipientClientsSome (List1.singleton clt1))]
+        [(alice, RecipientClientsSome (clt1 :| []))]
         (textPayload "first")
     )
   [n] <- listNotifications alice (Just clt1)
@@ -610,7 +609,7 @@ testFilterNotifByClient = do
   sendPush
     ( buildPush
         alice
-        [(alice, RecipientClientsSome (List1.singleton clt3))]
+        [(alice, RecipientClientsSome (clt3 :| []))]
         (textPayload "last")
     )
   [n'] <- listNotifications alice (Just clt3)
@@ -635,7 +634,7 @@ testFilterNotifByClient = do
     sendPush
       ( buildPush
           alice
-          [(alice, RecipientClientsSome (List1.singleton clt3))]
+          [(alice, RecipientClientsSome (clt3 :| []))]
           (textPayload "final")
       )
   ns <- listNotifications alice (Just clt3)
@@ -667,7 +666,7 @@ testNotificationPaging = do
   let numClients = length clients
   forM_ [0 .. 999] $ \i -> do
     let c = clients !! (i `mod` numClients)
-    insert u2 (RecipientClientsSome (List1.singleton c))
+    insert u2 (RecipientClientsSome (c :| []))
   -- View of client 1
   paging u2 (Just c1) 334 100 [100, 100, 100, 34, 0]
   paging u2 (Just c1) 334 334 [334, 0]
@@ -679,9 +678,9 @@ testNotificationPaging = do
   paging u2 (Just c3) 333 333 [333, 0]
   -- With overlapped pages and excess elements on the last page
   u3 <- randomId
-  replicateM_ 90 $ insert u3 (RecipientClientsSome (List1.singleton c1))
-  replicateM_ 20 $ insert u3 (RecipientClientsSome (List1.singleton c2))
-  replicateM_ 20 $ insert u3 (RecipientClientsSome (List1.singleton c1))
+  replicateM_ 90 $ insert u3 (RecipientClientsSome (c1 :| []))
+  replicateM_ 20 $ insert u3 (RecipientClientsSome (c2 :| []))
+  replicateM_ 20 $ insert u3 (RecipientClientsSome (c1 :| []))
   paging u3 (Just c1) 110 100 [100, 10, 0]
   paging u3 (Just c1) 110 110 [110, 0]
   paging u3 (Just c2) 20 100 [20, 0]
@@ -1103,7 +1102,7 @@ buildPush ::
   (HasCallStack) =>
   UserId ->
   [(UserId, RecipientClients)] ->
-  List1 Object ->
+  NonEmpty Object ->
   Push
 buildPush sdr rcps pload =
   let rcps' = Set.fromList (map (uncurry rcpt) rcps)
@@ -1181,8 +1180,8 @@ randomClientId = liftIO $ ClientId <$> (randomIO :: IO Word64)
 randomBytes :: (MonadIO m) => Int -> m ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n (randomIO :: IO Word8)
 
-textPayload :: Text -> List1 Object
-textPayload txt = List1.singleton (KeyMap.fromList ["text" .= txt])
+textPayload :: Text -> NonEmpty Object
+textPayload txt = KeyMap.fromList ["text" .= txt] :| []
 
 parseNotification :: Response (Maybe BL.ByteString) -> Maybe QueuedNotification
 parseNotification = responseBody >=> decode

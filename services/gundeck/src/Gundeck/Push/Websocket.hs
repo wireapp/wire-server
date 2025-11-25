@@ -34,7 +34,7 @@ import Data.Aeson (eitherDecode, encode)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Id
-import Data.List1
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.Misc (Milliseconds (..))
 import Data.Set qualified as Set
@@ -307,7 +307,7 @@ mkPushTarget pre = PushTarget (userId pre) (connId pre)
 
 push ::
   Notification ->
-  List1 NotificationTarget ->
+  NonEmpty NotificationTarget ->
   Maybe UserId -> -- Origin user.
   Maybe ConnId -> -- Origin device connection.
   Set ConnId -> -- Only target these connections.

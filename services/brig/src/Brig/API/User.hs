@@ -97,7 +97,7 @@ import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
-import Data.List1 as List1 (List1, singleton)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -602,7 +602,7 @@ changeAccountStatus ::
     Member Events r,
     Member AuthenticationSubsystem r
   ) =>
-  List1 UserId ->
+  NonEmpty UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
@@ -629,7 +629,7 @@ changeSingleAccountStatus ::
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
   unlessM (wrapClientE $ Data.userExists uid) $ throwE AccountNotFound
-  ev <- mkUserEvent (List1.singleton uid) status
+  ev <- mkUserEvent (uid :| []) status
   lift $ do
     wrapClient $ Data.updateStatus uid status
     liftSem $ User.internalUpdateSearchIndex uid

@@ -26,7 +26,7 @@ import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List1
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
@@ -94,7 +94,7 @@ sendLocalWelcomes ::
 sendLocalWelcomes qcnv qusr con now welcome lclients = do
   -- only create one notification per user
   let rcpts =
-        map (\(u, cs) -> Recipient u (RecipientClientsSome (List1 cs)))
+        map (\(u, cs) -> Recipient u (RecipientClientsSome cs))
           . Map.assocs
           . foldr
             (\(u, c) -> Map.insertWith (<>) u (pure c))

@@ -78,7 +78,7 @@ import Data.Aeson qualified as JSON
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List1
+import Data.List.NonEmpty (NonEmpty)
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Imports
 import Network.HTTP.Client
@@ -346,7 +346,7 @@ assertNoEventExcept t ww except = do
 -----------------------------------------------------------------------------
 -- Unpacking Notifications
 
-unpackPayload :: (FromJSON a) => Notification -> List1 a
+unpackPayload :: (FromJSON a) => Notification -> NonEmpty a
 unpackPayload = fmap decodeEvent . ntfPayload
   where
     decodeEvent o = case fromJSON (Object o) of

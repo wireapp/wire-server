@@ -70,8 +70,8 @@ import Data.Default
 import Data.Domain (Domain (..), domainText)
 import Data.Handle (Handle (..))
 import Data.Id
-import Data.List1 (List1)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Mailbox
 import Data.Misc
 import Data.Proxy
@@ -389,7 +389,7 @@ getActivationCode brig ep = do
 
 assertUpdateNotification :: (HasCallStack) => WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
-  let j = Object $ List1.head (ntfPayload n)
+  let j = Object $ NonEmpty.head (ntfPayload n)
   j ^? key "type" . _String @?= Just "user.update"
   let u = j ^?! key "user"
   u ^? key "id" . _String @?= Just (UUID.toText (toUUID uid))
@@ -621,7 +621,7 @@ putConnectionQualified brig from (Qualified to toDomain) r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
-connectUsers :: (MonadIO m, MonadHttp m) => Brig -> UserId -> List1 UserId -> m ()
+connectUsers :: (MonadIO m, MonadHttp m) => Brig -> UserId -> NonEmpty UserId -> m ()
 connectUsers b u = mapM_ connectTo
   where
     connectTo v = do

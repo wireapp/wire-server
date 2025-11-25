@@ -22,7 +22,7 @@ import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
 import Data.Default
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Range (toRange)
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -249,7 +249,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
             .&&. v2Push._pushOriginConnection === pushToUser.conn
             .&&. v2Push._pushTransient === pushToUser.transient
             .&&. v2Push._pushNativePriority === fromMaybe V2.HighPriority pushToUser.nativePriority
-            .&&. v2Push._pushPayload === List1.singleton pushToUser.json
+            .&&. v2Push._pushPayload === (pushToUser.json :| [])
             .&&. Set.map V2._recipientRoute v2Push._pushRecipients
               === Set.fromList (map (const pushToUser.route) (toList v2Push._pushRecipients))
             .&&. Set.map (\r -> Recipient r._recipientId r._recipientClients) v2Push._pushRecipients

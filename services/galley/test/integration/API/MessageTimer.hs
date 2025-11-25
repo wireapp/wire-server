@@ -24,7 +24,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
-import Data.List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
 import Data.Qualified
 import Imports hiding (head)
@@ -60,7 +60,7 @@ messageTimerInit ::
 messageTimerInit mtimer = do
   -- Create a conversation with a timer
   [(alice, qalice), (bob, qbob), (jane, qjane)] <- replicateM 3 randomUserTuple
-  connectUsers alice (list1 bob [jane])
+  connectUsers alice (bob :| [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing mtimer
       <!! const 201 === statusCode
@@ -73,7 +73,7 @@ messageTimerChange :: TestM ()
 messageTimerChange = do
   -- Create a conversation without a timer
   [(alice, qalice), (bob, qbob), (jane, qjane)] <- replicateM 3 randomUserTuple
-  connectUsers alice (list1 bob [jane])
+  connectUsers alice (bob :| [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
@@ -102,7 +102,7 @@ messageTimerChangeQualified :: TestM ()
 messageTimerChangeQualified = do
   -- Create a conversation without a timer
   [(alice, qalice), (bob, qbob), (jane, qjane)] <- replicateM 3 randomUserTuple
-  connectUsers alice (list1 bob [jane])
+  connectUsers alice (bob :| [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
@@ -131,7 +131,7 @@ messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   (tid, owner, member : _) <- createBindingTeamWithMembers 2
   (guest, qguest) <- randomUserTuple
-  connectUsers owner (list1 guest [])
+  connectUsers owner (guest :| [])
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   let qcid = qguest $> cid
@@ -155,7 +155,7 @@ messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
   -- Create a 1:1 conversation
   [(alice, qalice), (bob, qbob)] <- replicateM 2 randomUserTuple
-  connectUsers alice (singleton bob)
+  connectUsers alice (bob :| [])
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
@@ -173,7 +173,7 @@ messageTimerEvent = do
   ca <- view tsCannon
   -- Create a conversation
   [(alice, qalice), (bob, qbob)] <- replicateM 2 randomUserTuple
-  connectUsers alice (singleton bob)
+  connectUsers alice (bob :| [])
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing
       <!! const 201 === statusCode

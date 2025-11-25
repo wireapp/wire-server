@@ -51,7 +51,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Handle (parseHandle)
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified (Qualified (..))
 import Data.UUID qualified as UUID
 import Imports
@@ -114,7 +114,7 @@ testHandleUpdate brig cannon = do
     put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
       !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
+      let j = Object $ NonEmpty.head (ntfPayload n)
       j ^? key "type" . _String @?= Just "user.update"
       let u = j ^?! key "user"
       u ^? key "id" . _String @?= Just (UUID.toText (toUUID uid))

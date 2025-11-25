@@ -37,7 +37,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Qualified
 import Data.Range
 import Data.Text.Encoding (encodeUtf8)
@@ -424,5 +424,5 @@ changeTeamAccountStatuses tid s = do
   uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (TeamSubsystem.internalGetTeamMembers tid Nothing))
   API.changeAccountStatus uids s !>> accountStatusError
   where
-    toList1 (x : xs) = pure $ List1.list1 x xs
+    toList1 (x : xs) = pure $ x :| xs
     toList1 [] = throwStd (notFound "Team not found or no members")

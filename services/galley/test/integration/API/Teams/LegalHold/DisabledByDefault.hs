@@ -36,7 +36,7 @@ import Control.Concurrent.Chan
 import Control.Lens
 import Data.Id
 import Data.LegalHold
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map.Strict qualified as Map
 import Data.PEM
 import Data.Range
@@ -339,7 +339,7 @@ testOldClientsBlockDeviceHandshake = do
       ensureClientCaps legalholder2 clnt caps
       pure clnt
     grantConsent tid2 peer
-    connectUsers peer (List1.list1 legalholder [legalholder2])
+    connectUsers peer (legalholder :| [legalholder2])
 
     convId <-
       decodeConvId

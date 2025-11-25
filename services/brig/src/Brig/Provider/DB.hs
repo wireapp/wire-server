@@ -22,7 +22,7 @@ import Brig.Types.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
 import Data.Id
-import Data.List1 (List1)
+import Data.List1 (List1, toNonEmpty)
 import Data.Misc
 import Data.Range (Range, fromRange, rcast, rnil)
 import Data.Set qualified as Set
@@ -235,7 +235,7 @@ lookupService pid sid =
       "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
       \FROM service WHERE provider = ? AND id = ?"
     mk (name, summary, descr, url, toks, keys, assets, tags, enabled) =
-      Service sid name (fromMaybe mempty summary) descr url toks keys assets (Set.fromList (fromSet tags)) enabled
+      Service sid name (fromMaybe mempty summary) descr url (toNonEmpty toks) (toNonEmpty keys) assets (Set.fromList (fromSet tags)) enabled
 
 listServices ::
   (MonadClient m) =>
@@ -257,7 +257,7 @@ listServices p =
       \FROM service WHERE provider = ?"
     mk (sid, name, summary, descr, url, toks, keys, assets, tags, enabled) =
       let tags' = Set.fromList (fromSet tags)
-       in Service sid name (fromMaybe mempty summary) descr url toks keys assets tags' enabled
+       in Service sid name (fromMaybe mempty summary) descr url (toNonEmpty toks) (toNonEmpty keys) assets tags' enabled
 
 updateService ::
   (MonadClient m) =>
