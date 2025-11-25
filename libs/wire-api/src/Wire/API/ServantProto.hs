@@ -18,7 +18,6 @@
 module Wire.API.ServantProto where
 
 import Data.ByteString.Lazy qualified as LBS
-import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.OpenApi
 import Imports
