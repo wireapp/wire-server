@@ -86,7 +86,7 @@ interpretUserGroupSubsystem = interpret $ \case
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
-  GetGroupsInternal tid displayNameSubstring mbManagedBy -> getUserGroupsInternal tid displayNameSubstring mbManagedBy
+  GetGroupsInternal tid displayNameSubstring mbManagedBy mbStartIndex mbCount -> getUserGroupsInternal tid displayNameSubstring mbManagedBy mbStartIndex mbCount
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -281,8 +281,10 @@ getUserGroupsInternal ::
   TeamId ->
   Maybe Text ->
   Maybe ManagedBy ->
+  Maybe Int ->
+  Maybe Int ->
   Sem r UserGroupPageWithMembers
-getUserGroupsInternal team displayNameSubstring mbManagedBy = do
+getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount = do
   let -- hscim doesn't support pagination at the time of writing this,
       -- so we better fit all groups into one page!
       pageSize = pageSizeFromIntUnsafe 500
