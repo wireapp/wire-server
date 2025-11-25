@@ -315,6 +315,13 @@ type ITeamsAPIBase =
                :> CanThrow 'NotATeamMember
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "User is team owner")
            )
+    :<|> Named
+           "finalize-delete-team"
+           ( "finalize-delete"
+               :> ZLocalUser
+               :> ZOptConn
+               :> PostNoContent
+           )
     :<|> "search-visibility"
       :> ( Named "get-search-visibility-internal" (Get '[JSON] TeamSearchVisibilityView)
              :<|> Named

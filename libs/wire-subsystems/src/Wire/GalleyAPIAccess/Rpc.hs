@@ -90,6 +90,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetFeatureConfigForTeam tid -> getFeatureConfigForTeam tid
           GetUserLegalholdStatus id' tid -> getUserLegalholdStatus id' tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
+          FinalizeDeleteTeam lusr mconn tid -> finalizeDeleteTeam lusr mconn tid
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
@@ -614,6 +615,24 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+finalizeDeleteTeam ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  TeamId ->
+  Sem r ()
+finalizeDeleteTeam lusr mconn tid = do
+  void $ galleyRequest req
+  where
+    req =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "finalize-delete"]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) mconn
+        . expect2xx
 
 getTeamExposeInvitationURLsToTeamAdmin ::
   ( Member Rpc r,

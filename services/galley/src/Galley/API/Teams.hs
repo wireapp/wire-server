@@ -28,7 +28,6 @@ module Galley.API.Teams
     getBindingTeamMembers,
     getManyTeams,
     deleteTeam,
-    uncheckedDeleteTeam,
     addTeamMember,
     getTeamConversationRoles,
     getTeamMembers,
@@ -106,7 +105,6 @@ import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Federation.Error
@@ -133,14 +131,11 @@ import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ExternalAccess qualified as E
-import Wire.LegalHoldStore qualified as Data
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
-import Wire.SparAPIAccess qualified as Spar
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamJournal (TeamJournal)
@@ -388,88 +383,6 @@ internalDeleteBindingTeam tid force = do
         -- if the team has more than one member (and deletion is forced) or no members we use the team creator's userId for deletion events
         xs | null xs || force -> queueTeamDeletion tid (team ^. teamCreator) Nothing
         _ -> throwS @'NotAOneMemberTeam
-
--- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
-uncheckedDeleteTeam ::
-  forall r.
-  ( Member BrigAPIAccess r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input Opts) r,
-    Member Now r,
-    Member LegalHoldStore r,
-    Member SparAPIAccess r,
-    Member TeamStore r,
-    Member ConversationStore r,
-    Member TeamJournal r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  TeamId ->
-  Sem r ()
-uncheckedDeleteTeam lusr zcon tid = do
-  team <- E.getTeam tid
-  when (isJust team) $ do
-    Spar.deleteTeam tid
-    now <- Now.get
-    convs <- E.getTeamConversations tid
-    -- Even for LARGE TEAMS, we _DO_ want to fetch all team members here because we
-    -- want to generate conversation deletion events for non-team users. This should
-    -- be fine as it is done once during the life team of a team and we still do not
-    -- fanout this particular event to all team members anyway. And this is anyway
-    -- done asynchronously
-    membs <- TeamSubsystem.internalGetTeamMembers tid
-    (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
-    let e = newEvent tid now EdTeamDelete
-    pushDeleteEvents membs e ue
-    E.deliverAsync be
-    -- TODO: we don't delete bots here, but we should do that, since
-    -- every bot user can only be in a single conversation. Just
-    -- deleting conversations from the database is not enough.
-    when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
-      mapM_ (E.deleteUser . view userId) membs
-      Journal.teamDelete tid
-    Data.unsetTeamLegalholdWhitelisted tid
-    E.deleteTeam tid
-  where
-    pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
-    pushDeleteEvents membs e ue = do
-      o <- inputs (view settings)
-      let r = userRecipient (tUnqualified lusr) :| membersToRecipients (Just (tUnqualified lusr)) membs
-      -- To avoid DoS on gundeck, send team deletion events in chunks
-      let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. concurrentDeletionEvents)
-      let chunks = List.chunksOf chunkSize (toList r)
-      forM_ chunks $ \chunk ->
-        -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
-        -- push module to never fan this out to more than the limit
-        pushNotifications [def {origin = Just (tUnqualified lusr), json = toJSONObject e, recipients = chunk, conn = zcon}]
-      -- To avoid DoS on gundeck, send conversation deletion events slowly
-      pushNotificationsSlowly ue
-    createConvDeleteEvents ::
-      UTCTime ->
-      [TeamMember] ->
-      ConvId ->
-      ([Push], [(BotMember, Conv.Event)]) ->
-      Sem r ([Push], [(BotMember, Conv.Event)])
-    createConvDeleteEvents now teamMembs cid (pp, ee) = do
-      let qconvId = tUntagged $ qualifyAs lusr cid
-      (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers cid
-      -- Only nonTeamMembers need to get any events, since on team deletion,
-      -- all team users are deleted immediately after these events are sent
-      -- and will thus never be able to see these events in practice.
-      let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event qconvId Nothing (Conv.EventFromUser (tUntagged lusr)) now (Just tid) Conv.EdConvDelete
-      -- This event always contains all the required recipients
-      let p =
-            def
-              { origin = Just (tUnqualified lusr),
-                json = toJSONObject e,
-                recipients = map localMemberToRecipient mm
-              }
-      let ee' = map (,e) bots
-      let pp' = (p {conn = zcon}) : pp
-      pure (pp', ee' ++ ee)
 
 getTeamConversationRoles ::
   ( Member (ErrorS 'NotATeamMember) r,

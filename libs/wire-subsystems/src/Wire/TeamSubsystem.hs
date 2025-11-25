@@ -20,6 +20,7 @@
 module Wire.TeamSubsystem where
 
 import Data.Id
+import Data.Qualified
 import Data.Range
 import Imports
 import Polysemy
@@ -33,5 +34,6 @@ data TeamSubsystem m a where
   InternalSelectTeamMembers :: TeamId -> [UserId] -> TeamSubsystem m [TeamMember]
   InternalSelectTeamMemberInfos :: TeamId -> [UserId] -> TeamSubsystem m TeamMemberInfoList
   InternalGetTeamAdmins :: TeamId -> TeamSubsystem m TeamMemberList
+  InternalFinalizeDeleteTeam :: Local UserId -> Maybe ConnId -> TeamId -> TeamSubsystem m ()
 
 makeSem ''TeamSubsystem

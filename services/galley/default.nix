@@ -147,7 +147,6 @@ mkDerivation {
     containers
     crypton
     crypton-x509
-    currency-codes
     data-default
     data-timeout
     errors
@@ -176,7 +175,6 @@ mkDerivation {
     polysemy-conc
     polysemy-wire-zoo
     prometheus-client
-    proto-lens
     raw-strings-qq
     retry
     safe-exceptions
@@ -196,7 +194,6 @@ mkDerivation {
     transformers
     types-common
     types-common-aws
-    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring

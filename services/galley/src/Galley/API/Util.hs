@@ -446,12 +446,6 @@ acceptOne2One lusr conv conn = do
       acceptConnectConversation cid
       pure $ Data.convSetType One2OneConv conv
 
-localMemberToRecipient :: LocalMember -> Recipient
-localMemberToRecipient = userRecipient . (.id_)
-
-userRecipient :: UserId -> Recipient
-userRecipient u = Recipient u PushV2.RecipientClientsAll
-
 memberJoinEvent ::
   Local UserId ->
   Qualified ConvId ->
@@ -605,25 +599,6 @@ bmFromMembers lmems rusers = case localBotsAndUsers lmems of
 
 convBotsAndMembers :: StoredConversation -> BotsAndMembers
 convBotsAndMembers conv = bmFromMembers (conv.localMembers) (conv.remoteMembers)
-
-localBotsAndUsers :: (Foldable f) => f LocalMember -> ([BotMember], [LocalMember])
-localBotsAndUsers = foldMap botOrUser
-  where
-    botOrUser m = case m.service of
-      -- we drop invalid bots here, which shouldn't happen
-      Just _ -> (toList (newBotMember m), [])
-      Nothing -> ([], [m])
-
-nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
-nonTeamMembers cm tm = filter (not . isMemberOfTeam . (.id_)) cm
-  where
-    -- FUTUREWORK: remote members: teams and their members are always on the same backend
-    isMemberOfTeam = \case
-      uid -> isTeamMember uid tm
-
-membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . view Mem.userId)
-membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view Mem.userId)
 
 getSelfMemberFromLocals ::
   (Foldable t, Member (ErrorS 'ConvNotFound) r) =>

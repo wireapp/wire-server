@@ -44,7 +44,7 @@ import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
-import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
+import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData

@@ -109,13 +109,13 @@ import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ SparAPIAccess,
-     TeamCollaboratorsSubsystem,
+  '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
+     TeamSubsystem,
+     SparAPIAccess,
      NotificationSubsystem,
      ExternalAccess,
      BrigAPIAccess,
-     TeamSubsystem,
      GundeckAPIAccess,
      Rpc,
      FederatorAccess,

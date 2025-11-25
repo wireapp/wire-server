@@ -279,7 +279,6 @@ library
     , containers                            >=0.5
     , crypton
     , crypton-x509
-    , currency-codes                        >=2.0
     , data-default
     , data-timeout
     , errors                                >=2.0
@@ -308,7 +307,6 @@ library
     , polysemy-conc
     , polysemy-wire-zoo
     , prometheus-client
-    , proto-lens                            >=0.2
     , raw-strings-qq                        >=1.0
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
@@ -328,7 +326,6 @@ library
     , transformers
     , types-common                          >=0.16
     , types-common-aws
-    , types-common-journal                  >=0.1
     , unliftio                              >=0.2
     , unordered-containers
     , uri-bytestring                        >=0.2

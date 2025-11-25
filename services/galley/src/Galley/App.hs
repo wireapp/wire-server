@@ -284,6 +284,10 @@ evalGalley e =
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretConversationStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
+      teamSubsystemConfig =
+        TeamSubsystemConfig
+          { concurrentDeletionEvents = fromMaybe defConcurrentDeletionEvents e._options._settings._concurrentDeletionEvents
+          }
       backendNotificationQueueAccessEnv =
         case e._rabbitmqChannel of
           Nothing -> Nothing
@@ -355,13 +359,13 @@ evalGalley e =
         . interpretFederatorAccess
         . runRpcWithHttp (e ^. manager) (e ^. reqId)
         . runGundeckAPIAccess (e ^. options . gundeck)
-        . interpretTeamSubsystem
         . interpretBrigAccess (e ^. brig)
         . interpretExternalAccess (e ^. extEnv)
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+        . interpretSparAPIAccessToRpc (e ^. options . spar)
+        . interpretTeamSubsystem teamSubsystemConfig
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
-        . interpretSparAPIAccessToRpc (e ^. options . spar)
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =

@@ -120,6 +120,11 @@ data GalleyAPIAccess m a where
     Team.TeamStatus ->
     Maybe Currency.Alpha ->
     GalleyAPIAccess m ()
+  FinalizeDeleteTeam ::
+    Local UserId ->
+    Maybe ConnId ->
+    TeamId ->
+    GalleyAPIAccess m ()
   MemberIsTeamOwner ::
     TeamId ->
     UserId ->

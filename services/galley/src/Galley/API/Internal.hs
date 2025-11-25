@@ -224,6 +224,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
               <@> mkNamedAPI @"unchecked-get-team-admins" (TeamSubsystem.internalGetTeamAdmins tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
+        <@> mkNamedAPI @"finalize-delete-team" (\lusr mconn -> TeamSubsystem.internalFinalizeDeleteTeam lusr mconn tid $> NoContent)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
@@ -478,7 +479,7 @@ deleteLoop = do
 
     doDelete usr con tid = do
       lusr <- qualifyLocal usr
-      Teams.uncheckedDeleteTeam lusr con tid
+      TeamSubsystem.internalFinalizeDeleteTeam lusr con tid
 
 safeForever :: String -> App () -> App ()
 safeForever funName action =

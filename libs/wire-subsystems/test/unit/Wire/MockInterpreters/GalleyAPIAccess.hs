@@ -56,6 +56,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetTeamSearchVisibility _ ->
     pure SearchVisibilityStandard
   ChangeTeamStatus {} -> error "ChangeTeamStatus not implemented in miniGalleyAPIAccess"
+  FinalizeDeleteTeam {} -> error "FinalizeDeleteTeam not implemented in miniGalleyAPIAccess"
   MemberIsTeamOwner tid uid ->
     pure $ memberIsTeamOwnerImpl teams tid uid
   GetAllTeamFeaturesForUser _ -> pure configs
