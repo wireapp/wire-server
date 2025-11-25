@@ -30,6 +30,7 @@ import Control.Monad.STM (STM, atomically)
 import Data.Aeson
 import qualified Data.CaseInsensitive as CI
 import Data.Hashable
+import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
 import Data.Time.Calendar
 import Data.Time.Clock
@@ -155,7 +156,7 @@ instance GroupTypes Mock where
   type GroupId Mock = Id
 
 instance GroupDB Mock TestServer where
-  getGroups () mbFilter = do
+  getGroups () mbFilter mbStartIndex mbCount = do
     m <- asks groupDB
     groups <- map snd <$> liftSTM (ListT.toList $ STMMap.listT m)
     case mbFilter of
@@ -170,7 +171,7 @@ instance GroupDB Mock TestServer where
              in pureSorted $ filter p groups
           _ -> throwScim $ badRequest InvalidFilter $ Just "Only displayName filter supported"
     where
-      pureSorted groups = pure $ fromList $ sortWith (Common.id . thing) groups
+      pureSorted groups = pure $ toPage (fromMaybe 1 mbStartIndex) mbCount $ sortWith (Common.id . thing) groups
 
   getGroup () gid = do
     m <- asks groupDB

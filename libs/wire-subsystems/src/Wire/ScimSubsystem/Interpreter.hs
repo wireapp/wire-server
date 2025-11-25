@@ -63,7 +63,7 @@ interpretScimSubsystem ::
 interpretScimSubsystem = interpret $ \case
   ScimCreateUserGroup teamId scimGroup -> createScimGroupImpl teamId scimGroup
   ScimGetUserGroup tid gid -> scimGetUserGroupImpl tid gid
-  ScimGetUserGroups tid mbFilter -> scimGetUserGroupsImpl tid mbFilter
+  ScimGetUserGroups tid mbFilter startIndex mbCount -> scimGetUserGroupsImpl tid mbFilter startIndex mbCount
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
   ScimDeleteUserGroup teamId groupId -> deleteScimGroupImpl teamId groupId
 
@@ -130,9 +130,11 @@ scimGetUserGroupsImpl ::
   ) =>
   TeamId ->
   Maybe Scim.Filter ->
+  Maybe Int ->
+  Maybe Int ->
   Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
-scimGetUserGroupsImpl tid mbFilter = do
-  UserGroupPage {page} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter
+scimGetUserGroupsImpl tid mbFilter mbStartIndex mbCount = do
+  UserGroupPage {page} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter mbStartIndex mbCount
   ScimSubsystemConfig scimBaseUri <- input
   pure . Scim.fromList $ toStoredGroup scimBaseUri <$> page
 
