@@ -44,11 +44,6 @@ data UserGroupPageRequest = UserGroupPageRequest
 userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTime, UserGroupId)
 userGroupCreatedAtPaginationState ug = (fromUTCTimeMillis ug.createdAt, ug.id_)
 
-toSortBy :: PaginationState UserGroupId -> SortBy
-toSortBy = \case
-  PaginationSortByName _ -> SortByName
-  PaginationSortByCreatedAt _ -> SortByCreatedAt
-
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> Bool -> UserGroupStore m (Maybe UserGroup)

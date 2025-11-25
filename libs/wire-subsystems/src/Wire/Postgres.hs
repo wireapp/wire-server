@@ -56,6 +56,7 @@ module Wire.Postgres
     clause1,
     orderBy,
     limit,
+    offset,
     buildStatement,
 
     -- * Type classes
@@ -274,6 +275,10 @@ orderBy os =
 limit :: forall a. (PostgresValue a) => a -> QueryFragment
 limit n = paramLiteral (valueEncoder n) $ \i ->
   "limit " <> argPattern (postgresType @a) i
+
+offset :: forall a. (PostgresValue a) => a -> QueryFragment
+offset n = paramLiteral (valueEncoder n) $ \i ->
+  "offset " <> argPattern (postgresType @a) i
 
 buildStatement :: QueryFragment -> Dec.Result b -> Statement () b
 buildStatement frag dec =
