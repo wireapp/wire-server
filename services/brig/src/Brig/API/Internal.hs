@@ -1030,9 +1030,11 @@ getGroupsInternalH ::
   ) =>
   TeamId ->
   Maybe T.Text ->
+  Maybe Int ->
+  Maybe Int ->
   Handler r UserGroupPageWithMembers
-getGroupsInternalH tid nameContains =
-  lift . liftSem $ getGroupsInternal tid nameContains
+getGroupsInternalH tid nameContains mbStartIndex mbCount =
+  lift . liftSem $ getGroupsInternal tid nameContains mbStartIndex mbCount
 
 updateGroupInternalH ::
   ( Member UserGroupSubsystem r
