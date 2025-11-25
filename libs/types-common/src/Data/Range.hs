@@ -77,7 +77,6 @@ import Data.HashSet qualified as HashSet
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as N
-import Data.List1 (List1, toNonEmpty)
 import Data.Map qualified as Map
 import Data.OpenApi (Schema, ToParamSchema (..))
 import Data.OpenApi qualified as S
@@ -414,9 +413,6 @@ instance Bounds (NonEmpty a) where
 
 instance Bounds (List a) where
   within x = within (fromList x)
-
-instance Bounds (List1 a) where
-  within x = within (toNonEmpty x)
 
 instance Bounds (Set a) where
   within x = rangeCheck (Set.size x)

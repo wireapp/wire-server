@@ -297,7 +297,7 @@ genRecipient' env uid = do
   cids <-
     QC.frequency
       [ (1, pure RecipientClientsAll),
-        (3, RecipientClientsSome <$> sublist1Of (clientIdsOfUser env uid))
+        (3, RecipientClientsSome <$> subNonEmptyOf (clientIdsOfUser env uid))
       ]
   pure $ Recipient uid route cids
 
@@ -383,7 +383,7 @@ dropSomeDevices =
           [ pure $ length cids,
             choose (1, max 1 (length cids - 1))
           ]
-      RecipientClientsSome . unsafeList1 . take numdevs
+      RecipientClientsSome . unsafeNonEmpty . take numdevs
         <$> QC.shuffle (toList cids)
 
 shrinkPushes :: [Push] -> [[Push]]
@@ -703,16 +703,16 @@ instance (Aeson.ToJSON a) => Show (Pretty a) where
 shrinkPretty :: (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
-sublist1Of :: (HasCallStack) => [a] -> Gen (NonEmpty a)
-sublist1Of [] = error "sublist1Of: empty list"
-sublist1Of xs =
+subNonEmptyOf :: (HasCallStack) => [a] -> Gen (NonEmpty a)
+subNonEmptyOf [] = error "subNonEmptyOf: empty list"
+subNonEmptyOf xs =
   sublistOf xs >>= \case
-    [] -> sublist1Of xs
+    [] -> subNonEmptyOf xs
     c : cc -> pure (c :| cc)
 
-unsafeList1 :: (HasCallStack) => [a] -> NonEmpty a
-unsafeList1 [] = error "unsafeList1: empty list"
-unsafeList1 (x : xs) = x :| xs
+unsafeNonEmpty :: (HasCallStack) => [a] -> NonEmpty a
+unsafeNonEmpty [] = error "unsafeNonEmpty: empty list"
+unsafeNonEmpty (x : xs) = x :| xs
 
 deliver :: (Ord key) => key -> Payload -> Map key IntMultiSet -> Map key IntMultiSet
 deliver qkey qval = Map.alter (Just . tweak) qkey
