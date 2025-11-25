@@ -500,13 +500,3 @@ testListUsersEmailVisibility = do
       returnedUsers <- resp.json %. "found" >>= asList
       returnedEmails <- for returnedUsers ((%. "email") >=> asString)
       returnedEmails `shouldMatchSet` memEmails
-
-testGetAllTeamMembersInternal :: (HasCallStack) => App ()
-testGetAllTeamMembersInternal = do
-  (owner, tid, mems) <- createTeam OwnDomain 5
-  uids <- for (owner : mems) ((%. "id") >=> asString)
-  I.getAllTeamMembers OwnDomain tid `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    tms <- resp.json >>= asList
-    let returnedUids = for tms ((%. "user") >=> asString)
-    returnedUids `shouldMatchSet` uids

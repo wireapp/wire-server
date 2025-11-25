@@ -26,7 +26,6 @@ import Wire.TeamSubsystem
 interpretTeamSubsystemToGalleyAPI :: (Member GalleyAPIAccess r) => InterpreterFor TeamSubsystem r
 interpretTeamSubsystemToGalleyAPI = interpret $ \case
   InternalGetTeamMember userId teamId -> GalleyAPIAccess.getTeamMember userId teamId
-  InternalGetTeamMembers teamId -> GalleyAPIAccess.getTeamMembers teamId
   InternalGetTeamMembersWithLimit teamId maxResults -> GalleyAPIAccess.getTeamMembersWithLimit teamId maxResults
   InternalSelectTeamMemberInfos teamId userIds -> GalleyAPIAccess.selectTeamMemberInfos teamId userIds
   InternalSelectTeamMembers teamId userIds -> GalleyAPIAccess.selectTeamMembers teamId userIds

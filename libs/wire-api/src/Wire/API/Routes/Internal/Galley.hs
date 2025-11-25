@@ -259,11 +259,6 @@ type ITeamsAPIBase =
                         :> Get '[JSON] TeamMemberList
                     )
              :<|> Named
-                    "unchecked-get-all-team-members"
-                    ( "unsafe-all"
-                        :> Get '[JSON] [TeamMember]
-                    )
-             :<|> Named
                     "unchecked-select-team-member-infos"
                     ( "by-ids"
                         :> ReqBody '[JSON] UserIds

@@ -29,7 +29,6 @@ import Wire.API.Team.Member.Info (TeamMemberInfoList)
 
 data TeamSubsystem m a where
   InternalGetTeamMember :: UserId -> TeamId -> TeamSubsystem m (Maybe TeamMember)
-  InternalGetTeamMembers :: TeamId -> TeamSubsystem m [TeamMember]
   InternalGetTeamMembersWithLimit :: TeamId -> Maybe (Range 1 HardTruncationLimit Int32) -> TeamSubsystem m TeamMemberList
   InternalSelectTeamMembers :: TeamId -> [UserId] -> TeamSubsystem m [TeamMember]
   InternalSelectTeamMemberInfos :: TeamId -> [UserId] -> TeamSubsystem m TeamMemberInfoList

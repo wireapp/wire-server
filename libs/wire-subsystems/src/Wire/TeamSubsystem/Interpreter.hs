@@ -92,7 +92,6 @@ interpretTeamSubsystemWithInputConfig =
       for tms $ \tm -> do
         hasImplicitConsent <- LH.isTeamLegalholdWhitelisted tid
         pure $ if hasImplicitConsent then grantImplicitConsent tm else tm
-    InternalGetTeamMembers tid -> internalGetTeamMembersImpl tid
     InternalGetTeamMembersWithLimit tid maxResults -> do
       tmList <- TeamStore.getTeamMembersWithLimit tid (fromMaybe hardTruncationLimitRange maxResults)
       ms <- adjustMembersForImplicitConsent tid (tmList ^. teamMembers)
@@ -109,10 +108,6 @@ interpretTeamSubsystemWithInputConfig =
       pure $ newTeamMemberList admins ListComplete
     InternalFinalizeDeleteTeam luid mcon tid ->
       internalFinalizeDeleteTeamImpl luid mcon tid
-
-internalGetTeamMembersImpl :: (Member LegalHoldStore r, Member TeamStore r) => TeamId -> Sem r [TeamMember]
-internalGetTeamMembersImpl tid =
-  adjustMembersForImplicitConsent tid =<< TeamStore.getTeamMembers tid
 
 adjustMembersForImplicitConsent :: (Member LegalHoldStore r) => TeamId -> [TeamMember] -> Sem r [TeamMember]
 adjustMembersForImplicitConsent tid ms = do
@@ -156,7 +151,9 @@ internalFinalizeDeleteTeamImpl lusr zcon tid = do
     -- be fine as it is done once during the life team of a team and we still do not
     -- fanout this particular event to all team members anyway. And this is anyway
     -- done asynchronously
-    membs <- internalGetTeamMembersImpl tid
+
+    -- No need to adjust implicit consent here.
+    membs <- TeamStore.getTeamMembers tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent tid now EdTeamDelete
     pushDeleteEvents membs e ue

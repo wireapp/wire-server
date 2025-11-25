@@ -215,7 +215,6 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembersWithLimit tid)
-              <@> mkNamedAPI @"unchecked-get-all-team-members" (TeamSubsystem.internalGetTeamMembers tid)
               <@> mkNamedAPI @"unchecked-select-team-member-infos" (\userIds -> TeamSubsystem.internalSelectTeamMemberInfos tid (cUsers userIds))
               <@> mkNamedAPI @"unchecked-select-team-members" (\userIds -> TeamSubsystem.internalSelectTeamMembers tid (cUsers userIds))
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)

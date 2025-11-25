@@ -78,7 +78,6 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
-          GetTeamMembers tid -> getTeamMembers tid
           GetTeamMembersWithLimit tid maxResults -> getTeamMembersWithLimit tid maxResults
           SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
           SelectTeamMembers tid uids -> selectTeamMembers tid uids
@@ -335,23 +334,6 @@ getTeamMember u tid = do
         . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
         . zUser u
         . expect [status200, status404]
-
-getTeamMembers ::
-  ( Member (Error ParseException) r,
-    Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
-  ) =>
-  TeamId ->
-  Sem r [TeamMember]
-getTeamMembers tid = do
-  debug $ remote "galley" . msg (val "Get all team members")
-  galleyRequest req >>= decodeBodyOrThrow "galley"
-  where
-    req =
-      method GET
-        . paths ["i", "teams", toByteString' tid, "members", "unsafe-all"]
-        . expect2xx
 
 -- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
 --
