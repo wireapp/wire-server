@@ -46,7 +46,7 @@ import Data.Handle (parseHandle)
 import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (toBase64Text)
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Misc

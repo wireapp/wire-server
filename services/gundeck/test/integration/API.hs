@@ -42,7 +42,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
