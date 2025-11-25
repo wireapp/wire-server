@@ -18,13 +18,11 @@
 module Wire.PaginationState
   ( PaginationState (..),
     paginationClause,
-    mkPaginationState,
   )
 where
 
 import Data.Time.Clock
 import Imports hiding (sortBy)
-import Wire.API.Pagination
 import Wire.Postgres
 
 data PaginationState a
@@ -38,13 +36,3 @@ paginationClause s = case s of
   PaginationSortByCreatedAt (Just (createdAt, x)) ->
     Just (mkClause "created_at" createdAt <> mkClause "id" x)
   _ -> Nothing
-
-mkPaginationState ::
-  SortBy ->
-  Maybe Text ->
-  Maybe UTCTime ->
-  Maybe a ->
-  PaginationState a
-mkPaginationState sortBy name createdAt x = case sortBy of
-  SortByName -> PaginationSortByName $ (,) <$> name <*> x
-  SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> createdAt <*> x
