@@ -40,6 +40,7 @@ import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.ListResponse qualified as Scim
 import Web.Scim.Schema.Meta qualified as Meta
 import Web.Scim.Schema.ResourceType qualified as RT
+import Web.Scim.Schema.Schema qualified as Scim
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User
 import Wire.API.User.Scim (SparTag)
@@ -134,9 +135,17 @@ scimGetUserGroupsImpl ::
   Maybe Int ->
   Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
 scimGetUserGroupsImpl tid mbFilter mbStartIndex mbCount = do
-  UserGroupPage {page} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter mbStartIndex mbCount
+  UserGroupPage {page, total} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter mbStartIndex mbCount
   ScimSubsystemConfig scimBaseUri <- input
-  pure . Scim.fromList $ toStoredGroup scimBaseUri <$> page
+  let page' = map (toStoredGroup scimBaseUri) page
+  pure $
+    Scim.ListResponse
+      { schemas = [Scim.ListResponse20],
+        totalResults = total,
+        itemsPerPage = length page',
+        startIndex = fromMaybe 1 mbStartIndex,
+        resources = page'
+      }
 
 scimUpdateUserGroupImpl ::
   forall r.

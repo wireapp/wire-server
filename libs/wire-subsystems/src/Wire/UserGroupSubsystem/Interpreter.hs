@@ -283,14 +283,11 @@ getUserGroupsInternal ::
   Maybe Int ->
   Sem r UserGroupPageWithMembers
 getUserGroupsInternal team displayNameSubstring mbStartIndex mbCount = do
-  let -- hscim doesn't support pagination at the time of writing this,
-      -- so we better fit all groups into one page!
-      pageSize = pageSizeFromIntUnsafe 500
-      pageReq =
+  let pageReq =
         UserGroupPageRequest
-          { pageSize = pageSize,
+          { pageSize = maybe (pageSizeFromIntUnsafe 500) (pageSizeFromIntUnsafe . fromIntegral) mbCount, -- XXX: what should the default be?
             sortOrder = Asc,
-            paginationState = PaginationSortByName Nothing,
+            paginationState = maybe (PaginationOffset 0) (PaginationOffset . fromIntegral . (\ix -> ix - 1)) mbStartIndex,
             team = team,
             searchString = displayNameSubstring,
             includeMemberCount = True,
