@@ -117,7 +117,7 @@ getConversationsAllFound = do
   let aliceQ = tUntagged rAlice
   carlQ <- randomQualifiedUser
 
-  connectUsers bob (qUnqualified carlQ :| [])
+  connectUsers bob (NonEmpty.singleton $ qUnqualified carlQ)
   connectWithRemoteUser bob aliceQ
 
   -- create & get group conv
@@ -183,7 +183,7 @@ getConversationsNotPartOf :: TestM ()
 getConversationsNotPartOf = do
   -- FUTUREWORK: make alice / bob remote users
   [alice, bob] <- randomUsers 2
-  connectUsers alice (bob :| [])
+  connectUsers alice (NonEmpty.singleton bob)
   localDomain <- viewFederationDomain
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
@@ -320,7 +320,7 @@ addUnconnectedUsersOnly = do
               FedGalley.convId = conv,
               FedGalley.alreadyPresentUsers = [alice],
               FedGalley.action =
-                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember InternalAdd),
+                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (NonEmpty.singleton qCharlie) roleNameWireMember InternalAdd),
               FedGalley.extraConversationData = def
             }
     -- Alice receives no notifications from this

@@ -27,7 +27,7 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion.To
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
@@ -215,7 +215,7 @@ push1 = push1' 0
         onTokenRemoved = do
           i <- mkNotificationId
           let c = a ^. addrClient
-          let r = (target (a ^. addrUser) & targetClients .~ [c]) :| []
+          let r = NonEmpty.singleton (target (a ^. addrUser) & targetClients .~ [c])
           let t = a ^. addrPushToken
           let p = singletonPayload (PushRemove t)
           Stream.add i r p =<< view (options . settings . notificationTTL)

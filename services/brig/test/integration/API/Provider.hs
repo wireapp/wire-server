@@ -274,11 +274,11 @@ testAddGetService config db brig = do
   _rs <- getService brig pid sid <!! const 200 === statusCode
   let Just svc = responseJsonMaybe _rs
   liftIO $ do
-    assertEqual "auth token" ((:| []) <$> rsNewServiceToken srs) (Just (serviceTokens svc))
+    assertEqual "auth token" (NonEmpty.singleton <$> rsNewServiceToken srs) (Just (serviceTokens svc))
     assertEqual "name" defServiceName (serviceName svc)
     assertEqual "description" defServiceDescr (serviceDescr svc)
     assertEqual "url" defServiceUrl (serviceUrl svc)
-    assertEqual "keys" ((:| []) (newServiceKey new)) (serviceKeyPEM <$> serviceKeys svc)
+    assertEqual "keys" (NonEmpty.singleton (newServiceKey new)) (serviceKeyPEM <$> serviceKeys svc)
     assertEqual "assets" defServiceAssets (serviceAssets svc)
     assertEqual "tags" (fromRange defServiceTags) (serviceTags svc)
     assertBool "enabled" (not (serviceEnabled svc))

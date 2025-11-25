@@ -18,7 +18,8 @@
 module Wire.API.ServantProto where
 
 import Data.ByteString.Lazy qualified as LBS
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.OpenApi
 import Imports
 import Network.HTTP.Media ((//))
@@ -41,7 +42,7 @@ class ToProto a where
   toProto :: a -> ByteString
 
 instance Accept Proto where
-  contentTypes _ = ("application" // "x-protobuf") :| []
+  contentTypes _ = NonEmpty.singleton ("application" // "x-protobuf")
 
 instance (FromProto a) => MimeUnrender Proto a where
   mimeUnrender _ bs = fromProto (LBS.toStrict bs)

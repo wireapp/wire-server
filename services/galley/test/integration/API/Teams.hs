@@ -514,7 +514,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
   assertTeamUpdate "team member join" tid 3 [ownerWithPassword, owner]
 
   refreshIndex
-  Util.connectUsers owner (mext :| [])
+  Util.connectUsers owner (NonEmpty.singleton mext)
   cid1 <- Util.createTeamConv owner tid [mem1 ^. userId, mext] (Just "blaa") Nothing Nothing
   when ownerHasPassword $ do
     -- request to remove a team member is handled by the by the endpoint do remove non-binding team member
@@ -660,7 +660,7 @@ testAddTeamConvWithRole = do
   qOwner <- Qualified owner <$> viewFederationDomain
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
-  Util.connectUsers owner (extern :| [])
+  Util.connectUsers owner (NonEmpty.singleton extern)
   WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
     -- Regular conversation:
     cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
@@ -1152,7 +1152,7 @@ testDeleteTeamConv = do
   let members = [qOwner, qMember]
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
-  for_ members $ \m -> Util.connectUsers (m & qUnqualified) (extern :| [])
+  for_ members $ \m -> Util.connectUsers (m & qUnqualified) (NonEmpty.singleton extern)
   (cid1, qcid1) <- WS.bracketR c owner $ \wsOwner -> do
     cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
     qcid1 <- Qualified cid1 <$> viewFederationDomain
@@ -1550,7 +1550,7 @@ postCryptoBroadcastMessage2 bcast = do
   ac <- Util.randomClient alice (head someLastPrekeys)
   bc <- Util.randomClient bob (someLastPrekeys !! 1)
   cc <- Util.randomClient charlie (someLastPrekeys !! 2)
-  connectUsers alice (charlie :| [])
+  connectUsers alice (NonEmpty.singleton charlie)
   let t = 3 # Second -- WS receive timeout
   -- Missing charlie
   let m1 = [(bob, bc, toBase64Text "ciphertext1")]
@@ -1604,7 +1604,7 @@ postCryptoBroadcastMessageNoTeam bcast = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   let qalice = Qualified alice localDomain
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
-  connectUsers alice (bob :| [])
+  connectUsers alice (NonEmpty.singleton bob)
   let msg = [(bob, bc, toBase64Text "ciphertext1")]
   Util.postBroadcast qalice ac bcast {bMessage = msg} !!! const 404 === statusCode
 
@@ -1634,7 +1634,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
   where
     createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
       (uid, cid) <- randomUserWithClient pk
-      (r1, r2) <- NonEmpty.head <$> connectUsersUnchecked alice (uid :| [])
+      (r1, r2) <- NonEmpty.head <$> connectUsersUnchecked alice (NonEmpty.singleton uid)
       case (statusCode r1, statusCode r2, remaining, acc) of
         (201, 200, 0, []) -> error "Need to connect with at least 1 user"
         (201, 200, 0, x : xs) -> pure (x, xs)

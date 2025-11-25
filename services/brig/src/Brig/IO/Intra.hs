@@ -72,7 +72,8 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -155,7 +156,7 @@ onConnectionEvent orig conn evt = do
     orig
     V2.RouteAny
     conn
-    (pure $ from :| [])
+    (pure $ NonEmpty.singleton from)
 
 onPropertyEvent ::
   (Member NotificationSubsystem r) =>
@@ -171,7 +172,7 @@ onPropertyEvent orig conn e =
     orig
     V2.RouteDirect
     (Just conn)
-    (pure $ orig :| [])
+    (pure $ NonEmpty.singleton orig)
 
 onClientEvent ::
   (Member NotificationSubsystem r) =>
@@ -266,7 +267,7 @@ notifyUserDeletionLocals ::
 notifyUserDeletionLocals deleted conn event = do
   luid <- qualifyLocal' deleted
   -- first we send a notification to the deleted user's devices
-  notify event deleted V2.RouteDirect conn (pure (deleted :| []))
+  notify event deleted V2.RouteDirect conn (pure (NonEmpty.singleton deleted))
   -- then to all their connections
   connectionPages Nothing luid (toRange (Proxy @500))
   where
@@ -383,7 +384,7 @@ notifySelf ::
   Maybe ConnId ->
   Sem r ()
 notifySelf event orig route conn =
-  notify event orig route conn (pure (orig :| []))
+  notify event orig route conn (pure (NonEmpty.singleton orig))
 
 notifyContacts ::
   forall r.

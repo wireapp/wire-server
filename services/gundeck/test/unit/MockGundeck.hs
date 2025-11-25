@@ -55,6 +55,7 @@ import Data.IntMultiSet (IntMultiSet)
 import Data.IntMultiSet qualified as MSet
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NE
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Misc (Milliseconds (Ms))
 import Data.Scientific qualified as Scientific
@@ -400,7 +401,7 @@ shrinkPushes = shrinkList shrinkPush
 genPayload :: Gen Payload
 genPayload = do
   num :: Int <- arbitrary
-  pure $ (KeyMap.singleton "val" (Aeson.toJSON num)) :| []
+  pure $ NonEmpty.singleton (KeyMap.singleton "val" (Aeson.toJSON num))
 
 genNotif :: Gen Notification
 genNotif = Notification <$> genId <*> arbitrary <*> genPayload

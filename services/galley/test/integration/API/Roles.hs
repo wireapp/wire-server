@@ -25,6 +25,7 @@ import Data.Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
@@ -77,8 +78,8 @@ handleConversationRoleAdmin = do
   (eve, qeve) <- randomUserTuple
   (jack, qjack) <- randomUserTuple
   connectUsers alice (bob :| [chuck, eve, jack])
-  connectUsers eve (bob :| [])
-  connectUsers bob (jack :| [])
+  connectUsers eve (NonEmpty.singleton bob)
+  connectUsers bob (NonEmpty.singleton jack)
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
@@ -118,7 +119,7 @@ handleConversationRoleMember = do
   let qeve = Qualified eve localDomain
   jack <- randomUser
   connectUsers alice (bob :| [chuck, eve])
-  connectUsers bob (chuck :| [])
+  connectUsers bob (NonEmpty.singleton chuck)
   connectUsers eve (bob :| [jack])
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
@@ -161,7 +162,7 @@ wireAdminChecks cid admin otherAdmin mem = do
       qotherAdmin = Qualified otherAdmin localDomain
       qmem = Qualified mem localDomain
   (other, qother) <- randomUserTuple
-  connectUsers admin (other :| [])
+  connectUsers admin (NonEmpty.singleton other)
   -- Admins can perform all operations on the conversation; creator is not relevant
 
   -- Add members
@@ -209,7 +210,7 @@ wireMemberChecks cid mem admin otherMem = do
       qcid = Qualified cid localDomain
   (other, qother) <- randomUserTuple
   let qmem = Qualified mem localDomain
-  connectUsers mem (other :| [])
+  connectUsers mem (NonEmpty.singleton other)
   -- Members cannot perform pretty much any action on the conversation
 
   -- Cannot add members, regardless of their role

@@ -32,7 +32,7 @@ where
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Qualified
 import Imports
@@ -55,7 +55,7 @@ class ToRecipient a where
   toRecipient :: a -> Recipient
 
 instance ToRecipient (UserId, ClientId) where
-  toRecipient (u, c) = Recipient u (RecipientClientsSome (c :| []))
+  toRecipient (u, c) = Recipient u (RecipientClientsSome (NonEmpty.singleton c))
 
 instance ToRecipient Recipient where
   toRecipient = id

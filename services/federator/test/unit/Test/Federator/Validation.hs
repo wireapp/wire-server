@@ -22,6 +22,7 @@ module Test.Federator.Validation where
 import Data.ByteString qualified as BS
 import Data.Domain
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text.Encoding qualified as Text
 import Data.X509.Validation qualified as X509
 import Federator.Discovery
@@ -42,7 +43,7 @@ import Wire.Network.DNS.SRV (SrvTarget (..))
 mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryTrivial = Polysemy.interpret $ \case
   DiscoverFederator dom -> pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
-  DiscoverAllFederators dom -> pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443 :| []
+  DiscoverAllFederators dom -> pure . Right $ NonEmpty.singleton (SrvTarget (Text.encodeUtf8 (domainText dom)) 443)
 
 mockDiscoveryMapping :: (HasCallStack) => Domain -> NonEmpty ByteString -> Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryMapping origin targets = Polysemy.interpret $ \case
@@ -247,7 +248,7 @@ validateDomainNonIdentitySRV =
       runM
         . assertNoError @ValidationError
         . assertNoError @DiscoveryFailure
-        . mockDiscoveryMapping domain ("localhost.example.com" :| [])
+        . mockDiscoveryMapping domain (NonEmpty.singleton "localhost.example.com")
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain exampleCert domain

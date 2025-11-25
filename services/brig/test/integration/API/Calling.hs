@@ -69,14 +69,14 @@ testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
   uid <- userId <$> randomUser b
   cfg <- getTurnConfigurationV1 uid b
-  let _expected = toTurnURILegacy "127.0.0.1" 3478 :| []
+  let _expected = NonEmpty.singleton (toTurnURILegacy "127.0.0.1" 3478)
   assertConfiguration cfg _expected
 
 testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
 testCallsConfigMultiple b turnUpdater = do
   uid <- userId <$> randomUser b
   -- Ensure we have a clean config
-  let _expected = toTurnURILegacy "127.0.0.1" 3478 :| []
+  let _expected = NonEmpty.singleton (toTurnURILegacy "127.0.0.1" 3478)
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
   -- Change server list
   let _changes = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
@@ -88,7 +88,7 @@ testCallsConfigMultiple b turnUpdater = do
   let _changes = "turn:127.0.0.2:3478?transport=udp\nturn:127.0.0.3:3478?transport=udp"
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater _changes _expected
   -- Revert the config file back to the original
-  let _expected = toTurnURILegacy "127.0.0.1" 3478 :| []
+  let _expected = NonEmpty.singleton (toTurnURILegacy "127.0.0.1" 3478)
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
 
 -- | This test relies on pre-created public DNS records. Code here:
@@ -142,7 +142,7 @@ testCallsConfigMultipleV2 :: Brig -> TurnUpdater -> Http ()
 testCallsConfigMultipleV2 b turnUpdaterV2 = do
   uid <- userId <$> randomUser b
   -- Ensure we have a clean config
-  let _expected = toTurnURI SchemeTurn "localhost" 3478 Nothing :| []
+  let _expected = NonEmpty.singleton $ toTurnURI SchemeTurn "localhost" 3478 Nothing
   modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
   -- Change server list
   let _changes = "turn:localhost:3478\nturn:localhost:3479"
@@ -161,14 +161,14 @@ testCallsConfigMultipleV2 b turnUpdaterV2 = do
   let _expected2 =
         toTurnURI SchemeTurn "localhost" 3478 (Just TransportUDP)
           :| [toTurnURI SchemeTurns "localhost" 3479 $ Just TransportTCP]
-  let _expected1 = toTurnURI SchemeTurn "localhost" 3478 (Just TransportUDP) :| []
+  let _expected1 = NonEmpty.singleton (toTurnURI SchemeTurn "localhost" 3478 (Just TransportUDP))
   liftIO $ turnUpdaterV2 _changes
   _cfg <- getAndValidateTurnConfigurationLimit 2 uid b
   assertConfiguration _cfg _expected2
   _cfg <- getAndValidateTurnConfigurationLimit 1 uid b
   assertConfiguration _cfg _expected1
   -- Revert the config file back to the original
-  let _expected = toTurnURI SchemeTurn "localhost" 3478 Nothing :| []
+  let _expected = NonEmpty.singleton $ toTurnURI SchemeTurn "localhost" 3478 Nothing
   modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
 
 -- | This test relies on pre-created public DNS records. Code here:

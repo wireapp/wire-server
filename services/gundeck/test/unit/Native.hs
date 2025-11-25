@@ -22,7 +22,7 @@ import Control.Lens ((^.))
 import Data.Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id (ClientId (..), ConnId (..), UserId, randomId)
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy.Encoding qualified as LT
@@ -151,7 +151,7 @@ randNotif size = do
   generate $ do
     l <- choose size
     v <- T.pack <$> vectorOf l (elements ['a' .. 'z'])
-    let pload = KeyMap.fromList ["data" .= v] :| []
+    let pload = NonEmpty.singleton (KeyMap.fromList ["data" .= v])
     Notification i <$> arbitrary <*> pure pload
 
 randMessage :: Notification -> IO NativePush

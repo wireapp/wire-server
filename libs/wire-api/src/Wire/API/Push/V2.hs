@@ -78,6 +78,7 @@ import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
@@ -300,7 +301,7 @@ newPush from to pload =
     }
 
 singletonPayload :: (ToJSONObject a) => a -> NonEmpty Object
-singletonPayload a = toJSONObject a :| []
+singletonPayload = NonEmpty.singleton . toJSONObject
 
 instance ToSchema Push where
   schema =

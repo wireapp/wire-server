@@ -21,7 +21,8 @@ import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
@@ -140,7 +141,7 @@ toV2Push p =
     & V2.pushIsCellsEvent .~ p.isCellsEvent
   where
     pload :: NonEmpty Object
-    pload = p.json :| []
+    pload = NonEmpty.singleton p.json
     recipients :: [V2.Recipient]
     recipients = map toRecipient $ toList p.recipients
     toRecipient :: Recipient -> V2.Recipient

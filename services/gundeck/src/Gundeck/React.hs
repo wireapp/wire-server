@@ -26,7 +26,7 @@ import Control.Lens (view, (.~), (^.))
 import Data.ByteString.Conversion
 import Data.Id (ClientId, UserId)
 import Data.List qualified as List
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Gundeck.Aws (SNSEndpoint, endpointEnabled, endpointToken, endpointUsers)
@@ -169,7 +169,7 @@ deleteToken u ev tk cl = do
   let t = mkPushToken ev tk cl
       p = singletonPayload (PushRemove t)
       n = Notification i False p
-      r = (target u & targetClients .~ [cl]) :| []
+      r = NonEmpty.singleton (target u & targetClients .~ [cl])
   void $ Web.push n r (Just u) Nothing Set.empty
   Stream.add i r p =<< view (options . settings . notificationTTL)
   Push.delete u (t ^. tokenTransport) (t ^. tokenApp) tk

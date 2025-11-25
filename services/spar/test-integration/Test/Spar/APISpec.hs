@@ -32,6 +32,7 @@ import Data.ByteString.Conversion
 import Data.Handle (fromHandle)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Misc
 import Data.Proxy
 import Data.String.Conversions
@@ -822,7 +823,7 @@ specCRUDIdentityProvider = do
             (owner, _tid) <- callCreateUserWithTeam
             (idp, (IdPMetadataValue _ idpmeta, oldPrivKey)) <- registerTestIdPWithMeta owner
             (SampleIdP _ newPrivKey _ sampleIdPCert2) <- makeSampleIdPMetadata
-            let idpmeta' = idpmeta & edCertAuthnResponse .~ (sampleIdPCert2 :| [])
+            let idpmeta' = idpmeta & edCertAuthnResponse .~ (NonEmpty.singleton sampleIdPCert2)
             callIdpUpdate (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
               `shouldRespondWith` ((== 200) . statusCode)
             pure (idp, oldPrivKey, newPrivKey)

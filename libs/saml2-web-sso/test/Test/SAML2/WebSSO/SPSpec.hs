@@ -26,6 +26,7 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import SAML2.WebSSO
 import SAML2.WebSSO.API.Example (AssertionStore)
@@ -159,7 +160,7 @@ specJudgeT = do
               _rspDestination = Just [uri|https://sp.net/sso/authnresp|],
               _rspIssuer = Just $ assertion ^. assIssuer,
               _rspStatus = StatusSuccess,
-              _rspPayload = assertion :| []
+              _rspPayload = NonEmpty.singleton assertion
             }
         respid :: ID AuthnResponse
         respid = ID "49afd274-db59-11e8-b0be-e3130e26594d"
@@ -177,9 +178,9 @@ specJudgeT = do
                     { _condNotBefore = Just $ authnresp ^. rspIssueInstant,
                       _condNotOnOrAfter = Just timeIn20minutes,
                       _condOneTimeUse = False,
-                      _condAudienceRestriction = [[uri|https://sp.net/sso/authnresp|] :| []]
+                      _condAudienceRestriction = [NonEmpty.singleton [uri|https://sp.net/sso/authnresp|]]
                     },
-              _assContents = SubjectAndStatements subject (statement :| [])
+              _assContents = SubjectAndStatements subject (NonEmpty.singleton statement)
             }
         subject :: Subject
         subject =
@@ -253,14 +254,14 @@ specJudgeT = do
                    ],
               conditionsL . condAudienceRestriction
                 .~ [ {- (outer "and" succeeding) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
-                     [uri|https://sp.net/sso/authnresp|] :| []
+                     NonEmpty.singleton [uri|https://sp.net/sso/authnresp|]
                    ]
             ]
           bad :: [AuthnResponse -> AuthnResponse]
           bad =
             -- wire does not test unsigned data in the authentication response, so response
             -- destination will be ignored (in favor of the redundant info in the signed
-            [ conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
+            [ conditionsL . condAudienceRestriction .~ [NonEmpty.singleton [uri|https://other.io/sso|]],
               scdataL . scdRecipient .~ [uri|https://other.io/sso|],
               conditionsL . condAudienceRestriction .~ [],
               -- "The resulting assertion(s) MUST contain a <saml:AudienceRestriction> element
@@ -270,7 +271,7 @@ specJudgeT = do
                    ],
               conditionsL . condAudienceRestriction
                 .~ [ {- (outer "and" failing) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
-                     [uri|https://yetanother.net/stillwrong|] :| []
+                     NonEmpty.singleton [uri|https://yetanother.net/stillwrong|]
                    ]
             ]
       grants id `mapM_` (($ authnresp) <$> good)

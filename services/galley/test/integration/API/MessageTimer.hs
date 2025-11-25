@@ -25,6 +25,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Qualified
 import Imports hiding (head)
@@ -131,7 +132,7 @@ messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   (tid, owner, member : _) <- createBindingTeamWithMembers 2
   (guest, qguest) <- randomUserTuple
-  connectUsers owner (guest :| [])
+  connectUsers owner (NonEmpty.singleton guest)
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   let qcid = qguest $> cid
@@ -155,7 +156,7 @@ messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
   -- Create a 1:1 conversation
   [(alice, qalice), (bob, qbob)] <- replicateM 2 randomUserTuple
-  connectUsers alice (bob :| [])
+  connectUsers alice (NonEmpty.singleton bob)
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
@@ -173,7 +174,7 @@ messageTimerEvent = do
   ca <- view tsCannon
   -- Create a conversation
   [(alice, qalice), (bob, qbob)] <- replicateM 2 randomUserTuple
-  connectUsers alice (bob :| [])
+  connectUsers alice (NonEmpty.singleton bob)
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
