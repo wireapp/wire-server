@@ -50,10 +50,10 @@ data TeamStore m a where
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
-  GetTeamMemberTempName :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
-  GetTeamMembersWithLimitTempName :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
-  GetTeamMembersTempName :: TeamId -> TeamStore m [TeamMember]
-  SelectTeamMembersTempName :: TeamId -> [UserId] -> TeamStore m [TeamMember]
+  GetTeamMember :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
+  GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
+  GetTeamMembers :: TeamId -> TeamStore m [TeamMember]
+  SelectTeamMembers :: TeamId -> [UserId] -> TeamStore m [TeamMember]
   SelectTeamMemberInfos :: TeamId -> [UserId] -> TeamStore m [TeamMemberInfo]
   -- FUTUREWORK(mangoiv): this should be a single 'TeamId' (@'Maybe' 'TeamId'@), there's no way
   -- a user could be part of multiple teams

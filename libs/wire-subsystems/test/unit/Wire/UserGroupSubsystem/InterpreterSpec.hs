@@ -109,7 +109,7 @@ interpretDependencies initialUsers initialTeams =
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
-    . intepreterTeamSubsystemToGalleyAPI
+    . interpretTeamSubsystemToGalleyAPI
     . userSubsystemTestInterpreter initialUsers
 
 runDependenciesWithReturnState ::
@@ -128,7 +128,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
-    . intepreterTeamSubsystemToGalleyAPI
+    . interpretTeamSubsystemToGalleyAPI
     . userSubsystemTestInterpreter initialUsers
 
 expectRight :: (Show err) => Either err Property -> Property

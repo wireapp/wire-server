@@ -97,7 +97,7 @@ runAllEffects args =
     . evalState (mkStdGen 3)
     . randomToStatefulStdGen
     . miniGalleyAPIAccess args.teams def
-    . intepreterTeamSubsystemToGalleyAPI
+    . interpretTeamSubsystemToGalleyAPI
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
     . runError

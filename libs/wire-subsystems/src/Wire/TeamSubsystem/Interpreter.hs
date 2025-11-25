@@ -34,24 +34,24 @@ import Wire.TeamSubsystem
 interpretTeamSubsystem :: (Member TeamStore r, Member LegalHoldStore r) => InterpreterFor TeamSubsystem r
 interpretTeamSubsystem = interpret $ \case
   InternalGetTeamMember uid tid -> do
-    tms <- E.getTeamMemberTempName tid uid
+    tms <- E.getTeamMember tid uid
     for tms $ \tm -> do
       hasImplicitConsent <- LH.isTeamLegalholdWhitelisted tid
       pure $ if hasImplicitConsent then grantImplicitConsent tm else tm
   InternalGetTeamMembers tid ->
-    adjustMembersForImplicitConsent tid =<< E.getTeamMembersTempName tid
+    adjustMembersForImplicitConsent tid =<< E.getTeamMembers tid
   InternalGetTeamMembersWithLimit tid maxResults -> do
-    tmList <- E.getTeamMembersWithLimitTempName tid (fromMaybe hardTruncationLimitRange maxResults)
+    tmList <- E.getTeamMembersWithLimit tid (fromMaybe hardTruncationLimitRange maxResults)
     ms <- adjustMembersForImplicitConsent tid (tmList ^. teamMembers)
     pure $ newTeamMemberList ms (tmList ^. teamMemberListType)
   InternalSelectTeamMemberInfos tid uids -> TeamMemberInfoList <$> E.selectTeamMemberInfos tid uids
   InternalSelectTeamMembers tid uids -> do
-    tms <- E.selectTeamMembersTempName tid uids
+    tms <- E.selectTeamMembers tid uids
     adjustMembersForImplicitConsent tid tms
   InternalGetTeamAdmins tid -> do
     admins <-
       E.getTeamAdmins tid
-        >>= E.selectTeamMembersTempName tid
+        >>= E.selectTeamMembers tid
         >>= adjustMembersForImplicitConsent tid
     pure $ newTeamMemberList admins ListComplete
 
