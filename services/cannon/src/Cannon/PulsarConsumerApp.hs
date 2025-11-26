@@ -7,7 +7,6 @@ import Cannon.Options
 import Cannon.WS hiding (env)
 import Cassandra as C hiding (batch)
 import Conduit (runResourceT)
-import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
 import Control.Concurrent.Chan
 import Control.Exception (Handler (..), catches)
@@ -94,8 +93,6 @@ createPulsarChannel uid mCid = do
             rejectMsgsAsync <- rejectMsgs rejectMessages unackedMsgsCounter
             void $ UnliftIO.waitAnyCancel [receiveMsgsAsync, blockOnCloseSignalAsync, acknowledgeMsgsAsync, rejectMsgsAsync]
       pure ()
-  -- TODO: Get rid of this delay.
-  liftIO $ threadDelay 1_000_000
   traceM "createPulsarChannel: Done"
   pure $
     ( PulsarChannel
