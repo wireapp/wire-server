@@ -1,3 +1,214 @@
+# [2025-11-26] (Chart Release 5.24.0)
+
+## Release notes
+
+
+* Background-worker configuration: required values when supplying your own Helm values
+
+  Add the following fields under `background-worker`:
+
+  - `config.federationDomain`
+  - `config.postgresql`
+  - `config.cassandraBrig`
+  - `config.cassandraGalley`
+  - `secrets.pgPassword`
+
+  Notes
+  - `config.cassandra` (for gundeck) already exists; no change needed.
+  - `config.backgroundJobs` and `config.postgresqlPool` have defaults; override only if needed.
+  - `config.postgresMigration.conversation` defaults to `postgresql`; change only if migrating conversations to PostgreSQL.
+  - `config.brig` and `config.gundeck` endpoints have in-cluster defaults; override only if your service DNS/ports differ.
+
+  PostgreSQL migration note
+  - Conversation migration settings have to be aligned across galley and background-worker.
+    See `docs/src/developer/reference/config-options.md` for the full migration steps and configuration details. (#4797)
+
+* Starting this release, existing deployments can migrate the conversation data to
+  PostgreSQL from Cassandra. This is necessary for channel search and management
+  of channels from the team-management UI. It is highly recommended to take a
+  backup of the Galley Cassandra before triggering the migration.
+
+  The migration needs to happen in 3 steps:
+
+  1. Prepare wire-server for migration.
+
+     This step make sure that wire-server keep working as expected during the
+     migration. To do this deploy wire-server with this config change:
+
+     ```yaml
+     galley:
+       config:
+         postgresMigration:
+           conversation: migration-to-postgresql
+     background-worker:
+       config:
+         migrateConversations: false
+         postgresMigration:
+           conversation: migration-to-postgresql
+     ```
+
+     Once set to `migration-to-postgresql`, do not switch back to `cassandra`.
+
+     This change should restart all the galley pods, any new conversations will
+     now be written to PostgreSQL.
+
+  2. Trigger the migration and wait.
+
+     This step will actually carry out the migration. To do this deploy
+     wire-server with this config change:
+
+     ```yaml
+     background-worker:
+       config:
+         migrateConversations: true
+         postgresMigration:
+           conversation: migration-to-postgresql
+     ```
+
+     This change should restart the background-worker pods. It is recommended to
+     watch the logs and wait for both of these two metrics to report `1.0`:
+     `wire_local_convs_migration_finished` and `wire_user_remote_convs_migration_finished`.
+     This can take a long time depending on number of conversations in the DB.
+
+  3. Configure wire-server to only use PostgreSQL for conversations.
+
+     This will be the configuration which must be used from now on for every new
+     release.
+
+     ```yaml
+     galley:
+       config:
+         postgresMigration:
+           conversation: postgresql
+     background-worker:
+       config:
+         migrateConversations: false
+         postgresMigration:
+           conversation: postgresql
+     ``` (#4810)
+
+* This release introduces a **breaking change** in the `databases-ephemeral` and `redis-ephemeral` Helm charts.
+
+  The upstream Helm chart used for `redis-ephemeral` has been replaced to enable an upgrade to **Redis 7.4.6** (previously based on the Bitnami chart). As a result, the Redis service hostname has changed from
+  `{{ .Release.Name }}-master` → `{{ .Release.Name }}`.
+
+  Please update the `gundeck.config.redis.host` value in the `wire-server` configuration accordingly.
+
+  The updated Helm chart only supports standalone deployments.
+
+  If you are providing custom values to the `databases-ephemeral` or `redis-ephemeral` releases, make sure to review the documentation for `redis-ephemeral` and its upstream Helm chart to ensure compatibility with this update. (#4845)
+
+
+## API changes
+
+
+* Change `federation-not-implemented` error status from 500 to 422. (#4855)
+
+* Create new API version V14 and finalize API version V13 (#4860)
+
+* All events of type `conversation.*` would also contain a field `via` which can
+  either be `"user"` or `"scim"`. When the value is `"scim"`, the `from` and
+  `qualified_from` fields must be ignored. They exist only for backwards
+  compatibility. (#4797)
+
+
+## Features
+
+
+* Allow collaborator permissions to be updated in a team. (#4697)
+
+* Add support for SCIM managed UserGroup deletion. (#4833)
+
+* Add `PUT /conversations/:domain/:conv_id/members` endpoint to atomically replace conversation members. (#4819,#4838)
+
+* Add users of user groups to a channel in asynchronous background worker job (#4797)
+
+* Add `GET /teams/:tid/channels/search` endpoint for listing and searching channels (#4821, #4836)
+
+* Support migration of all conversation data to Postgresql. (#4810)
+
+* Get scim groups by id with scim. (#4831)
+
+* Return informative diagnostics on group info mismatch (#4788)
+
+* Add field to mls feature for enabling group info diagnostics per team (#4788)
+
+* Allow configuring postgresql pool paramters. In brig and galley helm charts, the paramters can be configured like this:
+
+  ```yaml
+  postgresqlPool:
+    size: 100
+    acquisitionTimeout: 10s
+    agingTimeout: 1d
+    idlenessTimeout: 10m
+  ``` (#4828)
+
+* New metrics on postgres connection pool health.  Example:
+
+  ```
+  $ curl -s http://localhost:8082/i/metrics | grep wire_hasql_pool_session_count
+  wire_hasql_pool_session_count 118.0
+  ```
+
+  Grep output for hasql to see all gauges and counters. (#4834)
+
+* Add configurable `large_client_header_buffers` to nginz helm chart for handling large SAML SSO responses (#4816)
+
+* Return an error when receiving a message or commit bundle for a conversation that is out of sync (#4854)
+
+* Create user groups with SCIM. (#4848)
+
+* Get scim groups by substring of displayName. (#4853)
+
+* Return group members as part of the search result in SCIM groups. (#4859)
+
+* Update / (de-)populate SCIM groups with SCIM. (#4829)
+
+
+## Bug fixes and other updates
+
+
+* Filter out non-searchable team members in `GET /teams/:tid/members` (#4826)
+
+* Fixed: team admin attempting to manage a channel received 403 errors when they were also a member of that channel with `conversation_role` `wire_member` (#4847)
+
+* The result of `GET /teams/:tid/channels/search` is now ordered case-insensitively (#4870)
+
+* Make emails visible for team admin under `POST /list-users` (#4852)
+
+* Fix kubectl image tag in reaper and restund charts to use correct version. v1.32.4 is the last tag of the 1.32 series. (#4827)
+
+* Move `searchable` field matching from boost to filter part of the Elastic Search query. (This is a non-functional change, it only improves clarity.) (#4849)
+
+* Disable out of sync MLS error on older backends (#4869)
+
+
+## Documentation
+
+
+* Updated OpenAPI docs for the `PUT /conversations/:domain/:id/members` endpoint (#4861)
+
+* Add troubleshooting documentation for "414 Request-URI Too Large" errors during SAML SSO login (#4816)
+
+
+## Internal changes
+
+
+* Move /services/brig/deb/opt/brig/templates => libs/wire-subsystems/templates.
+
+  (because it'll be needed in galley any moment now.) (#4830)
+
+* Fix: Inappropriate 500 errors removed from BrigAPIAccess interpreter (#4865)
+
+* Fix the `add-license` Makefile target and add missing license headers. (#4851)
+
+* Keep track of out of sync mls groups (#4837)
+
+* Remove unused `redis-cluster` chart (#4846)
+
+* In the past, we built wire-server with Stack. Now, we’re using Cabal. Some traces of stack were still around in our project setup. These have been removed them to decrease build times and avoid confusion. (#4850)
+
+
 # [2025-10-21] (Chart Release 5.23.0)
 
 ## Release notes
