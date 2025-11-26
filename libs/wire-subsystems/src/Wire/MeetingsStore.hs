@@ -58,13 +58,13 @@ data MeetingsStore m a where
   DeleteMeeting ::
     Qualified MeetingId ->
     MeetingsStore m ()
-  AddInvitedEmail ::
+  AddInvitedEmails ::
     Qualified MeetingId ->
-    EmailAddress ->
+    [EmailAddress] ->
     MeetingsStore m ()
-  RemoveInvitedEmail ::
+  RemoveInvitedEmails ::
     Qualified MeetingId ->
-    EmailAddress ->
+    [EmailAddress] ->
     MeetingsStore m ()
   -- Cleanup operations
   GetOldMeetings ::

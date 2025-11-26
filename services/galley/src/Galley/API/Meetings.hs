@@ -35,6 +35,7 @@ import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Meeting
+import Wire.API.User.Identity (EmailAddress)
 import Wire.MeetingsSubsystem qualified as Meetings
 
 createMeeting ::
@@ -116,11 +117,11 @@ addMeetingInvitation ::
   Local UserId ->
   Domain ->
   MeetingId ->
-  InviteByEmail ->
+  MeetingEmailsInvitation ->
   Sem r ()
-addMeetingInvitation zUser domain meetingId (InviteByEmail email) = do
+addMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.addInvitedEmail zUser qMeetingId email
+  success <- Meetings.addInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 removeMeetingInvitation ::
@@ -130,9 +131,9 @@ removeMeetingInvitation ::
   Local UserId ->
   Domain ->
   MeetingId ->
-  InviteByEmail ->
+  EmailAddress ->
   Sem r ()
-removeMeetingInvitation zUser domain meetingId (InviteByEmail email) = do
+removeMeetingInvitation zUser domain meetingId email = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.removeInvitedEmail zUser qMeetingId email
+  success <- Meetings.removeInvitedEmails zUser qMeetingId [email]
   unless success $ throwS @'MeetingNotFound

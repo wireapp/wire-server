@@ -39,6 +39,7 @@ import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Meeting qualified as API
+import Wire.API.PostgresMarshall
 import Wire.API.User.Identity (EmailAddress, emailAddressText, fromEmail)
 import Wire.MeetingsStore
 
@@ -62,10 +63,10 @@ interpretMeetingsStoreToPostgres =
       updateMeetingImpl meetingId title startDate endDate schedule
     DeleteMeeting meetingId ->
       deleteMeetingImpl meetingId
-    AddInvitedEmail meetingId email ->
-      addInvitedEmailImpl meetingId email
-    RemoveInvitedEmail meetingId email ->
-      removeInvitedEmailImpl meetingId email
+    AddInvitedEmails meetingId email ->
+      addInvitedEmailsImpl meetingId email
+    RemoveInvitedEmails meetingId emails ->
+      removeInvitedEmailsImpl meetingId emails
     GetOldMeetings cutoffTime batchSize ->
       getOldMeetingsImpl cutoffTime batchSize
     DeleteMeetingBatch meetingIds ->
@@ -284,52 +285,53 @@ deleteMeetingImpl qMeetingId = do
         WHERE domain = ($1 :: text) AND id :: text = ($2 :: text)
       |]
 
-addInvitedEmailImpl ::
+addInvitedEmailsImpl ::
   ( Member (Input Pool) r,
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
   Qualified API.MeetingId ->
-  EmailAddress ->
+  [EmailAddress] ->
   Sem r ()
-addInvitedEmailImpl qMeetingId email = do
+addInvitedEmailsImpl qMeetingId emails = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
     session :: Session ()
-    session = statement (fromEmail email, _domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) addEmailStatement
+    session = statement (fromEmail <$> emails, _domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) addEmailStatement
 
-    addEmailStatement :: Statement (Text, Text, Text) ()
+    addEmailStatement :: Statement ([Text], Text, Text) ()
     addEmailStatement =
-      [resultlessStatement|
+      lmapPG @_ @(V.Vector _, _, _)
+        [resultlessStatement|
         UPDATE meetings
-        SET invited_emails = array_append(invited_emails, $1 :: text)
+        SET invited_emails = array_cat(invited_emails, $1 :: text[])
         WHERE domain = ($2 :: text) AND id :: text = ($3 :: text)
-          AND NOT ($1 :: text = ANY(invited_emails))
       |]
 
-removeInvitedEmailImpl ::
+removeInvitedEmailsImpl ::
   ( Member (Input Pool) r,
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
   Qualified API.MeetingId ->
-  EmailAddress ->
+  [EmailAddress] ->
   Sem r ()
-removeInvitedEmailImpl qMeetingId email = do
+removeInvitedEmailsImpl qMeetingId emails = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
     session :: Session ()
-    session = statement (fromEmail email, _domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) removeEmailStatement
+    session = statement (fromEmail <$> emails, _domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) removeEmailStatement
 
-    removeEmailStatement :: Statement (Text, Text, Text) ()
+    removeEmailStatement :: Statement ([Text], Text, Text) ()
     removeEmailStatement =
-      [resultlessStatement|
-        UPDATE meetings
-        SET invited_emails = array_remove(invited_emails, $1 :: text)
+      lmapPG @_ @(V.Vector _, _, _)
+        [resultlessStatement|
+        UPDATE meetings M
+        SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[])))
         WHERE domain = ($2 :: text) AND id :: text = ($3 :: text)
       |]
 

@@ -79,7 +79,6 @@ data NewMeeting = NewMeeting
   { startDate :: UTCTime,
     endDate :: UTCTime,
     schedule :: Maybe Text,
-    conversationId :: Maybe (Qualified ConvId),
     title :: Text,
     invitedEmails :: [EmailAddress]
   }
@@ -94,7 +93,6 @@ instance ToSchema NewMeeting where
         <$> (.startDate) .= field "start_date" utcTimeSchema
         <*> (.endDate) .= field "end_date" utcTimeSchema
         <*> (.schedule) .= maybe_ (optField "schedule" schema)
-        <*> (.conversationId) .= maybe_ (optField "qualified_conversation" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= field "invited_emails" (array schema)
 
@@ -119,15 +117,15 @@ instance ToSchema UpdateMeeting where
         <*> (.schedule) .= maybe_ (optField "schedule" schema)
 
 -- | Request to add/remove invited email
-newtype InviteByEmail = InviteByEmail
-  { email :: EmailAddress
+newtype MeetingEmailsInvitation = MeetingEmailsInvitation
+  { emails :: [EmailAddress]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema InviteByEmail)
-  deriving (Arbitrary) via (GenericUniform InviteByEmail)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingEmailsInvitation)
+  deriving (Arbitrary) via (GenericUniform MeetingEmailsInvitation)
 
-instance ToSchema InviteByEmail where
+instance ToSchema MeetingEmailsInvitation where
   schema =
-    objectWithDocModifier "InviteByEmail" (description ?~ "Email invitation") $
-      InviteByEmail
-        <$> (.email) .= field "email" schema
+    objectWithDocModifier "MeetingEmailsInvitation" (description ?~ "Emails invitation") $
+      MeetingEmailsInvitation
+        <$> (.emails) .= field "emails" (array schema)

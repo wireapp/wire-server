@@ -48,15 +48,15 @@ data MeetingsSubsystem m a where
     Local UserId ->
     Qualified MeetingId ->
     MeetingsSubsystem m Bool
-  AddInvitedEmail ::
+  AddInvitedEmails ::
     Local UserId ->
     Qualified MeetingId ->
-    EmailAddress ->
+    [EmailAddress] ->
     MeetingsSubsystem m Bool
-  RemoveInvitedEmail ::
+  RemoveInvitedEmails ::
     Local UserId ->
     Qualified MeetingId ->
-    EmailAddress ->
+    [EmailAddress] ->
     MeetingsSubsystem m Bool
   -- Cleanup operation
   CleanupOldMeetings ::

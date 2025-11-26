@@ -53,10 +53,10 @@ interpretMeetingsSubsystem = interpret $ \case
     updateMeetingImpl zUser meetingId update
   DeleteMeeting zUser meetingId ->
     deleteMeetingImpl zUser meetingId
-  AddInvitedEmail zUser meetingId email ->
-    addInvitedEmailImpl zUser meetingId email
-  RemoveInvitedEmail zUser meetingId email ->
-    removeInvitedEmailImpl zUser meetingId email
+  AddInvitedEmails zUser meetingId emails ->
+    addInvitedEmailsImpl zUser meetingId emails
+  RemoveInvitedEmails zUser meetingId emails ->
+    removeInvitedEmailsImpl zUser meetingId emails
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
 
@@ -73,43 +73,39 @@ createMeetingImpl zUser newMeeting = do
   meetingId <- liftIO $ MeetingId <$> UUIDV4.nextRandom
   let qMeetingId = tUntagged (qualifyAs zUser meetingId)
 
-  -- Use provided conversation or create a new one with MeetingConversation type
-  qConvId <- case newMeeting.conversationId of
-    Just cid -> pure cid
-    Nothing -> do
-      -- Generate new conversation ID
-      convId <- liftIO $ randomId
-      let lConvId = qualifyAs zUser convId
+  -- Generate new conversation ID
+  convId <- liftIO $ randomId
+  let lConvId = qualifyAs zUser convId
 
-      -- Create conversation metadata for a meeting
-      let metadata =
-            ConversationMetadata
-              { cnvmType = RegularConv,
-                cnvmCreator = Just (tUnqualified zUser),
-                cnvmAccess = [],
-                cnvmAccessRoles = Set.empty,
-                cnvmName = Just newMeeting.title,
-                cnvmTeam = Nothing,
-                cnvmMessageTimer = Nothing,
-                cnvmReceiptMode = Nothing,
-                cnvmGroupConvType = Just MeetingConversation,
-                cnvmChannelAddPermission = Nothing,
-                cnvmCellsState = CellsDisabled,
-                cnvmParent = Nothing
-              }
+  -- Create conversation metadata for a meeting
+  let metadata =
+        ConversationMetadata
+          { cnvmType = RegularConv,
+            cnvmCreator = Just (tUnqualified zUser),
+            cnvmAccess = [],
+            cnvmAccessRoles = Set.empty,
+            cnvmName = Just newMeeting.title,
+            cnvmTeam = Nothing,
+            cnvmMessageTimer = Nothing,
+            cnvmReceiptMode = Nothing,
+            cnvmGroupConvType = Just MeetingConversation,
+            cnvmChannelAddPermission = Nothing,
+            cnvmCellsState = CellsDisabled,
+            cnvmParent = Nothing
+          }
 
-      -- Create conversation with the meeting creator as the only member (admin role)
-      let newConv =
-            NewConversation
-              { metadata = metadata,
-                users = UserList [(tUnqualified zUser, roleNameWireAdmin)] [],
-                protocol = BaseProtocolProteusTag,
-                groupId = Nothing
-              }
+  -- Create conversation with the meeting creator as the only member (admin role)
+  let newConv =
+        NewConversation
+          { metadata = metadata,
+            users = UserList [(tUnqualified zUser, roleNameWireAdmin)] [],
+            protocol = BaseProtocolProteusTag,
+            groupId = Nothing
+          }
 
-      -- Store the conversation
-      storedConv <- ConvStore.upsertConversation lConvId newConv
-      pure $ tUntagged (qualifyAs zUser storedConv.id_)
+  -- Store the conversation
+  storedConv <- ConvStore.upsertConversation lConvId newConv
+  let qConvId = tUntagged (qualifyAs zUser storedConv.id_)
 
   -- Determine trial status
   -- TODO: Check if user is a paying customer via Feature
@@ -248,13 +244,13 @@ deleteMeetingImpl zUser meetingId = do
 
           pure True
 
-addInvitedEmailImpl ::
+addInvitedEmailsImpl ::
   (Member Store.MeetingsStore r) =>
   Local UserId ->
   Qualified MeetingId ->
-  EmailAddress ->
+  [EmailAddress] ->
   Sem r Bool
-addInvitedEmailImpl zUser meetingId email = do
+addInvitedEmailsImpl zUser meetingId emails = do
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
@@ -265,16 +261,16 @@ addInvitedEmailImpl zUser meetingId email = do
         then pure False
         else do
           -- Add invited email
-          Store.addInvitedEmail meetingId email
+          Store.addInvitedEmails meetingId emails
           pure True
 
-removeInvitedEmailImpl ::
+removeInvitedEmailsImpl ::
   (Member Store.MeetingsStore r) =>
   Local UserId ->
   Qualified MeetingId ->
-  EmailAddress ->
+  [EmailAddress] ->
   Sem r Bool
-removeInvitedEmailImpl zUser meetingId email = do
+removeInvitedEmailsImpl zUser meetingId emails = do
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
@@ -285,7 +281,7 @@ removeInvitedEmailImpl zUser meetingId email = do
         then pure False
         else do
           -- Remove invited email
-          Store.removeInvitedEmail meetingId email
+          Store.removeInvitedEmails meetingId emails
           pure True
 
 cleanupOldMeetingsImpl ::

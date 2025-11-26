@@ -25,6 +25,7 @@ import Wire.API.Meeting
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.User.Identity (EmailAddress)
 
 type MeetingsAPI =
   Named
@@ -100,7 +101,7 @@ type MeetingsAPI =
                :> "invitations"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
-               :> ReqBody '[JSON] InviteByEmail
+               :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'POST
                     '[JSON]
@@ -117,9 +118,10 @@ type MeetingsAPI =
                :> "invitations"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
-               :> ReqBody '[JSON] InviteByEmail
+               :> Capture "email" EmailAddress
+               :> "delete"
                :> MultiVerb
-                    'DELETE
+                    'POST
                     '[JSON]
                     '[RespondEmpty 200 "Invitation removed"]
                     ()

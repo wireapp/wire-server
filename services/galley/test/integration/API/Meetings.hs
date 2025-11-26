@@ -57,8 +57,8 @@ tests s =
       test s "DELETE /meetings/:domain/:id - delete meeting unauthorized (404)" testMeetingDeleteUnauthorized,
       test s "POST /meetings/:domain/:id/invitations - add invitation" testMeetingAddInvitation,
       test s "POST /meetings/:domain/:id/invitations - meeting not found (404)" testMeetingAddInvitationNotFound,
-      test s "DELETE /meetings/:domain/:id/invitations - remove invitation" testMeetingRemoveInvitation,
-      test s "DELETE /meetings/:domain/:id/invitations - meeting not found (404)" testMeetingRemoveInvitationNotFound
+      test s "POST /meetings/:domain/:id/invitations/:email/delete - remove invitation" testMeetingRemoveInvitation,
+      test s "POST /meetings/:domain/:id/invitations/:email/delete - meeting not found (404)" testMeetingRemoveInvitationNotFound
     ]
 
 testMeetingCreate :: TestM ()
@@ -426,7 +426,7 @@ testMeetingAddInvitation = do
   let meeting = responseJsonUnsafe r1 :: Meeting
       meetingId = qUnqualified meeting.id
       domain = qDomain meeting.id
-      invitation = object ["email" .= ("bob@example.com" :: Text)]
+      invitation = object ["email" .= ["bob@example.com" :: Text]]
 
   post
     ( galley
@@ -455,7 +455,7 @@ testMeetingAddInvitationNotFound = do
   uuid <- randomId
   let fakeMeetingId = MeetingId (toUUID uuid)
   localDomain <- viewFederationDomain
-  let invitation = object ["email" .= ("bob@example.com" :: Text)]
+  let invitation = object ["email" .= ["bob@example.com" :: Text]]
 
   galley <- viewGalley
   post
@@ -495,14 +495,12 @@ testMeetingRemoveInvitation = do
   let meeting = responseJsonUnsafe r1 :: Meeting
       meetingId = qUnqualified meeting.id
       domain = qDomain meeting.id
-      invitation = object ["email" .= ("alice@example.com" :: Text)]
 
-  delete
+  post
     ( galley
-        . paths ["meetings", toByteString' domain, meetingIdToBS meetingId, "invitations"]
+        . paths ["meetings", toByteString' domain, meetingIdToBS meetingId, "invitations", "alice@example.com", "delete"]
         . zUser owner
         . zConn "conn"
-        . json invitation
     )
     !!! const 200 === statusCode
 
@@ -524,14 +522,12 @@ testMeetingRemoveInvitationNotFound = do
   uuid <- randomId
   let fakeMeetingId = MeetingId (toUUID uuid)
   localDomain <- viewFederationDomain
-  let invitation = object ["email" .= ("alice@example.com" :: Text)]
 
   galley <- viewGalley
-  delete
+  post
     ( galley
-        . paths ["meetings", toByteString' localDomain, meetingIdToBS fakeMeetingId, "invitations"]
+        . paths ["meetings", toByteString' localDomain, meetingIdToBS fakeMeetingId, "invitations", "alice@example.com", "delete"]
         . zUser owner
         . zConn "conn"
-        . json invitation
     )
     !!! const 404 === statusCode
