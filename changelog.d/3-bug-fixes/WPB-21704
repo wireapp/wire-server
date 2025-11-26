@@ -1,1 +1,0 @@
-Fixed: team admin attempting to manage a channel received 403 errors when they were also a member of that channel with `conversation_role` `wire_member`

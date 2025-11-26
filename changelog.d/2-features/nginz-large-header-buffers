@@ -1,1 +1,0 @@
-Add configurable `large_client_header_buffers` to nginz helm chart for handling large SAML SSO responses

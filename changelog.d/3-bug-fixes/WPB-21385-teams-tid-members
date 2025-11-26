@@ -1,1 +1,0 @@
-Filter out non-searchable team members in `GET /teams/:tid/members`
