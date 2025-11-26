@@ -114,6 +114,8 @@ import Wire.ExternalAccess.External
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
+import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
+import Wire.MeetingsSubsystem.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -306,6 +308,8 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
+        . mapError toResponse -- ErrorS 'InvalidOperation
+        . mapError toResponse -- ErrorS 'MeetingNotFound
         . mapError toResponse
         . mapError toResponse
         . mapError rateLimitExceededToHttpError
@@ -336,6 +340,7 @@ evalGalley e =
         . interpretProposalStoreToCassandra
         . interpretCodeStoreToCassandra
         . interpretClientStoreToCassandra
+        . interpretMeetingsStoreToPostgres
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
@@ -347,6 +352,7 @@ evalGalley e =
         . interpretExternalAccess (e ^. extEnv)
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretConversationSubsystem
+        . interpretMeetingsSubsystem
         . interpretTeamCollaboratorsSubsystem
         . interpretSparAccess
   where

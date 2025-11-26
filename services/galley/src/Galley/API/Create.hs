@@ -413,6 +413,8 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       -- so we don't allow an external partner to create an MLS group conversation at all
       when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
         void $ permissionCheck AddRemoveConvMember teamAssociation
+    MeetingConversation ->
+      throwS @OperationDenied
 
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
