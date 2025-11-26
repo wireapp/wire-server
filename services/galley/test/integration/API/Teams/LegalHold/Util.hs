@@ -43,7 +43,6 @@ import Data.ByteString.Conversion
 import Data.CallStack
 import Data.Id
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.PEM
 import Data.Streaming.Network (bindRandomPortTCP)
@@ -487,10 +486,10 @@ instance FromJSON Ev.ConnectionEvent where
 assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (a -> Assertion) -> m ()
 assertNotification ws predicate =
   void . liftIO . WS.assertMatch (5 WS.# WS.Second) ws $ \notif -> do
-    unless ((NonEmpty.length . List1.toNonEmpty $ ntfPayload $ notif) == 1) $
+    unless ((NonEmpty.length (ntfPayload notif)) == 1) $
       error $
         "not suppored by test helper: event with more than one object in the payload: " <> cs (Aeson.encode notif)
-    let j = Aeson.Object $ List1.head (ntfPayload notif)
+    let j = Aeson.Object $ NonEmpty.head (ntfPayload notif)
     case Aeson.fromJSON j of
       Aeson.Success x -> predicate x
       Aeson.Error s -> error $ s ++ " in " ++ cs (Aeson.encode j)

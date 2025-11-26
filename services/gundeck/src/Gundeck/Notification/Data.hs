@@ -31,8 +31,8 @@ import Control.Lens ((^.), _1)
 import Data.Aeson qualified as JSON
 import Data.ByteString.Lazy qualified as BSL
 import Data.Id
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
 import Data.Sequence qualified as Seq
@@ -63,13 +63,13 @@ type PayloadId = Id 'Payload
 add ::
   (MonadClient m, MonadUnliftIO m) =>
   NotificationId ->
-  List1 NotificationTarget ->
-  List1 JSON.Object ->
+  NonEmpty NotificationTarget ->
+  NonEmpty JSON.Object ->
   NotificationTTL ->
   m ()
 add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
   -- inline payload when there is exactly one target
-  let inlinePayload = null (NonEmpty.tail (toNonEmpty tgts))
+  let inlinePayload = null (NonEmpty.tail tgts)
   if inlinePayload
     then do
       pooledForConcurrentlyN_ 32 tgts $ \tgt ->

@@ -32,6 +32,7 @@ import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
@@ -292,7 +293,7 @@ spec = describe "API" $ do
         check certIsGood expectation = do
           testIdPConfig@(_, SampleIdP _ privkey _ goodCert) <- makeTestIdPConfig
           (_, SampleIdP _ _ _ badCert) <- makeTestIdPConfig
-          let idpcfg = testIdPConfig & _1 . idpMetadata . edCertAuthnResponse .~ (cert :| [])
+          let idpcfg = testIdPConfig & _1 . idpMetadata . edCertAuthnResponse .~ NonEmpty.singleton cert
               cert = if certIsGood then goodCert else badCert
           ctx <- mkTestCtxSimple
           modifyMVar_ ctx $ pure . (ctxIdPs .~ [idpcfg])

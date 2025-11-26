@@ -21,6 +21,7 @@ module Test.Wire.API.Golden.Generated.RTCIceServer_user where
 
 import Control.Lens ((.~))
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (IpAddr (IpAddr))
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (secondsToNominalDiffTime)
@@ -61,8 +62,7 @@ testObject_RTCIceServer_user_1 =
 testObject_RTCIceServer_user_2 :: RTCIceServer
 testObject_RTCIceServer_user_2 =
   rtcIceServer
-    ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP)
-        :| []
+    ( NonEmpty.singleton (turnURI SchemeTurn (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP))
     )
     ( turnUsername (secondsToNominalDiffTime 3.000000000000) "a8kdffu4"
         & tuVersion .~ 5

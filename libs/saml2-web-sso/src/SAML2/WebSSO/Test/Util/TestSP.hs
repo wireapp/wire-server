@@ -28,7 +28,7 @@ import Control.Monad.Reader
 import Crypto.Random.Types (MonadRandom (..))
 import Data.EitherR
 import Data.Kind (Type)
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe
 import Data.Time
@@ -218,7 +218,7 @@ makeSampleIdPMetadata = do
     uuid <- UUID.toASCIIBytes <$> liftIO UUID.nextRandom
     pure $ [uri|https://requri.net/|] & pathL .~ ("/" <> uuid)
   (privcreds, creds, cert) <- SAML.mkSignCredsWithCert Nothing 96
-  pure $ SampleIdP (IdPMetadata issuer requri (cert :| [])) privcreds creds cert
+  pure $ SampleIdP (IdPMetadata issuer requri (NonEmpty.singleton cert)) privcreds creds cert
 
 makeIssuer :: (MonadIO m) => m Issuer
 makeIssuer = do

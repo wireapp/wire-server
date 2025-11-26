@@ -24,7 +24,6 @@ library
     Data.Id
     Data.Json.Util
     Data.LegalHold
-    Data.List1
     Data.Mailbox
     Data.Misc
     Data.Nonce

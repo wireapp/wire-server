@@ -28,7 +28,6 @@ import Data.Default
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import Data.List1 (List1 (..))
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
@@ -896,7 +895,7 @@ onMLSMessageSent domain rmm =
               )
       let recipients =
             filter (\r -> Set.member (recipientUserId r) members)
-              . map (\(u, clts) -> Recipient u (RecipientClientsSome (List1 clts)))
+              . map (\(u, clts) -> Recipient u (RecipientClientsSome clts))
               . Map.assocs
               $ rmm.recipients
       -- FUTUREWORK: support local bots

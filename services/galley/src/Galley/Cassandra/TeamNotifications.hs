@@ -31,7 +31,7 @@ import Control.Monad.Catch
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.Aeson qualified as JSON
 import Data.Id
-import Data.List1 (List1)
+import Data.List.NonEmpty hiding (splitAt, (<|))
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import Data.Sequence qualified as Seq
@@ -82,7 +82,7 @@ mkNotificationId = do
 add ::
   TeamId ->
   NotificationId ->
-  List1 JSON.Object ->
+  NonEmpty JSON.Object ->
   Client ()
 add tid nid (Blob . JSON.encode -> payload) =
   write cqlInsert (params LocalQuorum (tid, nid, payload, notificationTTLSeconds)) & retry x5

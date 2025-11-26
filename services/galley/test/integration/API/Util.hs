@@ -63,8 +63,8 @@ import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.LegalHold (defUserLegalHoldStatus)
-import Data.List.NonEmpty (NonEmpty)
-import Data.List1 as List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as LMap
 import Data.Map.Strict qualified as Map
 import Data.Misc
@@ -1753,7 +1753,7 @@ wsAssertOtr' ::
   Notification ->
   IO ()
 wsAssertOtr' evData conv usr from to txt n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= OtrMessageAdd
@@ -1768,7 +1768,7 @@ wsAssertMLSWelcome ::
   Notification ->
   IO ()
 wsAssertMLSWelcome u cid welcome n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= cid
   evtType e @?= MLSWelcome
@@ -1783,7 +1783,7 @@ wsAssertMLSMessage ::
   Notification ->
   IO ()
 wsAssertMLSMessage qcs u message n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   assertMLSMessageEvent qcs u message e
 
@@ -1793,7 +1793,7 @@ wsAssertClientRemoved ::
   Notification ->
   IO ()
 wsAssertClientRemoved cid n = do
-  let j = Object $ List1.head (ntfPayload n)
+  let j = Object $ NonEmpty.head (ntfPayload n)
   let etype = j ^? key "type" . _String
   let eclient = j ^? key "client" . key "id" . _String
   etype @?= Just "user.client-remove"
@@ -1805,7 +1805,7 @@ wsAssertClientAdded ::
   Notification ->
   IO ()
 wsAssertClientAdded cid n = do
-  let j = Object $ List1.head (ntfPayload n)
+  let j = Object $ NonEmpty.head (ntfPayload n)
   let etype = j ^? key "type" . _String
   let eclient = j ^? key "client" . key "id" . _String
   etype @?= Just "user.client-add"
@@ -1817,7 +1817,7 @@ wsIsEventOfType ::
   Notification ->
   Bool
 wsIsEventOfType t n = do
-  let j = Object $ List1.head (ntfPayload n)
+  let j = Object $ NonEmpty.head (ntfPayload n)
   let etype = j ^? key "type" . _String
   etype == Just t
 
@@ -1840,7 +1840,7 @@ assertMLSMessageEvent qcs u message e = do
 
 wsAssertMemberJoinWithRole :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   assertJoinEvent conv usr new role e
 
@@ -1864,7 +1864,7 @@ wsAssertMembersLeave ::
   Notification ->
   IO ()
 wsAssertMembersLeave conv usr leaving n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   assertLeaveEvent conv usr leaving e
 
@@ -1882,7 +1882,7 @@ assertLeaveEvent conv usr leaving e = do
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= MemberStateUpdate
@@ -1895,7 +1895,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
 
 wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessData -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= ConvAccessUpdate
@@ -1904,7 +1904,7 @@ wsAssertConvAccessUpdate conv usr new n = do
 
 wsAssertConvMessageTimerUpdate :: Qualified ConvId -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= ConvMessageTimerUpdate
@@ -1913,7 +1913,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
 
 wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
 wsAssertMemberLeave conv usr old reason n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
@@ -1925,7 +1925,7 @@ wsAssertMemberLeave conv usr old reason n = do
 
 wsAssertTyping :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> TypingStatus -> Notification -> IO ()
 wsAssertTyping conv usr ts n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= True
   evtConv e @?= conv
   evtType e @?= Conv.Typing
@@ -1995,34 +1995,34 @@ zType = header "Z-Type"
 
 -- TODO: it'd be nicer to just take a list here and handle the cases with 0
 -- users differently
-connectUsers :: UserId -> List1 UserId -> TestM ()
+connectUsers :: UserId -> NonEmpty UserId -> TestM ()
 connectUsers u us = void $ connectUsersWith expect2xx u us
 
 -- TODO: it'd be nicer to just take a list here and handle the cases with 0
 -- users differently
-connectLocalQualifiedUsers :: UserId -> List1 (Qualified UserId) -> TestM ()
+connectLocalQualifiedUsers :: UserId -> NonEmpty (Qualified UserId) -> TestM ()
 connectLocalQualifiedUsers u us = do
   localDomain <- viewFederationDomain
-  let partitionMap = indexQualified . toList . toNonEmpty $ us
+  let partitionMap = indexQualified . toList $ us
   -- FUTUREWORK: connect all users, not just those on the same domain as 'u'
   case LMap.lookup localDomain partitionMap of
     Nothing -> err
     Just [] -> err
-    Just (x : xs) -> void $ connectUsersWith expect2xx u (list1 x xs)
+    Just (x : xs) -> void $ connectUsersWith expect2xx u (x :| xs)
   where
     err = liftIO . assertFailure $ "No user on the domain with " ++ show u
 
 connectUsersUnchecked ::
   UserId ->
-  List1 UserId ->
-  TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
+  NonEmpty UserId ->
+  TestM (NonEmpty (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
 connectUsersUnchecked = connectUsersWith Imports.id
 
 connectUsersWith ::
   (Request -> Request) ->
   UserId ->
-  List1 UserId ->
-  TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
+  NonEmpty UserId ->
+  TestM (NonEmpty (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
 connectUsersWith fn u = mapM connectTo
   where
     connectTo v = do
@@ -2654,7 +2654,7 @@ aFewTimesAssertBool msg good action = do
 
 checkUserDeleteEvent :: (HasCallStack) => UserId -> WS.Timeout -> WS.WebSocket -> TestM ()
 checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
-  let j = Object $ List1.head (ntfPayload notif)
+  let j = Object $ NonEmpty.head (ntfPayload notif)
   let etype = j ^? key "type" . _String
   let euser = j ^? key "id" . _String
   etype @?= Just "user.delete"
@@ -2663,28 +2663,28 @@ checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
 checkTeamMemberJoin :: (HasCallStack) => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberJoin tid uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= True
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberJoin uid
 
 checkTeamMemberLeave :: (HasCallStack) => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= True
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberLeave usr
 
 checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= True
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamUpdate upd
 
 checkConvCreateEvent :: (MonadIO m, MonadCatch m) => (HasCallStack) => ConvId -> WS.WebSocket -> m ()
 checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvCreate
   case evtData e of
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
@@ -2697,7 +2697,7 @@ wsAssertConvCreate ::
   Notification ->
   IO ()
 wsAssertConvCreate conv eventFrom n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.ConvCreate
@@ -2712,7 +2712,7 @@ wsAssertConvCreateWithRole ::
   Notification ->
   IO ()
 wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.ConvCreate
@@ -2725,14 +2725,14 @@ wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
 checkTeamDeleteEvent :: (HasCallStack) => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamDelete
 
 checkConvDeleteEvent :: (HasCallStack) => Qualified ConvId -> TeamId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
@@ -2741,7 +2741,7 @@ checkConvDeleteEvent cid tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
 checkConvMemberLeaveEvent :: (HasCallStack) => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
+  let e = NonEmpty.head (WS.unpackPayload notif)
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
@@ -2827,7 +2827,7 @@ decodeMLSError s = case decodeMLS' s of
 
 wsAssertConvReceiptModeUpdate :: Qualified ConvId -> Qualified UserId -> ReceiptMode -> Notification -> IO ()
 wsAssertConvReceiptModeUpdate conv usr new n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= ConvReceiptModeUpdate
@@ -2845,7 +2845,7 @@ wsAssertBackendRemoveProposalWithEpoch fromUser convId idx epoch n = do
 
 wsAssertBackendRemoveProposal :: (HasCallStack) => Qualified UserId -> Qualified ConvOrSubConvId -> LeafIndex -> Notification -> IO ByteString
 wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= (.conv) <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
@@ -2874,7 +2874,7 @@ wsAssertAddProposal ::
   Notification ->
   IO ByteString
 wsAssertAddProposal fromUser convId n = do
-  let e = List1.head (WS.unpackPayload n)
+  let e = NonEmpty.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= convId
   evtType e @?= MLSMessageAdd

@@ -32,6 +32,7 @@ import Control.Lens
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Lens
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (pack, stripSuffix, unpack)
 import Database.CQL.IO as C hiding (values)
 import Database.CQL.IO.Tinylog as C (mkLogger)
@@ -66,7 +67,7 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
 
 -- | Puts the address into a list using the same signature as the other initialContacts
 initialContactsPlain :: (MonadIO m) => Text -> m (NonEmpty String)
-initialContactsPlain address = pure $ unpack address :| []
+initialContactsPlain = pure . NonEmpty.singleton . unpack
 
 -- | Use dcAwareRandomPolicy if config option filterNodesByDatacentre is set,
 -- otherwise use all available nodes with the default random policy.

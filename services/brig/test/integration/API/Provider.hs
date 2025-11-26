@@ -46,8 +46,8 @@ import Data.Handle (parseHandle)
 import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (toBase64Text)
-import Data.List1 (List1)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Misc
 import Data.PEM
@@ -274,11 +274,11 @@ testAddGetService config db brig = do
   _rs <- getService brig pid sid <!! const 200 === statusCode
   let Just svc = responseJsonMaybe _rs
   liftIO $ do
-    assertEqual "auth token" (List1.singleton <$> rsNewServiceToken srs) (Just (serviceTokens svc))
+    assertEqual "auth token" (NonEmpty.singleton <$> rsNewServiceToken srs) (Just (serviceTokens svc))
     assertEqual "name" defServiceName (serviceName svc)
     assertEqual "description" defServiceDescr (serviceDescr svc)
     assertEqual "url" defServiceUrl (serviceUrl svc)
-    assertEqual "keys" (List1.singleton (newServiceKey new)) (serviceKeyPEM <$> serviceKeys svc)
+    assertEqual "keys" (NonEmpty.singleton (newServiceKey new)) (serviceKeyPEM <$> serviceKeys svc)
     assertEqual "assets" defServiceAssets (serviceAssets svc)
     assertEqual "tags" (fromRange defServiceTags) (serviceTags svc)
     assertBool "enabled" (not (serviceEnabled svc))
@@ -349,9 +349,9 @@ testUpdateServiceConn config db brig = do
   let sid = serviceId _svc
   let Just newUrl = fromByteString "https://other.localhost/test"
   key <- randServiceKey
-  let newKeys = key `List1.cons` (serviceKeyPEM <$> serviceKeys _svc)
+  let newKeys = key NonEmpty.<| (serviceKeyPEM <$> serviceKeys _svc)
   let tok = ServiceToken (Ascii.unsafeFromText "123456")
-  let newTokens = tok `List1.cons` serviceTokens _svc
+  let newTokens = tok NonEmpty.<| serviceTokens _svc
   let upd =
         UpdateServiceConn
           { updateServiceConnUrl = Just newUrl,
@@ -1829,7 +1829,7 @@ wsAssertMemberJoin ws conv usr new = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
       \n -> do
-        let e = List1.head (unpackEvents n)
+        let e = NonEmpty.head (unpackEvents n)
         ntfTransient n @?= False
         evtConv e @?= conv
         evtType e @?= MemberJoin
@@ -1841,7 +1841,7 @@ wsAssertMemberLeave ws conv usr old = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
       \n -> do
-        let e = List1.head (unpackEvents n)
+        let e = NonEmpty.head (unpackEvents n)
         ntfTransient n @?= False
         evtConv e @?= conv
         evtType e @?= MemberLeave
@@ -1853,7 +1853,7 @@ wsAssertConvDelete ws conv from tid = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
       \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= conv
         evtType e @?= ConvDelete
@@ -1866,7 +1866,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
       \n -> do
-        let e = List1.head (unpackEvents n)
+        let e = NonEmpty.head (unpackEvents n)
         ntfTransient n @?= False
         evtConv e @?= conv
         evtType e @?= OtrMessageAdd
@@ -1947,7 +1947,7 @@ svcAssertEventuallyConvDelete buf usr cnv tid = liftIO $ do
       svcAssertEventuallyConvDelete buf usr cnv tid
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
-unpackEvents :: Notification -> List1 Event
+unpackEvents :: Notification -> NonEmpty Event
 unpackEvents = WS.unpackPayload
 
 mkMessage :: ClientId -> [(UserId, ClientId, Text)] -> Value

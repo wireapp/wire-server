@@ -34,7 +34,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 hiding (head)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
@@ -223,7 +223,7 @@ postMLSConvFail = do
   let alice = qUnqualified qalice
   let aliceClient = ClientId 0
   bob <- randomUser
-  connectUsers alice (list1 bob [])
+  connectUsers alice (NonEmpty.singleton bob)
   postConvQualified
     alice
     (Just aliceClient)
@@ -882,7 +882,7 @@ testRemoteToRemoteInSub = do
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
-      rcpts = Map.fromList [(alice, aliceC1 :| [aliceC2]), (eve, eveC :| [])]
+      rcpts = Map.fromList [(alice, aliceC1 :| [aliceC2]), (eve, NonEmpty.singleton eveC)]
       rm =
         RemoteMLSMessage
           { time = now,

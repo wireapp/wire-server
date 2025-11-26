@@ -21,7 +21,6 @@ import Control.Comonad
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import Data.List1
 import Data.Map qualified as Map
 import Data.Qualified
 import Galley.API.Push
@@ -122,7 +121,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lm.id_
       clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
-      pure $ Recipient localUserId (RecipientClientsSome (List1 clients))
+      pure $ Recipient localUserId (RecipientClientsSome clients)
 
     remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
     remoteMemberMLSClients rm = do

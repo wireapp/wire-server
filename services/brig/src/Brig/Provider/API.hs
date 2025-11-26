@@ -59,7 +59,7 @@ import Data.HavePendingInvitations
 import Data.Id
 import Data.LegalHold
 import Data.List qualified as List
-import Data.List1 (maybeList1)
+import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
   ( Fingerprint (Fingerprint),
@@ -523,11 +523,11 @@ updateServiceConn pid sid upd = do
   scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   svc <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
-  let newTokens = maybeList1 . fromRange =<< updateServiceConnTokens upd
+  let newTokens = nonEmpty . fromRange =<< updateServiceConnTokens upd
   let newEnabled = updateServiceConnEnabled upd
   let newKeyPems = fromRange <$> updateServiceConnKeys upd
   keys <- forM newKeyPems (mapM (validateServiceKey >=> maybeInvalidServiceKey))
-  let newKeys = keys >>= maybeList1
+  let newKeys = keys >>= nonEmpty
   let newFps = fmap snd <$> newKeys
   wrapClientE $ DB.updateServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
   let scon' =

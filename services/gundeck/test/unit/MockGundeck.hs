@@ -53,8 +53,9 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.IntMultiSet (IntMultiSet)
 import Data.IntMultiSet qualified as MSet
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NE
-import Data.List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Misc (Milliseconds (Ms))
 import Data.Scientific qualified as Scientific
@@ -84,9 +85,9 @@ import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumab
 -- | We really don't care about the actual payloads anywhere in these tests, just that the right
 -- ones arrive over the right connections.  So 'genPayload' is not very exhaustive, but only
 -- generates small objects with one field containing a numeric value.  It would be nice to represent
--- this in the 'Payload' type, but the 'List1 Aeson.Object' structure is used in the production
+-- this in the 'Payload' type, but the 'NonEmpty Aeson.Object' structure is used in the production
 -- code, so in the end it is more awkward than nice.
-type Payload = List1 Aeson.Object
+type Payload = NonEmpty Aeson.Object
 
 data ClientInfo = ClientInfo
   { _ciClient :: Client,
@@ -297,7 +298,7 @@ genRecipient' env uid = do
   cids <-
     QC.frequency
       [ (1, pure RecipientClientsAll),
-        (3, RecipientClientsSome <$> sublist1Of (clientIdsOfUser env uid))
+        (3, RecipientClientsSome <$> subNonEmptyOf (clientIdsOfUser env uid))
       ]
   pure $ Recipient uid route cids
 
@@ -383,7 +384,7 @@ dropSomeDevices =
           [ pure $ length cids,
             choose (1, max 1 (length cids - 1))
           ]
-      RecipientClientsSome . unsafeList1 . take numdevs
+      RecipientClientsSome . unsafeNonEmpty . take numdevs
         <$> QC.shuffle (toList cids)
 
 shrinkPushes :: [Push] -> [[Push]]
@@ -400,7 +401,7 @@ shrinkPushes = shrinkList shrinkPush
 genPayload :: Gen Payload
 genPayload = do
   num :: Int <- arbitrary
-  pure $ List1 (KeyMap.singleton "val" (Aeson.toJSON num) NE.:| [])
+  pure $ NonEmpty.singleton (KeyMap.singleton "val" (Aeson.toJSON num))
 
 genNotif :: Gen Notification
 genNotif = Notification <$> genId <*> arbitrary <*> genPayload
@@ -621,11 +622,11 @@ mockBulkPush notifs = do
 -- | persisting notification is not needed for the tests at the moment, so we do nothing here.
 mockStreamAdd ::
   NotificationId ->
-  List1 NotificationTarget ->
+  NE.NonEmpty NotificationTarget ->
   Payload ->
   NotificationTTL ->
   MockGundeck ()
-mockStreamAdd _ (toList -> targets) pay _ =
+mockStreamAdd _ (NE.toList -> targets) pay _ =
   forM_ targets $ \tgt -> case tgt ^. targetClients of
     clients@(_ : _) -> forM_ clients $ \cid ->
       msCassQueue %= deliver (tgt ^. targetUser, cid) pay
@@ -649,7 +650,7 @@ mockPushRabbitMq exchange routingKey message = do
   case Aeson.eitherDecode message.msgBody of
     Left e -> error $ "Invalid message body: " <> e
     Right (queuedNotif :: QueuedNotification) ->
-      msRabbitQueue %= deliver (exchange, routingKey) (List1 (queuedNotif ^. queuedNotificationPayload))
+      msRabbitQueue %= deliver (exchange, routingKey) (queuedNotif ^. queuedNotificationPayload)
 
 mockLookupAddresses ::
   (HasCallStack, m ~ MockGundeck) =>
@@ -703,16 +704,16 @@ instance (Aeson.ToJSON a) => Show (Pretty a) where
 shrinkPretty :: (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
-sublist1Of :: (HasCallStack) => [a] -> Gen (List1 a)
-sublist1Of [] = error "sublist1Of: empty list"
-sublist1Of xs =
+subNonEmptyOf :: (HasCallStack) => [a] -> Gen (NonEmpty a)
+subNonEmptyOf [] = error "subNonEmptyOf: empty list"
+subNonEmptyOf xs =
   sublistOf xs >>= \case
-    [] -> sublist1Of xs
-    c : cc -> pure (list1 c cc)
+    [] -> subNonEmptyOf xs
+    c : cc -> pure (c :| cc)
 
-unsafeList1 :: (HasCallStack) => [a] -> List1 a
-unsafeList1 [] = error "unsafeList1: empty list"
-unsafeList1 (x : xs) = list1 x xs
+unsafeNonEmpty :: (HasCallStack) => [a] -> NonEmpty a
+unsafeNonEmpty [] = error "unsafeNonEmpty: empty list"
+unsafeNonEmpty (x : xs) = x :| xs
 
 deliver :: (Ord key) => key -> Payload -> Map key IntMultiSet -> Map key IntMultiSet
 deliver qkey qval = Map.alter (Just . tweak) qkey
@@ -722,7 +723,7 @@ deliver qkey qval = Map.alter (Just . tweak) qkey
 
 -- | Get the number contained in the payload.
 payloadToInt :: Payload -> Int
-payloadToInt (List1 (toList -> [toList -> [Number x]]))
+payloadToInt (NE.toList -> [(toList -> [Number x])])
   | Just n <- Scientific.toBoundedInteger x = n
 payloadToInt bad = error $ "unexpected Payload: " <> show bad
 
