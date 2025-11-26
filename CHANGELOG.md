@@ -21,7 +21,9 @@
 
   PostgreSQL migration note
   - Conversation migration settings have to be aligned across galley and background-worker.
-    See `docs/src/developer/reference/config-options.md` for the full migration steps and configuration details. (#4797)
+    See `docs/src/developer/reference/config-options.md` for the full migration steps and configuration details.
+
+  (#4797)
 
 * Starting this release, existing deployments can migrate the conversation data to
   PostgreSQL from Cassandra. This is necessary for channel search and management
@@ -85,7 +87,9 @@
          migrateConversations: false
          postgresMigration:
            conversation: postgresql
-     ``` (#4810)
+     ```
+
+  (#4810)
 
 * This release introduces a **breaking change** in the `databases-ephemeral` and `redis-ephemeral` Helm charts.
 
@@ -141,7 +145,9 @@
     acquisitionTimeout: 10s
     agingTimeout: 1d
     idlenessTimeout: 10m
-  ``` (#4828)
+  ```
+
+  (#4828)
 
 * New metrics on postgres connection pool health.  Example:
 
@@ -268,7 +274,7 @@
 
 * Implement `channels` and `channelsCount` in `user-groups` endpoints. (#4776)
 
-* Add `entreprise-provisioning`, a CLI to batch provision various entities, currently, creates and associate channels to existing user-groups. (#4790)
+* Add `enterprise-provisioning`, a CLI to batch provision various entities, currently, creates and associate channels to existing user-groups. (#4790)
 
 * Brig: Add optional `email` query parameter to `GET /teams/{tid}/search` ("browse-team"). (#4774)
 
