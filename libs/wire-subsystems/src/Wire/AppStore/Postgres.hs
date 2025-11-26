@@ -55,8 +55,8 @@ createAppImpl app =
   runStatement app $
     lmapPG
       [resultlessStatement|
-        insert into apps (user_id, team_id, metadata)
-        values ($1 :: uuid, $2 :: uuid, $3 :: json) |]
+        insert into apps (user_id, team_id, metadata, category, description, author)
+        values ($1 :: uuid, $2 :: uuid, $3 :: json, $4 :: text, $5 :: text, $6 :: text) |]
 
 getAppImpl ::
   ( Member (Input Pool) r,
@@ -68,5 +68,5 @@ getAppImpl ::
 getAppImpl uid =
   runStatement uid $
     dimapPG
-      [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json) 
+      [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (author :: text)
         from apps where user_id = ($1 :: uuid) |]

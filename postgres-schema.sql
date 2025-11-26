@@ -51,7 +51,10 @@ SET default_table_access_method = heap;
 CREATE TABLE public.apps (
     user_id uuid NOT NULL,
     team_id uuid NOT NULL,
-    metadata json
+    metadata json,
+    category text,
+    description text,
+    author text
 );
 
 

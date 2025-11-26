@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -20,7 +22,9 @@ module Wire.API.App where
 import Data.Aeson qualified as A
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as TS
 import Imports
+import Data.Range
 import Wire.API.User
 import Wire.API.User.Auth
 
@@ -29,9 +33,60 @@ data NewApp = NewApp
     pict :: Pict,
     assets :: [Asset],
     accentId :: ColourId,
-    meta :: A.Object
+    meta :: A.Object,
+    category :: Category,
+    description :: Range 1 300 Text,
+    author :: Range 1 256 Text
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
+
+data Category
+  = Security
+  | Collaboration
+  | Productivity
+  | Automation
+  | Files
+  | AI
+  | Developer
+  | Support
+  | Finance
+  | HR
+  | Integration
+  | Compliance
+  | Other
+  deriving (Eq, Ord, Show, Read, Generic)
+  deriving anyclass (A.FromJSON, A.ToJSON)
+
+categoryFromText :: Text -> Either Text Category
+categoryFromText t = case attempt TS.toTitle t of -- XXX: Use ToSchema to parse Category, as the mapping between the type and lower case strings is already expressed there?
+  Left _ -> attempt TS.toUpper t
+  Right a -> Right a
+  where
+    attempt f t' = case readEither $ TS.unpack $ f t' of
+      Left err -> Left $ TS.pack err
+      Right a -> Right a
+
+categoryToText :: Category -> Text
+categoryToText = TS.toLower . TS.pack . show
+
+instance ToSchema Category where
+  schema =
+    enum @Text "Category" $
+      mconcat
+        [ element "security" Security,
+          element "collaboration" Collaboration,
+          element "productivity" Productivity,
+          element "automation" Automation,
+          element "files" Files,
+          element "ai" AI,
+          element "developer" Developer,
+          element "support" Support,
+          element "finance" Finance,
+          element "hr" HR,
+          element "integration" Integration,
+          element "compliance" Compliance,
+          element "other" Other
+        ]
 
 instance ToSchema NewApp where
   schema =
@@ -42,6 +97,9 @@ instance ToSchema NewApp where
         <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
         <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
         <*> (.meta) .= field "metadata" jsonObject
+        <*> (.category) .= field "category" schema
+        <*> (.description) .= field "description" schema
+        <*> (.author) .= field "author" schema
 
 defNewApp :: Name -> NewApp
 defNewApp name =
@@ -50,7 +108,10 @@ defNewApp name =
       pict = noPict,
       assets = [],
       accentId = defaultAccentId,
-      meta = mempty
+      meta = mempty,
+      category = Other,
+      description = unsafeRange "",
+      author = unsafeRange ""
     }
 
 data CreatedApp = CreatedApp

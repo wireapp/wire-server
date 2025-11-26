@@ -95,7 +95,10 @@ createAppImpl lusr tid new = do
         StoredApp
           { id = u.id,
             teamId = tid,
-            meta = new.meta
+            meta = new.meta,
+            category = new.category,
+            description = new.description,
+            author = new.author
           }
 
   Log.info $

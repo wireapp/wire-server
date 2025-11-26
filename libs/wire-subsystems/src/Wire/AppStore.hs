@@ -19,33 +19,48 @@
 
 module Wire.AppStore where
 
+import GHC.TypeNats
 import Data.Aeson
 import Data.Id
 import Data.UUID
 import Imports
 import Polysemy
+import Data.Range
+import Wire.API.App
 import Wire.API.PostgresMarshall
 
 data StoredApp = StoredApp
   { id :: UserId,
     teamId :: TeamId,
-    meta :: Object
+    meta :: Object,
+    category :: Category,
+    description :: Range 1 300 Text,
+    author :: Range 1 256 Text
   }
   deriving (Eq, Ord, Show)
 
-instance PostgresMarshall StoredApp (UUID, UUID, Value) where
+instance PostgresMarshall StoredApp (UUID, UUID, Value, Text, Text, Text) where
   postgresMarshall app =
     ( postgresMarshall app.id,
       postgresMarshall app.teamId,
-      postgresMarshall app.meta
+      postgresMarshall app.meta,
+      postgresMarshall (categoryToText app.category),
+      postgresMarshall (fromRange app.description),
+      postgresMarshall (fromRange app.author)
     )
 
-instance PostgresUnmarshall (UUID, UUID, Value) StoredApp where
-  postgresUnmarshall (uid, teamId, meta) =
+instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, Text) StoredApp where
+  postgresUnmarshall (uid, teamId, meta, category, description, author) =
     StoredApp
       <$> postgresUnmarshall uid
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
+      <*> (postgresUnmarshall =<< categoryFromText category)
+      <*> (inbound @1 @300 "description" =<< postgresUnmarshall description)
+      <*> (inbound @1 @256 "author" =<< postgresUnmarshall author)
+    where
+      inbound :: forall m n . (Within Text m n, KnownNat m, KnownNat n) => Text -> Text -> Either Text (Range m n Text)
+      inbound what text = maybe (Left $ what <> " out of bounds") Right (checked @m @n text)
 
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
