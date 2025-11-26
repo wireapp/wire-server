@@ -69,8 +69,6 @@ import Data.HashMap.Strict qualified as HM
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold qualified as LH
-import Data.List.Extra qualified as List
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Qualified
