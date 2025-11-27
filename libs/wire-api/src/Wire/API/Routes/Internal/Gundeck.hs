@@ -101,6 +101,7 @@ instance (HasOpenApi sub) => HasOpenApi (ReqBodyHack :> sub) where
 type InternalAPI =
   "i"
     :> ( Named "i-status" ("status" :> Get '[JSON] NoContent)
+           :<|> Named "i-drain" ("drain" :> Get '[JSON] NoContent)
            :<|> Named "i-push" ("push" :> "v2" :> ReqBody '[JSON] [Push] :> Post '[JSON] NoContent)
            :<|> ( "presences"
                     :> ( Named "i-presences-get-for-users" (QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId) :> Get '[JSON] [Presence])
