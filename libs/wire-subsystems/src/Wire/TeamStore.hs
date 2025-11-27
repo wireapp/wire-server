@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,82 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamStore
-  ( -- * Team store effect
-    TeamStore (..),
-
-    -- * Teams
-
-    -- ** Create teams
-    createTeam,
-
-    -- ** Read teams
-    getTeam,
-    getTeamName,
-    getTeamBinding,
-    getTeamsBindings,
-    getTeamCreationTime,
-    listTeams,
-    selectTeams,
-    getUserTeams,
-    getUsersTeams,
-    getOneUserTeam,
-    lookupBindingTeam,
-
-    -- ** Update teams
-    setTeamData,
-    setTeamStatus,
-
-    -- ** Delete teams
-    deleteTeam,
-
-    -- * Team Members
-
-    -- ** Create team members
-    createTeamMember,
-
-    -- ** Read team members
-    getTeamMember,
-    getTeamMembersWithLimit,
-    getTeamMembers,
-    getBillingTeamMembers,
-    getTeamAdmins,
-    selectTeamMembers,
-    selectTeamMemberInfos,
-    selectTeamMembersPaginated,
-
-    -- ** Update team members
-    setTeamMemberPermissions,
-
-    -- ** Delete team members
-    deleteTeamMember,
-
-    -- * Configuration
-    fanoutLimit,
-    getLegalHoldFlag,
-
-    -- * Events
-    enqueueTeamEvent,
-  )
-where
+module Wire.TeamStore where
 
 import Data.Id
 import Data.Range
-import Galley.Types.Teams
 import Imports
 import Polysemy
-import Proto.TeamEvents qualified as E
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import Wire.API.Team.Feature
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Member.Info (TeamMemberInfo)
 import Wire.API.Team.Permission
 import Wire.ListItems
 import Wire.Sem.Paging
-import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()
@@ -116,12 +55,6 @@ data TeamStore m a where
   GetTeamMembers :: TeamId -> TeamStore m [TeamMember]
   SelectTeamMembers :: TeamId -> [UserId] -> TeamStore m [TeamMember]
   SelectTeamMemberInfos :: TeamId -> [UserId] -> TeamStore m [TeamMemberInfo]
-  SelectTeamMembersPaginated ::
-    TeamId ->
-    [UserId] ->
-    Maybe (PagingState CassandraPaging TeamMember) ->
-    PagingBounds CassandraPaging TeamMember ->
-    TeamStore m (Page CassandraPaging TeamMember)
   -- FUTUREWORK(mangoiv): this should be a single 'TeamId' (@'Maybe' 'TeamId'@), there's no way
   -- a user could be part of multiple teams
   GetUserTeams :: UserId -> TeamStore m [TeamId]
@@ -133,9 +66,6 @@ data TeamStore m a where
   DeleteTeam :: TeamId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
-  FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
-  GetLegalHoldFlag :: TeamStore m (FeatureDefaults LegalholdConfig)
-  EnqueueTeamEvent :: E.TeamEvent -> TeamStore m ()
 
 makeSem ''TeamStore
 

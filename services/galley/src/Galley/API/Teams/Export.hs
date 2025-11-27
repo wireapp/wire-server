@@ -30,9 +30,7 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
 import Galley.Effects
-import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore (listTeamMembers)
-import Galley.Effects.TeamStore
 import Imports hiding (atomicModifyIORef, newEmptyMVar, newIORef, putMVar, readMVar, takeMVar, threadDelay, tryPutMVar)
 import Polysemy
 import Polysemy.Async
@@ -48,6 +46,9 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.SparAPIAccess qualified as Spar
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 -- | Cache of inviter handles.
 --
@@ -84,7 +85,7 @@ lookupInviter cache uid = flip onException ensureCache $ do
 
 getUserRecord ::
   ( Member BrigAPIAccess r,
-    Member Spar.SparAccess r,
+    Member SparAPIAccess r,
     Member (ErrorS TeamMemberNotFound) r,
     Member (Final IO) r,
     Member Resource r
@@ -121,15 +122,15 @@ getTeamMembersCSV ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'AccessDenied) r,
     Member (TeamMemberStore InternalPaging) r,
-    Member TeamStore r,
     Member (Final IO) r,
-    Member SparAccess r
+    Member SparAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
   Sem r LowLevelStreamingBody
 getTeamMembersCSV lusr tid = do
-  getTeamMember tid (tUnqualified lusr) >>= \case
+  TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 

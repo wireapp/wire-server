@@ -70,6 +70,7 @@ module Wire.API.Team.Member
     rolePermissions,
     IsPerm (..),
     HiddenPerm (..),
+    mkSingleTeamMembersPage,
   )
 where
 
@@ -236,6 +237,15 @@ type TeamMembersPage' = MultiTablePage TeamMembersPagingName "members" TeamMembe
 newtype TeamMembersPage = TeamMembersPage {unTeamMembersPage :: TeamMembersPage'}
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMembersPage)
+
+mkSingleTeamMembersPage :: [TeamMemberOptPerms] -> TeamMembersPage
+mkSingleTeamMembersPage members =
+  TeamMembersPage
+    MultiTablePage
+      { mtpResults = members,
+        mtpHasMore = False,
+        mtpPagingState = MultiTablePagingState TeamMembersTable Nothing
+      }
 
 instance ToSchema TeamMembersPage where
   schema =

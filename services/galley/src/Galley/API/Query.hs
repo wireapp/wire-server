@@ -79,7 +79,6 @@ import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.TeamStore qualified as E
 import Galley.Env
 import Galley.Options
 import Imports
@@ -118,13 +117,15 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 getBotConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   BotId ->
   ConvId ->
@@ -151,7 +152,7 @@ getUnqualifiedOwnConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConvId ->
@@ -165,7 +166,7 @@ getUnqualifiedConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConvId ->
@@ -182,7 +183,7 @@ getConversation ::
     Member (Error FederationError) r,
     Member FederatorAccess r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -203,7 +204,7 @@ getOwnConversation ::
     Member (Error InternalError) r,
     Member FederatorAccess r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -361,7 +362,7 @@ getConversationRoles ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConvId ->
@@ -640,11 +641,11 @@ getConversationByReusableCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Key ->
@@ -685,14 +686,14 @@ getConversationGuestLinksStatus ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   ConvId ->
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
-  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember uid) conv.metadata.cnvmTeam
+  mTeamMember <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember uid) conv.metadata.cnvmTeam
   ensureConvAdmin conv uid mTeamMember
   getConversationGuestLinksFeatureStatus (Data.convTeam conv)
 
@@ -780,7 +781,8 @@ getMLSOne2OneConversationV5 ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -801,7 +803,8 @@ getMLSOne2OneConversationInternal ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -820,7 +823,8 @@ getMLSOne2OneConversationV6 ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -846,7 +850,8 @@ getMLSOne2OneConversation ::
     Member FederatorAccess r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -994,7 +999,7 @@ searchChannels ::
   ( Member ConversationStore r,
     Member (ErrorS NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -1007,7 +1012,7 @@ searchChannels ::
   Sem r ConversationPage
 searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
   r <- runError @(Tagged OperationDenied ()) $ do
-    mem <- E.getTeamMember tid (tUnqualified lusr)
+    mem <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
     void $ permissionCheck SearchChannels mem
   case r of
     Left e | not discoverable -> throw e

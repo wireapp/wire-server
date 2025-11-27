@@ -78,8 +78,9 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           AddTeamMember id' id'' a b -> addTeamMember id' id'' a b
           CreateTeam id' bnt id'' -> createTeam id' bnt id''
           GetTeamMember id' id'' -> getTeamMember id' id''
-          GetTeamMembers tid maxResults -> getTeamMembers tid maxResults
+          GetTeamMembersWithLimit tid maxResults -> getTeamMembersWithLimit tid maxResults
           SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
+          SelectTeamMembers tid uids -> selectTeamMembers tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -88,6 +89,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetFeatureConfigForTeam tid -> getFeatureConfigForTeam tid
           GetUserLegalholdStatus id' tid -> getUserLegalholdStatus id' tid
           ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
+          FinalizeDeleteTeam lusr mconn tid -> finalizeDeleteTeam lusr mconn tid
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
@@ -338,7 +340,7 @@ getTeamMember u tid = do
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
-getTeamMembers ::
+getTeamMembersWithLimit ::
   ( Member (Error ParseException) r,
     Member Rpc r,
     Member (Input Endpoint) r,
@@ -347,7 +349,7 @@ getTeamMembers ::
   TeamId ->
   Maybe (Range 1 HardTruncationLimit Int32) ->
   Sem r TeamMemberList
-getTeamMembers tid maxResults = do
+getTeamMembersWithLimit tid maxResults = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
@@ -374,6 +376,25 @@ selectTeamMemberInfos tid uids = do
     req bdy =
       method GET
         . paths ["i", "teams", toByteString' tid, "members", "by-ids"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode bdy)
+        . expect2xx
+
+selectTeamMembers ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  TeamId ->
+  [UserId] ->
+  Sem r [TeamMember]
+selectTeamMembers tid uids = do
+  let bdy = UserIds uids
+  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  where
+    req bdy =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "members", "get-by-ids"]
         . header "Content-Type" "application/json"
         . lbytes (encode bdy)
         . expect2xx
@@ -576,6 +597,24 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+finalizeDeleteTeam ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  TeamId ->
+  Sem r ()
+finalizeDeleteTeam lusr mconn tid = do
+  void $ galleyRequest req
+  where
+    req =
+      method POST
+        . paths ["i", "teams", toByteString' tid, "finalize-delete"]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) mconn
+        . expect2xx
 
 getTeamExposeInvitationURLsToTeamAdmin ::
   ( Member Rpc r,

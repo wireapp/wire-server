@@ -30,9 +30,9 @@
 -- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
-import Brig.Types.Test.Arbitrary (Arbitrary (..))
 import Control.Lens (view)
 import Imports
+import Test.QuickCheck (Arbitrary (..))
 import Test.QuickCheck.Gen (elements)
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.User as Scim.User

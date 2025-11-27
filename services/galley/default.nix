@@ -6,7 +6,6 @@
 , aeson
 , aeson-qq
 , amazonka
-, amazonka-sqs
 , amqp
 , asn1-encoding
 , asn1-types
@@ -32,7 +31,6 @@
 , currency-codes
 , data-default
 , data-timeout
-, enclosed-exceptions
 , errors
 , exceptions
 , extended
@@ -77,7 +75,6 @@
 , quickcheck-instances
 , random
 , raw-strings-qq
-, resourcet
 , retry
 , safe-exceptions
 , servant
@@ -101,7 +98,6 @@
 , text
 , time
 , tinylog
-, tls
 , transformers
 , types-common
 , types-common-aws
@@ -135,13 +131,11 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
-    amazonka-sqs
     amqp
     asn1-encoding
     asn1-types
     async
     base
-    base64-bytestring
     bilge
     brig-types
     bytestring
@@ -153,10 +147,8 @@ mkDerivation {
     containers
     crypton
     crypton-x509
-    currency-codes
     data-default
     data-timeout
-    enclosed-exceptions
     errors
     exceptions
     extended
@@ -183,9 +175,7 @@ mkDerivation {
     polysemy-conc
     polysemy-wire-zoo
     prometheus-client
-    proto-lens
     raw-strings-qq
-    resourcet
     retry
     safe-exceptions
     servant
@@ -201,11 +191,9 @@ mkDerivation {
     text
     time
     tinylog
-    tls
     transformers
     types-common
     types-common-aws
-    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring

@@ -41,7 +41,6 @@ import Galley.API.Internal
 import Galley.API.Public.Servant
 import Galley.App
 import Galley.App qualified as App
-import Galley.Aws (awsEnv)
 import Galley.Cassandra
 import Galley.Env
 import Galley.Monad
@@ -67,6 +66,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.AWS (awsEnv)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.PostgresMigrations (runAllMigrations)
 

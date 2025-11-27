@@ -392,7 +392,7 @@ runBrigToIO e (AppT ma) = do
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
-              . intepreterTeamSubsystemToGalleyAPI
+              . interpretTeamSubsystemToGalleyAPI
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem

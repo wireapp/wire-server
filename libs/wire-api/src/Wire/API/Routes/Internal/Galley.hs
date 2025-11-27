@@ -265,6 +265,12 @@ type ITeamsAPIBase =
                         :> Get '[JSON] TeamMemberInfoList
                     )
              :<|> Named
+                    "unchecked-select-team-members"
+                    ( "get-by-ids"
+                        :> ReqBody '[JSON] UserIds
+                        :> Post '[JSON] [TeamMember]
+                    )
+             :<|> Named
                     "unchecked-get-team-member"
                     ( Capture "uid" UserId
                         :> CanThrow 'TeamMemberNotFound
@@ -303,6 +309,13 @@ type ITeamsAPIBase =
                :> CanThrow 'TeamMemberNotFound
                :> CanThrow 'NotATeamMember
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "User is team owner")
+           )
+    :<|> Named
+           "finalize-delete-team"
+           ( "finalize-delete"
+               :> ZLocalUser
+               :> ZOptConn
+               :> PostNoContent
            )
     :<|> "search-visibility"
       :> ( Named "get-search-visibility-internal" (Get '[JSON] TeamSearchVisibilityView)

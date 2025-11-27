@@ -62,6 +62,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.StoredConversation
+import Wire.TeamSubsystem (TeamSubsystem)
 
 processInternalCommit ::
   forall r.
@@ -77,7 +78,8 @@ processInternalCommit ::
     Member Resource r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->
@@ -256,7 +258,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     pure events
 
 addMembers ::
-  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r) =>
+  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r, Member TeamSubsystem r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -280,7 +282,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure []
 
 removeMembers ::
-  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r) =>
+  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r, Member TeamSubsystem r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->

@@ -70,6 +70,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.TeamSubsystem (TeamSubsystem)
 
 type MLSGetSubConvStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -84,7 +85,7 @@ getSubConversation ::
     Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
     Member (Error FederationError) r,
     Member FederatorAccess r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -102,7 +103,7 @@ getLocalSubConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -209,8 +210,8 @@ deleteSubConversation ::
     Member FederatorAccess r,
     Member (Input Env) r,
     Member Resource r,
-    Member TeamStore r,
-    Member Eff.MLSCommitLockStore r
+    Member Eff.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -283,8 +284,8 @@ leaveSubConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
-    Member TeamStore r,
-    Member Eff.MLSCommitLockStore r
+    Member Eff.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ClientId ->
@@ -309,8 +310,8 @@ leaveLocalSubConversation ::
     Member (Error FederationError) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
-    Member TeamStore r,
-    Member Eff.MLSCommitLockStore r
+    Member Eff.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   ClientIdentity ->
   Local ConvId ->
@@ -382,8 +383,8 @@ resetLocalSubConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member Resource r,
-    Member TeamStore r,
-    Member Eff.MLSCommitLockStore r
+    Member Eff.MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local ConvId ->

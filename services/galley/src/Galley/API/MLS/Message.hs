@@ -59,7 +59,6 @@ import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.TeamStore qualified as TeamStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -92,6 +91,8 @@ import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -181,7 +182,8 @@ postMLSCommitBundle ::
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -210,7 +212,8 @@ postMLSCommitBundleFromLocalUser ::
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Version ->
   Local UserId ->
@@ -243,7 +246,8 @@ postMLSCommitBundleToLocalConv ::
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   ClientId ->

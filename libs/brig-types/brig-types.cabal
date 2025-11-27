@@ -14,7 +14,6 @@ library
   exposed-modules:
     Brig.Types.Activation
     Brig.Types.Connection
-    Brig.Types.Instances
     Brig.Types.Intra
     Brig.Types.Provider.Tag
     Brig.Types.Team
@@ -72,13 +71,12 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base                   >=4    && <5
-    , bytestring-conversion  >=0.2
+      base            >=4    && <5
     , cassandra-util
-    , containers             >=0.5
+    , containers      >=0.5
     , imports
-    , QuickCheck             >=2.9
-    , types-common           >=0.16
+    , QuickCheck      >=2.9
+    , types-common    >=0.16
     , wire-api
 
   default-language:   GHC2021

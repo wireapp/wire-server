@@ -305,7 +305,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . miniGalleyAPIAccess teams galleyConfigs
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
-    . intepreterTeamSubsystemToGalleyAPI
+    . interpretTeamSubsystemToGalleyAPI
 
 type StateEffects =
   '[ State [Push],

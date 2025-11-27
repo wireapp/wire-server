@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,14 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Journal
-  ( teamActivate,
-    teamUpdate,
-    teamDelete,
-    teamSuspend,
-    evData,
-  )
-where
+module Wire.TeamJournal where
 
 import Control.Lens
 import Data.Currency qualified as Currency
@@ -31,15 +26,20 @@ import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Data.Time.Clock.POSIX
-import Galley.Effects.TeamStore
-import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
 import Polysemy
-import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
+import Proto.TeamEvents (TeamEvent, TeamEvent'EventData, TeamEvent'EventType (..))
 import Proto.TeamEvents_Fields qualified as T
+import Wire.API.Team (TeamCreationTime (..))
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
+import Wire.TeamStore
+
+data TeamJournal m a where
+  EnqueueTeamEvent :: TeamEvent -> TeamJournal m ()
+
+makeSem ''TeamJournal
 
 -- Note [journaling]
 -- ~~~~~~~~~~~~~~~~~
@@ -48,7 +48,8 @@ import Wire.Sem.Now qualified as Now
 
 teamActivate ::
   ( Member Now r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamJournal r
   ) =>
   TeamId ->
   Natural ->
@@ -60,8 +61,8 @@ teamActivate tid teamSize cur time = do
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize owners cur) time
 
 teamUpdate ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamJournal r
   ) =>
   TeamId ->
   Natural ->
@@ -71,24 +72,24 @@ teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamJournal r
   ) =>
   TeamId ->
   Sem r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamJournal r
   ) =>
   TeamId ->
   Sem r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
-  ( Member TeamStore r,
-    Member Now r
+  ( Member Now r,
+    Member TeamJournal r
   ) =>
   TeamEvent'EventType ->
   TeamId ->
@@ -98,7 +99,7 @@ journalEvent ::
 journalEvent typ tid dat tim = do
   -- writetime is in microseconds in cassandra 3.11
   now <- round . utcTimeToPOSIXSeconds <$> Now.get
-  let ts = maybe now ((`div` 1000000) . view tcTime) tim
+  let ts = maybe now ((`div` 1000000) . _tcTime) tim
       ev =
         defMessage
           & T.eventType .~ typ

@@ -43,6 +43,7 @@ import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
 
 resetMLSConversation ::
   ( Member (Input Env) r,
@@ -68,10 +69,10 @@ resetMLSConversation ::
     Member ProposalStore r,
     Member Random r,
     Member Resource r,
-    Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   MLSReset ->

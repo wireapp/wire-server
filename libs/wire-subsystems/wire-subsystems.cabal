@@ -80,6 +80,7 @@ common common-all
     , amazonka
     , amazonka-core
     , amazonka-ses
+    , amazonka-sqs
     , amqp
     , async
     , attoparsec
@@ -106,6 +107,7 @@ common common-all
     , extended
     , extra
     , file-embed
+    , galley-types
     , hashable
     , HaskellNet
     , HaskellNet-SSL
@@ -141,6 +143,7 @@ common common-all
     , polysemy-wire-zoo
     , profunctors
     , prometheus-client
+    , proto-lens
     , QuickCheck
     , raw-strings-qq
     , resource-pool
@@ -166,6 +169,7 @@ common common-all
     , token-bucket
     , transformers
     , types-common
+    , types-common-journal
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -263,6 +267,10 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.LegalHoldStore
+    Wire.LegalHoldStore.Cassandra
+    Wire.LegalHoldStore.Cassandra.Queries
+    Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
@@ -298,8 +306,14 @@ library
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
+    Wire.TeamJournal
+    Wire.TeamJournal.Aws
+    Wire.TeamStore
+    Wire.TeamStore.Cassandra
+    Wire.TeamStore.Cassandra.Queries
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
+    Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
@@ -405,6 +419,7 @@ library
     , time-out
     , time-units
     , tinylog
+    , tls
     , token-bucket
     , transformers
     , types-common

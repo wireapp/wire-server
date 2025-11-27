@@ -53,26 +53,29 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.Error
-import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
-import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
+  ( interpretInternalTeamListToCassandra,
+    interpretTeamListToCassandra,
+    interpretTeamMemberStoreToCassandra,
+    interpretTeamMemberStoreToCassandraWithPaging,
+  )
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
-import Galley.Intra.Effects
+import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Intra.Federator
 import Galley.Keys
+import Galley.Monad (runApp)
 import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
-import Galley.TeamSubsystem (interpretTeamSubsystem)
 import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
@@ -104,6 +107,7 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
@@ -114,6 +118,8 @@ import Wire.ExternalAccess.External
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
+import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
+import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.RateLimit
@@ -123,8 +129,12 @@ import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
+import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamJournal.Aws
+import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
+import Wire.TeamSubsystem.Interpreter
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
@@ -193,7 +203,7 @@ createEnv o l = do
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
     <*> initExtEnv disableTlsV1
-    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
+    <*> maybe (pure Nothing) (\jo -> fmap Just (Aws.mkEnv l mgr (jo ^. O.endpoint) (jo ^. O.queueName))) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
     <*> pure codeURIcfg
@@ -274,6 +284,10 @@ evalGalley e =
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretConversationStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
+      teamSubsystemConfig =
+        TeamSubsystemConfig
+          { concurrentDeletionEvents = fromMaybe defConcurrentDeletionEvents e._options._settings._concurrentDeletionEvents
+          }
       backendNotificationQueueAccessEnv =
         case e._rabbitmqChannel of
           Nothing -> Nothing
@@ -316,6 +330,7 @@ evalGalley e =
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
         . runInputSem getAllTeamFeaturesForServer
+        . runInputConst (currentFanoutLimit (e ^. options))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
@@ -323,12 +338,14 @@ evalGalley e =
         . interpretTeamFeatureStoreToCassandra
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
-        . interpretTeamStoreToCassandra lh
         . interpretTeamNotificationStoreToCassandra
         . interpretServiceStoreToCassandra (e ^. cstate)
         . interpretUserGroupStoreToPostgres
-        . interpretSearchVisibilityStoreToCassandra
+        . runInputConst legalHoldEnv
         . interpretLegalHoldStoreToCassandra lh
+        . interpretTeamJournal (e ^. aEnv)
+        . interpretTeamStoreToCassandra
+        . interpretSearchVisibilityStoreToCassandra
         . interpretCustomBackendStoreToCassandra
         . randomToIO
         . runHashPassword e._options._settings._passwordHashingOptions
@@ -342,19 +359,22 @@ evalGalley e =
         . interpretFederatorAccess
         . runRpcWithHttp (e ^. manager) (e ^. reqId)
         . runGundeckAPIAccess (e ^. options . gundeck)
-        . interpretTeamSubsystem
         . interpretBrigAccess (e ^. brig)
         . interpretExternalAccess (e ^. extEnv)
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+        . interpretSparAPIAccessToRpc (e ^. options . spar)
+        . interpretTeamSubsystem teamSubsystemConfig
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
-        . interpretSparAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
+    legalHoldEnv =
+      let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)
+          makeReqFresh fpr url rb = runApp e (LHInternal.makeVerifiedRequestFreshManager fpr url rb)
+       in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
 
-interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext :: Env -> Sem (Input (FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =
   runInputConst
-    ( e ^. options . settings . exposeInvitationURLsTeamAllowlist,
-      e ^. options . settings . featureFlags . to npProject
+    ( e ^. options . settings . featureFlags . to npProject
     )

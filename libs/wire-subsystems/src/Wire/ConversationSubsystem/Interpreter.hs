@@ -33,7 +33,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
 import Wire.API.Federation.Error (FederationError)
-import Wire.API.Push.V2 qualified as PushV2
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess (ExternalAccess, deliverAsync)
@@ -130,6 +129,3 @@ pushConversationEvent conn st e lusers bots = do
               recipients = map userRecipient (tUnqualified users),
               isCellsEvent = shouldPushToCells st e
             }
-
-    userRecipient :: UserId -> Recipient
-    userRecipient u = Recipient {recipientUserId = u, recipientClients = PushV2.RecipientClientsAll}

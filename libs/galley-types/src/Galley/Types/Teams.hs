@@ -1,9 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,9 +20,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Types.Teams
-  ( TeamCreationTime (..),
-    tcTime,
-    GetFeatureDefaults (..),
+  ( GetFeatureDefaults (..),
     FeatureDefaults (..),
     FeatureFlags,
     featureDefaults,
@@ -38,7 +32,7 @@ module Galley.Types.Teams
   )
 where
 
-import Control.Lens (makeLenses, view)
+import Control.Lens (view)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Types qualified as A
@@ -52,11 +46,6 @@ import Imports
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
-
--- This is the cassandra timestamp of writetime(binding)
-newtype TeamCreationTime = TeamCreationTime
-  { _tcTime :: Int64
-  }
 
 -- | Used to extract the feature config type out of 'FeatureDefaults' or
 -- related types.
@@ -398,8 +387,6 @@ newtype Defaults a = Defaults {_unDefaults :: a}
 instance (FromJSON a) => FromJSON (Defaults a) where
   parseJSON = withObject "default object" $ \ob ->
     Defaults <$> (ob .: "defaults")
-
-makeLenses ''TeamCreationTime
 
 notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
 notTeamMember uids tmms =

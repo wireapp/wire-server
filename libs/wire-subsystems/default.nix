@@ -8,6 +8,7 @@
 , amazonka
 , amazonka-core
 , amazonka-ses
+, amazonka-sqs
 , amqp
 , async
 , attoparsec
@@ -35,6 +36,7 @@
 , extended
 , extra
 , file-embed
+, galley-types
 , gitignoreSource
 , hashable
 , HaskellNet
@@ -75,6 +77,7 @@
 , postgresql-error-codes
 , profunctors
 , prometheus-client
+, proto-lens
 , QuickCheck
 , quickcheck-instances
 , random
@@ -101,9 +104,11 @@
 , time-out
 , time-units
 , tinylog
+, tls
 , token-bucket
 , transformers
 , types-common
+, types-common-journal
 , unliftio
 , unordered-containers
 , uri-bytestring
@@ -128,6 +133,7 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -155,6 +161,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    galley-types
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -192,6 +199,7 @@ mkDerivation {
     postgresql-error-codes
     profunctors
     prometheus-client
+    proto-lens
     QuickCheck
     raw-strings-qq
     resource-pool
@@ -214,9 +222,11 @@ mkDerivation {
     time-out
     time-units
     tinylog
+    tls
     token-bucket
     transformers
     types-common
+    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring
@@ -237,6 +247,7 @@ mkDerivation {
     amazonka
     amazonka-core
     amazonka-ses
+    amazonka-sqs
     amqp
     async
     attoparsec
@@ -263,6 +274,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    galley-types
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -298,6 +310,7 @@ mkDerivation {
     polysemy-wire-zoo
     profunctors
     prometheus-client
+    proto-lens
     QuickCheck
     quickcheck-instances
     random
@@ -327,6 +340,7 @@ mkDerivation {
     token-bucket
     transformers
     types-common
+    types-common-journal
     unliftio
     unordered-containers
     uri-bytestring

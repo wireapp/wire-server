@@ -30,7 +30,6 @@ import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
-import Brig.Types.Test.Arbitrary ()
 import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens
@@ -41,7 +40,6 @@ import Data.Map.Strict qualified as Map
 import Data.PEM
 import Data.Range
 import Data.Set qualified as Set
-import Galley.Cassandra.LegalHold
 import Galley.Env qualified as Galley
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
@@ -62,6 +60,7 @@ import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
+import Wire.LegalHoldStore.Cassandra
 
 tests :: IO TestSetup -> TestTree
 tests s =

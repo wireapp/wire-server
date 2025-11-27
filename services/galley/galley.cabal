@@ -136,12 +136,10 @@ library
     Galley.API.Update
     Galley.API.Util
     Galley.App
-    Galley.Aws
     Galley.Cassandra
     Galley.Cassandra.Client
     Galley.Cassandra.Code
     Galley.Cassandra.CustomBackend
-    Galley.Cassandra.LegalHold
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -158,22 +156,16 @@ library
     Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.FederatorAccess
-    Galley.Effects.LegalHoldStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
-    Galley.Effects.SparAccess
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
-    Galley.Effects.TeamStore
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Intra.Effects
     Galley.Intra.Federator
-    Galley.Intra.Journal
-    Galley.Intra.Spar
     Galley.Intra.Util
     Galley.Keys
     Galley.Monad
@@ -262,7 +254,6 @@ library
     Galley.Schema.V97_CellsConversation
     Galley.Schema.V98_ChannelAddPermission
     Galley.Schema.V99_ConversationAddParent
-    Galley.TeamSubsystem
     Galley.Types.Clients
     Galley.Validation
 
@@ -272,13 +263,11 @@ library
   build-depends:
     , aeson                                 >=2.0.1.0
     , amazonka                              >=1.4.5
-    , amazonka-sqs                          >=1.4.5
     , amqp
     , asn1-encoding
     , asn1-types
     , async                                 >=2.0
     , base                                  >=4.6     && <5
-    , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
     , brig-types                            >=0.73.1
     , bytestring                            >=0.9
@@ -290,10 +279,8 @@ library
     , containers                            >=0.5
     , crypton
     , crypton-x509
-    , currency-codes                        >=2.0
     , data-default
     , data-timeout
-    , enclosed-exceptions                   >=1.0
     , errors                                >=2.0
     , exceptions                            >=0.4
     , extended
@@ -320,9 +307,7 @@ library
     , polysemy-conc
     , polysemy-wire-zoo
     , prometheus-client
-    , proto-lens                            >=0.2
     , raw-strings-qq                        >=1.0
-    , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
     , servant
@@ -338,11 +323,9 @@ library
     , text                                  >=0.11
     , time                                  >=1.4
     , tinylog                               >=0.10
-    , tls                                   >=1.7.0
     , transformers
     , types-common                          >=0.16
     , types-common-aws
-    , types-common-journal                  >=0.1
     , unliftio                              >=0.2
     , unordered-containers
     , uri-bytestring                        >=0.2

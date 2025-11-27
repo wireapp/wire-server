@@ -56,9 +56,7 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.LegalHoldStore as LegalHoldStore
-import Galley.Effects.TeamStore
-import Galley.Effects.TeamStore qualified as E
+import Galley.Env (FanoutLimit)
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -94,6 +92,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -102,6 +101,9 @@ import Wire.Sem.Paging.Cassandra
 import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.TeamStore
+import Wire.TeamStore qualified as E
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
@@ -212,14 +214,16 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
-              <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembers tid)
+              <@> mkNamedAPI @"unchecked-get-team-members" (TeamSubsystem.internalGetTeamMembersWithLimit tid)
               <@> mkNamedAPI @"unchecked-select-team-member-infos" (\userIds -> TeamSubsystem.internalSelectTeamMemberInfos tid (cUsers userIds))
+              <@> mkNamedAPI @"unchecked-select-team-members" (\userIds -> TeamSubsystem.internalSelectTeamMembers tid (cUsers userIds))
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
               <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
               <@> mkNamedAPI @"unchecked-get-team-admins" (TeamSubsystem.internalGetTeamAdmins tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
+        <@> mkNamedAPI @"finalize-delete-team" (\lusr mconn -> TeamSubsystem.internalFinalizeDeleteTeam lusr mconn tid $> NoContent)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
@@ -335,7 +339,9 @@ rmUser ::
     Member P.TinyLog r,
     Member Random r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -472,7 +478,7 @@ deleteLoop = do
 
     doDelete usr con tid = do
       lusr <- qualifyLocal usr
-      Teams.uncheckedDeleteTeam lusr con tid
+      TeamSubsystem.internalFinalizeDeleteTeam lusr con tid
 
 safeForever :: String -> App () -> App ()
 safeForever funName action =
@@ -484,10 +490,10 @@ safeForever funName action =
 guardLegalholdPolicyConflictsH ::
   ( Member BrigAPIAccess r,
     Member (Input Opts) r,
-    Member TeamStore r,
     Member P.TinyLog r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MissingLegalholdConsentOldClients) r
+    Member (ErrorS 'MissingLegalholdConsentOldClients) r,
+    Member TeamSubsystem r
   ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
