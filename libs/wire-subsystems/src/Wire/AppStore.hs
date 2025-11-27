@@ -64,6 +64,6 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, Text) StoredApp wher
 
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
-  GetApp :: UserId -> AppStore m (Maybe StoredApp)
+  GetApp :: UserId -> TeamId -> AppStore m (Maybe StoredApp)
 
 makeSem ''AppStore

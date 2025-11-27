@@ -1204,7 +1204,10 @@ data NewApp = NewApp
     pict :: Maybe [Value],
     assets :: Maybe [Value],
     accentId :: Maybe Int,
-    meta :: Value
+    meta :: Value,
+    category :: String,
+    description :: String,
+    author :: String
   }
 
 instance Default NewApp where
@@ -1214,7 +1217,10 @@ instance Default NewApp where
         pict = Nothing,
         assets = Nothing,
         accentId = Nothing,
-        meta = object []
+        meta = object [],
+        category = "other",
+        description = "",
+        author = ""
       }
 
 createApp :: (MakesValue creator) => creator -> String -> NewApp -> App Response
@@ -1223,12 +1229,24 @@ createApp creator tid new = do
   submit "POST" $
     req
       & addJSONObject
-        [ "name" .= new.name,
-          "picture" .= new.pict,
-          "assets" .= new.assets,
-          "accent_id" .= new.accentId,
-          "metadata" .= new.meta
+        [ "app"
+            .= object
+              [ "name" .= new.name,
+                "picture" .= new.pict,
+                "assets" .= new.assets,
+                "accent_id" .= new.accentId,
+                "metadata" .= new.meta,
+                "category" .= new.category,
+                "description" .= new.description,
+                "author" .= new.author
+              ],
+          "password" .= defPassword
         ]
+
+getApp :: (MakesValue self) => self -> String -> String -> App Response
+getApp self tid uid = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", uid]
+  submit "GET" req
 
 refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
 refreshAppCookie u tid appId = do
