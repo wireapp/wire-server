@@ -42,13 +42,13 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.RatchetTree
 import Wire.API.MLS.Serialisation
-import Wire.API.MLS.SubConversation
 import Wire.API.Team.Feature
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 
 data GroupInfoMismatch = GroupInfoMismatch
   {clients :: [(Int, ClientIdentity)]}
+  deriving (Show)
 
 checkGroupState ::
   forall r.
@@ -81,7 +81,7 @@ groupStateMismatch leaves groupInfo = do
     (tree : _) -> pure tree
     _ -> Left "No ratchet tree extension found in GroupInfo"
   giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-  pure $ guard (leaves == giLeaves) $> GroupInfoMismatch (imAssocs leaves)
+  pure $ guard (leaves /= giLeaves) $> GroupInfoMismatch (imAssocs leaves)
   where
     getIdentity :: LeafNode -> Either Text ClientIdentity
     getIdentity leaf = fmap fst $ credentialIdentityAndKey leaf.credential
