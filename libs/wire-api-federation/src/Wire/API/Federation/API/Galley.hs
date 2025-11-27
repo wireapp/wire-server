@@ -45,6 +45,7 @@ import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.Keys
+import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.Named
@@ -433,7 +434,9 @@ data MLSMessageSendRequest = MLSMessageSendRequest
     -- protect against spoofing attacks
     sender :: UserId,
     senderClient :: ClientId,
-    rawMessage :: Base64ByteString
+    rawMessage :: Base64ByteString,
+    -- | Whether out of sync errors should be enabled
+    enableOutOfSyncCheck :: Maybe EnableOutOfSyncCheck
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSMessageSendRequest)
@@ -526,6 +529,8 @@ data MLSMessageResponse
     -- that an application message could not be sent to.
     MLSMessageResponseUpdates [ConversationUpdate]
   | MLSMessageResponseNonFederatingBackends NonFederatingBackends
+  | MLSMessageResponseGroupInfoDiagnostics GroupInfoDiagnostics
+  | MLSMessageResponseOutOfSyncError MLSOutOfSyncError
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

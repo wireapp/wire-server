@@ -40,15 +40,12 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.TeamStore
@@ -67,6 +64,7 @@ import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.CellsState (HasCellsState)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -85,12 +83,15 @@ import Wire.API.Team.Collaborator qualified as CollaboratorPermission (Collabora
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
+import Wire.API.Team.Member.Error
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ExternalAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.NotificationSubsystem
@@ -235,10 +236,13 @@ ensureReAuthorised ::
 ensureReAuthorised u secret mbAction mbCode =
   reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
-ensureChannelAndTeamAdmin :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
-ensureChannelAndTeamAdmin conv tm = do
-  unless (conv.metadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions)) $
-    throwS @'ConvNotFound
+ensureManageChannelsPermission :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
+ensureManageChannelsPermission conv tm = do
+  unless (hasManageChannelsPermission conv tm) $ throwS @'ConvNotFound
+
+hasManageChannelsPermission :: StoredConversation -> TeamMember -> Bool
+hasManageChannelsPermission conv tm =
+  conv.metadata.cnvmGroupConvType == Just Channel && tm `hasPermission` ManageChannels
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, or if it has a
@@ -302,7 +306,7 @@ checkGroupIdSupport ::
   Sem r ()
 checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- if it is an MLS conversation
-  d <- MaybeT (pure (getMLSData conv))
+  d <- MaybeT (pure (getMLSData conv.protocol))
 
   -- if the group ID version is not 1
   (v, _) <-
@@ -320,12 +324,6 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   where
     failOnFirstError :: (Member (ErrorS GroupIdVersionNotSupported) r) => [Either e x] -> Sem r ()
     failOnFirstError = traverse_ $ either (\_ -> throwS @GroupIdVersionNotSupported) pure
-
-getMLSData :: StoredConversation -> Maybe ConversationMLSData
-getMLSData conv = case conv.protocol of
-  ProtocolMLS d -> Just d
-  ProtocolMixed d -> Just d
-  ProtocolProteus -> Nothing
 
 -- | Same as 'permissionCheck', but for a statically known permission.
 permissionCheckS ::
@@ -457,7 +455,7 @@ memberJoinEvent ::
   [RemoteMember] ->
   Event
 memberJoinEvent lorig qconv t lmems rmems =
-  Event qconv Nothing (tUntagged lorig) t Nothing $
+  Event qconv Nothing (EventFromUser (tUntagged lorig)) t Nothing $
     EdMembersJoin (MembersJoin (map localToSimple lmems <> map remoteToSimple rmems) InternalAdd)
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig u.id_)) (u.convRoleName)
@@ -515,30 +513,10 @@ instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) whe
       (fmap Left . getConvMember loc conv)
       (fmap Right . getConvMember loc conv)
 
-instance IsConvMemberId LocalConvMember (Either LocalMember RemoteMember) where
-  getConvMember loc conv (ConvMemberNoTeam quid) =
-    getConvMember loc conv quid
-  getConvMember loc conv (ConvMemberTeam tm) =
-    Left . updateChannelPermissions <$> getConvMember loc conv (tm ^. Mem.userId)
-    where
-      updateChannelPermissions :: LocalMember -> LocalMember
-      updateChannelPermissions lm =
-        if hasChannelAdminPermissions
-          then lm {convRoleName = roleNameWireAdmin}
-          else lm
-
-      hasChannelAdminPermissions :: Bool
-      hasChannelAdminPermissions =
-        conv.metadata.cnvmGroupConvType == Just Channel
-          && isAdminOrOwner (tm ^. permissions)
-
-data LocalConvMember = ConvMemberNoTeam (Qualified UserId) | ConvMemberTeam TeamMember
-
--- | This type indicates whether a member is a conversation member or a team member.
--- This is a simplification because a user could be both a conversation member and a team member.
-data ConvOrTeamMember mem where
-  ConvMember :: (IsConvMember mem) => mem -> ConvOrTeamMember mem
-  TeamMember :: TeamMember -> ConvOrTeamMember mem
+data ActorContext mem = ActorContext
+  { convMember :: Maybe mem,
+    teamMember :: Maybe TeamMember
+  }
 
 class IsConvMember mem where
   convMemberRole :: mem -> RoleName
@@ -715,7 +693,7 @@ getConversationAsViewer qusr lcnv = do
           ( do
               uid <- hoistMaybe $ foldQualified lcnv (Just . tUnqualified) (const Nothing) qusr
               tm <- MaybeT $ E.getTeamMember tid uid
-              guard (c.metadata.cnvmGroupConvType == Just Channel && isAdminOrOwner (tm ^. permissions))
+              guard $ hasManageChannelsPermission c tm
           )
     (Nothing, Nothing) -> throwAccessDenied
   pure $ ConvView (isJust mMember) c
@@ -769,7 +747,8 @@ pushConversationEvent conn st e lusers bots = do
 
 newConversationEventPush :: (HasCellsState a) => a -> Event -> Local [UserId] -> Push
 newConversationEventPush st e users =
-  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+  let eventFromUser = eventFromUserId e.evtFrom
+      musr = guard (tDomain users == qDomain eventFromUser) $> qUnqualified eventFromUser
    in def
         { origin = musr,
           json = toJSONObject e,

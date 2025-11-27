@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Brig where
 
 import API.BrigCommon
@@ -233,6 +250,12 @@ listUsersClients usr qualifiedUserIds = do
   qUsers <- mapM objQidObject qualifiedUserIds
   req <- baseRequest usr Brig Versioned $ joinHttpPath ["users", "list-clients"]
   submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+
+listUsers :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
+listUsers usr qualifiedUserIds = do
+  qUsers <- mapM objQidObject qualifiedUserIds
+  req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
+  submit "POST" (req & addJSONObject ["qualified_ids" .= qUsers])
 
 searchContacts ::
   ( MakesValue user,

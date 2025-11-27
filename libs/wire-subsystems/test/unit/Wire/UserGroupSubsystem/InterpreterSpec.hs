@@ -1,6 +1,23 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 
-module Wire.UserGroupSubsystem.InterpreterSpec (spec) where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Wire.UserGroupSubsystem.InterpreterSpec where
 
 import Control.Error.Util (hush)
 import Control.Lens ((.~), (^.))
@@ -39,9 +56,12 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.Arbitrary
+import Wire.BackgroundJobsPublisher qualified as BackgroundJobsPublisher
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.Sem.Random qualified as Random
+import Wire.Sem.Random.Null qualified as Random
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
@@ -57,7 +77,9 @@ type AllDependencies =
     `Append` '[ Input (Local ()),
                 MockNow,
                 NotificationSubsystem,
+                BackgroundJobsPublisher.BackgroundJobsPublisher,
                 State [Push],
+                Random.Random,
                 Error UserGroupSubsystemError
               ]
 
@@ -70,9 +92,18 @@ runDependencies ::
   Sem AllDependencies a ->
   Either UserGroupSubsystemError a
 runDependencies initialUsers initialTeams =
-  run
-    . runError
+  run . runError . interpretDependencies initialUsers initialTeams
+
+interpretDependencies ::
+  forall r a.
+  [User] ->
+  Map TeamId [TeamMember] ->
+  Sem (AllDependencies `Append` r) a ->
+  Sem ('[Error UserGroupSubsystemError] `Append` r) a
+interpretDependencies initialUsers initialTeams =
+  Random.randomToNull
     . evalState mempty
+    . noopBackgroundJobsPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
@@ -89,7 +120,9 @@ runDependenciesWithReturnState ::
 runDependenciesWithReturnState initialUsers initialTeams =
   run
     . runError
+    . Random.randomToNull
     . runState mempty
+    . noopBackgroundJobsPublisher
     . inMemoryNotificationSubsystemInterpreter
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
@@ -132,17 +165,13 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             runDependenciesWithReturnState (allUsers team) (galleyTeam team)
               . interpretUserGroupSubsystem
               $ do
-                let newUserGroup =
-                      NewUserGroup
-                        { name = newUserGroupName,
-                          members = User.userId <$> V.fromList members
-                        }
-                createdGroup <- createGroup (ownerId team) newUserGroup
+                let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList members} :: NewUserGroup
+                createdGroup <- createGroup (ownerId team) newUserGroup'
                 retrievedGroup <- getGroup (ownerId team) createdGroup.id_ False
                 now <- toUTCTimeMillis <$> get
                 let assert =
                       createdGroup.name === newUserGroupName
-                        .&&. createdGroup.members === Identity newUserGroup.members
+                        .&&. createdGroup.members === Identity (newUserGroup').members
                         .&&. createdGroup.managedBy === ManagedByWire
                         .&&. createdGroup.createdAt === now
                         .&&. Just createdGroup === retrievedGroup
@@ -169,9 +198,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           resultOrError =
             runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
               . interpretUserGroupSubsystem
-              $ do
-                let nug = NewUserGroup {name = name, members = mempty}
-                createGroup (ownerId team) nug
+              $ createGroup (ownerId team) (newUserGroup name)
 
           expectedRecipient = Recipient (tm ^. TM.userId) RecipientClientsAll
 
@@ -208,13 +235,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            let newUserGroup =
-                  NewUserGroup
-                    { name = newUserGroupName,
-                      members = User.userId <$> V.fromList (allUsers team)
-                    }
+            let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList (allUsers team)} :: NewUserGroup
                 [nonAdminUser] = someAdminsOrOwners 1 team
-            void $ createGroup (User.userId nonAdminUser) newUserGroup
+            void $ createGroup (User.userId nonAdminUser) newUserGroup'
             unexpected
 
     prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
@@ -224,12 +247,8 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               . runDependencies (allUsers team <> otherUsers) (galleyTeam team)
               . interpretUserGroupSubsystem
             $ do
-              let newUserGroup =
-                    NewUserGroup
-                      { name = newUserGroupName,
-                        members = User.userId <$> V.fromList otherUsers
-                      }
-              void $ createGroup (ownerId team) newUserGroup
+              let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList otherUsers} :: NewUserGroup
+              void $ createGroup (ownerId team) newUserGroup'
               unexpected
 
   describe "GetGroup, GetGroups" $ do
@@ -246,12 +265,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         . runDependencies (allUsers team) (galleyTeam team)
         . interpretUserGroupSubsystem
         $ do
-          let newUserGroup =
-                NewUserGroup
-                  { name = userGroupName,
-                    members = V.empty
-                  }
-          group1 <- createGroup (ownerId team) newUserGroup
+          group1 <- createGroup (ownerId team) (newUserGroup userGroupName)
 
           getGroupAdmin <- getGroup (ownerId team) group1.id_ False
           getGroupOutsider <- getGroup (ownerId otherTeam) group1.id_ False
@@ -284,19 +298,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             $ do
               let userGroupName1 = fromJust . hush $ userGroupNameFromText "first"
               let userGroupName2 = fromJust . hush $ userGroupNameFromText "second"
-              let newUserGroup1 =
-                    NewUserGroup
-                      { name = userGroupName1,
-                        members = mempty
-                      }
-                  newUserGroup2 =
-                    NewUserGroup
-                      { name = userGroupName2,
-                        members = mempty
-                      }
 
-              group1 <- createGroup (ownerId team1) newUserGroup1
-              group2 <- createGroup (ownerId team2) newUserGroup2
+              group1 <- createGroup (ownerId team1) (newUserGroup userGroupName1)
+              group2 <- createGroup (ownerId team2) (newUserGroup userGroupName2)
 
               getOwnGroup <- getGroup (ownerId team1) group1.id_ False
               getOtherGroup <- getGroup (ownerId team1) group2.id_ False
@@ -322,7 +326,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
     it "getGroups: q=<name>, returning 0, 1, 2 groups" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
-        let newGroups = [NewUserGroup (either undefined id $ userGroupNameFromText name) mempty | name <- ["1", "2", "2", "33"]]
+        let newGroups = [newUserGroup (either undefined id $ userGroupNameFromText name) | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
         get0 <- getGroups (ownerId team1) def {query = Just "nope"}
@@ -348,7 +352,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 . runDependencies (allUsers team1) (galleyTeam team1)
                 . interpretUserGroupSubsystem
                 $ do
-                  let mkNewGroup = NewUserGroup (either undefined id $ userGroupNameFromText "same name") mempty
+                  let mkNewGroup = newUserGroup (either undefined id $ userGroupNameFromText "same name")
                       mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
 
                   -- groups are only distinguished by creation date
@@ -390,8 +394,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
     it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
-        let mkNewGroup name = NewUserGroup (either undefined id $ userGroupNameFromText name) mempty
-            mkGroup name = createGroup (ownerId team1) (mkNewGroup name)
+        let mkGroup name = createGroup (ownerId team1) (newUserGroup $ either undefined id $ userGroupNameFromText name)
 
         -- construct groups such that there are groups with same name and different creation
         -- date and vice versa.  create names in random order (not alpha).  the digits are
@@ -447,7 +450,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            ug0 :: UserGroup <- createGroup (ownerId team) (NewUserGroup originalName mempty)
+            ug0 :: UserGroup <- createGroup (ownerId team) (newUserGroup originalName)
             ug1 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_ False
             updateGroup (ownerId team) ug0.id_ userGroupUpdate
             ug2 :: Maybe UserGroup <- getGroup (ownerId team) ug0.id_ False
@@ -461,8 +464,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
               . interpretUserGroupSubsystem
               $ do
-                let nug = NewUserGroup {name = name, members = mempty}
-                ug <- createGroup (ownerId team) nug
+                ug <- createGroup (ownerId team) (newUserGroup name)
                 updateGroup (ownerId team) ug.id_ (UserGroupUpdate (UserGroupName newName))
                 pure ug
 
@@ -495,13 +497,9 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            let newUserGroup =
-                  NewUserGroup
-                    { name = newUserGroupName,
-                      members = User.userId <$> V.fromList (allUsers team)
-                    }
+            let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList (allUsers team)} :: NewUserGroup
                 [nonAdminUser] = someAdminsOrOwners 1 team
-            grp <- createGroup (ownerId team) newUserGroup
+            grp <- createGroup (ownerId team) newUserGroup'
             void $ updateGroup (User.userId nonAdminUser) grp.id_ (UserGroupUpdate newUserGroupName2)
             unexpected
 
@@ -511,8 +509,8 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         . runDependencies (allUsers team <> allUsers team2) (galleyTeam team <> galleyTeam team2)
         . interpretUserGroupSubsystem
         $ do
-          ug <- createGroup (ownerId team) (NewUserGroup name mempty)
-          ug2 <- createGroup (ownerId team) (NewUserGroup name2 mempty)
+          ug <- createGroup (ownerId team) (newUserGroup name)
+          ug2 <- createGroup (ownerId team) (newUserGroup name2)
 
           mUg <- getGroup (ownerId team) ug.id_ False
           isDeleted <- isNothing <$> (deleteGroup (ownerId team) ug.id_ >> getGroup (ownerId team) ug.id_ False)
@@ -533,7 +531,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             runDependenciesWithReturnState (allUsers team) (galleyTeamWithExtra team [extraTeamMember])
               . interpretUserGroupSubsystem
               $ do
-                let nug = NewUserGroup name mempty
+                let nug = newUserGroup name
                 ug <- createGroup (ownerId team) nug
                 deleteGroup (ownerId team) ug.id_
                 pure ug
@@ -567,7 +565,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            grp <- createGroup (ownerId team) (NewUserGroup groupName mempty)
+            grp <- createGroup (ownerId team) (newUserGroup groupName)
             let [nonAdminUser] = someAdminsOrOwners 1 team
             void $ deleteGroup (User.userId nonAdminUser) grp.id_
             unexpected
@@ -580,7 +578,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
               runDependenciesWithReturnState (allUsers team) (galleyTeam team)
                 . interpretUserGroupSubsystem
                 $ do
-                  ug :: UserGroup <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+                  ug :: UserGroup <- createGroup (ownerId team) (newUserGroup newGroupName)
 
                   addUser (ownerId team) ug.id_ (User.userId mbr1)
                   ugWithFirst <- getGroup (ownerId team) ug.id_ False
@@ -626,7 +624,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             . runDependencies (allUsers team) (galleyTeam team)
             . interpretUserGroupSubsystem
             $ do
-              ug <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+              ug <- createGroup (ownerId team) (newUserGroup newGroupName)
               (if addOrRemove then addUser else removeUser) (ownerId team) ug.id_ (ownerId team2)
               unexpected
 
@@ -639,7 +637,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             . runDependencies (allUsers team) (galleyTeam team)
             . interpretUserGroupSubsystem
             $ do
-              ug <- createGroup (ownerId team) (NewUserGroup newGroupName mempty)
+              ug <- createGroup (ownerId team) (newUserGroup newGroupName)
               (if addOrRemove then addUser else removeUser) (ownerId team2) ug.id_ (ownerId team)
               unexpected
 
@@ -751,3 +749,6 @@ someMembersWithRoles num team mbRoles = result
         f (_, mem) = case mbRoles of
           Just roles -> permissionsRole (mem ^. permissions) `elem` (Just <$> roles)
           Nothing -> True
+
+newUserGroup :: UserGroupName -> NewUserGroup
+newUserGroup name = NewUserGroup {name = name, members = mempty}

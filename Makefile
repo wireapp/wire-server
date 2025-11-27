@@ -7,13 +7,13 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster wire-server-enterprise
+CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster wire-server-enterprise
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-external databases-ephemeral	\
+CHARTS_RELEASE := wire-server redis-ephemeral rabbitmq rabbitmq-external databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
@@ -34,10 +34,6 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # get executed. This is set here as the CI uses this Makefile, this could live
 # in several Makefiles we have in this repository, but there is little point of
 # doing so.
-#
-# Additionally, if stack is being used with nix, environment variables do not
-# make it into the shell where hspec is run, to tackle that this variable is
-# also exported in stack-deps.nix.
 export HSPEC_OPTIONS ?= --fail-on=focused
 
 default: install
@@ -278,9 +274,8 @@ formatc:
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.
 .PHONY: add-license
 add-license:
-	# Check headroom is installed. If not, please run 'stack install headroom'
 	command -v headroom
-	headroom run
+	headroom run -a
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
@@ -397,17 +392,17 @@ es-reset: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 .PHONY: rabbitmq-reset
 rabbitmq-reset: rabbit-clean
@@ -428,17 +423,17 @@ db-migrate: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 #################################
 ## dependencies

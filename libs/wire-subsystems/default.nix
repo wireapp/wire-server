@@ -45,12 +45,14 @@
 , hasql-th
 , hasql-transaction
 , hex
+, hscim
 , HsOpenSSL
 , hspec
 , hspec-discover
 , html-entities
 , http-api-data
 , http-client
+, http-client-openssl
 , http-types
 , http2-manager
 , imports
@@ -64,7 +66,9 @@
 , mime-mail
 , network
 , network-conduit-tls
+, network-uri
 , polysemy
+, polysemy-conc
 , polysemy-plugin
 , polysemy-time
 , polysemy-wire-zoo
@@ -84,7 +88,9 @@
 , servant
 , servant-client-core
 , servant-server
+, singletons
 , sodium-crypto-sign
+, ssl-util
 , statistics
 , stomp-queue
 , string-conversions
@@ -101,6 +107,7 @@
 , unliftio
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
@@ -157,11 +164,13 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
     http-api-data
     http-client
+    http-client-openssl
     http-types
     http2-manager
     imports
@@ -174,7 +183,9 @@ mkDerivation {
     mime-mail
     network
     network-conduit-tls
+    network-uri
     polysemy
+    polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
@@ -191,7 +202,9 @@ mkDerivation {
     servant
     servant-client-core
     servant-server
+    singletons
     sodium-crypto-sign
+    ssl-util
     statistics
     stomp-queue
     template
@@ -207,8 +220,10 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
+    wai
     wai-utilities
     wire-api
     wire-api-federation
@@ -257,10 +272,12 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hscim
     HsOpenSSL
     hspec
     html-entities
     http-client
+    http-client-openssl
     http-types
     http2-manager
     imports
@@ -273,7 +290,9 @@ mkDerivation {
     mime-mail
     network
     network-conduit-tls
+    network-uri
     polysemy
+    polysemy-conc
     polysemy-plugin
     polysemy-time
     polysemy-wire-zoo
@@ -292,7 +311,9 @@ mkDerivation {
     servant
     servant-client-core
     servant-server
+    singletons
     sodium-crypto-sign
+    ssl-util
     statistics
     stomp-queue
     string-conversions
@@ -309,6 +330,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai

@@ -28,7 +28,6 @@ import Servant
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -41,7 +40,6 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Servant
 import Wire.API.MLS.SubConversation
 import Wire.API.OAuth
-import Wire.API.Pagination
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -832,6 +830,40 @@ type ConversationAPI =
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )
     -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event for added members
+    -- - MemberLeave event for removed members
+    :<|> Named
+           "replace-members-in-conversation"
+           ( Summary "Replace the members of a conversation."
+               :> Description
+                    "This will add any members not already in the conversation, \
+                    \and remove any members not in the provided list except users that are associated via a user group. \
+                    \The given role in the request body will be applied to all added members. \
+                    \The roles of already existing members will not be changed \
+                    \even if these members are included in the request body and their role differs from the role provided in this request."
+               :> From 'V13
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'GroupIdVersionNotSupported
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "members"
+               :> ReqBody '[Servant.JSON] InviteQualified
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Conversation members replaced")
+           )
+    -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
     :<|> Named
            "join-conversation-by-id-unqualified"
@@ -1410,21 +1442,3 @@ type ConversationAPI =
                     (UpdateResponses "Add permissions unchanged" "Add permissions updated" Event)
                     (UpdateResult Event)
            )
-    :<|> Named
-           "search-channels"
-           ( Summary "[STUB] Search channels"
-               :> From 'V13
-               :> ZLocalUser
-               :> "search"
-               :> "channels"
-               :> QueryParam' '[Optional, Strict, Description "Search string"] "q" Text
-               :> QueryParam' '[Optional, Strict] "page_size" PageSize
-               :> QueryParam' '[Optional, Strict, LastSeenName] "last_seen_name" Text
-               :> QueryParam' '[Optional, Strict, LastSeenId] "last_seen_id" ConvId
-               :> QueryFlag "discoverable"
-               :> Get '[JSON] ConversationPage
-           )
-
-type LastSeenName = Description "`name` of the last seen channel of the current page, used to get the next page."
-
-type LastSeenId = Description "`id` of the last seen channel, used to get the next page, used as a tie breaker. **Must** be sent to get the next page."

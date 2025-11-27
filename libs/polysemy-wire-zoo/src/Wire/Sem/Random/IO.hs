@@ -35,6 +35,7 @@ randomToIO ::
 randomToIO = interpret $ \case
   Bytes i -> embed $ randBytes i
   Uuid -> embed $ UUID.nextRandom
+  NewId -> embed $ randomId @IO
   ScimTokenId -> embed $ randomId @IO
   LiftRandom m -> embed @IO $ m
   NDigitNumber n -> embed $ randIntegerZeroToNMinusOne (10 ^ n)

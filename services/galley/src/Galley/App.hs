@@ -32,7 +32,6 @@ module Galley.App
     extEnv,
     aEnv,
     ExtEnv (..),
-    extGetManager,
 
     -- * Running Galley effects
     GalleyEffects,
@@ -61,15 +60,11 @@ import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
-import Galley.Cassandra.Services
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
-import Galley.Effects.FireAndForget
 import Galley.Env
-import Galley.External
-import Galley.Intra.BackendNotificationQueue
 import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Keys
@@ -90,6 +85,7 @@ import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Async
+import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Fail
 import Polysemy.Input
@@ -108,10 +104,14 @@ import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
+import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
 import Wire.Error
+import Wire.ExternalAccess.External
+import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
@@ -122,14 +122,17 @@ import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
+import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
   '[ Input ClientState,
      Input Hasql.Pool,
      Input Env,
+     Error MigrationError,
      Error InvalidInput,
      Error ParseException,
      Error InternalError,
@@ -139,6 +142,7 @@ type GalleyEffects0 =
      Error TeamCollaboratorsError,
      Error Hasql.UsageError,
      Error HttpError,
+     Race,
      Async,
      Delay,
      Fail,
@@ -184,10 +188,11 @@ createEnv o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  postgres <- initPostgresPool o._postgresql o._postgresqlPassword
+  postgres <- initPostgresPool o._postgresqlPool o._postgresql o._postgresqlPassword
+  let disableTlsV1 = True
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
-    <*> initExtEnv
+    <*> initExtEnv disableTlsV1
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
@@ -266,7 +271,20 @@ evalGalley e =
   let convStoreInterpreter =
         case (e ^. options . postgresMigration).conversation of
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
+          MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretConversationStoreToPostgres
+      localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
+      backendNotificationQueueAccessEnv =
+        case e._rabbitmqChannel of
+          Nothing -> Nothing
+          Just chanMVar ->
+            Just
+              BackendNotificationQueueAccess.Env
+                { BackendNotificationQueueAccess.channelMVar = chanMVar,
+                  BackendNotificationQueueAccess.logger = e ^. applog,
+                  BackendNotificationQueueAccess.local = localUnit,
+                  BackendNotificationQueueAccess.requestId = e ^. reqId
+                }
    in ExceptT
         . runFinal @IO
         . resourceToIOFinal
@@ -276,6 +294,7 @@ evalGalley e =
         . failToEmbed @IO
         . runDelay
         . asyncToIOFinal
+        . interpretRace
         . mapError httpErrorToJSONResponse
         . logAndMapError postgresUsageErrorToHttpError (Text.pack . show) "postgres usage error"
         . mapError teamCollaboratorsSubsystemErrorToHttpError
@@ -283,6 +302,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . mapError toResponse
+        . logAndMapError toResponse (Text.pack . show) "migration error"
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
@@ -293,7 +313,7 @@ evalGalley e =
         . interpretQueue (e ^. deleteQueue)
         . nowToIO
         . runInputConst (e ^. options)
-        . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
+        . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
         . runInputSem getAllTeamFeaturesForServer
         . interpretInternalTeamListToCassandra
@@ -305,7 +325,8 @@ evalGalley e =
         . convStoreInterpreter
         . interpretTeamStoreToCassandra lh
         . interpretTeamNotificationStoreToCassandra
-        . interpretServiceStoreToCassandra
+        . interpretServiceStoreToCassandra (e ^. cstate)
+        . interpretUserGroupStoreToPostgres
         . interpretSearchVisibilityStoreToCassandra
         . interpretLegalHoldStoreToCassandra lh
         . interpretCustomBackendStoreToCassandra
@@ -317,16 +338,17 @@ evalGalley e =
         . interpretClientStoreToCassandra
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
-        . interpretBackendNotificationQueueAccess
+        . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
         . interpretFederatorAccess
         . runRpcWithHttp (e ^. manager) (e ^. reqId)
         . runGundeckAPIAccess (e ^. options . gundeck)
         . interpretTeamSubsystem
+        . interpretBrigAccess (e ^. brig)
+        . interpretExternalAccess (e ^. extEnv)
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
+        . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
         . interpretSparAccess
-        . interpretBrigAccess (e ^. brig)
-        . interpretExternalAccess
   where
     lh = view (options . settings . featureFlags . to npProject) e
 

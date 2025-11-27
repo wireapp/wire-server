@@ -40,6 +40,10 @@ module Data.Misc
     Milliseconds (..),
     msToInt64,
     int64ToMs,
+    Duration (..),
+    diffTimeParser,
+    parseDuration,
+    durationToMicros,
 
     -- * HttpsUrl
     HttpsUrl (..),
@@ -76,9 +80,11 @@ where
 
 import Cassandra
 import Control.Lens ((.~), (?~), (^.))
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString.Char8 qualified as Chars
+import Data.Attoparsec.Text (Parser)
+import Data.Attoparsec.Text qualified as Atto
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder
@@ -93,6 +99,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
+import Data.Time
 import GHC.TypeLits (Nat)
 import GHC.TypeNats (KnownNat)
 import Imports
@@ -257,6 +264,33 @@ instance Cql Milliseconds where
   fromCql = \case
     CqlBigInt i -> pure $ int64ToMs i
     _ -> Left "Milliseconds: expected CqlBigInt"
+
+newtype Duration = Duration {duration :: DiffTime}
+  deriving (Eq, Show)
+
+diffTimeParser :: Parser DiffTime
+diffTimeParser = do
+  n :: DiffTime <- Atto.rational
+  mult <-
+    ("us" $> 1e-6)
+      <|> ("ms" $> 1e-3)
+      <|> ("s" $> 1)
+      <|> ("m" $> 60)
+      <|> ("h" $> 3600)
+      <|> ("d" $> 86400)
+      <|> ("w" $> 604800)
+  pure $ n * mult
+
+parseDuration :: Text -> Either String Duration
+parseDuration = fmap Duration . Atto.parseOnly (diffTimeParser <* Atto.endOfInput)
+
+-- | Useful for threadDelay, timeout, etc.
+durationToMicros :: Duration -> Int
+durationToMicros =
+  fromInteger . flip div 1_000_000 . diffTimeToPicoseconds . duration
+
+instance FromJSON Duration where
+  parseJSON = withText "Duration" $ either fail pure . parseDuration
 
 --------------------------------------------------------------------------------
 -- HttpsUrl

@@ -20,6 +20,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.API.Routes.Version
   ( -- * API version endpoint
     VersionAPI,
@@ -81,7 +98,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
-data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12 | V13
+data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12 | V13 | V14
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -112,6 +129,8 @@ instance RenderableSymbol V12 where renderSymbol = "V12"
 
 instance RenderableSymbol V13 where renderSymbol = "V13"
 
+instance RenderableSymbol V14 where renderSymbol = "V14"
+
 -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --
 -- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
@@ -133,6 +152,7 @@ versionInt V10 = 10
 versionInt V11 = 11
 versionInt V12 = 12
 versionInt V13 = 13
+versionInt V14 = 14
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
@@ -253,7 +273,8 @@ isDevelopmentVersion V9 = False
 isDevelopmentVersion V10 = False
 isDevelopmentVersion V11 = False
 isDevelopmentVersion V12 = False
-isDevelopmentVersion V13 = True
+isDevelopmentVersion V13 = False
+isDevelopmentVersion V14 = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions

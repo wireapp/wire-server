@@ -16,6 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.User.Handles
   ( tests,
   )
@@ -34,7 +51,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Handle (parseHandle)
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified (Qualified (..))
 import Data.UUID qualified as UUID
 import Imports
@@ -97,7 +114,7 @@ testHandleUpdate brig cannon = do
     put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
       !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
+      let j = Object $ NonEmpty.head (ntfPayload n)
       j ^? key "type" . _String @?= Just "user.update"
       let u = j ^?! key "user"
       u ^? key "id" . _String @?= Just (UUID.toText (toUUID uid))
@@ -316,7 +333,7 @@ testGetUserByQualifiedHandleFailure brig = do
 
 testGetUserByQualifiedHandleNoFederation :: Opt.Opts -> Brig -> Http ()
 testGetUserByQualifiedHandleNoFederation opt brig = do
-  let newOpts = opt {Opt.federatorInternal = Nothing, Opt.rabbitmq = Nothing}
+  let newOpts = opt {Opt.federatorInternal = Nothing}
   someUser <- randomUser brig
   withSettingsOverrides newOpts $
     get

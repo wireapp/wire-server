@@ -70,6 +70,7 @@ module Bilge.Request
     Rq.applyBasicAuth,
     Rq.urlEncodedBody,
     Rq.getUri,
+    expect2xxOr404,
   )
 where
 
@@ -152,6 +153,9 @@ expect3xx = expectStatus ((== 3) . (`div` 100))
 
 expect4xx :: Request -> Request
 expect4xx = expectStatus ((== 4) . (`div` 100))
+
+expect2xxOr404 :: Request -> Request
+expect2xxOr404 = expectStatus (\code -> code == 404 || (code >= 200 && code < 300))
 
 expectStatus :: (Int -> Bool) -> Request -> Request
 expectStatus property r = r {Rq.checkResponse = check}

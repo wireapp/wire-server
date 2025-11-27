@@ -80,6 +80,7 @@ import Spar.Error
   )
 import Spar.Options
 import Spar.Scim.Auth
+import Spar.Scim.Group ()
 import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
@@ -91,7 +92,7 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
-import qualified Web.Scim.Class.Auth as Scim.Auth
+import qualified Web.Scim.Class.Group as Scim.Group
 import qualified Web.Scim.Class.User as Scim.User
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
@@ -99,6 +100,7 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
+import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -120,6 +122,7 @@ apiScim ::
     Member (Error SparError) r,
     Member GalleyAccess r,
     Member BrigAccess r,
+    Member ScimSubsystem r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
     Member ScimTokenStore r,
@@ -178,15 +181,15 @@ apiScim =
           -- No exceptions! Good.
           pure x
 
--- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
--- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
+-- | This is similar to 'Scim.siteServer'.
 server ::
   forall tag m.
-  (Scim.User.UserDB tag m, Scim.Auth.AuthDB tag m) =>
+  (Scim.User.UserDB tag m, Scim.Group.GroupDB tag m) =>
   Scim.Meta.Configuration ->
   ScimSite tag (AsServerT (Scim.ScimHandler m))
 server conf =
   ScimSite
     { config = toServant $ Scim.configServer conf,
-      users = \authData -> toServant (Scim.userServer @tag authData)
+      users = \authData -> toServant (Scim.userServer @tag authData),
+      groups = \authData -> toServant (Scim.groupServer @tag authData)
     }

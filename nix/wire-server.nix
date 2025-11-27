@@ -220,7 +220,7 @@ let
 
   brig-templates = pkgs.stdenvNoCC.mkDerivation {
     name = "brig-templates";
-    src = ../services/brig/deb/opt/brig/templates;
+    src = ../libs/wire-subsystems/templates;
     installPhase = ''
       mkdir -p $out/usr/share/wire
       cp -r $src $out/usr/share/wire/templates
@@ -529,6 +529,7 @@ in
       pkgs.nix-prefetch-git
       pkgs.haskellPackages.cabal-plan
       pkgs.lsof
+      pkgs.haskellPackages.headroom
       profileEnv
     ]
     ++ ghcWithPackages

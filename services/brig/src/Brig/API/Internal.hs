@@ -84,7 +84,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
-import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
+import Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
@@ -94,6 +94,8 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.API.UserGroup (UserGroup)
+import Wire.API.UserGroup.Pagination
 import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
@@ -282,6 +284,12 @@ accountAPI =
     :<|> Named @"iAddClient" addClientInternalH
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
+    :<|> Named @"i-get-accounts-by" getAccountsByInternalH
+    :<|> Named @"i-create-group-full" createGroupInternalH
+    :<|> Named @"i-get-group" getGroupInternalH
+    :<|> Named @"i-get-groups" getGroupsInternalH
+    :<|> Named @"i-update-group" updateGroupInternalH
+    :<|> Named @"i-delete-group-managed" deleteGroupManagedInternalH
 
 teamsAPI ::
   ( Member GalleyAPIAccess r,
@@ -983,3 +991,64 @@ getUserExportDataH ::
   UserId ->
   Handler r (Maybe TeamExportUser)
 getUserExportDataH = lift . liftSem . getUserExportData
+
+getAccountsByInternalH ::
+  ( Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  GetBy ->
+  Handler r [User]
+getAccountsByInternalH getByData = do
+  loc <- lift $ liftSem input
+  lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
+
+createGroupInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  CreateGroupInternalRequest ->
+  Handler r UserGroup
+createGroupInternalH req =
+  lift . liftSem $
+    createGroupInternal
+      req.managedBy
+      req.teamId
+      req.creatorUserId
+      req.newGroup
+
+getGroupInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  Bool ->
+  Handler r (Maybe UserGroup)
+getGroupInternalH tid uid includeChannels =
+  lift . liftSem $ getGroupInternal tid uid includeChannels
+
+getGroupsInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  TeamId ->
+  Maybe T.Text ->
+  Handler r UserGroupPageWithMembers
+getGroupsInternalH tid nameContains =
+  lift . liftSem $ getGroupsInternal tid nameContains
+
+updateGroupInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  UpdateGroupInternalRequest ->
+  Handler r ()
+updateGroupInternalH req =
+  lift . liftSem $ resetUserGroupInternal req
+
+deleteGroupManagedInternalH ::
+  ( Member UserGroupSubsystem r
+  ) =>
+  TeamId ->
+  UserGroupId ->
+  ManagedBy ->
+  Handler r NoContent
+deleteGroupManagedInternalH tid gid managedBy = do
+  lift . liftSem $ deleteGroupManaged managedBy tid gid
+  pure NoContent

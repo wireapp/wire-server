@@ -1,5 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Testlib.ModService
   ( withModifiedBackend,
     startDynamicBackend,
@@ -203,6 +220,7 @@ startDynamicBackend resource beOverrides = do
           backgroundWorkerCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "federationDomain" resource.berDomain
               >=> setField "rabbitmq.vHost" resource.berVHost,
           federatorInternalCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
@@ -218,13 +236,19 @@ startDynamicBackend resource beOverrides = do
         { galleyCfg = setField "cassandra.keyspace" resource.berGalleyKeyspace,
           brigCfg = setField "cassandra.keyspace" resource.berBrigKeyspace,
           sparCfg = setField "cassandra.keyspace" resource.berSparKeyspace,
-          gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace
+          gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace,
+          backgroundWorkerCfg =
+            setField "cassandra.keyspace" resource.berGundeckKeyspace
+              >=> setField "cassandraGalley.keyspace" resource.berGalleyKeyspace,
+          cannonCfg =
+            setField "cassandra.keyspace" resource.berGundeckKeyspace
         }
     setPgDb :: ServiceOverrides
     setPgDb =
       def
         { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
-          galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
+          galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
+          backgroundWorkerCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
         }
 
     setEsIndex :: ServiceOverrides
@@ -543,9 +567,7 @@ retryRequestUntilDebug mProcessDebug reqAction err = do
         mPh <- liftIO $ readIORef phRef
         let stdOutStr = List.intercalate "\n" stdOut'
             stdErrStr = List.intercalate "\n" stdErr'
-        mExitCode <- liftIO $ case mPh of
-          Nothing -> pure Nothing
-          Just ph -> Just <$> getProcessExitCode ph
+        mExitCode <- maybe (pure Nothing) (liftIO . getProcessExitCode) mPh
         let msg =
               "Timed out waiting for service "
                 <> err

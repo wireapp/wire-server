@@ -97,6 +97,7 @@ library
     , imports
     , metrics-wai
     , monad-control
+    , prometheus-client
     , retry
     , servant
     , servant-client
@@ -110,6 +111,7 @@ library
     , transformers
     , types-common
     , unliftio
+    , uuid
     , wai
 
   default-language:   GHC2021

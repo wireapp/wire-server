@@ -67,6 +67,7 @@
 , optparse-applicative
 , pem
 , polysemy
+, polysemy-conc
 , polysemy-wire-zoo
 , process
 , prometheus-client
@@ -112,6 +113,7 @@
 , utf8-string
 , uuid
 , uuid-types
+, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -178,6 +180,7 @@ mkDerivation {
     optparse-applicative
     pem
     polysemy
+    polysemy-conc
     polysemy-wire-zoo
     prometheus-client
     proto-lens
@@ -204,9 +207,11 @@ mkDerivation {
     types-common-aws
     types-common-journal
     unliftio
+    unordered-containers
     uri-bytestring
     utf8-string
     uuid
+    vector
     wai
     wai-extra
     wai-middleware-gunzip

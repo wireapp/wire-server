@@ -27,6 +27,7 @@ import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
+import Wire.API.BackgroundJobs qualified as BackgroundJobs
 import Wire.API.Call.Config qualified as Call.Config
 import Wire.API.Connection qualified as Connection
 import Wire.API.Conversation qualified as Conversation
@@ -356,7 +357,8 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatus,
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
-      testRoundTrip @TeamsIntra.TeamName
+      testRoundTrip @TeamsIntra.TeamName,
+      testRoundTrip @BackgroundJobs.Job
     ]
 
 testRoundTrip ::
@@ -365,7 +367,7 @@ testRoundTrip ::
   T.TestTree
 testRoundTrip = testProperty msg trip
   where
-    msg = show (typeRep @a)
+    msg = show (typeRep @a) <> " JSON roundtrip"
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v

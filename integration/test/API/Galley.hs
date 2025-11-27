@@ -1,6 +1,23 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Galley where
 
 import API.Common
@@ -469,6 +486,29 @@ addMembers usr qcnv opts = do
           <> ["conversation_role" .= r | r <- toList opts.role]
       )
 
+replaceMembers ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  AddMembers ->
+  App Response
+replaceMembers usr qcnv opts = do
+  (convDomain, convId) <- objQid qcnv
+  qUsers <- mapM objQidObject opts.users
+  let path = ["conversations", convDomain, convId, "members"]
+  req <-
+    baseRequest
+      usr
+      Galley
+      (maybe Versioned ExplicitVersion opts.version)
+      (joinHttpPath path)
+  submit "PUT"
+    $ req
+    & addJSONObject
+      ( ["qualified_users" .= qUsers]
+          <> ["conversation_role" .= r | r <- toList opts.role]
+      )
+
 removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
 removeMember remover qcnv removed = do
   (convDomain, convId) <- objQid qcnv
@@ -868,8 +908,57 @@ resetConversation user groupId epoch = do
   let payload = object ["group_id" .= groupId, "epoch" .= epoch]
   submit "POST" $ req & addJSON payload
 
+updateTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
+updateTeamCollaborator owner tid collaborator permissions = do
+  (_, collabId) <- objQid collaborator
+  req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
+  submit "PUT"
+    $ req
+    & addJSON permissions
+
 removeTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> App Response
 removeTeamCollaborator owner tid collaborator = do
   (_, collabId) <- objQid collaborator
   req <- baseRequest owner Galley Versioned $ joinHttpPath ["teams", tid, "collaborators", collabId]
   submit "DELETE" req
+
+data SearchChannels = SearchChannels
+  { q :: Maybe String,
+    sortOrder :: Maybe String,
+    pageSize :: Maybe Int,
+    lastName :: Maybe String,
+    lastId :: Maybe String,
+    discoverable :: Bool
+  }
+
+instance Default SearchChannels where
+  def =
+    SearchChannels
+      { q = Nothing,
+        sortOrder = Nothing,
+        pageSize = Nothing,
+        lastName = Nothing,
+        lastId = Nothing,
+        discoverable = False
+      }
+
+searchChannels :: (MakesValue user) => user -> String -> SearchChannels -> App Response
+searchChannels user tid args = do
+  req <-
+    baseRequest
+      user
+      Galley
+      Versioned
+      (joinHttpPath ["teams", tid, "channels", "search"])
+  submit "GET"
+    $ req
+    & addQueryParams
+      ( mconcat
+          [ [("q", q) | q <- toList args.q],
+            [("sort_order", o) | o <- toList args.sortOrder],
+            [("page_size", show n) | n <- toList args.pageSize],
+            [("last_seen_name", n) | n <- toList args.lastName],
+            [("last_seen_id", x) | x <- toList args.lastId],
+            [("discoverable", "true") | args.discoverable]
+          ]
+      )

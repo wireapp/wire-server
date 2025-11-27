@@ -136,9 +136,9 @@ localElasticSettings =
         ESConnectionSettings
           { esServer = [uri|https://localhost:9200|],
             esIndex = ES.IndexName "directory_test",
-            esCaCert = Just "test/resources/elasticsearch-ca.pem",
+            esCaCert = Just "../../libs/wire-subsystems/test/resources/elasticsearch-ca.pem",
             esInsecureSkipVerifyTls = False,
-            esCredentials = Just "test/resources/elasticsearch-credentials.yaml",
+            esCredentials = Just "../../libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml",
             esMigrationIndexName = Nothing
           },
       _esIndexShardCount = 1,

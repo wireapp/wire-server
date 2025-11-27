@@ -1,5 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.IndexedUserStore.ElasticSearch where
 
 import Control.Error (lastMay)
@@ -222,13 +239,7 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
                 ],
-              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")],
-              -- The following matches both where searchable is true
-              -- or where the field is missing. There didn't seem to
-              -- be a more readable way to express
-              -- "not(exists(searchable) or searchable = true" in
-              -- Elastic Search.
-              ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "searchable" "false") Nothing]
+              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on users not in team of search by 90% (no
       -- science behind that number). If the searcher is not part of a team the
@@ -432,7 +443,15 @@ mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
     ( ES.Filter
         . ES.QueryBoolQuery
         $ boolQuery
-          { ES.boolQueryMustNotMatch = maybeToList $ matchSelf searcher,
+          { ES.boolQueryMustNotMatch =
+              maybeToList (matchSelf searcher)
+                <>
+                -- The following matches both where searchable is true
+                -- or where the field is missing. There didn't seem to
+                -- be a more readable way to express
+                -- "not(exists(searchable)) or searchable = true" in
+                -- Elastic Search.
+                [ES.TermQuery (ES.Term "searchable" "false") Nothing],
             ES.boolQueryMustMatch =
               [ restrictSearchSpace mSearcherTeamId teamSearchInfo,
                 ES.QueryBoolQuery

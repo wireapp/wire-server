@@ -1,11 +1,28 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.NotificationSubsystem.Interpreter where
 
-import Bilge (RequestId)
 import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
-import Data.List1 (List1)
-import Data.List1 qualified as List1
+import Data.Id
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
@@ -21,10 +38,10 @@ import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
-import Wire.API.Team.Member
+import Wire.API.Team.HardTruncationLimit (HardTruncationLimit)
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
-import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem as NS
 import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
@@ -123,8 +140,8 @@ toV2Push p =
     & maybe id (set V2.pushNativePriority) p.nativePriority
     & V2.pushIsCellsEvent .~ p.isCellsEvent
   where
-    pload :: List1 Object
-    pload = List1.singleton p.json
+    pload :: NonEmpty Object
+    pload = NonEmpty.singleton p.json
     recipients :: [V2.Recipient]
     recipients = map toRecipient $ toList p.recipients
     toRecipient :: Recipient -> V2.Recipient
@@ -155,7 +172,7 @@ chunkPushes maxRecipients
     splitPush :: Natural -> Push -> (Push, Push)
     splitPush n p =
       let (r1, r2) = splitAt (fromIntegral n) (toList p.recipients)
-       in (p {recipients = r1}, p {recipients = r2})
+       in (p {NS.recipients = r1}, p {NS.recipients = r2})
 
 pushSlowlyImpl ::
   ( Member Delay r,

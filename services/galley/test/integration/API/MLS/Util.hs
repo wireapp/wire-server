@@ -154,7 +154,8 @@ remotePostCommitBundle rsender qcs bundle = do
           { convOrSubId = qUnqualified qcs,
             sender = ciUser (tUnqualified rsender),
             senderClient = ciClient (tUnqualified rsender),
-            rawMessage = Base64ByteString bundle
+            rawMessage = Base64ByteString bundle,
+            enableOutOfSyncCheck = Nothing
           }
   runFedClient
     @"send-mls-commit-bundle"
@@ -174,7 +175,13 @@ remotePostCommitBundle rsender qcs bundle = do
       e@(MLSMessageResponseUnreachableBackends _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e
+      e@(MLSMessageResponseGroupInfoDiagnostics _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
       e@(MLSMessageResponseNonFederatingBackends _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
+      e@(MLSMessageResponseOutOfSyncError _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e
       MLSMessageResponseUpdates _ -> pure []

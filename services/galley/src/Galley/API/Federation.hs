@@ -28,7 +28,6 @@ import Data.Default
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import Data.List1 (List1 (..))
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
@@ -55,7 +54,6 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.FireAndForget qualified as E
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Imports
@@ -94,6 +92,8 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem
+import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -197,7 +197,7 @@ onConversationCreated domain rc = do
           Event
             (tUntagged (cnvId qrcConnected))
             Nothing
-            (tUntagged (ccRemoteOrigUserId qrcConnected))
+            (EventFromUser (tUntagged (ccRemoteOrigUserId qrcConnected)))
             qrcConnected.time
             Nothing
             (EdConversation c)
@@ -267,6 +267,7 @@ leaveConversation ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -316,7 +317,7 @@ leaveConversation requestingDomain lc = do
       do
         outcome <-
           runError @FederationError $
-            notifyConversationAction
+            sendConversationActionNotifications
               SConversationLeaveTag
               leaver
               False
@@ -418,6 +419,7 @@ onUserDeleted ::
     Member FireAndForget r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -455,7 +457,7 @@ onUserDeleted origDomain udcn = do
               removeUser (qualifyAs lc conv) RemoveUserIncludeMain (tUntagged deletedUser)
               outcome <-
                 runError @FederationError $
-                  notifyConversationAction
+                  sendConversationActionNotifications
                     (sing @'ConversationLeaveTag)
                     untaggedDeletedUser
                     False
@@ -480,6 +482,7 @@ updateConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member (Error InternalError) r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -580,7 +583,9 @@ handleMLSMessageErrors ::
   ( r1
       ~ Append
           MLSBundleStaticErrors
-          ( Error UnreachableBackends
+          ( Error MLSOutOfSyncError
+              ': Error GroupInfoDiagnostics
+              ': Error UnreachableBackends
               ': Error NonFederatingBackends
               ': Error MLSProposalFailure
               ': Error GalleyError
@@ -601,6 +606,10 @@ handleMLSMessageErrors =
     . runError
     . fmap (either (MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) Imports.id)
     . runError @UnreachableBackends
+    . fmap (either MLSMessageResponseGroupInfoDiagnostics Imports.id)
+    . runError @GroupInfoDiagnostics
+    . fmap (either MLSMessageResponseOutOfSyncError Imports.id)
+    . runError @MLSOutOfSyncError
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
@@ -611,12 +620,14 @@ sendMLSCommitBundle ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
+    Member TeamFeatureStore r,
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -639,25 +650,27 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+
   -- this cannot throw the error since we always pass the sender which is qualified to be remote
-  MLSMessageResponseUpdates
-    . fmap lcuUpdate
-    <$> mapToRuntimeError @MLSLegalholdIncompatible
-      (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
-      ( postMLSCommitBundle
-          loc
-          -- Type application to prevent future changes from introducing errors.
-          -- It is only safe to assume that we can discard the error when the sender
-          -- is actually remote.
-          -- Since `tUntagged` works on local and remote, a future changed may
-          -- go unchecked without this.
-          (tUntagged @QRemote sender)
-          msr.senderClient
-          ctype
-          qConvOrSub
-          Nothing
-          ibundle
-      )
+  runInputConst (fromMaybe def msr.enableOutOfSyncCheck) $
+    MLSMessageResponseUpdates
+      . fmap lcuUpdate
+      <$> mapToRuntimeError @MLSLegalholdIncompatible
+        (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
+        ( postMLSCommitBundle
+            loc
+            -- Type application to prevent future changes from introducing errors.
+            -- It is only safe to assume that we can discard the error when the sender
+            -- is actually remote.
+            -- Since `tUntagged` works on local and remote, a future changed may
+            -- go unchecked without this.
+            (tUntagged @QRemote sender)
+            msr.senderClient
+            ctype
+            qConvOrSub
+            Nothing
+            ibundle
+        )
 
 sendMLSMessage ::
   ( Member BackendNotificationQueueAccess r,
@@ -689,15 +702,16 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
-  MLSMessageResponseUpdates . map lcuUpdate
-    <$> postMLSMessage
-      loc
-      (tUntagged sender)
-      msr.senderClient
-      ctype
-      qConvOrSub
-      Nothing
-      msg
+  runInputConst (fromMaybe def msr.enableOutOfSyncCheck) $
+    MLSMessageResponseUpdates . map lcuUpdate
+      <$> postMLSMessage
+        loc
+        (tUntagged sender)
+        msr.senderClient
+        ctype
+        qConvOrSub
+        Nothing
+        msg
 
 getSubConversationForRemoteUser ::
   ( Member ConversationStore r,
@@ -881,12 +895,12 @@ onMLSMessageSent domain rmm =
               )
       let recipients =
             filter (\r -> Set.member (recipientUserId r) members)
-              . map (\(u, clts) -> Recipient u (RecipientClientsSome (List1 clts)))
+              . map (\(u, clts) -> Recipient u (RecipientClientsSome clts))
               . Map.assocs
               $ rmm.recipients
       -- FUTUREWORK: support local bots
       let e =
-            Event (tUntagged rcnv) rmm.subConversation rmm.sender rmm.time Nothing $
+            Event (tUntagged rcnv) rmm.subConversation (EventFromUser rmm.sender) rmm.time Nothing $
               EdMLSMessage (fromBase64ByteString rmm.message)
 
       runMessagePush loc (Just (tUntagged rcnv)) $

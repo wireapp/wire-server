@@ -27,7 +27,6 @@ import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
@@ -122,7 +121,7 @@ access ::
   Handler r SomeAccess
 access mcid t mt =
   traverse mkUserTokenCookie
-    =<< Auth.renewAccess (List1 t) mt mcid !>> (StdError . zauthError)
+    =<< Auth.renewAccess t mt mcid !>> (StdError . zauthError)
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode _ =
@@ -181,7 +180,7 @@ logout ::
   Maybe (Token a) ->
   Handler r ()
 logout _ Nothing = throwStd authMissingToken
-logout uts (Just at) = Auth.logout (List1 uts) at !>> StdError . zauthError
+logout uts (Just at) = Auth.logout uts at !>> StdError . zauthError
 
 changeSelfEmail ::
   ( Member BlockListStore r,
@@ -220,7 +219,7 @@ validateCredentials ::
   Handler r UserId
 validateCredentials _ Nothing = throwStd missingAccessToken
 validateCredentials uts mat =
-  fst <$> Auth.validateTokens (List1 uts) mat !>> StdError . zauthError
+  fst <$> Auth.validateTokens uts mat !>> StdError . zauthError
 
 listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
 listCookies lusr (fold -> labels) =

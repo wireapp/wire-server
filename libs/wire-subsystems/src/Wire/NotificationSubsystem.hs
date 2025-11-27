@@ -1,5 +1,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
@@ -8,6 +25,8 @@ import Data.Default
 import Data.Id
 import Imports
 import Polysemy
+import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.Arbitrary
 
@@ -31,6 +50,12 @@ data Push = Push
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform Push
+
+data LocalConversationUpdate = LocalConversationUpdate
+  { lcuEvent :: Event,
+    lcuUpdate :: ConversationUpdate
+  }
+  deriving (Show)
 
 -- | This subsystem governs mechanisms to send notifications to users.
 data NotificationSubsystem m a where

@@ -1,5 +1,22 @@
 {-# LANGUAGE CPP #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Testlib.Assertions where
 
 import Control.Applicative ((<|>))
@@ -16,6 +33,7 @@ import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import Data.Aeson.Lens (_Array, _Object)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as BS
 import Data.Char
@@ -152,15 +170,15 @@ shouldMatchWithRules rules customRules a b = do
       _ -> Nothing
 
 shouldMatchBase64 ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
+  (MakesValue a, HasCallStack) =>
   -- | The actual value, in base64
   a ->
-  -- | The expected value, in plain text
-  b ->
+  -- | The expected value
+  ByteString ->
   App ()
 a `shouldMatchBase64` b = do
-  xa <- Text.decodeUtf8With Text.lenientDecode . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
-  xa `shouldMatch` b
+  let xb = Text.decodeUtf8 (B64.encode b)
+  a `shouldMatch` xb
 
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>

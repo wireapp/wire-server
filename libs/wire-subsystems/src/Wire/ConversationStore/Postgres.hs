@@ -1,11 +1,25 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.ConversationStore.Postgres where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import Control.Error (lastMay)
+module Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres) where
+
 import Control.Monad.Trans.Maybe
-import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as BS
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
@@ -13,10 +27,12 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Time
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import GHC.Records (HasField)
+import Hasql.Decoders qualified as HD
 import Hasql.Pipeline qualified as Pipeline
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
@@ -30,6 +46,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.MLS.CipherSuite
@@ -37,21 +54,15 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
+import Wire.API.Pagination
 import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service
-import Wire.API.Routes.MultiTablePaging
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.UserList
-
-type PGConstraints r =
-  ( Member (Input Hasql.Pool) r,
-    Member (Embed IO) r,
-    Member (Error Hasql.UsageError) r
-  )
 
 interpretConversationStoreToPostgres :: (PGConstraints r) => InterpreterFor ConversationStore r
 interpretConversationStoreToPostgres = interpret $ \case
@@ -60,7 +71,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   GetConversationEpoch cid -> getConversationEpochImpl cid
   GetConversations cids -> getConversationsImpl cids
   GetLocalConversationIds uid lastConvId maxIds -> getLocalConversationIdsImpl uid lastConvId maxIds
-  GetConversationIds uid maxIds pagingState -> getConversationIdsImpl uid maxIds pagingState
+  GetRemoteConversationIds uid lastConvId maxIds -> getRemoteConversationIdsImpl uid lastConvId maxIds
   GetConversationMetadata cid -> getConversationMetadataImpl cid
   GetGroupInfo cid -> getGroupInfoImpl cid
   IsConversationAlive cid -> isConversationAliveImpl cid
@@ -112,6 +123,10 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetSubConversationCipherSuite cid sconv cs -> setSubConversationCipherSuiteImpl cid sconv cs
   ListSubConversations cid -> listSubConversationsImpl cid
   DeleteSubConversation convId subConvId -> deleteSubConversationImpl convId subConvId
+  SearchConversations search -> searchConversationsImpl search
+  SetConversationOutOfSync convId outOfSync -> setConversationOutOfSyncImpl convId outOfSync
+  IsConversationOutOfSync convId -> isConversationOutOfSyncImpl convId
+  HaveRemoteConvs uids -> haveRemoteConvsImpl uids
 
 upsertConversationImpl :: (PGConstraints r) => Local ConvId -> NewConversation -> Sem r StoredConversation
 upsertConversationImpl lcnv nc = do
@@ -285,7 +300,7 @@ getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
         [vectorStatement|SELECT (conv :: uuid)
                          FROM conversation_member
                          WHERE "user" = ($1 :: uuid)
-                         ORDER BY conv
+                         ORDER BY uuid_extract_version(conv), conv
                          LIMIT ($2 :: integer)
                         |]
 
@@ -295,122 +310,36 @@ getLocalConversationIdsImpl usr start (fromRange -> maxIds) = do
         [vectorStatement|SELECT (conv :: uuid)
                          FROM conversation_member
                          WHERE "user" = ($1 :: uuid)
-                         AND conv > ($2 :: uuid)
-                         ORDER BY conv
+                         AND (uuid_extract_version(conv), conv) > (uuid_extract_version($2 :: uuid), $2 :: uuid)
+                         ORDER BY uuid_extract_version(conv), conv
                          LIMIT ($3 :: integer)
                         |]
 
-getConversationIdsImpl :: forall r. (PGConstraints r) => Local UserId -> Range 1 1000 Int32 -> Maybe ConversationPagingState -> Sem r ConvIdsPage
-getConversationIdsImpl lusr (fromRange -> maxIds) pagingState = do
-  let pagingTable = maybe PagingLocals (.mtpsTable) pagingState
-      mLastId = Aeson.decode . BS.fromStrict =<< (.mtpsState) =<< pagingState
-  case pagingTable of
-    PagingLocals -> do
-      localPage <- getLocals maxIds mLastId
-      let remainingSize = maxIds - fromIntegral (length localPage.mtpResults)
-      if remainingSize <= 0
-        then pure localPage {mtpHasMore = True}
-        else do
-          remotePage <- getRemotes remainingSize Nothing
-          pure $
-            remotePage {mtpResults = localPage.mtpResults <> remotePage.mtpResults}
-    PagingRemotes ->
-      getRemotes maxIds mLastId
+getRemoteConversationIdsImpl :: (PGConstraints r) => UserId -> Maybe (Remote ConvId) -> Range 1 1000 Int32 -> Sem r (ResultSet (Remote ConvId))
+getRemoteConversationIdsImpl usr start (fromRange -> maxIds) = do
+  mkResultSetByLength (fromIntegral maxIds) . map (uncurry toRemoteUnsafe) <$> case start of
+    Just (tUntagged -> Qualified c dom) -> runStatement (usr, dom, c, maxIds + 1) selectFrom
+    Nothing -> runStatement (usr, maxIds + 1) selectStart
   where
-    localDomain = tDomain lusr
-    usr = tUnqualified lusr
-
-    getLocals :: Int32 -> Maybe (Qualified ConvId) -> Sem r ConvIdsPage
-    getLocals maxLocals mLastId = do
-      mkLocalsPage <$> case mLastId of
-        Nothing -> runStatement (usr, maxLocals) selectLocalsStart
-        Just (Qualified lastId _) -> runStatement (usr, lastId, maxIds) selectLocalsFrom
-
-    getRemotes :: Int32 -> Maybe (Qualified ConvId) -> Sem r ConvIdsPage
-    getRemotes maxRemotes mLastId = do
-      mkRemotesPage maxRemotes <$> case mLastId of
-        Nothing -> runStatement (usr, maxRemotes) selectRemotesStart
-        Just (Qualified lastId lastDomain) -> runStatement (usr, lastDomain, lastId, maxRemotes) selectRemotesFrom
-
-    mkLocalsPage :: [ConvId] -> ConvIdsPage
-    mkLocalsPage results =
-      MultiTablePage
-        { mtpResults = map (\cid -> Qualified cid localDomain) results,
-          mtpHasMore = length results >= fromIntegral maxIds,
-          mtpPagingState =
-            case lastMay results of
-              Nothing ->
-                MultiTablePagingState
-                  { mtpsTable = PagingRemotes,
-                    mtpsState = Nothing
-                  }
-              Just newLastId ->
-                MultiTablePagingState
-                  { mtpsTable = PagingLocals,
-                    mtpsState = Just . BS.toStrict . Aeson.encode $ Qualified newLastId localDomain
-                  }
-        }
-
-    mkRemotesPage :: Int32 -> [(Domain, ConvId)] -> ConvIdsPage
-    mkRemotesPage maxRemotes results =
-      MultiTablePage
-        { mtpResults = map (uncurry $ flip Qualified) results,
-          mtpHasMore = length results >= fromIntegral maxRemotes,
-          mtpPagingState =
-            case lastMay results of
-              Nothing ->
-                -- This might look absurd because when this state is back here,
-                -- we'll go to the first page, but 'mtpHasMore' should be set to
-                -- false when we have empty results.
-                MultiTablePagingState
-                  { mtpsTable = PagingRemotes,
-                    mtpsState = Nothing
-                  }
-              Just (newLastDomain, newLastId) ->
-                MultiTablePagingState
-                  { mtpsTable = PagingRemotes,
-                    mtpsState = Just . BS.toStrict $ Aeson.encode $ Qualified newLastId newLastDomain
-                  }
-        }
-
-    selectLocalsFrom :: Hasql.Statement (UserId, ConvId, Int32) [ConvId]
-    selectLocalsFrom =
-      dimapPG
-        [vectorStatement|SELECT (conv :: uuid)
-                         FROM conversation_member
-                         WHERE "user" = ($1 :: uuid)
-                         AND conv > ($2 :: uuid)
-                         ORDER BY conv
-                         LIMIT ($3 :: integer)
-                        |]
-    selectLocalsStart :: Hasql.Statement (UserId, Int32) [(ConvId)]
-    selectLocalsStart =
-      dimapPG
-        [vectorStatement|SELECT (conv :: uuid)
-                         FROM conversation_member
-                         WHERE "user" = ($1 :: uuid)
-                         ORDER BY conv
-                         LIMIT ($2 :: integer)
-                        |]
-
-    selectRemotesFrom :: Hasql.Statement (UserId, Domain, ConvId, Int32) [(Domain, ConvId)]
-    selectRemotesFrom =
+    selectStart :: Hasql.Statement (UserId, Int32) [(Domain, ConvId)]
+    selectStart =
       dimapPG
         [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
                          FROM remote_conversation_local_member
                          WHERE "user" = ($1 :: uuid)
-                         AND (conv_remote_domain, conv_remote_id) > ($2 :: text, $3 ::uuid)
-                         ORDER BY (conv_remote_domain, conv_remote_id)
+                         ORDER BY conv_remote_domain, uuid_extract_version(conv_remote_id), conv_remote_id
+                         LIMIT ($2 :: integer)
+                        |]
+
+    selectFrom :: Hasql.Statement (UserId, Domain, ConvId, Int32) [(Domain, ConvId)]
+    selectFrom =
+      dimapPG
+        [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
+                         FROM remote_conversation_local_member
+                         WHERE "user" = ($1 :: uuid)
+                         AND (conv_remote_domain, uuid_extract_version(conv_remote_id), conv_remote_id) > ($2 :: text, uuid_extract_version($3 :: uuid), $3 :: uuid)
+                         ORDER BY conv_remote_domain, uuid_extract_version(conv_remote_id), conv_remote_id
                          LIMIT ($4 :: integer)
-                        |]
-    selectRemotesStart :: Hasql.Statement (UserId, Int32) [(Domain, ConvId)]
-    selectRemotesStart =
-      dimapPG
-        [vectorStatement|SELECT (conv_remote_domain :: text), (conv_remote_id :: uuid)
-                         FROM remote_conversation_local_member
-                         WHERE "user" = ($1 :: uuid)
-                         ORDER BY (conv_remote_domain, conv_remote_id)
-                         LIMIT ($2 :: integer)
                         |]
 
 getConversationMetadataImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationMetadata)
@@ -851,6 +780,18 @@ checkLocalMemberRemoteConvImpl uid (tUntagged -> Qualified convId domain) =
                             ) :: boolean
                            |]
 
+haveRemoteConvsImpl :: (PGConstraints r) => [UserId] -> Sem r [UserId]
+haveRemoteConvsImpl uid =
+  runStatement uid select
+  where
+    select :: Hasql.Statement [UserId] [UserId]
+    select =
+      dimapPG @[_] @(Vector _) @(Vector _) @[_]
+        [vectorStatement|SELECT DISTINCT "user" :: uuid
+                         FROM remote_conversation_local_member
+                         WHERE "user" = ANY ($1 :: uuid[])
+                        |]
+
 selectRemoteMembersImpl :: (PGConstraints r) => [UserId] -> Remote ConvId -> Sem r ([UserId], Bool)
 selectRemoteMembersImpl uids (tUntagged -> Qualified cid domain) = do
   foundUids <- runStatement (domain, cid, uids) select
@@ -1226,3 +1167,107 @@ deleteSubConversationImpl cid subConvId =
                              WHERE conv_id = ($1 :: uuid)
                              AND subconv_id = ($2 :: text)
                             |]
+
+data RawResult = RawResult
+  { convId :: ConvId,
+    name :: Maybe Text,
+    access :: Maybe [Int32],
+    memberCount :: Int64,
+    adminCount :: Int64
+  }
+
+rawResultToSearchResult :: RawResult -> Either Text ConversationSearchResult
+rawResultToSearchResult r = do
+  access <- traverse postgresUnmarshall (fold r.access)
+  memberCount <- parseCount r.memberCount
+  adminCount <- parseCount r.adminCount
+  pure
+    ConversationSearchResult
+      { convId = r.convId,
+        name = r.name,
+        access,
+        memberCount,
+        adminCount
+      }
+
+searchConversationsImpl ::
+  ( Member (Input Hasql.Pool) r,
+    Member (Error Hasql.UsageError) r,
+    Member (Embed IO) r
+  ) =>
+  ConversationSearch ->
+  Sem r [ConversationSearchResult]
+searchConversationsImpl req =
+  runStatement () $
+    Hasql.refineResult (traverse rawResultToSearchResult) $
+      buildStatement
+        ( cte
+            <> literal "select conv.id, conv.name, conv.access,"
+            <> literal "count(m.\"user\") as member_count,"
+            <> literal "count(*) filter (where m.conversation_role = 'wire_admin') as admin_count"
+            <> literal "from conv left join conversation_member m on m.conv = conv.id"
+            <> literal "group by conv.id, conv.name, conv.access"
+            -- ordering is case-insensitive on name, must match the pagination comparison
+            <> orderBy [("lower(name)", req.sortOrder), ("id", req.sortOrder)]
+        )
+        ( HD.rowList
+            ( RawResult
+                <$> (Id <$> HD.column (HD.nonNullable HD.uuid))
+                <*> HD.column (HD.nullable HD.text)
+                <*> HD.column
+                  ( HD.nullable
+                      (HD.listArray (HD.nonNullable HD.int4))
+                  )
+                <*> HD.column (HD.nonNullable HD.int8)
+                <*> HD.column (HD.nonNullable HD.int8)
+            )
+        )
+  where
+    cte =
+      literal "with conv as (select id, name, access from conversation"
+        <> where_
+          ( [ clause1 "team" "=" req.team,
+              clause1 "group_conv_type" "=" (postgresMarshall @_ @Int32 Channel)
+            ]
+              <> [ clause
+                     (sortOrderOperator req.sortOrder)
+                     -- the pagination cursor must match the ORDER BY. Therefore the comparison is case-insensitive.
+                     (mkClause "lower(name)" (Text.toLower lastName) <> mkClause "id" lastId)
+                   | lastName <- toList req.lastName,
+                     lastId <- toList req.lastId
+                 ]
+              <> toList (like "name" <$> req.searchString)
+              <> discoverableClause
+          )
+        -- keep ordering consistent with the outer query, therefore case-insensitive
+        <> orderBy [("lower(name)", req.sortOrder), ("id", req.sortOrder)]
+        <> limit (pageSizeToInt32 req.pageSize)
+        <> literal ")"
+
+    discoverableClause
+      | req.discoverable =
+          [ paramLiteral (valueEncoder @Int32 (postgresMarshall LinkAccess)) \i ->
+              argPattern "integer" i <> " = any(access)"
+          ]
+      | otherwise = []
+
+setConversationOutOfSyncImpl :: (PGConstraints r) => ConvId -> Bool -> Sem r ()
+setConversationOutOfSyncImpl cid outOfSync =
+  runStatement (cid, outOfSync) $
+    lmapPG
+      [resultlessStatement|
+      INSERT INTO conversation_out_of_sync (conv_id, out_of_sync)
+        VALUES ($1 :: uuid, $2 :: boolean)
+        ON CONFLICT (conv_id)
+        DO UPDATE SET out_of_sync = ($2 :: boolean)
+    |]
+
+isConversationOutOfSyncImpl :: (PGConstraints r) => ConvId -> Sem r Bool
+isConversationOutOfSyncImpl cid =
+  fmap (fromMaybe False) $
+    runStatement cid $
+      lmapPG
+        [maybeStatement|
+          SELECT (out_of_sync :: boolean) FROM conversation_out_of_sync
+          WHERE conv_id = ($1 :: uuid)
+          |]

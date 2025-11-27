@@ -54,10 +54,11 @@ spec:
 
 4. Wait for the process to finish. Watch logs, it will say something like "sleeping for 4 hours" and then close all connections to cassandra.
 
-5. Copy the logs using `kubectl cp`
+5. Copy the logs
 
 ```
-kubectl cp inconsistencies:/tmp/inconsistencies.log inconsistencies.log
+# 'kubectl cp' is unavailable due to missing tar, use 'cat'.
+kubectl exec inconsistencies -- sh -c 'cat /tmp/inconsistencies.log' > ./inconsistencies.log
 ```
 
 6. **IMPORTANT:** Delete the pod. The easiest way to do this is with `kubectl delete -f <filename>` (which also deletes any configmap)
@@ -89,7 +90,34 @@ At least the following are supported:
 - `dangling-handles` (and a mounted configmap containing newline-separated handles)
 - `dangling-keys` (and a mounted configmap containing newline-separated emails)
 
-Example:
+Examples:
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inconsistencies
+  labels:
+    app: inconsistencies
+spec:
+  restartPolicy: Never
+  containers:
+  - name: inconsistencies
+    image: quay.io/wire/inconsistencies:0.0.2-pr.12309
+    imagePullPolicy: Always
+    args:
+    - --cassandra-host-brig
+    - brig-brig-eks-service.databases
+    - --cassandra-keyspace-brig
+    - brig
+    - users-in-unknown-teams
+    - --cassandra-host-galley
+    - galley-galley-eks-service.databases
+    - --cassandra-keyspace-galley
+    - galley
+    - --inconsistencies-file
+    - /tmp/inconsistencies.log
+```
 
 ```yaml
 apiVersion: v1

@@ -63,6 +63,8 @@ userGroupStoreTestInterpreter =
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
     GetUserGroups req -> getUserGroupsImpl req
+    GetUserGroupsWithMembers req -> getUserGroupsWithMembersImpl req
+    GetUserGroupsForConv cid -> getUserGroupsForConvImpl cid
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
     AddUser gid uid -> addUserImpl gid uid
@@ -70,7 +72,15 @@ userGroupStoreTestInterpreter =
     RemoveUser gid uid -> removeUserImpl gid uid
     AddUserGroupChannels gid convIds -> updateUserGroupChannelsImpl True gid convIds
     UpdateUserGroupChannels gid convIds -> updateUserGroupChannelsImpl False gid convIds
+    GetUserGroupChannels tid gid -> getUserGroupChannelsImpl tid gid
     GetUserGroupIdsForUsers uids -> getUserGroupIdsForUsersImpl uids
+
+getUserGroupsForConvImpl :: (UserGroupStoreInMemEffectConstraints r) => ConvId -> Sem r (Vector UserGroup)
+getUserGroupsForConvImpl cid = do
+  st <- get @UserGroupInMemState
+  let belongs ug = maybe False (elem cid . fmap Data.Qualified.qUnqualified) ug.channels
+      groups = filter belongs (snd <$> Map.toList st)
+  pure (fromList groups)
 
 getUserGroupIdsForUsersImpl :: (UserGroupStoreInMemEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
 getUserGroupIdsForUsersImpl uids = do
@@ -115,8 +125,16 @@ filterChannels includeChannels ug =
     else (ug :: UserGroup) {channels = mempty}
 
 getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
-getUserGroupsImpl UserGroupPageRequest {..} = do
-  meta <- ((snd <$>) . sieve . fmap (_2 %~ userGroupToMeta . (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
+getUserGroupsImpl req = do
+  UserGroupPage pages count <- getUserGroupsWithMembersImpl req
+  pure $ UserGroupPage (map removeMembers pages) count
+  where
+    removeMembers :: UserGroup -> UserGroupMeta
+    removeMembers UserGroup_ {..} = UserGroup_ {members = Const (), ..}
+
+getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPageWithMembers
+getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
+  meta <- ((snd <$>) . sieve . fmap (_2 %~ (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
   where
     sieve,
@@ -125,7 +143,7 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
       orderByKeys,
       narrowToSearchString,
       narrowToTeam ::
-        [((TeamId, UserGroupId), UserGroupMeta)] -> [((TeamId, UserGroupId), UserGroupMeta)]
+        [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
 
     sieve =
       dropAfterPageSize
@@ -157,7 +175,7 @@ getUserGroupsImpl UserGroupPageRequest {..} = do
     dropBeforeStart = do
       dropWhile sqlConds
       where
-        sqlConds :: ((TeamId, UserGroupId), UserGroupMeta) -> Bool
+        sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
         sqlConds ((_, _), row) =
           case (paginationState, sortOrder) of
             (PaginationSortByName (Just (name, tieBreaker)), Asc) ->
@@ -232,6 +250,17 @@ listUserGroupChannelsImpl ::
 listUserGroupChannelsImpl gid =
   foldMap (fmap qUnqualified) . ((.channels) . snd <=< find ((== gid) . snd . fst) . Map.toList)
     <$> get @(Map (TeamId, UserGroupId) UserGroup)
+
+getUserGroupChannelsImpl ::
+  (UserGroupStoreInMemEffectConstraints r) =>
+  TeamId ->
+  UserGroupId ->
+  Sem r (Maybe (Vector ConvId))
+getUserGroupChannelsImpl tid gid = do
+  st <- get @UserGroupInMemState
+  pure $ case st Map.!? (tid, gid) of
+    Nothing -> Nothing
+    Just ug -> fmap (fmap qUnqualified) ug.channels
 
 ----------------------------------------------------------------------
 

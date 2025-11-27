@@ -41,9 +41,11 @@
 , template-haskell
 , text
 , time
+, utf8-string
 , uuid
 , wai
 , wai-extra
+, wai-utilities
 , warp
 }:
 mkDerivation {
@@ -85,9 +87,11 @@ mkDerivation {
     template-haskell
     text
     time
+    utf8-string
     uuid
     wai
     wai-extra
+    wai-utilities
   ];
   executableHaskellDepends = [
     base
@@ -121,7 +125,7 @@ mkDerivation {
     wai-extra
   ];
   testToolDepends = [ hspec-discover ];
-  homepage = "https://github.com/wireapp/wire-server/libs/hscim/README.md";
+  homepage = "https://github.com/wireapp/wire-server/blob/develop/libs/hscim/README.md";
   description = "hscim json schema and server implementation";
   license = lib.licenses.agpl3Only;
   mainProgram = "hscim-server";

@@ -45,6 +45,7 @@ where
 
 import Cassandra qualified as C
 import Control.Error (note)
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString.Char8 (takeByteString)
@@ -53,7 +54,9 @@ import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TE
 import Imports
+import Web.HttpApiData (FromHttpApiData (..), ToHttpApiData (..))
 import Wire.API.Asset (AssetKey (..))
 import Wire.API.User.Orphans ()
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -239,6 +242,15 @@ instance FromByteString ManagedBy where
       "wire" -> pure ManagedByWire
       "scim" -> pure ManagedByScim
       x -> fail $ "Invalid ManagedBy value: " <> show x
+
+instance FromHttpApiData ManagedBy where
+  parseUrlPiece = maybe (Left "Invalid ManagedBy value") Right . fromByteString . TE.encodeUtf8
+
+instance ToHttpApiData ManagedBy where
+  toUrlPiece = TE.decodeUtf8 . toByteString'
+
+instance S.ToParamSchema ManagedBy where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString & S.enum_ ?~ ["wire", "scim"]
 
 instance C.Cql ManagedBy where
   ctype = C.Tagged C.IntColumn

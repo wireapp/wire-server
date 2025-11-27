@@ -47,6 +47,7 @@ module Galley.API.Query
     getMLSOne2OneConversationInternal,
     getMLSOne2OneConversation,
     isMLSOne2OneEstablished,
+    searchChannels,
   )
 where
 
@@ -55,6 +56,7 @@ import Control.Monad.Extra
 import Data.ByteString.Conversion
 import Data.Code
 import Data.CommaSeparatedList
+import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Map qualified as Map
@@ -63,6 +65,7 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Tagged
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
@@ -89,6 +92,7 @@ import System.Logger.Class qualified as Logger
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Role qualified as Public
@@ -100,10 +104,11 @@ import Wire.API.Federation.Client (FederatorClient, getNegotiatedVersion)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version qualified as Federation
 import Wire.API.MLS.Keys
+import Wire.API.Pagination
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (TeamMember, isAdminOrOwner, permissions)
+import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
@@ -985,6 +990,40 @@ isRemoteMLSOne2OneEstablished lself qother rconv = do
     ep :: ConversationMLSData -> Word64
     ep = epochNumber . cnvmlsEpoch
 
+searchChannels ::
+  ( Member ConversationStore r,
+    Member (ErrorS NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Maybe Text ->
+  Maybe SortOrder ->
+  Maybe PageSize ->
+  Maybe Text ->
+  Maybe ConvId ->
+  Bool ->
+  Sem r ConversationPage
+searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
+  r <- runError @(Tagged OperationDenied ()) $ do
+    mem <- E.getTeamMember tid (tUnqualified lusr)
+    void $ permissionCheck SearchChannels mem
+  case r of
+    Left e | not discoverable -> throw e
+    _ -> pure ()
+  ConversationPage
+    <$> E.searchConversations
+      E.ConversationSearch
+        { team = tid,
+          searchString,
+          sortOrder = fromMaybe Desc sortOrder,
+          pageSize = fromMaybe def pageSize,
+          lastName,
+          lastId,
+          discoverable
+        }
+
 -------------------------------------------------------------------------------
 -- Helpers
 
@@ -996,16 +1035,8 @@ ensureConvAdmin ::
   UserId ->
   Maybe TeamMember ->
   Sem r ()
-ensureConvAdmin conversation uid mTeamMember = do
-  case find (\m -> m.id_ == uid) conversation.localMembers of
-    Nothing -> throwS @'ConvNotFound
-    Just lm -> unless (hasAdminPermissions lm) $ throwS @'ConvAccessDenied
-  where
-    hasAdminPermissions :: LocalMember -> Bool
-    hasAdminPermissions lm = lm.convRoleName == roleNameWireAdmin || isChannelAdmin mTeamMember
-
-    isChannelAdmin :: Maybe TeamMember -> Bool
-    isChannelAdmin Nothing = False
-    isChannelAdmin (Just tm) =
-      conversation.metadata.cnvmGroupConvType == Just Channel
-        && isAdminOrOwner (tm ^. permissions)
+ensureConvAdmin conv uid mTeamMember = do
+  unless (maybe False (hasManageChannelsPermission conv) mTeamMember) $
+    case find (\m -> m.id_ == uid) conv.localMembers of
+      Nothing -> throwS @'ConvNotFound
+      Just lm -> unless (lm.convRoleName == roleNameWireAdmin) $ throwS @'ConvAccessDenied

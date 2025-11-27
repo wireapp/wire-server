@@ -1,6 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-orphans #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.SAML2.WebSSO.APISpec
   ( spec,
   )
@@ -15,6 +32,7 @@ import Data.ByteString.Base64.Lazy qualified as EL (decodeLenient, encode)
 import Data.Either
 import Data.EitherR
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
 import Data.String.Conversions
@@ -275,7 +293,7 @@ spec = describe "API" $ do
         check certIsGood expectation = do
           testIdPConfig@(_, SampleIdP _ privkey _ goodCert) <- makeTestIdPConfig
           (_, SampleIdP _ _ _ badCert) <- makeTestIdPConfig
-          let idpcfg = testIdPConfig & _1 . idpMetadata . edCertAuthnResponse .~ (cert :| [])
+          let idpcfg = testIdPConfig & _1 . idpMetadata . edCertAuthnResponse .~ NonEmpty.singleton cert
               cert = if certIsGood then goodCert else badCert
           ctx <- mkTestCtxSimple
           modifyMVar_ ctx $ pure . (ctxIdPs .~ [idpcfg])

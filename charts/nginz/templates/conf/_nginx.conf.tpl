@@ -47,7 +47,7 @@ http {
   server_names_hash_bucket_size 64;
   server_name_in_redirect off;
 
-  large_client_header_buffers 4 8k;
+  large_client_header_buffers {{ .Values.nginx_conf.large_client_header_buffers | default "4 8k" }};
 
 
   #
@@ -196,7 +196,7 @@ http {
 
 {{- $validUpstreams := include "valid_upstreams" . | fromJson }}
 {{- range $name, $_ := $validUpstreams }}
-  upstream {{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}} { 
+  upstream {{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}} {
       zone {{ $name }} 64k; # needed for dynamic DNS updates
       least_conn;
       keepalive 32;

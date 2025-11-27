@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.TeamSubsystem.Util where
 
 import Control.Lens ((^..))
@@ -13,24 +30,24 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Now
 import Wire.TeamSubsystem
 
--- | Generate a team event and send it to all team admins
-generateTeamEvent ::
+-- | Generate team events and send them to all team admins
+generateTeamEvents ::
   ( Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r
   ) =>
   UserId ->
   TeamId ->
-  EventData ->
+  [EventData] ->
   Sem r ()
-generateTeamEvent uid tid edata = do
+generateTeamEvents uid tid eventsData = do
   now <- get
-  let event = newEvent tid now edata
   admins <- internalGetTeamAdmins tid
-  pushNotifications
-    [ def
+  pushNotifications $
+    eventsData <&> \eData ->
+      def
         { origin = Just uid,
-          json = toJSONObject $ event,
+          json = toJSONObject $ newEvent tid now eData,
           recipients =
             [ Recipient
                 { recipientUserId = u,
@@ -40,4 +57,3 @@ generateTeamEvent uid tid edata = do
             ],
           transient = False
         }
-    ]

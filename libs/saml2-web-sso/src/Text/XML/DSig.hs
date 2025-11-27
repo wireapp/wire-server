@@ -149,7 +149,7 @@ stripWhitespaceLBS :: (m ~ Either String) => LBS -> m LBS
 stripWhitespaceLBS lbs = renderLBS def . stripWhitespace <$> fmapL show (parseLBS def lbs)
 
 renderKeyInfo :: (HasCallStack) => X509.SignedCertificate -> LT
-renderKeyInfo cert = cs . ourSamlToXML . HS.KeyInfo Nothing $ HS.X509Data (HS.X509Certificate cert :| []) :| []
+renderKeyInfo cert = cs . ourSamlToXML . HS.KeyInfo Nothing $ NonEmpty.singleton (HS.X509Data (NonEmpty.singleton (HS.X509Certificate cert)))
 
 certToCreds :: (HasCallStack, MonadError String m) => X509.SignedCertificate -> m SignCreds
 certToCreds cert = do
@@ -425,15 +425,15 @@ signRootAt sigPos (SignPrivCreds hashAlg (SignPrivKeyRSA keypair)) doc =
               signedInfoCanonicalizationMethod = HS.CanonicalizationMethod (HS.Identified canoAlg) Nothing [],
               signedInfoSignatureMethod = HS.SignatureMethod (HS.Identified HS.SignatureRSA_SHA256) Nothing [],
               signedInfoReference =
-                HS.Reference
-                  { referenceId = Nothing,
-                    referenceURI = Just reference,
-                    referenceType = Nothing,
-                    referenceTransforms = transforms,
-                    referenceDigestMethod = HS.DigestMethod (HS.Identified HS.DigestSHA256) [],
-                    referenceDigestValue = digest
-                  }
-                  :| []
+                NonEmpty.singleton
+                  HS.Reference
+                    { referenceId = Nothing,
+                      referenceURI = Just reference,
+                      referenceType = Nothing,
+                      referenceTransforms = transforms,
+                      referenceDigestMethod = HS.DigestMethod (HS.Identified HS.DigestSHA256) [],
+                      referenceDigestValue = digest
+                    }
             }
     -- (note that there are two rounds of SHA256 application, hence two mentions of the has alg here)
 

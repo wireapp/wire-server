@@ -9,7 +9,17 @@ copyright:          (c) 2020 Wire Swiss GmbH
 license:            AGPL-3.0-only
 license-file:       LICENSE
 build-type:         Simple
-extra-source-files: postgres-migrations/*.sql
+extra-source-files:
+  postgres-migrations/*.sql
+  templates/**/*.html
+  templates/**/*.txt
+  templates/index.html
+  templates/version
+  test/resources/**/*.html
+  test/resources/**/*.json
+  test/resources/**/*.pem
+  test/resources/**/*.txt
+  test/resources/**/*.yaml
 
 common common-all
   default-language:   GHC2021
@@ -105,10 +115,12 @@ common common-all
     , hasql-th
     , hasql-transaction
     , hex
+    , hscim
     , HsOpenSSL
     , hspec
     , html-entities
     , http-client
+    , http-client-openssl
     , http-types
     , http2-manager
     , imports
@@ -121,7 +133,9 @@ common common-all
     , mime-mail
     , network
     , network-conduit-tls
+    , network-uri
     , polysemy
+    , polysemy-conc
     , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
@@ -137,7 +151,9 @@ common common-all
     , servant
     , servant-client-core
     , servant-server
+    , singletons
     , sodium-crypto-sign
+    , ssl-util
     , statistics
     , stomp-queue
     , template
@@ -153,8 +169,10 @@ common common-all
     , unliftio
     , unordered-containers
     , uri-bytestring
+    , utf8-string
     , uuid
     , vector
+    , wai
     , wai-utilities
     , wire-api
     , wire-api-federation
@@ -182,6 +200,12 @@ library
     Wire.AuthenticationSubsystem.Interpreter
     Wire.AuthenticationSubsystem.ZAuth
     Wire.AWS
+    Wire.BackendNotificationQueueAccess
+    Wire.BackendNotificationQueueAccess.RabbitMq
+    Wire.BackgroundJobsPublisher
+    Wire.BackgroundJobsPublisher.RabbitMQ
+    Wire.BackgroundJobsRunner
+    Wire.BackgroundJobsRunner.Interpreter
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
@@ -190,8 +214,14 @@ library
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
     Wire.ConversationStore.Cassandra.Queries
+    Wire.ConversationStore.Migration
+    Wire.ConversationStore.Migration.Cleanup
+    Wire.ConversationStore.Migration.Types
+    Wire.ConversationStore.MigrationLock
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
+    Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Interpreter
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -210,10 +240,13 @@ library
     Wire.EnterpriseLoginSubsystem.Null
     Wire.Error
     Wire.Events
+    Wire.ExternalAccess
+    Wire.ExternalAccess.External
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FireAndForget
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
@@ -248,6 +281,10 @@ library
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
+    Wire.ScimSubsystem
+    Wire.ScimSubsystem.Interpreter
+    Wire.ServiceStore
+    Wire.ServiceStore.Cassandra
     Wire.SessionStore
     Wire.SessionStore.Cassandra
     Wire.SparAPIAccess
@@ -405,6 +442,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.AppStore
+    Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
@@ -438,6 +476,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec

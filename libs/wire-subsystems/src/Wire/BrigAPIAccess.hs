@@ -1,5 +1,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.BrigAPIAccess
   ( -- * Brig access effect
     BrigAPIAccess (..),
@@ -20,6 +37,7 @@ module Wire.BrigAPIAccess
     getRichInfoMultiUser,
     getUserExportData,
     updateSearchIndex,
+    getAccountsBy,
 
     -- * Teams
     getSize,
@@ -43,6 +61,14 @@ module Wire.BrigAPIAccess
 
     -- * Bots
     deleteBot,
+
+    -- * User Groups
+    createGroupInternal,
+    getGroupInternal,
+    getGroupsInternal,
+    updateGroup,
+    deleteGroupInternal,
+    DeleteGroupManagedError (..),
   )
 where
 
@@ -53,11 +79,14 @@ import Data.Misc
 import Data.Qualified
 import Imports
 import Network.HTTP.Types.Status
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
+import Web.Scim.Filter qualified as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -68,6 +97,11 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
+import Wire.API.UserGroup
+import Wire.API.UserGroup.Pagination
+
+data DeleteGroupManagedError = DeleteGroupManagedManagedByMismatch
+  deriving (Eq, Show)
 
 -- | When receiving tokens from other services which are 'just passing through'
 -- it's error-prone useless extra work to parse and render them from JSON over and over again.
@@ -124,6 +158,12 @@ data BrigAPIAccess m a where
   GetUserExportData :: UserId -> BrigAPIAccess m (Maybe TeamExportUser)
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
+  GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
+  CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
+  GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
+  GetGroupsInternal :: TeamId -> Maybe Scim.Filter -> BrigAPIAccess m UserGroupPageWithMembers
+  UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m (Either Wai.Error ())
+  DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
 
 makeSem ''BrigAPIAccess
 

@@ -21,7 +21,6 @@ module Test.Wire.API.Golden.Generated.Invite_user where
 
 import Data.Id (Id (Id))
 import Data.List.NonEmpty qualified as NonEmpty (fromList)
-import Data.List1 (List1 (List1))
 import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation (Invite (..))
@@ -31,12 +30,10 @@ testObject_Invite_user_1 :: Invite
 testObject_Invite_user_1 =
   Invite
     { invUsers =
-        List1
-          ( NonEmpty.fromList
-              [ Id (fromJust (UUID.fromString "00000002-0000-0058-0000-003c00000079")),
-                Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))
-              ]
-          ),
+        NonEmpty.fromList
+          [ Id (fromJust (UUID.fromString "00000002-0000-0058-0000-003c00000079")),
+            Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))
+          ],
       invRoleName =
         fromJust
           (parseRoleName "t0xs1a2pemtt5f133cklsuqsxvrq25q5awgxjbuf5m2hf679oxxjcop794lmnuj2rd3t1sp5qya0tmn4qhpw2wxepd")
@@ -46,9 +43,7 @@ testObject_Invite_user_2 :: Invite
 testObject_Invite_user_2 =
   Invite
     { invUsers =
-        List1
-          ( NonEmpty.fromList
-              [Id (fromJust (UUID.fromString "00000002-0000-0058-0000-003c00000079"))]
-          ),
+        NonEmpty.fromList
+          [Id (fromJust (UUID.fromString "00000002-0000-0058-0000-003c00000079"))],
       invRoleName = roleNameWireAdmin
     }

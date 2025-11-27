@@ -34,7 +34,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 hiding (head)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
@@ -149,7 +149,6 @@ tests s =
       testGroup
         "Protocol mismatch"
         [ test s "send a commit to a proteus conversation" testAddUsersToProteus,
-          test s "add users bypassing MLS" testAddUsersDirectly,
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
         ],
@@ -224,7 +223,7 @@ postMLSConvFail = do
   let alice = qUnqualified qalice
   let aliceClient = ClientId 0
   bob <- randomUser
-  connectUsers alice (list1 bob [])
+  connectUsers alice (NonEmpty.singleton bob)
   postConvQualified
     alice
     (Just aliceClient)
@@ -418,24 +417,6 @@ testAddUsersToProteus = do
       responseJsonError
         =<< localPostCommitBundle alice1 bundle <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
-
-testAddUsersDirectly :: (HasCallStack) => TestM ()
-testAddUsersDirectly = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  charlie <- randomQualifiedUser
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ uploadNewKeyPackage bob1
-    qcnv <- snd <$> setupMLSGroup alice1
-    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommitBundle
-    e <-
-      responseJsonError
-        =<< postMembers
-          (qUnqualified alice)
-          (pure charlie)
-          qcnv
-          <!! const 403 === statusCode
-    liftIO $ Wai.label e @?= "invalid-op"
 
 testRemoveUsersDirectly :: (HasCallStack) => TestM ()
 testRemoveUsersDirectly = do
@@ -901,7 +882,7 @@ testRemoteToRemoteInSub = do
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
-      rcpts = Map.fromList [(alice, aliceC1 :| [aliceC2]), (eve, eveC :| [])]
+      rcpts = Map.fromList [(alice, aliceC1 :| [aliceC2]), (eve, NonEmpty.singleton eveC)]
       rm =
         RemoteMLSMessage
           { time = now,
@@ -964,7 +945,8 @@ testRemoteToLocal = do
             { convOrSubId = Conv (qUnqualified qcnv),
               sender = qUnqualified bob,
               senderClient = ciClient bob1,
-              rawMessage = Base64ByteString (mpMessage message)
+              rawMessage = Base64ByteString (mpMessage message),
+              enableOutOfSyncCheck = Nothing
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
@@ -1008,7 +990,8 @@ testRemoteToLocalWrongConversation = do
             { convOrSubId = Conv randomConfId,
               sender = qUnqualified bob,
               senderClient = ciClient bob1,
-              rawMessage = Base64ByteString (mpMessage message)
+              rawMessage = Base64ByteString (mpMessage message),
+              enableOutOfSyncCheck = Nothing
             }
 
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
@@ -1042,7 +1025,8 @@ testRemoteNonMemberToLocal = do
             { convOrSubId = Conv (qUnqualified qcnv),
               sender = qUnqualified bob,
               senderClient = ciClient bob1,
-              rawMessage = Base64ByteString (mpMessage message)
+              rawMessage = Base64ByteString (mpMessage message),
+              enableOutOfSyncCheck = Nothing
             }
 
     fedGalleyClient <- view tsFedGalleyClient

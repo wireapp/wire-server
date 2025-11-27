@@ -1,9 +1,27 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.UserSubsystem
   ( module Wire.UserSubsystem,
     module Data.HavePendingInvitations,
+    GetBy (..),
   )
 where
 
@@ -25,6 +43,7 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Brig (GetBy (..))
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
@@ -90,21 +109,6 @@ instance Default UserProfileUpdate where
         locale = Nothing,
         supportedProtocols = Nothing
       }
-
--- | Parameters for `getExternalAccountsBy` operation below.
-data GetBy = MkGetBy
-  { -- | whether or not to include pending invitations when getting users by ids.
-    includePendingInvitations :: HavePendingInvitations,
-    -- | get accounts by 'UserId'.
-    getByUserId :: [UserId],
-    -- | get accounts by their 'Handle'
-    getByHandle :: [Handle]
-  }
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform GetBy
-
-instance Default GetBy where
-  def = MkGetBy NoPendingInvitations [] []
 
 -- | Outcome of email change invariant checks.
 data ChangeEmailResult

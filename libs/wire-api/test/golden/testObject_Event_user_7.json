@@ -13,5 +13,6 @@
         "id": "0000355a-0000-2979-0000-083000002d5e"
     },
     "time": "1864-04-18T05:01:13.761Z",
-    "type": "conversation.typing"
+    "type": "conversation.typing",
+    "via": "user"
 }

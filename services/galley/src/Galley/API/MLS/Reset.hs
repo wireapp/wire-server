@@ -39,6 +39,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -63,6 +64,7 @@ resetMLSConversation ::
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member ProposalStore r,
     Member Random r,
     Member Resource r,

@@ -31,7 +31,7 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toBase64Text)
-import Data.List1 as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
 import Data.Qualified
@@ -454,11 +454,11 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
 
     -- verify that alice received the message
     WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconvId
       evtType e @?= OtrMessageAdd
-      evtFrom e @?= userQualifiedId bob
+      evtFrom e @?= EventFromUser (userQualifiedId bob)
       evtData e
         @?= EdOtrMessage
           ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
@@ -517,11 +517,11 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
 
     -- verify that alice received the message
     WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconvId
       evtType e @?= OtrMessageAdd
-      evtFrom e @?= userQualifiedId bob
+      evtFrom e @?= EventFromUser (userQualifiedId bob)
       evtData e
         @?= EdOtrMessage
           ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
@@ -626,11 +626,11 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
           !!! const 200 === statusCode
   let checkEvent ws u s =
         WS.assertMatch_ (8 # Second) ws $ \n -> do
-          let e = List1.head (WS.unpackPayload n)
+          let e = NonEmpty.head (WS.unpackPayload n)
           ntfTransient n @?= True
           evtConv e @?= cnv.qualifiedId
           evtType e @?= Typing
-          evtFrom e @?= userQualifiedId u
+          evtFrom e @?= EventFromUser (userQualifiedId u)
           evtData e @?= EdTyping s
 
   -- -- alice is typing, bob gets events

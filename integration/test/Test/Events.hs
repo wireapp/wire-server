@@ -1,5 +1,22 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Events where
 
 import API.Brig
@@ -157,11 +174,12 @@ testTemporaryQueuesAreDeletedAfterUse = do
         aliceClientQueue = Queue {name = fromString aliceClientQueueName, vhost = fromString beResource.berVHost}
         deadNotifsQueue = Queue {name = fromString "dead-user-notifications", vhost = fromString beResource.berVHost}
         cellsEventsQueue = Queue {name = fromString "cells_events", vhost = fromString beResource.berVHost}
+        backgroundJobsQueue = Queue {name = fromString "background-jobs", vhost = fromString beResource.berVHost}
 
     -- Wait for queue for the new client to be created
     eventually $ do
       queuesBeforeWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-      queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue]
+      queuesBeforeWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue, backgroundJobsQueue]
 
     runCodensity (createEventsWebSocket alice Nothing) $ \ws -> do
       handle <- randomHandle
@@ -169,7 +187,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
       queuesDuringWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
       addJSONToFailureContext "queuesDuringWS" queuesDuringWS $ do
-        length queuesDuringWS.items `shouldMatchInt` 4
+        length queuesDuringWS.items `shouldMatchInt` 5
 
       -- We cannot use 'assertEvent' here because there is a race between the temp
       -- queue being created and rabbitmq fanning out the previous events.
@@ -183,7 +201,7 @@ testTemporaryQueuesAreDeletedAfterUse = do
 
     eventually $ do
       queuesAfterWS <- rabbitmqAdmin.listQueuesByVHost (fromString beResource.berVHost) (fromString "") True 100 1
-      queuesAfterWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue]
+      queuesAfterWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue, backgroundJobsQueue]
 
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus :: (HasCallStack) => App ()
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
@@ -206,7 +224,7 @@ testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
   runCodensity (createEventsWebSocket bob (Just bobClientId)) $ \ws -> do
     assertFindsEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "conversation.otr-message-add"
-      e %. "data.event.payload.0.data.text" `shouldMatchBase64` "hello, bob"
+      e %. "data.event.payload.0.data.text" `shouldMatchBase64` fromString "hello, bob"
       ackEvent ws e
 
   runCodensity (createEventsWebSocket alice (Just aliceClientId)) $ \ws -> do

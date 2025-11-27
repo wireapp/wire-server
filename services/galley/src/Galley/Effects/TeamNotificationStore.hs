@@ -27,7 +27,7 @@ where
 
 import Data.Aeson qualified as JSON
 import Data.Id
-import Data.List1 (List1)
+import Data.List.NonEmpty
 import Data.Range
 import Galley.Data.TeamNotifications
 import Imports
@@ -38,7 +38,7 @@ data TeamNotificationStore m a where
   CreateTeamNotification ::
     TeamId ->
     NotificationId ->
-    List1 JSON.Object ->
+    NonEmpty JSON.Object ->
     TeamNotificationStore m ()
   GetTeamNotifications ::
     TeamId ->

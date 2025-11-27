@@ -16,6 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Federation where
 
 import API.Util
@@ -29,8 +46,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 hiding (head)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
 import Data.Qualified
@@ -101,7 +117,7 @@ getConversationsAllFound = do
   let aliceQ = tUntagged rAlice
   carlQ <- randomQualifiedUser
 
-  connectUsers bob (singleton (qUnqualified carlQ))
+  connectUsers bob (NonEmpty.singleton $ qUnqualified carlQ)
   connectWithRemoteUser bob aliceQ
 
   -- create & get group conv
@@ -167,7 +183,7 @@ getConversationsNotPartOf :: TestM ()
 getConversationsNotPartOf = do
   -- FUTUREWORK: make alice / bob remote users
   [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   localDomain <- viewFederationDomain
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
@@ -304,7 +320,7 @@ addUnconnectedUsersOnly = do
               FedGalley.convId = conv,
               FedGalley.alreadyPresentUsers = [alice],
               FedGalley.action =
-                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember InternalAdd),
+                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (NonEmpty.singleton qCharlie) roleNameWireMember InternalAdd),
               FedGalley.extraConversationData = def
             }
     -- Alice receives no notifications from this
@@ -476,11 +492,11 @@ notifyUpdate extras action etype edata = do
     void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= etype
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= edata
       -- Occasionally we observe a user.activate event, so we exclude this case to avoid flakiness.
       WS.assertNoEventExcept (1 # Second) [wsC] $ wsIsEventOfType "user.activate"
@@ -523,11 +539,11 @@ notifyUpdateUnavailable extras action etype edata = do
           runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= etype
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= edata
       WS.assertNoEvent (1 # Second) [wsC]
 
@@ -657,7 +673,7 @@ notifyDeletedConversation = do
 
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ConvDelete @=? evtType e
 
   do
@@ -821,20 +837,20 @@ onMessageSent = do
     liftIO $ do
       -- alice should receive the message on her first client
       WS.assertMatch_ (5 # Second) wsA1 $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= OtrMessageAdd
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= EdOtrMessage (OtrMessage fromc aliceC1 txt Nothing)
 
       -- alice should receive the message on her second client
       WS.assertMatch_ (5 # Second) wsA2 $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
+        let e = NonEmpty.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtConv e @?= qconv
         evtType e @?= OtrMessageAdd
-        evtFrom e @?= qbob
+        evtFrom e @?= EventFromUser qbob
         evtData e @?= EdOtrMessage (OtrMessage fromc aliceC2 txt Nothing)
 
       -- These should be the only events for each device of alice. This verifies

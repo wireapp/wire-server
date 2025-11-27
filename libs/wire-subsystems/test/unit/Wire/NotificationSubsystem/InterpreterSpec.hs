@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.NotificationSubsystem.InterpreterSpec (spec) where
 
 import Control.Concurrent.Async (async, wait)
@@ -5,7 +22,7 @@ import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
 import Data.Default
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Range (toRange)
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -232,7 +249,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
             .&&. v2Push._pushOriginConnection === pushToUser.conn
             .&&. v2Push._pushTransient === pushToUser.transient
             .&&. v2Push._pushNativePriority === fromMaybe V2.HighPriority pushToUser.nativePriority
-            .&&. v2Push._pushPayload === List1.singleton pushToUser.json
+            .&&. v2Push._pushPayload === NonEmpty.singleton pushToUser.json
             .&&. Set.map V2._recipientRoute v2Push._pushRecipients
               === Set.fromList (map (const pushToUser.route) (toList v2Push._pushRecipients))
             .&&. Set.map (\r -> Recipient r._recipientId r._recipientClients) v2Push._pushRecipients

@@ -28,7 +28,7 @@ import Bilge.Assert
 import Brig.Options
 import Brig.Options qualified as Opt
 import Data.CaseInsensitive qualified as CI
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Imports
 import Test.Tasty hiding (Timeout)
@@ -161,7 +161,7 @@ testGuestsCannotSeeRichInfo brig = do
   -- ...  even if she's a guest in the team...
   do
     guest <- userId <$> randomUser brig
-    connectUsers brig owner (List1.singleton guest)
+    connectUsers brig owner (NonEmpty.singleton guest)
     richInfo <- getRichInfo brig guest owner
     liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo
   -- ...  or if she's in another team.

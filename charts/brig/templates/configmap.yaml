@@ -33,6 +33,7 @@ data:
       {{- end }}
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
     {{- if hasKey $.Values.secrets  "pgPassword" }}
     postgresqlPassword: /etc/wire/brig/secrets/pgPassword
     {{- end }}

@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Action.Notify where
 
 import Data.Id
@@ -5,35 +22,18 @@ import Data.Qualified
 import Data.Singletons
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Imports hiding ((\\))
-import Network.AMQP qualified as Q
 import Polysemy
-import Polysemy.Error
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API
-import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Error
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
-import Wire.Sem.Now (Now)
-import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 
-data LocalConversationUpdate = LocalConversationUpdate
-  { lcuEvent :: Event,
-    lcuUpdate :: ConversationUpdate
-  }
-  deriving (Show)
-
-notifyConversationAction ::
+sendConversationActionNotifications ::
   forall tag r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ExternalAccess r,
-    Member (Error FederationError) r,
-    Member NotificationSubsystem r,
-    Member Now r
+  ( Member ConversationSubsystem r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -44,38 +44,15 @@ notifyConversationAction ::
   ConversationAction (tag :: ConversationActionTag) ->
   ExtraConversationData ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action extraData = do
-  now <- Now.get
-  let lcnv = fmap (.id_) lconv
-      conv = tUnqualified lconv
-      tid = conv.metadata.cnvmTeam
-      e = conversationActionToEvent tag now quid (tUntagged lcnv) extraData Nothing tid action
-      mkUpdate uids =
-        ConversationUpdate
-          { time = now,
-            origUserId = quid,
-            convId = tUnqualified lcnv,
-            alreadyPresentUsers = uids,
-            action = SomeConversationAction tag action,
-            extraConversationData = Just extraData
-          }
-  update <-
-    fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified) $
-      enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets)) $
-        \ruids -> do
-          let update = mkUpdate (tUnqualified ruids)
-          -- if notifyOrigDomain is false, filter out user from quid's domain,
-          -- because quid's backend will update local state and notify its users
-          -- itself using the ConversationUpdate returned by this function
-          if notifyOrigDomain || tDomain ruids /= qDomain quid
-            then do
-              makeConversationUpdateBundle update >>= sendBundle
-              pure Nothing
-            else pure (Just update)
-
-  -- notify local participants and bots
-  pushConversationEvent con conv e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
-
-  -- return both the event and the 'ConversationUpdate' structure corresponding
-  -- to the originating domain (if it is remote)
-  pure $ LocalConversationUpdate e update
+sendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData = do
+  notifyConversationAction
+    tag
+    (EventFromUser quid)
+    notifyOrigDomain
+    con
+    lconv
+    (bmLocals targets)
+    (bmRemotes targets)
+    (bmBots targets)
+    action
+    extraData

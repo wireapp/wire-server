@@ -22,7 +22,8 @@ import Brig.Types.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
 import Data.Id
-import Data.List1 (List1)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Range (Range, fromRange, rcast, rnil)
 import Data.Set qualified as Set
@@ -230,12 +231,12 @@ lookupService pid sid =
       PrepQuery
         R
         (ProviderId, ServiceId)
-        (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
+        (Name, Maybe Text, Text, HttpsUrl, CqlNonEmpty ServiceToken, CqlNonEmpty ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql =
       "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
       \FROM service WHERE provider = ? AND id = ?"
     mk (name, summary, descr, url, toks, keys, assets, tags, enabled) =
-      Service sid name (fromMaybe mempty summary) descr url toks keys assets (Set.fromList (fromSet tags)) enabled
+      Service sid name (fromMaybe mempty summary) descr url (toNonEmpty toks) (toNonEmpty keys) assets (Set.fromList (fromSet tags)) enabled
 
 listServices ::
   (MonadClient m) =>
@@ -251,13 +252,13 @@ listServices p =
       PrepQuery
         R
         (Identity ProviderId)
-        (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
+        (ServiceId, Name, Maybe Text, Text, HttpsUrl, CqlNonEmpty ServiceToken, CqlNonEmpty ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql =
       "SELECT id, name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
       \FROM service WHERE provider = ?"
     mk (sid, name, summary, descr, url, toks, keys, assets, tags, enabled) =
       let tags' = Set.fromList (fromSet tags)
-       in Service sid name (fromMaybe mempty summary) descr url toks keys assets tags' enabled
+       in Service sid name (fromMaybe mempty summary) descr url (toNonEmpty toks) (toNonEmpty keys) assets tags' enabled
 
 updateService ::
   (MonadClient m) =>
@@ -380,8 +381,8 @@ data ServiceConn = ServiceConn
   { sconProvider :: !ProviderId,
     sconService :: !ServiceId,
     sconBaseUrl :: !HttpsUrl,
-    sconAuthTokens :: !(List1 ServiceToken),
-    sconFingerprints :: !(List1 (Fingerprint Rsa)),
+    sconAuthTokens :: !(NonEmpty ServiceToken),
+    sconFingerprints :: !(NonEmpty (Fingerprint Rsa)),
     sconEnabled :: !Bool
   }
 
@@ -397,11 +398,11 @@ lookupServiceConn pid sid =
       query1 cql $
         params LocalQuorum (pid, sid)
   where
-    cql :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, List1 ServiceToken, List1 (Fingerprint Rsa), Bool)
+    cql :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, CqlNonEmpty ServiceToken, CqlNonEmpty (Fingerprint Rsa), Bool)
     cql =
       "SELECT base_url, auth_tokens, fingerprints, enabled \
       \FROM service WHERE provider = ? AND id = ?"
-    mk (url, tks, fps, ena) = ServiceConn pid sid url tks fps ena
+    mk (url, tks, fps, ena) = ServiceConn pid sid url (toNonEmpty tks) (toNonEmpty fps) ena
 
 -- | Update connection information of a service.
 updateServiceConn ::
@@ -409,15 +410,15 @@ updateServiceConn ::
   ProviderId ->
   ServiceId ->
   Maybe HttpsUrl ->
-  Maybe (List1 ServiceToken) ->
-  Maybe (List1 (ServiceKey, Fingerprint Rsa)) ->
+  Maybe (NonEmpty ServiceToken) ->
+  Maybe (NonEmpty (ServiceKey, Fingerprint Rsa)) ->
   Maybe Bool ->
   m ()
 updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
   setConsistency LocalQuorum
   setType BatchLogged
   for_ url $ \x -> addPrepQuery cqlBaseUrl (x, pid, sid)
-  for_ tokens $ \x -> addPrepQuery cqlTokens (x, pid, sid)
+  for_ tokens $ \x -> addPrepQuery cqlTokens (CqlNonEmpty x, pid, sid)
   for_ pks $ \x -> addPrepQuery cqlKeys (x, pid, sid)
   for_ fps $ \x -> addPrepQuery cqlFps (x, pid, sid)
   for_ enabled $ \x -> addPrepQuery cqlEnabled (x, pid, sid)
@@ -426,7 +427,7 @@ updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
 
     cqlBaseUrl :: PrepQuery W (HttpsUrl, ProviderId, ServiceId) ()
     cqlBaseUrl = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET base_url = ? WHERE provider = ? AND id = ?"
-    cqlTokens :: PrepQuery W (List1 ServiceToken, ProviderId, ServiceId) ()
+    cqlTokens :: PrepQuery W (CqlNonEmpty ServiceToken, ProviderId, ServiceId) ()
     cqlTokens = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET auth_tokens = ? WHERE provider = ? AND id = ?"
     cqlKeys :: PrepQuery W ([ServiceKey], ProviderId, ServiceId) ()
     cqlKeys = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET pubkeys = ? WHERE provider = ? AND id = ?"
@@ -828,3 +829,17 @@ toLowerName = Name . Text.toLower . fromName
 
 trim :: Int32 -> [a] -> [a]
 trim = take . fromIntegral
+
+newtype CqlNonEmpty a = CqlNonEmpty
+  { toNonEmpty :: NonEmpty a
+  }
+  deriving stock (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
+
+instance (Cql a) => Cql (CqlNonEmpty a) where
+  ctype = Tagged (ListColumn (untag (ctype :: Tagged a ColumnType)))
+
+  toCql = CqlList . map toCql . toList
+
+  fromCql (CqlList []) = Left "At least 1 element in list required."
+  fromCql (CqlList l) = CqlNonEmpty . NonEmpty.fromList <$> mapM fromCql l
+  fromCql _ = Left "Expected CqlList."

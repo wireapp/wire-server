@@ -37,7 +37,6 @@ import Data.Range
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
-import Galley.API.Cells
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.Error
@@ -55,11 +54,9 @@ import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
-import Galley.Effects.ServiceStore
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
@@ -93,13 +90,16 @@ import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
+import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -183,6 +183,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
     <@> mkNamedAPI @"get-conversation-by-id" Query.getLocalConversationInternal
+    <@> mkNamedAPI @"is-conversation-out-of-sync" E.isConversationOutOfSync
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -325,6 +326,7 @@ rmUser ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
@@ -406,7 +408,7 @@ rmUser lusr conn = do
                     Event
                       { evtConv = tUntagged (qualifyAs lusr c.id_),
                         evtSubConv = Nothing,
-                        evtFrom = tUntagged lusr,
+                        evtFrom = EventFromUser (tUntagged lusr),
                         evtTime = now,
                         evtTeam = Nothing,
                         evtData = EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser])

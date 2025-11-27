@@ -41,8 +41,9 @@ module Galley.Options
     Opts (..),
     galley,
     cassandra,
-    postgresqlPassword,
     postgresql,
+    postgresqlPassword,
+    postgresqlPool,
     brig,
     gundeck,
     spar,
@@ -73,9 +74,9 @@ import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
-import Data.Text qualified as Text
 import Galley.Keys
 import Galley.Types.Teams
+import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
@@ -84,6 +85,7 @@ import Util.Options.Common
 import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
+import Wire.ConversationStore
 import Wire.RateLimit.Interpreter (RateLimitConfig)
 
 newtype GuestLinkTTLSeconds = GuestLinkTTLSeconds
@@ -186,22 +188,6 @@ deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
 
-data StorageLocation = CassandraStorage | PostgresqlStorage
-
-instance FromJSON StorageLocation where
-  parseJSON = withText "StorageLocation" $ \case
-    "cassandra" -> pure CassandraStorage
-    "postgresql" -> pure PostgresqlStorage
-    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql"
-
-data PostgresMigrationOpts = PostgresMigrationOpts
-  { conversation :: StorageLocation
-  }
-
-instance FromJSON PostgresMigrationOpts where
-  parseJSON = withObject "PostgresMigrationOpts" $ \o ->
-    PostgresMigrationOpts <$> o .: "conversation"
-
 data Opts = Opts
   { -- | Host and port to bind to
     _galley :: !Endpoint,
@@ -211,6 +197,7 @@ data Opts = Opts
     -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     _postgresql :: !(Map Text Text),
     _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _postgresqlPool :: !PoolConfig,
     -- | Brig endpoint
     _brig :: !Endpoint,
     -- | Gundeck endpoint

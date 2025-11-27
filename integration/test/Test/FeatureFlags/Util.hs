@@ -96,7 +96,8 @@ defAllFeatures =
                   "defaultProtocol" .= "proteus",
                   "supportedProtocols" .= ["proteus", "mls"],
                   "allowedCipherSuites" .= ([2] :: [Int]),
-                  "defaultCipherSuite" .= A.Number 2
+                  "defaultCipherSuite" .= A.Number 2,
+                  "groupInfoDiagnostics" .= False
                 ]
           ],
       "searchVisibilityInbound" .= disabled,

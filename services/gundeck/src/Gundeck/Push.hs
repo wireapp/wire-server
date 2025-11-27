@@ -16,6 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Gundeck.Push
   ( push,
     addToken,
@@ -40,7 +57,7 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
-import Data.List1 (List1 (..), list1, toNonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Set qualified as Set
@@ -92,7 +109,7 @@ class (MonadThrow m) => MonadPushAll m where
   mpaMkNotificationId :: m NotificationId
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
-  mpaStreamAdd :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
+  mpaStreamAdd :: NotificationId -> NonEmpty NotificationTarget -> NonEmpty Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
@@ -196,10 +213,10 @@ splitPush clientsFull p = do
         (r : rs, l : ls) ->
           let rabbitMqRecipients = case rcpt._recipientClients of
                 RecipientClientsAll -> RecipientClientsAll
-                RecipientClientsSome _ -> RecipientClientsSome $ list1 r rs
+                RecipientClientsSome _ -> RecipientClientsSome $ r :| rs
            in These
                 rcpt {_recipientClients = rabbitMqRecipients}
-                rcpt {_recipientClients = RecipientClientsSome $ list1 l ls}
+                rcpt {_recipientClients = RecipientClientsSome $ l :| ls}
 
 getClients :: Set UserId -> Gundeck UserClientsFull
 getClients uids = do
@@ -253,7 +270,7 @@ pushAllLegacy newNotifications userClientsFull = do
       case ctNotificationTargets of
         [] -> pure ()
         t : ts ->
-          mpaStreamAdd (ntfId ctNotification) (list1 t ts) (ntfPayload ctNotification)
+          mpaStreamAdd (ntfId ctNotification) (t :| ts) (ntfPayload ctNotification)
             =<< mpaNotificationTTL
   mpaForkIO $ do
     -- websockets
@@ -327,7 +344,7 @@ mkMessage notif = do
       { msgBody =
           Aeson.encode
             . queuedNotification notif.ntfId
-            $ toNonEmpty notif.ntfPayload,
+            $ notif.ntfPayload,
         msgContentType = Just "application/json",
         msgDeliveryMode =
           -- Non-persistent messages never hit the disk and so do not

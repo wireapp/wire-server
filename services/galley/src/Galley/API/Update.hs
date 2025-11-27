@@ -17,6 +17,23 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Galley.API.Update
   ( -- * Managing Conversations
     acceptConv,
@@ -40,7 +57,6 @@ module Galley.API.Update
     updateConversationAccessUnqualified,
     updateConversationAccess,
     updateChannelAddPermission,
-    searchChannels,
     deleteLocalConversation,
     updateRemoteConversation,
     updateConversationProtocolWithLocalUser,
@@ -51,6 +67,7 @@ module Galley.API.Update
     addMembersUnqualified,
     addMembersUnqualifiedV2,
     addMembers,
+    replaceMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
     updateOtherMember,
@@ -81,15 +98,15 @@ import Data.Code
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.List1
+import Data.List.NonEmpty (appendList, nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
+import Data.Vector qualified as V
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
-import Galley.API.Cells
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
@@ -101,7 +118,6 @@ import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.CodeStore qualified as E
-import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
@@ -115,7 +131,6 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -127,7 +142,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Pagination
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -135,7 +149,10 @@ import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User.Client
+import Wire.API.UserGroup
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem
+import Wire.ExternalAccess qualified as E
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
@@ -143,6 +160,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
+import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
 
 acceptConv ::
@@ -273,6 +291,7 @@ type UpdateConversationAccessEffects =
      FederatorAccess,
      FireAndForget,
      NotificationSubsystem,
+     ConversationSubsystem,
      Input Env,
      ProposalStore,
      Random,
@@ -328,8 +347,8 @@ updateConversationReceiptMode ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input (Local ())) r,
-    Member Now r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
@@ -409,8 +428,8 @@ updateConversationReceiptModeUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input (Local ())) r,
-    Member Now r,
     Member TinyLog r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
@@ -430,9 +449,7 @@ updateConversationMessageTimer ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -465,9 +482,7 @@ updateConversationMessageTimerUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -489,11 +504,9 @@ deleteLocalConversation ::
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
     Member FederatorAccess r,
-    Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member ProposalStore r,
-    Member Now r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -600,7 +613,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       mPw <- for (mReq >>= (.password)) $ HashPassword.hashPassword8 (RateLimitUser (tUnqualified lusr))
       E.createCode code mPw
       now <- Now.get
-      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
+      let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
       let (bots, users) = localBotsAndUsers $ conv.localMembers
       pushConversationEvent mZcon conv event (qualifyAs lusr (map (.id_) users)) bots
       pure $ CodeAdded event
@@ -660,7 +673,7 @@ rmCode lusr zcon lcnv = do
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
   now <- Now.get
-  let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now Nothing EdConvCodeDelete
+  let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing EdConvCodeDelete
   pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map (.id_) users)) bots
   pure event
 
@@ -732,6 +745,7 @@ updateConversationProtocolWithLocalUser ::
     Member ConversationStore r,
     Member TinyLog r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member Random r,
@@ -772,7 +786,7 @@ updateChannelAddPermission ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member (Input (Local ())) r,
     Member TinyLog r,
@@ -808,17 +822,11 @@ updateChannelAddPermission lusr zcon qcnv update =
     (\rcnv -> updateRemoteConversation @'ConversationUpdateAddPermissionTag rcnv lusr (Just zcon) update)
     qcnv
 
-searchChannels :: Local UserId -> Maybe Text -> Maybe PageSize -> Maybe Text -> Maybe ConvId -> Bool -> Sem r ConversationPage
-searchChannels _ _ _ _ _ _ = do
-  pure $ ConversationPage {page = []}
-
 joinConversationByReusableCode ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -827,10 +835,8 @@ joinConversationByReusableCode ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Opts) r,
-    Member Now r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member HashPassword r,
@@ -848,19 +854,15 @@ joinConversationByReusableCode lusr zcon req = do
 
 joinConversationById ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Opts) r,
-    Member Now r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -873,17 +875,13 @@ joinConversationById lusr zcon cnv = do
 
 joinConversation ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member (Error FederationError) r,
+  ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Opts) r,
-    Member Now r,
     Member ConversationStore r,
     Member TeamStore r
   ) =>
@@ -906,7 +904,7 @@ joinConversation lusr zcon conv access = do
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember InternalAdd
     lcuEvent
-      <$> notifyConversationAction
+      <$> sendConversationActionNotifications
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
         False
@@ -915,6 +913,12 @@ joinConversation lusr zcon conv access = do
         (convBotsAndMembers conv <> extraTargets)
         action
         def
+
+mkJoinType :: StoredConversation -> JoinType
+mkJoinType conv =
+  if conv.metadata.cnvmGroupConvType == Just Channel && isJust conv.metadata.cnvmTeam
+    then ExternalAdd
+    else InternalAdd
 
 addMembers ::
   forall r.
@@ -937,6 +941,7 @@ addMembers ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -966,8 +971,8 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
           forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
             permissionCheck JoinRegularConversations . Just
 
-  let joinType = if notIsConvMember lusr conv (tUntagged lusr) then ExternalAdd else InternalAdd
-  let action = ConversationJoin users role joinType
+  let joinType = mkJoinType conv
+      action = ConversationJoin {..}
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
 
@@ -991,6 +996,7 @@ addMembersUnqualifiedV2 ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -1034,6 +1040,7 @@ addMembersUnqualified ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -1052,8 +1059,100 @@ addMembersUnqualified ::
   Invite ->
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
-  let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
+  let qusers = fmap (tUntagged . qualifyAs lusr) users
   addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+
+-- | Replace conversation members by computing the difference between desired and
+-- current members, then executing removals followed by additions within a commit
+-- lock.
+replaceMembers ::
+  forall r.
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAPIAccess r,
+    Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member LegalHoldStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member UserGroupStore r,
+    Member ConversationSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  InviteQualified ->
+  Sem r ()
+replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
+  lcnv <- ensureLocal lusr qcnv
+  conv <- getConversationWithError lcnv
+
+  -- Check team permissions for desired members
+  when (null conv.metadata.cnvmParent) $
+    mapErrorS @OperationDenied @('ActionDenied 'AddConversationMember) $
+      forM_ conv.metadata.cnvmTeam $ \tid -> do
+        forM_ invitedUsers $ \u -> do
+          mTeamMembership <- E.getTeamMember tid $ qUnqualified u
+          forM_ (mTeamMembership >>= permissionsRole . Wire.API.Team.Member.getPermissions) $
+            permissionCheck JoinRegularConversations . Just
+
+  ugs <- getUserGroupsForConv conv.id_
+  -- Get current members (excluding the requesting user)
+  let currentMembers = Set.fromList $ map (\m -> Qualified m.id_ (tDomain lcnv)) (toList conv.localMembers)
+      invitedMembersSet = Set.fromList $ toList invitedUsers
+      ugMembers = concatMap (fmap (flip Qualified (tDomain lusr)) . V.toList . runIdentity . (.members)) (V.toList ugs)
+      -- the invited users plus all user group members should stay
+      allUsersThatShouldStay = Set.fromList $ toList $ appendList invitedUsers ugMembers
+      toRemove = Set.difference currentMembers allUsersThatShouldStay
+      toAdd = Set.difference invitedMembersSet currentMembers
+
+  -- If both sets are empty, return Unchanged
+  unless (Set.null toRemove && Set.null toAdd) $ do
+    -- Add members first
+    for_ (nonEmpty $ Set.toList toAdd) $ \users -> do
+      let joinType = mkJoinType conv
+          action = ConversationJoin {..}
+      getUpdateResult . fmap lcuEvent $
+        updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) action
+
+    -- Remove members
+    for_ (nonEmpty $ Set.toList toRemove) $ \removeList -> do
+      if conv.metadata.cnvmGroupConvType == Just Channel
+        then do
+          -- For channels, always perform removals via the channel-specific path
+          -- to ensure MLS proposals are created and protocol constraints are respected.
+          -- FUTUREWORK: implement bulk removal in the generic updateLocalConversation path for both regular conversations and channels
+          for_ removeList $ removeMemberQualified lusr zcon qcnv
+        else
+          void . getUpdateResult . fmap lcuEvent $
+            updateLocalConversation @'ConversationRemoveMembersTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              (ConversationRemoveMembers removeList EdReasonRemoved)
 
 updateSelfMember ::
   ( Member ConversationStore r,
@@ -1072,7 +1171,7 @@ updateSelfMember lusr zcon qcnv update = do
   unless exists $ throwS @'ConvNotFound
   E.setSelfMember qcnv lusr update
   now <- Now.get
-  let e = Event qcnv Nothing (tUntagged lusr) now Nothing (EdMemberUpdate (updateData lusr))
+  let e = Event qcnv Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) () e (fmap pure lusr) []
   where
     checkLocalMembership ::
@@ -1126,9 +1225,7 @@ updateOtherMemberLocalConv ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1154,9 +1251,7 @@ updateOtherMemberUnqualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1181,9 +1276,7 @@ updateOtherMember ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1219,6 +1312,7 @@ removeMemberUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member Now r,
     Member ProposalStore r,
@@ -1249,6 +1343,7 @@ removeMemberQualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member Now r,
     Member ProposalStore r,
@@ -1310,7 +1405,7 @@ removeMemberFromRemoteConv cnv lusr victim
     handleSuccess _ = do
       t <- Now.get
       pure . Just $
-        Event (tUntagged cnv) Nothing (tUntagged lusr) t Nothing $
+        Event (tUntagged cnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing $
           EdMembersLeaveRemoved (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
@@ -1326,6 +1421,7 @@ removeMemberFromLocalConv ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member Now r,
     Member ProposalStore r,
@@ -1349,8 +1445,11 @@ removeMemberFromLocalConv lcnv lusr con victim
   | otherwise = do
       conv <- getConversationWithError lcnv
       let lconv = qualifyAs lusr conv
-      if not (isConvMemberL lconv lusr) && conv.metadata.cnvmGroupConvType == Just Channel
+      if conv.metadata.cnvmGroupConvType == Just Channel
         then
+          -- For channels, always use the channel-specific removal path so that
+          -- MLS proposals are generated and the protocol flow is respected.
+          -- FUTUREWORK: implement the removal via the generic updateLocalConversation path
           fmap (const Nothing) . runError @NoChanges $ removeMemberFromChannel (tUntagged lusr) lconv victim
         else
           fmap (fmap lcuEvent . hush)
@@ -1372,6 +1471,7 @@ removeMemberFromChannel ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Error InternalError) r,
     Member Random r,
     Member TinyLog r,
@@ -1385,10 +1485,10 @@ removeMemberFromChannel ::
   Sem r ()
 removeMemberFromChannel qusr lconv victim = do
   let conv = tUnqualified lconv
-  mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
-  self :: ConvOrTeamMember (Either LocalMember RemoteMember) <- noteS @'ConvNotFound $ TeamMember <$> mTeamMember
+  teamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr >>= noteS @'ConvNotFound
   let action = ConversationRemoveMembers {crmTargets = pure victim, crmReason = EdReasonRemoved}
-  ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv self
+  let actorContext = ActorContext (Nothing :: Maybe LocalMember) (Just teamMember)
+  ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv actorContext
   let notificationTargets = convBotsAndMembers conv
   kickMember qusr lconv notificationTargets victim
   where
@@ -1560,9 +1660,7 @@ updateConversationName ::
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1588,9 +1686,7 @@ updateUnqualifiedConversationName ::
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1612,9 +1708,7 @@ updateLocalConversationName ::
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
+    Member ConversationSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r
@@ -1713,7 +1807,7 @@ addBot lusr zcon b = do
         Event
           (tUntagged (qualifyAs lusr (b ^. addBotConv)))
           Nothing
-          (tUntagged lusr)
+          (EventFromUser (tUntagged lusr))
           t
           Nothing
           ( EdMembersJoin
@@ -1786,7 +1880,7 @@ rmBot lusr zcon b = do
       t <- Now.get
       do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
-        let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t Nothing evd
+        let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing evd
         pushNotifications
           [ def
               { origin = Just (tUnqualified lusr),

@@ -31,10 +31,12 @@ import EmailLessUsers qualified
 import EmailUnparseableUsers qualified
 import HandleLessUsers qualified
 import Imports
+import NullPermsTeamMembers qualified
 import Options as O
 import Options.Applicative
 import System.Logger qualified as Log
 import System.Logger.Extended (structuredJSONRenderer)
+import UsersInUnknownTeams qualified
 
 main :: IO ()
 main = do
@@ -60,6 +62,12 @@ main = do
       EmailLessUsers.runRepair workLogger brig inputFile outputFile repairData
     MissingEmailUserKeys Nothing ->
       EmailLessUsers.runCommand workLogger brig outputFile
+    UsersInUnknownTeams casGalley -> do
+      galley <- initCas casGalley (Log.clone (Just "cassandra-galley") lgr)
+      UsersInUnknownTeams.runCommand lgr outputFile brig galley
+    NullPermsTeamMembers casGalley -> do
+      galley <- initCas casGalley (Log.clone (Just "cassandra-galley") lgr)
+      NullPermsTeamMembers.runCommand lgr outputFile galley
 
   Log.info lgr $ Log.msg (Log.val "Done scanning, sleeping for 4 hours so logs can be extracted") . Log.field "file" (setIncosistenciesFile s)
   threadDelay (4 * 60 * 60 * 1_000_000)

@@ -72,6 +72,7 @@ library
     Wire.API.App
     Wire.API.ApplyMods
     Wire.API.Asset
+    Wire.API.BackgroundJobs
     Wire.API.Bot
     Wire.API.Bot.Service
     Wire.API.Call.Config
@@ -132,6 +133,7 @@ library
     Wire.API.MLS.LeafNode
     Wire.API.MLS.Lifetime
     Wire.API.MLS.Message
+    Wire.API.MLS.OutOfSync
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
@@ -236,6 +238,7 @@ library
     Wire.API.Team.LegalHold.External
     Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
+    Wire.API.Team.Member.Error
     Wire.API.Team.Member.Info
     Wire.API.Team.Permission
     Wire.API.Team.Role

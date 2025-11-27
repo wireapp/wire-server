@@ -45,7 +45,7 @@ import Data.Default
 import Data.Domain (Domain (..))
 import Data.Handle
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
@@ -255,7 +255,7 @@ testAddGetClient params brig cannon = do
                 const True === isJust . getHeader "Location"
             )
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
+      let j = Object $ NonEmpty.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client"
       etype @?= Just "user.client-add"
@@ -476,7 +476,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
       const 404 === statusCode
 
     liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let ob = Object $ List1.head (ntfPayload n)
+      let ob = Object $ NonEmpty.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
       ( fromByteString . T.encodeUtf8
@@ -568,7 +568,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
       const 404 === statusCode
 
     liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let ob = Object $ List1.head (ntfPayload n)
+      let ob = Object $ NonEmpty.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
       (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
@@ -670,7 +670,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
       const 404 === statusCode
 
     liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let ob = Object $ List1.head (ntfPayload n)
+      let ob = Object $ NonEmpty.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
       (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
@@ -1014,7 +1014,7 @@ testRemoveClient hasPwd brig cannon = do
       !!! const 200
         === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
+      let j = Object $ NonEmpty.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
@@ -1333,7 +1333,7 @@ testAddMultipleTemporary brig galley cannon = do
   WS.bracketR cannon uid $ \ws -> do
     _ <- addClient brig uid clt2
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
+      let j = Object $ NonEmpty.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"

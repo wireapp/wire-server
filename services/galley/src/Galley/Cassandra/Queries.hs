@@ -23,7 +23,6 @@
 -- - legalhold_pending_prekeys
 -- - legalhold_service
 -- - legalhold_whitelisted
--- - service
 -- - team
 -- - team_admin
 -- - team_member
@@ -42,9 +41,6 @@ module Galley.Cassandra.Queries
     rmClients,
     selectSearchVisibility,
     updateSearchVisibility,
-    insertSrv,
-    selectSrv,
-    rmSrv,
     insertLegalHoldSettings,
     selectLegalHoldSettings,
     removeLegalHoldSettings,
@@ -285,17 +281,6 @@ upsertMemberRmClient :: ClientId -> QueryString W (Identity UserId) ()
 upsertMemberRmClient c =
   let t = LT.fromStrict (clientToText c)
    in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
-
--- Services -----------------------------------------------------------------
-
-rmSrv :: PrepQuery W (ProviderId, ServiceId) ()
-rmSrv = "delete from service where provider = ? AND id = ?"
-
-insertSrv :: PrepQuery W (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool) ()
-insertSrv = "insert into service (provider, id, base_url, auth_token, fingerprints, enabled) values (?, ?, ?, ?, ?, ?)"
-
-selectSrv :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool)
-selectSrv = "select base_url, auth_token, fingerprints, enabled from service where provider = ? AND id = ?"
 
 -- LegalHold ----------------------------------------------------------------
 

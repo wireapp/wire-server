@@ -33,7 +33,7 @@ import Data.Handle
 import Data.Id
 import Data.ISO3166_CountryCodes
 import Data.Json.Util
-import Data.List1
+import Data.List.NonEmpty
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Misc

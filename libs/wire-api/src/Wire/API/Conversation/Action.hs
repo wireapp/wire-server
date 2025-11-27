@@ -19,6 +19,23 @@
 -- Ignore unused `genSingletons` Template Haskell results
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.API.Conversation.Action
   ( ConversationAction,
     ConversationActionTag (..),
@@ -189,20 +206,21 @@ conversationActionToEvent ::
   forall tag.
   Sing tag ->
   UTCTime ->
-  Qualified UserId ->
+  EventFrom ->
   Qualified ConvId ->
   ExtraConversationData ->
   Maybe SubConvId ->
   Maybe TeamId ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv convData subconv tid action =
+conversationActionToEvent tag now eventFrom qcnv convData subconv tid action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role joinType = action
            in EdMembersJoin $ MembersJoin (map (`SimpleMember` role) (toList newMembers)) joinType
         SConversationLeaveTag ->
-          EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
+          let quid = eventFromUserId eventFrom
+           in EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
           EdMembersLeave (crmReason action) (QualifiedUserIdList . toList . crmTargets $ action)
         SConversationMemberUpdateTag ->
@@ -220,7 +238,7 @@ conversationActionToEvent tag now quid qcnv convData subconv tid action =
    in Event
         { evtConv = qcnv,
           evtSubConv = subconv,
-          evtFrom = quid,
+          evtFrom = eventFrom,
           evtTime = now,
           evtTeam = tid,
           evtData = edata

@@ -22,9 +22,8 @@ module Galley.Env where
 
 import Cassandra
 import Control.Lens hiding ((.=))
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Aws qualified as Aws
@@ -36,14 +35,11 @@ import Hasql.Pool
 import Imports
 import Network.AMQP qualified as Q
 import Network.HTTP.Client
-import Network.HTTP.Client.OpenSSL
-import OpenSSL.EVP.Digest
-import OpenSSL.Session as Ssl
-import Ssl.Util
 import System.Logger
 import Util.Options
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
+import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
 import Wire.RateLimit.Interpreter (RateLimitEnv)
 
@@ -70,38 +66,7 @@ data Env = Env
     _passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
--- | Environment specific to the communication with external
--- service providers.
-data ExtEnv = ExtEnv
-  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
-  }
-
 makeLenses ''Env
-
-makeLenses ''ExtEnv
-
--- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: IO ExtEnv
-initExtEnv = do
-  ctx <- Ssl.context
-  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
-  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
-  Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextSetDefaultVerifyPaths ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx))
-        { managerResponseTimeout = responseTimeoutMicro 10000000,
-          managerConnCount = 100
-        }
-  Just sha <- getDigestByName "SHA256"
-  pure $ ExtEnv (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

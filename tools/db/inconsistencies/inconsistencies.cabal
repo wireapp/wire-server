@@ -17,8 +17,10 @@ executable inconsistencies
     EmailLessUsers
     EmailUnparseableUsers
     HandleLessUsers
+    NullPermsTeamMembers
     Options
     Paths_inconsistencies
+    UsersInUnknownTeams
 
   hs-source-dirs:     src
   default-extensions:

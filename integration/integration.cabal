@@ -122,9 +122,11 @@ library
     Test.Cargohold.Metrics
     Test.Cells
     Test.Channels
+    Test.ChannelSearch
     Test.Client
     Test.Connection
     Test.Conversation
+    Test.Conversation.Migration
     Test.Demo
     Test.DNSMock
     Test.DomainVerification

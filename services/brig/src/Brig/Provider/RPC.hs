@@ -41,7 +41,7 @@ import Control.Retry (recovering)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
@@ -109,7 +109,7 @@ extReq scon ps =
     . secure
   where
     url = httpsUrl (sconBaseUrl scon)
-    tok = List1.head (sconAuthTokens scon)
+    tok = NonEmpty.head (sconAuthTokens scon)
 
 extHandleAll :: (MonadCatch m) => (SomeException -> m a) -> m a -> m a
 extHandleAll f ma =
@@ -150,7 +150,7 @@ setServiceConn scon = do
     sid = sconService scon
     ref = Galley.newServiceRef sid pid
     url = sconBaseUrl scon
-    tok = List1.head (sconAuthTokens scon)
+    tok = NonEmpty.head (sconAuthTokens scon)
     fps = toList (sconFingerprints scon)
     req =
       path "/i/services"

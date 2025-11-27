@@ -13,5 +13,6 @@
         "id": "0000705a-0000-0b62-0000-425c000049c8"
     },
     "time": "1864-05-09T05:44:41.382Z",
-    "type": "conversation.message-timer-update"
+    "type": "conversation.message-timer-update",
+    "via": "user"
 }

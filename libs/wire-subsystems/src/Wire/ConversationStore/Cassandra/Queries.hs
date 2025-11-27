@@ -243,7 +243,10 @@ updateMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "up
 -- local conversation with remote members
 
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
-selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain, conv_remote_id"
+
+selectUserRemoteConvsFrom :: PrepQuery R (UserId, Domain, ConvId) (Domain, ConvId)
+selectUserRemoteConvsFrom = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? and (conv_remote_domain, conv_remote_id) > (?, ?) order by conv_remote_domain, conv_remote_id"
 
 insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId, RoleName) ()
 insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role) values (?, ?, ?, ?)"
@@ -351,3 +354,17 @@ releaseCommitLock = "delete from mls_commit_locks where group_id = ? and epoch =
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
+
+-- Out of Sync --------------------------------------------------------------
+
+insertConvOutOfSync :: PrepQuery W (ConvId, Bool) ()
+insertConvOutOfSync = "insert into conversation_out_of_sync (conv_id, out_of_sync) values (?, ?)"
+
+insertSubConvOutOfSync :: PrepQuery W (ConvId, SubConvId, Bool) ()
+insertSubConvOutOfSync = "insert into subconversation_out_of_sync (conv_id, subconv_id, out_of_sync) values (?, ?, ?)"
+
+lookupConvOutOfSync :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
+lookupConvOutOfSync = "select out_of_sync from conversation_out_of_sync where conv_id = ?"
+
+lookupSubConvOutOfSync :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Bool))
+lookupSubConvOutOfSync = "select out_of_sync from subconversation_out_of_sync where conv_id = ? and subconv_id = ?"

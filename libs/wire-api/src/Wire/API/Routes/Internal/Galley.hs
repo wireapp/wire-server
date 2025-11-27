@@ -477,6 +477,14 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> Get '[JSON] Conversation
            )
+    :<|> Named
+           "is-conversation-out-of-sync"
+           ( CanThrow 'ConvNotFound
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "out-of-sync"
+               :> Get '[JSON] Bool
+           )
 
 type IMiscAPI =
   Named

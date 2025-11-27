@@ -745,7 +745,7 @@ exportSPMetadata spdesc =
       HX.entityAttrs = mempty :: HX.Nodes,
       HX.metadataSignature = Nothing :: Maybe HX.Signature,
       HX.metadataExtensions = mempty :: HX.Extensions,
-      HX.entityDescriptors = HX.Descriptors (exportSPMetadata' spdesc :| []),
+      HX.entityDescriptors = HX.Descriptors (NL.singleton (exportSPMetadata' spdesc)),
       HX.entityOrganization = Nothing :: Maybe HX.Organization,
       HX.entityContactPerson = mempty :: [HX.Contact],
       HX.entityAditionalMetadataLocation = mempty :: [HX.AdditionalMetadataLocation]
@@ -771,9 +771,9 @@ exportSPMetadata' spdesc =
                 HX.Organization
                   { HX.organizationAttrs = [],
                     HX.organizationExtensions = HX.Extensions [],
-                    HX.organizationName = HX.Localized "EN" (cs $ spdesc ^. spOrgName) :| [],
-                    HX.organizationDisplayName = HX.Localized "EN" (cs $ spdesc ^. spOrgDisplayName) :| [],
-                    HX.organizationURL = HX.Localized "EN" (exportURI $ spdesc ^. spOrgURL) :| [] :: HX.List1 HX.LocalizedURI
+                    HX.organizationName = NL.singleton (HX.Localized "EN" (cs $ spdesc ^. spOrgName)),
+                    HX.organizationDisplayName = NL.singleton (HX.Localized "EN" (cs $ spdesc ^. spOrgDisplayName)),
+                    HX.organizationURL = NL.singleton (HX.Localized "EN" (exportURI $ spdesc ^. spOrgURL)) :: HX.List1 HX.LocalizedURI
                   },
             HX.roleDescriptorContactPerson = exportContactPerson <$> (spdesc ^. spContacts)
           },
@@ -787,20 +787,21 @@ exportSPMetadata' spdesc =
       HX.descriptorAuthnRequestsSigned = False,
       HX.descriptorWantAssertionsSigned = True,
       HX.descriptorAssertionConsumerService =
-        HX.IndexedEndpoint
-          { HX.indexedEndpoint =
-              HX.Endpoint
-                { HX.endpointBinding = HX.Identified HX.BindingHTTPPOST :: HX.IdentifiedURI HX.Binding,
-                  HX.endpointLocation = exportURI $ spdesc ^. spResponseURL :: HX.AnyURI,
-                  HX.endpointResponseLocation = Nothing :: Maybe HX.AnyURI,
-                  HX.endpointAttrs = [] :: HX.Nodes,
-                  HX.endpointXML = [] :: HX.Nodes
-                },
-            HX.indexedEndpointIndex = 0 :: HX.UnsignedShort,
-            HX.indexedEndpointIsDefault = True :: HX.Boolean
-          }
-          :| [] ::
-          HX.List1 HX.IndexedEndpoint,
+        ( NL.singleton
+            HX.IndexedEndpoint
+              { HX.indexedEndpoint =
+                  HX.Endpoint
+                    { HX.endpointBinding = HX.Identified HX.BindingHTTPPOST :: HX.IdentifiedURI HX.Binding,
+                      HX.endpointLocation = exportURI $ spdesc ^. spResponseURL :: HX.AnyURI,
+                      HX.endpointResponseLocation = Nothing :: Maybe HX.AnyURI,
+                      HX.endpointAttrs = [] :: HX.Nodes,
+                      HX.endpointXML = [] :: HX.Nodes
+                    },
+                HX.indexedEndpointIndex = 0 :: HX.UnsignedShort,
+                HX.indexedEndpointIsDefault = True :: HX.Boolean
+              } ::
+            HX.List1 HX.IndexedEndpoint
+        ),
       HX.descriptorAttributeConsumingService = [] :: [HX.AttributeConsumingService]
       -- (for identification we do not need any attributes, but can use the 'SubjectID' that is
       -- always included in the response.)

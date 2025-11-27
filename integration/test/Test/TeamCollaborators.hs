@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.TeamCollaborators where
 
 import API.Brig
@@ -271,3 +288,33 @@ testRemoveCollaboratorInTeamConversation = do
     resp.status `shouldMatchInt` 200
     otherMembers <- asList (resp.json %. "members.others")
     traverse (%. "qualified_id") otherMembers `shouldMatchSet` traverse (%. "qualified_id") [owner, alice]
+
+testUpdateCollaborator :: (HasCallStack) => App ()
+testUpdateCollaborator = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  -- At the time of writing, it wasn't clear if this should be a bot instead.
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator
+    owner
+    team
+    bob
+    ["implicit_connection"]
+    >>= assertSuccess
+  postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess
+
+  updateTeamCollaborator
+    owner
+    team
+    bob
+    ["create_team_conversation", "implicit_connection"]
+    >>= assertSuccess
+  postOne2OneConversation bob alice team "chit-chat" >>= assertSuccess
+
+  updateTeamCollaborator
+    owner
+    team
+    bob
+    []
+    >>= assertSuccess
+  postOne2OneConversation bob alice team "chit-chat" >>= assertLabel 403 "operation-denied"

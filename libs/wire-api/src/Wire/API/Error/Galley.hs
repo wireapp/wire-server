@@ -18,6 +18,23 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.API.Error.Galley
   ( GalleyError (..),
     OperationDenied,
@@ -30,14 +47,19 @@ module Wire.API.Error.Galley
     UnreachableBackends (..),
     unreachableUsersToUnreachableBackends,
     UnreachableBackendsLegacy (..),
+    GroupInfoDiagnostics (..),
+    MLSOutOfSyncError (..),
   )
 where
 
 import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson qualified as A
 import Data.Containers.ListUtils
 import Data.Domain
 import Data.HashMap.Strict.InsOrd (singleton)
+import Data.Id
+import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
@@ -56,6 +78,9 @@ import Servant.API.ContentTypes (JSON, contentType)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Group
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.API
 import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
@@ -106,7 +131,6 @@ data GalleyError
   | MLSMigrationCriteriaNotSatisfied
   | MLSFederatedOne2OneNotSupported
   | MLSFederatedResetNotSupported
-  | MLSGroupInfoMismatch
   | GroupIdVersionNotSupported
   | -- | MLS and federation are incompatible with legalhold - this error is thrown if a user
     -- tries to create an MLS group while being under legalhold
@@ -268,8 +292,6 @@ type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls
 type instance MapError 'MLSFederatedOne2OneNotSupported = 'StaticError 400 "mls-federated-one2one-not-supported" "Federated One2One MLS conversations are only supported in API version >= 6"
 
 type instance MapError 'MLSFederatedResetNotSupported = 'StaticError 400 "mls-federated-reset-not-supported" "Reset is not supported by the owning backend of the conversation"
-
-type instance MapError 'MLSGroupInfoMismatch = 'StaticError 400 "mls-group-info-mismatch" "Ratchet tree mismatch in GroupInfo"
 
 type instance MapError 'GroupIdVersionNotSupported = 'StaticError 400 "mls-group-id-not-supported" "The group ID version of the conversation is not supported by one of the federated backends"
 
@@ -589,4 +611,111 @@ instance APIError UnreachableBackendsLegacy where
 type instance ErrorEffect UnreachableBackendsLegacy = Error UnreachableBackendsLegacy
 
 instance (Member (Error JSONResponse) r) => ServerEffect (Error UnreachableBackendsLegacy) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- Group info diagnostics
+
+data GroupInfoDiagnostics = GroupInfoDiagnostics
+  { commit :: ByteString,
+    groupInfo :: ByteString,
+    groupId :: GroupId,
+    clients :: [(Int, ClientIdentity)],
+    convId :: ConvOrSubConvId,
+    domain :: Domain
+  }
+  deriving (Eq, Show, Generic)
+  deriving (S.ToSchema, FromJSON, ToJSON) via Schema GroupInfoDiagnostics
+
+groupInfoDiagnosticsStatus :: HTTP.Status
+groupInfoDiagnosticsStatus = HTTP.status400
+
+instance APIError GroupInfoDiagnostics where
+  toResponse e =
+    JSONResponse
+      { status = groupInfoDiagnosticsStatus,
+        value = toJSON e,
+        headers = []
+      }
+
+indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, ClientIdentity)
+indexedClientSchema =
+  object "IndexedClient" $
+    (,)
+      <$> fst .= field "index" schema
+      <*> snd .= field "client" schema
+
+instance ToSchema GroupInfoDiagnostics where
+  schema =
+    object "GroupInfoDiagnostics" $
+      GroupInfoDiagnostics
+        <$> (.commit) .= field "commit" base64Schema
+        <*> (.groupInfo) .= field "group_info" base64Schema
+        <*> (.groupId) .= field "group_id" schema
+        <*> (.clients) .= field "clients" (array indexedClientSchema)
+        <*> (.convId) .= convOrSubConvIdObjectSchema
+        <*> (.domain) .= field "domain" schema
+
+instance IsSwaggerError GroupInfoDiagnostics where
+  addToOpenApi =
+    addErrorResponseToSwagger (HTTP.statusCode groupInfoDiagnosticsStatus) $
+      mempty
+        & S.description .~ "Submitted group info is inconsistent with the backend group state"
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @GroupInfoDiagnostics))
+
+type instance ErrorEffect GroupInfoDiagnostics = Error GroupInfoDiagnostics
+
+instance (Member (Error JSONResponse) r) => ServerEffect (Error GroupInfoDiagnostics) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- MLSOutOfSyncError
+
+data MLSOutOfSyncError = MLSOutOfSyncError
+  {missingUsers :: [Qualified UserId]}
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSOutOfSyncError
+
+mlsOutOfSyncErrorStatus :: HTTP.Status
+mlsOutOfSyncErrorStatus = HTTP.status409
+
+instance APIError MLSOutOfSyncError where
+  toResponse e =
+    JSONResponse
+      { status = mlsOutOfSyncErrorStatus,
+        value =
+          A.object
+            ( fold (schemaOut mlsOutOfSyncErrorObjectSchema e)
+                <> [ "label" A..= ("mls-group-out-of-sync" :: Text),
+                     "message" A..= ("Group is out of sync" :: Text),
+                     "code" A..= HTTP.statusCode mlsOutOfSyncErrorStatus
+                   ]
+            ),
+        headers = []
+      }
+
+mlsOutOfSyncErrorObjectSchema :: ObjectSchema SwaggerDoc MLSOutOfSyncError
+mlsOutOfSyncErrorObjectSchema =
+  MLSOutOfSyncError
+    <$> (.missingUsers) .= field "missing_users" (array schema)
+
+instance ToSchema MLSOutOfSyncError where
+  schema = object "MLSOutOfSyncError" mlsOutOfSyncErrorObjectSchema
+
+instance IsSwaggerError MLSOutOfSyncError where
+  addToOpenApi =
+    addErrorResponseToSwagger (HTTP.statusCode mlsOutOfSyncErrorStatus) $
+      mempty
+        & S.description .~ "Group is out of sync"
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @MLSOutOfSyncError))
+
+type instance ErrorEffect MLSOutOfSyncError = Error MLSOutOfSyncError
+
+instance (Member (Error JSONResponse) r) => ServerEffect (Error MLSOutOfSyncError) r where
   interpretServerEffect = mapError toResponse

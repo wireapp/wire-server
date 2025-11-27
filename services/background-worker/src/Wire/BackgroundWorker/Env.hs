@@ -1,6 +1,23 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.BackgroundWorker.Env where
 
 import Cassandra (ClientState)
@@ -8,9 +25,13 @@ import Cassandra.Util (defInitCassandra)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Data.Domain (Domain)
 import Data.Map.Strict qualified as Map
 import HTTP2.Client.Manager
+import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended
 import Imports
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.HTTP.Client
 import Network.RabbitMqAdmin qualified as RabbitMqAdmin
@@ -23,6 +44,7 @@ import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
+import Wire.ConversationStore (PostgresMigrationOpts)
 
 type IsWorking = Bool
 
@@ -30,12 +52,14 @@ type IsWorking = Bool
 data Worker
   = BackendNotificationPusher
   | DeadUserNotificationWatcher
+  | BackgroundJobConsumer
   deriving (Eq, Ord)
 
 workerName :: Worker -> Text
 workerName = \case
   BackendNotificationPusher -> "backend-notification-pusher"
   DeadUserNotificationWatcher -> "dead-user-notification-watcher"
+  BackgroundJobConsumer -> "background-job-consumer"
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -47,9 +71,20 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
+    backgroundJobsConfig :: BackgroundJobsConfig,
     workerRunningGauge :: Vector Text Gauge,
     statuses :: IORef (Map Worker IsWorking),
-    cassandra :: ClientState
+    cassandra :: ClientState,
+    cassandraGalley :: ClientState,
+    cassandraBrig :: ClientState,
+    hasqlPool :: Hasql.Pool,
+    -- Dedicated AMQP channels per concern
+    amqpJobsPublisherChannel :: MVar Q.Channel,
+    amqpBackendNotificationsChannel :: MVar Q.Channel,
+    federationDomain :: Domain,
+    postgresMigration :: PostgresMigrationOpts,
+    gundeckEndpoint :: Endpoint,
+    brigEndpoint :: Endpoint
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -72,7 +107,9 @@ mkWorkerRunningGauge =
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
-  cassandra <- defInitCassandra opts.cassandra logger
+  cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
+  cassandraGalley <- defInitCassandra opts.cassandraGalley =<< setLoggerName "cassandra-galley" logger
+  cassandraBrig <- defInitCassandra opts.cassandraBrig =<< setLoggerName "cassandra-brig" logger
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
@@ -86,11 +123,24 @@ mkEnv opts = do
   statuses <-
     newIORef $
       Map.fromList
-        [ (BackendNotificationPusher, False)
+        [ (BackendNotificationPusher, False),
+          (BackgroundJobConsumer, False)
         ]
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
+      backgroundJobsConfig = opts.backgroundJobs
+      federationDomain = opts.federationDomain
+      postgresMigration = opts.postgresMigration
+      brigEndpoint = opts.brig
+      gundeckEndpoint = opts.gundeck
   workerRunningGauge <- mkWorkerRunningGauge
+  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  amqpJobsPublisherChannel <-
+    mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
+      either id demoteOpts opts.rabbitmq.unRabbitMqOpts
+  amqpBackendNotificationsChannel <-
+    mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
+      either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
@@ -153,5 +203,9 @@ updateWorkingStatus isWorking worker = do
 withNamedLogger :: (MonadIO m) => Text -> AppT m a -> AppT m a
 withNamedLogger name action = do
   env <- ask
-  namedLogger <- lift $ Log.new $ Log.setName (Just name) $ Log.settings env.logger
+  namedLogger <- setLoggerName name env.logger
   lift $ runAppT (env {logger = namedLogger}) action
+
+setLoggerName :: (MonadIO m) => Text -> Log.Logger -> m Log.Logger
+setLoggerName name logger =
+  Log.new $ Log.setName (Just name) $ Log.settings logger

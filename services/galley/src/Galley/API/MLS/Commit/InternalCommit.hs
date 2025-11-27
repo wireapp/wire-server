@@ -31,6 +31,7 @@ import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.CheckClients
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
@@ -51,16 +52,15 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
-import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
-import Wire.API.User.Client
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem
 import Wire.StoredConversation
 
 processInternalCommit ::
@@ -73,6 +73,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member ConversationSubsystem r,
     Member Resource r,
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
@@ -155,60 +156,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
           -- Again, for subconversations there is no need to check anything
           -- here, so we simply return the empty list.
           failedAddFetching <- case convOrSub.id of
-            SubConv _ _ -> pure []
-            Conv _ ->
-              fmap catMaybes . forM newUserClients $
-                \(qtarget, newclients) -> do
-                  -- get list of mls clients from Brig (local or remote)
-                  mClientData <-
-                    fmap mkClientData . hush
-                      <$> runError @FederationError (getClientInfo lConvOrSub qtarget ciphersuite)
-                  unreachable <- case (mClientData, Map.lookup qtarget cm) of
-                    -- user is already present, skip check in this case
-                    (_, Just existingClients) -> do
-                      -- make sure none of the new clients already exist in the group
-                      when
-                        ( any
-                            (`Map.member` existingClients)
-                            (Map.keys newclients)
-                        )
-                        $ throw
-                          (mlsProtocolError "Cannot add a client that is already part of the group")
-                      pure False
-                    (Nothing, Nothing) -> pure True
-                    (Just clientData, Nothing) -> do
-                      -- final set of clients in the conversation
-                      let clients =
-                            Map.keysSet
-                              ( fmap fst newclients
-                                  <> Map.findWithDefault mempty qtarget cm
-                              )
-
-                      -- We check the following condition:
-                      --   allMLSClients ⊆ clients ⊆ allClients
-                      -- i.e.
-                      -- - if a client has at least 1 key package, it has to be added
-                      -- - if a client is being added, it has to still exist
-                      --
-                      -- The reason why we can't simply check that clients == allMLSClients is
-                      -- that a client with no remaining key packages might be added by a user
-                      -- who just fetched its last key package.
-                      unless
-                        ( Set.isSubsetOf clientData.allMLSClients clients
-                            && Set.isSubsetOf clients clientData.allClients
-                        )
-                        $
-                        -- FUTUREWORK: turn this error into a proper response
-                        throwS @'MLSClientMismatch
-
-                      pure False
-
-                  -- Check that new leaf nodes are using the registered signature keys.
-                  for_ mClientData $ \clientData ->
-                    for_ (Map.assocs newclients) $ \(cid, (_, mKp)) ->
-                      checkSignatureKey (fmap (.leafNode) mKp) (Map.lookup cid clientData.infoMap)
-
-                  pure $ guard unreachable $> qtarget
+            SubConv _ _ -> pure [] -- FUTUREWORK: fold this case into checkClients
+            Conv _ -> checkClients lConvOrSub ciphersuite (paAdd action)
           for_
             (unreachableFromList failedAddFetching)
             (throw . unreachableUsersToUnreachableBackends)
@@ -255,7 +204,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       )
                       $ nonEmpty (bmQualifiedMembers lconv bm)
                   update <-
-                    notifyConversationAction
+                    sendConversationActionNotifications
                       SConversationJoinTag
                       senderUser
                       False
@@ -306,30 +255,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
     pure events
 
-data ClientData = ClientData
-  { allClients :: Set (ClientId),
-    allMLSClients :: Set (ClientId),
-    infoMap :: Map ClientId ByteString
-  }
-
-mkClientData :: Set ClientInfo -> ClientData
-mkClientData clientInfo =
-  ClientData
-    { allClients = Set.map (.clientId) clientInfo,
-      allMLSClients =
-        Set.map
-          (.clientId)
-          (Set.filter (.hasKeyPackages) clientInfo),
-      infoMap =
-        Map.fromList
-          [ (info.clientId, key)
-            | info <- toList clientInfo,
-              key <- toList info.mlsSignatureKey
-          ]
-    }
-
 addMembers ::
-  (HasProposalActionEffects r, Member MLSCommitLockStore r) =>
+  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -353,7 +280,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure []
 
 removeMembers ::
-  (HasProposalActionEffects r, Member MLSCommitLockStore r) =>
+  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->

@@ -74,6 +74,7 @@ module Wire.API.Conversation
     -- * invite
     Invite (..),
     InviteQualified (..),
+    InviteQualifiedInternal (..),
 
     -- * update
     ConversationRename (..),
@@ -105,7 +106,6 @@ import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
-import Data.List1
 import Data.Map qualified as Map
 import Data.Misc
 import Data.OpenApi qualified as S
@@ -249,6 +249,9 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
           "ConversationMetadata"
           (conversationMetadataObjectSchema accessRolesSchemaV2)
 
+instance HasCellsState ConversationMetadata where
+  getCellsState = cnvmCellsState
+
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
 --
@@ -267,6 +270,9 @@ data OwnConversation = OwnConversation
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OwnConversation)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema OwnConversation
+
+instance HasCellsState OwnConversation where
+  getCellsState = getCellsState . cnvMetadata
 
 cnvType :: OwnConversation -> ConvType
 cnvType = cnvmType . cnvMetadata
@@ -1062,7 +1068,7 @@ instance ToSchema NewOne2OneConv where
 -- invite
 
 data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
-  { invUsers :: List1 UserId,
+  { invUsers :: NonEmpty UserId,
     -- | This role name is to be applied to all users
     invRoleName :: RoleName
   }
@@ -1074,8 +1080,8 @@ instance ToSchema Invite where
   schema =
     object "Invite" $
       Invite
-        <$> (toNonEmpty . invUsers)
-          .= fmap List1 (field "users" (nonEmptyArray schema))
+        <$> (.invUsers)
+          .= field "users" (nonEmptyArray schema)
         <*> invRoleName
           .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
@@ -1094,6 +1100,21 @@ instance ToSchema InviteQualified where
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
         <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+
+data InviteQualifiedInternal = InviteQualifiedInternal
+  { actor :: UserId,
+    invite :: InviteQualified
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InviteQualifiedInternal)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema InviteQualifiedInternal)
+
+instance ToSchema InviteQualifiedInternal where
+  schema =
+    object "InviteQualifiedInternal" $
+      InviteQualifiedInternal
+        <$> (.actor) .= field "actor" schema
+        <*> (.invite) .= field "invite" schema
 
 --------------------------------------------------------------------------------
 -- update

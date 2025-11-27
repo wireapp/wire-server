@@ -1,12 +1,29 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.UserGroup where
 
 import API.Brig
 import API.Galley
 import API.GalleyInternal (setTeamFeatureLockStatus)
 import Control.Error (lastMay)
-import Notifications (isUserGroupCreatedNotif, isUserGroupUpdatedNotif)
+import Notifications (isMemberJoinNotif, isUserGroupCreatedNotif, isUserGroupUpdatedNotif)
 import SetupHelpers
 import Testlib.Prelude
 
@@ -396,22 +413,11 @@ testUserGroupRemovalOnDelete = do
 
 testUserGroupUpdateChannelsSucceeds :: (HasCallStack) => App ()
 testUserGroupUpdateChannelsSucceeds = do
-  (alice, tid, [_bob]) <- createTeam OwnDomain 2
+  (alice, tid, _) <- createTeam OwnDomain 1
   setTeamFeatureLockStatus alice tid "channels" "unlocked"
-  let config =
-        object
-          [ "status" .= "enabled",
-            "config"
-              .= object
-                [ "allowed_to_create_channels" .= "team-members",
-                  "allowed_to_open_channels" .= "team-members"
-                ]
-          ]
-  setTeamFeatureConfig alice tid "channels" config >>= assertSuccess
+  setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
 
-  ug <-
-    createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])])
-      >>= getJSON 200
+  ug <- createUserGroup alice (object ["name" .= "none", "members" .= (mempty :: [String])]) >>= getJSON 200
   gid <- ug %. "id" & asString
 
   convs <- replicateM 5 $ postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"}) >>= getJSON 201 >>= objConvId
@@ -424,7 +430,8 @@ testUserGroupUpdateChannelsSucceeds = do
 
   bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    (resp.json %. "channels" >>= asList >>= traverse objQid) `shouldMatchSet` for (take 2 convs) objQid
+    actual <- resp.json %. "channels" >>= asList >>= traverse objQid
+    actual `shouldMatchSet` for (take 2 convs) objQid
 
   bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -445,10 +452,6 @@ testUserGroupUpdateChannelsSucceeds = do
   bindResponse (getUserGroupWithChannels alice gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "channels" >>= fmap length . asList) `shouldMatchInt` 0
-
-  bindResponse (getUserGroups alice (def {includeChannels = True})) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    (resp.json %. "page.0.channels" >>= fmap length . asList) `shouldMatchInt` 0
 
 testUserGroupUpdateChannelsNonAdmin :: (HasCallStack) => App ()
 testUserGroupUpdateChannelsNonAdmin = do
@@ -495,3 +498,81 @@ testUserGroupUpdateChannelsNonChannel = do
       >>= getJSON 201
       >>= objConvId
   updateUserGroupChannels alice gid [convId.id_] >>= assertLabel 404 "user-group-channel-not-found"
+
+testUserGroupAddUsersToGroupWithChannels :: (HasCallStack) => App ()
+testUserGroupAddUsersToGroupWithChannels = do
+  (alice, tid, mems@[bob, charlie, dave, eve, franzi]) <- createTeam OwnDomain 6
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
+
+  [bobId, charlieId, daveId, eveId, franziId] <- for mems $ asString . (%. "id")
+
+  -- Create user group with bob as initial member
+  ug <- createUserGroup alice (object ["name" .= "test group", "members" .= [bobId]]) >>= getJSON 200
+  gid <- ug %. "id" & asString
+
+  -- Create two conversations (channels) for the team
+  [convId1, convId2] <- replicateM 2 $ postConversation alice (defMLS {team = Just tid, groupConvType = Just "channel"}) >>= getJSON 201 >>= objConvId
+
+  -- Associate both channels with the user group
+  withWebSocket bob $ \bobWs -> do
+    updateUserGroupChannels alice gid [convId1.id_, convId2.id_] >>= assertSuccess
+    replicateM_ 2 $ awaitMatch isMemberJoinNotif bobWs
+
+  for_ [convId1, convId2] $ \convId -> do
+    bindResponse (getConversation alice convId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members" %. "others" >>= asList
+      memberIds <- mapM ((%. "qualified_id") >=> (%. "id") >=> asString) members
+      memberIds `shouldMatchSet` [bobId]
+
+  -- Add charlie, dave, and eve to the group using addUsersToGroup
+  withWebSockets [charlie, dave, eve] $ \wss -> do
+    addUsersToGroup alice gid [charlieId, daveId, eveId] >>= assertSuccess
+    for_ wss $ replicateM_ 2 . awaitMatch isMemberJoinNotif
+
+  -- Verify all three users are now in the first channel
+  for_ [convId1, convId2] $ \convId -> do
+    bindResponse (getConversation alice convId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members" %. "others" >>= asList
+      memberIds <- mapM ((%. "qualified_id") >=> (%. "id") >=> asString) members
+      memberIds `shouldMatchSet` [bobId, charlieId, daveId, eveId]
+
+    -- now we make charlie and dave admins in the conversation
+    updateConversationMember alice convId charlie "wire_admin" >>= assertSuccess
+    updateConversationMember alice convId dave "wire_admin" >>= assertSuccess
+
+    bindResponse (getConversation alice convId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members" %. "others" >>= asList
+      actual <- for members toIdRolePair
+      let expected = [(bobId, "wire_member"), (charlieId, "wire_admin"), (daveId, "wire_admin"), (eveId, "wire_member")]
+      actual `shouldMatchSet` expected
+
+  -- when we now add another user, we expect roles not be overwritten
+  withWebSockets [franzi] $ \wss -> do
+    addUsersToGroup alice gid [franziId] >>= assertSuccess
+    for_ wss $ replicateM_ 2 . awaitMatch isMemberJoinNotif
+
+  for_ [convId1] $ \convId -> do
+    bindResponse (getConversation alice convId) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members" %. "others" >>= asList
+      actual <- for members toIdRolePair
+      let expected = [(bobId, "wire_member"), (charlieId, "wire_admin"), (daveId, "wire_admin"), (eveId, "wire_member"), (franziId, "wire_member")]
+      actual `shouldMatchSet` expected
+  where
+    toIdRolePair :: Value -> App (String, String)
+    toIdRolePair mem = (,) <$> (mem %. "qualified_id.id" & asString) <*> (mem %. "conversation_role" & asString)
+
+channelsConfig :: Value
+channelsConfig =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "allowed_to_create_channels" .= "team-members",
+            "allowed_to_open_channels" .= "team-members"
+          ]
+    ]

@@ -2,8 +2,11 @@ auth:
   postgresPassword: "posty-the-gres"
   username: wire-server
   password: "posty-the-gres"
-resources:
-  requests:
-    cpu: "1"
-  limits:
-    cpu: "1"
+primary:
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits: {}
+  extendedConfiguration: |
+    max_connections = 1500

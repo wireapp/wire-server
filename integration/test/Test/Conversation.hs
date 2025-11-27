@@ -1028,3 +1028,87 @@ testGetSelfMember = do
     resp.json %. "service" `shouldMatch` Null
     resp.json %. "status" `shouldMatchInt` 0
     resp.json %. "status_ref" `shouldMatch` "0.0"
+
+testReplaceMembers :: (HasCallStack) => App ()
+testReplaceMembers = do
+  [alice, bob, charlie, dylan] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain, OwnDomain]
+  conv <- postConversation alice (defProteus {qualifiedUsers = [bob, charlie]}) >>= getJSON 201
+
+  -- Replace members: remove bob, add dylan, keep charlie
+  [charlieId, dylanId] <- for [charlie, dylan] (%. "qualified_id")
+  bindResponse (replaceMembers alice conv def {users = [charlieId, dylanId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- Verify conversation members
+  bindResponse (getConversation dylan conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" & asList
+    memIds <- forM mems (%. "qualified_id")
+    memIds `shouldMatchSet` [charlieId]
+
+testReplaceMembersUnchanged :: (HasCallStack) => App ()
+testReplaceMembersUnchanged = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  conv <- postConversation alice (defProteus {qualifiedUsers = [bob, charlie]}) >>= getJSON 201
+
+  -- Replace members with the same set
+  [bobId, charlieId] <- for [bob, charlie] (%. "qualified_id")
+  bindResponse (replaceMembers alice conv def {users = [bobId, charlieId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testReplaceMembersEmptyConversation :: (HasCallStack) => App ()
+testReplaceMembersEmptyConversation = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  conv <- postConversation alice defProteus >>= getJSON 201
+
+  -- Start with empty conversation, add members via replace
+  [bobId, charlieId] <- for [bob, charlie] (%. "qualified_id")
+  bindResponse (replaceMembers alice conv def {users = [bobId, charlieId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- Verify conversation members
+  bindResponse (getConversation charlie conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" & asList
+    memIds <- forM mems (%. "qualified_id")
+    memIds `shouldMatchSet` [bobId]
+
+testReplaceMembersPermissionDenied :: (HasCallStack) => App ()
+testReplaceMembersPermissionDenied = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
+  conv <- postConversation alice (defProteus {qualifiedUsers = [bob, charlie], newUsersRole = "wire_member"}) >>= getJSON 201
+
+  -- Try to replace members as non-admin bob (who has wire_member role)
+  charlieId <- charlie %. "qualified_id"
+  bindResponse (replaceMembers bob conv def {users = [charlieId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "action-denied"
+
+testReplaceMembersConvNotFound :: (HasCallStack) => App ()
+testReplaceMembersConvNotFound = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+  connectTwoUsers alice bob
+
+  -- Create a fake conversation ID
+  domain <- objDomain alice
+  let fakeConv = object ["qualified_id" .= object ["id" .= ("00000000-0000-0000-0000-000000000000" :: String), "domain" .= domain]]
+
+  bobId <- bob %. "qualified_id"
+  bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "no-conversation"
+
+testReplaceMembersConvNotFoundOtherDomain :: (HasCallStack) => App ()
+testReplaceMembersConvNotFoundOtherDomain = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+  connectTwoUsers alice bob
+
+  -- Create a fake conversation ID
+  let fakeConv = object ["qualified_id" .= object ["id" .= ("00000000-0000-0000-0000-000000000000" :: String), "domain" .= ("other.example.com" :: String)]]
+
+  bobId <- bob %. "qualified_id"
+  bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
+    resp.status `shouldMatchInt` 422
+    resp.json %. "label" `shouldMatch` "federation-not-implemented"

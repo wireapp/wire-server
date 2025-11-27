@@ -1,4 +1,22 @@
 {-# OPTIONS -Wno-ambiguous-fields #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Search where
 
 import qualified API.Brig as BrigP
@@ -432,30 +450,30 @@ testUserSearchable = do
     foundUids <- for docs objId
     assertBool "u1 must not find non-searchable u3 by exact handle" $ notElem u3id foundUids
 
-  -- /teams/:tid/members gets all members, both searchable and non-searchable
-  getTeamMembers u1 tid `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "members" >>= asList
-    foundUids <- mapM (\m -> m %. "user" & asString) docs
-    assertBool "/teams/:tid/members returns all users in team"
-      $ Set.fromList foundUids
-      == everyone'sUidSet
+  -- /teams/:tid/members, both admin and regular user get only searchable members
+  searchableUsers'Uids <- mapM objId [owner, admin, u2]
+  let findOnlySearchable searcher =
+        getTeamMembers searcher tid `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          docs <- resp.json %. "members" >>= asList
+          foundUids <- mapM (\m -> m %. "user" & asString) docs
+          foundUids `shouldMatchSet` searchableUsers'Uids
+  findOnlySearchable admin
+  findOnlySearchable u1
 
   -- /teams/:tid/search also returns all users from team
   BrigP.searchTeam admin [] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
-    assertBool "/teams/:tid/search returns all users in team" $ Set.fromList foundUids == everyone'sUidSet
+    foundUids `shouldMatchSet` everyone'sUidSet
 
   -- /teams/:tid/search?searchable=false gets only non-searchable members
   BrigP.searchTeam admin [("searchable", "false")] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     foundUids <- mapM (\m -> m %. "id" & asString) docs
-    assertBool "/teams/:tid/members?searchable=false returns only non-searchable members"
-      $ Set.fromList foundUids
-      == Set.fromList [u1id, u3id]
+    foundUids `shouldMatchSet` [u1id, u3id]
 
   -- /teams/:tid/search?searchable=true gets only searchable users
   BrigP.searchTeam admin [("searchable", "true")] `bindResponse` \resp -> do
@@ -464,9 +482,7 @@ testUserSearchable = do
     foundUids <- mapM (\m -> m %. "id" & asString) docs
     ownerUid <- owner %. "id" & asString
     adminUid <- admin %. "id" & asString
-    assertBool "/teams/:tid/search?searchable=true gets only searchable users"
-      $ Set.fromList foundUids
-      == Set.fromList [ownerUid, adminUid, u2id]
+    foundUids `shouldMatchSet` [ownerUid, adminUid, u2id]
   where
     -- Convenience wrapper around search contacts which applies `f` directly to document list.
     withFoundDocs ::

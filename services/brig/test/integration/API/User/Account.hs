@@ -49,7 +49,6 @@ import Data.Id
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.List1 (singleton)
 import Data.Mailbox
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
@@ -913,7 +912,7 @@ testUserUpdate brig cannon userJournalWatcher = do
   Util.assertUserActivateJournaled userJournalWatcher bobUser "user create bob"
   let bob = userId bobUser
   aliceNewName <- randomName
-  connectUsers brig alice (singleton bob)
+  connectUsers brig alice (NonEmpty.singleton bob)
   let newColId = Just 5
       newAssets =
         Just

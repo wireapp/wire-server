@@ -37,6 +37,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.VersionInfo
 import Wire.Arbitrary
 
 data MLSReset = MLSReset
@@ -80,8 +81,11 @@ type MLSMessagingAPI =
         :> CanThrow MLSProposalFailure
         :> CanThrow NonFederatingBackends
         :> CanThrow UnreachableBackends
+        :> CanThrow GroupInfoDiagnostics
         :> CanThrow 'MLSInvalidLeafNodeSignature
+        :> CanThrow MLSOutOfSyncError
         :> "messages"
+        :> APIVersion Version
         :> ZLocalUser
         :> ZClient
         :> ZConn
@@ -114,12 +118,14 @@ type MLSMessagingAPI =
                :> CanThrow MLSLegalholdIncompatible
                :> CanThrow MLSProposalFailure
                :> CanThrow MLSIdentityMismatch
-               :> CanThrow MLSGroupInfoMismatch
+               :> CanThrow GroupInfoDiagnostics
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
                :> CanThrow GroupIdVersionNotSupported
                :> CanThrow MLSInvalidLeafNodeSignature
+               :> CanThrow MLSOutOfSyncError
                :> "commit-bundles"
+               :> APIVersion Version
                :> ZLocalUser
                :> ZClient
                :> ZConn

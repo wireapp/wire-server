@@ -16,6 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.ConversationStore.MLS.Types where
 
 import Data.Bifunctor
@@ -30,6 +47,7 @@ import GHC.Records (HasField (..))
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.LeafNode
@@ -79,6 +97,9 @@ imRemoveIndices keys =
   IndexMap
     . flip IntMap.withoutKeys (IntSet.fromList (map fromIntegral keys))
     . unIndexMap
+
+imAssocs :: IndexMap -> [(Int, ClientIdentity)]
+imAssocs = IntMap.assocs . unIndexMap
 
 -- | A two-level map of users to clients to leaf indices.
 --
@@ -218,3 +239,6 @@ instance HasField "id" ConvOrSubConv ConvOrSubConvId where
 instance HasField "migrationState" ConvOrSubConv MLSMigrationState where
   getField (Conv c) = c.mcMigrationState
   getField (SubConv _ _) = MLSMigrationMLS
+
+instance HasField "ciphersuite" ConvOrSubConv (Maybe CipherSuiteTag) where
+  getField x = x.mlsMeta.ciphersuite

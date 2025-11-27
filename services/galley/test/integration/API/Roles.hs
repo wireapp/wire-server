@@ -24,7 +24,8 @@ import Control.Lens (view)
 import Data.Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
@@ -54,7 +55,7 @@ testAllConversationRoles = do
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
-  connectUsers alice (list1 bob [chuck])
+  connectUsers alice (bob :| [chuck])
   let role = roleNameWireAdmin
   c <- decodeConvId <$> postConvWithRole alice [bob] (Just "gossip") [] Nothing Nothing role
   g <- viewGalley
@@ -76,9 +77,9 @@ handleConversationRoleAdmin = do
   (chuck, qchuck) <- randomUserTuple
   (eve, qeve) <- randomUserTuple
   (jack, qjack) <- randomUserTuple
-  connectUsers alice (list1 bob [chuck, eve, jack])
-  connectUsers eve (singleton bob)
-  connectUsers bob (singleton jack)
+  connectUsers alice (bob :| [chuck, eve, jack])
+  connectUsers eve (NonEmpty.singleton bob)
+  connectUsers bob (NonEmpty.singleton jack)
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
@@ -117,9 +118,9 @@ handleConversationRoleMember = do
   eve <- randomUser
   let qeve = Qualified eve localDomain
   jack <- randomUser
-  connectUsers alice (list1 bob [chuck, eve])
-  connectUsers bob (singleton chuck)
-  connectUsers eve (list1 bob [jack])
+  connectUsers alice (bob :| [chuck, eve])
+  connectUsers bob (NonEmpty.singleton chuck)
+  connectUsers eve (bob :| [jack])
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
@@ -161,7 +162,7 @@ wireAdminChecks cid admin otherAdmin mem = do
       qotherAdmin = Qualified otherAdmin localDomain
       qmem = Qualified mem localDomain
   (other, qother) <- randomUserTuple
-  connectUsers admin (singleton other)
+  connectUsers admin (NonEmpty.singleton other)
   -- Admins can perform all operations on the conversation; creator is not relevant
 
   -- Add members
@@ -209,7 +210,7 @@ wireMemberChecks cid mem admin otherMem = do
       qcid = Qualified cid localDomain
   (other, qother) <- randomUserTuple
   let qmem = Qualified mem localDomain
-  connectUsers mem (singleton other)
+  connectUsers mem (NonEmpty.singleton other)
   -- Members cannot perform pretty much any action on the conversation
 
   -- Cannot add members, regardless of their role

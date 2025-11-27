@@ -40,6 +40,7 @@ module Network.Wai.Utilities.Server
     logError,
     logError',
     logErrorMsg,
+    logErrorMsgWithRequest,
     flushRequestBody,
 
     -- * Constants

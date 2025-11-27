@@ -53,7 +53,7 @@ import Test.QuickCheck.Random
 --
 -- Each constructor will appear equally often (a @Uniform@ distribution).
 -- For each field, values will be generated using 'arbitrary', unless it's a
--- list '[]' or 'List1', in which case a smarter generator will be used to keep the
+-- list '[]' or 'NonEmpty', in which case a smarter generator will be used to keep the
 -- size of generated examples more manageable (see 'Generic.list'').
 --
 -- Other set- or map-like types don't get this special treatment and might
@@ -72,7 +72,7 @@ instance
   arbitrary = GenericUniform <$> Generic.genericArbitraryWith @CustomSizedOpts @a customSizedOpts Generic.uniform
   shrink = coerce (QC.genericShrink @a)
 
--- | We want plug in custom generators for all occurences of '[]' and 'List1'.
+-- | We want plug in custom generators for all occurences of '[]' and 'NonEmpty'.
 type CustomSizedOpts =
   Generic.Options
     'Generic.INCOHERENT

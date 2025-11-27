@@ -17,75 +17,45 @@
 
 module Wire.API.Conversation.Pagination where
 
-import Control.Lens ((?~))
 import Data.Aeson qualified as A
-import Data.Default
+import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
 import Imports
-import Servant.API
-import Test.QuickCheck.Gen as Arbitrary
 import Wire.API.Conversation
 import Wire.API.Pagination
 import Wire.Arbitrary as Arbitrary
 
-newtype ConversationPage = ConversationPage {page :: [Conversation]}
+newtype ConversationPage = ConversationPage {page :: [ConversationSearchResult]}
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationPage
 
 instance ToSchema ConversationPage where
   schema =
-    objectWithDocModifier "ConversationPage" docs $
+    objectWithDocModifier "ConversationPage" addPageDocs $
       ConversationPage <$> page .= field "page" (array schema)
-    where
-      docs :: NamedSwaggerDoc -> NamedSwaggerDoc
-      docs =
-        description
-          ?~ "This is the last page if it contains fewer rows than requested. There \
-             \may be 0 rows on a page."
 
 instance Arbitrary ConversationPage where
   arbitrary = ConversationPage <$> arbitrary
 
-------------------------------
+data ConversationSearchResult = ConversationSearchResult
+  { convId :: ConvId,
+    name :: Maybe Text,
+    access :: [Access],
+    memberCount :: Int,
+    adminCount :: Int
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ConversationSearchResult
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema ConversationSearchResult
 
-data SortBy = SortByName | SortByCreatedAt
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SortBy
-
-sortColumnName :: SortBy -> Text
-sortColumnName = \case
-  SortByName -> "name"
-  SortByCreatedAt -> "created_at"
-
-instance Default SortBy where
-  def = SortByCreatedAt
-
-instance ToSchema SortBy where
+instance ToSchema ConversationSearchResult where
   schema =
-    enum @Text "SortBy" $
-      mconcat
-        [ element "name" SortByName,
-          element "created_at" SortByCreatedAt
-        ]
-
-instance Arbitrary SortBy where
-  arbitrary = Arbitrary.elements [minBound ..]
-
-instance FromHttpApiData SortBy where
-  parseUrlPiece "name" = pure SortByName
-  parseUrlPiece "created_at" = pure SortByCreatedAt
-  parseUrlPiece bad = Left $ "SortBy: could not parse " <> bad
-
-instance S.ToParamSchema SortBy where
-  toParamSchema _ =
-    mempty
-      & S.type_ ?~ S.OpenApiString
-      & S.enum_ ?~ ["name", "created_at"]
-
-------------------------------
-
-defaultSortOrder :: SortBy -> SortOrder
-defaultSortOrder SortByName = Asc
-defaultSortOrder SortByCreatedAt = Desc
+    object "ConversationSearchResult" $
+      ConversationSearchResult
+        <$> (.convId) .= field "id" schema
+        <*> (.name) .= maybe_ (optField "name" schema)
+        <*> (.access) .= field "access" (array schema)
+        <*> (.memberCount) .= field "member_count" schema
+        <*> (.adminCount) .= field "admin_count" schema

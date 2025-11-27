@@ -237,22 +237,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V13)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V14)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V13
-        <> serviceSwagger @BrigAPITag @'V13
-        <> serviceSwagger @GalleyAPITag @'V13
-        <> serviceSwagger @SparAPITag @'V13
-        <> serviceSwagger @CargoholdAPITag @'V13
-        <> serviceSwagger @CannonAPITag @'V13
-        <> serviceSwagger @GundeckAPITag @'V13
-        <> serviceSwagger @ProxyAPITag @'V13
-        <> serviceSwagger @OAuthAPITag @'V13
+    ( serviceSwagger @VersionAPITag @'V14
+        <> serviceSwagger @BrigAPITag @'V14
+        <> serviceSwagger @GalleyAPITag @'V14
+        <> serviceSwagger @SparAPITag @'V14
+        <> serviceSwagger @CargoholdAPITag @'V14
+        <> serviceSwagger @CannonAPITag @'V14
+        <> serviceSwagger @GundeckAPITag @'V14
+        <> serviceSwagger @ProxyAPITag @'V14
+        <> serviceSwagger @OAuthAPITag @'V14
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V13) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V14) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V13)) = swaggerPregenUIServer $(pregenSwagger V13)
 versionedSwaggerDocsAPI (Just (VersionNumber V12)) = swaggerPregenUIServer $(pregenSwagger V12)
 versionedSwaggerDocsAPI (Just (VersionNumber V11)) = swaggerPregenUIServer $(pregenSwagger V11)
 versionedSwaggerDocsAPI (Just (VersionNumber V10)) = swaggerPregenUIServer $(pregenSwagger V10)
@@ -1714,8 +1715,8 @@ getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId inc
           sortBy,
           sortOrder,
           pageSize,
-          lastName = (fmap userGroupNameToText lastName),
-          lastCreatedAt = (fmap fromUTCTimeMillis lastCreatedAt),
+          lastName = fmap userGroupNameToText lastName,
+          lastCreatedAt = fmap fromUTCTimeMillis lastCreatedAt,
           lastId,
           includeMemberCount,
           includeChannels

@@ -1,6 +1,23 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module SetupHelpers where
 
 import API.Brig
@@ -154,6 +171,20 @@ getAllConvs u = do
     resp.status `shouldMatchInt` 200
     resp.json
   result %. "found" & asList
+
+getAllConvIds :: (HasCallStack, MakesValue u) => u -> Int -> App [Value]
+getAllConvIds u pageSize = go [] Nothing
+  where
+    go acc state0 = do
+      page <- bindResponse (listConversationIds u def {size = Just pageSize, pagingState = state0}) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json
+      ids <- page %. "qualified_conversations" & asList
+      state <- page %. "paging_state" >>= asOptional >>= traverse asString
+      hasMore <- page %. "has_more" & asBool
+      if hasMore
+        then go (acc <> ids) state
+        else pure (acc <> ids)
 
 -- | Setup a team user, another user, connect the two, create a proteus
 -- conversation, upgrade to mixed. Return the two users and the conversation.
@@ -703,3 +734,8 @@ registerInvitedUser domain tid email = do
     >>= asString
     >>= registerUser domain email
     >>= assertSuccess
+
+getMetrics :: (HasCallStack, MakesValue domain) => domain -> Service -> App Response
+getMetrics domain service = do
+  req <- rawBaseRequest domain service Unversioned "/i/metrics"
+  submit "GET" req

@@ -51,6 +51,11 @@ config:
     port: "5432"
     user: wire-server
     dbname: wire-server
+  postgresqlPool:
+    size: 100
+    acquisitionTimeout: 10s
+    agingTimeout: 1d
+    idlenessTimeout: 10m
 
   enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
@@ -156,6 +161,7 @@ config:
             allowedCipherSuites: [2]
             defaultCipherSuite: 2
             supportedProtocols: [proteus, mls] # must contain defaultProtocol
+            groupInfoDiagnostics: false
           lockStatus: unlocked
       searchVisibilityInbound:
         defaults:

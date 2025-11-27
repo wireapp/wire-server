@@ -54,8 +54,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 hiding (head)
-import Data.List1 qualified as List1
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
@@ -275,7 +274,7 @@ testGetConvQualifiedV2 :: TestM ()
 testGetConvQualifiedV2 = do
   alice <- randomUser
   bob <- randomUser
-  connectUsers alice (list1 bob [])
+  connectUsers alice (NonEmpty.singleton bob)
   conv :: Conversation <-
     responseJsonError
       =<< postConvQualified
@@ -298,7 +297,7 @@ postProteusConvOk = do
   (alice, qalice) <- randomUserTuple
   (bob, qbob) <- randomUserTuple
   (jane, qjane) <- randomUserTuple
-  connectUsers alice (list1 bob [jane])
+  connectUsers alice (bob :| [jane])
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR3 c alice bob jane $ \(wsA, wsB, wsJ) -> do
     rsp <-
@@ -314,10 +313,10 @@ postProteusConvOk = do
       unVersioned @'V2 <$> responseJsonError r
     checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       evtConv e @?= cnvQualifiedId cnv
       evtType e @?= ConvCreate
-      evtFrom e @?= qalice
+      evtFrom e @?= EventFromUser qalice
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
@@ -329,7 +328,7 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   let qalice = Qualified alice localDomain
       qconv = Qualified conv localDomain
@@ -413,7 +412,7 @@ postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysJson = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let m = [(bob, bc, toBase64Text "hello bob")]
@@ -437,7 +436,7 @@ postCryptoMessageVerifyRejectMissingClientAndRespondMissingPrekeysProto = do
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let ciphertext = toBase64Text "hello bob"
@@ -465,7 +464,7 @@ postCryptoMessageNotAuthorizeUnknownClient = do
   alice <- randomUser
   bob <- randomUser
   bc <- randomClient bob (head someLastPrekeys)
-  connectUsers alice (list1 bob [])
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   -- Unknown client ID => 403
   let ciphertext = toBase64Text "hello bob"
@@ -481,7 +480,7 @@ postMessageClientNotInGroupDoesNotReceiveMsg = do
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 3)
-  connectUsers alice (list1 bob [eve, chad])
+  connectUsers alice (bob :| [eve, chad])
   conversationWithAllButChad <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   let qalice = Qualified alice localDomain
       qconv = Qualified conversationWithAllButChad localDomain
@@ -499,7 +498,7 @@ postMessageRejectIfMissingClients :: TestM ()
 postMessageRejectIfMissingClients = do
   (sender, senderClient) : allReceivers <- randomUserWithClient `traverse` someLastPrekeys
   let (receiver1, receiverClient1) : otherReceivers = allReceivers
-  connectUsers sender (list1 receiver1 (fst <$> otherReceivers))
+  connectUsers sender (receiver1 :| (fst <$> otherReceivers))
   conv <- decodeConvId <$> postConv sender (receiver1 : (fst <$> otherReceivers)) (Just "gossip") [] Nothing Nothing
   let msgToAllClients = mkMsg "hello!" <$> allReceivers
   let msgMissingClients = mkMsg "hello!" <$> drop 1 allReceivers
@@ -526,7 +525,7 @@ postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 3)
-  connectUsers alice (list1 bob [chad, eve])
+  connectUsers alice (bob :| [chad, eve])
   conv <- decodeConvId <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let msgMissingChadAndEve = [(bob, bc, toBase64Text "hello bob")]
@@ -596,7 +595,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
       bobUnqualified = qUnqualified bobOwningDomain
       chadUnqualified = qUnqualified chadOwningDomain
 
-  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+  connectLocalQualifiedUsers aliceUnqualified (bobOwningDomain :| [chadOwningDomain])
   connectWithRemoteUser aliceUnqualified deeRemote
 
   -- FUTUREWORK: Do this test with more than one remote domains
@@ -661,7 +660,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       nonMemberUnqualified = qUnqualified nonMemberOwningDomain
       nonMemberRemoteUnqualified = qUnqualified nonMemberRemote
 
-  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+  connectLocalQualifiedUsers aliceUnqualified (bobOwningDomain :| [chadOwningDomain])
   connectWithRemoteUser aliceUnqualified deeRemote
 
   -- FUTUREWORK: Do this test with more than one remote domains
@@ -745,7 +744,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       bobUnqualified = qUnqualified bobOwningDomain
       chadUnqualified = qUnqualified chadOwningDomain
 
-  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+  connectLocalQualifiedUsers aliceUnqualified (bobOwningDomain :| [chadOwningDomain])
   connectWithRemoteUser aliceUnqualified deeRemote
 
   -- FUTUREWORK: Do this test with more than one remote domains
@@ -866,7 +865,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
       bobUnqualified = qUnqualified bobOwningDomain
       chadUnqualified = qUnqualified chadOwningDomain
 
-  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+  connectLocalQualifiedUsers aliceUnqualified (bobOwningDomain :| [chadOwningDomain])
   connectWithRemoteUser aliceUnqualified deeRemote
 
   -- FUTUREWORK: Do this test with more than one remote domains
@@ -1334,7 +1333,7 @@ postConvertTeamConv = do
   assertTeamUpdate "team member (dave) join" tid 3 [alice]
   refreshIndex
   (eve, qeve) <- randomUserTuple
-  connectUsers alice (singleton eve)
+  connectUsers alice (NonEmpty.singleton eve)
   let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
   -- creating a team-only conversation containing eve should fail
   createTeamConvAccessRaw alice tid [bob, eve] (Just "blaa") acc (Just (Set.fromList [TeamMemberAccessRole])) Nothing Nothing
@@ -1418,7 +1417,7 @@ getGuestLinksStatusFromForeignTeamConv = do
   setTeamStatus bob teamB Public.FeatureStatusDisabled
 
   -- and given alice and bob are connected
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
 
   -- and given bob creates a conversation, invites alice, and makes her group admin
   let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole]
@@ -1482,7 +1481,7 @@ getConvsOk = do
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
   [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonError =<< postO2OConv alice bob (Just "gossip1") <!! const 200 === statusCode
   do
@@ -1494,7 +1493,7 @@ getConvsOk2 = do
       [cnvQualifiedId cnv1] @=? map cnvQualifiedId (crFound r)
   -- create & get group conv
   carl <- randomUser
-  connectUsers alice (singleton carl)
+  connectUsers alice (NonEmpty.singleton carl)
   cnv2 :: Conversation <-
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
@@ -1534,7 +1533,7 @@ getConvsFailMaxSizeV2 = do
 testGetConvIdsV2 :: TestM ()
 testGetConvIdsV2 = do
   [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
   getConvIdsV2 alice Nothing Nothing !!! do
     const 200 === statusCode
@@ -1546,8 +1545,8 @@ testGetConvIdsV2 = do
 paginateConvIds :: TestM ()
 paginateConvIds = do
   [alice, bob, eve] <- randomUsers 3
-  connectUsers alice (singleton bob)
-  connectUsers alice (singleton eve)
+  connectUsers alice (NonEmpty.singleton bob)
+  connectUsers alice (NonEmpty.singleton eve)
   replicateM_ 253 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
@@ -1586,7 +1585,7 @@ getConvIdsFailMaxSize = do
 testListConvIds :: TestM ()
 testListConvIds = do
   [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
   -- Each user has a Proteus self-conversation and the one-to-one coversation.
   for_ [alice, bob] $ \u -> do
@@ -1601,7 +1600,7 @@ testListConvIds = do
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
   [alice, bob, eve] <- randomUsers 3
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   localDomain <- viewFederationDomain
   let qAlice = Qualified alice localDomain
   now <- liftIO getCurrentTime
@@ -1648,7 +1647,7 @@ paginateConvListIds = do
   -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
   -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
   -- Getting them 16 at a time should get all them in 16 times.
-  foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
+  foldM_ (getChunkedConvs 16 16 alice) Nothing [15, 14 .. 0 :: Int]
 
 -- This test ensures to setup conversations so that a page would end exactly
 -- when local convs are exhausted and then exactly when another remote domain's
@@ -1657,7 +1656,7 @@ paginateConvListIds = do
 paginateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
 paginateConvListIdsPageEndingAtLocalsAndDomain = do
   [alice, bob, eve] <- randomUsers 3
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   localDomain <- viewFederationDomain
   let qAlice = Qualified alice localDomain
   now <- liftIO getCurrentTime
@@ -1710,7 +1709,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
-  foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
+  foldM_ (getChunkedConvs 16 16 alice) Nothing [3, 2, 1, 0 :: Int]
 
 -- | Gets chunked conversation ids given size of each chunk, size of the last
 -- chunk, requesting user and @n@ which represents how many chunks are remaining
@@ -1735,7 +1734,7 @@ getChunkedConvs size lastSize alice pagingState n = do
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
   [ally, bill, carl] <- randomUsers 3
-  connectUsers ally (list1 bill [carl])
+  connectUsers ally (bill :| [carl])
   replicateM_ 10 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
 
   walk ally [3, 3, 3, 3, 2] -- 10 (group) + 2 (1:1) + 2 (self)
@@ -1766,7 +1765,7 @@ getConvsPagingOk = do
             =<< getConvs u ids1 <!! const 200 === statusCode
         pure $ map cnvQualifiedId (crFound r)
       liftIO $ assertEqual "unexpected length (getConvs)" n (length ids2)
-      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids2)
+      liftIO $ assertEqual "getConvIds /= getConvs" (Set.fromList ids1) (Set.fromList ids2)
 
       pure (Just state')
 
@@ -1793,7 +1792,7 @@ postConvLimitOk = do
   n <- fromIntegral . pred <$> view tsMaxConvSize
   alice <- randomUser
   bob : others <- replicateM n randomUser
-  connectUsers alice (list1 bob others)
+  connectUsers alice (bob :| others)
   postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
     const 201 === statusCode
 
@@ -1802,7 +1801,7 @@ postConvFailNumMembers = do
   n <- fromIntegral <$> view tsMaxConvSize
   alice <- randomUser
   bob : others <- replicateM n randomUser
-  connectUsers alice (list1 bob others)
+  connectUsers alice (bob :| others)
   postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
     const 400 === statusCode
     const (Just "client-error") === fmap label . responseJsonUnsafe
@@ -1812,7 +1811,7 @@ postConvQualifiedFailNumMembers = do
   n <- fromIntegral <$> view tsMaxConvSize
   alice <- randomUser
   bob : others <- replicateM n randomQualifiedUser
-  connectLocalQualifiedUsers alice (list1 bob others)
+  connectLocalQualifiedUsers alice (bob :| others)
   postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = bob : others} !!! do
     const 400 === statusCode
     const (Just "client-error") === fmap label . responseJsonUnsafe
@@ -1824,7 +1823,7 @@ postConvFailBlocked = do
   alice <- randomUser
   bob <- randomUser
   jane <- randomUser
-  connectUsers alice (list1 bob [jane])
+  connectUsers alice (bob :| [jane])
   putConnection jane alice Blocked
     !!! const 200 === statusCode
   postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
@@ -1838,7 +1837,7 @@ postConvQualifiedFailBlocked = do
   alice <- randomUser
   bob <- randomQualifiedUser
   jane <- randomQualifiedUser
-  connectLocalQualifiedUsers alice (list1 bob [jane])
+  connectLocalQualifiedUsers alice (bob :| [jane])
   putConnectionQualified jane alice Blocked
     !!! const 200 === statusCode
   postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob, jane]} !!! do
@@ -1950,7 +1949,7 @@ postO2OConvOk :: TestM ()
 postO2OConvOk = do
   (alice, qalice) <- randomUserTuple
   (bob, qbob) <- randomUserTuple
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   a <- postO2OConv alice bob Nothing <!! const 200 === statusCode
   c <- postO2OConv alice bob Nothing <!! const 200 === statusCode
   aId <- assertConvV9 a One2OneConv (Just alice) qalice [qbob] Nothing Nothing
@@ -2025,7 +2024,7 @@ putConvAcceptRetry :: TestM ()
 putConvAcceptRetry = do
   alice <- randomUser
   bob <- randomUser
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   cnv <- decodeConvIdV9 <$> postO2OConv alice bob (Just "chat")
   -- If the conversation type is already One2One, everything is 200 OK
   putConvAccept bob cnv !!! const 200 === statusCode
@@ -2185,7 +2184,7 @@ getConvOk = do
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
-  connectUsers alice (list1 bob [chuck])
+  connectUsers alice (bob :| [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   getConv alice conv !!! const 200 === statusCode
   getConv bob conv !!! const 200 === statusCode
@@ -2196,7 +2195,7 @@ getConvQualifiedOk = do
   alice <- randomUser
   bob <- randomQualifiedUser
   chuck <- randomQualifiedUser
-  connectLocalQualifiedUsers alice (list1 bob [chuck])
+  connectLocalQualifiedUsers alice (bob :| [chuck])
   conv <-
     decodeConvId
       <$> postConvQualified
@@ -2216,7 +2215,7 @@ accessConvMeta = do
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
-  connectUsers alice (list1 bob [chuck])
+  connectUsers alice (bob :| [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let meta =
         ConversationMetadata
@@ -2424,7 +2423,7 @@ testAddRemoteMemberInvalidDomain = do
 
   e :: UnreachableBackends <-
     responseJsonError
-      =<< postQualifiedMembers alice (remoteBob :| []) qconvId
+      =<< postQualifiedMembers alice (NonEmpty.singleton remoteBob) qconvId
         <!! do
           const 533 === statusCode
   liftIO $ e.backends @?= [domain]
@@ -2445,7 +2444,7 @@ testAddRemoteMemberFederationDisabled = do
           & federator .~ Nothing
           & rabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $
-    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
+    postQualifiedMembers alice (NonEmpty.singleton remoteBob) qconvId !!! do
       const 400 === statusCode
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
@@ -2461,8 +2460,8 @@ postMembersOk = do
   chuck <- randomUser
   qeve <- randomQualifiedUser
   let eve = qUnqualified qeve
-  connectUsers alice (list1 bob [chuck, eve])
-  connectUsers eve (singleton bob)
+  connectUsers alice (bob :| [chuck, eve])
+  connectUsers eve (NonEmpty.singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
   e <- responseJsonError =<< postMembers alice (pure qeve) qconv <!! const 200 === statusCode
@@ -2470,7 +2469,7 @@ postMembersOk = do
     evtConv e @?= qconv
     evtType e @?= MemberJoin
     evtData e @?= EdMembersJoin (MembersJoin [SimpleMember qeve roleNameWireAdmin] InternalAdd)
-    evtFrom e @?= qalice
+    evtFrom e @?= EventFromUser qalice
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
     _ <- getSelfMember u conv <!! const 200 === statusCode
@@ -2481,8 +2480,8 @@ postMembersOk2 = do
   alice <- randomUser
   bob <- randomUser
   chuck <- randomQualifiedUser
-  connectUsers alice (list1 bob [qUnqualified chuck])
-  connectUsers bob (singleton . qUnqualified $ chuck)
+  connectUsers alice (bob :| [qUnqualified chuck])
+  connectUsers bob (NonEmpty.singleton $ qUnqualified chuck)
   conv <- decodeConvId <$> postConv alice [bob, qUnqualified chuck] Nothing [] Nothing Nothing
   qconv <- Qualified conv <$> viewFederationDomain
   postMembers bob (pure chuck) qconv !!! do
@@ -2497,7 +2496,7 @@ postMembersOk3 = do
   alice <- randomUser
   (bob, qbob) <- randomUserTuple
   eve <- randomUser
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   qconv <- Qualified conv <$> viewFederationDomain
   -- Bob leaves
@@ -2516,7 +2515,7 @@ postMembersFailNoGuestAccess = do
   peter <- randomUser
   eve <- ephemeralUser
   qeve <- Qualified eve <$> viewFederationDomain
-  connectUsers alice (list1 bob [peter])
+  connectUsers alice (bob :| [peter])
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [bob, peter] (Just "gossip") [] (Just noGuestsAccess) Nothing
   qconv <- Qualified conv <$> viewFederationDomain
@@ -2526,7 +2525,7 @@ generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess :: TestM ()
 generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
   alice <- randomUser
   bob <- randomUser
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole] [GuestAccessRole, NonTeamMemberAccessRole]
   convId <- decodeConvId <$> postConv alice [bob] (Just "gossip") [CodeAccess] (Just noGuestsAccess) Nothing
   postConvCode alice convId !!! const 403 === statusCode
@@ -2538,8 +2537,8 @@ postMembersFail = do
   chuck <- randomUser
   (dave, qdave) <- randomUserTuple
   (eve, qeve) <- randomUserTuple
-  connectUsers alice (list1 bob [chuck, eve])
-  connectUsers eve (singleton bob)
+  connectUsers alice (bob :| [chuck, eve])
+  connectUsers eve (NonEmpty.singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   qconv <- Qualified conv <$> viewFederationDomain
   postMembers eve (pure qbob) qconv !!! const 404 === statusCode
@@ -2549,7 +2548,7 @@ postMembersFail = do
   postMembers chuck (pure qdave) qconv !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
-  void $ connectUsers chuck (singleton dave)
+  void $ connectUsers chuck (NonEmpty.singleton dave)
   postMembers chuck (pure qdave) qconv !!! const 200 === statusCode
   postMembers chuck (pure qdave) qconv !!! const 204 === statusCode
 
@@ -2559,7 +2558,7 @@ postTooManyMembersFail = do
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
-  connectUsers alice (list1 bob [chuck])
+  connectUsers alice (bob :| [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   qconv <- Qualified conv <$> viewFederationDomain
   x : xs <- replicateM (n - 2) randomQualifiedUser
@@ -2576,7 +2575,7 @@ deleteMembersConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
   [alice, bob, eve] <- randomUsers 3
   let [qAlice, qBob, qEve] = (`Qualified` localDomain) <$> [alice, bob, eve]
-  connectUsers alice (list1 bob [eve])
+  connectUsers alice (bob :| [eve])
   conv <-
     decodeConvId
       <$> postConvQualified
@@ -2727,7 +2726,7 @@ deleteMembersQualifiedFailO2O :: TestM ()
 deleteMembersQualifiedFailO2O = do
   alice <- randomUser
   (bob, qbob) <- randomUserTuple
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   o2o <- decodeConvIdV9 <$> postO2OConv alice bob (Just "foo")
   qo2o <- Qualified o2o <$> viewFederationDomain
   deleteMemberQualified alice qbob qo2o !!! const 403 === statusCode
@@ -2748,17 +2747,17 @@ putQualifiedConvRenameOk = do
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvIdV9 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putConvDeprecatedRenameOk :: TestM ()
@@ -2767,7 +2766,7 @@ putConvDeprecatedRenameOk = do
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvIdV9 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
@@ -2784,11 +2783,11 @@ putConvDeprecatedRenameOk = do
       !!! const 200
         === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putConvRenameOk :: TestM ()
@@ -2797,17 +2796,17 @@ putConvRenameOk = do
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvIdV9 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putQualifiedOtherMemberOk :: TestM ()
@@ -2817,7 +2816,7 @@ putQualifiedOtherMemberOk = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
       alice = qUnqualified qalice
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qbob)
       expectedMemberUpdateData =
@@ -2837,11 +2836,11 @@ putQualifiedOtherMemberOk = do
     putOtherMemberQualified bob qalice (OtherMemberUpdate (Just roleNameWireMember)) qconv
       !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdMemberUpdate expectedMemberUpdateData
 
 putOtherMemberOk :: TestM ()
@@ -2851,7 +2850,7 @@ putOtherMemberOk = do
   qbob <- randomQualifiedUser
   let alice = qUnqualified qalice
       bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qbob)
       expectedMemberUpdateData =
@@ -2871,11 +2870,11 @@ putOtherMemberOk = do
     putOtherMember bob alice (OtherMemberUpdate (Just roleNameWireMember)) conv
       !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       evtData e @?= EdMemberUpdate expectedMemberUpdateData
 
 putMemberOtrMuteOk :: TestM ()
@@ -2940,7 +2939,7 @@ putMemberOk update = do
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvIdV9 <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
   getConv alice conv !!! const 200 === statusCode
@@ -2961,11 +2960,11 @@ putMemberOk update = do
   WS.bracketR c bob $ \ws -> do
     putMember bob update qconv !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
+      evtFrom e @?= EventFromUser qbob
       case evtData e of
         EdMemberUpdate mis -> do
           assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
@@ -3032,11 +3031,11 @@ putRemoteConvMemberOk update = do
   WS.bracketR c alice $ \ws -> do
     putMember alice update qconv !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= qalice
+      evtFrom e @?= EventFromUser qalice
       case evtData e of
         EdMemberUpdate mis -> do
           assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
@@ -3087,7 +3086,7 @@ putReceiptModeOk = do
   let alice = qUnqualified qalice
   bob <- randomUser
   jane <- randomUser
-  connectUsers alice (list1 bob [jane])
+  connectUsers alice (bob :| [jane])
   cnv <- decodeConvId <$> postConv alice [bob, jane] (Just "gossip") [] Nothing Nothing
   let qcnv = Qualified cnv (qDomain qalice)
   WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
@@ -3117,10 +3116,10 @@ putReceiptModeOk = do
   where
     checkWs qalice (qcnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
-      let e = List1.head (WS.unpackPayload n)
+      let e = NonEmpty.head (WS.unpackPayload n)
       evtConv e @?= qcnv
       evtType e @?= ConvReceiptModeUpdate
-      evtFrom e @?= qalice
+      evtFrom e @?= EventFromUser qalice
       case evtData e of
         EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)) ->
           assertEqual "modes should match" mode 0
@@ -3222,7 +3221,7 @@ postTypingIndicatorsV2 = do
   aliceL <- qualifyLocal alice
   bobL <- qualifyLocal bob
 
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
 
   conv <- decodeConvIdV9 <$> postO2OConv alice bob Nothing
   lcnv <- qualifyLocal conv
@@ -3268,7 +3267,7 @@ postTypingIndicators = do
   aliceL <- qualifyLocal alice
   bobL <- qualifyLocal bob
 
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
 
   conv <- decodeConvIdV9 <$> postO2OConv alice bob Nothing
   lcnv <- qualifyLocal conv
@@ -3312,7 +3311,7 @@ postTypingIndicatorsHandlesNonsense = do
   alice <- randomUser
   bob <- randomUser
 
-  connectUsers alice (singleton bob)
+  connectUsers alice (NonEmpty.singleton bob)
   conv <- decodeConvIdV9 <$> postO2OConv alice bob Nothing
 
   post
@@ -3331,7 +3330,7 @@ removeUserNoFederation = do
   [alice, bob, carl] <- replicateM 3 randomQualifiedUser
   let [alice', bob', carl'] = qUnqualified <$> [alice, bob, carl]
 
-  connectUsers alice' (list1 bob' [carl'])
+  connectUsers alice' (bob' :| [carl'])
 
   qconv1 <- decodeQualifiedConvId <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
   qconv2 <- decodeQualifiedConvId <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing

@@ -21,12 +21,10 @@ import Control.Comonad
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import Data.List1
 import Data.Map qualified as Map
 import Data.Qualified
 import Galley.API.Push
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -43,6 +41,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
+import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -87,7 +86,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
         Event
           { evtConv = qcnv,
             evtSubConv = sconv,
-            evtFrom = qusr,
+            evtFrom = EventFromUser qusr,
             evtTime = now,
             evtTeam = Nothing,
             evtData = EdMLSMessage msg.raw
@@ -122,7 +121,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lm.id_
       clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
-      pure $ Recipient localUserId (RecipientClientsSome (List1 clients))
+      pure $ Recipient localUserId (RecipientClientsSome clients)
 
     remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
     remoteMemberMLSClients rm = do

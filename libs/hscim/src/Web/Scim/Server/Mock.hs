@@ -50,8 +50,8 @@ import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.ResourceType
-import Web.Scim.Schema.Schema (Schema (User20))
-import Web.Scim.Schema.User
+import Web.Scim.Schema.Schema (Schema (Group20, User20))
+import Web.Scim.Schema.User hiding (displayName)
 
 -- | Tag used in the mock server.
 data Mock
@@ -155,10 +155,22 @@ instance GroupTypes Mock where
   type GroupId Mock = Id
 
 instance GroupDB Mock TestServer where
-  getGroups () = do
+  getGroups () mbFilter = do
     m <- asks groupDB
-    groups <- liftSTM $ ListT.toList $ STMMap.listT m
-    pure $ fromList . sortWith (Common.id . thing) $ snd <$> groups
+    groups <- map snd <$> liftSTM (ListT.toList $ STMMap.listT m)
+    case mbFilter of
+      Nothing -> pureSorted groups
+      Just (FilterAttrCompare (AttrPath maybeSchema attrib subAttr) op val) -> do
+        case maybeSchema of
+          Just schema' -> when (schema' /= Group20) $ throwScim $ badRequest InvalidFilter $ Just "Explicit schema not Group"
+          Nothing -> pure ()
+        case (attrib, subAttr, val) of
+          ("displayName", Nothing, ValString str) ->
+            let p g = compareStr op (CI.foldCase $ displayName $ value $ thing g) (CI.foldCase str)
+             in pureSorted $ filter p groups
+          _ -> throwScim $ badRequest InvalidFilter $ Just "Only displayName filter supported"
+    where
+      pureSorted groups = pure $ fromList $ sortWith (Common.id . thing) groups
 
   getGroup () gid = do
     m <- asks groupDB

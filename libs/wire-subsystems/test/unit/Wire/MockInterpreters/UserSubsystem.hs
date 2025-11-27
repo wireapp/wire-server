@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.MockInterpreters.UserSubsystem where
 
 import Data.LegalHold
@@ -27,6 +44,8 @@ userSubsystemTestInterpreter initialUsers =
     GetLocalUserProfiles luids ->
       let uids = qUnqualified $ tUntagged luids
        in pure (toProfile <$> filter (\u -> userId u `elem` uids) initialUsers)
+    GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations uids []) ->
+      pure (filter (\u -> userId u `elem` uids) initialUsers)
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
     GetAccountNoFilter _ -> error "GetAccountNoFilter: implement on demand (userSubsystemInterpreter)"
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"

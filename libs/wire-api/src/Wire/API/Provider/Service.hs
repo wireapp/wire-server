@@ -59,7 +59,7 @@ import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List1 (List1)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (HttpsUrl (..), PlainTextPassword6)
 import Data.OpenApi qualified as S
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
@@ -199,8 +199,8 @@ data Service = Service
     serviceSummary :: Text,
     serviceDescr :: Text,
     serviceUrl :: HttpsUrl,
-    serviceTokens :: List1 ServiceToken,
-    serviceKeys :: List1 ServiceKey,
+    serviceTokens :: NonEmpty ServiceToken,
+    serviceKeys :: NonEmpty ServiceKey,
     serviceAssets :: [Asset],
     serviceTags :: Set ServiceTag,
     serviceEnabled :: Bool
@@ -218,8 +218,8 @@ instance ToSchema Service where
         <*> serviceSummary .= field "summary" schema
         <*> serviceDescr .= field "description" schema
         <*> serviceUrl .= field "base_url" schema
-        <*> serviceTokens .= field "auth_tokens" schema
-        <*> serviceKeys .= field "public_keys" schema
+        <*> serviceTokens .= field "auth_tokens" (nonEmptyArray schema)
+        <*> serviceKeys .= field "public_keys" (nonEmptyArray schema)
         <*> serviceAssets .= field "assets" (array schema)
         <*> serviceTags .= field "tags" (set schema)
         <*> serviceEnabled .= field "enabled" schema

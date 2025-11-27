@@ -2,6 +2,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Wire.BackendNotificationPusherSpec where
 
 import Control.Exception
@@ -13,6 +30,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Misc
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
@@ -51,6 +69,7 @@ import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
+import Wire.ConversationStore
 
 spec :: Spec
 spec = do
@@ -323,13 +342,28 @@ spec = do
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
       let cassandra = undefined
-      let federatorInternal = Endpoint "localhost" 8097
+          cassandraGalley = undefined
+          cassandraBrig = undefined
+          federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+          backgroundJobsConfig =
+            BackgroundJobsConfig
+              { concurrency = toRange (Proxy @1),
+                jobTimeout = Duration 100,
+                maxAttempts = toRange (Proxy @3)
+              }
+          hasqlPool = undefined
+          amqpJobsPublisherChannel = undefined
+          amqpBackendNotificationsChannel = undefined
+          federationDomain = Domain "local"
+          postgresMigration = PostgresMigrationOpts CassandraStorage
+          gundeckEndpoint = undefined
+          brigEndpoint = undefined
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
@@ -341,14 +375,29 @@ spec = do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
       let cassandra = undefined
+          cassandraGalley = undefined
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
+          cassandraBrig = undefined
           http2Manager = undefined
           statuses = undefined
           rabbitmqAdminClient = Just $ mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
+          backgroundJobsConfig =
+            BackgroundJobsConfig
+              { concurrency = toRange (Proxy @1),
+                jobTimeout = Duration 100,
+                maxAttempts = toRange (Proxy @3)
+              }
+          hasqlPool = undefined
+          amqpJobsPublisherChannel = undefined
+          amqpBackendNotificationsChannel = undefined
+          federationDomain = Domain "local"
+          postgresMigration = PostgresMigrationOpts CassandraStorage
+          gundeckEndpoint = undefined
+          brigEndpoint = undefined
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

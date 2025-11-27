@@ -19,6 +19,7 @@
 
 module Test.Channels where
 
+import API.Brig
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
@@ -344,7 +345,7 @@ testFederatedChannel = do
     assertAddFails convId userClient userToAdd = do
       mp <- createAddCommit userClient convId [userToAdd]
       postMLSCommitBundle userClient (mkBundle mp) `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 500
+        resp.status `shouldMatchInt` 422
         resp.json %. "label" `shouldMatch` "federation-not-implemented"
 
 -- if the federation queue gets stuck, the second test run will fail
@@ -525,6 +526,66 @@ testTeamAdminCanAddMembersWithoutJoining = do
       selfQid <- self %. "qualified_id"
       filterM (\m -> (/= selfQid) <$> (m %. "qualified_id")) allUsers
 
+testTeamAdminCanReplaceMembers :: (HasCallStack) => App ()
+testTeamAdminCanReplaceMembers = do
+  (alice, tid, bob : charlie : dylan : emil : fred : guenter : horst : ilona : _) <- createTeam OwnDomain 9
+  [bobId, charlieId, dylanId, emilId, fredId, guenterId, horstId, ilonaId] <-
+    for [bob, charlie, dylan, emil, fred, guenter, horst, ilona] (%. "id")
+
+  -- these are the users added to the conversation via user groups
+  -- they should not be removed by the replace operation
+  let userGroupUsers = [guenterId, horstId, ilonaId]
+
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "admins")
+
+  -- the team admin creates a channel without joining
+  channel <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+  convId <- objConvId channel
+
+  -- create 2 user groups and assign the channel to them
+  gid1 <- createUserGroup alice (object ["name" .= "ug 1", "members" .= [guenterId, horstId]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  gid2 <- createUserGroup alice (object ["name" .= "ug 2", "members" .= [horstId, ilonaId]]) >>= getJSON 200 >>= (%. "id") >>= asString
+  updateUserGroupChannels alice gid1 [convId.id_] >>= assertSuccess
+  updateUserGroupChannels alice gid2 [convId.id_] >>= assertSuccess
+
+  withWebSockets [guenter, horst, ilona] $ \wss -> do
+    -- let's add the users from the associated user group by hand for now (later this will be automatic)
+    addMembersToChannel alice channel def {users = [guenter, horst, ilona], role = Just "wire_member"} >>= assertSuccess
+    for_ wss $ \ws -> awaitMatch isMemberJoinNotif ws
+
+  withWebSockets [bob, charlie, dylan] $ \wss -> do
+    -- the team admin adds members to the channel using the PUT endpoint
+    bindResponse (replaceMembers alice channel def {users = [bob, charlie, dylan]}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- members should receive member-join notifications
+    for_ wss $ \ws -> awaitMatch isMemberJoinNotif ws
+
+    -- the members are added to the backend conversation
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members.others" & asList
+      let expected = userGroupUsers <> [bobId, charlieId, dylanId]
+      actual <- for convMems (%. "id")
+      expected `shouldMatchSet` actual
+
+  withWebSockets [emil, fred] $ \wss -> do
+    -- the team admin replaces members in the channel using the PUT endpoint
+    bindResponse (replaceMembers alice channel def {users = [dylan, emil, fred]}) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    -- members should receive member-join notifications
+    for_ wss $ \ws -> awaitMatch isMemberJoinNotif ws
+
+    -- the members are replaced in the backend conversation
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members.others" & asList
+      let expected = userGroupUsers <> [dylanId, emilId, fredId]
+      actual <- for convMems (%. "id")
+      expected `shouldMatchSet` actual
+
 testAdminCanRemoveMemberWithoutJoining :: (HasCallStack) => App ()
 testAdminCanRemoveMemberWithoutJoining = do
   (owner, tid, mems@(m1 : m2 : m3 : _)) <- createTeam OwnDomain 4
@@ -620,3 +681,225 @@ testTeamAdminCanGetChannelData = do
   getConversation owner conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "access-denied"
+
+testConversationOutOfSync :: (HasCallStack) => App ()
+testConversationOutOfSync = do
+  (owner, tid, [alice, bob, charlie]) <- createTeam OwnDomain 4
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  traverse_ (uploadNewKeyPackage def) [bob1, charlie1]
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  -- create empty channel
+  ch <-
+    postConversation
+      alice1
+      defMLS
+        { groupConvType = Just "channel",
+          team = Just tid
+        }
+      >>= getJSON 201
+
+  -- set up mls group
+  convId <- objConvId ch
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+
+  -- an empty channel should not be out of sync
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` False
+
+  -- after adding some members, it should be out of sync
+  void $ addMembers owner convId def {users = [bob, charlie]} >>= getJSON 200
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- now bob joins with an external commit, the conv should remain out of sync
+  void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundle
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- finally, charlie joins and the conversation is not out of sync anymore
+  void $ createExternalCommit convId charlie1 Nothing >>= sendAndConsumeCommitBundle
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` False
+
+testTeamAdminCanManageChannel :: (HasCallStack) => TaggedBool "isMember" -> App ()
+testTeamAdminCanManageChannel (TaggedBool isMember) = do
+  (alice, tid, bob : charlie : _) <- createTeam OwnDomain 3
+  setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  void $ setTeamFeatureConfig alice tid "channels" (config "admins")
+  channel <- postConversation alice defMLS {groupConvType = Just "channel", team = Just tid, skipCreator = Just True} >>= getJSON 201
+
+  when isMember $ do
+    addMembersToChannel alice channel def {users = [alice]} `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    I.getConversation channel `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      convMems <- resp.json %. "members.others" & asList
+      for [alice] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
+  -- ADD MEMBERS
+  addMembersToChannel alice channel def {users = [bob, charlie]} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    let expected = if isMember then [alice, bob, charlie] else [bob, charlie]
+    for expected (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
+  -- REMOVE MEMBER
+  removeMember alice channel bob `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 204
+
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    let expected = if isMember then [alice, charlie] else [charlie]
+    for expected (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
+  -- REPLACE MEMBERS
+  replaceMembers alice channel def {users = [alice, bob]} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  I.getConversation channel `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    let expected = [alice, bob]
+    for expected (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
+testOutOfSyncError :: (HasCallStack) => App ()
+testOutOfSyncError = do
+  (owner, tid, [alice, bob, charlie, dee]) <- createTeam OwnDomain 5
+  [alice1, bob1, charlie1, dee1] <- traverse (createMLSClient def) [alice, bob, charlie, dee]
+  replicateM_ 5 $ traverse_ (uploadNewKeyPackage def) [bob1, charlie1, dee1]
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  -- create empty channel
+  ch <-
+    postConversation
+      alice1
+      defMLS
+        { groupConvType = Just "channel",
+          team = Just tid
+        }
+      >>= getJSON 201
+
+  -- set up mls group
+  convId <- objConvId ch
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
+
+  -- make channel out of sync
+  void $ addMembers owner convId def {users = [bob, charlie]} >>= getJSON 200
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- sending a message should fail
+  do
+    mp <- createApplicationMessage convId alice1 "hello world"
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+      resp.json %. "code" `shouldMatchInt` 409
+      resp.json %. "message" `shouldMatch` "Group is out of sync"
+      missing <- resp.json %. "missing_users" & asList
+      length missing `shouldMatchInt` 2
+
+  -- sending a message should not fail in version < 13
+  withAPIVersion 12 $ do
+    mp <- createApplicationMessage convId alice1 "foo"
+    void $ postMLSMessage mp.sender mp.message >>= getJSON 201
+
+  -- adding only one of the users should fail
+  do
+    gs <- getClientGroupState alice1
+    mp <- createAddCommit alice1 convId [bob]
+    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+      missing <- resp.json %. "missing_users" & asList
+      length missing `shouldMatchInt` 1
+    setClientGroupState alice1 gs
+
+  -- adding a new user should fail
+  do
+    gs <- getClientGroupState alice1
+    mp <- createAddCommit alice1 convId [dee]
+    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+      missing <- resp.json %. "missing_users" & asList
+      length missing `shouldMatchInt` 2
+    setClientGroupState alice1 gs
+
+  -- adding a new user should not fail in version < 13
+  withAPIVersion 12 $ do
+    mp <- createAddCommit alice1 convId [dee]
+    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+  -- adding both users should work
+  do
+    mp <- createAddCommit alice1 convId [bob, charlie]
+    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+testOutOfSyncFederation :: (HasCallStack) => App ()
+testOutOfSyncFederation = do
+  (owner, tid, [alice, bob, charlie, dee]) <- createTeam OwnDomain 5
+  alex <- randomUser OtherDomain def
+  connectTwoUsers alice alex
+
+  [alice1, alex1, bob1, charlie1, dee1] <-
+    traverse
+      (createMLSClient def)
+      [alice, alex, bob, charlie, dee]
+  replicateM_ 5 $ traverse_ (uploadNewKeyPackage def) [alex1, bob1, charlie1, dee1]
+  setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  void $ setTeamFeatureConfig owner tid "channels" (config "everyone")
+
+  -- create empty channel
+  ch <-
+    postConversation
+      alice1
+      defMLS
+        { groupConvType = Just "channel",
+          team = Just tid
+        }
+      >>= getJSON 201
+
+  -- set up mls group
+  convId <- objConvId ch
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [alice, alex] >>= sendAndConsumeCommitBundle
+
+  -- make channel out of sync
+  void $ addMembers owner convId def {users = [bob, charlie]} >>= getJSON 200
+  do
+    s <- isConversationOutOfSync convId >>= getJSON 200
+    s `shouldMatch` True
+
+  -- sending messages from a remote backend should fail
+  do
+    mp <- createApplicationMessage convId alex1 "hello world"
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-group-out-of-sync"
+      resp.json %. "code" `shouldMatchInt` 409
+      resp.json %. "message" `shouldMatch` "Group is out of sync"
+      missing <- resp.json %. "missing_users" & asList
+      length missing `shouldMatchInt` 2
+
+  -- sending a message should not fail in version < 13
+  withAPIVersion 12 $ do
+    mp <- createApplicationMessage convId alex1 "foo"
+    void $ postMLSMessage mp.sender mp.message >>= getJSON 201

@@ -4,6 +4,23 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.API.Push.V2
   ( Push (..),
     newPush,
@@ -60,8 +77,8 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.Json.Util
-import Data.List1
-import Data.List1 qualified as List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
@@ -111,7 +128,7 @@ data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
-    RecipientClientsSome (List1 ClientId)
+    RecipientClientsSome (NonEmpty ClientId)
   deriving (Eq, Show, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema RecipientClients)
 
@@ -123,7 +140,7 @@ instance Arbitrary RecipientClients where
       someClients =
         RecipientClientsSome <$> do
           firstClientId <- arbitrary
-          (List1.list1 firstClientId . filter (/= firstClientId) . Set.toList <$> setOf' arbitrary)
+          (:|) firstClientId . filter (/= firstClientId) . Set.toList <$> setOf' arbitrary
 
 instance ToSchema Recipient where
   schema =
@@ -146,7 +163,7 @@ instance ToSchema RecipientClients where
       i v =
         parseJSON @[ClientId] v >>= \case
           [] -> pure RecipientClientsAll
-          c : cs -> pure (RecipientClientsSome (list1 c cs))
+          c : cs -> pure (RecipientClientsSome (c :| cs))
 
       o :: RecipientClients -> Maybe A.Value
       o =
@@ -260,14 +277,14 @@ data Push = Push
     -- | Native push priority.
     _pushNativePriority :: !Priority,
     -- | Opaque payload
-    _pushPayload :: !(List1 Object),
+    _pushPayload :: !(NonEmpty Object),
     _pushIsCellsEvent :: !Bool
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
   deriving (Arbitrary) via (GenericUniform Push)
 
-newPush :: Maybe UserId -> Set Recipient -> List1 Object -> Push
+newPush :: Maybe UserId -> Set Recipient -> NonEmpty Object -> Push
 newPush from to pload =
   Push
     { _pushRecipients = to,
@@ -283,8 +300,8 @@ newPush from to pload =
       _pushIsCellsEvent = False
     }
 
-singletonPayload :: (ToJSONObject a) => a -> List1 Object
-singletonPayload = List1.singleton . toJSONObject
+singletonPayload :: (ToJSONObject a) => a -> NonEmpty Object
+singletonPayload = NonEmpty.singleton . toJSONObject
 
 instance ToSchema Push where
   schema =
@@ -305,7 +322,7 @@ instance ToSchema Push where
         <*> _pushNativeAps .= maybe_ (optField "native_aps" schema)
         <*> (ifNot (== HighPriority) . _pushNativePriority)
           .= maybe_ (fromMaybe HighPriority <$> optField "native_priority" schema)
-        <*> _pushPayload .= field "payload" schema
+        <*> _pushPayload .= field "payload" (nonEmptyArray schema)
         <*> _pushIsCellsEvent .= fmap (fromMaybe False) (optField "is_cells_event" schema)
     where
       ifNot f a = if f a then Nothing else Just a

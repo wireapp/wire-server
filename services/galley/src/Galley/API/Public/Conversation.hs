@@ -70,6 +70,7 @@ conversationAPI =
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
     <@> mkNamedAPI @"add-members-to-conversation" addMembers
+    <@> mkNamedAPI @"replace-members-in-conversation" replaceMembers
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" joinConversationByReusableCode
     <@> mkNamedAPI @"code-check" checkReusableCode
@@ -100,4 +101,3 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
     <@> mkNamedAPI @"update-channel-add-permission" updateChannelAddPermission
-    <@> mkNamedAPI @"search-channels" searchChannels

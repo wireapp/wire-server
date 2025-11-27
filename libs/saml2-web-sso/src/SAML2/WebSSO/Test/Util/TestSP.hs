@@ -1,6 +1,23 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module SAML2.WebSSO.Test.Util.TestSP where
 
 import Control.Concurrent.MVar
@@ -11,7 +28,7 @@ import Control.Monad.Reader
 import Crypto.Random.Types (MonadRandom (..))
 import Data.EitherR
 import Data.Kind (Type)
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe
 import Data.Time
@@ -201,7 +218,7 @@ makeSampleIdPMetadata = do
     uuid <- UUID.toASCIIBytes <$> liftIO UUID.nextRandom
     pure $ [uri|https://requri.net/|] & pathL .~ ("/" <> uuid)
   (privcreds, creds, cert) <- SAML.mkSignCredsWithCert Nothing 96
-  pure $ SampleIdP (IdPMetadata issuer requri (cert :| [])) privcreds creds cert
+  pure $ SampleIdP (IdPMetadata issuer requri (NonEmpty.singleton cert)) privcreds creds cert
 
 makeIssuer :: (MonadIO m) => m Issuer
 makeIssuer = do

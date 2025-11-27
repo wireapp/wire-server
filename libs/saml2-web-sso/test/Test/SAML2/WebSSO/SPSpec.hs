@@ -1,6 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.SAML2.WebSSO.SPSpec
   ( spec,
   )
@@ -9,6 +26,7 @@ where
 import Control.Concurrent.MVar
 import Control.Lens
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import SAML2.WebSSO
 import SAML2.WebSSO.API.Example (AssertionStore)
@@ -142,7 +160,7 @@ specJudgeT = do
               _rspDestination = Just [uri|https://sp.net/sso/authnresp|],
               _rspIssuer = Just $ assertion ^. assIssuer,
               _rspStatus = StatusSuccess,
-              _rspPayload = assertion :| []
+              _rspPayload = NonEmpty.singleton assertion
             }
         respid :: ID AuthnResponse
         respid = ID "49afd274-db59-11e8-b0be-e3130e26594d"
@@ -160,9 +178,9 @@ specJudgeT = do
                     { _condNotBefore = Just $ authnresp ^. rspIssueInstant,
                       _condNotOnOrAfter = Just timeIn20minutes,
                       _condOneTimeUse = False,
-                      _condAudienceRestriction = [[uri|https://sp.net/sso/authnresp|] :| []]
+                      _condAudienceRestriction = [NonEmpty.singleton [uri|https://sp.net/sso/authnresp|]]
                     },
-              _assContents = SubjectAndStatements subject (statement :| [])
+              _assContents = SubjectAndStatements subject (NonEmpty.singleton statement)
             }
         subject :: Subject
         subject =
@@ -236,14 +254,14 @@ specJudgeT = do
                    ],
               conditionsL . condAudienceRestriction
                 .~ [ {- (outer "and" succeeding) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
-                     [uri|https://sp.net/sso/authnresp|] :| []
+                     NonEmpty.singleton [uri|https://sp.net/sso/authnresp|]
                    ]
             ]
           bad :: [AuthnResponse -> AuthnResponse]
           bad =
             -- wire does not test unsigned data in the authentication response, so response
             -- destination will be ignored (in favor of the redundant info in the signed
-            [ conditionsL . condAudienceRestriction .~ [[uri|https://other.io/sso|] :| []],
+            [ conditionsL . condAudienceRestriction .~ [NonEmpty.singleton [uri|https://other.io/sso|]],
               scdataL . scdRecipient .~ [uri|https://other.io/sso|],
               conditionsL . condAudienceRestriction .~ [],
               -- "The resulting assertion(s) MUST contain a <saml:AudienceRestriction> element
@@ -253,7 +271,7 @@ specJudgeT = do
                    ],
               conditionsL . condAudienceRestriction
                 .~ [ {- (outer "and" failing) -} [uri|https://other.io/sso|] :| [[uri|https://sp.net/sso/authnresp|]],
-                     [uri|https://yetanother.net/stillwrong|] :| []
+                     NonEmpty.singleton [uri|https://yetanother.net/stillwrong|]
                    ]
             ]
       grants id `mapM_` (($ authnresp) <$> good)

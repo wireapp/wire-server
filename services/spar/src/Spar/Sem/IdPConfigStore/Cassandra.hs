@@ -40,6 +40,7 @@ import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (.
 import URI.ByteString
 import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
 import qualified Wire.API.User.IdentityProvider as IP
+import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 
 idPToCassandra ::
   forall m r a.
@@ -85,7 +86,7 @@ insertIdPConfig idp = do
         idp ^. SAML.idpMetadata . SAML.edRequestURI,
         NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
         NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
-        -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
+        -- (the 'NonEmpty' is split up into head and tail to make migration from one-element-only easier.)
         idp ^. SAML.idpExtraInfo . IP.team,
         idp ^. SAML.idpExtraInfo . IP.apiVersion,
         idp ^. SAML.idpExtraInfo . IP.oldIssuers,

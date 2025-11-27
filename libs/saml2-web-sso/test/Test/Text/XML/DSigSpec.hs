@@ -1,6 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-orphans #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Text.XML.DSigSpec
   ( spec,
   )
@@ -9,6 +26,7 @@ where
 import Data.ByteString.Base64.Lazy qualified as EL
 import Data.Either
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.String.Conversions
 import Data.UUID qualified as UUID
@@ -56,7 +74,7 @@ spec = describe "xml:dsig" $ do
     it "works" $ do
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
       raw <- cs <$> readSampleIO "microsoft-authnresponse-2.xml"
-      verify (keyinfo :| []) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldSatisfy` isRight
+      verify (NonEmpty.singleton keyinfo) raw "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6" `shouldSatisfy` isRight
     it "works with more than one key" $ do
       SampleIdP _ _ cert _ <- makeSampleIdPMetadata
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
@@ -67,7 +85,7 @@ spec = describe "xml:dsig" $ do
     it "works" $ do
       Right keyinfo <- (parseKeyInfo True >=> certToCreds) <$> readSampleIO "microsoft-idp-keyinfo.xml"
       raw <- cs <$> readSampleIO "microsoft-meta-2.xml"
-      verifyRoot (keyinfo :| []) raw `shouldSatisfy` isRight
+      verifyRoot (NonEmpty.singleton keyinfo) raw `shouldSatisfy` isRight
 
   describe "verifyRoot vs. signRoot" $ do
     let check :: (HasCallStack) => Bool -> Bool -> (Either String HXTC.XmlTree -> Bool) -> Spec
@@ -75,7 +93,7 @@ spec = describe "xml:dsig" $ do
           it (show (withMatchingCreds, withID)) $ do
             (privCreds, pubCreds) <- mkcrds withMatchingCreds
             signature <- runMonadSign $ renderLBS def <$> signRootAt 0 privCreds (doc withID)
-            (verifyRoot (pubCreds :| []) =<< signature) `shouldSatisfy` expected
+            (verifyRoot (NonEmpty.singleton pubCreds) =<< signature) `shouldSatisfy` expected
         mkcrds :: Bool -> IO (SignPrivCreds, SignCreds)
         mkcrds = \case
           True -> mkSignCreds keysize

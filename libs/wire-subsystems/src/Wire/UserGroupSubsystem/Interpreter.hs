@@ -1,3 +1,22 @@
+{-# LANGUAGE RecordWildCards #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.UserGroupSubsystem.Interpreter where
 
 import Control.Error (MaybeT (..))
@@ -5,28 +24,33 @@ import Control.Lens ((^.))
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Qualified (Local, Qualified (qUnqualified), qualifyAs)
+import Data.Qualified
 import Data.Set qualified as Set
 import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
+import Wire.API.BackgroundJobs
 import Wire.API.Conversation qualified as Conversation
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as TM
 import Wire.API.User
 import Wire.API.UserEvent
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
+import Wire.BackgroundJobsPublisher
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
 import Wire.PaginationState
+import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
@@ -34,13 +58,15 @@ import Wire.UserGroupSubsystem (GroupSearch (..), UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member BackgroundJobsPublisher r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -49,6 +75,7 @@ interpretUserGroupSubsystem = interpret $ \case
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
+  DeleteGroupManaged managedBy team groupId -> deleteGroupManagedImpl managedBy team groupId
   AddUser adder groupId addeeId -> addUser adder groupId addeeId
   AddUsers adder groupId addeeIds -> addUsers adder groupId addeeIds
   UpdateUsers updater groupId uids -> updateUsers updater groupId uids
@@ -56,12 +83,18 @@ interpretUserGroupSubsystem = interpret $ \case
   RemoveUserFromAllGroups uid tid -> removeUserFromAllGroups uid tid
   AddChannels performer groupId channelIds -> updateChannels True performer groupId channelIds
   UpdateChannels performer groupId channelIds -> updateChannels False performer groupId channelIds
+  -- Internal API handlers
+  CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
+  GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
+  GetGroupsInternal tid displayNameSubstring -> getUserGroupsInternal tid displayNameSubstring
+  ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
   = UserGroupNotATeamAdmin
   | UserGroupMemberIsNotInTheSameTeam
   | UserGroupNotFound
   | UserGroupChannelNotFound
+  | UserGroupManagedByMismatch
   deriving (Show, Eq)
 
 userGroupSubsystemErrorToHttpError :: UserGroupSubsystemError -> HttpError
@@ -71,35 +104,68 @@ userGroupSubsystemErrorToHttpError =
     UserGroupMemberIsNotInTheSameTeam -> errorToWai @E.UserGroupMemberIsNotInTheSameTeam
     UserGroupNotFound -> errorToWai @E.UserGroupNotFound
     UserGroupChannelNotFound -> errorToWai @E.UserGroupChannelNotFound
+    UserGroupManagedByMismatch -> errorToWai @E.UserGroupManagedByMismatch
 
 createUserGroup ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member (Error UserGroupSubsystemError) r,
     Member Store.UserGroupStore r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   NewUserGroup ->
   Sem r UserGroup
 createUserGroup creator newGroup = do
-  let managedBy = ManagedByWire
   team <- getTeamAsAdmin creator >>= note UserGroupNotATeamAdmin
-  luids <- qualifyLocal $ toList newGroup.members
-  profiles <- getLocalUserProfiles luids
-  let existingIds = Set.fromList $ fmap (qUnqualified . profileQualifiedId) profiles
-  let actualIds = Set.fromList $ toList newGroup.members
-  let allInSameTeam = all (\p -> p.profileTeam == Just team) profiles
-  when (existingIds /= actualIds || not allInSameTeam) $
-    throw $
-      UserGroupMemberIsNotInTheSameTeam
+  createUserGroupFullImpl ManagedByWire team (Just creator) newGroup
+
+createUserGroupFullImpl ::
+  forall r.
+  ( Member UserSubsystem r,
+    Member (Error UserGroupSubsystemError) r,
+    Member Store.UserGroupStore r,
+    Member (Input (Local ())) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  ManagedBy ->
+  TeamId {- home team of the user group.-} ->
+  Maybe UserId {- creator of the user group (just needed for exclusion from event; this is not
+                checked for consistency with TeamId. -} ->
+  NewUserGroup ->
+  Sem r UserGroup
+createUserGroupFullImpl managedBy team mbCreator newGroup = do
+  guardMembersInTeam
   ug <- Store.createUserGroup team newGroup managedBy
-  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-  pushNotifications
-    [ mkEvent creator (UserGroupCreated ug.id_) admins
-    ]
+  notifyAdmins ug
+  triggerSyncUserGroup team mbCreator ug.id_
   pure ug
+  where
+    guardMembersInTeam :: Sem r ()
+    guardMembersInTeam = do
+      groupMembersFound :: [UserProfile] <- getLocalUserProfiles =<< qualifyLocal (toList newGroup.members)
+      let groupMemberIdsRequested :: [UserId] = toList newGroup.members
+          groupMemberIdsFound :: [UserId] = qUnqualified . profileQualifiedId <$> groupMembersFound
+          nobodyMissing = Set.fromList groupMemberIdsRequested == Set.fromList groupMemberIdsFound
+
+          allTeams :: [Maybe TeamId] = nub $ profileTeam <$> groupMembersFound
+          nobodyFromOtherTeam = allTeams == [Just team] || null (toList newGroup.members)
+
+      unless (nobodyMissing && nobodyFromOtherTeam) do
+        throw UserGroupMemberIsNotInTheSameTeam
+
+    notifyAdmins :: UserGroup -> Sem r ()
+    notifyAdmins ug = do
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+      pushNotifications
+        [ mmkEvent mbCreator (UserGroupCreated ug.id_) admins
+        ]
 
 getTeamAsAdmin ::
   ( Member UserSubsystem r,
@@ -123,14 +189,17 @@ getTeamAsMember memberId = runMaybeT do
   mbr <- MaybeT $ internalGetTeamMember memberId team
   pure (team, mbr)
 
-mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
-mkEvent author evt recipients =
+mmkEvent :: Maybe UserId -> UserGroupEvent -> [UserId] -> Push
+mmkEvent mAuthor evt recipients =
   def
-    { origin = Just author,
+    { origin = mAuthor,
       json = toJSONObject $ UserGroupEvent evt,
       recipients = (\uid -> Recipient {recipientUserId = uid, recipientClients = RecipientClientsAll}) <$> recipients,
       transient = True
     }
+
+mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
+mkEvent = mmkEvent . Just
 
 qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
 qualifyLocal a = do
@@ -149,10 +218,19 @@ getUserGroup ::
 getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
-  userGroup <- MaybeT $ Store.getUserGroup team gid includeChannels
+  userGroup <- MaybeT $ getUserGroupInternal team gid includeChannels
   if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
+
+getUserGroupInternal ::
+  (Member Store.UserGroupStore r) =>
+  TeamId ->
+  UserGroupId ->
+  Bool ->
+  Sem r (Maybe UserGroup)
+getUserGroupInternal tid gid includeChannels = runMaybeT $ do
+  MaybeT $ Store.getUserGroup tid gid includeChannels
 
 mkGetterCanSeeAll ::
   forall r.
@@ -182,13 +260,12 @@ getUserGroups getter search = do
         UserGroupPageRequest
           { pageSize = fromMaybe def search.pageSize,
             sortOrder = fromMaybe Desc search.sortOrder,
-            paginationState = case (fromMaybe def search.sortBy) of
-              SortByName ->
-                PaginationSortByName $
-                  (,) <$> search.lastName <*> search.lastId
-              SortByCreatedAt ->
-                PaginationSortByCreatedAt $
-                  (,) <$> search.lastCreatedAt <*> search.lastId,
+            paginationState =
+              mkPaginationState
+                (fromMaybe def search.sortBy)
+                search.lastName
+                search.lastCreatedAt
+                search.lastId,
             team = team,
             searchString = search.query,
             includeMemberCount = search.includeMemberCount,
@@ -198,6 +275,29 @@ getUserGroups getter search = do
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
+
+getUserGroupsInternal ::
+  forall r.
+  ( Member Store.UserGroupStore r
+  ) =>
+  TeamId ->
+  Maybe Text ->
+  Sem r UserGroupPageWithMembers
+getUserGroupsInternal team displayNameSubstring = do
+  let -- hscim doesn't support pagination at the time of writing this,
+      -- so we better fit all groups into one page!
+      pageSize = pageSizeFromIntUnsafe 500
+      pageReq =
+        UserGroupPageRequest
+          { pageSize = pageSize,
+            sortOrder = Asc,
+            paginationState = mkPaginationState SortByName (Just "displayName") Nothing Nothing,
+            team = team,
+            searchString = displayNameSubstring,
+            includeMemberCount = True,
+            includeChannels = False
+          }
+  Store.getUserGroupsWithMembers pageReq
 
 updateGroup ::
   ( Member UserSubsystem r,
@@ -212,11 +312,25 @@ updateGroup ::
   Sem r ()
 updateGroup updater groupId groupUpdate = do
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
-  found <- isJust <$> Store.updateUserGroup team groupId groupUpdate
+  updateGroupNoAccessControl team (Just updater) groupId groupUpdate
+
+updateGroupNoAccessControl ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  TeamId ->
+  Maybe UserId ->
+  UserGroupId ->
+  UserGroupUpdate ->
+  Sem r ()
+updateGroupNoAccessControl teamId mbUpdater groupId groupUpdate = do
+  found <- isJust <$> Store.updateUserGroup teamId groupId groupUpdate
   if found
     then do
-      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-      pushNotifications [mkEvent updater (UserGroupUpdated groupId) admins]
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
+      pushNotifications [mmkEvent mbUpdater (UserGroupUpdated groupId) admins]
     else throw UserGroupNotFound
 
 deleteGroup ::
@@ -233,24 +347,50 @@ deleteGroup deleter groupId =
   getTeamAsMember deleter >>= \case
     Nothing -> throw UserGroupNotFound
     Just (team, member) -> do
-      if isAdminOrOwner (member ^. permissions)
-        then do
-          found <- isJust <$> Store.deleteUserGroup team groupId
-          if found
-            then do
-              admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
-              pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
-            else
-              throw UserGroupNotFound
-        else do
-          throw UserGroupNotATeamAdmin
+      unless (isAdminOrOwner (member ^. permissions)) $
+        throw UserGroupNotATeamAdmin
 
-addUser ::
-  ( Member UserSubsystem r,
-    Member Store.UserGroupStore r,
+      Store.deleteUserGroup team groupId >>= note UserGroupNotFound
+
+      admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+      pushNotifications [mkEvent deleter (UserGroupDeleted groupId) admins]
+
+deleteGroupManagedImpl ::
+  ( Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r
+  ) =>
+  ManagedBy ->
+  TeamId ->
+  UserGroupId ->
+  Sem r ()
+deleteGroupManagedImpl managedBy team groupId = do
+  -- First, get the group to verify it exists and check its managedBy field
+  maybeGroup <- Store.getUserGroup team groupId False
+  case maybeGroup of
+    Nothing -> pure () -- idempotency
+    Just group' ->
+      if group'.managedBy == managedBy
+        then do
+          -- Delete the group
+          mUserGroup <- Store.deleteUserGroup team groupId
+
+          for_ mUserGroup $ \_ -> do
+            -- Send notifications to team admins
+            admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+            pushNotifications [mmkEvent Nothing (UserGroupDeleted groupId) admins]
+        else
+          throw UserGroupManagedByMismatch
+
+addUser ::
+  ( Member Random.Random r,
+    Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -266,13 +406,16 @@ addUser adder groupId addeeId = do
     pushNotifications
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
+    triggerSyncUserGroup team (Just adder) groupId
 
 addUsers ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -292,34 +435,57 @@ addUsers adder groupId addeeIds = do
       [ mkEvent adder (UserGroupUpdated groupId) admins
       ]
 
+  triggerSyncUserGroup team (Just adder) groupId
+
 updateUsers ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
   Vector UserId ->
   Sem r ()
 updateUsers updater groupId uids = do
-  void $ getUserGroup updater groupId False >>= note UserGroupNotFound
   team <- getTeamAsAdmin updater >>= note UserGroupNotATeamAdmin
+  updateUsersNoAccessControl team (Just updater) groupId uids
+
+updateUsersNoAccessControl ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  TeamId ->
+  Maybe UserId ->
+  UserGroupId ->
+  Vector UserId ->
+  Sem r ()
+updateUsersNoAccessControl teamId mbUpdater groupId uids = do
+  void $ getUserGroupInternal teamId groupId False >>= note UserGroupNotFound
   forM_ uids $ \uid ->
-    internalGetTeamMember uid team >>= note UserGroupMemberIsNotInTheSameTeam
+    internalGetTeamMember uid teamId >>= note UserGroupMemberIsNotInTheSameTeam
   Store.updateUsers groupId uids
-  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins team
+  admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
   pushNotifications
-    [ mkEvent updater (UserGroupUpdated groupId) admins
+    [ mmkEvent mbUpdater (UserGroupUpdated groupId) admins
     ]
+  triggerSyncUserGroup teamId mbUpdater groupId
 
 removeUser ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member BackgroundJobsPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -335,6 +501,7 @@ removeUser remover groupId removeeId = do
     pushNotifications
       [ mkEvent remover (UserGroupUpdated groupId) admins
       ]
+    triggerSyncUserGroup team (Just remover) groupId
 
 removeUserFromAllGroups ::
   ( Member Store.UserGroupStore r,
@@ -373,12 +540,14 @@ removeUserFromAllGroups uid tid = do
           }
 
 updateChannels ::
-  ( Member UserSubsystem r,
+  ( Member Random.Random r,
+    Member UserSubsystem r,
     Member Store.UserGroupStore r,
     Member (Error UserGroupSubsystemError) r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member BackgroundJobsPublisher r
   ) =>
   Bool ->
   UserId ->
@@ -393,11 +562,40 @@ updateChannels appendOnly performer groupId channelIds = do
     let meta = conv.metadata
     unless (meta.cnvmTeam == Just teamId && meta.cnvmGroupConvType == Just Conversation.Channel) $
       throw UserGroupChannelNotFound
+
   if appendOnly
     then Store.addUserGroupChannels groupId channelIds
     else Store.updateUserGroupChannels groupId channelIds
+
+  triggerSyncUserGroup teamId (Just performer) groupId
 
   admins <- fmap (^. TM.userId) . (^. teamMembers) <$> internalGetTeamAdmins teamId
   pushNotifications
     [ mkEvent performer (UserGroupUpdated groupId) admins
     ]
+
+triggerSyncUserGroup ::
+  ( Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  TeamId ->
+  Maybe UserId ->
+  UserGroupId ->
+  Sem r ()
+triggerSyncUserGroup teamId actor userGroupId = do
+  jobId <- Random.newId
+  publishJob jobId $ JobSyncUserGroup SyncUserGroup {..}
+
+resetUserGroupInternal ::
+  ( Member Store.UserGroupStore r,
+    Member (Error UserGroupSubsystemError) r,
+    Member TeamSubsystem r,
+    Member NotificationSubsystem r,
+    Member Random.Random r,
+    Member BackgroundJobsPublisher r
+  ) =>
+  UpdateGroupInternalRequest ->
+  Sem r ()
+resetUserGroupInternal UpdateGroupInternalRequest {..} = do
+  forM_ name $ updateGroupNoAccessControl teamId Nothing groupId . UserGroupUpdate
+  forM_ members $ updateUsersNoAccessControl teamId Nothing groupId . V.fromList

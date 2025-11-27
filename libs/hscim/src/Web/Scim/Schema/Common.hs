@@ -29,6 +29,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.List (nub, (\\))
 import Data.String.Conversions (cs)
 import Data.Text (Text, pack, unpack)
+import qualified Data.Text as Text
 import qualified Network.URI as Network
 
 data WithId id a = WithId
@@ -48,6 +49,12 @@ instance (FromJSON id, FromJSON a) => FromJSON (WithId id a) where
 
 newtype URI = URI {unURI :: Network.URI}
   deriving (Show, Eq)
+
+uriToString :: URI -> String
+uriToString = (\uri -> Network.uriToString Prelude.id uri "") . unURI
+
+uriToText :: URI -> Text
+uriToText = Text.pack . uriToString
 
 instance FromJSON URI where
   parseJSON = withText "URI" $ \uri -> case Network.parseURI (unpack uri) of

@@ -1,6 +1,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.UserSubsystem.Interpreter
   ( runUserSubsystem,
     UserSubsystemConfig (..),
@@ -388,13 +405,13 @@ getUserProfilesLocalPart ::
   Sem r [UserProfile]
 getUserProfilesLocalPart requestingUser luids = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
-  emailVisibilityConfigWithViewer <-
-    case emailVisibilityConfig of
-      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
-      EmailVisibleToSelf -> pure EmailVisibleToSelf
-      EmailVisibleIfOnSameTeam () ->
-        EmailVisibleIfOnSameTeam . join @Maybe
-          <$> traverse getRequestingUserInfo requestingUser
+  requestingUserInfo <- join <$> traverse getRequestingUserInfo requestingUser
+  let canSeeEmails = maybe False (isAdminOrOwner . view (newTeamMember . nPermissions) . snd) requestingUserInfo
+      emailVisibilityConfigWithViewer = case emailVisibilityConfig of
+        EmailVisibleToSelf | canSeeEmails -> EmailVisibleIfOnSameTeam requestingUserInfo
+        EmailVisibleToSelf -> EmailVisibleToSelf
+        EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
+        EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
   catMaybes <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
@@ -976,7 +993,7 @@ getAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [User]
-getAccountsByImpl (tSplit -> (domain, MkGetBy {includePendingInvitations, getByHandle, getByUserId})) = do
+getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHandle, getByUserId})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkUserFromStored domain config.defaultLocale

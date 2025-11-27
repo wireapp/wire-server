@@ -329,7 +329,7 @@ federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection 
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
   Wai.mkError
-    HTTP.status500
+    HTTP.status422
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
 

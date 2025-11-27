@@ -37,8 +37,10 @@ module Data.Id
     ServiceId,
     TeamId,
     ScimTokenId,
+    JobId,
     parseIdFromText,
     idToText,
+    idToString,
     idObjectSchema,
     IdObject (..),
 
@@ -111,6 +113,7 @@ data IdTag
   | OAuthClient
   | OAuthRefreshToken
   | Challenge
+  | Job
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -125,6 +128,7 @@ idTagName ScimToken = "ScimToken"
 idTagName OAuthClient = "OAuthClient"
 idTagName OAuthRefreshToken = "OAuthRefreshToken"
 idTagName Challenge = "Challenge"
+idTagName Job = "Job"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -151,6 +155,8 @@ instance KnownIdTag 'OAuthClient where idTagValue = OAuthClient
 
 instance KnownIdTag 'OAuthRefreshToken where idTagValue = OAuthRefreshToken
 
+instance KnownIdTag 'Job where idTagValue = Job
+
 type AssetId = Id 'Asset
 
 type InvitationId = Id 'Invitation
@@ -176,6 +182,8 @@ type OAuthClientId = Id 'OAuthClient
 type OAuthRefreshTokenId = Id 'OAuthRefreshToken
 
 type ChallengeId = Id 'Challenge
+
+type JobId = Id 'Job
 
 -- Id -------------------------------------------------------------------------
 
@@ -262,6 +270,9 @@ parseIdFromText = maybe (Left "UUID.fromText failed") (Right . Id) . UUID.fromTe
 
 idToText :: Id a -> Text
 idToText = UUID.toText . toUUID
+
+idToString :: Id a -> String
+idToString = UUID.toString . toUUID
 
 instance Cql (Id a) where
   ctype = retag (ctype :: Tagged UUID ColumnType)
@@ -433,6 +444,9 @@ newtype RequestId = RequestId
       Generic,
       ToBytes
     )
+
+instance Arbitrary RequestId where
+  arbitrary = RequestId . UUID.toASCIIBytes <$> arbitrary @UUID
 
 defRequestId :: (IsString s) => s
 defRequestId = "N/A"

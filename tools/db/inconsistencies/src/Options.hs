@@ -43,6 +43,8 @@ data Command
   | DanglingUserKeys (Maybe (FilePath, Bool))
   | EmailUnparseableUsers
   | MissingEmailUserKeys (Maybe (FilePath, Bool))
+  | UsersInUnknownTeams CassandraSettings
+  | NullPermsTeamMembers CassandraSettings
 
 optionsParser :: Parser (Command, Settings)
 optionsParser = (,) <$> commandParser <*> settingsParser
@@ -50,7 +52,13 @@ optionsParser = (,) <$> commandParser <*> settingsParser
 commandParser :: Parser Command
 commandParser =
   subparser $
-    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand <> unparseableEmailsCommand <> missingEmailsCommand
+    danglingHandlesCommand
+      <> handleLessUsersCommand
+      <> danglingKeysCommand
+      <> unparseableEmailsCommand
+      <> missingEmailsCommand
+      <> usersInUnknownTeamsCommand
+      <> nullPermsTeamMembersCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
 danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional (inputFileRepairParser "handles")) (progDesc "find handle which shouldn't be claimed"))
@@ -66,6 +74,16 @@ unparseableEmailsCommand = command "unparseable-emails" (info (pure EmailUnparse
 
 handleLessUsersCommand :: Mod CommandFields Command
 handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))
+
+usersInUnknownTeamsCommand :: Mod CommandFields Command
+usersInUnknownTeamsCommand = command "users-in-unknown-teams" (info (helper <*> parser) (progDesc "find users which have a team that doesn't exist"))
+  where
+    parser = (UsersInUnknownTeams <$> cassandraSettingsParser "galley")
+
+nullPermsTeamMembersCommand :: Mod CommandFields Command
+nullPermsTeamMembersCommand = command "null-perms" (info (helper <*> parser) (progDesc "find team_member rows whose perms field is NULL and report user and team info"))
+  where
+    parser = (NullPermsTeamMembers <$> cassandraSettingsParser "galley")
 
 settingsParser :: Parser Settings
 settingsParser =

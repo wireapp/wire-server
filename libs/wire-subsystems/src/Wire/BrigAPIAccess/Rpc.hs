@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.BrigAPIAccess.Rpc where
 
 import Bilge
@@ -23,9 +40,11 @@ import Polysemy.TinyLog
 import System.Logger.Message qualified as Logger
 import Util.Options
 import Web.HttpApiData
+import Web.Scim.Filter as Scim
 import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
+import Wire.API.Routes.Internal.Brig (CreateGroupInternalRequest (..), GetBy, UpdateGroupInternalRequest (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
@@ -37,8 +56,11 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo
-import Wire.BrigAPIAccess (BrigAPIAccess (..), OpaqueAuthToken (..))
+import Wire.API.UserGroup (NewUserGroup, UserGroup)
+import Wire.API.UserGroup.Pagination
+import Wire.BrigAPIAccess (BrigAPIAccess (..), DeleteGroupManagedError (..), OpaqueAuthToken (..))
 import Wire.ParseException
 import Wire.Rpc
 
@@ -98,6 +120,18 @@ interpretBrigAccess brigEndpoint =
       DeleteBot convId botId ->
         deleteBot convId botId
       UpdateSearchIndex uid -> updateSearchIndex uid
+      GetAccountsBy localGetBy ->
+        getAccountsBy localGetBy
+      CreateGroupInternal managedBy teamId creatorUserId newGroup ->
+        createGroupInternal managedBy teamId creatorUserId newGroup
+      GetGroupsInternal tid mbFilter ->
+        getGroupsInternal tid mbFilter
+      GetGroupInternal tid gid includeChannels ->
+        getGroupInternal tid gid includeChannels
+      UpdateGroup req ->
+        updateGroup req
+      DeleteGroupInternal managedBy teamId groupId ->
+        deleteGroupInternal managedBy teamId groupId
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -107,7 +141,7 @@ brigRequest req = do
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe LByteString) -> Sem r a
 decodeBodyOrThrow ctx r = either (throw . ParseException ctx) pure (responseJsonEither r)
 
--- | Get statuses of all connections between two groups of users (the usual
+-- \| Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
 -- several users to one).
 --
@@ -178,7 +212,7 @@ deleteBot cid bot = do
         . header "Z-Type" "bot"
         . header "Z-Bot" (toByteString' bot)
         . header "Z-Conversation" (toByteString' cid)
-        . expect2xx
+        . expect2xxOr404
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser ::
@@ -262,7 +296,7 @@ deleteUser uid = do
     brigRequest $
       method DELETE
         . paths ["/i/users", toByteString' uid]
-        . expect2xx
+        . expect2xxOr404
 
 -- | Calls 'Brig.API.getContactListH'.
 getContactList ::
@@ -299,10 +333,12 @@ getUserExportData ::
 getUserExportData uid = do
   resp <-
     brigRequest $
-      method GET
+      check [status200, status404]
+        . method GET
         . paths ["i/users", toByteString' uid, "export-data"]
-        . expect2xx
-  decodeBodyOrThrow "brig" resp
+  if statusCode resp == 404
+    then pure Nothing
+    else decodeBodyOrThrow "brig" resp
 
 getAccountConferenceCallingConfigClient ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -381,7 +417,7 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
     method POST
       . paths ["i", "clients", "legalhold", toByteString' targetUid, "request"]
       . json (LegalHoldClientRequest requesterUid lastPrekey')
-      . expect2xx
+      . expect2xxOr404
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
@@ -442,7 +478,7 @@ removeLegalHoldClientFromUser targetUid = do
     method DELETE
       . paths ["i", "clients", "legalhold", toByteString' targetUid]
       . contentJson
-      . expect2xx
+      . expect2xxOr404
 
 -- | Calls 'Brig.API.addClientInternalH'.
 brigAddClient ::
@@ -509,3 +545,125 @@ updateSearchIndex uid = do
     method POST
       . paths ["i", "index", "update", toByteString' uid]
       . expect2xx
+
+-- | Calls 'Brig.API.Internal.getAccountsByInternalH'.
+getAccountsBy ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  GetBy ->
+  Sem r [User]
+getAccountsBy localGetBy = do
+  r <-
+    brigRequest $
+      method POST
+        . path "/i/users/accounts-by"
+        . json localGetBy
+        . expect2xx
+  decodeBodyOrThrow "brig" r
+
+-- | Calls 'Brig.API.Internal.createGroupInternalH'.
+createGroupInternal ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  ManagedBy ->
+  TeamId ->
+  Maybe UserId ->
+  NewUserGroup ->
+  Sem r (Either Wai.Error UserGroup)
+createGroupInternal managedBy teamId creatorUserId newGroup = do
+  let req =
+        CreateGroupInternalRequest
+          { managedBy,
+            teamId,
+            creatorUserId,
+            newGroup
+          }
+  r <-
+    brigRequest $
+      method POST
+        . path "/i/user-groups/full"
+        . json req
+  if is2xx r
+    then Right <$> decodeBodyOrThrow @UserGroup "brig" r
+    else Left <$> decodeBodyOrThrow @Wai.Error "brig" r
+
+getGroupInternal ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  TeamId ->
+  UserGroupId ->
+  Bool ->
+  Sem r (Maybe UserGroup)
+getGroupInternal tid gid includeChannels = do
+  r <-
+    brigRequest $
+      check [status200, status404]
+        . method GET
+        . paths ["i", "user-groups", toByteString' tid, toByteString' gid, toByteString' includeChannels]
+  if statusCode r == 404
+    then pure Nothing
+    else decodeBodyOrThrow "brig" r
+
+getGroupsInternal ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  TeamId ->
+  Maybe Scim.Filter ->
+  Sem r UserGroupPageWithMembers
+getGroupsInternal tid mbFilter = do
+  maybeDisplayName :: Maybe Text <- case mbFilter of
+    Just filter' -> case filter' of
+      FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
+      _ -> throw $ ParseException "brig" $ "Unsupported SCIM filter: " <> show filter'
+    Nothing -> pure Nothing
+  r <-
+    brigRequest $
+      method GET
+        . paths ["i", "user-groups", toByteString' tid]
+        . maybe id (queryItem "nameContains" . Text.encodeUtf8) maybeDisplayName
+        . expect2xx
+  decodeBodyOrThrow "brig" r
+
+updateGroup ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  UpdateGroupInternalRequest ->
+  Sem r (Either Wai.Error ())
+updateGroup reqBody = do
+  resp <-
+    brigRequest $
+      method PUT
+        . paths ["i", "user-groups"]
+        . json reqBody
+  if is2xx resp
+    then pure (Right ())
+    else Left <$> decodeBodyOrThrow @Wai.Error "brig" resp
+
+deleteGroupInternal ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member (Error ParseException) r
+  ) =>
+  ManagedBy ->
+  TeamId ->
+  UserGroupId ->
+  Sem r (Either DeleteGroupManagedError ())
+deleteGroupInternal managedBy teamId groupId = do
+  resp <-
+    brigRequest $
+      method DELETE
+        . paths ["i", "user-groups", toByteString' teamId, toByteString' groupId, "managed", toByteString' managedBy]
+  case (statusCode resp, errorLabel resp) of
+    (status, _) | statusIs2xx status -> pure $ Right ()
+    (404, _) -> pure $ Right ()
+    (403, Just "user-group-managed-by-mismatch") -> pure $ Left DeleteGroupManagedManagedByMismatch
+    (status, label) ->
+      throw $
+        ParseException
+          { _parseExceptionRemote = "brig",
+            _parseExceptionMsg = "unexpected delete group managed response: " <> show status <> " / " <> show label
+          }
+  where
+    errorLabel :: ResponseLBS -> Maybe LText
+    errorLabel = fmap Wai.label . responseJsonMaybe
+
+is2xx :: ResponseLBS -> Bool
+is2xx = statusIs2xx . statusCode
+
+statusIs2xx :: Int -> Bool
+statusIs2xx s = s >= 200 && s < 300

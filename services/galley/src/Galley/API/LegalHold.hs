@@ -50,7 +50,6 @@ import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.FireAndForget
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
@@ -79,6 +78,8 @@ import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem
+import Wire.FireAndForget
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -161,6 +162,7 @@ removeSettingsInternalPaging ::
     Member FederatorAccess r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -206,6 +208,7 @@ removeSettings ::
     Member FederatorAccess r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -259,6 +262,7 @@ removeSettings' ::
     Member FederatorAccess r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member Now r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -310,6 +314,7 @@ grantConsent ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -357,6 +362,7 @@ requestDevice ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member Now r,
@@ -450,6 +456,7 @@ approveDevice ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member Now r,
@@ -527,6 +534,7 @@ disableForUser ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -592,6 +600,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -708,6 +717,7 @@ handleGroupConvPolicyConflicts ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member NotificationSubsystem r,
+    Member ConversationSubsystem r,
     Member (Input Env) r,
     Member Now r,
     Member ProposalStore r,

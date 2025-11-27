@@ -50,8 +50,6 @@ import Data.Default
 import Data.Handle (Handle)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
-import Data.List1 (List1)
-import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.ZAuth.CryptoSign (CryptoSign)
@@ -212,7 +210,7 @@ logout ::
     Member CryptoSign r,
     Member Now r
   ) =>
-  List1 (ZAuth.Token u) ->
+  NE.NonEmpty (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
 logout uts at = do
@@ -237,7 +235,7 @@ renewAccess ::
     Member AuthenticationSubsystem r,
     Member Random r
   ) =>
-  List1 (ZAuth.Token u) ->
+  NE.NonEmpty (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   Maybe ClientId ->
   ExceptT ZAuth.Failure (AppT r) (Access u)
@@ -394,7 +392,7 @@ isPendingActivation ident = case ident of
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
   (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
-  List1 (ZAuth.Token u) ->
+  NE.NonEmpty (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
 validateTokens uts at = do
@@ -404,9 +402,9 @@ validateTokens uts at = do
     -- FUTUREWORK: There is surely a better way to do this
     getFirstSuccessOrFirstFail ::
       (Monad m) =>
-      List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
+      NE.NonEmpty (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
       ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
-    getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
+    getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList tks, rights $ NE.toList tks) of
       (_, suc : _) -> pure suc
       (e : _, _) -> throwE e
       _ -> throwE ZAuth.Invalid -- Impossible

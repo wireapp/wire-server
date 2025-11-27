@@ -30,7 +30,6 @@ import Galley.API.MLS.Removal
 import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore qualified as E
 import Galley.Env
 import Galley.Types.Clients (clientIds)
@@ -46,6 +45,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
+import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore (getConversation)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Spar where
 
 import API.Common (defPassword)
@@ -5,6 +22,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.String.Conversions (cs)
 import Data.String.Conversions.Monomorphic (fromLT)
 import GHC.Stack
+import Network.HTTP.Client (Request)
 import Network.HTTP.Client.MultipartFormData
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -68,28 +86,78 @@ deleteScimUser domain token uid = do
   submit "DELETE" $ req
     & addHeader "Authorization" ("Bearer " <> token)
 
+scimCommonHeaders :: String -> Request -> Request
+scimCommonHeaders scimToken req =
+  req
+    & addHeader "Authorization" ("Bearer " <> scimToken)
+    & addHeader "Accept" "application/scim+json"
+
 findUsersByExternalId :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 findUsersByExternalId domain scimToken externalId = do
   req <- baseRequest domain Spar Versioned "/scim/v2/Users"
   submit "GET" $ req
+    & scimCommonHeaders scimToken
     & addQueryParams [("filter", "externalId eq \"" <> externalId <> "\"")]
-    & addHeader "Authorization" ("Bearer " <> scimToken)
-    & addHeader "Accept" "application/scim+json"
 
 getScimUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 getScimUser domain scimToken uid = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Users", uid]
-  submit "GET" $ req
-    & addHeader "Authorization" ("Bearer " <> scimToken)
-    & addHeader "Accept" "application/scim+json"
+  submit "GET" $ req & scimCommonHeaders scimToken
 
 updateScimUser :: (HasCallStack, MakesValue domain, MakesValue scimUser) => domain -> String -> String -> scimUser -> App Response
 updateScimUser domain scimToken userId scimUser = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Users", userId]
   body <- make scimUser
   submit "PUT" $ req
-    & addJSON body . addHeader "Authorization" ("Bearer " <> scimToken)
-    & addHeader "Accept" "application/scim+json"
+    & scimCommonHeaders scimToken
+    & addJSON body
+
+createScimUserGroup :: (HasCallStack, MakesValue domain, MakesValue scimUserGroup) => domain -> String -> scimUserGroup -> App Response
+createScimUserGroup domain token scimUserGroup = do
+  req <- baseRequest domain Spar Versioned "/scim/v2/Groups"
+  body <- make scimUserGroup
+  submit "POST" $ req & addJSON body . addHeader "Authorization" ("Bearer " <> token)
+
+getScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+getScimUserGroup domain token gid = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["/scim/v2/Groups", gid]
+  submit "GET" $ req & scimCommonHeaders token
+
+updateScimUserGroup :: (HasCallStack, MakesValue domain, MakesValue scimUserGroup) => domain -> String -> String -> scimUserGroup -> App Response
+updateScimUserGroup domain token groupId scimUserGroup = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Groups", groupId]
+  body <- make scimUserGroup
+  submit "PUT" $ req & addJSON body . addHeader "Authorization" ("Bearer " <> token)
+
+deleteScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
+deleteScimUserGroup domain token groupId = do
+  req <- baseRequest domain Spar Versioned $ joinHttpPath ["scim", "v2", "Groups", groupId]
+  submit "DELETE" $ req & addHeader "Authorization" ("Bearer " <> token)
+
+filterScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
+filterScimUserGroup domain token mbFilter = do
+  req <- baseRequest domain Spar Versioned "/scim/v2/Groups"
+  submit "GET" $ req
+    & scimCommonHeaders token
+    & maybe id (\f -> addQueryParams [("filter", f)]) mbFilter
+
+mkScimGroup :: String -> [Value] -> Value
+mkScimGroup name members =
+  object
+    [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+      "displayName" .= name,
+      "members" .= members
+    ]
+
+mkScimUser :: String -> Value
+mkScimUser scimUserId =
+  object
+    [ "type" .= "User",
+      "$ref" .= "...", -- something like
+      -- "https://example.org/v2/scim/User/ea2e4bf0-aa5e-11f0-96ad-e776a606779b"?
+      -- but since we're just receiving this it's ok to ignore.
+      "value" .= scimUserId
+    ]
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response

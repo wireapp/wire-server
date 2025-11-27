@@ -1,5 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.TeamCollaboratorsStore.Postgres
   ( interpretTeamCollaboratorsStoreToPostgres,
   )
@@ -38,6 +55,7 @@ interpretTeamCollaboratorsStoreToPostgres =
     GetTeamCollaborator teamId userId -> getTeamCollaboratorImpl teamId userId
     GetTeamCollaborations userId -> getTeamCollaborationsImpl userId
     GetTeamCollaboratorsWithIds teamIds userIds -> getTeamCollaboratorsWithIdsImpl teamIds userIds
+    UpdateTeamCollaborator userId teamId permissions -> updateTeamCollaboratorImpl userId teamId permissions
     RemoveTeamCollaborator userId teamId -> removeTeamCollaboratorImpl userId teamId
 
 getTeamCollaboratorImpl ::
@@ -123,6 +141,33 @@ getAllTeamCollaboratorsImpl teamId = do
       dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
         [vectorStatement|
           select user_id :: uuid, team_id :: uuid, permissions :: int2[] from collaborators where team_id = ($1 :: uuid)
+          |]
+
+updateTeamCollaboratorImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+updateTeamCollaboratorImpl userId teamId permissions = do
+  pool <- input
+  eitherErrorOrUnit <- liftIO $ use pool session
+  either throw pure eitherErrorOrUnit
+  where
+    session :: Session ()
+    session = statement (userId, teamId, permissions) updateStatement
+
+    updateStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) ()
+    updateStatement =
+      lmap
+        ( \(uid, tid, pms) ->
+            (toUUID uid, toUUID tid, collaboratorPermissionToPostgreslRep <$> (Data.Vector.fromList . toAscList) pms)
+        )
+        $ [resultlessStatement|
+          update collaborators set permissions = ($3 :: smallint[]) where user_id = ($1 :: uuid) and team_id = ($2 :: uuid)
           |]
 
 removeTeamCollaboratorImpl ::

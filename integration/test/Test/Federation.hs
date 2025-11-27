@@ -1,5 +1,22 @@
 {-# LANGUAGE OverloadedLabels #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.Federation where
 
 import qualified API.Brig as BrigP
@@ -105,7 +122,7 @@ testNotificationsForOfflineBackends = do
       do
         newMsgNotif <- awaitMatch isNewMessageNotif ws
         newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
-        newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for other user"
+        newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` fromString "success message for other user"
 
         void $ awaitMatch isOtherUser2LeaveUpConvNotif ws
         void $ awaitMatch isDelUserLeaveUpConvNotif ws
@@ -116,7 +133,7 @@ testNotificationsForOfflineBackends = do
     runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       newMsgNotif <- awaitNotificationClient downUser1 downClient1 noValue isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
-      newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for down user"
+      newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` fromString "success message for down user"
 
       let isDelUserLeaveDownConvNotif =
             allPreds

@@ -24,7 +24,8 @@ where
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KM
 import Data.Id
-import Data.List1
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Imports
@@ -40,12 +41,12 @@ rcp2 =
   Recipient
     (Id . fromJust $ UUID.fromString "2e18540e-7f14-11ef-9886-d3c2ff21d3d1")
     RouteDirect
-    (RecipientClientsSome (list1 (ClientId 0) []))
+    (RecipientClientsSome (NonEmpty.singleton (ClientId 0)))
 rcp3 =
   Recipient
     (Id . fromJust $ UUID.fromString "316924ee-7f14-11ef-b6a2-036a4f646914")
     RouteDirect
-    (RecipientClientsSome (list1 (ClientId 234) [ClientId 123]))
+    (RecipientClientsSome ((ClientId 234) :| [ClientId 123]))
 
 testObject_Push_1 :: Push
 testObject_Push_1 =
@@ -59,7 +60,7 @@ testObject_Push_1 =
       _pushNativeEncrypt = True,
       _pushNativeAps = Nothing,
       _pushNativePriority = HighPriority,
-      _pushPayload = singleton mempty,
+      _pushPayload = NonEmpty.singleton mempty,
       _pushIsCellsEvent = False
     }
 
@@ -76,8 +77,7 @@ testObject_Push_2 =
       _pushNativeAps = Just (apsData (ApsLocKey "asdf") ["1", "22", "333"]),
       _pushNativePriority = LowPriority,
       _pushPayload =
-        list1
-          (KM.fromList [("foo" :: KM.Key) A..= '3', "bar" A..= True])
-          [KM.fromList [], KM.fromList ["growl" A..= ("foooood" :: Text)], KM.fromList ["lunchtime" A..= ("imminent" :: Text)]],
+        (KM.fromList [("foo" :: KM.Key) A..= '3', "bar" A..= True])
+          :| [KM.fromList [], KM.fromList ["growl" A..= ("foooood" :: Text)], KM.fromList ["lunchtime" A..= ("imminent" :: Text)]],
       _pushIsCellsEvent = False
     }

@@ -8,11 +8,46 @@ federatorInternal:
   host: 127.0.0.1
   port: 8097
 
+brig:
+  host: 0.0.0.0
+  port: 8082
+
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
 cassandra:
   endpoint:
     host: 127.0.0.1
     port: 9042
   keyspace: gundeck_test
+
+cassandraGalley:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: galley_test
+
+cassandraBrig:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: brig_test
+
+postgresql:
+  host: 127.0.0.1
+  port: "5432"
+  user: wire-server
+  dbname: backendA
+  password: posty-the-gres
+
+postgresqlPool:
+  size: 5
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
+federationDomain: example.org
 
 rabbitmq:
   host: 127.0.0.1
@@ -28,3 +63,14 @@ backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms
   pushBackoffMaxWait: 1000000 # 1s
   remotesRefreshInterval: 10000 # 10ms
+
+migrateConversations: false
+
+# Background jobs consumer configuration for integration
+backgroundJobs:
+  concurrency: 4
+  jobTimeout: 5s
+  maxAttempts: 3
+
+postgresMigration:
+  conversation: postgresql

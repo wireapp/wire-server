@@ -13,5 +13,6 @@
         "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
     },
     "time": "2018-01-01T00:00:00.000Z",
-    "type": "conversation.typing"
+    "type": "conversation.typing",
+    "via": "user"
 }

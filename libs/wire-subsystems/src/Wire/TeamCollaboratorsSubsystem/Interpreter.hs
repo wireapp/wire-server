@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Wire.TeamCollaboratorsSubsystem.Interpreter where
 
 import Control.Monad.Trans.Maybe
@@ -34,6 +51,7 @@ interpretTeamCollaboratorsSubsystem = interpret $ \case
   InternalGetTeamCollaborator team user -> internalGetTeamCollaboratorImpl team user
   InternalGetTeamCollaborations userId -> internalGetTeamCollaborationsImpl userId
   InternalGetTeamCollaboratorsWithIds teams userIds -> internalGetTeamCollaboratorsWithIdsImpl teams userIds
+  InternalUpdateTeamCollaborator user team perms -> internalUpdateTeamCollaboratorImpl user team perms
   InternalRemoveTeamCollaborator user team -> internalRemoveTeamCollaboratorImpl user team
 
 internalGetTeamCollaboratorImpl ::
@@ -68,7 +86,7 @@ createTeamCollaboratorImpl zUser user team perms = do
   Store.createTeamCollaborator user team perms
 
   -- TODO: Review the event's values
-  generateTeamEvent (tUnqualified zUser) team (EdCollaboratorAdd user (Set.toList perms))
+  generateTeamEvents (tUnqualified zUser) team [EdCollaboratorAdd user (Set.toList perms)]
 
 getAllTeamCollaboratorsImpl ::
   ( Member TeamSubsystem r,
@@ -90,6 +108,16 @@ internalGetTeamCollaboratorsWithIdsImpl ::
   Sem r [TeamCollaborator]
 internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
+
+internalUpdateTeamCollaboratorImpl ::
+  ( Member Store.TeamCollaboratorsStore r
+  ) =>
+  UserId ->
+  TeamId ->
+  Set CollaboratorPermission ->
+  Sem r ()
+internalUpdateTeamCollaboratorImpl user team perms = do
+  Store.updateTeamCollaborator user team perms
 
 internalRemoveTeamCollaboratorImpl ::
   ( Member Store.TeamCollaboratorsStore r
