@@ -68,7 +68,6 @@ import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
-import Galley.Intra.Federator
 import Galley.Keys
 import Galley.Monad (runApp)
 import Galley.Options hiding (brig, endpoint, federator)
@@ -114,6 +113,7 @@ import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
+import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -125,6 +125,8 @@ import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
@@ -160,6 +162,7 @@ type GalleyEffects0 =
      Embed IO,
      Error JSONResponse,
      Resource,
+     Concurrency 'Unsafe,
      Final IO
    ]
 
@@ -299,8 +302,16 @@ evalGalley e =
                   BackendNotificationQueueAccess.local = localUnit,
                   BackendNotificationQueueAccess.requestId = e ^. reqId
                 }
+      federationAPIAccessConfig =
+        FederationAPIAccessConfig
+          { ownDomain = e._options._settings._federationDomain,
+            federatorEndpoint = e._options._federator,
+            http2Manager = e._http2Manager,
+            requestId = e._reqId
+          }
    in ExceptT
         . runFinal @IO
+        . unsafelyPerformConcurrency
         . resourceToIOFinal
         . runError
         . embedToFinal @IO
@@ -356,7 +367,7 @@ evalGalley e =
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
-        . interpretFederatorAccess
+        . interpretFederationAPIAccess federationAPIAccessConfig
         . runRpcWithHttp (e ^. manager) (e ^. reqId)
         . runGundeckAPIAccess (e ^. options . gundeck)
         . interpretBrigAccess (e ^. brig)

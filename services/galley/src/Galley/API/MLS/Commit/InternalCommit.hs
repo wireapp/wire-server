@@ -40,7 +40,6 @@ import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Wire.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -61,6 +60,7 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ProposalStore
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 

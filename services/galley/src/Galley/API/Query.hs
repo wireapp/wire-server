@@ -78,7 +78,6 @@ import Galley.API.Util
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
-import Galley.Effects.FederatorAccess qualified as E
 import Galley.Env
 import Galley.Options
 import Imports
@@ -111,6 +110,7 @@ import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
+import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
@@ -181,7 +181,7 @@ getConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
     Member TeamSubsystem r
   ) =>
@@ -202,7 +202,7 @@ getOwnConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
     Member TeamSubsystem r
   ) =>
@@ -221,7 +221,7 @@ getRemoteConversation ::
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -237,7 +237,7 @@ getRemoteConversations ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -306,7 +306,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 
 getRemoteConversationsWithFailures ::
   ( Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -502,7 +502,7 @@ getConversationsInternal luser mids mstart msize = do
 listConversations ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -586,7 +586,7 @@ getSelfMember ::
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -778,7 +778,7 @@ getMLSOne2OneConversationV5 ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
@@ -800,7 +800,7 @@ getMLSOne2OneConversationInternal ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
@@ -820,7 +820,7 @@ getMLSOne2OneConversationV6 ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
@@ -847,7 +847,7 @@ getMLSOne2OneConversation ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
@@ -888,7 +888,7 @@ getRemoteMLSOne2OneConversation ::
   ( Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSNotEnabled) r,
     Member TinyLog r
   ) =>
@@ -946,7 +946,7 @@ isMLSOne2OneEstablished ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -977,7 +977,7 @@ isRemoteMLSOne2OneEstablished ::
   ( Member (ErrorS 'NotConnected) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSNotEnabled) r,
     Member TinyLog r
   ) =>

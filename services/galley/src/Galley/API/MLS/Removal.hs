@@ -35,7 +35,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.Effects
-import Wire.ProposalStore
 import Galley.Env
 import Imports
 import Polysemy
@@ -56,6 +55,7 @@ import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
+import Wire.ProposalStore
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random
 import Wire.StoredConversation

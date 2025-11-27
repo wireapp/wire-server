@@ -21,7 +21,7 @@ module Galley.Effects
 
     -- * Effects to access the Intra API
     BrigAPIAccess,
-    FederatorAccess,
+    FederationAPIAccess,
     SparAPIAccess,
 
     -- * External services
@@ -65,9 +65,6 @@ import Data.Qualified
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.FederatorAccess
-import Wire.ProposalStore
-import Galley.Effects.FederatorAccess
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.TeamFeatureStore
@@ -81,6 +78,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client
 import Wire.API.Team.Feature
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
@@ -95,6 +93,7 @@ import Wire.LegalHoldStore
 import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
 import Wire.NotificationSubsystem
+import Wire.ProposalStore
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Now
@@ -120,7 +119,7 @@ type GalleyEffects1 =
      BrigAPIAccess,
      GundeckAPIAccess,
      Rpc,
-     FederatorAccess,
+     FederationAPIAccess FederatorClient,
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,

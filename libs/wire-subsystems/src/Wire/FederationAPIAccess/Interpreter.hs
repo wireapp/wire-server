@@ -95,14 +95,15 @@ runFederatedEither runFedM (tDomain -> remoteDomain) rpc =
 
 runFederatedConcurrently ::
   ( Foldable f,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Functor f
   ) =>
   FederatedActionRunner fedM r ->
   f (Remote a) ->
-  (Remote a -> fedM c b) ->
-  Sem r [Either (Remote a, FederationError) (Remote b)]
+  (Remote [a] -> fedM c b) ->
+  Sem r [Either (Remote [a], FederationError) (Remote b)]
 runFederatedConcurrently runFedM xs rpc =
-  unsafePooledForConcurrentlyN 8 (toList xs) $ \r ->
+  unsafePooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     bimap (r,) (qualifyAs r) <$> runFederatedEither runFedM r (rpc r)
 
 runFederatedBucketed ::

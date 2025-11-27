@@ -34,13 +34,11 @@ data FederationAPIAccess (fedM :: Component -> Type -> Type) m a where
     fedM c a ->
     FederationAPIAccess fedM m (Either FederationError a)
   RunFederatedConcurrentlyEither ::
-    forall (c :: Component) f a m x fedM.
-    (KnownComponent c, Foldable f) =>
+    (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
-    (Remote x -> fedM c a) ->
-    FederationAPIAccess fedM m [Either (Remote x, FederationError) (Remote a)]
+    (Remote [x] -> fedM c a) ->
+    FederationAPIAccess fedM m [Either (Remote [x], FederationError) (Remote a)]
   RunFederatedConcurrentlyBucketsEither ::
-    forall (c :: Component) f a m x fedM.
     (KnownComponent c, Foldable f) =>
     f (Remote x) ->
     (Remote x -> fedM c a) ->
@@ -65,10 +63,11 @@ runFederatedConcurrently ::
   ( Member (FederationAPIAccess fedM) r,
     Member (Error FederationError) r,
     KnownComponent c,
-    Foldable f
+    Foldable f,
+    Functor f
   ) =>
   f (Remote x) ->
-  (Remote x -> fedM c a) ->
+  (Remote [x] -> fedM c a) ->
   Sem r [Remote a]
 runFederatedConcurrently rx c = do
   results <- runFederatedConcurrentlyEither rx c

@@ -26,7 +26,6 @@ import Galley.API.Action.Kick
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.FederatorAccess
 import Galley.Env
 import Imports
 import Polysemy
@@ -40,6 +39,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation as GroupId
@@ -49,6 +49,7 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation as Data
@@ -60,7 +61,7 @@ resetLocalMLSMainConversation ::
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,
     Member BackendNotificationQueueAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ExternalAccess r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
@@ -69,7 +70,8 @@ resetLocalMLSMainConversation ::
     Member Resource r,
     Member ConversationStore r,
     Member P.TinyLog r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    VersionedMonad Version (FederatorClient Brig)
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
@@ -106,7 +108,7 @@ resetLocalMLSMainConversation qusr lcnv reset = do
       let remoteUsers = map (.id_) cnv.remoteMembers
       let targets = convBotsAndMembers cnv
       results <-
-        runFederatedConcurrentlyEither @_ @Brig remoteUsers $
+        runFederatedConcurrentlyEither @_ @_ @Brig remoteUsers $
           \_ -> do
             guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
       let kick qvictim = do

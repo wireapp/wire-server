@@ -154,7 +154,6 @@ library
     Galley.Effects.ClientStore
     Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
-    Galley.Effects.FederatorAccess
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.TeamFeatureStore
@@ -254,7 +253,7 @@ library
     Galley.Types.Clients
     Galley.Validation
 
-  ghc-options:
+  ghc-options:     -fplugin=Polysemy.Plugin
   other-modules:   Paths_galley
   hs-source-dirs:  src
   build-depends:
@@ -301,6 +300,7 @@ library
     , pem
     , polysemy
     , polysemy-conc
+    , polysemy-plugin
     , polysemy-wire-zoo
     , prometheus-client
     , raw-strings-qq                        >=1.0

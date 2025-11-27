@@ -102,7 +102,6 @@ import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.CodeStore qualified as E
-import Galley.Effects.FederatorAccess qualified as E
 import Galley.Env
 import Galley.Options
 import Imports hiding (forkIO)
@@ -124,6 +123,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public (ZHostValue)
@@ -137,6 +137,7 @@ import Wire.API.UserGroup
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess qualified as E
+import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
@@ -274,7 +275,7 @@ type UpdateConversationAccessEffects =
      ErrorS 'InvalidOperation,
      ErrorS 'InvalidTargetAccess,
      ExternalAccess,
-     FederatorAccess,
+     FederationAPIAccess FederatorClient,
      FireAndForget,
      NotificationSubsystem,
      ConversationSubsystem,
@@ -333,7 +334,7 @@ updateConversationReceiptMode ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -368,7 +369,7 @@ updateRemoteConversation ::
   forall tag r.
   ( Member BrigAPIAccess r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member ConversationStore r,
@@ -414,7 +415,7 @@ updateConversationReceiptModeUnqualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -492,7 +493,7 @@ deleteLocalConversation ::
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member ProposalStore r,
     Member TeamStore r,
@@ -736,7 +737,7 @@ updateConversationProtocolWithLocalUser ::
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member Random r,
     Member ProposalStore r,
     Member TeamFeatureStore r,
@@ -784,7 +785,7 @@ updateChannelAddPermission ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member BrigAPIAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS 'InvalidTargetAccess) r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
@@ -929,7 +930,7 @@ addMembers ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -985,7 +986,7 @@ addMembersUnqualifiedV2 ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -1030,7 +1031,7 @@ addMembersUnqualified ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -1078,7 +1079,7 @@ replaceMembers ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -1303,7 +1304,7 @@ removeMemberUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -1334,7 +1335,7 @@ removeMemberQualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -1366,7 +1367,8 @@ pattern EdMembersLeaveRemoved :: QualifiedUserIdList -> EventData
 pattern EdMembersLeaveRemoved l = EdMembersLeave EdReasonRemoved l
 
 removeMemberFromRemoteConv ::
-  ( Member FederatorAccess r,
+  ( Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member Now r
@@ -1412,7 +1414,7 @@ removeMemberFromLocalConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -1461,7 +1463,7 @@ removeMemberFromChannel ::
     Member ProposalStore r,
     Member Now r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Error InternalError) r,
@@ -1494,7 +1496,8 @@ postProteusMessage ::
   ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
@@ -1572,7 +1575,7 @@ postBotMessageUnqualified ::
     Member ClientStore r,
     Member ConversationStore r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -1627,7 +1630,7 @@ postOtrMessageUnqualified ::
   ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
@@ -1728,7 +1731,8 @@ memberTyping ::
     Member (Input (Local ())) r,
     Member Now r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1766,7 +1770,8 @@ memberTypingUnqualified ::
     Member (Input (Local ())) r,
     Member Now r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->

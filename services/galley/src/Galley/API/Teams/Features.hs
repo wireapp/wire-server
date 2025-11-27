@@ -62,6 +62,7 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
 import Wire.API.Event.FeatureConfig
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -334,7 +335,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member (ErrorS 'UserLegalHoldIllegalOperation) r,
         Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
         Member ExternalAccess r,
-        Member FederatorAccess r,
+        Member (FederationAPIAccess FederatorClient) r,
         Member FireAndForget r,
         Member NotificationSubsystem r,
         Member ConversationSubsystem r,

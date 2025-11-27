@@ -21,14 +21,17 @@ import Brig.Types.Intra
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time
-import Galley.Effects.FederatorAccess
 import Imports
 import Polysemy
+import Polysemy.Error (Error)
 import Wire.API.Federation.API
+import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore.MLS.Types
+import Wire.FederationAPIAccess
 import Wire.StoredConversation
 
 -- | Similar to @Ap f All@, but short-circuiting.
@@ -48,7 +51,8 @@ instance (Monad f) => Monoid (ApAll f) where
 
 checkMigrationCriteria ::
   ( Member BrigAPIAccess r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r
   ) =>
   UTCTime ->
   MLSConversation ->

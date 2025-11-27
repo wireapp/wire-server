@@ -46,7 +46,6 @@ import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.FederatorAccess
 import Galley.Env
 import Galley.Options
 import Galley.Types.Clients (Clients, fromUserClients)
@@ -70,6 +69,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
@@ -90,6 +90,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ExternalAccess
+import Wire.FederationAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.LegalHoldStore
@@ -303,7 +304,8 @@ ensureConvRoleNotElevated origMember targetRole = do
 
 checkGroupIdSupport ::
   ( Member (ErrorS GroupIdVersionNotSupported) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r,
+    VersionedMonad Version (FederatorClient Brig)
   ) =>
   Local x ->
   StoredConversation ->
@@ -323,7 +325,7 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- check that each remote backend is compatible with group ID version >= 2
   let (_, remoteUsers) = partitionQualified loc joinAction.users
   lift
-    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @Brig remoteUsers)
+    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @_ @Brig remoteUsers)
     $ \_ -> do
       guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
   where
@@ -918,7 +920,7 @@ registerRemoteConversationMemberships ::
     Member (Error UnreachableBackends) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->

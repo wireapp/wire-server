@@ -35,6 +35,7 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
@@ -60,7 +61,7 @@ resetMLSConversation ::
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
@@ -113,7 +114,7 @@ resetRemoteMLSConversation ::
     Member (Error InternalError) r,
     Member BrigAPIAccess r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationStore r
   ) =>

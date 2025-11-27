@@ -42,7 +42,6 @@ import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
 import Galley.API.Util
 import Galley.Effects
-import Wire.ProposalStore
 import Galley.Env
 import Galley.Options
 import Imports
@@ -55,6 +54,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
@@ -70,6 +70,7 @@ import Wire.API.Message
 import Wire.BrigAPIAccess
 import Wire.ConversationStore.MLS.Types
 import Wire.NotificationSubsystem
+import Wire.ProposalStore
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
 
@@ -129,14 +130,13 @@ type HasProposalEffects r =
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
-    Member TeamStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r

@@ -58,7 +58,6 @@ import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.FederatorAccess
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -73,6 +72,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
@@ -88,6 +88,7 @@ import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -384,7 +385,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationStore r,
     Member TinyLog r

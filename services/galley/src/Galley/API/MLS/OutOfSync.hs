@@ -32,6 +32,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.OutOfSync
@@ -43,7 +44,7 @@ import Wire.StoredConversation
 checkConversationOutOfSync ::
   ( Member ConversationStore r,
     Member BrigAPIAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r
   ) =>
@@ -66,7 +67,7 @@ checkConversationOutOfSync newMembers lConvOrSub ciphersuite = case tUnqualified
 
 checkOutOfSyncUser ::
   ( Member BrigAPIAccess r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local x ->
   CipherSuiteTag ->

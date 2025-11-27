@@ -54,7 +54,6 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ClientStore
-import Galley.Effects.FederatorAccess
 import Galley.Env
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
@@ -83,6 +82,7 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -221,7 +221,8 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  (Member FederatorAccess r) =>
+  forall r.
+  (Member (FederationAPIAccess FederatorClient) r) =>
   [RemoteMember] ->
   Sem r [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))]
 getRemoteClients remoteMembers =
@@ -236,7 +237,9 @@ getRemoteClients remoteMembers =
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 postRemoteOtrMessage ::
-  (Member FederatorAccess r) =>
+  ( Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r
+  ) =>
   Local UserId ->
   Remote ConvId ->
   ByteString ->
@@ -367,7 +370,7 @@ postQualifiedOtrMessage ::
   ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,

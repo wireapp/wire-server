@@ -77,6 +77,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley hiding (id)
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
@@ -267,7 +268,7 @@ leaveConversation ::
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -393,7 +394,7 @@ sendMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member (Error InvalidInput) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -481,7 +482,7 @@ updateConversation ::
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Error InternalError) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
@@ -621,7 +622,7 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -682,7 +683,7 @@ sendMLSMessage ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -971,7 +972,7 @@ queryGroupInfo origDomain req =
 
 updateTypingIndicator ::
   ( Member NotificationSubsystem r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationStore r,
     Member Now r,
     Member (Input (Local ())) r,

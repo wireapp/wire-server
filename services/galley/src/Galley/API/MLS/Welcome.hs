@@ -40,6 +40,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
@@ -55,7 +56,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 
 sendWelcomes ::
-  ( Member FederatorAccess r,
+  ( Member (FederationAPIAccess FederatorClient) r,
     Member ExternalAccess r,
     Member P.TinyLog r,
     Member Now r,
@@ -104,7 +105,7 @@ sendLocalWelcomes qcnv qusr con now welcome lclients = do
     newMessagePush mempty con defMessageMetadata rcpts e
 
 sendRemoteWelcomes ::
-  ( Member FederatorAccess r,
+  ( Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Qualified ConvId ->
