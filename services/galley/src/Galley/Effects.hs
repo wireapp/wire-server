@@ -67,6 +67,7 @@ import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.FederatorAccess
 import Wire.ProposalStore
+import Galley.Effects.FederatorAccess
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.TeamFeatureStore
@@ -86,6 +87,7 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
+import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword

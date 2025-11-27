@@ -132,7 +132,8 @@ import Wire.UserList
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
-    ( Member BrigAPIAccess r,
+    ( -- TODO: Replace with subsystems
+      Member BrigAPIAccess r,
       Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (ErrorS 'NotATeamMember) r,
@@ -148,13 +149,17 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NonFederatingBackends) r,
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
+      -- TODO: Move to subsystems
       Member FederatorAccess r,
       Member NotificationSubsystem r,
+      -- TODO: Replace with ConversationSubsystemConfig
       Member (Input Env) r,
+      -- TODO: Replace with ConversationSubsystemConfig
       Member (Input Opts) r,
       Member Now r,
       Member LegalHoldStore r,
       Member ConversationStore r,
+      -- TODO: Move to subsystems
       Member ProposalStore r,
       Member Random r,
       Member TeamStore r,

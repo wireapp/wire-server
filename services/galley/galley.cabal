@@ -163,7 +163,6 @@ library
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Intra.Federator
     Galley.Intra.Util
     Galley.Keys
     Galley.Monad

@@ -33,20 +33,18 @@ data FederationAPIAccess (fedM :: Component -> Type -> Type) m a where
     Remote x ->
     fedM c a ->
     FederationAPIAccess fedM m (Either FederationError a)
-  RunFederatedConcurrently ::
+  RunFederatedConcurrentlyEither ::
     forall (c :: Component) f a m x fedM.
     (KnownComponent c, Foldable f) =>
     f (Remote x) ->
     (Remote x -> fedM c a) ->
     FederationAPIAccess fedM m [Either (Remote x, FederationError) (Remote a)]
-  -- | An action similar to 'RunFederatedConcurrently', but the input is
-  -- bucketed by domain before the RPCs are sent to the remote backends.
-  RunFederatedBucketed ::
+  RunFederatedConcurrentlyBucketsEither ::
     forall (c :: Component) f a m x fedM.
-    (KnownComponent c, Foldable f, Functor f) =>
+    (KnownComponent c, Foldable f) =>
     f (Remote x) ->
-    (Remote [x] -> fedM c a) ->
-    FederationAPIAccess fedM m [Either (Remote [x], FederationError) (Remote a)]
+    (Remote x -> fedM c a) ->
+    FederationAPIAccess fedM m [Either (Remote x, FederationError) (Remote a)]
   IsFederationConfigured :: FederationAPIAccess fedM m Bool
 
 makeSem ''FederationAPIAccess
@@ -61,3 +59,17 @@ runFederated ::
   fedM c a ->
   Sem r a
 runFederated rx c = runFederatedEither rx c >>= fromEither
+
+runFederatedConcurrently ::
+  forall c fedM f x a r.
+  ( Member (FederationAPIAccess fedM) r,
+    Member (Error FederationError) r,
+    KnownComponent c,
+    Foldable f
+  ) =>
+  f (Remote x) ->
+  (Remote x -> fedM c a) ->
+  Sem r [Remote a]
+runFederatedConcurrently rx c = do
+  results <- runFederatedConcurrentlyEither rx c
+  fromEither $ mapLeft snd $ sequence results
