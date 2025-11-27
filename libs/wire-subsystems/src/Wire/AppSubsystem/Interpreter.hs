@@ -67,6 +67,7 @@ runAppSubsystem ::
   Sem r a
 runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
+  GetApp lusr tid uid -> getAppImpl lusr tid uid
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
 
 createAppImpl ::
@@ -133,6 +134,33 @@ ensureTeamMember lusr tid = do
   storedUser <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
   teamMember <- getTeamMember storedUser.id tid >>= note AppSubsystemErrorNoPerm
   pure (storedUser, teamMember)
+
+getAppImpl ::
+  ( Member AppStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r NewApp
+getAppImpl lusr tid uid = do
+  void $ ensureTeamMember lusr tid
+  storedApp <- Store.getApp uid >>= note AppSubsystemErrorNoApp
+  when (storedApp.teamId /= tid) $ throw AppSubsystemErrorNoPerm
+  u <- Store.getUser uid >>= note AppSubsystemErrorNoAppUser
+  pure $
+    NewApp
+      { name = u.name,
+        pict = fromMaybe (Pict []) u.pict,
+        assets = fromMaybe [] u.assets,
+        accentId = u.accentId,
+        meta = storedApp.meta,
+        category = storedApp.category,
+        description = storedApp.description,
+        author = storedApp.author
+      }
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,
