@@ -51,7 +51,6 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Options
 import Galley.Types.Teams (notTeamMember)
@@ -734,19 +733,7 @@ createConnectConversation lusr conn j = do
   where
     create lcnv nc = do
       c <- E.upsertConversation lcnv nc
-      now <- Now.get
-      let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConnect j)
-      notifyCreatedConversation lusr conn c def
-      pushNotifications
-        [ def
-            { origin = Just (tUnqualified lusr),
-              json = toJSONObject e,
-              recipients = map localMemberToRecipient c.localMembers,
-              isCellsEvent = shouldPushToCells c.metadata e,
-              route = PushV2.RouteDirect,
-              conn
-            }
-        ]
+      notifyConversationCreated lusr conn j lcnv c
       conversationCreated lusr c
     update n conv = do
       let mems = conv.localMembers
@@ -773,24 +760,12 @@ createConnectConversation lusr conn j = do
                       else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-          let lcnv = qualifyAs lusr conv.id_
           n' <- case n of
             Just x -> do
               E.setConversationName conv.id_ x
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
-          t <- Now.get
-          let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
-          pushNotifications
-            [ def
-                { origin = Just (tUnqualified lusr),
-                  json = toJSONObject e,
-                  recipients = map localMemberToRecipient conv.localMembers,
-                  isCellsEvent = shouldPushToCells conv.metadata e,
-                  route = PushV2.RouteDirect,
-                  conn
-                }
-            ]
+          notifyConversationUpdated lusr conn j conv
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
@@ -864,58 +839,6 @@ conversationCreated ::
   StoredConversation ->
   Sem r (ConversationResponse Public.OwnConversation)
 conversationCreated lusr cnv = Created <$> conversationViewV9 lusr cnv
-
--- | The return set contains all the remote users that could not be contacted.
--- Consequently, the unreachable users are not added to the member list. This
--- behavior might be changed later on when a message/event queue per remote
--- backend is implemented.
-notifyCreatedConversation ::
-  ( Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
-    Member NotificationSubsystem r,
-    Member BackendNotificationQueueAccess r,
-    Member Now r,
-    Member P.TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  StoredConversation ->
-  JoinType ->
-  Sem r ()
-notifyCreatedConversation lusr conn c joinType = do
-  now <- Now.get
-  -- Ask remote servers to store conversation membership and notify remote users
-  -- of being added to a conversation
-  registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType
-  unless (null c.remoteMembers) $
-    unlessM E.isFederationConfigured $
-      throw FederationNotConfigured
-
-  -- Notify local users
-  pushNotifications =<< mapM (toPush now) c.localMembers
-  where
-    route
-      | Data.convType c == RegularConv = PushV2.RouteAny
-      | otherwise = PushV2.RouteDirect
-    toPush t m = do
-      let remoteOthers = remoteMemberToOther <$> c.remoteMembers
-          localOthers = map (localMemberToOther (tDomain lusr)) $ c.localMembers
-          lconv = qualifyAs lusr c.id_
-      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr m.id_)
-      let e = Event (tUntagged lconv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConversation c')
-      pure $
-        def
-          { origin = Just (tUnqualified lusr),
-            json = toJSONObject e,
-            recipients = [localMemberToRecipient m],
-            -- on conversation creation we send the cells event separately to make sure it is sent exactly once
-            isCellsEvent = False,
-            route,
-            conn
-          }
 
 localOne2OneConvId ::
   (Member (Error InvalidInput) r) =>

@@ -35,6 +35,7 @@ type MeetingsAPI =
         :> "meetings"
         :> ReqBody '[JSON] NewMeeting
         :> CanThrow 'InvalidOperation
+        :> CanThrow UnreachableBackends
         :> MultiVerb
              'POST
              '[JSON]

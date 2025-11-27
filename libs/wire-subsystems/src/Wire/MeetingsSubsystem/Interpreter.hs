@@ -28,7 +28,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState (CellsState (CellsDisabled))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting
-import Wire.API.User (BaseProtocolTag (BaseProtocolProteusTag))
+import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.MeetingsStore qualified as Store
@@ -67,7 +67,7 @@ createMeetingImpl ::
   ) =>
   Local UserId ->
   NewMeeting ->
-  Sem r Meeting
+  Sem r (Meeting, StoredConversation)
 createMeetingImpl zUser newMeeting = do
   -- Generate meeting ID
   meetingId <- liftIO $ MeetingId <$> UUIDV4.nextRandom
@@ -99,7 +99,7 @@ createMeetingImpl zUser newMeeting = do
         NewConversation
           { metadata = metadata,
             users = UserList [(tUnqualified zUser, roleNameWireAdmin)] [],
-            protocol = BaseProtocolProteusTag,
+            protocol = BaseProtocolMLSTag,
             groupId = Nothing
           }
 
@@ -125,17 +125,19 @@ createMeetingImpl zUser newMeeting = do
 
   -- Return created meeting
   pure
-    Meeting
-      { id = qMeetingId,
-        title = newMeeting.title,
-        creator = tUnqualified zUser,
-        startDate = newMeeting.startDate,
-        endDate = newMeeting.endDate,
-        schedule = newMeeting.schedule,
-        conversationId = qConvId,
-        invitedEmails = newMeeting.invitedEmails,
-        trial = trial
-      }
+    ( Meeting
+        { id = qMeetingId,
+          title = newMeeting.title,
+          creator = tUnqualified zUser,
+          startDate = newMeeting.startDate,
+          endDate = newMeeting.endDate,
+          schedule = newMeeting.schedule,
+          conversationId = qConvId,
+          invitedEmails = newMeeting.invitedEmails,
+          trial = trial
+        },
+      storedConv
+    )
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,

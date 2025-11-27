@@ -29,18 +29,35 @@ where
 import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified
+import Galley.API.Error
+import Galley.API.Util
 import Galley.Effects
 import Imports
 import Polysemy
+import Polysemy.Error
+import Polysemy.TinyLog qualified as P
+import Wire.API.Conversation (JoinType (InternalAdd))
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Error
 import Wire.API.Meeting
 import Wire.API.User.Identity (EmailAddress)
 import Wire.MeetingsSubsystem qualified as Meetings
+import Wire.NotificationSubsystem
+import Wire.Sem.Now (Now)
 
 createMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (ErrorS 'InvalidOperation) r,
+    Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   NewMeeting ->
@@ -49,7 +66,9 @@ createMeeting lUser newMeeting = do
   -- Validate that endDate > startDate
   when (newMeeting.endDate <= newMeeting.startDate) $
     throwS @'InvalidOperation
-  Meetings.createMeeting lUser newMeeting
+  (meeting, conversation) <- Meetings.createMeeting lUser newMeeting
+  notifyCreatedConversation lUser Nothing conversation InternalAdd
+  pure meeting
 
 getMeeting ::
   ( Member Meetings.MeetingsSubsystem r,

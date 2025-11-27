@@ -47,6 +47,7 @@ import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.FederatorAccess
+import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
@@ -1200,3 +1201,109 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+----------------------------------------------------------------------------
+-- Notifications
+notifyConversationCreated ::
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Connect ->
+  Local ConvId ->
+  StoredConversation ->
+  Sem r ()
+notifyConversationCreated lusr conn j lcnv c = do
+  now <- Now.get
+  let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConnect j)
+  notifyCreatedConversation lusr conn c def
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified lusr),
+          json = toJSONObject e,
+          recipients = map localMemberToRecipient c.localMembers,
+          isCellsEvent = shouldPushToCells c.metadata e,
+          route = PushV2.RouteDirect,
+          conn
+        }
+    ]
+
+notifyCreatedConversation ::
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member BackendNotificationQueueAccess r,
+    Member Now r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  StoredConversation ->
+  JoinType ->
+  Sem r ()
+notifyCreatedConversation lusr conn c joinType = do
+  now <- Now.get
+  -- Ask remote servers to store conversation membership and notify remote users
+  -- of being added to a conversation
+  registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType
+  unless (null c.remoteMembers) $
+    unlessM E.isFederationConfigured $
+      throw FederationNotConfigured
+
+  -- Notify local users
+  pushNotifications =<< mapM (toPush now) c.localMembers
+  where
+    route
+      | Data.convType c == RegularConv = PushV2.RouteAny
+      | otherwise = PushV2.RouteDirect
+    toPush t m = do
+      let remoteOthers = remoteMemberToOther <$> c.remoteMembers
+          localOthers = map (localMemberToOther (tDomain lusr)) $ c.localMembers
+          lconv = qualifyAs lusr c.id_
+      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr m.id_)
+      let e = Event (tUntagged lconv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConversation c')
+      pure $
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = [localMemberToRecipient m],
+            -- on conversation creation we send the cells event separately to make sure it is sent exactly once
+            isCellsEvent = False,
+            route,
+            conn
+          }
+
+notifyConversationUpdated ::
+  ( Member NotificationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Connect ->
+  StoredConversation ->
+  Sem r ()
+notifyConversationUpdated lusr conn j conv = do
+  let lcnv = qualifyAs lusr conv.id_
+  t <- Now.get
+  let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified lusr),
+          json = toJSONObject e,
+          recipients = map localMemberToRecipient conv.localMembers,
+          isCellsEvent = shouldPushToCells conv.metadata e,
+          route = PushV2.RouteDirect,
+          conn
+        }
+    ]
