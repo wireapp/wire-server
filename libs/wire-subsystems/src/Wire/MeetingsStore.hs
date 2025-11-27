@@ -30,11 +30,11 @@ import Wire.API.User.Identity (EmailAddress)
 data MeetingsStore m a where
   CreateMeeting ::
     Qualified MeetingId ->
-    UserId ->
+    Qualified UserId ->
     Text ->
     UTCTime ->
     UTCTime ->
-    Maybe Text ->
+    Maybe Recurrence ->
     Qualified ConvId ->
     [EmailAddress] ->
     Bool ->
@@ -53,7 +53,7 @@ data MeetingsStore m a where
     Maybe Text ->
     Maybe UTCTime ->
     Maybe UTCTime ->
-    Maybe Text ->
+    Maybe Recurrence ->
     MeetingsStore m (Maybe Meeting)
   DeleteMeeting ::
     Qualified MeetingId ->

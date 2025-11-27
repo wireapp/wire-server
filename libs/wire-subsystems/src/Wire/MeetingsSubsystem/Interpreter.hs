@@ -114,11 +114,11 @@ createMeetingImpl zUser newMeeting = do
   -- Store meeting
   Store.createMeeting
     qMeetingId
-    (tUnqualified zUser)
+    (tUntagged zUser)
     newMeeting.title
     newMeeting.startDate
     newMeeting.endDate
-    newMeeting.schedule
+    newMeeting.recurrence
     qConvId
     newMeeting.invitedEmails
     trial
@@ -128,10 +128,10 @@ createMeetingImpl zUser newMeeting = do
     ( Meeting
         { id = qMeetingId,
           title = newMeeting.title,
-          creator = tUnqualified zUser,
+          creator = tUntagged zUser,
           startDate = newMeeting.startDate,
           endDate = newMeeting.endDate,
-          schedule = newMeeting.schedule,
+          recurrence = newMeeting.recurrence,
           conversationId = qConvId,
           invitedEmails = newMeeting.invitedEmails,
           trial = trial
@@ -154,7 +154,7 @@ getMeetingImpl zUser meetingId = do
     Nothing -> pure Nothing
     Just meeting -> do
       -- Check authorization: user must be creator OR member of the associated conversation
-      let isCreator = meeting.creator == tUnqualified zUser
+      let isCreator = meeting.creator == tUntagged zUser
       if isCreator
         then pure (Just meeting)
         else do
@@ -182,7 +182,7 @@ listMeetingsImpl zUser = do
     isAuthorized :: (Member ConvStore.ConversationStore r) => Local UserId -> Meeting -> Sem r Bool
     isAuthorized lUser meeting = do
       -- User is authorized if they are the creator
-      let isCreator = meeting.creator == tUnqualified lUser
+      let isCreator = meeting.creator == tUntagged lUser
       if isCreator
         then pure True
         else do
@@ -204,7 +204,7 @@ updateMeetingImpl zUser meetingId update = do
     Nothing -> pure Nothing
     Just meeting ->
       -- Check authorization (only creator can update)
-      if meeting.creator /= tUnqualified zUser
+      if meeting.creator /= tUntagged zUser
         then pure Nothing
         else
           -- Update meeting
@@ -213,7 +213,7 @@ updateMeetingImpl zUser meetingId update = do
             update.title
             update.startDate
             update.endDate
-            update.schedule
+            update.recurrence
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -229,7 +229,7 @@ deleteMeetingImpl zUser meetingId = do
     Nothing -> pure False
     Just meeting ->
       -- Check authorization (only creator can delete)
-      if meeting.creator /= tUnqualified zUser
+      if meeting.creator /= tUntagged zUser
         then pure False
         else do
           -- Delete meeting
@@ -259,7 +259,7 @@ addInvitedEmailsImpl zUser meetingId emails = do
     Nothing -> pure False
     Just meeting ->
       -- Check authorization (only creator can add invitations)
-      if meeting.creator /= tUnqualified zUser
+      if meeting.creator /= tUntagged zUser
         then pure False
         else do
           -- Add invited email
@@ -279,7 +279,7 @@ removeInvitedEmailsImpl zUser meetingId emails = do
     Nothing -> pure False
     Just meeting ->
       -- Check authorization (only creator can remove invitations)
-      if meeting.creator /= tUnqualified zUser
+      if meeting.creator /= tUntagged zUser
         then pure False
         else do
           -- Remove invited email

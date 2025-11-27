@@ -89,7 +89,7 @@ testMeetingCreate = do
   let meeting = responseJsonUnsafe r :: Meeting
   liftIO $ do
     meeting.title @?= "Team Standup"
-    meeting.creator @?= owner
+    qUnqualified meeting.creator @?= owner
     meeting.invitedEmails @?= mapMaybe emailAddressText ["alice@example.com", "bob@example.com"]
 
 testMeetingLists :: TestM ()

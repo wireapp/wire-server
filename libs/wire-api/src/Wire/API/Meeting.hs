@@ -48,10 +48,10 @@ instance ToSchema (Qualified MeetingId) where
 data Meeting = Meeting
   { id :: Qualified MeetingId,
     title :: Text,
-    creator :: UserId,
+    creator :: Qualified UserId,
     startDate :: UTCTime,
     endDate :: UTCTime,
-    schedule :: Maybe Text,
+    recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
     trial :: Bool
@@ -66,10 +66,10 @@ instance ToSchema Meeting where
       Meeting
         <$> (.id) .= field "qualified_id" schema
         <*> (.title) .= field "title" schema
-        <*> (.creator) .= field "creator" schema
+        <*> (.creator) .= field "qualified_creator" schema
         <*> (.startDate) .= field "start_date" utcTimeSchema
         <*> (.endDate) .= field "end_date" utcTimeSchema
-        <*> (.schedule) .= maybe_ (optField "schedule" schema)
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.conversationId) .= field "qualified_conversation" schema
         <*> (.invitedEmails) .= field "invited_emails" (array schema)
         <*> (.trial) .= field "trial" schema
@@ -78,7 +78,7 @@ instance ToSchema Meeting where
 data NewMeeting = NewMeeting
   { startDate :: UTCTime,
     endDate :: UTCTime,
-    schedule :: Maybe Text,
+    recurrence :: Maybe Recurrence,
     title :: Text,
     invitedEmails :: [EmailAddress]
   }
@@ -86,13 +86,27 @@ data NewMeeting = NewMeeting
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeeting)
   deriving (Arbitrary) via (GenericUniform NewMeeting)
 
+data Recurrence = Recurrence
+  { freq :: Frequency,
+    interval :: Maybe Int,
+    until :: Maybe UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Recurrence)
+  deriving (Arbitrary) via (GenericUniform Recurrence)
+
+data Frequency = Daily | Weekly | Monthly | Yearly
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Frequency)
+  deriving (Arbitrary) via (GenericUniform Frequency)
+
 instance ToSchema NewMeeting where
   schema =
     objectWithDocModifier "NewMeeting" (description ?~ "Request to create a new meeting") $
       NewMeeting
         <$> (.startDate) .= field "start_date" utcTimeSchema
         <*> (.endDate) .= field "end_date" utcTimeSchema
-        <*> (.schedule) .= maybe_ (optField "schedule" schema)
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= field "invited_emails" (array schema)
 
@@ -101,7 +115,7 @@ data UpdateMeeting = UpdateMeeting
   { startDate :: Maybe UTCTime,
     endDate :: Maybe UTCTime,
     title :: Maybe Text,
-    schedule :: Maybe Text
+    recurrence :: Maybe Recurrence
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
@@ -114,7 +128,25 @@ instance ToSchema UpdateMeeting where
         <$> (.startDate) .= maybe_ (optField "start_date" utcTimeSchema)
         <*> (.endDate) .= maybe_ (optField "end_date" utcTimeSchema)
         <*> (.title) .= maybe_ (optField "title" schema)
-        <*> (.schedule) .= maybe_ (optField "schedule" schema)
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+
+instance ToSchema Frequency where
+  schema =
+    enum @Text "Frequency" $
+      mconcat
+        [ element "Daily" Daily,
+          element "Weekly" Weekly,
+          element "Monthly" Monthly,
+          element "Yearly" Yearly
+        ]
+
+instance ToSchema Recurrence where
+  schema =
+    objectWithDocModifier "Recurrence" (description ?~ "Recurrence pattern for meetings") $
+      Recurrence
+        <$> (.freq) .= field "frequency" schema
+        <*> (.interval) .= maybe_ (optField "interval" schema)
+        <*> (.until) .= maybe_ (optField "until" utcTimeSchema)
 
 -- | Request to add/remove invited email
 newtype MeetingEmailsInvitation = MeetingEmailsInvitation

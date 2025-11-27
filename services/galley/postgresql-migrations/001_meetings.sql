@@ -26,11 +26,12 @@ CREATE TABLE IF NOT EXISTS meetings (
     -- Meeting metadata
     title text NOT NULL,
     creator uuid NOT NULL,
+    creator_domain text NOT NULL,
 
     -- Scheduling information
     start_date timestamptz NOT NULL,
     end_date timestamptz NOT NULL,
-    schedule text,
+    recurrence jsonb,
 
     -- Associated conversation
     conversation_id uuid NOT NULL,
@@ -90,9 +91,10 @@ COMMENT ON COLUMN meetings.id IS 'Unique meeting identifier (UUID)';
 COMMENT ON COLUMN meetings.domain IS 'Federation domain for the meeting';
 COMMENT ON COLUMN meetings.title IS 'Meeting title/subject';
 COMMENT ON COLUMN meetings.creator IS 'User ID who created the meeting';
+COMMENT ON COLUMN meetings.creator_domain IS 'Domain of the user who created the meeting';
 COMMENT ON COLUMN meetings.start_date IS 'Meeting start time';
 COMMENT ON COLUMN meetings.end_date IS 'Meeting end time';
-COMMENT ON COLUMN meetings.schedule IS 'Optional recurring schedule information';
+COMMENT ON COLUMN meetings.recurrence IS 'Optional recurring schedule information (JSON)';
 COMMENT ON COLUMN meetings.conversation_id IS 'Associated conversation ID';
 COMMENT ON COLUMN meetings.conversation_domain IS 'Domain of the associated conversation';
 COMMENT ON COLUMN meetings.invited_emails IS 'Array of email addresses invited to the meeting';

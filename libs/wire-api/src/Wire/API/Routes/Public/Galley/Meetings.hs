@@ -25,7 +25,6 @@ import Wire.API.Meeting
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.User.Identity (EmailAddress)
 
 type MeetingsAPI =
   Named
@@ -111,19 +110,19 @@ type MeetingsAPI =
            )
     :<|> Named
            "remove-meeting-invitation"
-           ( Summary "Remove an email from the invited emails"
+           ( Summary "Remove emails from the invited emails"
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain
                :> Capture "id" MeetingId
                :> "invitations"
+               :> "delete"
                :> CanThrow 'MeetingNotFound
                :> CanThrow 'AccessDenied
-               :> Capture "email" EmailAddress
-               :> "delete"
+               :> ReqBody '[JSON] MeetingEmailsInvitation
                :> MultiVerb
                     'POST
                     '[JSON]
-                    '[RespondEmpty 200 "Invitation removed"]
+                    '[RespondEmpty 200 "Invitations removed"]
                     ()
            )

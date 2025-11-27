@@ -41,7 +41,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import Wire.API.Meeting
-import Wire.API.User.Identity (EmailAddress)
 import Wire.MeetingsSubsystem qualified as Meetings
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -104,7 +103,7 @@ updateMeeting ::
   Sem r Meeting
 updateMeeting zUser domain meetingId update = do
   -- Validate that at least one field is being updated
-  when (isNothing update.title && isNothing update.startDate && isNothing update.endDate && isNothing update.schedule) $
+  when (isNothing update.title && isNothing update.startDate && isNothing update.endDate && isNothing update.recurrence) $
     throwS @'InvalidOperation
   -- Validate dates if both are provided
   case (update.startDate, update.endDate) of
@@ -150,9 +149,9 @@ removeMeetingInvitation ::
   Local UserId ->
   Domain ->
   MeetingId ->
-  EmailAddress ->
+  MeetingEmailsInvitation ->
   Sem r ()
-removeMeetingInvitation zUser domain meetingId email = do
+removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
-  success <- Meetings.removeInvitedEmails zUser qMeetingId [email]
+  success <- Meetings.removeInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
