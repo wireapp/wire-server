@@ -1,1 +1,0 @@
-Return an error when receiving a message or commit bundle for a conversation that is out of sync

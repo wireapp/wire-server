@@ -1,4 +1,0 @@
-All events of type `conversation.*` would also contain a field `via` which can
-either be `"user"` or `"scim"`. When the value is `"scim"`, the `from` and
-`qualified_from` fields must be ignored. They exist only for backwards
-compatibility.

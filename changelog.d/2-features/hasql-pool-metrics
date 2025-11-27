@@ -1,8 +1,0 @@
-New metrics on postgres connection pool health.  Example:
-
-```
-$ curl -s http://localhost:8082/i/metrics | grep wire_hasql_pool_session_count
-wire_hasql_pool_session_count 118.0
-```
-
-Grep output for hasql to see all gauges and counters.

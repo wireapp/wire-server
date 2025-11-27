@@ -1,1 +1,0 @@
-Move `searchable` field matching from boost to filter part of the Elastic Search query. (This is a non-functional change, it only improves clarity.)

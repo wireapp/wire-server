@@ -1,1 +1,0 @@
-Fix kubectl image tag in reaper and restund charts to use correct version. v1.32.4 is the last tag of the 1.32 series.
