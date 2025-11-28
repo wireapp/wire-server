@@ -73,8 +73,8 @@ testMultiIngressSSO = do
       idpId <- asString $ idp.json %. "id"
 
       ernieEmail <- ("ernie@" <>) <$> randomDomain
-      checkMetadataSPIssuer domain ernieZHost tid
-      checkAuthnSPIssuer domain ernieZHost idpId tid
+      checkSPMetadata domain ernieZHost tid
+      checkAuthnRequest domain ernieZHost idpId tid
 
       finalizeLoginWithWrongZHost bertZHost ernieZHost domain tid ernieEmail (idpId, idpMeta) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
@@ -89,8 +89,8 @@ testMultiIngressSSO = do
       makeSuccessfulSamlLogin domain ernieZHost tid ernieEmail idpId idpMeta
 
       bertEmail <- ("bert@" <>) <$> randomDomain
-      checkMetadataSPIssuer domain bertZHost tid
-      checkAuthnSPIssuer domain bertZHost idpId tid
+      checkSPMetadata domain bertZHost tid
+      checkAuthnRequest domain bertZHost idpId tid
 
       makeSuccessfulSamlLogin domain bertZHost tid bertEmail idpId idpMeta
 
@@ -107,8 +107,11 @@ testMultiIngressSSO = do
       finalizeLoginWithWrongZHost bertZHost kermitZHost domain tid kermitEmail (idpId, idpMeta) `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
 
-checkAuthnSPIssuer :: (HasCallStack) => String -> String -> String -> String -> App ()
-checkAuthnSPIssuer domain host idpId tid =
+-- | Check the AuthnRequest by the SP (Wire backend) to be sent to the IdP
+--
+-- Most important: The @Issuer@ must fit to the multi-ingress domain (@host@).
+checkAuthnRequest :: (HasCallStack) => String -> String -> String -> String -> App ()
+checkAuthnRequest domain host idpId tid =
   initiateSamlLoginWithZHost domain (Just host) idpId `bindResponse` \authnreq -> do
     authnreq.status `shouldMatchInt` 200
 
@@ -133,8 +136,9 @@ checkAuthnSPIssuer domain host idpId tid =
 
     getIssuerUrl authnreq.body `shouldMatch` targetSPUrl
 
-checkMetadataSPIssuer :: (HasCallStack) => String -> String -> String -> App ()
-checkMetadataSPIssuer domain host tid =
+-- | Check the metadata of the ServiceProvider (i.e. of the Wire backend on multi-ingress domain @host@)
+checkSPMetadata :: (HasCallStack) => String -> String -> String -> App ()
+checkSPMetadata domain host tid =
   getSPMetadataWithZHost domain (Just host) tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
 
