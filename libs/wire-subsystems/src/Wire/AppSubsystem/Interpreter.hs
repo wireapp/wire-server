@@ -87,9 +87,7 @@ createAppImpl ::
   NewApp ->
   Sem r CreatedApp
 createAppImpl lusr tid new = do
-  creator <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
-
-  mem <- getTeamMember creator.id tid >>= note AppSubsystemErrorNoPerm
+  (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
   u <- appNewStoredUser creator new
@@ -118,6 +116,20 @@ createAppImpl lusr tid new = do
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
         cookie = mkSomeToken c.cookieValue
       }
+
+-- | Check that @lusr@ is member of team with @tid@.
+ensureTeamMember ::
+  ( Member UserStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem r (StoredUser, T.TeamMember)
+ensureTeamMember lusr tid = do
+  storedUser <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
+  teamMember <- getTeamMember storedUser.id tid >>= note AppSubsystemErrorNoPerm
+  pure (storedUser, teamMember)
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,

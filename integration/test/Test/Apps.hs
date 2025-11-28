@@ -26,14 +26,16 @@ import Testlib.Prelude
 testCreateApp :: (HasCallStack) => App ()
 testCreateApp = do
   domain <- make OwnDomain
-  (alice, tid, [bob]) <- createTeam domain 2
+  (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "chappie"} :: NewApp
 
-  bindResponse (createApp bob tid new) $ \resp -> do
+  -- Regular team member can't create apps
+  bindResponse (createApp regularMember tid new) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
+  -- Owner can create an app
+  (appId, cookie) <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
     appId <- resp.json %. "user.id" & asString
     cookie <- resp.json %. "cookie" & asString
@@ -41,12 +43,12 @@ testCreateApp = do
 
   -- app user should have type "app"
   let appIdObject = object ["domain" .= domain, "id" .= appId]
-  bindResponse (getUser alice appIdObject) $ \resp -> do
+  bindResponse (getUser owner appIdObject) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
 
   -- creator should have type "regular"
-  bindResponse (getUser alice alice) $ \resp -> do
+  bindResponse (getUser owner owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "regular"
 
