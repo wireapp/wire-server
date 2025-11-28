@@ -286,6 +286,8 @@ library
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
+    Wire.ProposalStore
+    Wire.ProposalStore.Cassandra
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc

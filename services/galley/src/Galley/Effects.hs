@@ -66,7 +66,7 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.ProposalStore
+import Wire.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.TeamFeatureStore

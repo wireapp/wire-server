@@ -140,7 +140,6 @@ library
     Galley.Cassandra.Client
     Galley.Cassandra.Code
     Galley.Cassandra.CustomBackend
-    Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Store
@@ -156,7 +155,6 @@ library
     Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.FederatorAccess
-    Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.TeamFeatureStore
@@ -280,7 +278,6 @@ library
     , crypton
     , crypton-x509
     , data-default
-    , data-timeout
     , errors                                >=2.0
     , exceptions                            >=0.4
     , extended

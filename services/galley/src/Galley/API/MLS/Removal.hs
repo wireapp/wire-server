@@ -35,7 +35,7 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.Effects
-import Galley.Effects.ProposalStore
+import Wire.ProposalStore
 import Galley.Env
 import Imports
 import Polysemy

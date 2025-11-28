@@ -40,7 +40,7 @@ import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ProposalStore
+import Wire.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Error

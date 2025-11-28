@@ -56,7 +56,6 @@ import Galley.API.Error
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
-import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
   ( interpretInternalTeamListToCassandra,
@@ -122,6 +121,7 @@ import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc

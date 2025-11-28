@@ -42,7 +42,7 @@ import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ProposalStore
+import Wire.ProposalStore
 import Galley.Env
 import Galley.Options
 import Imports

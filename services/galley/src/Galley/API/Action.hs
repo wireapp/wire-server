@@ -79,7 +79,7 @@ import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.ProposalStore qualified as E
+import Wire.ProposalStore qualified as E
 import Galley.Env (Env)
 import Galley.Options
 import Galley.Validation

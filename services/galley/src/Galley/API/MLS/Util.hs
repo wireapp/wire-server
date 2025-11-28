@@ -26,7 +26,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Galley.Data.Types
 import Galley.Effects
-import Galley.Effects.ProposalStore
+import Wire.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Error
