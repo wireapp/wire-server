@@ -75,7 +75,7 @@ groupStateMismatch :: IndexMap -> GroupInfo -> Either Text (Maybe GroupInfoMisma
 groupStateMismatch leaves groupInfo = do
   trees <-
     first
-      (\_ -> "Could not parse ratchet tree extension in GroupInfo")
+      (const "Could not parse ratchet tree extension in GroupInfo")
       $ findExtension groupInfo.tbs.extensions
   tree :: RatchetTree <- case trees of
     (tree : _) -> pure tree
@@ -84,7 +84,7 @@ groupStateMismatch leaves groupInfo = do
   pure $ guard (leaves /= giLeaves) $> GroupInfoMismatch (imAssocs leaves)
   where
     getIdentity :: LeafNode -> Either Text ClientIdentity
-    getIdentity leaf = fmap fst $ credentialIdentityAndKey leaf.credential
+    getIdentity leaf = fst <$> credentialIdentityAndKey leaf.credential
 
 existingGroupStateMismatch ::
   (Member ConversationStore r) =>
