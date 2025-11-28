@@ -35,8 +35,34 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 
-testMultiIngressSSO :: (HasCallStack) => App ()
-testMultiIngressSSO = do
+-- | Test multi-ingress SSO with an IdP that is not bound to a domain.
+--
+-- The IdP is created via a non-multi-ingress way/domain. It is valid for all
+-- domains - no matter if they are configured as multi-ingress domains or not.
+-- However, the SP must be consistent in the communication: If the SAML login
+-- flow was started on one domain, it must return to exactly this domain.
+testMultiIngressSSOGeneralIdp :: (HasCallStack) => App ()
+testMultiIngressSSOGeneralIdp = multiIngressSSOCommonTest (const . registerTestIdPWithMetaWithPrivateCreds)
+
+-- | Test multi-ingress SSO with an IdP that is bound to a domain.
+--
+-- The IdP is created on a multi-ingress domain. The details of managing
+-- multi-ingress IdPs are covered in `Test.Spar.MultiIngressIdp`. Here we want
+-- to test that logins are possible with such an IdP, ensuring we haven't
+-- broken basic functionality.
+testMultiIngressSSODomainBoundIdp :: (HasCallStack) => App ()
+testMultiIngressSSODomainBoundIdp = multiIngressSSOCommonTest registerTestIdPWithMetaWithPrivateCredsForZHost
+
+multiIngressSSOCommonTest ::
+  (HasCallStack) =>
+  ( forall owner.
+    (HasCallStack, MakesValue owner) =>
+    owner ->
+    Maybe String ->
+    App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
+  ) ->
+  App ()
+multiIngressSSOCommonTest registerTestIdPWithMetaWithPrivateCredsFn = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
       kermitZHost = "nginz-https.kermit.example.com"
@@ -69,7 +95,7 @@ testMultiIngressSSO = do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
+      (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCredsFn owner (Just ernieZHost)
       idpId <- asString $ idp.json %. "id"
 
       ernieEmail <- ("ernie@" <>) <$> randomDomain
