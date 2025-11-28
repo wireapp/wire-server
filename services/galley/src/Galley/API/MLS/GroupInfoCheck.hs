@@ -67,8 +67,8 @@ checkGroupState convOrSub newLeaves groupInfo = do
   case (check, groupStateMismatch newLeaves groupInfo) of
     (True, Left e) -> throw (mlsProtocolError e)
     (True, Right (Just mismatch)) -> do
-      existingMatches <- existingGroupStateMatches convOrSub
-      when existingMatches $ throw mismatch
+      existingMismatch <- existingGroupStateMismatch convOrSub
+      when (isNothing existingMismatch) $ throw mismatch
     _ -> pure ()
 
 groupStateMismatch :: IndexMap -> GroupInfo -> Either Text (Maybe GroupInfoMismatch)
@@ -86,9 +86,12 @@ groupStateMismatch leaves groupInfo = do
     getIdentity :: LeafNode -> Either Text ClientIdentity
     getIdentity leaf = fmap fst $ credentialIdentityAndKey leaf.credential
 
-existingGroupStateMatches :: (Member ConversationStore r) => ConvOrSubConv -> Sem r Bool
-existingGroupStateMatches convOrSub =
-  fmap isJust . runErrorS @MLSMissingGroupInfo $
+existingGroupStateMismatch ::
+  (Member ConversationStore r) =>
+  ConvOrSubConv ->
+  Sem r (Maybe GroupInfoMismatch)
+existingGroupStateMismatch convOrSub =
+  fmap join . runErrorS @MLSMissingGroupInfo $
     do
       groupInfoData <- getConvOrSubGroupInfo convOrSub.id >>= noteS @MLSMissingGroupInfo
       groupInfo <-
@@ -96,7 +99,7 @@ existingGroupStateMatches convOrSub =
           decodeMLS' (unGroupInfoData groupInfoData)
       case groupStateMismatch convOrSub.indexMap groupInfo of
         Left _ -> throwS @MLSMissingGroupInfo
-        Right m -> pure (isNothing m)
+        Right m -> pure m
 
 isGroupInfoCheckEnabled ::
   ( Member TeamFeatureStore r,
