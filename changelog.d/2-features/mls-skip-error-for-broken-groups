@@ -1,0 +1,1 @@
+Commits with a broken group info are now let through if the group was already broken
