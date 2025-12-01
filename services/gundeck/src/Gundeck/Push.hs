@@ -177,8 +177,17 @@ publishToPulsar routingKey qMsg = do
     -- TODO: Far from perfect, ignores log level and uses no fields
     internalLogger :: Log.Logger -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
     internalLogger logger level file line message =
-      Logger.debug logger $
-        Log.msg ("[" <> show level <> "] " <> file <> ":" <> show line <> ":" <> message)
+      Logger.log logger (toLogLevel level) $
+        Log.msg message
+          . Log.field "file" file
+          . Log.field "line" (show line)
+      where
+        toLogLevel :: Pulsar.LogLevel -> Log.Level
+        toLogLevel 0 = Log.Debug
+        toLogLevel 1 = Log.Info
+        toLogLevel 2 = Log.Warn
+        toLogLevel 3 = Log.Error
+        toLogLevel n = error ("Unknown Pulsar log level" <> show n)
 
     pulsarMessage :: PulsarMessage
     pulsarMessage =
