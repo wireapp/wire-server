@@ -57,8 +57,8 @@ newtype PulsarQueueInfo = PulsarQueueInfo
   {subscription :: Text}
   deriving (Show)
 
-createPulsarChannel :: UserId -> Maybe ClientId -> Codensity IO (PulsarChannel, PulsarQueueInfo)
-createPulsarChannel uid mCid = do
+createPulsarChannel :: UserId -> Maybe ClientId -> Env -> Codensity IO (PulsarChannel, PulsarQueueInfo)
+createPulsarChannel uid mCid env = do
   msgChannel :: Chan (PulsarMsgId, ByteString) <- lift newChan
   acknowledgeMessages :: Chan PulsarMsgId <- lift newChan
   rejectMessages :: Chan PulsarMsgId <- lift newChan
@@ -73,7 +73,7 @@ createPulsarChannel uid mCid = do
   liftIO $
     do
       traceM $ "Connecting ..."
-      void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel")}) "pulsar://localhost:6650" $ do
+      void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel")}) env.pulsarUrl $ do
         let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
         traceM $ "newConsumer " ++ show topic
         Pulsar.withConsumerNoUnsubscribe
@@ -173,7 +173,7 @@ pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   lowerCodensity $
     do
-      (chan, queueInfo) <- createPulsarChannel uid mcid
+      (chan, queueInfo) <- createPulsarChannel uid mcid e
       traceM $ "XXX pulsarWebSocketApp " ++ show queueInfo
       conn <- Codensity $ bracket openWebSocket closeWebSocket
       activity <- liftIO newEmptyMVar
@@ -217,7 +217,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   where
     publishSyncMessage :: UserId -> ByteString -> IO ()
     publishSyncMessage userId message =
-      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishSyncMessage")}) "pulsar://localhost:6650" $ do
+      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishSyncMessage")}) e.pulsarUrl $ do
         let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey userId)
         Pulsar.withProducer Pulsar.defaultProducerConfiguration topic (onPulsarError "publishSyncMessage producer") $ do
           result <- runResourceT $ do

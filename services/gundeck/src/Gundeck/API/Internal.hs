@@ -22,10 +22,12 @@ module Gundeck.API.Internal
 where
 
 import Cassandra qualified
+import Cassandra.Options
 import Control.Lens (view)
 import Data.Id
 import Gundeck.Client
 import Gundeck.Client qualified as Client
+import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
@@ -69,5 +71,6 @@ getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> 
 
 registerConsumableNotificationsClient :: UserId -> ClientId -> Gundeck NoContent
 registerConsumableNotificationsClient uid cid = do
-  liftIO $ setupConsumableNotifications uid cid
+  pulsarEndpoint :: Endpoint <- view pulsar
+  liftIO $ setupConsumableNotifications uid cid pulsarEndpoint
   pure NoContent

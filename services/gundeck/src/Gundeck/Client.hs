@@ -17,6 +17,7 @@
 
 module Gundeck.Client where
 
+import Cassandra.Options
 import Control.Lens (view)
 import Data.Id
 import Data.Text qualified as T
@@ -47,13 +48,14 @@ removeUser user = do
 setupConsumableNotifications ::
   UserId ->
   ClientId ->
+  Endpoint ->
   IO ()
-setupConsumableNotifications uid cid = do
+setupConsumableNotifications uid cid pulsarEndpoint = do
   -- A hacky way to create a Pulsar subscription
   let subscription = "cannon-websocket-" ++ T.unpack (clientNotificationQueueName uid cid)
       subscriptionType = Pulsar.Earliest
       topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ T.unpack (userRoutingKey uid)
-  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "setupConsumableNotifications")}) "pulsar://localhost:6650" $ do
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "setupConsumableNotifications")}) (toPulsarUrl pulsarEndpoint) $ do
     Pulsar.createSubscription
       ( Pulsar.defaultConsumerConfiguration
           { Pulsar.consumerType = Just Pulsar.ConsumerExclusive,

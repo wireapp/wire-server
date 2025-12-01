@@ -139,6 +139,7 @@ data Opts = Opts
     _rabbitmq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),
     _settings :: !Settings,
+    _pulsar :: !Endpoint,
     -- Logging
 
     -- | Log level (Debug, Info, etc)

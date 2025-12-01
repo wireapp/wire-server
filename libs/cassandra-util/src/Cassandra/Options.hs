@@ -23,6 +23,7 @@
 module Cassandra.Options where
 
 import Data.Aeson.TH
+import Data.Text qualified as T
 import Imports
 
 data Endpoint = Endpoint
@@ -47,3 +48,6 @@ data CassandraOpts = CassandraOpts
   deriving (Show, Generic)
 
 deriveFromJSON defaultOptions ''CassandraOpts
+
+toPulsarUrl :: Endpoint -> String
+toPulsarUrl e = "pulsar://" <> T.unpack e.host <> ":" <> show e.port

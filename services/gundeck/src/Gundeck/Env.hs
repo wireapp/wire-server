@@ -49,6 +49,7 @@ import Network.TLS as TLS
 import Network.TLS.Extra qualified as TLS
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
+import Util.Options (Endpoint)
 
 data Env = Env
   { _reqId :: !RequestId,
@@ -61,7 +62,8 @@ data Env = Env
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
-    _rabbitMqChannel :: MVar Channel
+    _rabbitMqChannel :: MVar Channel,
+    _pulsar :: Endpoint
   }
 
 makeLenses ''Env
@@ -105,7 +107,7 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar (o ^. Opt.pulsar)
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

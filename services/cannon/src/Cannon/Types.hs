@@ -38,8 +38,9 @@ import Cannon.RabbitMq
 import Cannon.WS (Clock, Key, Websocket)
 import Cannon.WS qualified as WS
 import Cassandra (ClientState)
+import Cassandra.Options (toPulsarUrl)
 import Control.Concurrent.Async (mapConcurrently)
-import Control.Lens ((^.))
+import Control.Lens (to, (^.))
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.Id
@@ -136,6 +137,7 @@ mkEnv external o cs l d conns p g t endpoint = do
           cs
           pool
           (o ^. notificationTTL)
+          (o ^. pulsar . to toPulsarUrl)
   pure $ Env o l d conns (RequestId defRequestId) wsEnv
 
 runCannon :: Env -> Cannon a -> IO a

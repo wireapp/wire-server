@@ -146,7 +146,8 @@ publishToRabbitMq exchangeName routingKey qMsg = do
 publishToPulsar :: Text -> Q.Message -> Gundeck ()
 publishToPulsar routingKey qMsg = do
   logger <- view applog
-  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (internalLogger logger)}) "pulsar://localhost:6650" $
+  pulsarEndpoint <- view Gundeck.Env.pulsar
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (internalLogger logger)}) (toPulsarUrl pulsarEndpoint) $
     Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName logPulsarError $ do
       result <- runResourceT $ do
         (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ BS.toStrict (A.encode pulsarMessage)}

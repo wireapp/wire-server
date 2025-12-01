@@ -42,6 +42,10 @@ rabbitmq:
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
+pulsar:
+  host: localhost
+  port: 6650
+
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
