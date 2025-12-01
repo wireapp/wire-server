@@ -447,6 +447,7 @@ instance MonadPushAll MockGundeck where
   mpaRunWithBudget _ _ = id -- no throttling needed as long as we don't overdo it in the tests...
   mpaGetClients = mockGetClients
   mpaPublishToRabbitMq = mockPushRabbitMq
+  mpaPublishToPulsar = todo
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
