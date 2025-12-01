@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -62,19 +60,21 @@ data Category
   | Compliance
   | Other
   deriving (Eq, Ord, Show, Read, Generic)
-  deriving anyclass (A.FromJSON, A.ToJSON)
+
+instance A.FromJSON Category where parseJSON = schemaParseJSON
+
+instance A.ToJSON Category where toJSON = schemaToJSON
 
 categoryFromText :: Text -> Either Text Category
-categoryFromText t = case attempt TS.toTitle t of -- XXX: Use ToSchema to parse Category, as the mapping between the type and lower case strings is already expressed there?
-  Left _ -> attempt TS.toUpper t
-  Right a -> Right a
-  where
-    attempt f t' = case readEither $ TS.unpack $ f t' of
-      Left err -> Left $ TS.pack err
-      Right a -> Right a
+categoryFromText = either (Left . TS.pack) Right . A.eitherDecode . A.encode . A.String
 
 categoryToText :: Category -> Text
-categoryToText = TS.toLower . TS.pack . show
+categoryToText a = case A.toJSON a of
+  A.String t -> t
+  _ ->
+    error $
+      "wire-api:Wire/API/App.hs: The impossible happened, Category should serialize to JSON string: "
+        <> show a
 
 instance ToSchema Category where
   schema =
