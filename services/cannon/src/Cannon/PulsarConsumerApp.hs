@@ -25,7 +25,6 @@ import Data.Id
 import Data.Text
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
-import Debug.Trace
 import Imports hiding (min, threadDelay)
 import Network.WebSockets
 import Network.WebSockets qualified as WS
@@ -69,10 +68,10 @@ createPulsarChannel uid mCid env = do
         Just _cid -> Pulsar.Earliest
   liftIO $
     do
-      traceM $ "Connecting ..."
+      Log.debug env.logg $
+        Log.msg (Log.val "Connecting Pulsar consumer")
+          . Log.field "topic" (show topic)
       void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel" env.logg)}) env.pulsarUrl $ do
-        let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
-        traceM $ "newConsumer " ++ show topic
         Pulsar.withConsumerNoUnsubscribe
           ( Pulsar.defaultConsumerConfiguration
               { Pulsar.consumerType = Just Pulsar.ConsumerExclusive,
@@ -83,34 +82,44 @@ createPulsarChannel uid mCid env = do
           topic
           (onPulsarError "createPulsarChannel consumer" env.logg)
           $ do
-            traceM $ "Ready"
             receiveMsgsAsync :: Async () <- receiveMsgs msgChannel unackedMsgsCounter
             blockOnCloseSignalAsync :: Async () <- blockOnCloseSignal closeSignal
             acknowledgeMsgsAsync <- acknowledgeMsgs acknowledgeMessages unackedMsgsCounter
             rejectMsgsAsync <- rejectMsgs rejectMessages unackedMsgsCounter
+            Log.info env.logg $
+              Log.msg (Log.val "Consumer ready. Waiting for external input.")
+                . Log.field "topic" (show topic)
             void $ UnliftIO.waitAnyCancel [receiveMsgsAsync, blockOnCloseSignalAsync, acknowledgeMsgsAsync, rejectMsgsAsync]
       pure ()
-  traceM "createPulsarChannel: Done"
+  Log.debug env.logg $
+    Log.msg @String "createPulsarChannel: Done"
+      . Log.field "topic" (show topic)
   pure $
-    ( PulsarChannel
-        { msgVar = msgChannel,
-          closeSignal = closeSignal,
-          acknowledgeMessages = acknowledgeMessages,
-          rejectMessages = rejectMessages
-        },
-      PulsarQueueInfo subscription
-    )
+    PulsarChannel
+      { msgVar = msgChannel,
+        closeSignal = closeSignal,
+        acknowledgeMessages = acknowledgeMessages,
+        rejectMessages = rejectMessages
+      }
   where
+    topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
+
     receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (PulsarMsgId, ByteString) -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
     receiveMsgs msgChannel unackedMsgsCounter = UnliftIO.async . forever $ do
       liftIO $ waitUntilCounterBelow unackedMsgsCounter 500
       Pulsar.receiveMessage (liftIO . onPulsarError "receiveMessage" env.logg) $ do
         content <- Pulsar.messageContent
-        traceM $ "XXX - received message with content " ++ BSUTF8.toString content
+        Log.debug env.logg $
+          Log.msg @String "received message with content"
+            . Log.field "content" (BSUTF8.toString content)
+            . Log.field "topic" (show topic)
         msgId <- Pulsar.messageId Pulsar.messageIdSerialize
         liftIO $ writeChan msgChannel (PulsarMsgId msgId, content)
         liftIO $ incCounter unackedMsgsCounter
-        traceM $ "XXX - wrote message to channel:" ++ BSUTF8.toString content
+        Log.debug env.logg $
+          Log.msg @String "wrote message to channel"
+            . Log.field "content" (BSUTF8.toString content)
+            . Log.field "topic" (show topic)
 
     blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m (Async ())
     blockOnCloseSignal = UnliftIO.async . readMVar
@@ -120,7 +129,9 @@ createPulsarChannel uid mCid env = do
       UnliftIO.async . forever $ do
         PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
-        traceM $ "acknowledgeMsgs"
+        Log.debug env.logg $
+          Log.msg @String "acknowledgeMsgs"
+            . Log.field "topic" (show topic)
         result <- liftIO $ Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId
         liftIO $ logPulsarResult "createPulsarChannel - acknowledge message result: " env.logg result
         liftIO $ decCounter unackedMsgsCounter
@@ -130,6 +141,9 @@ createPulsarChannel uid mCid env = do
       UnliftIO.async . forever $ do
         PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
+        Log.debug env.logg $
+          Log.msg @String "rejectMsgs"
+            . Log.field "topic" (show topic)
         Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeNegativeMessageId
         liftIO $ decCounter unackedMsgsCounter
 
@@ -215,9 +229,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
 
     getEventData :: PulsarChannel -> IO (Either EventData SynchronizationData)
     getEventData chan = do
-      traceM $ "getEventData called"
       (msgId, msg) <- readChan chan.msgVar
-      traceM $ "getEventData received message" <> show (toString msg)
       decMsg :: PulsarMessage <- either (\err -> logParseError err >> error "Unexpected parse error") pure $ A.eitherDecode (BS.fromStrict msg)
       case decMsg.msgType of
         Just "synchronization" -> do
@@ -304,14 +316,18 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
 
     sendNotifications :: PulsarChannel -> WSConnection -> IO ()
     sendNotifications chan wsConn = do
-      traceM $ "XXX - sendNotifications called "
+      Log.debug e.logg $
+        Log.msg (Log.val "sendNotifications called ")
       let consumeRabbitMq = forever $ do
-            traceM $ "XXX - sendNotifications consumeRabbitMq called "
+            Log.debug e.logg $
+              Log.msg (Log.val "sendNotifications consumeRabbitMq called ")
             eventData <- getEventData chan
             let msg = case eventData of
                   Left event -> EventMessage event
                   Right sync -> EventSyncMessage sync
-            traceM $ "XXX - sendNotifications sending ... " <> show msg
+            Log.debug e.logg $
+              Log.msg @String "sendNotifications sending"
+                . Log.field "messahe" (show msg)
             catch (WS.sendBinaryData wsConn.inner (encode msg)) $
               \(err :: SomeException) -> do
                 logSendFailure err
