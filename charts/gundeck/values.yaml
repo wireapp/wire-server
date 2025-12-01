@@ -50,6 +50,10 @@ config:
     #   name: <secret-name>
     #   key: <ca-attribute>
 
+  pulsar:
+    host: localhost
+    port: 6650
+
   # To enable additional writes during a migration:
   # redisAdditionalWrite:
   #   host: redis-two

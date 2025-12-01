@@ -29,6 +29,10 @@ config:
     #   name: <secret-name>
     #   key: <ca-attribute>
 
+  pulsar:
+    host: localhost
+    port: 6650
+
   # See also the section 'Controlling the speed of websocket draining during
   # cannon pod replacement' in docs/how-to/install/configuration-options.rst
   drainOpts:

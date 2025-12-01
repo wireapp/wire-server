@@ -41,6 +41,12 @@ data:
       {{- end }}
     {{- end }}
 
+    {{- with .pulsar }}
+    pulsar:
+      host: {{ .host }}
+      port: {{ .port }}
+    {{- end }}
+
     redis:
       host: {{ .redis.host }}
       port: {{ .redis.port }}
