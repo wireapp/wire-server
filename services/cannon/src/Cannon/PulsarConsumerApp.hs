@@ -73,7 +73,7 @@ createPulsarChannel uid mCid env = do
   liftIO $
     do
       traceM $ "Connecting ..."
-      void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel")}) env.pulsarUrl $ do
+      void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel" env.logg)}) env.pulsarUrl $ do
         let topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey uid)
         traceM $ "newConsumer " ++ show topic
         Pulsar.withConsumerNoUnsubscribe
@@ -84,7 +84,7 @@ createPulsarChannel uid mCid env = do
           )
           ("cannon-websocket-" ++ unpack subscription)
           topic
-          (onPulsarError "createPulsarChannel consumer")
+          (onPulsarError "createPulsarChannel consumer" env.logg)
           $ do
             traceM $ "Ready"
             receiveMsgsAsync :: Async () <- receiveMsgs msgChannel unackedMsgsCounter
@@ -107,7 +107,7 @@ createPulsarChannel uid mCid env = do
     receiveMsgs :: (UnliftIO.MonadUnliftIO m) => Chan (PulsarMsgId, ByteString) -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
     receiveMsgs msgChannel unackedMsgsCounter = UnliftIO.async . forever $ do
       liftIO $ waitUntilCounterBelow unackedMsgsCounter 500
-      Pulsar.receiveMessage (liftIO . onPulsarError "receiveMessage") $ do
+      Pulsar.receiveMessage (liftIO . onPulsarError "receiveMessage" env.logg) $ do
         content <- Pulsar.messageContent
         traceM $ "XXX - received message with content " ++ BSUTF8.toString content
         msgId <- Pulsar.messageId Pulsar.messageIdSerialize
@@ -125,7 +125,7 @@ createPulsarChannel uid mCid env = do
         PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
         traceM $ "acknowledgeMsgs"
-        void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
+        void $ logPulsarResult "createPulsarChannel - acknowledge message result: " env.logg <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
         liftIO $ decCounter unackedMsgsCounter
 
     rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan PulsarMsgId -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
@@ -147,27 +147,43 @@ createPulsarChannel uid mCid env = do
       v <- readTVar tv
       STM.check (v < threshold) -- blocks (retry) until v < threshold
 
--- TODO: Replace Debug.Trace with regular logging
-onPulsarError :: String -> Pulsar.RawResult -> IO ()
-onPulsarError provenance result =
-  traceM $
-    provenance ++ case Pulsar.renderResult result of
-      Just r -> " error: " ++ (show r)
-      Nothing -> " error: " ++ (show (Pulsar.unRawResult result))
+onPulsarError :: String -> Log.Logger -> Pulsar.RawResult -> IO ()
+onPulsarError provenance logger result =
+  Log.err logger $
+    Log.msg message
+      . Log.field "provenance" provenance
+  where
+    message =
+      "error: " <> pulsarResultToString result
 
--- TODO: Replace Debug.Trace with regular logging
-pulsarClientLogger :: String -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
-pulsarClientLogger provenance level file line message = traceM $ provenance ++ " [" <> show level <> "] " <> file <> ":" <> show line <> ":" <> message
+pulsarResultToString :: Pulsar.RawResult -> String
+pulsarResultToString result = case Pulsar.renderResult result of
+  Just r -> show r
+  Nothing -> (show . Pulsar.unRawResult) result
 
--- TODO: Replace Debug.Trace with regular logging
-logPulsarResult :: String -> Pulsar.RawResult -> Pulsar.RawResult
-logPulsarResult provenance result =
-  trace
-    ( provenance ++ case Pulsar.renderResult result of
-        Just r -> " result: " ++ (show r)
-        Nothing -> " result: " ++ (show (Pulsar.unRawResult result))
-    )
-    result
+pulsarClientLogger :: String -> Log.Logger -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
+pulsarClientLogger provenance logger level file line message =
+  Log.log logger (toLogLevel level) $
+    Log.msg message
+      . Log.field "file" file
+      . Log.field "line" (show line)
+      . Log.field "provenance" provenance
+  where
+    toLogLevel :: Pulsar.LogLevel -> Log.Level
+    toLogLevel 0 = Log.Debug
+    toLogLevel 1 = Log.Info
+    toLogLevel 2 = Log.Warn
+    toLogLevel 3 = Log.Error
+    toLogLevel n = error ("Unknown Pulsar log level" <> show n)
+
+logPulsarResult :: String -> Log.Logger -> Pulsar.RawResult -> IO ()
+logPulsarResult provenance logger result =
+  Log.debug logger $
+    Log.msg message
+      . Log.field "provenance" provenance
+  where
+    message =
+      "result: " <> pulsarResultToString result
 
 pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
@@ -217,13 +233,13 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   where
     publishSyncMessage :: UserId -> ByteString -> IO ()
     publishSyncMessage userId message =
-      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishSyncMessage")}) e.pulsarUrl $ do
+      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishSyncMessage" e.logg)}) e.pulsarUrl $ do
         let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey userId)
-        Pulsar.withProducer Pulsar.defaultProducerConfiguration topic (onPulsarError "publishSyncMessage producer") $ do
+        Pulsar.withProducer Pulsar.defaultProducerConfiguration topic (onPulsarError "publishSyncMessage producer" e.logg) $ do
           result <- runResourceT $ do
             (_, message') <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ message}
             lift $ Pulsar.sendMessage message'
-          void . pure $ logPulsarResult "consumeWebsocket" result
+          liftIO $ logPulsarResult "consumeWebsocket" e.logg result
           pure ()
 
     logClient =
