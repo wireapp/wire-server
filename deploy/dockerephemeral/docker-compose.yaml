@@ -422,10 +422,10 @@ services:
   pulsar:
     image: apachepulsar/pulsar:latest
     container_name: pulsar
-    # TODO: Change the mapping of port 8080. It has already been taken by nginz.
+    # 8080 belongs to nginz
     ports:
       - 6650:6650
-      - 8080:8080
+      - 5080:8080
     networks:
       - demo_wire
     command: bin/pulsar standalone
