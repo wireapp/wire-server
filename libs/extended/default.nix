@@ -27,6 +27,7 @@
 , metrics-wai
 , monad-control
 , prometheus-client
+, pulsar-client-hs
 , retry
 , servant
 , servant-client
@@ -70,6 +71,7 @@ mkDerivation {
     metrics-wai
     monad-control
     prometheus-client
+    pulsar-client-hs
     retry
     servant
     servant-client

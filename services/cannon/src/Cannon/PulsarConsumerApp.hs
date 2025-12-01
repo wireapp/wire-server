@@ -31,6 +31,7 @@ import Network.WebSockets
 import Network.WebSockets qualified as WS
 import Network.WebSockets.Connection
 import Pulsar.Client qualified as Pulsar
+import Pulsar.Client.Logging
 import System.Logger qualified as Log
 import System.Timeout
 import UnliftIO qualified
@@ -125,7 +126,8 @@ createPulsarChannel uid mCid env = do
         PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
         traceM $ "acknowledgeMsgs"
-        void $ logPulsarResult "createPulsarChannel - acknowledge message result: " env.logg <$> (Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId)
+        result <- liftIO $ Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId
+        liftIO $ logPulsarResult "createPulsarChannel - acknowledge message result: " env.logg result
         liftIO $ decCounter unackedMsgsCounter
 
     rejectMsgs :: (UnliftIO.MonadUnliftIO m) => Chan PulsarMsgId -> TVar Int -> ReaderT Pulsar.Consumer m (Async ())
@@ -146,44 +148,6 @@ createPulsarChannel uid mCid env = do
     waitUntilCounterBelow tv threshold = atomically $ do
       v <- readTVar tv
       STM.check (v < threshold) -- blocks (retry) until v < threshold
-
-onPulsarError :: String -> Log.Logger -> Pulsar.RawResult -> IO ()
-onPulsarError provenance logger result =
-  Log.err logger $
-    Log.msg message
-      . Log.field "provenance" provenance
-  where
-    message =
-      "error: " <> pulsarResultToString result
-
-pulsarResultToString :: Pulsar.RawResult -> String
-pulsarResultToString result = case Pulsar.renderResult result of
-  Just r -> show r
-  Nothing -> (show . Pulsar.unRawResult) result
-
-pulsarClientLogger :: String -> Log.Logger -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
-pulsarClientLogger provenance logger level file line message =
-  Log.log logger (toLogLevel level) $
-    Log.msg message
-      . Log.field "file" file
-      . Log.field "line" (show line)
-      . Log.field "provenance" provenance
-  where
-    toLogLevel :: Pulsar.LogLevel -> Log.Level
-    toLogLevel 0 = Log.Debug
-    toLogLevel 1 = Log.Info
-    toLogLevel 2 = Log.Warn
-    toLogLevel 3 = Log.Error
-    toLogLevel n = error ("Unknown Pulsar log level" <> show n)
-
-logPulsarResult :: String -> Log.Logger -> Pulsar.RawResult -> IO ()
-logPulsarResult provenance logger result =
-  Log.debug logger $
-    Log.msg message
-      . Log.field "provenance" provenance
-  where
-    message =
-      "result: " <> pulsarResultToString result
 
 pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =

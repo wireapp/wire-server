@@ -89,7 +89,7 @@ import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import Pulsar.Client qualified as Pulsar
-import System.Logger qualified as Logger
+import Pulsar.Client.Logging
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
@@ -147,47 +147,14 @@ publishToPulsar :: Text -> Q.Message -> Gundeck ()
 publishToPulsar routingKey qMsg = do
   logger <- view applog
   pulsarEndpoint <- view Gundeck.Env.pulsar
-  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (internalLogger logger)}) (toPulsarUrl pulsarEndpoint) $
-    Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName logPulsarError $ do
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishToPulsar" logger)}) (toPulsarUrl pulsarEndpoint) $
+    Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName (onPulsarError "publishToPulsar" logger) $ do
       result <- runResourceT $ do
         (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ BS.toStrict (A.encode pulsarMessage)}
         lift $ Pulsar.sendMessage message
-      lift $ logPulsarResult result
+      logPulsarResult "publishToPulsar" logger result
   where
     topicName = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ Text.unpack routingKey
-
-    logPulsarError :: Pulsar.RawResult -> Gundeck ()
-    logPulsarError result =
-      case Pulsar.renderResult result of
-        Just r -> Log.err $ Log.msg errorMsg . Log.field "error" (show r)
-        Nothing -> Log.err $ Log.msg errorMsg . Log.field "error" (show (Pulsar.unRawResult result))
-
-    errorMsg :: String
-    errorMsg = "Failed to create Pulsar producer." :: String
-
-    logPulsarResult :: Pulsar.RawResult -> Gundeck ()
-    logPulsarResult result =
-      case Pulsar.renderResult result of
-        Just r -> Log.err $ Log.msg resultMsg . Log.field "result" (show r)
-        Nothing -> Log.err $ Log.msg resultMsg . Log.field "result" (show (Pulsar.unRawResult result))
-
-    resultMsg :: String
-    resultMsg = "Result of sending Pulsar message." :: String
-
-    -- TODO: Far from perfect, ignores log level and uses no fields
-    internalLogger :: Log.Logger -> Pulsar.LogLevel -> Pulsar.LogFile -> Pulsar.LogLine -> Pulsar.LogMessage -> IO ()
-    internalLogger logger level file line message =
-      Logger.log logger (toLogLevel level) $
-        Log.msg message
-          . Log.field "file" file
-          . Log.field "line" (show line)
-      where
-        toLogLevel :: Pulsar.LogLevel -> Log.Level
-        toLogLevel 0 = Log.Debug
-        toLogLevel 1 = Log.Info
-        toLogLevel 2 = Log.Warn
-        toLogLevel 3 = Log.Error
-        toLogLevel n = error ("Unknown Pulsar log level" <> show n)
 
     pulsarMessage :: PulsarMessage
     pulsarMessage =
