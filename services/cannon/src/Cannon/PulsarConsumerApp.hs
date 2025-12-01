@@ -115,7 +115,6 @@ createPulsarChannel uid mCid env = do
         liftIO $ writeChan msgChannel (PulsarMsgId msgId, content)
         liftIO $ incCounter unackedMsgsCounter
         traceM $ "XXX - wrote message to channel:" ++ BSUTF8.toString content
-    -- void $ logPulsarResult "createPulsarChannel - acknowledge message result: " <$> Pulsar.acknowledgeMessage
 
     blockOnCloseSignal :: (UnliftIO.MonadUnliftIO m) => MVar () -> m (Async ())
     blockOnCloseSignal = UnliftIO.async . readMVar
