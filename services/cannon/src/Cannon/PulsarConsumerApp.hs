@@ -320,7 +320,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
 
     mkSynchronizationMessage :: StrictText -> ByteString
     mkSynchronizationMessage markerId =
-      -- TODO: Check all fromStrict/toStrict calls: It makes not sense to be "sometimes lazy".
+      -- TODO: Check all fromStrict/toStrict calls: It makes no sense to be "sometimes lazy".
       BS.toStrict . encode $
         PulsarMessage
           { msgBody = markerId,
