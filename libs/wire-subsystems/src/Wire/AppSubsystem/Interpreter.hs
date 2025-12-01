@@ -31,7 +31,7 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
-import Wire.API.App
+import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
 import Wire.API.User
@@ -85,9 +85,10 @@ createAppImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  NewApp ->
-  Sem r CreatedApp
-createAppImpl lusr tid new = do
+  Apps.NewApp ->
+  Sem r Apps.CreatedApp
+createAppImpl lusr tid (Apps.NewApp new password6) = do
+  verifyUserPasswordError lusr password6
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
@@ -116,7 +117,7 @@ createAppImpl lusr tid new = do
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
   pure
-    CreatedApp
+    Apps.CreatedApp
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
         cookie = mkSomeToken c.cookieValue
       }
@@ -144,14 +145,14 @@ getAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Sem r NewApp
+  Sem r Apps.GetApp
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid >>= note AppSubsystemErrorNoApp
   when (storedApp.teamId /= tid) $ throw AppSubsystemErrorNoPerm
   u <- Store.getUser uid >>= note AppSubsystemErrorNoAppUser
   pure $
-    NewApp
+    Apps.GetApp
       { name = u.name,
         pict = fromMaybe (Pict []) u.pict,
         assets = fromMaybe [] u.assets,
@@ -189,7 +190,7 @@ appNewStoredUser ::
     Member (Input AppSubsystemConfig) r
   ) =>
   StoredUser ->
-  NewApp ->
+  Apps.GetApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
   uid <- liftIO nextRandom

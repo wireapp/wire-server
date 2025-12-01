@@ -20,6 +20,7 @@
 module Wire.API.App where
 
 import Data.Aeson qualified as A
+import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as TS
@@ -29,6 +30,12 @@ import Wire.API.User
 import Wire.API.User.Auth
 
 data NewApp = NewApp
+  { app :: GetApp,
+    password :: PlainTextPassword6
+  }
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
+
+data GetApp = GetApp
   { name :: Name,
     pict :: Pict,
     assets :: [Asset],
@@ -38,7 +45,7 @@ data NewApp = NewApp
     description :: Range 1 300 Text,
     author :: Range 1 256 Text
   }
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
 data Category
   = Security
@@ -92,6 +99,13 @@ instance ToSchema NewApp where
   schema =
     object "NewApp" $
       NewApp
+        <$> (.app) .= field "app" schema
+        <*> (.password) .= field "password" schema
+
+instance ToSchema GetApp where
+  schema =
+    object "GetApp" $
+      GetApp
         <$> (.name) .= field "name" schema
         <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
         <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
@@ -101,9 +115,9 @@ instance ToSchema NewApp where
         <*> (.description) .= field "description" schema
         <*> (.author) .= field "author" schema
 
-defNewApp :: Name -> NewApp
-defNewApp name =
-  NewApp
+defGetApp :: Name -> GetApp
+defGetApp name =
+  GetApp
     { name,
       pict = noPict,
       assets = [],

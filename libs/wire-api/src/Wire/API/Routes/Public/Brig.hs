@@ -2126,7 +2126,7 @@ type AppsAPI =
                :> Capture "tid" TeamId
                :> "apps"
                :> Capture "id" UserId
-               :> Get '[JSON] NewApp
+               :> Get '[JSON] GetApp
            )
     :<|> Named
            "refresh-app-cookie"

@@ -1754,7 +1754,7 @@ checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
-getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r NewApp
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r GetApp
 getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
 
 refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
