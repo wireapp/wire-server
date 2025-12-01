@@ -54,11 +54,7 @@ data PulsarChannel = PulsarChannel
 
 newtype PulsarMsgId = PulsarMsgId {unPulsarMsgId :: ByteString}
 
-newtype PulsarQueueInfo = PulsarQueueInfo
-  {subscription :: Text}
-  deriving (Show)
-
-createPulsarChannel :: UserId -> Maybe ClientId -> Env -> Codensity IO (PulsarChannel, PulsarQueueInfo)
+createPulsarChannel :: UserId -> Maybe ClientId -> Env -> Codensity IO PulsarChannel
 createPulsarChannel uid mCid env = do
   msgChannel :: Chan (PulsarMsgId, ByteString) <- lift newChan
   acknowledgeMessages :: Chan PulsarMsgId <- lift newChan
@@ -152,8 +148,7 @@ pulsarWebSocketApp :: UserId -> Maybe ClientId -> Maybe Text -> Env -> ServerApp
 pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   lowerCodensity $
     do
-      (chan, queueInfo) <- createPulsarChannel uid mcid e
-      traceM $ "XXX pulsarWebSocketApp " ++ show queueInfo
+      chan <- createPulsarChannel uid mcid e
       conn <- Codensity $ bracket openWebSocket closeWebSocket
       activity <- liftIO newEmptyMVar
       let wsConn =
