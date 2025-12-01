@@ -364,15 +364,9 @@ pushAllViaMessageBroker newNotifs userClientsFull = do
 pushViaPulsar :: (MonadPushAll m) => NewNotification -> m ()
 pushViaPulsar newNotif = do
   qMsg <- mkMessage newNotif.nnNotification
-  let routingKeys =
-        Set.unions $
-          flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
-            -- TODO: This pattern match is pretty bogus now.
-            case r._recipientClients of
-              RecipientClientsAll ->
-                Set.singleton $ userRoutingKey r._recipientId
-              RecipientClientsSome _ ->
-                Set.singleton $ userRoutingKey r._recipientId
+  let routingKeys = Set.unions $
+        flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
+          Set.singleton $ userRoutingKey r._recipientId
   for_ routingKeys $ \routingKey ->
     mpaPublishToPulsar routingKey qMsg
 
