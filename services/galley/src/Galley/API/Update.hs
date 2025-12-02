@@ -136,6 +136,7 @@ import Wire.API.User.Client
 import Wire.API.UserGroup
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ExternalAccess qualified as E
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword as HashPassword
@@ -280,6 +281,7 @@ type UpdateConversationAccessEffects =
      NotificationSubsystem,
      ConversationSubsystem,
      Input Env,
+     Input ConversationSubsystemConfig,
      ProposalStore,
      Random,
      TeamStore,
@@ -341,7 +343,8 @@ updateConversationReceiptMode ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -422,7 +425,8 @@ updateConversationReceiptModeUnqualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -441,7 +445,8 @@ updateConversationMessageTimer ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -474,7 +479,8 @@ updateConversationMessageTimerUnqualified ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -499,7 +505,8 @@ deleteLocalConversation ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -743,7 +750,8 @@ updateConversationProtocolWithLocalUser ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -789,7 +797,8 @@ updateChannelAddPermission ::
     Member (ErrorS 'InvalidTargetAccess) r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -933,7 +942,6 @@ addMembers ::
     Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -943,7 +951,8 @@ addMembers ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -989,7 +998,6 @@ addMembersUnqualifiedV2 ::
     Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -999,7 +1007,8 @@ addMembersUnqualifiedV2 ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1034,7 +1043,6 @@ addMembersUnqualified ::
     Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -1044,7 +1052,8 @@ addMembersUnqualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1093,7 +1102,8 @@ replaceMembers ::
     Member E.MLSCommitLockStore r,
     Member UserGroupStore r,
     Member ConversationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1222,7 +1232,8 @@ updateOtherMemberLocalConv ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1248,7 +1259,8 @@ updateOtherMemberUnqualified ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1273,7 +1285,8 @@ updateOtherMember ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1314,7 +1327,8 @@ removeMemberUnqualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1345,7 +1359,8 @@ removeMemberQualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1424,7 +1439,8 @@ removeMemberFromLocalConv ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1472,7 +1488,8 @@ removeMemberFromChannel ::
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
@@ -1664,7 +1681,8 @@ updateConversationName ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1691,7 +1709,8 @@ updateUnqualifiedConversationName ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1714,7 +1733,8 @@ updateLocalConversationName ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->

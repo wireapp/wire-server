@@ -88,6 +88,7 @@ import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
@@ -184,7 +185,8 @@ postMLSCommitBundle ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -214,7 +216,8 @@ postMLSCommitBundleFromLocalUser ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Version ->
   Local UserId ->
@@ -248,7 +251,8 @@ postMLSCommitBundleToLocalConv ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Qualified UserId ->
   ClientId ->

@@ -26,7 +26,6 @@ import Galley.API.Action.Kick
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -49,14 +48,14 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation as Data
 
 resetLocalMLSMainConversation ::
-  ( Member (Input Env) r,
-    Member Now r,
+  ( Member Now r,
     Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,
@@ -71,7 +70,8 @@ resetLocalMLSMainConversation ::
     Member ConversationStore r,
     Member P.TinyLog r,
     Member MLSCommitLockStore r,
-    VersionedMonad Version (FederatorClient Brig)
+    VersionedMonad Version (FederatorClient Brig),
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->

@@ -110,7 +110,7 @@ import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotifica
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
 import Wire.FederationAPIAccess.Interpreter
@@ -144,6 +144,7 @@ type GalleyEffects0 =
   '[ Input ClientState,
      Input Hasql.Pool,
      Input Env,
+     Input ConversationSubsystemConfig,
      Error MigrationError,
      Error InvalidInput,
      Error ParseException,
@@ -309,6 +310,10 @@ evalGalley e =
             http2Manager = e._http2Manager,
             requestId = e._reqId
           }
+      conversationSubsystemConfig =
+        ConversationSubsystemConfig
+          { mlsKeys = e._mlsKeys
+          }
    in ExceptT
         . runFinal @IO
         . unsafelyPerformConcurrency
@@ -328,6 +333,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
+        . runInputConst conversationSubsystemConfig
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)

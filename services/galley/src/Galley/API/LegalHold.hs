@@ -79,6 +79,7 @@ import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
@@ -183,7 +184,8 @@ removeSettingsInternalPaging ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -228,7 +230,8 @@ removeSettings ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   UserId ->
   TeamId ->
@@ -286,7 +289,8 @@ removeSettings' ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   TeamId ->
   Sem r ()
@@ -336,7 +340,8 @@ grantConsent ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -389,7 +394,8 @@ requestDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -485,7 +491,8 @@ approveDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -563,7 +570,8 @@ disableForUser ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -628,7 +636,8 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   TeamId ->
   Local UserId ->
@@ -746,7 +755,8 @@ handleGroupConvPolicyConflicts ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

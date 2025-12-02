@@ -67,6 +67,7 @@ import Wire.API.User.Client
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -89,6 +90,7 @@ type HasProposalActionEffects r =
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,

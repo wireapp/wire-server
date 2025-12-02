@@ -118,6 +118,7 @@ import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess qualified as E
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
@@ -150,17 +151,14 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NonFederatingBackends) r,
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
-      -- TODO: Move to subsystems
       Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
-      -- TODO: Replace with ConversationSubsystemConfig
-      Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       -- TODO: Replace with ConversationSubsystemConfig
       Member (Input Opts) r,
       Member Now r,
       Member LegalHoldStore r,
       Member ConversationStore r,
-      -- TODO: Move to subsystems
       Member ProposalStore r,
       Member Random r,
       Member TeamStore r,
@@ -176,6 +174,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member NotificationSubsystem r,
       Member Now r,
       Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member ProposalStore r,
       Member ConversationStore r,
       Member Random r,
@@ -186,6 +185,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member ProposalStore r,
       Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member Now r,
       Member ExternalAccess r,
       Member (FederationAPIAccess FederatorClient) r,
@@ -228,6 +228,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member FireAndForget r,
       Member NotificationSubsystem r,
       Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member ProposalStore r,
       Member TeamStore r,
       Member TinyLog r,
@@ -510,7 +511,8 @@ performAction ::
     Member (Error FederationError) r,
     Member ConversationSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -866,7 +868,8 @@ updateLocalConversation ::
     SingI tag,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -901,7 +904,8 @@ updateLocalConversationUnchecked ::
     HasConversationActionEffects tag r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->

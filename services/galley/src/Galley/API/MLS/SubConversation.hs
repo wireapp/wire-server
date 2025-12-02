@@ -66,6 +66,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore qualified as Eff
 import Wire.ConversationStore.MLS.Types as Eff
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -287,7 +288,8 @@ leaveSubConversation ::
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
     Member Eff.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -313,7 +315,8 @@ leaveLocalSubConversation ::
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
     Member Eff.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   ClientIdentity ->
   Local ConvId ->

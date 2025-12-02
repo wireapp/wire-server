@@ -69,6 +69,7 @@ import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -354,7 +355,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamCollaboratorsSubsystem r,
         Member MLSCommitLockStore r,
         Member (Input FanoutLimit) r,
-        Member TeamSubsystem r
+        Member TeamSubsystem r,
+        Member (Input ConversationSubsystemConfig) r
       )
 
   prepareFeature tid feat = do

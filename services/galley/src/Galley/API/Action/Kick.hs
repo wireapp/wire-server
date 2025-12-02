@@ -25,7 +25,6 @@ import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Util
 import Galley.Effects
-import Galley.Env (Env)
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
@@ -36,6 +35,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
@@ -53,7 +53,7 @@ kickMember ::
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Now r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r,
     Member TinyLog r,
     Member Random r

@@ -33,6 +33,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
 import Wire.API.Federation.Error (FederationError)
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess (ExternalAccess, deliverAsync)
@@ -40,6 +41,10 @@ import Wire.NotificationSubsystem as NS
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+
+data ConversationSubsystemConfig = ConversationSubsystemConfig
+  { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys)
+  }
 
 interpretConversationSubsystem ::
   ( Member (Error FederationError) r,

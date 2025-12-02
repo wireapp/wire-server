@@ -94,6 +94,7 @@ import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -145,7 +146,8 @@ onClientRemoved ::
     Member Now r,
     Member ProposalStore r,
     Member Random r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -279,7 +281,8 @@ leaveConversation ::
     Member TinyLog r,
     Member TeamSubsystem r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -425,10 +428,10 @@ onUserDeleted ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (Input Env) r,
     Member ProposalStore r,
     Member Random r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   UserDeletedConversationsNotification ->
@@ -500,7 +503,8 @@ updateConversation ::
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -638,7 +642,8 @@ sendMLSCommitBundle ::
     Member Random r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -740,7 +745,8 @@ leaveSubConversation ::
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
