@@ -66,6 +66,7 @@
 , pem
 , polysemy
 , polysemy-conc
+, polysemy-plugin
 , polysemy-wire-zoo
 , process
 , prometheus-client
@@ -148,7 +149,6 @@ mkDerivation {
     crypton
     crypton-x509
     data-default
-    data-timeout
     errors
     exceptions
     extended
@@ -173,6 +173,7 @@ mkDerivation {
     pem
     polysemy
     polysemy-conc
+    polysemy-plugin
     polysemy-wire-zoo
     prometheus-client
     raw-strings-qq
