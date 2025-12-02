@@ -79,7 +79,7 @@ import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
 import Galley.Env (Env)
-import Galley.Options
+import Galley.Options (Opts)
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
@@ -118,7 +118,7 @@ import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
 import Wire.FederationAPIAccess qualified as E
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
@@ -154,8 +154,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
       Member (Input ConversationSubsystemConfig) r,
-      -- TODO: Replace with ConversationSubsystemConfig
-      Member (Input Opts) r,
       Member Now r,
       Member LegalHoldStore r,
       Member ConversationStore r,
@@ -370,14 +368,14 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
 
 enforceFederationProtocol ::
   ( Member (Error FederationError) r,
-    Member (Input Opts) r
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   ProtocolTag ->
   [Remote ()] ->
   Sem r ()
 enforceFederationProtocol proto domains = do
   unless (null domains) $ do
-    mAllowedProtos <- view (settings . federationProtocols) <$> input
+    mAllowedProtos <- federationProtocols <$> input
     unless (maybe True (elem proto) mAllowedProtos) $
       throw FederationDisabledForProtocol
 

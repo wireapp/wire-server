@@ -174,7 +174,7 @@ validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when (settings' ^. maxConvSize > fromIntegral optFanoutLimit) $
+  when (settings'._maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
@@ -312,7 +312,10 @@ evalGalley e =
           }
       conversationSubsystemConfig =
         ConversationSubsystemConfig
-          { mlsKeys = e._mlsKeys
+          { mlsKeys = e._mlsKeys,
+            federationProtocols = e._options._settings._federationProtocols,
+            legalholdDefaults = lh,
+            maxConvSize = e._options._settings._maxConvSize
           }
    in ExceptT
         . runFinal @IO

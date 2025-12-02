@@ -51,7 +51,7 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Options
+import Galley.Options (Opts)
 import Galley.Types.Teams (notTeamMember)
 import Galley.Validation
 import Imports hiding ((\\))
@@ -82,6 +82,7 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -128,7 +129,8 @@ createGroupConversationUpToV3 ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -168,6 +170,7 @@ createGroupOwnConversation ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -215,6 +218,7 @@ createGroupConversation ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -270,7 +274,8 @@ createGroupConvAndMkResponse ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -306,6 +311,7 @@ createGroupConversationGeneric ::
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -355,7 +361,7 @@ createGroupConversationGeneric lusr conn newConv joinType = do
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamSubsystem r

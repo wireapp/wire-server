@@ -839,7 +839,8 @@ joinConversationByReusableCode ::
     Member TeamFeatureStore r,
     Member HashPassword r,
     Member RateLimit r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -861,7 +862,7 @@ joinConversationById ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ConversationSubsystem r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -880,7 +881,7 @@ joinConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ConversationSubsystem r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r,
     Member TeamSubsystem r
   ) =>
@@ -942,7 +943,6 @@ addMembers ::
     Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -998,7 +998,6 @@ addMembersUnqualifiedV2 ::
     Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -1043,7 +1042,6 @@ addMembersUnqualified ::
     Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -1091,7 +1089,6 @@ replaceMembers ::
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -1813,7 +1810,7 @@ addBot ::
     Member (ErrorS 'TooManyMembers) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r
   ) =>
   Local UserId ->
