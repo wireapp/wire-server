@@ -663,7 +663,7 @@ mockPushPulsar exchange message = do
   case Aeson.eitherDecode message.msgBody of
     Left e -> error $ "Invalid message body: " <> e
     Right (queuedNotif :: QueuedNotification) ->
-      msPulsarQueue %= deliver exchange (List1 (queuedNotif ^. queuedNotificationPayload))
+      msPulsarQueue %= deliver exchange (queuedNotif ^. queuedNotificationPayload)
 
 mockLookupAddresses ::
   (HasCallStack, m ~ MockGundeck) =>
