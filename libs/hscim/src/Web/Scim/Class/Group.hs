@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DefaultSignatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -157,9 +158,20 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   patchGroup ::
     AuthInfo tag ->
     GroupId tag ->
-    -- | PATCH payload
     Aeson.Value ->
     ScimHandler m (StoredGroup tag)
+
+  {-
+  default patchGroup ::
+    AuthInfo tag ->
+    GroupId tag ->
+    PatchOp tag ->
+    ScimHandler m (StoredGroup tag)
+  patchGroup info gid op' = do
+    WithMeta _ (WithId _ (group :: Group)) <- getGroup info gid
+    newGroup :: Group <- applyPatch group op'
+    putGroup info uid newGroup
+  -}
 
   -- | Delete a group.
   --

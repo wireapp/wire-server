@@ -17,6 +17,7 @@
 
 module Wire.ScimSubsystem.Interpreter where
 
+import Data.Aeson qualified as A
 import Data.Default
 import Data.Id
 import Data.Json.Util
@@ -63,6 +64,7 @@ interpretScimSubsystem = interpret $ \case
   ScimGetUserGroup tid gid -> scimGetUserGroupImpl tid gid
   ScimGetUserGroups tid mbFilter -> scimGetUserGroupsImpl tid mbFilter
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
+  ScimPatchUserGroup teamId userGroupId patch -> scimPatchUserGroupImpl teamId userGroupId patch
   ScimDeleteUserGroup teamId groupId -> deleteScimGroupImpl teamId groupId
 
 data ScimSubsystemError
@@ -192,6 +194,19 @@ scimUpdateUserGroupImpl teamId gid grp = do
   ScimSubsystemConfig scimBaseUri <- input
   maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
     =<< BrigAPI.getGroupInternal teamId gid includeChannels
+
+scimPatchUserGroupImpl ::
+  forall r.
+  () =>
+  -- Member (Input ScimSubsystemConfig) r,
+  -- Member (Error ScimSubsystemError) r,
+  -- Member BrigAPIAccess r
+
+  TeamId ->
+  UserGroupId ->
+  A.Value ->
+  Sem r (SCG.StoredGroup SparTag)
+scimPatchUserGroupImpl _teamId _userGroupId _patch = undefined
 
 deleteScimGroupImpl ::
   forall r.
