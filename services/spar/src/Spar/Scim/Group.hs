@@ -86,7 +86,7 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
     -- \| PATCH payload
     Aeson.Value ->
     ScimHandler m (SCG.StoredGroup SparTag)
-  patchGroup ((.stiTeam) -> tid) gid patch = lift $ scimPatchUserGroup tid gid patch
+  patchGroup = undefined
 
   -- \| Delete a group.
   --

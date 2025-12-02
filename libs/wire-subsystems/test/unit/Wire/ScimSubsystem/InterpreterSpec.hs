@@ -20,7 +20,6 @@
 
 module Wire.ScimSubsystem.InterpreterSpec (spec) where
 
-import Data.Aeson qualified as A
 import Data.Id
 import Data.Json.Util
 import Data.Text qualified as Text
@@ -168,10 +167,6 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
       unless (want have) do
         expectationFailure . show $ ((.userManagedBy) <$> UGS.allUsers team)
 
-  focus . describe "scimPatchGroup" $ do
-    prop "does not allow non-scim members" $ \(_team :: ()) (ScimGroupPatch _patch) -> do
-      False === True
-
   describe "scimDeleteUserGroup" $ do
     prop "deletes a SCIM-managed group" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
       let newScimGroup =
@@ -212,9 +207,3 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
             runDependenciesSafe (UGS.allUsers team) (UGS.galleyTeam team) $ do
               scimDeleteUserGroup team.tid randomGroupId
       have `shouldSatisfy` isRight
-
-newtype ScimGroupPatch = ScimGroupPatch A.Value
-  deriving newtype (Eq, Show)
-
-instance Arbitrary ScimGroupPatch where
-  arbitrary = undefined
