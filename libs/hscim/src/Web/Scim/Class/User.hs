@@ -26,7 +26,7 @@ module Web.Scim.Class.User
   )
 where
 
-import Data.Aeson.Types (FromJSON)
+import Data.Aeson.Types (FromJSON, ToJSON)
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic
@@ -66,7 +66,7 @@ data UserSite tag route = UserSite
     usPatchUser ::
       route
         :- Capture "id" (UserId tag)
-          :> ReqBody '[SCIM] (PatchOp tag)
+          :> ReqBody '[SCIM] PatchOp
           :> Patch '[SCIM] (StoredUser tag),
     usDeleteUser ::
       route
@@ -135,18 +135,17 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     AuthInfo tag ->
     UserId tag ->
     -- | PATCH payload
-    PatchOp tag ->
+    PatchOp ->
     ScimHandler m (StoredUser tag)
   default patchUser ::
-    (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
+    (FromJSON (UserExtra tag), ToJSON (UserExtra tag)) =>
     AuthInfo tag ->
     UserId tag ->
-    -- | PATCH payload
-    PatchOp tag ->
+    PatchOp ->
     ScimHandler m (StoredUser tag)
   patchUser info uid op' = do
     (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
-    (newUser :: User tag) <- applyPatch user op'
+    (newUser :: User tag) <- applyPatch op' user
     putUser info uid newUser
 
   -- | Delete a user.
