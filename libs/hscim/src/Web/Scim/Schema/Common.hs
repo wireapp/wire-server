@@ -40,7 +40,7 @@ data WithId id a = WithId
 
 instance (ToJSON id, ToJSON a) => ToJSON (WithId id a) where
   toJSON (WithId i v) = case toJSON v of
-    (Object o) -> Object (KeyMap.insert "id" (toJSON i) o)
+    (Object o) -> Object (KeyMap.insert (Key.fromString "id") (toJSON i) o)
     other -> other
 
 instance (FromJSON id, FromJSON a) => FromJSON (WithId id a) where

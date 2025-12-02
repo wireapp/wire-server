@@ -64,29 +64,21 @@ module Web.Scim.Schema.User
   ( User (..),
     empty,
     NoUserExtra (..),
-    applyPatch,
     resultToScimError,
     isUserSchema,
     module Web.Scim.Schema.UserTypes,
   )
 where
 
-import Control.Monad
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.List ((\\))
 import Data.Text (Text, pack)
-import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import Lens.Micro
-import Web.Scim.AttrName
-import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error
-import Web.Scim.Schema.PatchOp
-import Web.Scim.Schema.Schema (Schema (..), getSchemaUri)
+import Web.Scim.Schema.Schema (Schema (..))
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
 import Web.Scim.Schema.User.Email (Email)
@@ -212,8 +204,8 @@ instance (FromJSON (UserExtra tag)) => FromJSON (User tag) where
 instance (ToJSON (UserExtra tag)) => ToJSON (User tag) where
   toJSON User {..} =
     let mainObject =
-          KeyMap.fromList $
-            concat
+          KeyMap.fromList
+            $ concat
               [ ["schemas" .= schemas],
                 ["userName" .= userName],
                 optionalField "externalId" externalId,
@@ -262,100 +254,12 @@ instance FromJSON NoUserExtra where
 instance ToJSON NoUserExtra where
   toJSON _ = object []
 
-instance Patchable NoUserExtra where
-  applyOperation _ _ = throwError $ badRequest InvalidValue (Just "there are no user extra attributes to patch")
-
 ----------------------------------------------------------------------------
 -- Applying
-
--- | Applies a JSON Patch to a SCIM Core User
--- Only supports the core attributes.
--- Evenmore, only some hand-picked ones currently.
--- We'll have to think how patch is going to work in the presence of extensions.
--- Also, we can probably make  PatchOp type-safe to some extent (Read arianvp's thesis :))
-applyPatch ::
-  ( Patchable (UserExtra tag),
-    FromJSON (UserExtra tag),
-    MonadError ScimError m,
-    UserTypes tag
-  ) =>
-  User tag ->
-  PatchOp tag ->
-  m (User tag)
-applyPatch = (. getOperations) . foldM applyOperation
 
 resultToScimError :: (MonadError ScimError m) => Result a -> m a
 resultToScimError (Error reason) = throwError $ badRequest InvalidValue (Just (pack reason))
 resultToScimError (Success a) = pure a
-
--- TODO(arianvp): support multi-valued and complex attributes.
--- TODO(arianvp): Actually do this in some kind of type-safe way. e.g.
--- have a UserPatch type.
---
--- What I understand from the spec:  The difference between add an replace is only
--- in the fact that replace will not concat multi-values, and behaves differently for complex values too.
--- For simple attributes, add and replace are identical.
-applyUserOperation ::
-  forall m tag.
-  ( UserTypes tag,
-    FromJSON (User tag),
-    Patchable (UserExtra tag),
-    MonadError ScimError m
-  ) =>
-  User tag ->
-  Operation ->
-  m (User tag)
-applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
-applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
-  case attr of
-    "username" ->
-      (\x -> user {userName = x}) <$> resultToScimError (fromJSON value)
-    "displayname" ->
-      (\x -> user {displayName = x}) <$> resultToScimError (fromJSON value)
-    "externalid" ->
-      (\x -> user {externalId = x}) <$> resultToScimError (fromJSON value)
-    "active" ->
-      (\x -> user {active = x}) <$> resultToScimError (fromJSON value)
-    "roles" ->
-      (\x -> user {roles = x}) <$> resultToScimError (fromJSON value)
-    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active, roles"))
-applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
-  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
-applyUserOperation user (Operation Replace Nothing (Just value)) = do
-  case value of
-    Object hm | null ((AttrName . Key.toText <$> KeyMap.keys hm) \\ ["username", "displayname", "externalid", "active", "roles"]) -> do
-      (u :: User tag) <- resultToScimError $ fromJSON value
-      pure $
-        user
-          { userName = userName u,
-            displayName = displayName u,
-            externalId = externalId u,
-            active = active u
-          }
-    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active, roles"))
-applyUserOperation _ (Operation Replace _ Nothing) =
-  throwError (badRequest InvalidValue (Just "No value was provided"))
-applyUserOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
-applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
-  case attr of
-    "username" -> throwError (badRequest Mutability Nothing)
-    "displayname" -> pure $ user {displayName = Nothing}
-    "externalid" -> pure $ user {externalId = Nothing}
-    "active" -> pure $ user {active = Nothing}
-    "roles" -> pure $ user {roles = []}
-    _ -> pure user
-applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
-  throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
-
-instance (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) => Patchable (User tag) where
-  applyOperation user op@(Operation _ (Just (NormalPath (AttrPath schema _ _))) _)
-    | isUserSchema schema = applyUserOperation user op
-    | isSupportedCustomSchema schema = (\x -> user {extra = x}) <$> applyOperation (extra user) op
-    | otherwise =
-        throwError $ badRequest InvalidPath $ Just $ "we only support these schemas: " <> Text.intercalate ", " (map getSchemaUri (supportedSchemas @tag))
-    where
-      isSupportedCustomSchema = maybe False (`elem` supportedSchemas @tag)
-  applyOperation user op = applyUserOperation user op
 
 -- Omission of a schema for users is implicitly the core schema
 -- TODO(arianvp): Link to part of the spec that claims this.

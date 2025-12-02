@@ -86,6 +86,7 @@ library
   ghc-options:        -Wall -Wredundant-constraints -Wunused-packages
   build-depends:
       aeson
+    , aeson-diff
     , aeson-qq
     , attoparsec
     , attoparsec-aeson
@@ -209,7 +210,6 @@ test-suite spec
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
-    , attoparsec
     , base
     , bytestring
     , email-validate

@@ -27,8 +27,6 @@ where
 
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Either (isLeft, isRight)
-import Data.Foldable (for_)
 import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
@@ -40,12 +38,9 @@ import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress, validate)
 import qualified Web.Scim.Class.User as UserClass
-import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
 import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
-import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
-import qualified Web.Scim.Schema.PatchOp as PatchOp
 import Web.Scim.Schema.Schema (Schema (..))
 import Web.Scim.Schema.User (NoUserExtra (..), User (..))
 import qualified Web.Scim.Schema.User as User
@@ -62,10 +57,6 @@ prop_roundtrip :: Property
 prop_roundtrip = property $ do
   user <- forAll genUser
   tripping user toJSON fromJSON
-
-type PatchTag = TestTag Text () () UserExtraPatch
-
-type UserExtraPatch = KeyMap.KeyMap Text
 
 spec :: Spec
 spec = do
@@ -101,55 +92,6 @@ spec = do
         ]
         `shouldBe` Just adr1
 
-  describe "applyPatch" $ do
-    it "only applies patch for supported fields" $ do
-      let schemas' = []
-      let extras = KeyMap.empty
-      let user :: User PatchTag = User.empty schemas' "hello" extras
-      for_
-        [ ("username", String "lol"),
-          ("displayname", String "lol"),
-          ("externalid", String "lol"),
-          ("active", Bool True)
-        ]
-        $ \(key, upd) -> do
-          let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
-          let patchOp = PatchOp [operation]
-          User.applyPatch user patchOp `shouldSatisfy` isRight
-    it "does not support multi-value attributes" $ do
-      let schemas' = []
-      let extras = KeyMap.empty
-      let user :: User PatchTag = User.empty schemas' "hello" extras
-      for_
-        [ ("schemas", toJSON @[Schema] mempty),
-          ("name", toJSON @Name emptyName),
-          ("nickName", toJSON @Text mempty),
-          ("profileUrl", toJSON @URI (URI [uri|https://example.com|])),
-          ("title", toJSON @Text mempty),
-          ("userType", toJSON @Text mempty),
-          ("preferredLanguage", toJSON @Text mempty),
-          ("locale", toJSON @Text mempty),
-          ("password", toJSON @Text mempty),
-          ("emails", toJSON @[Email] mempty),
-          ("phoneNumbers", toJSON @[Phone] mempty),
-          ("ims", toJSON @[IM] mempty),
-          ("photos", toJSON @[Photo] mempty),
-          ("addresses", toJSON @[Address] mempty),
-          ("entitlements", toJSON @[Text] mempty),
-          ("x509Certificates", toJSON @[Certificate] mempty)
-        ]
-        $ \(key, upd) -> do
-          let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
-          let patchOp = PatchOp [operation]
-          User.applyPatch user patchOp `shouldSatisfy` isLeft
-    it "applies patch to `extra`" $ do
-      let schemas' = []
-      let extras = KeyMap.empty
-      let user :: User PatchTag = User.empty schemas' "hello" extras
-      let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
-      let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
-      let patchOp = PatchOp [operation]
-      User.extra <$> User.applyPatch user patchOp `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
@@ -158,14 +100,14 @@ spec = do
     it "has defaults for all optional and multi-valued fields" $ do
       toJSON minimalUser `shouldBe` minimalUserJson
       eitherDecode (encode minimalUserJson) `shouldBe` Right minimalUser
-    it "treats 'null' and '[]' as absence of fields" $
+    it "treats 'null' and '[]' as absence of fields" $ do
       eitherDecode (encode minimalUserJsonRedundant)
         `shouldBe` Right minimalUser
     it "allows casing variations in field names" $ do
       require $ mk_prop_caseInsensitive genUser
       require $ mk_prop_caseInsensitive (ListResponse.fromList . (: []) <$> genStoredUser)
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
-    it "doesn't require the 'schemas' field" $
+    it "doesn't require the 'schemas' field" $ do
       eitherDecode (encode minimalUserJsonNoSchemas)
         `shouldBe` Right minimalUser
     it "doesn't add 'extra' if it's an empty object" $ do
@@ -227,7 +169,7 @@ genUser = do
   let entitlements' = [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 20) Gen.unicode)
   let roles' = [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 10) Gen.unicode)
   let x509Certificates' = [] -- Gen.list (Range.constant 0 20) genCertificate
-  pure $
+  pure
     User
       { schemas = schemas',
         userName = userName',
@@ -261,7 +203,7 @@ completeUser =
       userName = "sample userName",
       externalId = Just "sample externalId",
       name =
-        Just $
+        Just
           Name
             { Name.formatted = Just "sample formatted name",
               Name.familyName = Nothing,
@@ -483,9 +425,6 @@ instance ToJSON UserExtraTest where
   toJSON UserExtraEmpty = object []
   toJSON (UserExtraObject t) =
     object ["urn:hscim:test" .= object ["test" .= t]]
-
-instance Patchable UserExtraTest where
-  applyOperation _ _ = undefined
 
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)
