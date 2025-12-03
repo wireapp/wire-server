@@ -1,0 +1,4 @@
+Since 5.23.23 (5866babe26f6b49511320dedb5b58a289ddcdbd4) RabbitMQ settings are
+mandatory for Brig in both, federated and non-federated setups. Unfortunately,
+this wasn't reflected in Brig's Helm chart. So, non-federated deployments were
+failing.
