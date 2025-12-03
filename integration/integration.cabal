@@ -197,6 +197,7 @@ library
     Test.Services
     Test.Spar
     Test.Spar.MultiIngressSSO
+    Test.Spar.ScimIssuerUpdateDeletionFailureReproducer
     Test.Spar.STM
     Test.Swagger
     Test.TeamCollaborators

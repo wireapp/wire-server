@@ -180,6 +180,11 @@ getIdps user = do
   req <- baseRequest user Spar Versioned "/identity-providers"
   submit "GET" req
 
+deleteIdp :: (HasCallStack, MakesValue user) => user -> String -> App Response
+deleteIdp user idpId = do
+  req <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
+  submit "DELETE" req
+
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/sso-team-metadata
 getSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 getSPMetadata = (flip getSPMetadataWithZHost) Nothing
