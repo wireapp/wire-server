@@ -581,6 +581,28 @@ cells:
     lockStatus: locked
 ```
 
+### Cells Internal
+
+Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. Because status/lockStatus are ignored for this internal part, keep them enabled and unlocked to avoid interference. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string that fits in `Int64` bytes.
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      cellsInternal:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+          config:
+            backend:
+              url: https://cells-beta.wire.com
+            collabora:
+              edition: CODE
+            storage:
+              teamQuotaBytes: "1000000000000" # 1 TB
+```
+
 ### Allowed Global Operations
 
 `allowedGlobalOperations` currently supports a single value `mlsConversationReset` which determines if it is allowed to reset MLS conversations by the client.

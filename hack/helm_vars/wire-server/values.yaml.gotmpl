@@ -368,6 +368,17 @@ galley:
           defaults:
             status: enabled
             lockStatus: unlocked
+        cellsInternal:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+            config:
+              backend:
+                url: https://cells-beta.wire.com
+              collabora:
+                edition: CODE
+              storage:
+                teamQuotaBytes: "1000000000000"
         allowedGlobalOperations:
           status: enabled
           config:
