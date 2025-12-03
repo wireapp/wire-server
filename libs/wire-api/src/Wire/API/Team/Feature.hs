@@ -141,6 +141,7 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
+import Data.Text.Read qualified as TR
 import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
@@ -1493,8 +1494,32 @@ newtype CellsBackend = CellsBackend
 instance ToSchema CellsBackend where
   schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
 
+newtype NumBytes = NumBytes {unNumBytes :: Int64}
+  deriving newtype (Show, Eq, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema NumBytes
+
+instance ToSchema NumBytes where
+  schema = toText .= (NumBytes <$> numBytesSchema)
+    where
+      toText :: NumBytes -> Text
+      toText = T.pack . show . unNumBytes
+
+      numBytesSchema :: ValueSchemaP NamedSwaggerDoc Text Int64
+      numBytesSchema = schema `withParser` parseNumBytes
+        where
+          parseNumBytes :: Text -> A.Parser Int64
+          parseNumBytes txt = do
+            (n, rest) <- either fail pure (TR.decimal txt :: Either String (Integer, Text))
+            unless (T.null rest) $
+              fail "numBytes must be an integer string without decimals"
+            when (n <= 0) $
+              fail "numBytes must be positive"
+            when (n > toInteger (maxBound @Int64)) $
+              fail "numBytes must fit into Int64"
+            pure (fromInteger n)
+
 newtype CellsStorage = CellsStorage
-  { teamQuotaBytes :: Int64
+  { teamQuotaBytes :: NumBytes
   }
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsStorage
@@ -1538,7 +1563,7 @@ instance Default CellsInternalConfig where
     CellsInternalConfig
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Code,
-        storage = CellsStorage 1000000000000 -- 1 TB
+        storage = CellsStorage $ NumBytes 1000000000000 -- 1 TB
       }
 
 instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
@@ -1550,10 +1575,10 @@ instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
         <*> storage .= fieldF "storage" schema
 
 instance Default (LockableFeature CellsInternalConfig) where
-  def = defLockedFeature
+  def = defUnlockedFeature
 
 instance IsFeatureConfig CellsInternalConfig where
-  type FeatureSymbol CellsInternalConfig = "channels"
+  type FeatureSymbol CellsInternalConfig = "cellsInternal"
   featureSingleton = FeatureSingletonCellsInternalConfig
   objectSchema = field "config" schema
 
