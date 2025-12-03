@@ -19,13 +19,13 @@
 
 module Wire.AppStore where
 
-import GHC.TypeNats
 import Data.Aeson
 import Data.Id
+import Data.Range
 import Data.UUID
+import GHC.TypeNats
 import Imports
 import Polysemy
-import Data.Range
 import Wire.API.App
 import Wire.API.PostgresMarshall
 
@@ -55,12 +55,12 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, Text) StoredApp wher
       <$> postgresUnmarshall uid
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
-      <*> (postgresUnmarshall =<< categoryFromText category)
-      <*> (inbound @1 @300 "description" =<< postgresUnmarshall description)
-      <*> (inbound @1 @256 "author" =<< postgresUnmarshall author)
+      <*> (postgresUnmarshall =<< maybe (Left $ "Category " <> category <> " not found") Right (categoryFromText category))
+      <*> (textRange @1 @300 "description" =<< postgresUnmarshall description)
+      <*> (textRange @1 @256 "author" =<< postgresUnmarshall author)
     where
-      inbound :: forall m n . (Within Text m n, KnownNat m, KnownNat n) => Text -> Text -> Either Text (Range m n Text)
-      inbound what text = maybe (Left $ what <> " out of bounds") Right (checked @m @n text)
+      textRange :: forall n m. (Within Text n m, KnownNat m, KnownNat n) => Text -> Text -> Either Text (Range n m Text)
+      textRange what text = maybe (Left $ what <> " out of bounds") Right (checked @n @m text)
 
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()

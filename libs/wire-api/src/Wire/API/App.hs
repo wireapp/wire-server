@@ -18,12 +18,13 @@
 module Wire.API.App where
 
 import Data.Aeson qualified as A
+import Data.HashMap.Strict qualified as HM
 import Data.Misc
 import Data.OpenApi qualified as S
+import Data.Range
 import Data.Schema
 import Data.Text qualified as TS
 import Imports
-import Data.Range
 import Wire.API.User
 import Wire.API.User.Auth
 
@@ -65,35 +66,47 @@ instance A.FromJSON Category where parseJSON = schemaParseJSON
 
 instance A.ToJSON Category where toJSON = schemaToJSON
 
-categoryFromText :: Text -> Either Text Category
-categoryFromText = either (Left . TS.pack) Right . A.eitherDecode . A.encode . A.String
+categoryTextMapping :: [(Text, Category)]
+categoryTextMapping =
+  [ ("security", Security),
+    ("collaboration", Collaboration),
+    ("productivity", Productivity),
+    ("automation", Automation),
+    ("files", Files),
+    ("ai", AI),
+    ("developer", Developer),
+    ("support", Support),
+    ("finance", Finance),
+    ("hr", HR),
+    ("integration", Integration),
+    ("compliance", Compliance),
+    ("other", Other)
+  ]
+
+categoryFromText :: Text -> Maybe Category
+categoryFromText text = HM.lookup text (HM.fromList categoryTextMapping)
 
 categoryToText :: Category -> Text
-categoryToText a = case A.toJSON a of
-  A.String t -> t
-  _ ->
-    error $
-      "wire-api:Wire/API/App.hs: The impossible happened, Category should serialize to JSON string: "
-        <> show a
+categoryToText = \case
+  Security -> "security"
+  Collaboration -> "collaboration"
+  Productivity -> "productivity"
+  Automation -> "automation"
+  Files -> "files"
+  AI -> "ai"
+  Developer -> "developer"
+  Support -> "support"
+  Finance -> "finance"
+  HR -> "hr"
+  Integration -> "integration"
+  Compliance -> "compliance"
+  Other -> "other"
 
 instance ToSchema Category where
   schema =
     enum @Text "Category" $
-      mconcat
-        [ element "security" Security,
-          element "collaboration" Collaboration,
-          element "productivity" Productivity,
-          element "automation" Automation,
-          element "files" Files,
-          element "ai" AI,
-          element "developer" Developer,
-          element "support" Support,
-          element "finance" Finance,
-          element "hr" HR,
-          element "integration" Integration,
-          element "compliance" Compliance,
-          element "other" Other
-        ]
+      mconcat $
+        map (uncurry element) categoryTextMapping
 
 instance ToSchema NewApp where
   schema =
