@@ -137,12 +137,10 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
-    {{- if .Values.config.enableFederation }}
     - name: RABBITMQ_USERNAME
       value: "guest"
     - name: RABBITMQ_PASSWORD
       value: "guest"
-    {{- end }}
     - name: TEST_XML
       value: /tmp/result.xml
     {{- if .Values.tests.config.uploadXml }}
