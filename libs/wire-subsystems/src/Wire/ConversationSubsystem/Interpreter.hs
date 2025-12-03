@@ -22,7 +22,6 @@ import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Qualified
 import Data.Singletons (Sing)
-import Data.Word (Word16)
 import Galley.Types.Teams (FeatureDefaults)
 import Imports
 import Network.AMQP qualified as Q
