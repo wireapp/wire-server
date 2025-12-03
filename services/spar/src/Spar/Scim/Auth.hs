@@ -181,8 +181,10 @@ createScimToken ::
   Sem r CreateScimTokenResponse
 createScimToken zusr Api.CreateScimToken {..} = do
   teamid <- guardScimTokenCreation zusr password verificationCode
-  mIdPId <- maybe (pure Nothing) (\idpid -> IdPConfigStore.getConfig idpid $> Just idpid) idp
-  createScimTokenUnchecked teamid name description mIdPId
+  guardIdPExists idp
+  createScimTokenUnchecked teamid name description idp
+  where
+    guardIdPExists = mapM_ IdPConfigStore.getConfig
 
 guardScimTokenCreation ::
   forall r.
