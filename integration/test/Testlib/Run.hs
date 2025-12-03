@@ -210,23 +210,24 @@ runMigrations = do
       void $ liftIO $ waitForProcess ph
 
 deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
-deleteFederationV0AndV1Queues env = do
-  let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
-  putStrLn "Attempting to delete federation V0 queues..."
-  (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
-  fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $
-    deleteFederationQueues testDomains env.gRabbitMQConfigV0 <$> mV0User <*> mV0Pass
+deleteFederationV0AndV1Queues _env = do
+  pure ()
+  -- let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
+  -- putStrLn "Attempting to delete federation V0 queues..."
+  -- (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
+  -- fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $
+  --   deleteFederationQueues testDomains env.gRabbitMQConfigV0 <$> mV0User <*> mV0Pass
 
-  putStrLn "Attempting to delete federation V1 queues..."
-  (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
-  fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
-    deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
-  where
-    readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
-    readCredsFromEnvWithSuffix suffix =
-      (,)
-        <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
-        <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
+  -- putStrLn "Attempting to delete federation V1 queues..."
+  -- (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
+  -- fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
+  --   deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
+  -- where
+  --   readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
+  --   readCredsFromEnvWithSuffix suffix =
+  --     (,)
+  --       <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
+  --       <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
 
 deleteFederationQueues :: [String] -> RabbitMqAdminOpts -> Text -> Text -> IO ()
 deleteFederationQueues testDomains opts username password = do
