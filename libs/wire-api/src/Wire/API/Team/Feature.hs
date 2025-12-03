@@ -1432,7 +1432,6 @@ instance IsFeatureConfig DomainRegistrationConfig where
 --------------------------------------------------------------------------------
 -- Cells feature
 
--- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data CellsConfig = CellsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform CellsConfig)
