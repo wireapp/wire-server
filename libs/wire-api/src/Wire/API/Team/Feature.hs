@@ -86,6 +86,8 @@ module Wire.API.Team.Feature
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
     CellsConfig (..),
+    CellsInternalConfig,
+    CellsInternalConfigB (..),
     AllowedGlobalOperationsConfig (..),
     AssetAuditLogConfig (..),
     ConsumableNotificationsConfig (..),
@@ -126,7 +128,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Map qualified as M
-import Data.Misc (HttpsUrl)
+import Data.Misc (HttpsUrl (..))
 import Data.Monoid hiding (All, First)
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -148,6 +150,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
+import URI.ByteString.QQ qualified as URI.QQ
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
@@ -256,6 +259,7 @@ data FeatureSingleton cfg where
   FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig :: FeatureSingleton SimplifiedUserConnectionRequestQRCodeConfig
   FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
   FeatureSingletonStealthUsersConfig :: FeatureSingleton StealthUsersConfig
+  FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1449,6 +1453,110 @@ instance IsFeatureConfig CellsConfig where
   featureSingleton = FeatureSingletonCellsConfig
   objectSchema = pure CellsConfig
 
+----------------------------------------------------------------------
+-- Cells Internal
+
+data CollaboraEdition = No | Code | Cool
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CollaboraEdition
+  deriving (Arbitrary) via (GenericUniform CollaboraEdition)
+
+instance ToSchema CollaboraEdition where
+  schema =
+    enum @Text "CollaboraEdition  " $
+      mconcat
+        [ element "NO" No,
+          element "CODE" Code,
+          element "COOL" Cool
+        ]
+
+newtype CellsCollabora = CellsCollabora
+  { edition :: CollaboraEdition
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsCollabora
+  deriving (Arbitrary) via (GenericUniform CellsCollabora)
+
+instance ToSchema CellsCollabora where
+  schema =
+    object "CellsCollabora" $
+      CellsCollabora
+        <$> edition .= field "edition" schema
+
+newtype CellsBackend = CellsBackend
+  { url :: HttpsUrl
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsBackend
+  deriving newtype (Arbitrary)
+
+instance ToSchema CellsBackend where
+  schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
+
+newtype CellsStorage = CellsStorage
+  { teamQuotaBytes :: Int64
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsStorage
+  deriving newtype (Arbitrary)
+
+instance ToSchema CellsStorage where
+  schema =
+    object "CellsStorage" $
+      CellsStorage
+        <$> teamQuotaBytes .= field "teamQuotaBytes" schema
+
+data CellsInternalConfigB t f = CellsInternalConfig
+  { backend :: Wear t f CellsBackend,
+    collabora :: Wear t f CellsCollabora,
+    storage :: Wear t f CellsStorage
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (CellsInternalConfigB Covered)
+
+deriving instance ApplicativeB (CellsInternalConfigB Covered)
+
+deriving instance TraversableB (CellsInternalConfigB Covered)
+
+type CellsInternalConfig = CellsInternalConfigB Bare Identity
+
+deriving instance Eq CellsInternalConfig
+
+deriving instance Show CellsInternalConfig
+
+deriving via (RenderableTypeName CellsInternalConfig) instance (RenderableSymbol CellsInternalConfig)
+
+deriving via (GenericUniform CellsInternalConfig) instance (Arbitrary CellsInternalConfig)
+
+deriving via (BarbieFeature CellsInternalConfigB) instance (ParseDbFeature CellsInternalConfig)
+
+deriving via (BarbieFeature CellsInternalConfigB) instance (ToSchema CellsInternalConfig)
+
+instance Default CellsInternalConfig where
+  def =
+    CellsInternalConfig
+      { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
+        collabora = CellsCollabora Code,
+        storage = CellsStorage 1000000000000 -- 1 TB
+      }
+
+instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
+  schema =
+    object "CellsInternalConfig" $
+      CellsInternalConfig
+        <$> backend .= fieldF "backend" schema
+        <*> collabora .= fieldF "collabora" schema
+        <*> storage .= fieldF "storage" schema
+
+instance Default (LockableFeature CellsInternalConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig CellsInternalConfig where
+  type FeatureSymbol CellsInternalConfig = "channels"
+  featureSingleton = FeatureSingletonCellsInternalConfig
+  objectSchema = field "config" schema
+
 --------------------------------------------------------------------------------
 -- Allowed Global Operations feature
 
@@ -1712,7 +1820,8 @@ type Features =
     AppsConfig,
     SimplifiedUserConnectionRequestQRCodeConfig,
     AssetAuditLogConfig,
-    StealthUsersConfig
+    StealthUsersConfig,
+    CellsInternalConfig
   ]
 
 -- | list of available features as a record
@@ -1894,7 +2003,7 @@ mkAllFeatures m =
 
 isCellsFeatureConfigEvent :: forall cfg. (IsFeatureConfig cfg) => Bool
 isCellsFeatureConfigEvent =
-  featureName @cfg == featureName @CellsConfig
+  featureName @cfg `elem` [featureName @CellsConfig, featureName @CellsInternalConfig]
 
 --------------------------------------------------------------------------------
 -- Team Feature Migration
