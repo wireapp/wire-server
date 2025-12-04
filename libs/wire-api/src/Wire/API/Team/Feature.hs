@@ -153,7 +153,7 @@ import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports hiding (All, First)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (getPrintableString)
+import Test.QuickCheck (choose, getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import URI.ByteString.QQ qualified as URI.QQ
@@ -1500,8 +1500,11 @@ instance ToSchema CellsBackend where
   schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
 
 newtype NumBytes = NumBytes {unNumBytes :: Int64}
-  deriving newtype (Show, Eq, Arbitrary)
+  deriving newtype (Show, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema NumBytes
+
+instance Arbitrary NumBytes where
+  arbitrary = NumBytes <$> choose (0 :: Int64, maxBound)
 
 instance ToSchema NumBytes where
   schema = toText .= (NumBytes <$> numBytesSchema)
