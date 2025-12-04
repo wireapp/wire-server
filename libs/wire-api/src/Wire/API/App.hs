@@ -23,7 +23,6 @@ import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
-import Data.Text qualified as TS
 import Imports
 import Wire.API.User
 import Wire.API.User.Auth
@@ -84,7 +83,7 @@ categoryTextMapping =
   ]
 
 categoryFromText :: Text -> Maybe Category
-categoryFromText text = HM.lookup text (HM.fromList categoryTextMapping)
+categoryFromText text' = HM.lookup text' (HM.fromList categoryTextMapping)
 
 categoryToText :: Category -> Text
 categoryToText = \case
