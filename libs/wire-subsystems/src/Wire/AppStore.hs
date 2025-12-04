@@ -34,8 +34,8 @@ data StoredApp = StoredApp
     teamId :: TeamId,
     meta :: Object,
     category :: Category,
-    description :: Range 1 300 Text,
-    author :: Range 1 256 Text
+    description :: Range 0 300 Text,
+    author :: Range 0 256 Text
   }
   deriving (Eq, Ord, Show)
 
@@ -56,8 +56,8 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, Text) StoredApp wher
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
       <*> (postgresUnmarshall =<< maybe (Left $ "Category " <> category <> " not found") Right (categoryFromText category))
-      <*> (textRange @1 @300 "description" =<< postgresUnmarshall description)
-      <*> (textRange @1 @256 "author" =<< postgresUnmarshall author)
+      <*> (textRange @0 @300 "description" =<< postgresUnmarshall description)
+      <*> (textRange @0 @256 "author" =<< postgresUnmarshall author)
     where
       textRange :: forall n m. (Within Text n m, KnownNat m, KnownNat n) => Text -> Text -> Either Text (Range n m Text)
       textRange what text = maybe (Left $ what <> " out of bounds") Right (checked @n @m text)

@@ -40,8 +40,8 @@ data GetApp = GetApp
     accentId :: ColourId,
     meta :: A.Object,
     category :: Category,
-    description :: Range 1 300 Text,
-    author :: Range 1 256 Text
+    description :: Range 0 300 Text,
+    author :: Range 0 256 Text
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
