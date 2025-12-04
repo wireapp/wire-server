@@ -50,7 +50,7 @@ testCellsInternal = do
   (alice, tid, _) <- createTeam OwnDomain 0
 
   withWebSocket alice $ \ws -> do
-    for_ validCellsInternlUpdates $ setFlag InternalAPI ws tid "cellsInternal"
+    for_ validCellsInternalUpdates $ setFlag InternalAPI ws tid "cellsInternal"
     for_ invalidCellsInternalUpdates $ setFeature InternalAPI alice tid "cellsInternal" >=> getJSON 400
 
   -- the feature does not have a public PUT endpoint
@@ -58,8 +58,8 @@ testCellsInternal = do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "no-endpoint"
 
-validCellsInternlUpdates :: [Value]
-validCellsInternlUpdates =
+validCellsInternalUpdates :: [Value]
+validCellsInternalUpdates =
   [ mkFt "enabled" "unlocked" defConf,
     mkFt "enabled" "unlocked" defConf {collabora = "NO"},
     mkFt "enabled" "unlocked" defConf {collabora = "COOL"},
@@ -100,7 +100,7 @@ defConf =
 
 testPatchCellsInternal :: (HasCallStack) => App ()
 testPatchCellsInternal = do
-  for_ validCellsInternlUpdates $ checkPatch OwnDomain "cellsInternal"
+  for_ validCellsInternalUpdates $ checkPatch OwnDomain "cellsInternal"
   (_, tid, _) <- createTeam OwnDomain 0
   for_ (mkFt "enabled" "locked" defConf : invalidCellsInternalUpdates)
     $ Internal.patchTeamFeature OwnDomain tid "cellsInternal"
