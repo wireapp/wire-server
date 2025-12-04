@@ -9,7 +9,9 @@
 , bytestring
 , cassandra-util
 , conduit
+, containers
 , cql
+, extra
 , gitignoreSource
 , imports
 , lens
@@ -32,7 +34,9 @@ mkDerivation {
     bytestring
     cassandra-util
     conduit
+    containers
     cql
+    extra
     imports
     lens
     optparse-applicative
