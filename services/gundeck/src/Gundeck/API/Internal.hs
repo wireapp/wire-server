@@ -22,7 +22,9 @@ module Gundeck.API.Internal
 where
 
 import Cassandra qualified
+import Control.Exception
 import Control.Lens (view)
+import Control.Monad.Catch
 import Data.Id
 import Gundeck.Client
 import Gundeck.Client qualified as Client
@@ -33,6 +35,7 @@ import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
 import Imports
 import Servant
+import System.Logger.Class
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Push.V2
 import Wire.API.Routes.Internal.Gundeck
@@ -68,6 +71,14 @@ getPushTokensH :: UserId -> Gundeck PushTok.PushTokenList
 getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> PushTok.lookup uid Cassandra.All)
 
 registerConsumableNotificationsClient :: UserId -> ClientId -> Gundeck NoContent
-registerConsumableNotificationsClient uid cid = do
-  setupConsumableNotifications uid cid
-  pure NoContent
+registerConsumableNotificationsClient uid cid =
+  -- TODO: This error handling is crazy: However, if there is any exception we want to see during this debug phase.
+  Control.Monad.Catch.catch
+    ( do
+        setupConsumableNotifications uid cid
+        pure NoContent
+    )
+    handler
+  where
+    handler :: SomeException -> Gundeck NoContent
+    handler e = System.Logger.Class.log Error (msg $ displayException e) >> pure NoContent
