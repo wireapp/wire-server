@@ -453,7 +453,7 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
-    app <- lift $ sequence $ getApp storedUser.id <$> storedUser.teamId
+    app <- lift $ mapM (getApp storedUser.id) storedUser.teamId
     lift $ deleteLocalIfExpired user
     pure $ case join app of
       Nothing -> usrProfile
