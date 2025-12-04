@@ -39,6 +39,8 @@ module Testlib.Cannon
     printAwaitAtLeastResult,
     waitForResponse,
     assertNoEvent,
+    -- This should never be merged!
+    connect,
   )
 where
 

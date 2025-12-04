@@ -29,10 +29,6 @@ spec:
       secret:
         secretName: "brig"
 
-    - name: "turn-servers"
-      configMap:
-        name: "turn"
-
     - name: "cannon-config"
       configMap:
         name: "cannon"
@@ -65,22 +61,6 @@ spec:
       configMap:
         name: "background-worker"
 
-    - name: "background-worker-secrets"
-      secret:
-        secretName: "background-worker"
-
-    - name: "stern-config"
-      configMap:
-        name: "backoffice"
-
-    - name: "proxy-config"
-      configMap:
-        name: "proxy"
-
-    - name: "proxy-secrets"
-      secret:
-        secretName: "proxy"
-
     - name: "nginz-config"
       configMap:
         name: "nginz"
@@ -89,27 +69,11 @@ spec:
       secret:
         secretName: "nginz"
 
-    - name: elasticsearch-ca
-      secret:
-        secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
-
-    - name: redis-ca
-      secret:
-        secretName: {{ .Values.config.redis.tlsCaSecretRef.name }}
-
-    - name: rabbitmq-ca
-      secret:
-        secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
-
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: integration-cassandra
       secret:
         secretName: {{ include "cassandraTlsSecretName" .Values.config }}
     {{- end }}
-
-    - name: wire-server-enterprise-config
-      configMap:
-        name: wire-server-enterprise
 
   restartPolicy: Never
 
@@ -121,14 +85,10 @@ spec:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
     volumeMounts:
-      - name: elasticsearch-ca
-        mountPath: "/certs/elasticsearch"
       {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
       - name: "integration-cassandra"
         mountPath: "/certs/cassandra"
       {{- end }}
-      - name: rabbitmq-ca
-        mountPath: /certs/rabbitmq-ca
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
       value: "{{ .Values.config.dynamicBackendsPoolsize }}"
@@ -141,32 +101,19 @@ spec:
     - name: RABBITMQ_USERNAME
       valueFrom:
         secretKeyRef:
-          name: brig
+          name: gundeck
           key: rabbitmqUsername
     - name: RABBITMQ_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: brig
+          name: gundeck
           key: rabbitmqPassword
     command:
       - /bin/sh
       - -c
       - |
         set -euo pipefail
-        # FUTUREWORK: Do all of this in the integration test binary
-        integration-dynamic-backends-db-schemas.sh \
-          --host {{ .Values.config.cassandra.host }} \
-          --port {{ .Values.config.cassandra.port }} \
-          --replication-factor {{ .Values.config.cassandra.replicationFactor }} \
-          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
-          --tls-ca-certificate-file /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values.config }}
-          {{ end }}
 
-        integration-dynamic-backends-brig-index.sh \
-          --elasticsearch-server https://elastic:changeme@{{ .Values.config.elasticsearch.host }}:9200 \
-          --elasticsearch-ca-cert /certs/elasticsearch/{{ .Values.config.elasticsearch.tlsCaSecretRef.key }}
-        integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
-        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
         integration-dynamic-backends-vhosts.sh {{ $.Values.config.rabbitmqPutVHostUrl }} {{ $dynamicBackend.federatorExternalHostPrefix}}.{{ $.Release.Namespace }}.svc.cluster.local
         {{- end }}
@@ -176,11 +123,12 @@ spec:
         cpu: "2"
 
   containers:
-  - name: integration
-    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        {{- if eq (include "includeSecurityContext" .) "true" }}
+  {{- range $i := until (int .Values.config.shardingGroupCount) }}
+  - name: "integration-{{ int $i}}"
+    image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" $) "true" }}
     securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+      {{- toYaml $.Values.podSecurityContext | nindent 6 }}
         {{- end }}
     command:
     - /bin/bash
@@ -188,13 +136,13 @@ spec:
     - |
       set -euo pipefail
 
-      if integration --config /etc/wire/integration/integration.yaml; then
+      if TEST_INCLUDE=testBench integration --config /etc/wire/integration/integration.yaml --sharding-group {{ $i }}; then
         exit_code=$?
       else
         exit_code=$?
       fi
 
-      {{- if .Values.config.uploadXml }}
+      {{- if $.Values.config.uploadXml }}
       # In case a different S3 compliant storage is used to upload test result.
       if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
         export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
@@ -210,7 +158,7 @@ spec:
     resources:
       requests:
         memory: "512Mi"
-        cpu: "2"
+        cpu: "0.5"
     volumeMounts:
 
     - name: integration-config
@@ -228,9 +176,6 @@ spec:
     - name: brig-secrets
       mountPath: /etc/wire/brig/secrets
 
-    - name: turn-servers
-      mountPath: /etc/wire/brig/turn
-
     - name: cannon-config
       mountPath: /etc/wire/cannon/conf
 
@@ -243,58 +188,13 @@ spec:
     - name: spar-config
       mountPath: /etc/wire/spar/conf
 
-    - name: federator-config
-      mountPath: /etc/wire/federator/conf
-
-    - name: federator-secrets
-      mountPath: /etc/wire/federator/secrets
-
-    - name: federator-ca
-      mountPath: /etc/wire/federator/ca
-
-    - name: background-worker-config
-      mountPath: /etc/wire/background-worker/conf
-
-    - name: background-worker-secrets
-      mountPath: /etc/wire/background-worker/secrets
-
-    - name: stern-config
-      mountPath: /etc/wire/stern/conf
-
-    - name: proxy-config
-      mountPath: /etc/wire/proxy/conf
-
-    - name: proxy-secrets
-      mountPath: /etc/wire/proxy/secrets
-
     - name: nginz-config
       mountPath: /etc/wire/nginz/conf
 
     - name: nginz-secrets
       mountPath: /etc/wire/nginz/secrets
 
-    - name: elasticsearch-ca
-      mountPath: /etc/wire/brig/elasticsearch-ca
-
-    - name: redis-ca
-      mountPath: /etc/wire/gundeck/redis-ca
-
-    - name: rabbitmq-ca
-      mountPath: /etc/wire/brig/rabbitmq-ca
-
-    - name: rabbitmq-ca
-      mountPath: /etc/wire/galley/rabbitmq-ca
-
-    - name: rabbitmq-ca
-      mountPath: /etc/wire/background-worker/rabbitmq-ca
-
-    - name: rabbitmq-ca
-      mountPath: /etc/wire/gundeck/rabbitmq-ca
-
-    - name: rabbitmq-ca
-      mountPath: /etc/wire/cannon/rabbitmq-ca
-
-    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    {{- if eq (include "useCassandraTLS" $.Values.config) "true" }}
     - name: "integration-cassandra"
       mountPath: "/certs"
 
@@ -311,9 +211,6 @@ spec:
       mountPath: "/etc/wire/spar/cassandra"
     {{- end }}
 
-    - name: wire-server-enterprise-config
-      mountPath: /etc/wire/wire-server-enterprise/conf
-
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
@@ -325,35 +222,21 @@ spec:
     - name: RABBITMQ_USERNAME
       valueFrom:
         secretKeyRef:
-          name: brig
+          name: gundeck
           key: rabbitmqUsername
     - name: RABBITMQ_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: brig
+          name: gundeck
           key: rabbitmqPassword
-    - name: RABBITMQ_USERNAME_V0
-      value: "wire-server"
-    - name: RABBITMQ_PASSWORD_V0
-      valueFrom:
-        secretKeyRef:
-          name: rabbitmq-v0
-          key: rabbitmq-password
-    - name: RABBITMQ_USERNAME_V1
-      value: "wire-server"
-    - name: RABBITMQ_PASSWORD_V1
-      valueFrom:
-        secretKeyRef:
-          name: rabbitmq-v1
-          key: rabbitmq-password
-    {{- if hasKey .Values.secrets "redisUsername" }}
+    {{- if hasKey $.Values.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:
         secretKeyRef:
           name: integration
           key: redisUsername
     {{- end }}
-    {{- if hasKey .Values.secrets "redisPassword" }}
+    {{- if hasKey $.Values.secrets "redisPassword" }}
     - name: REDIS_PASSWORD
       valueFrom:
         secretKeyRef:
@@ -362,10 +245,10 @@ spec:
     {{- end }}
     - name: TEST_XML
       value: /tmp/result.xml
-    {{- if .Values.config.uploadXml }}
+    {{- if $.Values.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
-      value: {{ .Values.config.uploadXml.baseUrl }}
-    {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
+      value: {{ $.Values.config.uploadXml.baseUrl }}
+    {{- if $.Values.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
@@ -379,8 +262,9 @@ spec:
     {{- end }}
     {{- end }}
     - name: ENABLE_FEDERATION_V0
-      value: "1"
+      value: "0"
     - name: ENABLE_FEDERATION_V1
-      value: "1"
+      value: "0"
     - name: ENABLE_FEDERATION_V2
-      value: "1"
+      value: "0"
+  {{- end }}

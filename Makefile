@@ -18,7 +18,8 @@ fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 ingress-nginx-controller nginx-ingress-services reaper restund \
-k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise
+k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise \
+integration
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 # (run `psql -h localhost -p 5432 -d backendA -U wire-server -w` for the list of options for PSQL_DB)

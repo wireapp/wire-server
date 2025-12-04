@@ -22,35 +22,21 @@ import Control.Exception as E
 import Control.Monad
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
-import Control.Monad.Reader.Class (asks)
-import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List
 import Data.Maybe (fromMaybe)
-import Data.String (IsString (fromString))
-import Data.String.Conversions (cs)
-import Data.Text (Text)
-import qualified Data.Text as T
 import Data.Time
-import qualified Data.Yaml as Yaml
-import Network.AMQP.Extended
-import Network.RabbitMqAdmin
 import RunAllTests
 import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
-import System.IO.Temp (writeTempFile)
-import System.Process
 import Testlib.Assertions
 import Testlib.Env
-import Testlib.ModService (readAndUpdateConfig)
 import Testlib.Options
 import Testlib.Printing
-import Testlib.ResourcePool (acquireResources)
-import Testlib.RunServices (backendA, backendB)
 import Testlib.Types
 import Testlib.XML
 import Text.Printf
@@ -123,6 +109,7 @@ main = do
   opts <- getOptions
   let f = testFilter opts
       cfg = opts.configFile
+      shardingGroup = opts.shardingGroup
 
   allTests <- mkAllTests
   let tests =
@@ -132,10 +119,10 @@ main = do
             let qualifiedName = fromMaybe module_ (stripPrefix "Test." module_) <> "." <> name
              in (qualifiedName, summary, full, action)
 
-  if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
+  if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg shardingGroup
 
-runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> IO ()
-runTests tests mXMLOutput cfg = do
+runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> Word -> IO ()
+runTests tests mXMLOutput cfg shardingGroup = do
   output <- newChan
   let displayOutput =
         readChan output >>= \case
@@ -143,12 +130,12 @@ runTests tests mXMLOutput cfg = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  runCodensity (mkEnvs cfg) $ \(genv, env) ->
+  runCodensity (mkEnvs cfg) $ \(genv, _env) ->
     withAsync displayOutput $ \displayThread -> do
       -- Although migrations are run on service start up we are running them here before
       -- to prevent race conditions between brig and galley
       -- which cause flakiness and can make the complete test suite fail
-      runAppWithEnv env runMigrations
+      -- runAppWithEnv env runMigrations
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
         timestamp <- getCurrentTime
@@ -172,7 +159,7 @@ runTests tests mXMLOutput cfg = do
             pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
       writeChan output Nothing
       wait displayThread
-      deleteFederationV0AndV1Queues genv
+      -- deleteFederationV0AndV1Queues genv
       printReport report
       mapM_ (saveXMLReport report) mXMLOutput
       when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
@@ -180,62 +167,62 @@ runTests tests mXMLOutput cfg = do
   where
     mkEnvs :: FilePath -> Codensity IO (GlobalEnv, Env)
     mkEnvs fp = do
-      g <- mkGlobalEnv fp
+      g <- mkGlobalEnv fp shardingGroup
       e <- mkEnv Nothing g
       pure (g, e)
 
-runMigrations :: App ()
-runMigrations = do
-  cwdBase <- asks (.servicesCwdBase)
-  let brig = "brig"
-  let (cwd, exe) = case cwdBase of
-        Nothing -> (Nothing, brig)
-        Just dir ->
-          (Just (dir </> brig), "../../dist" </> brig)
-  getConfig <- readAndUpdateConfig def backendA Brig
-  config <- liftIO getConfig
-  tempFile <- liftIO $ writeTempFile "/tmp" "brig-migrations.yaml" (cs $ Yaml.encode config)
-  dynDomains <- asks (.dynamicDomains)
-  pool <- asks (.resourcePool)
-  lowerCodensity $ do
-    resources <- acquireResources (length dynDomains) pool
-    let dbnames = [backendA.berPostgresqlDBName, backendB.berPostgresqlDBName] <> map (.berPostgresqlDBName) resources
-    for_ dbnames $ runMigration exe tempFile cwd
-    liftIO $ putStrLn "Postgres migrations finished"
-  where
-    runMigration :: (MonadIO m) => FilePath -> FilePath -> Maybe FilePath -> String -> m ()
-    runMigration exe tempFile cwd dbname = do
-      let cp = (proc exe ["-c", tempFile, "migrate-postgres", "--dbname", dbname]) {cwd}
-      (_, _, _, ph) <- liftIO $ createProcess cp
-      void $ liftIO $ waitForProcess ph
+-- runMigrations :: App ()
+-- runMigrations = do
+--   cwdBase <- asks (.servicesCwdBase)
+--   let brig = "brig"
+--   let (cwd, exe) = case cwdBase of
+--         Nothing -> (Nothing, brig)
+--         Just dir ->
+--           (Just (dir </> brig), "../../dist" </> brig)
+--   getConfig <- readAndUpdateConfig def backendA Brig
+--   config <- liftIO getConfig
+--   tempFile <- liftIO $ writeTempFile "/tmp" "brig-migrations.yaml" (cs $ Yaml.encode config)
+--   dynDomains <- asks (.dynamicDomains)
+--   pool <- asks (.resourcePool)
+--   lowerCodensity $ do
+--     resources <- acquireResources (length dynDomains) pool
+--     let dbnames = [backendA.berPostgresqlDBName, backendB.berPostgresqlDBName] <> map (.berPostgresqlDBName) resources
+--     for_ dbnames $ runMigration exe tempFile cwd
+--     liftIO $ putStrLn "Postgres migrations finished"
+--   where
+--     runMigration :: (MonadIO m) => FilePath -> FilePath -> Maybe FilePath -> String -> m ()
+--     runMigration exe tempFile cwd dbname = do
+--       let cp = (proc exe ["-c", tempFile, "migrate-postgres", "--dbname", dbname]) {cwd}
+--       (_, _, _, ph) <- liftIO $ createProcess cp
+--       void $ liftIO $ waitForProcess ph
 
-deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
-deleteFederationV0AndV1Queues env = do
-  let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
-  putStrLn "Attempting to delete federation V0 queues..."
-  (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
-  fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $
-    deleteFederationQueues testDomains env.gRabbitMQConfigV0 <$> mV0User <*> mV0Pass
-
-  putStrLn "Attempting to delete federation V1 queues..."
-  (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
-  fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
-    deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
-  where
-    readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
-    readCredsFromEnvWithSuffix suffix =
-      (,)
-        <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
-        <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
-
-deleteFederationQueues :: [String] -> RabbitMqAdminOpts -> Text -> Text -> IO ()
-deleteFederationQueues testDomains opts username password = do
-  client <- mkRabbitMqAdminClientEnvWithCreds opts username password
-  for_ testDomains $ \domain -> do
-    page <- client.listQueuesByVHost opts.vHost (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
-    for_ page.items $ \queue -> do
-      putStrLn $ "Deleting queue " <> T.unpack queue.name
-      void $ deleteQueue client opts.vHost queue.name
+-- deleteFederationV0AndV1Queues :: GlobalEnv -> IO ()
+-- deleteFederationV0AndV1Queues env = do
+--   let testDomains = env.gDomain1 : env.gDomain2 : env.gDynamicDomains
+--   putStrLn "Attempting to delete federation V0 queues..."
+--   (mV0User, mV0Pass) <- readCredsFromEnvWithSuffix "V0"
+--   fromMaybe (putStrLn "No or incomplete credentials for fed V0 RabbitMQ") $
+--     deleteFederationQueues testDomains env.gRabbitMQConfigV0 <$> mV0User <*> mV0Pass
+--
+--   putStrLn "Attempting to delete federation V1 queues..."
+--   (mV1User, mV1Pass) <- readCredsFromEnvWithSuffix "V1"
+--   fromMaybe (putStrLn "No or incomplete credentials for fed V1 RabbitMQ") $
+--     deleteFederationQueues testDomains env.gRabbitMQConfigV1 <$> mV1User <*> mV1Pass
+--   where
+--     readCredsFromEnvWithSuffix :: String -> IO (Maybe Text, Maybe Text)
+--     readCredsFromEnvWithSuffix suffix =
+--       (,)
+--         <$> (fmap fromString <$> lookupEnv ("RABBITMQ_USERNAME_" <> suffix))
+--         <*> (fmap fromString <$> lookupEnv ("RABBITMQ_PASSWORD_" <> suffix))
+--
+-- deleteFederationQueues :: [String] -> RabbitMqAdminOpts -> Text -> Text -> IO ()
+-- deleteFederationQueues testDomains opts username password = do
+--   client <- mkRabbitMqAdminClientEnvWithCreds opts username password
+--   for_ testDomains $ \domain -> do
+--     page <- client.listQueuesByVHost opts.vHost (fromString $ "^backend-notifications\\." <> domain <> "$") True 100 1
+--     for_ page.items $ \queue -> do
+--       putStrLn $ "Deleting queue " <> T.unpack queue.name
+--       void $ deleteQueue client opts.vHost queue.name
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do

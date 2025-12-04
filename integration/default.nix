@@ -74,6 +74,7 @@
 , split
 , stm
 , streaming-commons
+, streamly
 , string-conversions
 , system-linux-proc
 , tagged
@@ -179,6 +180,7 @@ mkDerivation {
     split
     stm
     streaming-commons
+    streamly
     string-conversions
     system-linux-proc
     tagged
