@@ -23,9 +23,11 @@ library
 
   build-depends:
     , base
+    , containers
     , aeson
     , aeson-pretty
     , bytestring
+    , extra
     , cassandra-util
     , conduit
     , cql

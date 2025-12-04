@@ -20,11 +20,53 @@
 
 module MlsUsers.Types where
 
-import Cassandra as C
+import qualified Cassandra as C
 import Control.Lens
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Encode.Pretty as A
+import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Id
 import Data.Text.Strict.Lens
+import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
 import Options.Applicative
+import Wire.API.User
+
+data UserRow = UserRow
+  { userId :: UserId,
+    activated :: Bool,
+    status :: Maybe AccountStatus,
+    supportedProtocols :: Set BaseProtocolTag
+  }
+  deriving (Generic)
+
+instance A.ToJSON UserRow
+
+recordInstance ''UserRow
+
+instance Show UserRow where
+  show = LC8.unpack . A.encodePretty
+
+data Result = Result
+  { totalUsers :: Int,
+    activeNoMLS :: Int
+  }
+  deriving (Generic)
+
+instance A.ToJSON Result
+
+instance Show Result where
+  show = LC8.unpack . A.encodePretty
+
+instance Semigroup Result where
+  r1 <> r2 =
+    Result
+      { totalUsers = r1.totalUsers + r2.totalUsers,
+        activeNoMLS = r1.activeNoMLS + r2.activeNoMLS
+      }
+
+instance Monoid Result where
+  mempty = Result {totalUsers = 0, activeNoMLS = 0}
 
 data CassandraSettings = CassandraSettings
   { host :: String,
