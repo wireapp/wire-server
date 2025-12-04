@@ -500,10 +500,17 @@ addJSONToFailureContext name ctx action = do
 registerTestIdPWithMeta :: (HasCallStack, MakesValue owner) => owner -> App Response
 registerTestIdPWithMeta owner = fst <$> registerTestIdPWithMetaWithPrivateCreds owner
 
-registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
-registerTestIdPWithMetaWithPrivateCreds owner = do
+registerTestIdPWithMetaWithPrivateCredsForZHost ::
+  (HasCallStack, MakesValue owner) =>
+  owner ->
+  Maybe String ->
+  App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
+registerTestIdPWithMetaWithPrivateCredsForZHost owner mbZhost = do
   SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
-  (,(idpmeta, pCreds)) <$> createIdp owner idpmeta
+  (,(idpmeta, pCreds)) <$> createIdpWithZHost owner mbZhost idpmeta
+
+registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
+registerTestIdPWithMetaWithPrivateCreds = flip registerTestIdPWithMetaWithPrivateCredsForZHost Nothing
 
 updateTestIdpWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> String -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
 updateTestIdpWithMetaWithPrivateCreds owner idpId = do

@@ -55,6 +55,7 @@ import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.Map as Map
 import Data.Proxy
 import Data.Range
 import Data.Text.Encoding.Error
@@ -109,6 +110,7 @@ import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
@@ -174,7 +176,7 @@ api ::
   ServerT SparAPI (Sem r)
 api opts =
   apiSSO opts
-    :<|> apiIDP
+    :<|> apiIDP opts
     :<|> apiScim
     :<|> apiINTERNAL
 
@@ -219,14 +221,15 @@ apiIDP ::
     Member SAMLUserStore r,
     Member (Error SparError) r
   ) =>
+  Opts ->
   ServerT APIIDP (Sem r)
-apiIDP =
+apiIDP opts =
   Named @"idp-get" idpGet -- get, json, captures idp id
     :<|> Named @"idp-get-raw" idpGetRaw -- get, raw xml, capture idp id
     :<|> Named @"idp-get-all" idpGetAll -- get, json
-    :<|> Named @"idp-create@v7" idpCreateV7
-    :<|> Named @"idp-create" idpCreate -- post, created
-    :<|> Named @"idp-update" idpUpdate -- put, okay
+    :<|> Named @"idp-create@v7" (idpCreateV7 opts.saml)
+    :<|> Named @"idp-create" (idpCreate opts.saml) -- post, created
+    :<|> Named @"idp-update" (idpUpdate opts.saml) -- put, okay
     :<|> Named @"idp-delete" idpDelete -- delete, no content
 
 apiINTERNAL ::
@@ -594,7 +597,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
     -- there is little to be gained here: we only use old issuers to find users that have not
     -- been migrated yet, and if an old user points to a deleted idp, it just means that we
-    -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
+    -- won't find any users to migrate.  still, doesn't hurt much to look either.  so we
     -- leave old issuers dangling for now.
 
     updateReplacingIdP :: IdP -> Sem r ()
@@ -631,22 +634,46 @@ idpCreate ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   TeamId ->
+  Maybe ZHostValue ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate tid (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+  let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
   GalleyAccess.assertSSOEnabled tid
+  guardMultiIngressDuplicateDomain tid mbHost
   idp <-
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
-      >>= validateNewIdP apiversion idpmeta tid mReplaces
+      >>= validateNewIdP apiversion idpmeta tid mReplaces mbHost
   IdPRawMetadataStore.store (idp ^. SAML.idpId) rawIdpMetadata
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
+  where
+    -- Ensure that the domain is not in use by an existing IDP
+    guardMultiIngressDuplicateDomain ::
+      ( Member (Error SparError) r,
+        Member IdPConfigStore r
+      ) =>
+      TeamId ->
+      Maybe ZHostValue ->
+      Sem r ()
+    guardMultiIngressDuplicateDomain _teamId Nothing = pure ()
+    guardMultiIngressDuplicateDomain teamId (Just zHost) = do
+      idps <- IdPConfigStore.getConfigsByTeam teamId
+      let domains = idps ^.. traverse . SAML.idpExtraInfo . domain . _Just
+      when (zHost `elem` domains) $
+        throwSparSem SparIdPDomainInUse
+
+-- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
+filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
+filterMultiIngressZHost (Right domainMap) (Just zHost) | (Domain zHost) `Map.member` domainMap = Just zHost
+filterMultiIngressZHost _ _ = Nothing
 
 idpCreateV7 ::
   ( Member Random r,
@@ -658,15 +685,16 @@ idpCreateV7 ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   TeamId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateV7 tid idpmeta mReplaces mApiversion mHandle = do
+idpCreateV7 samlConfig tid idpmeta mReplaces mApiversion mHandle = do
   assertNoScimOrNoIdP
-  idpCreate tid idpmeta mReplaces mApiversion mHandle
+  idpCreate samlConfig tid Nothing idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -716,9 +744,10 @@ validateNewIdP ::
   SAML.IdPMetadata ->
   TeamId ->
   Maybe SAML.IdPId ->
+  Maybe ZHostValue ->
   IdPHandle ->
   m IdP
-validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
+validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> Random.uuid
   oldIssuersList :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
@@ -726,7 +755,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog 
       idp <- IdPConfigStore.getConfig replaces
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . oldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuersList Nothing idHandle
+      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuersList Nothing idHandle idpDomain
   enforceHttps requri
   mbIdp <- case apiversion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
@@ -758,12 +787,16 @@ idpUpdate ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   Maybe UserId ->
+  Maybe ZHostValue ->
   IdPMetadataInfo ->
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
+idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
+  let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
+   in idpUpdateXML zusr mbHost raw xml
 
 idpUpdateXML ::
   ( Member Random r,
@@ -775,29 +808,51 @@ idpUpdateXML ::
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
+  Maybe ZHostValue ->
   Text ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
+idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
+  guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of
         Just idpHandle -> idp & (SAML.idpExtraInfo . handle) .~ IdPHandle (fromRange idpHandle)
         Nothing -> idp
+      idp'' :: IdP = idp' & (SAML.idpExtraInfo . domain) .~ mDomain
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
-  IdPConfigStore.insertConfig idp'
+  IdPConfigStore.insertConfig idp''
   -- if the IdP issuer is updated, the old issuer must be removed explicitly.
   -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
-  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . apiVersion of
+  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp'' ^. SAML.idpExtraInfo . apiVersion of
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
-  forM_ (idp' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
-  pure idp'
+  forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
+  pure idp''
+  where
+    -- Ensure that the domain is not in use by an existing IDP
+    guardMultiIngressDuplicateDomain ::
+      ( Member (Error SparError) r,
+        Member IdPConfigStore r
+      ) =>
+      TeamId ->
+      Maybe ZHostValue ->
+      SAML.IdPId ->
+      Sem r ()
+    guardMultiIngressDuplicateDomain _teamId Nothing _ = pure ()
+    guardMultiIngressDuplicateDomain teamId (Just zHost) idpId = do
+      idps <- IdPConfigStore.getConfigsByTeam teamId
+      let otherIdpsOnSameDomain =
+            any
+              (\idp -> (idp ^. SAML.idpExtraInfo . domain) == (Just zHost) && (idp ^. SAML.idpId) /= idpId)
+              idps
+      when otherIdpsOnSameDomain $
+        throwSparSem SparIdPDomainInUse
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as

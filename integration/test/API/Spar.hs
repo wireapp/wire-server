@@ -161,24 +161,46 @@ mkScimUser scimUserId =
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
-createIdp user metadata = do
-  req <- baseRequest user Spar Versioned "/identity-providers"
-  submit "POST" $ req
-    & addQueryParams [("api_version", "v2")]
-    & addXML (fromLT $ SAML.encode metadata)
+createIdp = (flip createIdpWithZHost) Nothing
+
+createIdpWithZHost :: (HasCallStack, MakesValue user) => user -> Maybe String -> SAML.IdPMetadata -> App Response
+createIdpWithZHost user mbZHost metadata = do
+  bReq <- baseRequest user Spar Versioned "/identity-providers"
+  let req =
+        bReq
+          & addQueryParams [("api_version", "v2")]
+          & addXML (fromLT $ SAML.encode metadata)
+          & addHeader "Content-Type" "application/xml"
+  submit "POST" (req & maybe id zHost mbZHost)
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-update
 updateIdp :: (HasCallStack, MakesValue user) => user -> String -> SAML.IdPMetadata -> App Response
-updateIdp user idpId metadata = do
-  req <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
-  submit "PUT" $ req
-    & addXML (fromLT $ SAML.encode metadata)
+updateIdp = (flip updateIdpWithZHost) Nothing
+
+updateIdpWithZHost :: (HasCallStack, MakesValue user) => user -> Maybe String -> String -> SAML.IdPMetadata -> App Response
+updateIdpWithZHost user mbZHost idpId metadata = do
+  bReq <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
+  let req =
+        bReq
+          & addXML (fromLT $ SAML.encode metadata)
+          & addHeader "Content-Type" "application/xml"
+  submit "PUT" (req & maybe id zHost mbZHost)
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-get-all
 getIdps :: (HasCallStack, MakesValue user) => user -> App Response
 getIdps user = do
   req <- baseRequest user Spar Versioned "/identity-providers"
   submit "GET" req
+
+getIdp :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getIdp user idpId = do
+  req <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
+  submit "GET" req
+
+deleteIdp :: (HasCallStack, MakesValue user) => user -> String -> App Response
+deleteIdp user idpId = do
+  req <- baseRequest user Spar Versioned $ joinHttpPath ["identity-providers", idpId]
+  submit "DELETE" req
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/sso-team-metadata
 getSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> App Response

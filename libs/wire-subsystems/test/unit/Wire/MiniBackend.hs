@@ -733,7 +733,7 @@ miniFederationAPIAccess ::
   Sem r a
 miniFederationAPIAccess online = do
   let runner :: FederatedActionRunner MiniFederationMonad r
-      runner domain rpc = pure . Right $ runMiniFederation domain online rpc
+      runner ownDomain rpc = pure . Right $ runMiniFederation ownDomain online rpc
   interpret \case
     RunFederatedEither remote rpc ->
       if isJust (M.lookup (qDomain $ tUntagged remote) online)

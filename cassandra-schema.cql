@@ -2050,6 +2050,7 @@ CREATE TABLE spar_test.issuer_idp (
 CREATE TABLE spar_test.idp (
     idp uuid PRIMARY KEY,
     api_version int,
+    domain text,
     extra_public_keys list<blob>,
     handle text,
     issuer text,
