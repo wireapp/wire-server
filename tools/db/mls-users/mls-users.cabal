@@ -11,6 +11,7 @@ build-type:    Simple
 
 library
   hs-source-dirs:     src
+  default-language:   Haskell2010
   exposed-modules:
     MlsUsers.Lib
     MlsUsers.Types
@@ -24,7 +25,6 @@ library
   build-depends:
     , aeson
     , aeson-pretty
-    , base
     , bytestring
     , cassandra-util
     , conduit
