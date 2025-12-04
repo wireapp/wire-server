@@ -22,15 +22,15 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-    , base
-    , containers
     , aeson
     , aeson-pretty
+    , base
     , bytestring
-    , extra
     , cassandra-util
     , conduit
+    , containers
     , cql
+    , extra
     , imports
     , lens
     , optparse-applicative

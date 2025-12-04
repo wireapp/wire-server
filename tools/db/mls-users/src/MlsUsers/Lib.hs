@@ -120,4 +120,4 @@ readUsers client =
   where
     selectUsersAll :: C.PrepQuery C.R () (CQL.TupleType UserRow)
     selectUsersAll =
-      "SELECT id, activated, status, team FROM user"
+      "SELECT id, activated, status, supported_protocols FROM user"
