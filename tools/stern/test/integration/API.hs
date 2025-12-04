@@ -33,6 +33,7 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Handle
 import Data.Id
+import Data.Misc (HttpsUrl)
 import Data.Range (unsafeRange)
 import Data.Schema
 import Data.Set qualified as Set
@@ -116,6 +117,7 @@ tests s =
       test s "PUT /teams/:tid/features/sndFactorPasswordChallenge{,'?lockOrUnlock'}" $ testLockStatus @SndFactorPasswordChallengeConfig,
       test s "PUT /teams/:tid/features/limitedEventFanout{,'?lockOrUnlock'}" $ testLockStatus @LimitedEventFanoutConfig,
       test s "PUT /teams/:tid/features/cells{,'?lockOrUnlock'}" $ testLockStatus @CellsConfig,
+      test s "/teams/:tid/features/cellsInternal" testCellsInternalConfig,
       test s "PUT /teams/:tid/features/consumableNotifications{,'?lockOrUnlock'}" $ testLockStatus @ConsumableNotificationsConfig,
       test s "PUT /teams/:tid/features/chatBubbles{,'?lockOrUnlock'}" $ testLockStatus @ChatBubblesConfig,
       test s "/teams/:tid/features/chatBubbles" $ testFeatureStatus @ChatBubblesConfig,
@@ -326,6 +328,27 @@ testFeatureConfig = do
   putFeatureConfig @cfg tid cfg {status = newStatus} !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
   liftIO $ cfg'.status @?= newStatus
+
+testCellsInternalConfig :: TestM ()
+testCellsInternalConfig = do
+  (_, tid, _) <- createTeamWithNMembers 1
+  cfg <- getFeatureConfig @CellsInternalConfig tid
+  let newBackend :: HttpsUrl
+      newBackend = fromMaybe (error "invalid url") . fromByteString $ "https://cells-internal.example.com"
+      newCfg =
+        cfg
+          { config =
+              cfg.config
+                { backend = CellsBackend newBackend,
+                  collabora = CellsCollabora Cool,
+                  storage = CellsStorage (NumBytes 2000000000000)
+                }
+          } ::
+          LockableFeature CellsInternalConfig
+
+  putFeatureConfig @CellsInternalConfig tid newCfg !!! const 200 === statusCode
+  cfg' <- getFeatureConfig @CellsInternalConfig tid
+  liftIO $ cfg' @?= newCfg
 
 testGetFeatureConfig ::
   forall cfg.
