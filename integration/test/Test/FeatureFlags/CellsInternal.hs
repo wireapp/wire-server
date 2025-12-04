@@ -19,15 +19,40 @@ module Test.FeatureFlags.CellsInternal where
 
 import qualified API.GalleyInternal as Internal
 import SetupHelpers
+import Test.Cells (QueueConsumer (..), getMessage, watchCellsEvents)
 import Test.FeatureFlags.Util
 import Testlib.Prelude
+
+testCellsInternalEvent :: (HasCallStack) => App ()
+testCellsInternalEvent = do
+  (alice, tid, _) <- createTeam OwnDomain 0
+  q <- do
+    q <- watchCellsEvents def
+    let isEventForTeam v = fieldEquals @Value v "payload.0.team" tid
+    -- the cells event queue is shared by tests
+    -- let's hope this filter reduces the risk of tests interfering with eaach other
+    pure $ q {filter = isEventForTeam}
+  let quota = "234723984"
+      update = mkFt "enabled" "unlocked" defConf {quota}
+  setFeature InternalAPI alice tid "cellsInternal" update >>= assertSuccess
+  event <- getMessage q %. "payload.0"
+  event %. "name" `shouldMatch` "cellsInternal"
+  event %. "team" `shouldMatch` tid
+  event %. "type" `shouldMatch` "feature-config.update"
+  event %. "data.lockStatus" `shouldMatch` "unlocked"
+  event %. "data.status" `shouldMatch` "enabled"
+  event %. "data.config.backend.url" `shouldMatch` "https://cells-beta.wire.com"
+  event %. "data.config.collabora.edition" `shouldMatch` "CODE"
+  event %. "data.config.storage.teamQuotaBytes" `shouldMatch` quota
 
 testCellsInternal :: (HasCallStack) => App ()
 testCellsInternal = do
   (alice, tid, _) <- createTeam OwnDomain 0
+
   withWebSocket alice $ \ws -> do
     for_ validCellsInternlUpdates $ setFlag InternalAPI ws tid "cellsInternal"
     for_ invalidCellsInternalUpdates $ setFeature InternalAPI alice tid "cellsInternal" >=> getJSON 400
+
   -- the feature does not have a public PUT endpoint
   setFeature PublicAPI alice tid "cellsInternal" enabled `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 404
