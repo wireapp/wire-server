@@ -632,6 +632,7 @@ createValidScimUserSpar ::
 createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
   ScimUserTimesStore.write storedUser
   ScimExternalIdStore.insert stiTeam veid.validScimIdExternal uid
+  todo "here we need to also remove entries if the idp has been detached from the (new) scim peer"
   for_ (justThere veid.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
@@ -1104,7 +1105,7 @@ getUserById midp stiTeam uid = do
   let mbveid =
         Brig.veidFromBrigUser
           brigUser
-          ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
+          ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp) -- TODO: doesn't this mean we're already checking idp url changes?  then maybe it's only not working inside veidFromBrigUser if the idp goes to nothing?
           brigUser.userEmailUnvalidated
   case mbveid of
     Right veid | userTeam brigUser == Just stiTeam -> lift $ do
@@ -1113,22 +1114,45 @@ getUserById midp stiTeam uid = do
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
-      lift $ do
-        when (veidChanged brigUser veid) $
-          BrigAccess.setSSOId uid (veidToUserSSOId veid)
-        when (managedByChanged brigUser) $
-          BrigAccess.setManagedBy uid ManagedByScim
+      lift $ syncBrigUser veid brigUser storedUser
       pure storedUser
     _ -> Applicative.empty
   where
+    syncBrigUser :: ValidScimId -> User -> Scim.StoredUser ST.SparTag -> Sem r ()
+    syncBrigUser veid brigUser storedUser = do
+      syncUserSamlSsoAssociation veid brigUser storedUser
+      when (veidChanged brigUser veid) $ do
+        todo "update spar.user_v2"
+        BrigAccess.setSSOId uid (veidToUserSSOId veid)
+      when (managedByChanged brigUser) $ do
+        BrigAccess.setManagedBy uid ManagedByScim
+
     veidChanged :: User -> ST.ValidScimId -> Bool
-    veidChanged usr veid = case userIdentity usr of
-      Nothing -> True
-      Just (EmailIdentity _) -> True
-      Just (SSOIdentity ssoid _) -> Brig.veidToUserSSOId veid /= ssoid
+    veidChanged usr veid = samlNameIdChanged || samlIdPRefChanged
+      where
+        samlIdPRefChanged = todo "we probably need to restructure this getUserById some more"
+
+        samlNameIdChanged = case userIdentity usr of
+          Nothing -> True
+          Just (EmailIdentity _) -> True
+          Just (SSOIdentity ssoid _) -> Brig.veidToUserSSOId veid /= ssoid
 
     managedByChanged :: User -> Bool
     managedByChanged usr = userManagedBy usr /= ManagedByScim
+
+    syncUserSamlSsoAssociation :: ValidScimId -> User -> Scim.StoredUser ST.SparTag -> Sem r ()
+    syncUserSamlSsoAssociation _veid _brigUser _storedUser =
+      --
+      -- if the scim token idp and the user idp differ, update the user.
+      --
+      -- the following attributes need update:
+      --   -
+      --
+      -- TODO: understand this, compose a work-around from what happens
+      -- here.  publish detailed explanation of issue and work-around in
+      -- ticket.  then think about fix.
+      --
+      undefined
 
 scimFindUserByHandle ::
   forall r.

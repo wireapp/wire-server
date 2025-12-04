@@ -196,7 +196,7 @@ instance S.ToSchema UserSSOId where
                  ("scim_external_id", scimSchema)
                ]
 
-instance ToJSON UserSSOId where
+instance ToJSON UserSSOId where -- !
   toJSON = \case
     UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
     UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]

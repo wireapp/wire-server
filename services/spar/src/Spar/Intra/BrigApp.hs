@@ -100,10 +100,8 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
 -- management for the first time.  In that case, the externalId is taken to
 -- be the email address.
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
-veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, mValidatedEmail, _) -> do
-    -- `mEmail` is in synch with SCIM user schema.
-    let mEmail = mUnvalidatedEmail <|> mValidatedEmail
+veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, mUnvalidatedEmail <|> userEmail usr, mIssuer) of
+  (Just ssoid, mEmail, _) -> do
     veidFromUserSSOId ssoid mEmail
   (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
   (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
