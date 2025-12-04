@@ -76,7 +76,6 @@ data CassandraSettings = CassandraSettings
 
 data Opts = Opts
   { brigDb :: CassandraSettings,
-    galleyDb :: CassandraSettings,
     limit :: Maybe Int
   }
 
@@ -84,7 +83,6 @@ optsParser :: Parser Opts
 optsParser =
   Opts
     <$> brigCassandraParser
-    <*> galleyCassandraParser
     <*> optional
       ( option
           auto
@@ -94,35 +92,6 @@ optsParser =
               <> help "Limit the number of users to process"
           )
       )
-
-galleyCassandraParser :: Parser CassandraSettings
-galleyCassandraParser =
-  CassandraSettings
-    <$> strOption
-      ( long "galley-cassandra-host"
-          <> metavar "HOST"
-          <> help "Cassandra Host for galley"
-          <> value "localhost"
-          <> showDefault
-      )
-    <*> option
-      auto
-      ( long "galley-cassandra-port"
-          <> metavar "PORT"
-          <> help "Cassandra Port for galley"
-          <> value 9043
-          <> showDefault
-      )
-    <*> ( C.Keyspace
-            . view packed
-            <$> strOption
-              ( long "galley-cassandra-keyspace"
-                  <> metavar "STRING"
-                  <> help "Cassandra Keyspace for galley"
-                  <> value "galley_test"
-                  <> showDefault
-              )
-        )
 
 brigCassandraParser :: Parser CassandraSettings
 brigCassandraParser =

@@ -36,8 +36,8 @@ import qualified System.Logger as Log
 import System.Logger.Message ((.=), (~~))
 import Wire.API.User
 
-getUserResult :: Log.Logger -> ClientState -> ClientState -> UserRow -> IO Result
-getUserResult logger brigClient galleyClient ur = do
+getUserResult :: Log.Logger -> ClientState -> UserRow -> IO Result
+getUserResult logger brigClient ur = do
   included <-
     andM
       [ pure ur.activated,
@@ -62,8 +62,8 @@ getUserResult logger brigClient galleyClient ur = do
         activeNoMLS = if included then 1 else 0
       }
 
-process :: Log.Logger -> Maybe Int -> ClientState -> ClientState -> IO Result
-process logger limit brigClient galleyClient =
+process :: Log.Logger -> Maybe Int -> ClientState -> IO Result
+process logger limit brigClient =
   runConduit $
     readUsers brigClient
       .| Conduit.concat
@@ -71,7 +71,7 @@ process logger limit brigClient galleyClient =
       -- process users in chunks, yield a Result for each chunk
       .| forever
         ( ConduitL.isolate 10000
-            .| (foldMapMC (getUserResult logger brigClient galleyClient) >>= yield)
+            .| (foldMapMC (getUserResult logger brigClient) >>= yield)
         )
       .| Conduit.takeWhile ((> 0) . totalUsers)
       -- join all results and log
@@ -82,9 +82,9 @@ main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optsParser) desc)
   logger <- initLogger
-  _brigClient <- initCas opts.brigDb logger
-  _galleyClient <- initCas opts.galleyDb logger
-  pure ()
+  brigClient <- initCas opts.brigDb logger
+  result <- process logger opts.limit brigClient
+  Log.info logger $ "result" .= show result
   where
     initLogger =
       Log.new
