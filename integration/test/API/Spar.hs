@@ -135,11 +135,17 @@ deleteScimUserGroup domain token groupId = do
   submit "DELETE" $ req & addHeader "Authorization" ("Bearer " <> token)
 
 filterScimUserGroup :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> App Response
-filterScimUserGroup domain token mbFilter = do
+filterScimUserGroup domain token mbFilter = filterScimUserGroupPaginate domain token mbFilter Nothing
+
+filterScimUserGroupPaginate :: (HasCallStack, MakesValue domain) => domain -> String -> Maybe String -> Maybe (Int, Int) -> App Response
+filterScimUserGroupPaginate domain token mbFilter mbPage = do
   req <- baseRequest domain Spar Versioned "/scim/v2/Groups"
   submit "GET" $ req
     & scimCommonHeaders token
-    & maybe id (\f -> addQueryParams [("filter", f)]) mbFilter
+    & addQueryParams
+      ( maybe [] (\f -> [("filter", f)]) mbFilter
+          <> maybe [] (\(startIndex, count) -> [("startIndex", show startIndex), ("count", show count)]) mbPage
+      )
 
 mkScimGroup :: String -> [Value] -> Value
 mkScimGroup name members =

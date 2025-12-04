@@ -449,6 +449,32 @@ testSparScimCreateGetSearchUserGroup = do
     (singleEmptyGroup %. "members" & asList) `shouldMatch` ([] :: [Value])
     respGroup4.json `shouldMatch` singleEmptyGroup
 
+  -- 4. Pagination
+  let searchPage substr startIndex count =
+        filterScimUserGroupPaginate
+          OwnDomain
+          tok
+          (Just $ "displayName co \"" <> substr <> "\"")
+          (Just (startIndex, count))
+      createGroup name = createScimUserGroup OwnDomain tok $ mkScimGroup name [mkScimUser scimUserId]
+
+  -- Create 20 groups
+  let expectedTotalResults = 20 :: Int
+  forM_ [1 .. expectedTotalResults] $ \n -> createGroup ("newGroupNo" <> show n)
+
+  -- Go through 4 pages (the last one is an empty page)
+  forM_ [1 .. 4] $ \p ->
+    let startIndex = (p - 1) * 7 + 1 -- 1-based index
+        count = 7
+        expectedItemsPerPage = max 0 (min count (expectedTotalResults - startIndex + 1)) -- expected between 0 and `count` depending on if it's a full, half or empty page
+     in searchPage "newGroupNo" startIndex count `bindResponse` \resp -> do
+          json' <- resp.json
+          json' %. "startIndex" `shouldMatchInt` startIndex
+          json' %. "totalResults" `shouldMatchInt` expectedTotalResults
+          json' %. "itemsPerPage" `shouldMatchInt` expectedItemsPerPage
+          resources <- json' %. "Resources" & asList
+          length resources `shouldMatchInt` expectedItemsPerPage
+
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
   (alice, tid, []) <- createTeam OwnDomain 1
