@@ -101,8 +101,26 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
 -- be the email address.
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
 veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, mUnvalidatedEmail <|> userEmail usr, mIssuer) of
-  (Just ssoid, mEmail, _) -> do
-    veidFromUserSSOId ssoid mEmail
+  (Just ssoidOld, mEmail, Just issuer) -> do
+    -- if there is an ssoid on brig, but the issuer has changed, the
+    -- user keeps the old ssoid with the issuer replaced with the new
+    -- one.
+    --
+    -- NB: this means the new idp better have the same account data as
+    -- the old one.
+    let ssoidNew =
+          case ssoidOld of
+            UserSSOId uref -> UserSSOId (uref & SAML.uidTenant .~ issuer)
+            UserScimExternalId eid -> UserSSOId (SAML.UserRef issuer (todo eid))
+    -- TODO: can eid be different from mEmail here?
+    veidFromUserSSOId ssoidNew mEmail
+  (Just ssoidOld, mEmail, Nothing) -> do
+    -- non-saml veid, remove issuer from user
+    let ssoidNew =
+          case ssoidOld of
+            UserSSOId uref -> UserScimExternalId (todo uref)
+            UserScimExternalId eid -> UserScimExternalId eid
+    veidFromUserSSOId ssoidOld mEmail
   (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
   (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
