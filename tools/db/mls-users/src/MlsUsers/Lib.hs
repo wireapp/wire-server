@@ -48,11 +48,12 @@ getUserResult logger brigClient ur = do
           now <- getCurrentTime
           tms <- catMaybes <$> lookupClientsLastActiveTimestamps brigClient ur.userId
           let active = any (\tm -> diffUTCTime now tm < 90 * nominalDay) tms
-          when active $
-            Log.info logger $
-              "user_record" .= show ur
-                ~~ "last_active_timestamps" .= show tms
-                ~~ Log.msg (Log.val "active user found")
+          when active
+            $ Log.info logger
+            $ "user_record"
+            .= show ur
+            ~~ "last_active_timestamps" .= show tms
+            ~~ Log.msg (Log.val "active user found")
           pure active
       ]
 
@@ -64,19 +65,19 @@ getUserResult logger brigClient ur = do
 
 process :: Log.Logger -> Maybe Int -> ClientState -> IO Result
 process logger limit brigClient =
-  runConduit $
-    readUsers brigClient
-      .| Conduit.concat
-      .| (maybe (mapC id) takeC limit)
-      -- process users in chunks, yield a Result for each chunk
-      .| forever
-        ( ConduitL.isolate 10000
-            .| (foldMapMC (getUserResult logger brigClient) >>= yield)
-        )
-      .| Conduit.takeWhile ((> 0) . totalUsers)
-      -- join all results and log
-      .| ConduitL.scan (<>) mempty
-      `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "intermediate_result" .= show r)
+  runConduit
+    $ readUsers brigClient
+    .| Conduit.concat
+    .| (maybe (mapC id) takeC limit)
+    -- process users in chunks, yield a Result for each chunk
+    .| forever
+      ( ConduitL.isolate 10000
+          .| (foldMapMC (getUserResult logger brigClient) >>= yield)
+      )
+    .| Conduit.takeWhile ((> 0) . totalUsers)
+    -- join all results and log
+    .| ConduitL.scan (<>) mempty
+    `fuseUpstream` Conduit.mapM_ (\r -> Log.info logger $ "intermediate_result" .= show r)
 
 main :: IO ()
 main = do
