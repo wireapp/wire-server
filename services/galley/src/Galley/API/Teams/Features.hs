@@ -464,7 +464,14 @@ instance SetFeatureConfig DomainRegistrationConfig
 
 instance SetFeatureConfig CellsConfig
 
-instance SetFeatureConfig CellsInternalConfig
+instance SetFeatureConfig CellsInternalConfig where
+  type
+    SetFeatureForTeamConstraints CellsInternalConfig r =
+      (Member (Error TeamFeatureError) r)
+
+  prepareFeature _ feat = do
+    unless (feat.status == FeatureStatusEnabled && feat.lockStatus == LockStatusUnlocked) $ do
+      throw InvalidStatusUpdate
 
 instance SetFeatureConfig ConsumableNotificationsConfig
 
