@@ -581,9 +581,9 @@ cells:
     lockStatus: locked
 ```
 
-### Cells Internal
+### Cells Interna
 
-Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. Because status/lockStatus are ignored for this internal part, keep them enabled and unlocked to avoid interference. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string that fits in `Int64` bytes.
+Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string that fits in `Int64` bytes.
 
 ```yaml
 # galley.yaml

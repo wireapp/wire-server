@@ -1469,7 +1469,7 @@ data CollaboraEdition = No | Code | Cool
 
 instance ToSchema CollaboraEdition where
   schema =
-    enum @Text "CollaboraEdition  " $
+    enum @Text "CollaboraEdition" $
       mconcat
         [ element "NO" No,
           element "CODE" Code,
