@@ -24,7 +24,6 @@ module Spar.Intra.BrigApp
   ( veidToUserSSOId,
     urefToExternalId,
     veidFromBrigUser,
-    veidFromUserSSOId,
     mkUserName,
     HavePendingInvitations (..),
     getBrigUserTeam,
@@ -33,8 +32,9 @@ module Spar.Intra.BrigApp
     parseResponse,
     giveDefaultHandle,
 
-    -- * re-exports, mostly for historical reasons and lazyness
+    -- * re-exports, mostly for historical reasons, tests, and lazyness
     emailFromSAML,
+    veidFromUserSSOId,
   )
 where
 
@@ -68,6 +68,7 @@ import Wire.API.User.Scim (ValidScimId (..))
 veidToUserSSOId :: ValidScimId -> UserSSOId
 veidToUserSSOId (ValidScimId eid authInfo) = maybe (UserScimExternalId eid) UserSSOId (justThere authInfo)
 
+-- occurs only in testing (and should!)
 veidFromUserSSOId ::
   (MonadError String m) =>
   UserSSOId ->
@@ -80,50 +81,71 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
     pure $ case mEmail of
       Just email -> ValidScimId eid (These email uref)
       Nothing -> ValidScimId eid (That uref)
-  UserScimExternalId veid -> do
+  UserScimExternalId eid -> do
     case mEmail of
       Just email ->
-        pure $ ValidScimId veid (This email)
+        pure $ ValidScimId eid (This email)
       Nothing ->
         -- If veid can be parsed as an email, we end up in the case above with email delivered separately.
         throwError "internal error: externalId is not an email and there is no SAML issuer"
 
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
--- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
--- construct a return value from that (and an optional saml issuer).
---
--- Note: the saml issuer is only needed in the case where a user has been invited via team
--- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
--- to just set it to 'Nothing'.
+-- | Construct a 'ValidScimId' from brig user, saml issuer associated with scim token, and email address.
+-- The saml issuer is only needed in the case where a user has been invited via team settings and is
+-- now onboarded to saml/scim.  In all other cases, set to 'Nothing'.
 --
 -- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
 -- management for the first time.  In that case, the externalId is taken to
 -- be the email address.
+--
+-- If there is an ssoid on brig, but the issuer has changed, the user
+-- keeps the old ssoid with the issuer replaced with the new one.
+-- This means the new idp better have the same account data as the old
+-- one.
 veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
 veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, mUnvalidatedEmail <|> userEmail usr, mIssuer) of
-  (Just ssoidOld, mEmail, Just issuer) -> do
-    -- if there is an ssoid on brig, but the issuer has changed, the
-    -- user keeps the old ssoid with the issuer replaced with the new
-    -- one.
-    --
-    -- NB: this means the new idp better have the same account data as
-    -- the old one.
-    let ssoidNew =
+  (Just ssoidOld, Just email, Just issuer) -> do
+    let uref =
           case ssoidOld of
-            UserSSOId uref -> UserSSOId (uref & SAML.uidTenant .~ issuer)
-            UserScimExternalId eid -> UserSSOId (SAML.UserRef issuer (todo eid))
-    -- TODO: can eid be different from mEmail here?
-    veidFromUserSSOId ssoidNew mEmail
-  (Just ssoidOld, mEmail, Nothing) -> do
-    -- non-saml veid, remove issuer from user
-    let ssoidNew =
+            UserSSOId u -> u & SAML.uidTenant .~ issuer
+            UserScimExternalId e ->
+              let a' = _
+               in SAML.UserRef issuer e'
+        eid =
           case ssoidOld of
-            UserSSOId uref -> UserScimExternalId (todo uref)
-            UserScimExternalId eid -> UserScimExternalId eid
-    veidFromUserSSOId ssoidOld mEmail
-  (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
-  (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
-  (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
+            UserSSOId u -> CI.original . SAML.nameIDToST $ u ^. SAML.uidSubject
+            UserScimExternalId e -> e
+     in pure $ ValidScimId eid (These email uref)
+  --
+  (Just ssoidOld, Nothing, Just issuer) -> do
+    let uref =
+          case ssoidOld of
+            UserSSOId u -> u & SAML.uidTenant .~ issuer
+            UserScimExternalId e -> SAML.UserRef issuer (todo e)
+        eid =
+          case ssoidOld of
+            UserSSOId u -> CI.original . SAML.nameIDToST $ u ^. SAML.uidSubject
+            UserScimExternalId e -> e
+    pure $ ValidScimId eid (That uref)
+  --
+  (Just ssoidOld, Just email, Nothing) ->
+    let eid = case ssoidOld of
+          UserSSOId u -> CI.original . SAML.nameIDToST $ u ^. SAML.uidSubject
+          UserScimExternalId e -> e
+     in pure $ ValidScimId eid (This email)
+  --
+  (Nothing, Just email, Just issuer) ->
+    pure $
+      ValidScimId
+        (fromEmail email)
+        (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
+  --
+  (Nothing, Just email, Nothing) ->
+    pure $
+      ValidScimId (fromEmail email) (This email)
+  --
+  (Nothing, Nothing, Just _) -> throwError "user has neither ssoIdentity nor userEmail"
+  (Nothing, Nothing, Nothing) -> throwError "user has neither ssoIdentity nor userEmail"
+  (Just _, Nothing, Nothing) -> throwError "user has neither ssoIdentity nor userEmail"
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If

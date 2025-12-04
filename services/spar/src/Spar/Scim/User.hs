@@ -1105,7 +1105,7 @@ getUserById midp stiTeam uid = do
   let mbveid =
         Brig.veidFromBrigUser
           brigUser
-          ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp) -- TODO: doesn't this mean we're already checking idp url changes?  then maybe it's only not working inside veidFromBrigUser if the idp goes to nothing?
+          ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
           brigUser.userEmailUnvalidated
   case mbveid of
     Right veid | userTeam brigUser == Just stiTeam -> lift $ do
