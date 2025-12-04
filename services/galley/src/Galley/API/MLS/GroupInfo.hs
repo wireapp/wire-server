@@ -24,7 +24,6 @@ import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.FederatorAccess qualified as E
 import Galley.Env
 import Imports
 import Polysemy
@@ -34,10 +33,12 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore qualified as E
+import Wire.FederationAPIAccess qualified as E
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -48,7 +49,7 @@ type MLSGroupInfoStaticErrors =
 getGroupInfo ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Input Env) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
@@ -77,7 +78,7 @@ getGroupInfoFromLocalConv qusr lcnvId = do
 
 getGroupInfoFromRemoteConv ::
   ( Member (Error FederationError) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->

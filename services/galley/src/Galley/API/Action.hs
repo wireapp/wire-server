@@ -78,10 +78,8 @@ import Galley.API.Util
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
 import Galley.Effects.CodeStore qualified as E
-import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.ProposalStore qualified as E
 import Galley.Env (Env)
-import Galley.Options
+import Galley.Options (Opts)
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
@@ -105,6 +103,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
 import Wire.API.MLS.Group.Serialisation qualified as Serialisation
@@ -119,8 +118,11 @@ import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
+import Wire.FederationAPIAccess qualified as E
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
+import Wire.ProposalStore qualified as E
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -132,7 +134,8 @@ import Wire.UserList
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
-    ( Member BrigAPIAccess r,
+    ( -- TODO: Replace with subsystems
+      Member BrigAPIAccess r,
       Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (ErrorS 'NotATeamMember) r,
@@ -148,10 +151,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NonFederatingBackends) r,
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
-      Member (Input Env) r,
-      Member (Input Opts) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member Now r,
       Member LegalHoldStore r,
       Member ConversationStore r,
@@ -166,10 +168,11 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     ( Member (Error InternalError) r,
       Member (Error NoChanges) r,
       Member ExternalAccess r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
       Member Now r,
       Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member ProposalStore r,
       Member ConversationStore r,
       Member Random r,
@@ -180,9 +183,10 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member ProposalStore r,
       Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member Now r,
       Member ExternalAccess r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
       Member (Error InternalError) r,
       Member Random r,
@@ -199,7 +203,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member (Error FederationError) r,
       Member (ErrorS 'NotATeamMember) r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member ProposalStore r,
       Member TeamStore r
     )
@@ -218,10 +222,11 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'InvalidTargetAccess) r,
       Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
       Member ExternalAccess r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member FireAndForget r,
       Member NotificationSubsystem r,
       Member (Input Env) r,
+      Member (Input ConversationSubsystemConfig) r,
       Member ProposalStore r,
       Member TeamStore r,
       Member TinyLog r,
@@ -245,7 +250,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r,
       Member BrigAPIAccess r,
       Member ExternalAccess r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
@@ -267,7 +272,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS InvalidOperation) r,
       Member ConversationStore r,
       Member ExternalAccess r,
-      Member FederatorAccess r,
+      Member (FederationAPIAccess FederatorClient) r,
       Member NotificationSubsystem r,
       Member ProposalStore r,
       Member Random r,
@@ -363,21 +368,21 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
 
 enforceFederationProtocol ::
   ( Member (Error FederationError) r,
-    Member (Input Opts) r
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   ProtocolTag ->
   [Remote ()] ->
   Sem r ()
 enforceFederationProtocol proto domains = do
   unless (null domains) $ do
-    mAllowedProtos <- view (settings . federationProtocols) <$> input
+    mAllowedProtos <- federationProtocols <$> input
     unless (maybe True (elem proto) mAllowedProtos) $
       throw FederationDisabledForProtocol
 
 checkFederationStatus ::
   ( Member (Error UnreachableBackends) r,
     Member (Error NonFederatingBackends) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   RemoteDomains ->
   Sem r ()
@@ -389,7 +394,7 @@ checkFederationStatus req = do
 
 getFederationStatus ::
   ( Member (Error UnreachableBackends) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   RemoteDomains ->
   Sem r FederationStatus
@@ -504,7 +509,8 @@ performAction ::
     Member (Error FederationError) r,
     Member ConversationSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -655,7 +661,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
         then checkFederationStatus (RemoteDomains (invitedRemoteDomains <> existingRemoteDomains))
         else -- even if there are no new remotes, we still need to check they are reachable
           void . (ensureNoUnreachableBackends =<<) $
-            E.runFederatedConcurrentlyEither @_ @'Brig invitedRemoteUsers $ \_ ->
+            E.runFederatedConcurrentlyEither @_ @_ @'Brig invitedRemoteUsers $ \_ ->
               pure ()
 
     conv :: StoredConversation
@@ -860,7 +866,8 @@ updateLocalConversation ::
     SingI tag,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -895,7 +902,8 @@ updateLocalConversationUnchecked ::
     HasConversationActionEffects tag r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->
@@ -1119,7 +1127,7 @@ notifyTypingIndicator ::
   ( Member Now r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   StoredConversation ->
   Qualified UserId ->

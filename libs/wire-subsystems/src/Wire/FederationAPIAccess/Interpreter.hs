@@ -81,8 +81,8 @@ interpretFederationAPIAccessGeneral runFedM isFederationConfigured =
   interpret $
     \case
       RunFederatedEither remote rpc -> runFederatedEither runFedM remote rpc
-      RunFederatedConcurrently remotes rpc -> runFederatedConcurrently runFedM remotes rpc
-      RunFederatedBucketed remotes rpc -> runFederatedBucketed runFedM remotes rpc
+      RunFederatedConcurrentlyEither remotes rpc -> runFederatedConcurrently runFedM remotes rpc
+      RunFederatedConcurrentlyBucketsEither remotes rpc -> runFederatedBucketed runFedM remotes rpc
       IsFederationConfigured -> isFederationConfigured
 
 runFederatedEither ::
@@ -95,25 +95,25 @@ runFederatedEither runFedM (tDomain -> remoteDomain) rpc =
 
 runFederatedConcurrently ::
   ( Foldable f,
+    Member (Concurrency 'Unsafe) r,
+    Functor f
+  ) =>
+  FederatedActionRunner fedM r ->
+  f (Remote a) ->
+  (Remote [a] -> fedM c b) ->
+  Sem r [Either (Remote [a], FederationError) (Remote b)]
+runFederatedConcurrently runFedM xs rpc =
+  unsafePooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    bimap (r,) (qualifyAs r) <$> runFederatedEither runFedM r (rpc r)
+
+runFederatedBucketed ::
+  ( Foldable f,
     Member (Concurrency 'Unsafe) r
   ) =>
   FederatedActionRunner fedM r ->
   f (Remote a) ->
   (Remote a -> fedM c b) ->
   Sem r [Either (Remote a, FederationError) (Remote b)]
-runFederatedConcurrently runFedM xs rpc =
-  unsafePooledForConcurrentlyN 8 (toList xs) $ \r ->
-    bimap (r,) (qualifyAs r) <$> runFederatedEither runFedM r (rpc r)
-
-runFederatedBucketed ::
-  ( Foldable f,
-    Functor f,
-    Member (Concurrency 'Unsafe) r
-  ) =>
-  FederatedActionRunner fedM r ->
-  f (Remote a) ->
-  (Remote [a] -> fedM c b) ->
-  Sem r [Either (Remote [a], FederationError) (Remote b)]
 runFederatedBucketed runFedM xs rpc =
-  unsafePooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+  unsafePooledForConcurrentlyN 8 (toList xs) $ \r ->
     bimap (r,) (qualifyAs r) <$> runFederatedEither runFedM r (rpc r)

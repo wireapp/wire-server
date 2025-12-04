@@ -40,10 +40,10 @@ import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input)
 import Polysemy.Resource (Resource)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
@@ -61,6 +61,8 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ProposalStore
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 
@@ -79,7 +81,8 @@ processInternalCommit ::
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   SenderIdentity ->
   Maybe ConnId ->
@@ -258,7 +261,11 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     pure events
 
 addMembers ::
-  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r, Member TeamSubsystem r) =>
+  ( HasProposalActionEffects r,
+    Member ConversationSubsystem r,
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
+  ) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -282,7 +289,11 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   SubConv _ _ -> pure []
 
 removeMembers ::
-  (HasProposalActionEffects r, Member ConversationSubsystem r, Member MLSCommitLockStore r, Member TeamSubsystem r) =>
+  ( HasProposalActionEffects r,
+    Member ConversationSubsystem r,
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r
+  ) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->

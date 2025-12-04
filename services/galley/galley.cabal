@@ -140,7 +140,6 @@ library
     Galley.Cassandra.Client
     Galley.Cassandra.Code
     Galley.Cassandra.CustomBackend
-    Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Store
@@ -155,8 +154,6 @@ library
     Galley.Effects.ClientStore
     Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
-    Galley.Effects.FederatorAccess
-    Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.TeamFeatureStore
@@ -165,7 +162,6 @@ library
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Intra.Federator
     Galley.Intra.Util
     Galley.Keys
     Galley.Monad
@@ -257,7 +253,7 @@ library
     Galley.Types.Clients
     Galley.Validation
 
-  ghc-options:
+  ghc-options:     -fplugin=Polysemy.Plugin
   other-modules:   Paths_galley
   hs-source-dirs:  src
   build-depends:
@@ -280,7 +276,6 @@ library
     , crypton
     , crypton-x509
     , data-default
-    , data-timeout
     , errors                                >=2.0
     , exceptions                            >=0.4
     , extended
@@ -305,6 +300,7 @@ library
     , pem
     , polysemy
     , polysemy-conc
+    , polysemy-plugin
     , polysemy-wire-zoo
     , prometheus-client
     , raw-strings-qq                        >=1.0

@@ -56,7 +56,6 @@ import Galley.API.Error
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
-import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
   ( interpretInternalTeamListToCassandra,
@@ -69,7 +68,6 @@ import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
-import Galley.Intra.Federator
 import Galley.Keys
 import Galley.Monad (runApp)
 import Galley.Options hiding (brig, endpoint, federator)
@@ -112,9 +110,10 @@ import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotifica
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
+import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -122,9 +121,12 @@ import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
 import Wire.Sem.Now.IO (nowToIO)
 import Wire.Sem.Random.IO
@@ -142,6 +144,7 @@ type GalleyEffects0 =
   '[ Input ClientState,
      Input Hasql.Pool,
      Input Env,
+     Input ConversationSubsystemConfig,
      Error MigrationError,
      Error InvalidInput,
      Error ParseException,
@@ -160,6 +163,7 @@ type GalleyEffects0 =
      Embed IO,
      Error JSONResponse,
      Resource,
+     Concurrency 'Unsafe,
      Final IO
    ]
 
@@ -170,7 +174,7 @@ validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when (settings' ^. maxConvSize > fromIntegral optFanoutLimit) $
+  when (settings'._maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
@@ -299,8 +303,23 @@ evalGalley e =
                   BackendNotificationQueueAccess.local = localUnit,
                   BackendNotificationQueueAccess.requestId = e ^. reqId
                 }
+      federationAPIAccessConfig =
+        FederationAPIAccessConfig
+          { ownDomain = e._options._settings._federationDomain,
+            federatorEndpoint = e._options._federator,
+            http2Manager = e._http2Manager,
+            requestId = e._reqId
+          }
+      conversationSubsystemConfig =
+        ConversationSubsystemConfig
+          { mlsKeys = e._mlsKeys,
+            federationProtocols = e._options._settings._federationProtocols,
+            legalholdDefaults = lh,
+            maxConvSize = e._options._settings._maxConvSize
+          }
    in ExceptT
         . runFinal @IO
+        . unsafelyPerformConcurrency
         . resourceToIOFinal
         . runError
         . embedToFinal @IO
@@ -317,6 +336,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
+        . runInputConst conversationSubsystemConfig
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
@@ -356,7 +376,7 @@ evalGalley e =
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
-        . interpretFederatorAccess
+        . interpretFederationAPIAccess federationAPIAccessConfig
         . runRpcWithHttp (e ^. manager) (e ^. reqId)
         . runGundeckAPIAccess (e ^. options . gundeck)
         . interpretBrigAccess (e ^. brig)

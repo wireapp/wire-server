@@ -62,12 +62,14 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
 import Wire.API.Event.FeatureConfig
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -334,7 +336,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member (ErrorS 'UserLegalHoldIllegalOperation) r,
         Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
         Member ExternalAccess r,
-        Member FederatorAccess r,
+        Member (FederationAPIAccess FederatorClient) r,
         Member FireAndForget r,
         Member NotificationSubsystem r,
         Member ConversationSubsystem r,
@@ -353,7 +355,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamCollaboratorsSubsystem r,
         Member MLSCommitLockStore r,
         Member (Input FanoutLimit) r,
-        Member TeamSubsystem r
+        Member TeamSubsystem r,
+        Member (Input ConversationSubsystemConfig) r
       )
 
   prepareFeature tid feat = do

@@ -64,6 +64,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
@@ -78,6 +79,7 @@ import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
@@ -164,7 +166,7 @@ removeSettingsInternalPaging ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
@@ -182,7 +184,8 @@ removeSettingsInternalPaging ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -212,7 +215,7 @@ removeSettings ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
@@ -227,7 +230,8 @@ removeSettings ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   UserId ->
   TeamId ->
@@ -269,7 +273,7 @@ removeSettings' ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
@@ -285,7 +289,8 @@ removeSettings' ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   TeamId ->
   Sem r ()
@@ -323,7 +328,7 @@ grantConsent ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -335,7 +340,8 @@ grantConsent ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -372,7 +378,7 @@ requestDevice ::
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -388,7 +394,8 @@ requestDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -468,7 +475,7 @@ approveDevice ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'UserLegalHoldNotPending) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -484,7 +491,8 @@ approveDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -548,7 +556,7 @@ disableForUser ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -562,7 +570,8 @@ disableForUser ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -615,7 +624,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -627,7 +636,8 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   TeamId ->
   Local UserId ->
@@ -734,7 +744,7 @@ handleGroupConvPolicyConflicts ::
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
@@ -745,7 +755,8 @@ handleGroupConvPolicyConflicts ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

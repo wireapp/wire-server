@@ -22,6 +22,7 @@ import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Qualified
 import Data.Singletons (Sing)
+import Galley.Types.Teams (FeatureDefaults)
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -29,10 +30,13 @@ import Polysemy.Error
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState (CellsState (..))
+import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
 import Wire.API.Federation.Error (FederationError)
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.API.Team.Feature (LegalholdConfig)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess (ExternalAccess, deliverAsync)
@@ -40,6 +44,13 @@ import Wire.NotificationSubsystem as NS
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+
+data ConversationSubsystemConfig = ConversationSubsystemConfig
+  { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
+    federationProtocols :: Maybe [ProtocolTag],
+    legalholdDefaults :: FeatureDefaults LegalholdConfig,
+    maxConvSize :: Word16
+  }
 
 interpretConversationSubsystem ::
   ( Member (Error FederationError) r,

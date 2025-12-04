@@ -92,6 +92,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -341,7 +342,8 @@ rmUser ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
