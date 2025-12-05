@@ -47,13 +47,13 @@ testCreateApp = do
     cookie <- resp.json %. "cookie" & asString
     pure (appId, cookie)
 
-  -- app user should have type "app"
+  -- App user should have type "app"
   let appIdObject = object ["domain" .= domain, "id" .= appId]
   bindResponse (getUser owner appIdObject) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
 
-  -- creator should have type "regular"
+  -- Creator should have type "regular"
   bindResponse (getUser owner owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "regular"
@@ -64,7 +64,7 @@ testCreateApp = do
     resp.json %. "token_type" `shouldMatch` "Bearer"
     resp.json %. "access_token" & asString
 
-  -- get app for the app created above succeeds
+  -- Get app for the app created above succeeds
   void $ getApp regularMember tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "name") `shouldMatch` "chappie"
@@ -83,7 +83,7 @@ testCreateApp = do
   bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
   bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
 
-  -- category must be any of the values for the Category enum
+  -- Category must be any of the values for the Category enum
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 400
 

@@ -23,7 +23,6 @@ import Data.Aeson
 import Data.Id
 import Data.Range
 import Data.UUID
-import GHC.TypeNats
 import Imports
 import Polysemy
 import Wire.API.App
@@ -56,11 +55,8 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp wher
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
       <*> (postgresUnmarshall =<< maybe (Left $ "Category " <> category <> " not found") Right (categoryFromText category))
-      <*> (textRange @0 @300 "description" =<< postgresUnmarshall description)
+      <*> (maybe (Left "description out of bounds") Right . checked @0 @300 =<< postgresUnmarshall description)
       <*> postgresUnmarshall creator
-    where
-      textRange :: forall n m. (Within Text n m, KnownNat m, KnownNat n) => Text -> Text -> Either Text (Range n m Text)
-      textRange what text = maybe (Left $ what <> " out of bounds") Right (checked @n @m text)
 
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
