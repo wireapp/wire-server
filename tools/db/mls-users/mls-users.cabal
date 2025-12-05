@@ -5,7 +5,7 @@ synopsis:      Find users without MLS support
 category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2024 Wire Swiss GmbH
+copyright:     (c) 2025 Wire Swiss GmbH
 license:       AGPL-3.0-only
 build-type:    Simple
 
