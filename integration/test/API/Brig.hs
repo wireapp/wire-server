@@ -1206,8 +1206,7 @@ data NewApp = NewApp
     accentId :: Maybe Int,
     meta :: Value,
     category :: String,
-    description :: String,
-    author :: String
+    description :: String
   }
 
 instance Default NewApp where
@@ -1219,8 +1218,7 @@ instance Default NewApp where
         accentId = Nothing,
         meta = object [],
         category = "other",
-        description = "",
-        author = ""
+        description = ""
       }
 
 createApp :: (MakesValue creator) => creator -> String -> NewApp -> App Response
@@ -1237,8 +1235,7 @@ createApp creator tid new = do
                 "accent_id" .= new.accentId,
                 "metadata" .= new.meta,
                 "category" .= new.category,
-                "description" .= new.description,
-                "author" .= new.author
+                "description" .= new.description
               ],
           "password" .= defPassword
         ]

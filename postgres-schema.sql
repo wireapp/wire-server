@@ -52,9 +52,9 @@ CREATE TABLE public.apps (
     user_id uuid NOT NULL,
     team_id uuid NOT NULL,
     metadata json,
-    category text,
-    description text,
-    author text
+    category text DEFAULT 'other'::text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    creator uuid NOT NULL
 );
 
 

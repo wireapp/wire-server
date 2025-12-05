@@ -31,7 +31,6 @@ testCreateApp = do
         def
           { name = "chappie",
             description = "some description of this app",
-            author = "an author",
             category = "ai"
           } ::
           NewApp
@@ -71,7 +70,6 @@ testCreateApp = do
     (resp.json %. "name") `shouldMatch` "chappie"
     (resp.json %. "description") `shouldMatch` "some description of this app"
     (resp.json %. "category") `shouldMatch` "ai"
-    (resp.json %. "author") `shouldMatch` "an author"
 
   -- A teamless user can't get the app
   outsideUser <- randomUser OwnDomain def

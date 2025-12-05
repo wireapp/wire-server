@@ -35,29 +35,29 @@ data StoredApp = StoredApp
     meta :: Object,
     category :: Category,
     description :: Range 0 300 Text,
-    author :: Range 0 256 Text
+    creator :: UserId
   }
   deriving (Eq, Ord, Show)
 
-instance PostgresMarshall StoredApp (UUID, UUID, Value, Text, Text, Text) where
+instance PostgresMarshall StoredApp (UUID, UUID, Value, Text, Text, UUID) where
   postgresMarshall app =
     ( postgresMarshall app.id,
       postgresMarshall app.teamId,
       postgresMarshall app.meta,
       postgresMarshall (categoryToText app.category),
       postgresMarshall (fromRange app.description),
-      postgresMarshall (fromRange app.author)
+      postgresMarshall app.creator
     )
 
-instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, Text) StoredApp where
-  postgresUnmarshall (uid, teamId, meta, category, description, author) =
+instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp where
+  postgresUnmarshall (uid, teamId, meta, category, description, creator) =
     StoredApp
       <$> postgresUnmarshall uid
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
       <*> (postgresUnmarshall =<< maybe (Left $ "Category " <> category <> " not found") Right (categoryFromText category))
       <*> (textRange @0 @300 "description" =<< postgresUnmarshall description)
-      <*> (textRange @0 @256 "author" =<< postgresUnmarshall author)
+      <*> postgresUnmarshall creator
     where
       textRange :: forall n m. (Within Text n m, KnownNat m, KnownNat n) => Text -> Text -> Either Text (Range n m Text)
       textRange what text = maybe (Left $ what <> " out of bounds") Right (checked @n @m text)

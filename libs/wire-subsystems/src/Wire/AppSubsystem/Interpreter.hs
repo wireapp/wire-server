@@ -100,7 +100,7 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
             meta = new.meta,
             category = new.category,
             description = new.description,
-            author = new.author
+            creator = tUnqualified lusr
           }
 
   Log.info $
@@ -158,8 +158,7 @@ getAppImpl lusr tid uid = do
         accentId = u.accentId,
         meta = storedApp.meta,
         category = storedApp.category,
-        description = storedApp.description,
-        author = storedApp.author
+        description = storedApp.description
       }
 
 refreshAppCookieImpl ::

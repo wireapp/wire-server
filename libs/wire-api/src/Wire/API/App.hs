@@ -40,8 +40,7 @@ data GetApp = GetApp
     accentId :: ColourId,
     meta :: A.Object,
     category :: Category,
-    description :: Range 0 300 Text,
-    author :: Range 0 256 Text
+    description :: Range 0 300 Text
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
@@ -128,7 +127,6 @@ instance ToSchema GetApp where
         <*> (.meta) .= field "metadata" jsonObject
         <*> (.category) .= field "category" schema
         <*> (.description) .= field "description" schema
-        <*> (.author) .= field "author" schema
 
 data CreatedApp = CreatedApp
   { user :: User,
