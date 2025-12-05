@@ -174,7 +174,7 @@ defAllFeatures =
             "config"
               .= object
                 [ "backend" .= object ["url" .= "https://cells-beta.wire.com"],
-                  "collabora" .= object ["edition" .= "CODE"],
+                  "collabora" .= object ["edition" .= "COOL"],
                   "storage" .= object ["teamQuotaBytes" .= "1000000000000"]
                 ]
           ]

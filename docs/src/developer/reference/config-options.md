@@ -598,7 +598,7 @@ config:
             backend:
               url: https://cells-beta.wire.com
             collabora:
-              edition: CODE
+              edition: COOL
             storage:
               teamQuotaBytes: "1000000000000" # 1 TB
 ```

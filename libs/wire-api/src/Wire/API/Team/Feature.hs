@@ -1570,7 +1570,7 @@ instance Default CellsInternalConfig where
   def =
     CellsInternalConfig
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
-        collabora = CellsCollabora Code,
+        collabora = CellsCollabora Cool,
         storage = CellsStorage $ NumBytes 1000000000000 -- 1 TB
       }
 

@@ -42,7 +42,7 @@ testCellsInternalEvent = do
   event %. "data.lockStatus" `shouldMatch` "unlocked"
   event %. "data.status" `shouldMatch` "enabled"
   event %. "data.config.backend.url" `shouldMatch` "https://cells-beta.wire.com"
-  event %. "data.config.collabora.edition" `shouldMatch` "CODE"
+  event %. "data.config.collabora.edition" `shouldMatch` "COOL"
   event %. "data.config.storage.teamQuotaBytes" `shouldMatch` quota
 
 testCellsInternal :: (HasCallStack) => App ()
@@ -94,7 +94,7 @@ defConf :: CellsInternalConfig
 defConf =
   CellsInternalConfig
     { url = "https://cells-beta.wire.com",
-      collabora = "CODE",
+      collabora = "COOL",
       quota = "1000000000000"
     }
 
