@@ -42,7 +42,7 @@ getUserResult logger brigClient ur = do
     andM
       [ pure ur.activated,
         pure $ ur.status == Just Active,
-        pure $ Set.member BaseProtocolMLSTag ur.supportedProtocols,
+        pure $ Set.notMember BaseProtocolMLSTag ur.supportedProtocols,
         -- check that the user has at least one active client
         do
           now <- getCurrentTime
