@@ -15,26 +15,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ScimSubsystem.Interpreter where
+module Wire.ScimSubsystem.Interpreter
+  ( module Wire.ScimSubsystem.Error,
+    module Wire.ScimSubsystem.Interpreter,
+  )
+where
 
 import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
 import Network.HTTP.Types.Status (notFound404)
 import Network.URI (parseURI)
-import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.Error qualified as Error
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Web.Scim.Class.Group qualified as SCG
 import Web.Scim.Filter qualified as Scim
 import Web.Scim.Schema.Common qualified as Common
-import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse qualified as Scim
 import Web.Scim.Schema.Meta qualified as Meta
 import Web.Scim.Schema.ResourceType qualified as RT
@@ -46,7 +48,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess qualified as BrigAPI
 import Wire.ScimSubsystem
-import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..))
+import Wire.ScimSubsystem.Error
 
 data ScimSubsystemConfig = ScimSubsystemConfig
   { scimBaseUri :: Common.URI
@@ -64,17 +66,6 @@ interpretScimSubsystem = interpret $ \case
   ScimGetUserGroups tid mbFilter -> scimGetUserGroupsImpl tid mbFilter
   ScimUpdateUserGroup teamId userGroupId scimGroup -> scimUpdateUserGroupImpl teamId userGroupId scimGroup
   ScimDeleteUserGroup teamId groupId -> deleteScimGroupImpl teamId groupId
-
-data ScimSubsystemError
-  = ScimSubsystemError ScimError -- TODO: replace this with custom constructors.  (also, where are ScimSubsystemInvalidGroupMemberId etc. translated back into ScimErrors?)
-  | ScimSubsystemInvalidGroupMemberId Text
-  | ScimSubsystemGroupMembersNotFound [UserId]
-  | ScimSubsystemInternal Wai.Error
-  | ScimSubsystemInternalError UserGroupSubsystemError
-  deriving (Show, Eq)
-
-scimThrow :: (Member (Error ScimSubsystemError) r) => ScimError -> Sem r a
-scimThrow = throw . ScimSubsystemError
 
 createScimGroupImpl ::
   forall r.
@@ -98,12 +89,12 @@ createScimGroupImpl teamId grp = do
 
   ugName <-
     userGroupNameFromText grp.displayName
-      & either (scimThrow . badRequest InvalidValue . Just) pure
+      & either (throw . ScimSubsystemBadGroupName) pure
   ugMemberIds <-
     let go :: SCG.Member -> Sem r UserId
         go m =
           parseIdFromText m.value
-            & either (scimThrow . badRequest InvalidValue . Just . Text.pack) pure
+            & either (throw . ScimSubsystemInvalidGroupMemberId . Text.pack) pure
      in go `mapM` grp.members
 
   let newGroup = NewUserGroup {name = ugName, members = V.fromList ugMemberIds}
@@ -127,7 +118,7 @@ scimGetUserGroupImpl tid gid = do
   let includeChannels = False -- SCIM has no notion of channels.
   maybe groupNotFound returnStoredGroup =<< BrigAPI.getGroupInternal tid gid includeChannels
   where
-    groupNotFound = scimThrow $ notFound "Group" $ UUID.toText $ toUUID gid
+    groupNotFound = throw (ScimSubsystemGroupNotFound gid)
     returnStoredGroup g = do
       ScimSubsystemConfig scimBaseUri <- input
       pure $ toStoredGroup scimBaseUri g
@@ -159,11 +150,11 @@ scimUpdateUserGroupImpl teamId gid grp = do
   let includeChannels = False
   ug <-
     BrigAPI.getGroupInternal teamId gid includeChannels
-      >>= note (ScimSubsystemError $ notFound "Group" (UUID.toText $ gid.toUUID))
+      >>= note (ScimSubsystemGroupNotFound gid)
   when (ug.managedBy /= ManagedByScim) do
-    scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
+    throw (ScimSubsystemGroupNotFound gid)
 
-  ugName <- either (scimThrow . badRequest InvalidValue . Just) pure $ userGroupNameFromText grp.displayName
+  ugName <- either (throw . ScimSubsystemBadGroupName) pure $ userGroupNameFromText grp.displayName
   reqMemberIds <- for grp.members parseMember
 
   let currentSet = Set.fromList (toList (runIdentity ug.members))
@@ -179,18 +170,18 @@ scimUpdateUserGroupImpl teamId gid grp = do
       throw (ScimSubsystemGroupMembersNotFound notInTeamOrNotScim)
     case missing of
       [] -> pure ()
-      (u : _) -> scimThrow $ notFound "User" (idToText u)
+      (u : _) -> throw (ScimSubsystemUserNotFound u)
 
   -- replace the members of the user group; propagate Brig errors
   BrigAPI.updateGroup (UpdateGroupInternalRequest teamId gid (Just ugName) (Just reqMemberIds)) >>= \case
     Right () -> pure ()
     Left err ->
       if err.code == notFound404
-        then scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)
+        then throw (ScimSubsystemGroupNotFound gid)
         else throw (ScimSubsystemInternal err)
 
   ScimSubsystemConfig scimBaseUri <- input
-  maybe (scimThrow $ notFound "Group" (UUID.toText $ gid.toUUID)) (pure . toStoredGroup scimBaseUri)
+  maybe (throw $ ScimSubsystemGroupNotFound gid) (pure . toStoredGroup scimBaseUri)
     =<< BrigAPI.getGroupInternal teamId gid includeChannels
 
 deleteScimGroupImpl ::
@@ -205,7 +196,7 @@ deleteScimGroupImpl teamId groupId = do
   eResult <- BrigAPI.deleteGroupInternal ManagedByScim teamId groupId
   case eResult of
     Right () -> pure ()
-    Left BrigAPI.DeleteGroupManagedManagedByMismatch -> scimThrow (forbidden "Cannot delete group not managed by SCIM")
+    Left BrigAPI.DeleteGroupManagedManagedByMismatch -> throw (ScimSubsystemForbidden groupId)
 
 toStoredGroup :: Common.URI -> UserGroup -> SCG.StoredGroup SparTag
 toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
