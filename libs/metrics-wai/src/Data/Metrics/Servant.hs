@@ -28,8 +28,7 @@ module Data.Metrics.Servant where
 
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id
-import Data.Metrics.Types
-import Data.Metrics.Types qualified as Metrics
+import Data.Metrics.Types as Metrics
 import Data.Proxy
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
@@ -37,8 +36,7 @@ import Data.Tree
 import GHC.TypeLits
 import Imports
 import Network.Wai qualified as Wai
-import Network.Wai.Middleware.Prometheus
-import Network.Wai.Middleware.Prometheus qualified as Promth
+import Network.Wai.Middleware.Prometheus as Promth
 import Servant.API
 import Servant.Multipart
 
