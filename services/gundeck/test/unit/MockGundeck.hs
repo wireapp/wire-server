@@ -109,8 +109,10 @@ data MockState = MockState
     -- | Non-transient notifications that are stored in the database first thing before
     -- delivery (so clients can always come back and pick them up later until they expire).
     _msCassQueue :: NotifQueue,
-    -- | A record of notifications that have been puhsed via RabbitMQ.
-    _msRabbitQueue :: Map (Text, Text) IntMultiSet
+    -- | A record of notifications that have been pushed via RabbitMQ.
+    _msRabbitQueue :: Map (Text, Text) IntMultiSet,
+    -- | A record of notifications that have been pushed via Pulsar.
+    _msPulsarQueue :: Map Text IntMultiSet
   }
   deriving (Eq)
 
@@ -126,13 +128,13 @@ makeLenses ''MockEnv
 makeLenses ''MockState
 
 instance Show MockState where
-  show (MockState w n c r) =
+  show (MockState w n c r p) =
     intercalate
       "\n"
-      ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, "rabbitmq: " <> show r, ""]
+      ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, "rabbitmq: " <> show r, "pulsar: " <> show p, ""]
 
 emptyMockState :: MockState
-emptyMockState = MockState mempty mempty mempty mempty
+emptyMockState = MockState mempty mempty mempty mempty mempty
 
 -- these custom instances make for better error reports if tests fail.
 instance ToJSON MockEnv where
@@ -447,6 +449,7 @@ instance MonadPushAll MockGundeck where
   mpaRunWithBudget _ _ = id -- no throttling needed as long as we don't overdo it in the tests...
   mpaGetClients = mockGetClients
   mpaPublishToRabbitMq = mockPushRabbitMq
+  mpaPublishToPulsar = mockPushPulsar
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
@@ -575,7 +578,8 @@ handlePushRabbit Push {..} = do
   forM_ _pushRecipients $ \(Recipient uid _ cids) -> do
     clients <- Set.toList . Set.unions . Map.elems . (.userClientsFull) <$> mpaGetClients (Set.singleton uid)
     let legacyClients = map (.clientId) $ filter (not . supportsConsumableNotifications) clients
-    let routingKeys = case cids of
+    -- TODO: This could surely be expressed in a more elegant manner. However, it should be correct.
+    let routingKeys = nub $ case cids of
           RecipientClientsAll ->
             case legacyClients of
               [] -> [userRoutingKey uid]
@@ -583,9 +587,11 @@ handlePushRabbit Push {..} = do
                 let rabbitClients = filter (`notElem` legacyClients) $ map (.clientId) clients
                  in [userRoutingKey uid | not (null rabbitClients)]
           RecipientClientsSome cc ->
-            (clientRoutingKey uid <$> filter (`notElem` legacyClients) (toList cc))
+            case filter (`notElem` legacyClients) (toList cc) of
+              [] -> []
+              _xs -> [userRoutingKey uid]
     for routingKeys $ \routingKey ->
-      msRabbitQueue %= deliver ("user-notifications", routingKey) _pushPayload
+      msPulsarQueue %= deliver routingKey _pushPayload
   when _pushIsCellsEvent $ do
     msRabbitQueue %= deliver ("", "cells") _pushPayload
 
@@ -651,6 +657,13 @@ mockPushRabbitMq exchange routingKey message = do
     Left e -> error $ "Invalid message body: " <> e
     Right (queuedNotif :: QueuedNotification) ->
       msRabbitQueue %= deliver (exchange, routingKey) (queuedNotif ^. queuedNotificationPayload)
+
+mockPushPulsar :: Text -> AMQP.Message -> MockGundeck ()
+mockPushPulsar exchange message = do
+  case Aeson.eitherDecode message.msgBody of
+    Left e -> error $ "Invalid message body: " <> e
+    Right (queuedNotif :: QueuedNotification) ->
+      msPulsarQueue %= deliver exchange (queuedNotif ^. queuedNotificationPayload)
 
 mockLookupAddresses ::
   (HasCallStack, m ~ MockGundeck) =>

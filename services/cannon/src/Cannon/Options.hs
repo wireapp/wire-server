@@ -44,10 +44,11 @@ module Cannon.Options
     DrainOpts,
     WSOpts (..),
     validateOpts,
+    pulsar,
   )
 where
 
-import Cassandra.Options (CassandraOpts)
+import Cassandra.Options (CassandraOpts, Endpoint)
 import Control.Lens (makeFields)
 import Data.Aeson
 import Data.Aeson.APIFieldJsonTH
@@ -130,7 +131,8 @@ data Opts = Opts
     _optsRabbitMqMaxConnections :: Int,
     -- | Maximum number of rabbitmq channels per connection. Must be strictly positive.
     _optsRabbitMqMaxChannels :: Int,
-    _optsNotificationTTL :: Int
+    _optsNotificationTTL :: Int,
+    _optsPulsar :: Endpoint
   }
   deriving (Show, Generic)
 
@@ -159,3 +161,4 @@ instance FromJSON Opts where
       <*> o .:? "rabbitMqMaxConnections" .!= 1000
       <*> o .:? "rabbitMqMaxChannels" .!= 300
       <*> o .: "notificationTTL"
+      <*> o .: "pulsar"

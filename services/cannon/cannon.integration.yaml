@@ -30,6 +30,10 @@ rabbitmq:
   caCert: test/resources/rabbitmq-ca.pem
   insecureSkipVerifyTls: false
 
+pulsar:
+  host: localhost
+  port: 6650
+
 drainOpts:
   gracePeriodSeconds: 1
   millisecondsBetweenBatches: 500

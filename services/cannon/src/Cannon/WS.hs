@@ -159,7 +159,8 @@ data Env = Env
     wsOpts :: WSOpts,
     cassandra :: ClientState,
     pool :: RabbitMqPool,
-    notificationTTL :: Int
+    notificationTTL :: Int,
+    pulsarUrl :: String
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -210,8 +211,9 @@ env ::
   ClientState ->
   RabbitMqPool ->
   Int ->
+  String ->
   Env
-env externalHostname portnum gundeckHost gundeckPort logg manager websockets rabbitConnections rand clock drainOpts wsOpts cassandra pool notificationTTL =
+env externalHostname portnum gundeckHost gundeckPort logg manager websockets rabbitConnections rand clock drainOpts wsOpts cassandra pool notificationTTL pulsarUrl =
   let upstream = (Bilge.host gundeckHost . Bilge.port gundeckPort $ empty)
       reqId = RequestId defRequestId
    in Env {..}

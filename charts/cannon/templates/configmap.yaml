@@ -39,6 +39,12 @@ data:
     rabbitMqMaxConnections: {{ .config.rabbitMqMaxConnections }}
     rabbitMqMaxChannels: {{ .config.rabbitMqMaxChannels }}
 
+    {{- with .config.pulsar }}
+    pulsar:
+      host: {{ .host }}
+      port: {{ .port }}
+    {{- end }}
+
     drainOpts:
       gracePeriodSeconds: {{ .config.drainOpts.gracePeriodSeconds }}
       millisecondsBetweenBatches: {{ .config.drainOpts.millisecondsBetweenBatches }}
