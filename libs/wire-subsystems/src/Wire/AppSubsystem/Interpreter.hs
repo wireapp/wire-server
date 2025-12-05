@@ -176,7 +176,7 @@ refreshAppCookieImpl ::
 refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
-  app <- Store.getApp appId tid >>= note AppSubsystemErrorNoApp
+  void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
 
   c :: Cookie (Token U) <-
     newCookieLimited appId Nothing PersistentCookie (Just "app")
