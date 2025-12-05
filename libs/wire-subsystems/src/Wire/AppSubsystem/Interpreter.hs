@@ -31,7 +31,7 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
-import Wire.API.App
+import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
 import Wire.API.User
@@ -67,6 +67,7 @@ runAppSubsystem ::
   Sem r a
 runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
+  GetApp lusr tid uid -> getAppImpl lusr tid uid
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
 
 createAppImpl ::
@@ -84,12 +85,11 @@ createAppImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  NewApp ->
-  Sem r CreatedApp
-createAppImpl lusr tid new = do
-  creator <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
-
-  mem <- getTeamMember creator.id tid >>= note AppSubsystemErrorNoPerm
+  Apps.NewApp ->
+  Sem r Apps.CreatedApp
+createAppImpl lusr tid (Apps.NewApp new password6) = do
+  verifyUserPasswordError lusr password6
+  (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
   u <- appNewStoredUser creator new
@@ -97,7 +97,10 @@ createAppImpl lusr tid new = do
         StoredApp
           { id = u.id,
             teamId = tid,
-            meta = new.meta
+            meta = new.meta,
+            category = new.category,
+            description = new.description,
+            creator = tUnqualified lusr
           }
 
   Log.info $
@@ -114,9 +117,48 @@ createAppImpl lusr tid new = do
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
   pure
-    CreatedApp
+    Apps.CreatedApp
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
         cookie = mkSomeToken c.cookieValue
+      }
+
+-- | Check that @lusr@ is member of team with @tid@.
+ensureTeamMember ::
+  ( Member UserStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem r (StoredUser, T.TeamMember)
+ensureTeamMember lusr tid = do
+  storedUser <- Store.getUser (tUnqualified lusr) >>= note AppSubsystemErrorNoUser
+  teamMember <- getTeamMember storedUser.id tid >>= note AppSubsystemErrorNoPerm
+  pure (storedUser, teamMember)
+
+getAppImpl ::
+  ( Member AppStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r Apps.GetApp
+getAppImpl lusr tid uid = do
+  void $ ensureTeamMember lusr tid
+  storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
+  u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
+  pure $
+    Apps.GetApp
+      { name = u.name,
+        pict = fromMaybe (Pict []) u.pict,
+        assets = fromMaybe [] u.assets,
+        accentId = u.accentId,
+        meta = storedApp.meta,
+        category = storedApp.category,
+        description = storedApp.description
       }
 
 refreshAppCookieImpl ::
@@ -133,8 +175,7 @@ refreshAppCookieImpl ::
 refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
-  app <- Store.getApp appId >>= note AppSubsystemErrorNoApp
-  note AppSubsystemErrorNoApp $ guard (app.teamId == tid)
+  void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
 
   c :: Cookie (Token U) <-
     newCookieLimited appId Nothing PersistentCookie (Just "app")
@@ -146,7 +187,7 @@ appNewStoredUser ::
     Member (Input AppSubsystemConfig) r
   ) =>
   StoredUser ->
-  NewApp ->
+  Apps.GetApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
   uid <- liftIO nextRandom

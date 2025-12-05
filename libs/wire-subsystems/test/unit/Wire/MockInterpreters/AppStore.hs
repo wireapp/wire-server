@@ -30,4 +30,4 @@ inMemoryAppStoreInterpreter ::
   InterpreterFor AppStore r
 inMemoryAppStoreInterpreter = interpret $ \case
   CreateApp app -> modify (app :)
-  GetApp uid -> gets $ find $ \app -> app.id == uid
+  GetApp uid tid -> gets $ find $ \app -> app.id == uid && app.teamId == tid
