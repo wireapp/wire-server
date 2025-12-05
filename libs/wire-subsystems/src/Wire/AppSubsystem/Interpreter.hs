@@ -149,7 +149,6 @@ getAppImpl ::
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
-  when (storedApp.teamId /= tid) $ throw AppSubsystemErrorNoPerm
   u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
   pure $
     Apps.GetApp
