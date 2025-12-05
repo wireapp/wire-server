@@ -51,3 +51,6 @@ deriveFromJSON defaultOptions ''CassandraOpts
 
 toPulsarUrl :: Endpoint -> String
 toPulsarUrl e = "pulsar://" <> T.unpack e.host <> ":" <> show e.port
+
+toPulsarAdminUrl :: Endpoint -> String
+toPulsarAdminUrl e = "https://" <> T.unpack e.host <> ":" <> show e.port

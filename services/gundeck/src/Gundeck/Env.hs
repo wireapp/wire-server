@@ -63,7 +63,8 @@ data Env = Env
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
     _rabbitMqChannel :: MVar Channel,
-    _pulsar :: Endpoint
+    _pulsar :: Endpoint,
+    _pulsarAdmin :: Endpoint
   }
 
 makeLenses ''Env
@@ -107,7 +108,7 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar (o ^. Opt.pulsar)
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar (o ^. Opt.pulsar) (o ^. Opt.pulsarAdmin)
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

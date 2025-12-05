@@ -20,16 +20,14 @@ module Gundeck.Client where
 import Cassandra.Options
 import Control.Lens (view)
 import Data.Id
-import Data.Text qualified as T
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Notifications
 import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
-import Pulsar.Client qualified as Pulsar
-import Pulsar.Client.Logging
-import Pulsar.Subscription qualified as Pulsar
+import Pulsar.Admin
+import Servant.Client
 import System.Logger qualified as Log
 import Wire.API.Notification
 
@@ -52,22 +50,32 @@ setupConsumableNotifications ::
   ClientId ->
   Gundeck ()
 setupConsumableNotifications uid cid = do
-  let subscription = "cannon-websocket-" ++ T.unpack (clientNotificationQueueName uid cid)
-      subscriptionType = Pulsar.Earliest
-      topic = Pulsar.Topic . Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ T.unpack (userRoutingKey uid)
-  pulsarEndpoint :: Endpoint <- view pulsar
-  logger <- view applog
-  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "setupConsumableNotifications" logger)}) (toPulsarUrl pulsarEndpoint) $ do
-    Pulsar.createSubscription
-      ( Pulsar.defaultConsumerConfiguration
-          { Pulsar.consumerType = Just Pulsar.ConsumerExclusive,
-            Pulsar.consumerSubscriptionInitialPosition = Just subscriptionType
+  let -- Rebuilding `latest` here. See https://github.com/apache/pulsar/blob/master/pulsar-client/src/main/java/org/apache/pulsar/client/impl/ResetCursorData.java#L58
+      resetCursorCfg =
+        ResetCursorData
+          { resetCursorDataBatchIndex = Just (-1),
+            resetCursorDataEntryId = Just $ fromIntegral (maxBound :: Int64),
+            resetCursorDataExcluded = Nothing,
+            resetCursorDataLedgerId = Just $ fromIntegral (maxBound :: Int64),
+            resetCursorDataPartitionIndex = Just (-1),
+            resetCursorDataProperties = Nothing
           }
-      )
-      subscription
-      topic
-      (onPulsarError "setupConsumableNotifications consumer" logger)
+      cfg =
+        PersistentTopicsCreateSubscriptionParameters
+          { persistentTopicsCreateSubscriptionTenant = "wire",
+            persistentTopicsCreateSubscriptionNamespace = "user-notifications",
+            persistentTopicsCreateSubscriptionTopic = userRoutingKey uid,
+            persistentTopicsCreateSubscriptionSubscriptionName = ("cannon-websocket-" :: Text) <> clientNotificationQueueName uid cid,
+            persistentTopicsCreateSubscriptionAuthoritative = Nothing,
+            persistentTopicsCreateSubscriptionReplicated = Nothing,
+            persistentTopicsCreateSubscriptionMessageId = resetCursorCfg
+          }
+  httpManager <- view Gundeck.Monad.manager
+  pulsarAdminUrlString <- toPulsarAdminUrl <$> view pulsarAdmin
+  pulsarAdminUrl <- parseBaseUrl pulsarAdminUrlString
+  liftIO . void $ flip runClientM (mkClientEnv httpManager pulsarAdminUrl) $ persistentTopicsCreateSubscription cfg
+  logger <- view applog
   Log.debug logger $
     Log.msg @String "Subscription created"
-      . Log.field "topic" (show topic)
-      . Log.field "subscription" (show subscription)
+      . Log.field "topic" (show cfg.persistentTopicsCreateSubscriptionTopic)
+      . Log.field "subscription" (show cfg.persistentTopicsCreateSubscriptionSubscriptionName)

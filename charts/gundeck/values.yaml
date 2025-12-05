@@ -54,6 +54,10 @@ config:
     host: localhost
     port: 6650
 
+  pulsarAdmin:
+    host: localhost
+    port: 8080
+
   # To enable additional writes during a migration:
   # redisAdditionalWrite:
   #   host: redis-two

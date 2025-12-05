@@ -52,6 +52,7 @@
 , optparse-applicative
 , prometheus-client
 , psqueues
+, pulsar-admin
 , pulsar-client-hs
 , QuickCheck
 , quickcheck-instances
@@ -64,6 +65,7 @@
 , safe-exceptions
 , scientific
 , servant
+, servant-client
 , servant-server
 , string-conversions
 , tagged
@@ -134,12 +136,14 @@ mkDerivation {
     network-uri
     prometheus-client
     psqueues
+    pulsar-admin
     pulsar-client-hs
     raw-strings-qq
     resourcet
     retry
     safe-exceptions
     servant
+    servant-client
     servant-server
     text
     these
