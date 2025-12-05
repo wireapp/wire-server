@@ -130,19 +130,6 @@ instance ToSchema GetApp where
         <*> (.description) .= field "description" schema
         <*> (.author) .= field "author" schema
 
-defGetApp :: Name -> GetApp
-defGetApp name =
-  GetApp
-    { name,
-      pict = noPict,
-      assets = [],
-      accentId = defaultAccentId,
-      meta = mempty,
-      category = Other,
-      description = unsafeRange "",
-      author = unsafeRange ""
-    }
-
 data CreatedApp = CreatedApp
   { user :: User,
     cookie :: SomeUserToken
