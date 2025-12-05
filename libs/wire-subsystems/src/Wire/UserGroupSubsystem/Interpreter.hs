@@ -86,7 +86,7 @@ interpretUserGroupSubsystem = interpret $ \case
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
-  GetGroupsInternal tid displayNameSubstring -> getUserGroupsInternal tid displayNameSubstring
+  GetGroupsInternal tid displayNameSubstring mbStartIndex mbCount -> getUserGroupsInternal tid displayNameSubstring mbStartIndex mbCount
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -260,12 +260,9 @@ getUserGroups getter search = do
         UserGroupPageRequest
           { pageSize = fromMaybe def search.pageSize,
             sortOrder = fromMaybe Desc search.sortOrder,
-            paginationState =
-              mkPaginationState
-                (fromMaybe def search.sortBy)
-                search.lastName
-                search.lastCreatedAt
-                search.lastId,
+            paginationState = case fromMaybe def search.sortBy of
+              SortByName -> PaginationSortByName $ (,) <$> search.lastName <*> search.lastId
+              SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> search.lastCreatedAt <*> search.lastId,
             team = team,
             searchString = search.query,
             includeMemberCount = search.includeMemberCount,
@@ -282,16 +279,15 @@ getUserGroupsInternal ::
   ) =>
   TeamId ->
   Maybe Text ->
+  Maybe Int ->
+  Maybe Int ->
   Sem r UserGroupPageWithMembers
-getUserGroupsInternal team displayNameSubstring = do
-  let -- hscim doesn't support pagination at the time of writing this,
-      -- so we better fit all groups into one page!
-      pageSize = pageSizeFromIntUnsafe 500
-      pageReq =
+getUserGroupsInternal team displayNameSubstring mbStartIndex mbCount = do
+  let pageReq =
         UserGroupPageRequest
-          { pageSize = pageSize,
+          { pageSize = maybe (pageSizeFromIntUnsafe 500) (pageSizeFromIntUnsafe . fromIntegral) mbCount, -- XXX: what should the default be?
             sortOrder = Asc,
-            paginationState = mkPaginationState SortByName (Just "displayName") Nothing Nothing,
+            paginationState = maybe (PaginationOffset 0) (PaginationOffset . fromIntegral . (\ix -> ix - 1)) mbStartIndex,
             team = team,
             searchString = displayNameSubstring,
             includeMemberCount = True,

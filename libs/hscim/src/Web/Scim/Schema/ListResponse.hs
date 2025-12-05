@@ -20,11 +20,13 @@
 module Web.Scim.Schema.ListResponse
   ( ListResponse (..),
     fromList,
+    toPage,
   )
 where
 
 import Data.Aeson
 import GHC.Generics (Generic)
+import Numeric.Natural
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
 
@@ -57,6 +59,45 @@ fromList list =
     }
   where
     len = length list
+
+toPage :: Natural -> Maybe Natural -> [a] -> ListResponse a
+toPage startIndex mbCount list = case mbCount of
+  Nothing ->
+    let len = length list'
+     in ListResponse
+          { schemas = [ListResponse20],
+            totalResults = len,
+            itemsPerPage = len,
+            startIndex = startIndex',
+            resources = list'
+          }
+  Just count ->
+    let (c, page, rest) = splitAtCount count list'
+        c' = fromEnum c
+     in ListResponse
+          { schemas = [ListResponse20],
+            totalResults = c' + length rest,
+            itemsPerPage = c',
+            startIndex = startIndex',
+            resources = page
+          }
+  where
+    startIndex' = fromIntegral startIndex
+    list' =
+      if startIndex' <= 1
+        then list
+        else drop (startIndex' - 1) list
+
+-- | Split @list@ at @n@, while returning the count actually taken, the taken, and the rest.
+splitAtCount :: Natural -> [a] -> (Natural, [a], [a])
+splitAtCount n list = go n 0 list
+  where
+    go :: Natural -> Natural -> [a] -> (Natural, [a], [a])
+    go _ c [] = (c, [], [])
+    go 0 c rest = (c, [], rest)
+    go n' c (x : xs) =
+      let (c', xs', rest) = go (n' - 1) (c + 1) xs
+       in (c', x : xs', rest)
 
 instance (FromJSON a) => FromJSON (ListResponse a) where
   parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
