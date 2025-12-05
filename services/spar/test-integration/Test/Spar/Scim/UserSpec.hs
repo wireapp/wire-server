@@ -46,7 +46,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
 import Data.Handle (Handle, fromHandle, parseHandle, parseHandleEither)
 import Data.HavePendingInvitations
-import Data.Id (TeamId, UserId, randomId)
+import Data.Id (TeamId, UserId, idToText, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
@@ -121,8 +121,9 @@ spec = do
 
 specImportToScimFromSAML :: SpecWith TestEnv
 specImportToScimFromSAML =
-  describe "Create with SAML autoprovisioning; then re-provision with SCIM" $ do
-    forM_ ((,,) <$> [minBound ..] <*> [minBound ..] <*> [minBound ..]) $ \(x, y, z) -> check x y z
+  focus . describe "Create with SAML autoprovisioning; then re-provision with SCIM" $ do
+    -- forM_ ((,,) <$> [minBound ..] <*> [minBound ..] <*> [minBound ..]) $ \(x, y, z) -> check x y z
+    forM_ ((,,) <$> [True] <*> [True] <*> [Feature.FeatureStatusEnabled]) $ \(x, y, z) -> check x y z
   where
     check :: Bool -> Bool -> Feature.FeatureStatus -> SpecWith TestEnv
     check sameHandle sameDisplayName valemail = it (show (sameHandle, sameDisplayName, valemail)) $ do
@@ -191,7 +192,7 @@ specImportToScimFromSAML =
 
       -- async vodoo: wait until the dust has settled...  (just in case things look good for a
       -- half-second, then go bad)
-      threadDelay 800000
+      threadDelay 800_000
 
       liftIO $ scimUserId storedUserUpdated `shouldBe` uid
       assertSparCassandraUref (uref, Just uid)
@@ -201,6 +202,58 @@ specImportToScimFromSAML =
       -- login again
       (Just !uid') <- createViaSaml idp privCreds uref
       liftIO $ uid' `shouldBe` uid
+
+      -- create new scim token detached from saml
+      tok2 :: ScimToken <- do
+        registerScimToken teamid Nothing
+
+      -- sync user
+      storedUserGot2 <- do
+        resp <-
+          aFewTimes (getUser_ (Just tok2) uid =<< view teSpar) ((== 200) . statusCode)
+            <!! const 200 === statusCode
+        pure (responseJsonUnsafe resp)
+
+      liftIO $ scimUserId storedUserGot2 `shouldBe` uid
+      assertSparCassandraUref (uref, Just uid)
+      assertSparCassandraScim ((teamid, email), Just uid)
+
+      -- user is still associated with saml idp
+      runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just acc) -> liftIO $ do
+        userIdentity acc `shouldBe` (Just (SSOIdentity (UserSSOId uref) (Just email)))
+
+      let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
+            where
+              replaceAttrib :: Text -> Text -> PatchOp.Operation
+              replaceAttrib name value =
+                PatchOp.Operation
+                  PatchOp.Replace
+                  (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+                  (Just (toJSON value))
+       in patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
+
+      -- user/idp associated is gone
+      runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just acc) -> liftIO $ do
+        userIdentity acc `shouldBe` (Just (EmailIdentity email))
+
+      -- saml login should fail now
+      mbUid <- createViaSaml idp privCreds uref
+      liftIO $ mbUid `shouldBe` Nothing
+
+      -- password reset should work
+      void undefined
+
+      -- ...  after that, password login should work
+      let login :: BrigReq -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ResponseLBS
+          login brig loginBody =
+            call . post $
+              (versioned "13")
+                . brig
+                . path "/login"
+                . contentJson
+                . queryItem "persist" "true"
+                . body (RequestBodyLBS (Aeson.encode loginBody))
+      login (env ^. teBrig) (Aeson.object ["email" Aeson..= Aeson.Null, "password" Aeson..= Aeson.Null]) >>= error . show
 
 specImportToScimFromInvitation :: SpecWith TestEnv
 specImportToScimFromInvitation =

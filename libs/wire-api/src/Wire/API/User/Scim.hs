@@ -425,7 +425,7 @@ data CreateScimToken = CreateScimToken
     verificationCode :: !(Maybe Code.Value),
     -- | Optional name for the token
     name :: Maybe Text,
-    -- | Optional IdP that created users will "belong" to
+    -- | Optional IdP that created users will "belong" to; if Nothing, user authenticate with password.
     idp :: Maybe SAML.IdPId
   }
   deriving (Eq, Show, Generic)
