@@ -46,7 +46,7 @@ appSubsystemErrorToHttpError =
   StdError . \case
     AppSubsystemErrorNoPerm -> Wai.mkError status403 "app-no-permission" "User does not have permission to create or manage apps"
     AppSubsystemErrorNoUser -> Wai.mkError status403 "create-app-no-user" "App owner not found"
-    AppSubsystemErrorNoAppUser -> Wai.mkError status403 "create-app-no-app-user" "App user not found"
+    AppSubsystemErrorNoAppUser -> Wai.mkError status403 "app-user-not-found" "App user not found"
     AppSubsystemErrorNoApp -> Wai.mkError status404 "app-not-found" "App not found"
 
 data AppSubsystem m a where
