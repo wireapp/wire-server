@@ -50,6 +50,7 @@
   inconsistencies = hself.callPackage ../tools/db/inconsistencies/default.nix { inherit gitignoreSource; };
   migrate-features = hself.callPackage ../tools/db/migrate-features/default.nix { inherit gitignoreSource; };
   migrate-sso-feature-flag = hself.callPackage ../tools/db/migrate-sso-feature-flag/default.nix { inherit gitignoreSource; };
+  mls-users = hself.callPackage ../tools/db/mls-users/default.nix { inherit gitignoreSource; };
   move-team = hself.callPackage ../tools/db/move-team/default.nix { inherit gitignoreSource; };
   phone-users = hself.callPackage ../tools/db/phone-users/default.nix { inherit gitignoreSource; };
   repair-brig-clients-table = hself.callPackage ../tools/db/repair-brig-clients-table/default.nix { inherit gitignoreSource; };

@@ -49,6 +49,7 @@ packages:
   , tools/db/inconsistencies/
   , tools/db/migrate-sso-feature-flag/
   , tools/db/migrate-features/
+  , tools/db/mls-users/
   , tools/db/move-team/
   , tools/db/phone-users/
   , tools/db/repair-handles/
