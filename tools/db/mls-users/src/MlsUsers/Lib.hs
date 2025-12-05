@@ -38,7 +38,7 @@ import Wire.API.User
 
 getUserResult :: Log.Logger -> ClientState -> UserRow -> IO Result
 getUserResult logger brigClient ur = do
-  included <-
+  matches <-
     andM
       [ pure ur.activated,
         pure $ ur.status == Just Active,
@@ -60,7 +60,7 @@ getUserResult logger brigClient ur = do
   pure
     Result
       { totalUsers = 1,
-        activeNoMLS = if included then 1 else 0
+        activeNoMLS = if matches then 1 else 0
       }
 
 process :: Log.Logger -> Maybe Int -> ClientState -> IO Result
