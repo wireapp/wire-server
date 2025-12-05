@@ -82,8 +82,11 @@ categoryTextMapping =
     ("other", Other)
   ]
 
+categoryMap :: HM.HashMap Text Category
+categoryMap = HM.fromList categoryTextMapping
+
 categoryFromText :: Text -> Maybe Category
-categoryFromText text' = HM.lookup text' (HM.fromList categoryTextMapping)
+categoryFromText text' = HM.lookup text' categoryMap
 
 categoryToText :: Category -> Text
 categoryToText = \case
