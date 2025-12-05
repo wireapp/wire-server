@@ -217,6 +217,13 @@ newtype instance FeatureDefaults ChannelsConfig
   deriving (FromJSON) via Defaults (LockableFeature ChannelsConfig)
   deriving (ParseFeatureDefaults) via OptionalField ChannelsConfig
 
+newtype instance FeatureDefaults CellsInternalConfig
+  = CellsInternalDefaults (LockableFeature CellsInternalConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature CellsInternalConfig)
+  deriving (ParseFeatureDefaults) via OptionalField CellsInternalConfig
+
 data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
   = ExposeInvitationURLsToTeamAdminDefaults
   deriving stock (Eq, Show)

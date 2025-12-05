@@ -291,6 +291,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Get
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =

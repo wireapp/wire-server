@@ -141,6 +141,7 @@ library
     Test.FeatureFlags.Apps
     Test.FeatureFlags.AssetAuditLog
     Test.FeatureFlags.Cells
+    Test.FeatureFlags.CellsInternal
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ChatBubbles
     Test.FeatureFlags.ClassifiedDomains

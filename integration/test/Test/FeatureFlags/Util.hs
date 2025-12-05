@@ -165,7 +165,19 @@ defAllFeatures =
       "chatBubbles" .= disabledLocked,
       "apps" .= disabledLocked,
       "simplifiedUserConnectionRequestQRCode" .= enabled,
-      "stealthUsers" .= disabledLocked
+      "stealthUsers" .= disabledLocked,
+      "cellsInternal"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "backend" .= object ["url" .= "https://cells-beta.wire.com"],
+                  "collabora" .= object ["edition" .= "COOL"],
+                  "storage" .= object ["teamQuotaBytes" .= "1000000000000"]
+                ]
+          ]
     ]
 
 hasExplicitLockStatus :: String -> Bool
