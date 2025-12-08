@@ -217,10 +217,10 @@ collect c acc prevPageHasMore remaining remainingBytes getPage
   | otherwise = do
       page <- getPage
       let rows = result page
-      result <- fetchPayloads c remainingBytes rows
-      let remaining' = remaining - Seq.length result.notifications
-          more' = hasMore page || result.truncatedByPayloadLimit
-      collect c (acc <> result.notifications) more' remaining' result.remainingBytes (liftClient (nextPage page))
+      fetchResult <- fetchPayloads c remainingBytes rows
+      let remaining' = remaining - Seq.length fetchResult.notifications
+          more' = hasMore page || fetchResult.truncatedByPayloadLimit
+      collect c (acc <> fetchResult.notifications) more' remaining' fetchResult.remainingBytes (liftClient (nextPage page))
 
 mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
 mkResultPage size more ns =
