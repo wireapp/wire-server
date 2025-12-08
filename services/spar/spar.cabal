@@ -356,6 +356,7 @@ executable spar-integration
     , cassava
     , cookie
     , crypton
+    , email-validate
     , exceptions
     , extended
     , hscim

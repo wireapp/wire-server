@@ -650,8 +650,8 @@ instance IsUser (WrappedScimUser SparTag) where
   maybeUserId = Nothing
   maybeHandle = Just (parseHandle . Scim.User.userName . fromWrappedScimUser)
   maybeName = Just (fmap Name . Scim.User.displayName . fromWrappedScimUser)
-  maybeTenant = Nothing
-  maybeSubject = Nothing
+  maybeTenant = Nothing -- we don't know from the scim schema.
+  maybeSubject = Nothing -- dito.
   maybeScimExternalId = Just $ Scim.User.externalId . fromWrappedScimUser
   maybeLocale =
     Just
@@ -667,20 +667,15 @@ instance IsUser User where
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
   maybeTenant = Just $ \usr ->
-    Intra.newVeidFromBrigUser usr Nothing Nothing
-      & either
-        (const Nothing)
-        (fmap SAML._uidTenant . veidUref)
+    Intra.oldVeidFromBrigUser usr
+      & maybe Nothing (fmap SAML._uidTenant . veidUref)
   maybeSubject = Just $ \usr ->
-    Intra.newVeidFromBrigUser usr Nothing Nothing
-      & either
-        (const Nothing)
-        (fmap SAML._uidSubject . veidUref)
-  maybeScimExternalId = Just $ \usr ->
-    Intra.newVeidFromBrigUser usr Nothing Nothing
-      & either
-        (const Nothing)
-        (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail))
+    Intra.oldVeidFromBrigUser usr
+      & maybe Nothing (fmap SAML._uidSubject . veidUref)
+  maybeScimExternalId =
+    Just $
+      Intra.oldVeidFromBrigUser
+        >=> (runValidScimIdEither Intra.urefToExternalId (Just . fromEmail))
   maybeLocale = Just $ Just . userLocale
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.

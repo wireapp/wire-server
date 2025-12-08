@@ -73,6 +73,7 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Test.Tasty.HUnit ((@?=))
+import qualified Text.Email.Validate as Email
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation
@@ -215,10 +216,10 @@ specImportToScimFromSAML =
         pure (responseJsonUnsafe resp)
 
       liftIO $ scimUserId storedUserGot2 `shouldBe` uid
-      assertSparCassandraUref (uref, Just uid)
       assertSparCassandraScim ((teamid, email), Just uid)
 
       -- the "get" has already changed the ssoid in brig: no more idp
+      assertSparCassandraUref (uref, Nothing)
       runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just acc) -> liftIO $ do
         userIdentity acc
           `shouldBe` let emailText :: Text = decodeUtf8 $ toStrict $ toByteString email
@@ -228,18 +229,13 @@ specImportToScimFromSAML =
       call $ callIdpDelete (env ^. teSpar) (Just owner) (idp ^. SAML.idpId)
 
       -- password reset should work
-      passwdReset env (Aeson.object ["email" Aeson..= email])
+      let newPassword :: Text = "a8b7c1d8-d425-11f0-abbb-637eaf3793ee"
+      passwdReset env email
       passResetToken <- stealPasswdResetToken env email
-      passwdResetComplete
-        env
-        ( Aeson.object
-            [ "token" Aeson..= passResetToken,
-              "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: String)
-            ]
-        )
+      passwdResetComplete env email passResetToken newPassword
 
       -- ...  after that, password login should work
-      login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
+      login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= newPassword])
 
       -- after changing scim external id, login still works.
       let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
@@ -254,33 +250,38 @@ specImportToScimFromSAML =
             patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
             login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
 
-    passwdReset :: TestEnv -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ()
-    passwdReset env newPassRequest =
+    passwdReset :: TestEnv -> EmailAddress -> (MonadReader TestEnv m, MonadIO m) => m ()
+    passwdReset env email =
       void . call . post $
-        (versioned "13")
+        (versioned "v13")
           . (env ^. teBrig)
           . path "/password-reset"
           . contentJson
-          . json newPassRequest
+          . json (Aeson.object ["email" Aeson..= email])
           . expect2xx
 
-    passwdResetComplete :: TestEnv -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ()
-    passwdResetComplete env newPassSet =
+    passwdResetComplete :: TestEnv -> EmailAddress -> Text -> Text -> (MonadReader TestEnv m, MonadIO m) => m ()
+    passwdResetComplete env email passResetToken password =
       void . call . post $
-        (versioned "13")
+        (versioned "v13")
           . (env ^. teBrig)
           . path "/password-reset/complete"
           . contentJson
-          . json newPassSet
+          . json
+            ( Aeson.object
+                [ "email" Aeson..= email,
+                  "code" Aeson..= passResetToken,
+                  "password" Aeson..= password
+                ]
+            )
           . expect2xx
 
     stealPasswdResetToken :: TestEnv -> EmailAddress -> (MonadReader TestEnv m, MonadIO m) => m Text
     stealPasswdResetToken env (toStrict . toByteString -> email) = do
       resp <-
         call . get $
-          (versioned "13")
-            . (env ^. teBrig)
-            . path "/i/provider/password-reset-code"
+          (env ^. teBrig)
+            . path "/i/users/password-reset-code"
             . contentJson
             . queryItem "email" email
             . expect2xx
@@ -290,7 +291,7 @@ specImportToScimFromSAML =
     login :: TestEnv -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ()
     login env loginBody =
       void . call . post $
-        (versioned "13")
+        (versioned "v13")
           . (env ^. teBrig)
           . path "/login"
           . contentJson
@@ -1326,7 +1327,11 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     runSpar $ BrigAccess.setHandle uid handle
     pure usr
   let memberIdWithSSO = userId memberWithSSO
-      externalId = either error id $ veidToText =<< Intra.newVeidFromBrigUser memberWithSSO Nothing Nothing
+      idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+      mbEmail =
+        (emailIdentity =<< memberWithSSO.userIdentity)
+          <|> memberWithSSO.userEmailUnvalidated
+      externalId = either error id $ veidToText =<< Intra.newVeidFromBrigUser memberWithSSO (Just idpIssuer) mbEmail
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -2230,15 +2235,21 @@ specDeleteUser = do
         !!! const 405 === statusCode
   describe "DELETE /Users/:id" $ do
     it "should delete user from brig, spar.scim_user_times, spar.user" $ do
-      (tok, _) <- registerIdPAndScimToken
+      (tok, (_, _, idp)) <- registerIdPAndScimToken
       user <- randomScimUser
       storedUser <- createUser tok user
       let uid :: UserId = scimUserId storedUser
       uref :: SAML.UserRef <- do
         mUsr <- runSpar $ BrigAccess.getAccount Intra.WithPendingInvitations uid
-        let err = error . ("brig user without UserRef: " <>) . show
-        case (\usr -> Intra.newVeidFromBrigUser usr Nothing Nothing) <$> mUsr of
-          bad@(Just (Right veid)) -> runValidScimIdEither pure (const $ err bad) veid
+        let cond usr =
+              Intra.newVeidFromBrigUser
+                usr
+                (Just (idp ^. SAML.idpMetadata . SAML.edIssuer))
+                (Email.emailAddress . encodeUtf8 =<< user.externalId)
+            good bad = runValidScimIdEither pure (const $ err bad)
+            err bad = error $ "brig user without UserRef: " <> show (bad, user)
+        case cond <$> mUsr of
+          bad@(Just (Right veid)) -> good bad veid
           bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar

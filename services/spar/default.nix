@@ -20,6 +20,7 @@
 , cookie
 , crypton
 , crypton-x509
+, email-validate
 , exceptions
 , extended
 , gitignoreSource
@@ -156,6 +157,7 @@ mkDerivation {
     containers
     cookie
     crypton
+    email-validate
     exceptions
     extended
     hscim
