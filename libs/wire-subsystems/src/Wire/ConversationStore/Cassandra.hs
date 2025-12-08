@@ -1515,11 +1515,11 @@ filterUsersInPostgres uids = do
 groupIdToConvId :: (Member (Error MigrationError) r) => GroupId -> Sem r ConvId
 groupIdToConvId gid =
   case groupIdToConv gid of
-    Left _ -> throw InvalidGroupId
+    Left e -> throw $ InvalidGroupId gid e
     Right (_, gidParts) -> pure gidParts.qConvId.qUnqualified.conv
 
 data MigrationError
-  = InvalidGroupId
+  = InvalidGroupId GroupId String
   | FailedToAcquireMigrationLock MigrationLockError
   deriving (Show)
 
