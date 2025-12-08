@@ -23,7 +23,8 @@
 module Spar.Intra.BrigApp
   ( veidToUserSSOId,
     urefToExternalId,
-    veidFromBrigUser,
+    oldVeidFromBrigUser,
+    newVeidFromBrigUser,
     veidFromUserSSOId,
     mkUserName,
     HavePendingInvitations (..),
@@ -42,6 +43,7 @@ import Brig.Types.Intra
 import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
+import Data.CaseInsensitive (original)
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle, parseHandle)
 import Data.HavePendingInvitations
@@ -88,6 +90,11 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
         -- If veid can be parsed as an email, we end up in the case above with email delivered separately.
         throwError "internal error: externalId is not an email and there is no SAML issuer"
 
+oldVeidFromBrigUser :: User -> Maybe ValidScimId
+oldVeidFromBrigUser usr =
+  let mbEmail = userEmail usr <|> userEmailUnvalidated usr
+   in fromRight (error "impossible") $ (`veidFromUserSSOId` mbEmail) `mapM` userSSOId usr
+
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).
@@ -99,15 +106,23 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
 -- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
 -- management for the first time.  In that case, the externalId is taken to
 -- be the email address.
-veidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
-veidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
+newVeidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
+newVeidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, mValidatedEmail, _) -> do
-    -- `mEmail` is in synch with SCIM user schema.
-    let mEmail = mUnvalidatedEmail <|> mValidatedEmail
-    veidFromUserSSOId ssoid mEmail
+    -- this makes sure email encoded in ssoid is in synch with SCIM user.
+    veidFromUserSSOId (updateSsoid ssoid) (mUnvalidatedEmail <|> mValidatedEmail)
   (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
   (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
+  where
+    updateSsoid :: UserSSOId -> UserSSOId
+    updateSsoid ssoid = case (ssoid, mIssuer) of
+      (UserSSOId uref, Nothing) -> UserScimExternalId (uref ^. SAML.uidSubject . to SAML.nameIDToST . to original)
+      (dontchange@(UserScimExternalId _), Nothing) -> dontchange
+      (UserSSOId uref, Just issuer) -> UserSSOId (uref & SAML.uidTenant .~ issuer)
+      (UserScimExternalId eid, Just issuer) ->
+        let nameId :: SAML.NameID = SAML.emailNameID eid & fromRight (SAML.unspecifiedNameID eid)
+         in UserSSOId (SAML.UserRef issuer nameId)
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If
