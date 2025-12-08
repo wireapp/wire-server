@@ -121,6 +121,6 @@ testNotificationPaginationOversizeSince = do
     getNotifications user def {since = Just bigNotifId}
       `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
-        notif <- resp.json %. "notifications" >>= asList >>= assertOne
-        notif %. "payload[0].blob" `shouldMatch` "ok"
         resp.json %. "has_more" `shouldMatch` False
+        n <- resp.json %. "notifications" >>= asList >>= assertOne
+        n %. "payload.0.blob" `shouldMatch` "ok"
