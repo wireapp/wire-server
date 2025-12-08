@@ -17,9 +17,10 @@
 
 module Test.MLS.Notifications where
 
-import API.Galley
+import API.Common (recipient)
 import API.Gundeck
-import Control.Concurrent
+import API.GundeckInternal (postPush)
+import Control.Concurrent (threadDelay)
 import Data.Timeout
 import MLS.Util
 import Notifications
@@ -51,48 +52,37 @@ testWelcomeNotification = do
 
 testNotificationPagination :: (HasCallStack) => App ()
 testNotificationPagination = do
-  {-
-  Create a user with client1
-
-  Wait for all the notifications to expire (there should be no notifications which are sent to “All Clients”, i.e. there should be no notifications in the DB where clients field is null.
-
-  Send a lot of MLS messages to this client (so that the total payload size goes over 5 MB)
-
-  Create another client (say client2)
-
-  Fetch notifications for client 2
-  -}
-
-  let overrides = def {gundeckCfg = setField "settings.notificationTTL" (2 #> Second)}
+  let overrides =
+        def
+          { gundeckCfg =
+              setField "settings.maxPayloadLoadSize" (Just ((2 :: Int) * 1024))
+                >=> setField "settings.notificationTTL" (2 #> Second)
+          }
   withModifiedBackend overrides $ \dom -> do
-    -- create a user with client1
-    [alice, bob] <- createAndConnectUsers [dom, dom]
-    [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-    traverse_ (uploadNewKeyPackage def) [alice1, bob1]
+    user <- randomUser dom def
 
-    conv <- postConversation alice1 defMLS >>= getJSON 201
-    _convQid <- conv %. "qualified_id"
-    convId <- objConvId conv
-    createGroup def alice1 convId
-    void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+    liftIO $ threadDelay 2_100_000 -- let notifications expire
 
-    -- let notifs expire
-    liftIO $ threadDelay 2_300_000
+    -- Create a single oversized notification so Cassandra paging stops after the first row.
+    r <- recipient user
+    let bigPayload = replicate (3 * 1024) 'x' -- 3 KiB > maxPayloadLoadSize
+        push =
+          object
+            [ "recipients" .= [r],
+              "payload" .= [object ["blob" .= bigPayload]]
+            ]
 
-    -- bob sends alice > 5MB of MLS messages
-    let payload = replicate 20_000 '.'
-    forM_ [1 :: Int .. 260] $ \i -> do
-      print i
-      void $ createApplicationMessage convId bob1 payload >>= sendAndConsumeMessage
+    postPush user [push] >>= assertSuccess
 
-    -- create new client for alice, fetch notifications, and check response consistency.
-    alice2 :: ClientIdentity <- createMLSClient def alice
+    notifId <-
+      getNotifications user def `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        notif <- resp.json %. "notifications" >>= asList >>= assertOne
+        notif %. "id" >>= asString
 
-    getNotifications
-      alice
-      def {since = Nothing, size = Nothing, client = Just alice2.client}
+    -- Re-request starting after that notification. The bug yields has_more = True with an empty page.
+    getNotifications user def {since = Just notifId, client = Just "c1"}
       `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
+        resp.json %. "notifications" >>= asList >>= shouldBeEmpty
         resp.json %. "has_more" `shouldMatch` False
-        nfs :: [Value] <- resp.json %. "notifications" >>= asList
-        length nfs `shouldMatchInt` 1
