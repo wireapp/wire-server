@@ -41,12 +41,13 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
 import Data.Handle (Handle, fromHandle, parseHandle, parseHandleEither)
 import Data.HavePendingInvitations
-import Data.Id (TeamId, UserId, randomId)
+import Data.Id (TeamId, UserId, idToText, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
@@ -201,6 +202,101 @@ specImportToScimFromSAML =
       -- login again
       (Just !uid') <- createViaSaml idp privCreds uref
       liftIO $ uid' `shouldBe` uid
+
+      -- create new scim token detached from saml
+      tok2 :: ScimToken <- do
+        registerScimToken teamid Nothing
+
+      -- sync user
+      storedUserGot2 <- do
+        resp <-
+          aFewTimes (getUser_ (Just tok2) uid =<< view teSpar) ((== 200) . statusCode)
+            <!! const 200 === statusCode
+        pure (responseJsonUnsafe resp)
+
+      liftIO $ scimUserId storedUserGot2 `shouldBe` uid
+      assertSparCassandraUref (uref, Just uid)
+      assertSparCassandraScim ((teamid, email), Just uid)
+
+      -- the "get" has already changed the ssoid in brig: no more idp
+      runSpar (BrigAccess.getAccount NoPendingInvitations uid) >>= \(Just acc) -> liftIO $ do
+        userIdentity acc
+          `shouldBe` let emailText :: Text = decodeUtf8 $ toStrict $ toByteString email
+                      in Just (SSOIdentity (UserScimExternalId emailText) (Just email))
+
+      -- the idp gets deleted now, but we'll see below that the user account survives.
+      call $ callIdpDelete (env ^. teSpar) (Just owner) (idp ^. SAML.idpId)
+
+      -- password reset should work
+      passwdReset env (Aeson.object ["email" Aeson..= email])
+      passResetToken <- stealPasswdResetToken env email
+      passwdResetComplete
+        env
+        ( Aeson.object
+            [ "token" Aeson..= passResetToken,
+              "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: String)
+            ]
+        )
+
+      -- ...  after that, password login should work
+      login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
+
+      -- after changing scim external id, login still works.
+      let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
+            where
+              replaceAttrib :: Text -> Text -> PatchOp.Operation
+              replaceAttrib name value =
+                PatchOp.Operation
+                  PatchOp.Replace
+                  (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+                  (Just (toJSON value))
+       in do
+            patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
+            login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
+
+    passwdReset :: TestEnv -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ()
+    passwdReset env newPassRequest =
+      void . call . post $
+        (versioned "13")
+          . (env ^. teBrig)
+          . path "/password-reset"
+          . contentJson
+          . json newPassRequest
+          . expect2xx
+
+    passwdResetComplete :: TestEnv -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ()
+    passwdResetComplete env newPassSet =
+      void . call . post $
+        (versioned "13")
+          . (env ^. teBrig)
+          . path "/password-reset/complete"
+          . contentJson
+          . json newPassSet
+          . expect2xx
+
+    stealPasswdResetToken :: TestEnv -> EmailAddress -> (MonadReader TestEnv m, MonadIO m) => m Text
+    stealPasswdResetToken env (toStrict . toByteString -> email) = do
+      resp <-
+        call . get $
+          (versioned "13")
+            . (env ^. teBrig)
+            . path "/i/provider/password-reset-code"
+            . contentJson
+            . queryItem "email" email
+            . expect2xx
+      maybe (error "could not find and/or parse passwd reset token") pure $
+        responseBody resp ^? _Just . key "code" . _String
+
+    login :: TestEnv -> Aeson.Value -> (MonadReader TestEnv m, MonadIO m) => m ()
+    login env loginBody =
+      void . call . post $
+        (versioned "13")
+          . (env ^. teBrig)
+          . path "/login"
+          . contentJson
+          . queryItem "persist" "true"
+          . body (RequestBodyLBS (Aeson.encode loginBody))
+          . expect2xx
 
 specImportToScimFromInvitation :: SpecWith TestEnv
 specImportToScimFromInvitation =
