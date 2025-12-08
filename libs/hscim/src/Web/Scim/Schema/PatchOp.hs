@@ -121,9 +121,9 @@ operationIsLegal op = case op of
 pathIsLegal :: AD.Path -> Bool
 pathIsLegal path = all isKeyItem path
   where
-    isKeyItem :: AD.Pointer -> Bool
-    isKeyItem (AD.Key _) = True
-    isKeyItem (AD.Index _) = False
+    isKeyItem :: AD.Key -> Bool
+    isKeyItem (AD.OKey _) = True
+    isKeyItem (AD.OIndex _) = False
 
 -- | Applies a PatchOp to a value of type 'a' (which must be ToJSON/FromJSON).
 -- This function:

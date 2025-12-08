@@ -149,19 +149,19 @@ spec = do
 
     it "rejects unsupported operations with proper error (not could-not-parse)" $ do
       -- Test rejection of array index operations
-      let patchWithIndex = PatchOp $ AD.Patch [AD.Add [AD.Index 0, AD.Key "value"] (String "test")]
+      let patchWithIndex = PatchOp $ AD.Patch [AD.Add [AD.OIndex 0, AD.OKey "value"] (String "test")]
       isLegalPatchOp patchWithIndex `shouldBe` False
 
       -- Test rejection of Move operation
-      let patchWithMov = PatchOp $ AD.Patch [AD.Mov [AD.Key "from"] [AD.Key "to"]]
+      let patchWithMov = PatchOp $ AD.Patch [AD.Mov [AD.OKey "from"] [AD.OKey "to"]]
       isLegalPatchOp patchWithMov `shouldBe` False
 
       -- Test rejection of Copy operation
-      let patchWithCpy = PatchOp $ AD.Patch [AD.Cpy [AD.Key "from"] [AD.Key "to"]]
+      let patchWithCpy = PatchOp $ AD.Patch [AD.Cpy [AD.OKey "from"] [AD.OKey "to"]]
       isLegalPatchOp patchWithCpy `shouldBe` False
 
       -- Test rejection of Test operation
-      let patchWithTst = PatchOp $ AD.Patch [AD.Tst [AD.Key "test"] (String "value")]
+      let patchWithTst = PatchOp $ AD.Patch [AD.Tst [AD.OKey "test"] (String "value")]
       isLegalPatchOp patchWithTst `shouldBe` False
 
   describe "applyPatch" $ do
@@ -193,7 +193,7 @@ spec = do
       let user :: User (TestTag Text () () NoUserExtra)
           user = User.empty [User20] "testuser" NoUserExtra
       -- Patch with array index should be rejected
-      let arrayPatch = PatchOp $ AD.Patch [AD.Add [AD.Key "emails", AD.Index 0] (String "test@example.com")]
+      let arrayPatch = PatchOp $ AD.Patch [AD.Add [AD.OKey "emails", AD.OIndex 0] (String "test@example.com")]
       case runExcept (User.applyPatch arrayPatch user) of
         Left (_ :: ScimError) -> pure () -- Expected: rejected as unsupported
         Right _ -> expectationFailure "Should reject patches with array indices"
@@ -203,7 +203,7 @@ spec = do
       let user :: User (TestTag Text () () NoUserExtra)
           user = User.empty [User20] "testuser" NoUserExtra
       -- Try to add a field that doesn't exist in User schema - AD.patch may fail or succeed depending on behavior
-      let nonExistentPatch = PatchOp $ AD.Patch [AD.Add [AD.Key "nonExistentField"] (String "value")]
+      let nonExistentPatch = PatchOp $ AD.Patch [AD.Add [AD.OKey "nonExistentField"] (String "value")]
       -- This should either fail during patch application or during re-parsing
       case runExcept (User.applyPatch nonExistentPatch user) of
         Left (_ :: ScimError) -> pure () -- May fail
