@@ -77,14 +77,16 @@ data:
       apiPort: 5380
       dohPort: 5381
 
-    originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+    # originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+    # sven-test.wire.link
+    originDomain: dev.zinfra.io
 
     rabbitmq:
       host: rabbitmq
       port: 5671
       adminHost: rabbitmq
-      adminPort: 15671
-      enableTls: true
+      adminPort: 15672
+      enableTls: false
       insecureSkipVerifyTls: true
       vHost: /
 
@@ -310,3 +312,6 @@ data:
 
     integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local
     cellsEventQueue: cells_events
+    shardingGroupCount: {{ .Values.config.shardingGroupCount }}
+    maxUserNo: {{ .Values.config.maxUserNo }}
+    maxDeliveryDelay: {{ .Values.config.maxDeliveryDelay }}

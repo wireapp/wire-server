@@ -12,7 +12,7 @@ podSecurityContext:
     type: RuntimeDefault
 
 config:
-  dynamicBackendsPoolsize: 3
+  dynamicBackendsPoolsize: 0
   dynamicBackends:
     dynamic-backend-1:
       federatorExternalHostPrefix: dynamic-backend-1
@@ -118,8 +118,11 @@ config:
   sqsEndpointUrl: http://fake-aws-sqs:4568
   sesEndpointUrl: http://fake-aws-ses:4569
   s3EndpointUrl: http://fake-aws-s3:9000
-  rabbitmqPutVHostUrl: http://rabbitmq:15672/api/vhosts
-
+  rabbitmqPutVHostUrl: http://rabbitmq-b.databases.svc.cluster.local:15672/api/vhosts
+  shardingGroupCount: 3
+  # shardingGroup: 0
+  maxUserNo: 1000
+  maxDeliveryDelay: 120
 tls:
   verify_depth: 1
   # Namespace from which to obtain the secret containing the CA trusted by

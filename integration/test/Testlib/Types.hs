@@ -144,7 +144,11 @@ data GlobalEnv = GlobalEnv
     gDNSMockServerConfig :: DNSMockServerConfig,
     gCellsEventQueue :: String,
     gCellsEventWatchersLock :: MVar (),
-    gCellsEventWatchers :: IORef (Map String QueueWatcher)
+    gCellsEventWatchers :: IORef (Map String QueueWatcher),
+    gShardingGroupCount :: Word,
+    gShardingGroup :: Word,
+    gMaxUserNo :: Word,
+    gMaxDeliveryDelay :: Word
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -160,7 +164,10 @@ data IntegrationConfig = IntegrationConfig
     rabbitmqV1 :: RabbitMqAdminOpts,
     cassandra :: CassandraConfig,
     dnsMockServer :: DNSMockServerConfig,
-    cellsEventQueue :: String
+    cellsEventQueue :: String,
+    shardingGroupCount :: Word,
+    maxUserNo :: Word,
+    maxDeliveryDelay :: Word
   }
   deriving (Show, Generic)
 
@@ -181,6 +188,9 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "cassandra"
         <*> o .: fromString "dnsMockServer"
         <*> o .: fromString "cellsEventQueue"
+        <*> o .: fromString "shardingGroupCount"
+        <*> o .: fromString "maxUserNo"
+        <*> o .: fromString "maxDeliveryDelay"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -271,7 +281,11 @@ data Env = Env
     dnsMockServerConfig :: DNSMockServerConfig,
     cellsEventQueue :: String,
     cellsEventWatchersLock :: MVar (),
-    cellsEventWatchers :: IORef (Map String QueueWatcher)
+    cellsEventWatchers :: IORef (Map String QueueWatcher),
+    shardingGroupCount :: Word,
+    shardingGroup :: Word,
+    maxUserNo :: Word,
+    maxDeliveryDelay :: Word
   }
 
 data Response = Response
@@ -446,7 +460,7 @@ hoistCodensity m = Codensity $ \k -> do
 getServiceMap :: (HasCallStack) => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
+  assertJust ("Could not find service map for federation domain: " <> fedDomain <> " in " <> show (Map.keys env.serviceMap)) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do

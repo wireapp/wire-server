@@ -185,6 +185,7 @@ library
     Test.MLS.Unreachable
     Test.NginxZAuthModule
     Test.Notifications
+    Test.NotificationsBenchmark
     Test.OAuth
     Test.PasswordReset
     Test.Presence
@@ -300,6 +301,7 @@ library
     , split
     , stm
     , streaming-commons
+    , streamly
     , string-conversions
     , system-linux-proc
     , tagged
