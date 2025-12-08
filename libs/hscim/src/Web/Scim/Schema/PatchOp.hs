@@ -29,8 +29,7 @@ import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.KeyMap as AK
 import Data.Aeson.Types
 import Data.Bifunctor (first)
-import Data.Text (Text, pack, toLower)
-import qualified Data.Text as T
+import Data.Text (pack)
 import Web.Scim.Schema.Common (lowerKey)
 import Web.Scim.Schema.Error (ScimError, badRequest)
 import Web.Scim.Schema.Error (ScimErrorType (..))
