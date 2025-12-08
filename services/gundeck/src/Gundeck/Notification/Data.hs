@@ -34,7 +34,7 @@ import Data.Id
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
-import Data.Sequence (Seq, ViewL ((:<)))
+import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
 import Gundeck.Env
 import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
@@ -250,30 +250,31 @@ fetch u c Nothing (fromIntegral . fromRange -> size) = do
       \ORDER BY id ASC"
 fetch u c (Just since) (fromIntegral . fromRange -> size) = do
   pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
+  sinceFound <- isJust <$> retry x1 (query1 cqlExists (params LocalQuorum (u, TimeUuid (toUUID since))))
   let page1 =
         retry x1 $
-          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
-  -- We fetch 2 more rows than requested. The first is to accommodate the
-  -- notification corresponding to the `since` argument itself. The second is
-  -- to get an accurate `hasMore`, just like in the case above.
-
+          paginate cqlAfterSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
   maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
   let prevPageHasMore = True
-  (ns, more) <- collect c Seq.empty prevPageHasMore (size + 2) maxPayloadSize page1
-  -- Remove notification corresponding to the `since` argument, and record if it is found.
-  let (ns', sinceFound) = case Seq.viewl ns of
-        x :< xs | since == x ^. queuedNotificationId -> (xs, True)
-        _ -> (ns, False)
+  -- We always need to look for one more than requested in order to correctly
+  -- report whether there are more results.
+  (ns, more) <- collect c Seq.empty prevPageHasMore (size + 1) maxPayloadSize page1
   pure $!
-    (mkResultPage size more ns')
+    (mkResultPage size more ns)
       { resultGap = not sinceFound
       }
   where
-    cqlSince :: PrepQuery R (UserId, TimeUuid) NotifRow
-    cqlSince =
+    cqlExists :: PrepQuery R (UserId, TimeUuid) (Identity TimeUuid)
+    cqlExists =
+      "SELECT id \
+      \FROM notifications \
+      \WHERE user = ? AND id = ?"
+
+    cqlAfterSince :: PrepQuery R (UserId, TimeUuid) NotifRow
+    cqlAfterSince =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
-      \WHERE user = ? AND id >= ? \
+      \WHERE user = ? AND id > ? \
       \ORDER BY id ASC"
 
 deleteAll :: (MonadClient m) => UserId -> m ()
