@@ -1,0 +1,7 @@
+Introduce new metrics for better tracking of conversation migration to postgresql:
+1. `wire_local_convs_migration_failed`
+2. `wire_user_remote_convs_migration_failed`
+
+If any of these become `1`, it means the migration has failed. The logs would
+contain the error. In order to restart the migration, the background-worker must
+be restarted.
