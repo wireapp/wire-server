@@ -61,10 +61,7 @@ data Category
   | Other
   deriving (Eq, Ord, Show, Read, Generic)
   deriving (Arbitrary) via GenericUniform Category
-
-instance A.FromJSON Category where parseJSON = schemaParseJSON
-
-instance A.ToJSON Category where toJSON = schemaToJSON
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Category)
 
 categoryTextMapping :: [(Text, Category)]
 categoryTextMapping =
