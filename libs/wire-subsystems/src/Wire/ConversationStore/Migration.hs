@@ -100,6 +100,7 @@ migrationLoop cassClient pgPool logger name migFinished migration = do
           Log.info logger $
             Log.msg (Log.val "finished migration")
               . Log.field "attempt" nIter
+              . Log.field "migration" name
         n -> do
           Log.info logger $
             Log.msg (Log.val "finished migration with errors")
