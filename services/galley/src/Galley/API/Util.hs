@@ -303,8 +303,7 @@ ensureConvRoleNotElevated origMember targetRole = do
 
 checkGroupIdSupport ::
   ( Member (ErrorS GroupIdVersionNotSupported) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    VersionedMonad Version (FederatorClient Brig)
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local x ->
   StoredConversation ->
