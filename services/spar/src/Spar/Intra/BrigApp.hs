@@ -99,6 +99,8 @@ oldVeidFromBrigUser usr =
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).
 --
+-- TODO: is this doc string still true?
+--
 -- Note: the saml issuer is only needed in the case where a user has been invited via team
 -- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
 -- to just set it to 'Nothing'.

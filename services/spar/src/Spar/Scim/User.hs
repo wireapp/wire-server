@@ -864,7 +864,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         Right veid -> lift $ do
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
           ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
-      lift $ ScimUserTimesStore.delete uid
+      lift $ ScimUserTimesStore.delete uid -- TODO: is this removing the record owned by caller of this end-point (ie., team owner), or correct one?!
 
 ----------------------------------------------------------------------------
 -- Utilities
@@ -1115,7 +1115,7 @@ getUserById midp stiTeam uid = do
         Brig.newVeidFromBrigUser
           brigUser
           ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
-          brigUser.userEmailUnvalidated
+          brigUser.userEmailUnvalidated -- TODO: can we drop this argument and always pull it out of the first arg inside the called function?
   case mbNewVeid of
     Right veid | userTeam brigUser == Just stiTeam -> lift $ do
       storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
