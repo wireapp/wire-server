@@ -26,6 +26,7 @@ import Data.Schema
 import Imports
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.Arbitrary as Arbitrary
 
 data NewApp = NewApp
   { app :: GetApp,
@@ -59,6 +60,7 @@ data Category
   | Compliance
   | Other
   deriving (Eq, Ord, Show, Read, Generic)
+  deriving (Arbitrary) via GenericUniform Category
 
 instance A.FromJSON Category where parseJSON = schemaParseJSON
 
