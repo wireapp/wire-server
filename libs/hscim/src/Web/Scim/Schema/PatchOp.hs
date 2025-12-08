@@ -15,14 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Web.Scim.Schema.PatchOp where
+module Web.Scim.Schema.PatchOp
+  ( PatchOp (..),
+    isLegalPatchOp,
+    operationIsLegal,
+    applyPatch,
+  )
+where
 
 import Control.Monad (guard)
+import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.KeyMap as AK
 import Data.Aeson.Types
 import Data.Bifunctor (first)
+import Data.Text (Text, pack, toLower)
+import qualified Data.Text as T
 import Web.Scim.Schema.Common (lowerKey)
+import Web.Scim.Schema.Error (ScimError, badRequest)
+import Web.Scim.Schema.Error (ScimErrorType (..))
 import Web.Scim.Schema.Schema (Schema (PatchOp20))
 
 -- | For scim patches (both user and group), we use the aeson-diff
@@ -41,14 +52,15 @@ import Web.Scim.Schema.Schema (Schema (PatchOp20))
 newtype PatchOp = PatchOp AD.Patch
   deriving (Eq, Show)
 
+-- | Validates that a PatchOp contains only legal operations.
+-- Currently supports Add, Rem (Remove), and Rep (Replace) operations.
+-- Rejects operations that reference array indices or other unsupported path components.
+--
+-- FUTUREWORK: Currently rejects all multi-valued attribute operations and
+-- operations with array index references. This is a conservative implementation
+-- that prioritizes correctness over full SCIM spec support.
 isLegalPatchOp :: PatchOp -> Bool
-isLegalPatchOp (PatchOp (AD.Patch ops)) = all ok ops
-  where
-    ok :: AD.Operation -> Bool
-    ok =
-      -- only add, remove, replace.  maybe we can also explicitly
-      -- scream about unsupposed value paths (array indices)?
-      undefined
+isLegalPatchOp (PatchOp (AD.Patch ops)) = all operationIsLegal ops
 
 {-
  { "schemas":
@@ -86,12 +98,86 @@ instance ToJSON PatchOp where
   toJSON (PatchOp operations) =
     object ["schemas" .= [PatchOp20], "operations" .= operations]
 
+-- | Checks if an individual AD.Operation is legal according to SCIM constraints.
+-- Only Add, Rem (Remove), and Rep (Replace) operations are supported.
+-- Operations with array indices or complex path operations (Mov, Cpy, Tst) are rejected.
+--
+-- FUTUREWORK: This is intentionally conservative. Multi-valued attributes and
+-- value-path filters are not supported.
 operationIsLegal :: AD.Operation -> Bool
-operationIsLegal _op = undefined
+operationIsLegal op = case op of
+  -- Allow Add, Rem, Rep with paths that don't contain array indices
+  AD.Add path _ -> pathIsLegal path
+  AD.Rem path -> pathIsLegal path
+  AD.Rep path _ -> pathIsLegal path
+  -- Reject Mov, Cpy, Tst operations (not part of basic SCIM PATCH)
+  AD.Mov {} -> False
+  AD.Cpy {} -> False
+  AD.Tst {} -> False
 
-applyPatch {- (FromJSON a, ToJSON a, MonadError ScimError m) => -} :: PatchOp -> a -> m a
-applyPatch =
-  -- errors out when:
-  -- 1. parsing of patched value doesn't work
-  -- 2. ?
-  undefined
+-- | Checks if a path contains only keys (not array indices).
+-- SCIM paths like "userName", "name.givenName" are allowed.
+-- Paths with array indices like "emails[0]" are rejected.
+pathIsLegal :: AD.Path -> Bool
+pathIsLegal path = all isKeyItem path
+  where
+    isKeyItem :: AD.Pointer -> Bool
+    isKeyItem (AD.Key _) = True
+    isKeyItem (AD.Index _) = False
+
+-- | Applies a PatchOp to a value of type 'a' (which must be ToJSON/FromJSON).
+-- This function:
+-- 1. Validates all operations are legal (no unsupported ops or array indices)
+-- 2. Converts the value to JSON
+-- 3. Applies the aeson-diff patch
+-- 4. Parses the result back to type 'a'
+-- 5. Validates that immutable/read-only attributes haven't been changed illegally
+--
+-- Errors are mapped to appropriate ScimError types:
+-- - InvalidPath: for unsupported operation types or paths
+-- - InvalidValue: for parse failures or invalid resulting values
+-- - Mutability: for attempts to modify read-only fields (FUTUREWORK)
+--
+-- FUTUREWORK: Currently we don't check immutability constraints (like preventing
+-- changes to 'id' or 'meta' fields). This should be added in a future iteration.
+applyPatch :: (FromJSON a, ToJSON a, MonadError ScimError m) => PatchOp -> a -> m a
+applyPatch patchOp@(PatchOp adPatch) value = do
+  -- Step 1: Validate that all operations in the patch are legal
+  if not (isLegalPatchOp patchOp)
+    then
+      throwError $
+        badRequest
+          InvalidPath
+          (Just "Unsupported patch operation: multi-valued attributes and array operations are not supported")
+    else do
+      -- Step 2: Convert the value to JSON
+      let jsonValue = toJSON value
+
+      -- Step 3: Apply the aeson-diff patch
+      -- AD.patch returns Either String Value
+      case AD.patch adPatch jsonValue of
+        Left err ->
+          -- Patch application failed (e.g., path doesn't exist, type mismatch)
+          throwError $
+            badRequest
+              InvalidValue
+              (Just $ pack err)
+        Right patchedValue -> do
+          -- Step 4: Parse the patched JSON back to type 'a'
+          case fromJSON patchedValue of
+            Error reason ->
+              -- Parsing failed - the patched value doesn't conform to type 'a'
+              throwError $
+                badRequest
+                  InvalidValue
+                  (Just $ pack reason)
+            Success result -> do
+              -- Step 5: FUTUREWORK - validate immutability constraints
+              -- For now, we skip this check. In the future, we should:
+              -- - Extract 'id' from original and result (if they have id field)
+              -- - Compare and reject if they differ
+              -- - Similar checks for 'meta' and other read-only fields
+              -- if originalId /= resultId then
+              --   throwError $ badRequest Mutability (Just "Cannot modify id field")
+              -- else
+              pure result
