@@ -70,7 +70,6 @@ resetLocalMLSMainConversation ::
     Member ConversationStore r,
     Member P.TinyLog r,
     Member MLSCommitLockStore r,
-    VersionedMonad Version (FederatorClient Brig),
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Qualified UserId ->
