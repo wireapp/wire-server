@@ -179,18 +179,26 @@ payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
     (_, Just size) -> size
     _ -> 0
 
+data FetchPayloadsResult = FetchPayloadsResult
+  { notifications :: Seq QueuedNotification,
+    remainingBytes :: Int32,
+    truncatedByPayloadLimit :: Bool
+  }
+
 -- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
 -- At least the first row is fetched regardless of the payload size.
-fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification, Int32)
-fetchPayloads c left rows = do
-  let (rows', left') = truncateNotifs [] (0 :: Int) left rows
-  s <- Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
-  pure (s, left')
+fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m FetchPayloadsResult
+fetchPayloads client remainingBytes rows = do
+  let isFirstRow = True
+  let (rows', remainingBytes', truncatedByPayloadLimit) = truncateNotifs [] isFirstRow remainingBytes rows
+  notifications <- Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload client) rows'
+  pure $ FetchPayloadsResult notifications remainingBytes' truncatedByPayloadLimit
   where
-    truncateNotifs acc _i l [] = (reverse acc, l)
-    truncateNotifs acc i l (row : rest)
-      | i > 0 && l <= 0 = (reverse acc, l)
-      | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
+    truncateNotifs :: [NotifRow] -> Bool -> Int32 -> [NotifRow] -> ([NotifRow], Int32, Bool)
+    truncateNotifs acc _ remainingBytes' [] = (reverse acc, remainingBytes', False)
+    truncateNotifs acc isFirstRow remainingBytes' (row : rest)
+      | not isFirstRow && remainingBytes' <= 0 = (reverse acc, remainingBytes', not (null rest))
+      | otherwise = truncateNotifs (row : acc) False (remainingBytes' - payloadSize row) rest
 
 -- | Tries to fetch @remaining@ many notifications.
 -- The returned 'Seq' might contain more notifications than @remaining@, (see
@@ -198,16 +206,21 @@ fetchPayloads c left rows = do
 --
 -- The boolean indicates whether more notifications can be fetched.
 collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
-collect c acc lastPageHasMore remaining remainingBytes getPage
-  | remaining <= 0 = pure (acc, lastPageHasMore)
-  | remainingBytes <= 0 = pure (acc, True)
-  | not lastPageHasMore = pure (acc, False)
+collect c acc prevPageHasMore remaining remainingBytes getPage
+  -- we have fetched at least the requested size: terminating the recursion
+  | remaining <= 0 = pure (acc, prevPageHasMore)
+  -- we reached or exceeded the max payload: terminating the recursion
+  | remainingBytes <= 0 = pure (acc, prevPageHasMore)
+  -- there is no more data: terminating the recursion
+  | not prevPageHasMore = pure (acc, False)
+  -- in any other case we are going to get the next page
   | otherwise = do
       page <- getPage
       let rows = result page
-      (s, remaingBytes') <- fetchPayloads c remainingBytes rows
-      let remaining' = remaining - Seq.length s
-      collect c (acc <> s) (hasMore page) remaining' remaingBytes' (liftClient (nextPage page))
+      result <- fetchPayloads c remainingBytes rows
+      let remaining' = remaining - Seq.length result.notifications
+          more' = hasMore page || result.truncatedByPayloadLimit
+      collect c (acc <> result.notifications) more' remaining' result.remainingBytes (liftClient (nextPage page))
 
 mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
 mkResultPage size more ns =
@@ -224,7 +237,8 @@ fetch u c Nothing (fromIntegral . fromRange -> size) = do
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
   maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
-  (ns, more) <- collect c Seq.empty True (size + 1) maxPayloadSize page1
+  let prevPageHasMore = True
+  (ns, more) <- collect c Seq.empty prevPageHasMore (size + 1) maxPayloadSize page1
   -- Drop the extra element at the end if present
   pure $! mkResultPage size more ns
   where
@@ -244,7 +258,8 @@ fetch u c (Just since) (fromIntegral . fromRange -> size) = do
   -- to get an accurate `hasMore`, just like in the case above.
 
   maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
-  (ns, more) <- collect c Seq.empty True (size + 2) maxPayloadSize page1
+  let prevPageHasMore = True
+  (ns, more) <- collect c Seq.empty prevPageHasMore (size + 2) maxPayloadSize page1
   -- Remove notification corresponding to the `since` argument, and record if it is found.
   let (ns', sinceFound) = case Seq.viewl ns of
         x :< xs | since == x ^. queuedNotificationId -> (xs, True)
