@@ -1,1 +1,0 @@
-Add "get app" endpoint to Brig (`GET /teams/:tid/apps/:id`)

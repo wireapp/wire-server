@@ -21,48 +21,34 @@ module Wire.AppStore where
 
 import Data.Aeson
 import Data.Id
-import Data.Range
 import Data.UUID
 import Imports
 import Polysemy
-import Wire.API.App
 import Wire.API.PostgresMarshall
 
 data StoredApp = StoredApp
   { id :: UserId,
     teamId :: TeamId,
-    meta :: Object,
-    category :: Category,
-    description :: Range 0 300 Text,
-    creator :: UserId
+    meta :: Object
   }
   deriving (Eq, Ord, Show)
 
--- The `PostgresMarshall` instances are here in this module -- as
--- having them elsewhere would make them orphan instances of
--- `StoredApp`.
-instance PostgresMarshall StoredApp (UUID, UUID, Value, Text, Text, UUID) where
+instance PostgresMarshall StoredApp (UUID, UUID, Value) where
   postgresMarshall app =
     ( postgresMarshall app.id,
       postgresMarshall app.teamId,
-      postgresMarshall app.meta,
-      postgresMarshall (categoryToText app.category),
-      postgresMarshall (fromRange app.description),
-      postgresMarshall app.creator
+      postgresMarshall app.meta
     )
 
-instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp where
-  postgresUnmarshall (uid, teamId, meta, category, description, creator) =
+instance PostgresUnmarshall (UUID, UUID, Value) StoredApp where
+  postgresUnmarshall (uid, teamId, meta) =
     StoredApp
       <$> postgresUnmarshall uid
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
-      <*> (postgresUnmarshall =<< maybe (Left $ "Category " <> category <> " not found") Right (categoryFromText category))
-      <*> (maybe (Left "description out of bounds") Right . checked @0 @300 =<< postgresUnmarshall description)
-      <*> postgresUnmarshall creator
 
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
-  GetApp :: UserId -> TeamId -> AppStore m (Maybe StoredApp)
+  GetApp :: UserId -> AppStore m (Maybe StoredApp)
 
 makeSem ''AppStore

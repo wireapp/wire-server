@@ -2119,16 +2119,6 @@ type AppsAPI =
         :> Post '[JSON] CreatedApp
     )
     :<|> Named
-           "get-app"
-           ( Summary "Get app"
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "apps"
-               :> Capture "id" UserId
-               :> Get '[JSON] GetApp
-           )
-    :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
                :> ZLocalUser

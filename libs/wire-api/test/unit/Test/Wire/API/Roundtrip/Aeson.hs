@@ -26,7 +26,6 @@ import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
-import Wire.API.App qualified as App
 import Wire.API.Asset qualified as Asset
 import Wire.API.BackgroundJobs qualified as BackgroundJobs
 import Wire.API.Call.Config qualified as Call.Config
@@ -87,8 +86,7 @@ import Wire.API.Wrapped qualified as Wrapped
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
-    [ testRoundTrip @App.Category,
-      testRoundTrip @Asset.AssetToken,
+    [ testRoundTrip @Asset.AssetToken,
       testRoundTrip @Asset.NewAssetToken,
       testRoundTrip @Asset.AssetRetention,
       testRoundTrip @Asset.AssetSettings,

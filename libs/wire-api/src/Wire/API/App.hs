@@ -18,114 +18,40 @@
 module Wire.API.App where
 
 import Data.Aeson qualified as A
-import Data.HashMap.Strict qualified as HM
-import Data.Misc
 import Data.OpenApi qualified as S
-import Data.Range
 import Data.Schema
 import Imports
 import Wire.API.User
 import Wire.API.User.Auth
-import Wire.Arbitrary as Arbitrary
 
 data NewApp = NewApp
-  { app :: GetApp,
-    password :: PlainTextPassword6
-  }
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
-
-data GetApp = GetApp
   { name :: Name,
     pict :: Pict,
     assets :: [Asset],
     accentId :: ColourId,
-    meta :: A.Object,
-    category :: Category,
-    description :: Range 0 300 Text
+    meta :: A.Object
   }
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
-
-data Category
-  = Security
-  | Collaboration
-  | Productivity
-  | Automation
-  | Files
-  | AI
-  | Developer
-  | Support
-  | Finance
-  | HR
-  | Integration
-  | Compliance
-  | Other
-  deriving (Eq, Ord, Show, Read, Generic)
-  deriving (Arbitrary) via GenericUniform Category
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Category)
-
-categoryTextMapping :: [(Text, Category)]
-categoryTextMapping =
-  [ ("security", Security),
-    ("collaboration", Collaboration),
-    ("productivity", Productivity),
-    ("automation", Automation),
-    ("files", Files),
-    ("ai", AI),
-    ("developer", Developer),
-    ("support", Support),
-    ("finance", Finance),
-    ("hr", HR),
-    ("integration", Integration),
-    ("compliance", Compliance),
-    ("other", Other)
-  ]
-
-categoryMap :: HM.HashMap Text Category
-categoryMap = HM.fromList categoryTextMapping
-
-categoryFromText :: Text -> Maybe Category
-categoryFromText text' = HM.lookup text' categoryMap
-
-categoryToText :: Category -> Text
-categoryToText = \case
-  Security -> "security"
-  Collaboration -> "collaboration"
-  Productivity -> "productivity"
-  Automation -> "automation"
-  Files -> "files"
-  AI -> "ai"
-  Developer -> "developer"
-  Support -> "support"
-  Finance -> "finance"
-  HR -> "hr"
-  Integration -> "integration"
-  Compliance -> "compliance"
-  Other -> "other"
-
-instance ToSchema Category where
-  schema =
-    enum @Text "Category" $
-      mconcat $
-        map (uncurry element) categoryTextMapping
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
 instance ToSchema NewApp where
   schema =
     object "NewApp" $
       NewApp
-        <$> (.app) .= field "app" schema
-        <*> (.password) .= field "password" schema
-
-instance ToSchema GetApp where
-  schema =
-    object "GetApp" $
-      GetApp
         <$> (.name) .= field "name" schema
         <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
         <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
         <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
         <*> (.meta) .= field "metadata" jsonObject
-        <*> (.category) .= field "category" schema
-        <*> (.description) .= field "description" schema
+
+defNewApp :: Name -> NewApp
+defNewApp name =
+  NewApp
+    { name,
+      pict = noPict,
+      assets = [],
+      accentId = defaultAccentId,
+      meta = mempty
+    }
 
 data CreatedApp = CreatedApp
   { user :: User,

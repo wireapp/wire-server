@@ -42,7 +42,7 @@ interpretAppStoreToPostgres ::
 interpretAppStoreToPostgres =
   interpret $ \case
     CreateApp app -> createAppImpl app
-    GetApp userId teamId -> getAppImpl userId teamId
+    GetApp userId -> getAppImpl userId
 
 createAppImpl ::
   ( Member (Input Pool) r,
@@ -55,8 +55,8 @@ createAppImpl app =
   runStatement app $
     lmapPG
       [resultlessStatement|
-        insert into apps (user_id, team_id, metadata, category, description, creator)
-        values ($1 :: uuid, $2 :: uuid, $3 :: json, $4 :: text, $5 :: text, $6 :: uuid) |]
+        insert into apps (user_id, team_id, metadata)
+        values ($1 :: uuid, $2 :: uuid, $3 :: json) |]
 
 getAppImpl ::
   ( Member (Input Pool) r,
@@ -64,10 +64,9 @@ getAppImpl ::
     Member (Error UsageError) r
   ) =>
   UserId ->
-  TeamId ->
   Sem r (Maybe StoredApp)
-getAppImpl uid tid =
-  runStatement (uid, tid) $
+getAppImpl uid =
+  runStatement uid $
     dimapPG
-      [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
-        from apps where user_id = ($1 :: uuid) and team_id = ($2 :: uuid) |]
+      [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json) 
+        from apps where user_id = ($1 :: uuid) |]
