@@ -666,12 +666,8 @@ instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
-  maybeTenant = Just $ \usr ->
-    Intra.oldVeidFromBrigUser usr
-      & maybe Nothing (fmap SAML._uidTenant . veidUref)
-  maybeSubject = Just $ \usr ->
-    Intra.oldVeidFromBrigUser usr
-      & maybe Nothing (fmap SAML._uidSubject . veidUref)
+  maybeTenant = Just $ (fmap SAML._uidTenant . veidUref) <=< Intra.oldVeidFromBrigUser
+  maybeSubject = Just $ (fmap SAML._uidSubject . veidUref) <=< Intra.oldVeidFromBrigUser
   maybeScimExternalId =
     Just $
       Intra.oldVeidFromBrigUser
