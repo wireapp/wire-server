@@ -253,7 +253,7 @@ library
     , cql
     , cql-io
     , criterion
-    , cryptobox-haskell
+    , proteus-bindings
     , crypton
     , crypton-x509
     , cryptostore

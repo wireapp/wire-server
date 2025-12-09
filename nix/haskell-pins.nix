@@ -63,13 +63,7 @@ let
     # maintained by us
     # ----------------
 
-    cryptobox-haskell = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/cryptobox-haskell";
-        rev = "7546a1a25635ef65183e3d44c1052285e8401608";
-        hash = "sha256-9mMVgmMB1NWCPm/3inLeF4Ouiju0uIb/92UENoP88TU=";
-      };
-    };
+    # None
 
     # --------------------
     # END maintained by us
