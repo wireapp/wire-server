@@ -73,7 +73,6 @@ import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Test.Tasty.HUnit ((@?=))
-import qualified Text.Email.Validate as Email
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation
@@ -1328,10 +1327,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     pure usr
   let memberIdWithSSO = userId memberWithSSO
       idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      mbEmail =
-        (emailIdentity =<< memberWithSSO.userIdentity)
-          <|> memberWithSSO.userEmailUnvalidated
-      externalId = either error id $ veidToText =<< Intra.newVeidFromBrigUser memberWithSSO (Just idpIssuer) mbEmail
+      externalId = either error id $ veidToText =<< Intra.newVeidFromBrigUser memberWithSSO (Just idpIssuer)
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -2241,11 +2237,7 @@ specDeleteUser = do
       let uid :: UserId = scimUserId storedUser
       uref :: SAML.UserRef <- do
         mUsr <- runSpar $ BrigAccess.getAccount Intra.WithPendingInvitations uid
-        let cond usr =
-              Intra.newVeidFromBrigUser
-                usr
-                (Just (idp ^. SAML.idpMetadata . SAML.edIssuer))
-                (Email.emailAddress . encodeUtf8 =<< user.externalId)
+        let cond usr = Intra.newVeidFromBrigUser usr (Just (idp ^. SAML.idpMetadata . SAML.edIssuer))
             good bad = runValidScimIdEither pure (const $ err bad)
             err bad = error $ "brig user without UserRef: " <> show (bad, user)
         case cond <$> mUsr of

@@ -106,11 +106,11 @@ oldVeidFromBrigUser usr =
 -- `userSSOId usr` can be empty if the user has no SAML credentials
 -- and is brought under scim management for the first time.  In that
 -- case, the externalId is taken to be the email address.
-newVeidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
-newVeidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, mValidatedEmail, _) -> do
+newVeidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> m ValidScimId
+newVeidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr <|> userEmailUnvalidated usr, mIssuer) of
+  (Just ssoid, mbEmail, _) -> do
     -- this makes sure email encoded in ssoid is in synch with SCIM user.
-    veidFromUserSSOId (updateSsoid ssoid) (mUnvalidatedEmail <|> mValidatedEmail)
+    veidFromUserSSOId (updateSsoid ssoid) mbEmail
   (Nothing, Just email, Just issuer) -> pure $ ValidScimId (fromEmail email) (These email (SAML.UserRef issuer (fromRight' $ emailToSAMLNameID email)))
   (Nothing, Just email, Nothing) -> pure $ ValidScimId (fromEmail email) (This email)
   (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
