@@ -29,14 +29,16 @@ import Wire.API.MLS.Welcome
 data CommitBundle = CommitBundle
   { commitMsg :: RawMLS Message,
     welcome :: Maybe (RawMLS Welcome),
-    groupInfo :: RawMLS GroupInfo
+    groupInfo :: RawMLS GroupInfo,
+    appMessage :: Maybe (RawMLS PrivateMessage)
   }
   deriving stock (Eq, Show, Generic)
 
 data CommitBundleF f = CommitBundleF
   { commitMsg :: f (RawMLS Message),
     welcome :: f (RawMLS Welcome),
-    groupInfo :: f (RawMLS GroupInfo)
+    groupInfo :: f (RawMLS GroupInfo),
+    appMessage :: f (RawMLS PrivateMessage)
   }
 
 deriving instance Show (CommitBundleF [])
@@ -47,9 +49,10 @@ instance (Alternative f) => Semigroup (CommitBundleF f) where
       (cb1.commitMsg <|> cb2.commitMsg)
       (cb1.welcome <|> cb2.welcome)
       (cb1.groupInfo <|> cb2.groupInfo)
+      (cb1.appMessage <|> cb2.appMessage)
 
 instance (Alternative f) => Monoid (CommitBundleF f) where
-  mempty = CommitBundleF empty empty empty
+  mempty = CommitBundleF empty empty empty empty
 
 checkCommitBundleF :: CommitBundleF [] -> Either Text CommitBundle
 checkCommitBundleF cb =
@@ -57,6 +60,7 @@ checkCommitBundleF cb =
     <$> check "commit" cb.commitMsg
     <*> checkOpt "welcome" cb.welcome
     <*> check "group info" cb.groupInfo
+    <*> checkOpt "application message" cb.appMessage
   where
     check :: Text -> [a] -> Either Text a
     check _ [x] = pure x
@@ -71,10 +75,11 @@ checkCommitBundleF cb =
 findMessageInStream :: (Alternative f) => RawMLS Message -> Either Text (CommitBundleF f)
 findMessageInStream msg = case msg.value.content of
   MessagePublic mp -> case mp.content.value.content of
-    FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty)
-    _ -> Left "unexpected public message"
-  MessageWelcome w -> pure (CommitBundleF empty (pure w) empty)
-  MessageGroupInfo gi -> pure (CommitBundleF empty empty (pure gi))
+    FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty empty)
+    _ -> Left "unexpected proposal"
+  MessageWelcome w -> pure (CommitBundleF empty (pure w) empty empty)
+  MessageGroupInfo gi -> pure (CommitBundleF empty empty (pure gi) empty)
+  MessagePrivate priv -> pure (CommitBundleF empty empty empty (pure priv))
   _ -> Left "unexpected message type"
 
 findMessagesInStream :: (Alternative f) => [RawMLS Message] -> Either Text (CommitBundleF f)

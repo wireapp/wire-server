@@ -871,7 +871,7 @@ mkBundle mp = do
       _ -> Left "expected welcome"
   ginfo <- note "group info unavailable" (mpGroupInfo mp)
   ginfoB <- first ("GroupInfo: " <>) $ decodeMLS' ginfo
-  pure $ CommitBundle commitB welcomeB ginfoB
+  pure $ CommitBundle commitB welcomeB ginfoB Nothing
 
 createBundle :: (HasCallStack, MonadIO m) => MessagePackage -> m ByteString
 createBundle mp = do

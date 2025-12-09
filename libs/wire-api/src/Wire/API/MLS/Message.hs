@@ -179,7 +179,8 @@ data PrivateMessage = PrivateMessage
     encryptedSenderData :: ByteString,
     ciphertext :: ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PrivateMessage)
 
 instance ParseMLS PrivateMessage where
   parseMLS =
@@ -190,6 +191,15 @@ instance ParseMLS PrivateMessage where
       <*> parseMLSBytes @VarInt
       <*> parseMLSBytes @VarInt
       <*> parseMLSBytes @VarInt
+
+instance SerialiseMLS PrivateMessage where
+  serialiseMLS msg = do
+    serialiseMLS msg.groupId
+    serialiseMLS msg.epoch
+    serialiseMLS msg.tag
+    serialiseMLSBytes @VarInt msg.authenticatedData
+    serialiseMLSBytes @VarInt msg.encryptedSenderData
+    serialiseMLSBytes @VarInt msg.ciphertext
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data SenderTag
@@ -265,7 +275,8 @@ data FramedContentDataTag
   = FramedContentApplicationDataTag
   | FramedContentProposalTag
   | FramedContentCommitTag
-  deriving (Enum, Bounded, Eq, Ord, Show)
+  deriving (Enum, Bounded, Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform FramedContentDataTag)
 
 instance ParseMLS FramedContentDataTag where
   parseMLS = parseMLSEnum @Word8 "ContentType"
