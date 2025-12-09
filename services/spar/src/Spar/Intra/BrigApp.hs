@@ -90,24 +90,22 @@ veidFromUserSSOId ssoId mEmail = case ssoId of
         -- If veid can be parsed as an email, we end up in the case above with email delivered separately.
         throwError "internal error: externalId is not an email and there is no SAML issuer"
 
+-- | Turns ssoid and email* fields back into a `ValidScimId`.
 oldVeidFromBrigUser :: User -> Maybe ValidScimId
 oldVeidFromBrigUser usr =
   let mbEmail = userEmail usr <|> userEmailUnvalidated usr
    in fromRight (error "impossible") $ (`veidFromUserSSOId` mbEmail) `mapM` userSSOId usr
 
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidScimId' (this is a
--- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
--- construct a return value from that (and an optional saml issuer).
+-- | Compute ValidScimId from updates.  Take both the old user (just
+-- like `oldVeidFromBrigUser`) and updated idp issuer and unvalidated
+-- email into consideration.
 --
--- TODO: is this doc string still true?
+-- If updated values are `Nothing`, the corresponding data from brig
+-- user will be ignored (this is how you delete an idp association).
 --
--- Note: the saml issuer is only needed in the case where a user has been invited via team
--- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
--- to just set it to 'Nothing'.
---
--- `userSSOId usr` can be empty if the user has no SAML credentials and is brought under scim
--- management for the first time.  In that case, the externalId is taken to
--- be the email address.
+-- `userSSOId usr` can be empty if the user has no SAML credentials
+-- and is brought under scim management for the first time.  In that
+-- case, the externalId is taken to be the email address.
 newVeidFromBrigUser :: (MonadError String m) => User -> Maybe SAML.Issuer -> Maybe EmailAddress -> m ValidScimId
 newVeidFromBrigUser usr mIssuer mUnvalidatedEmail = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, mValidatedEmail, _) -> do
