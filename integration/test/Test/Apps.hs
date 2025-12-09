@@ -26,27 +26,35 @@ import Testlib.Prelude
 testCreateApp :: (HasCallStack) => App ()
 testCreateApp = do
   domain <- make OwnDomain
-  (alice, tid, [bob]) <- createTeam domain 2
-  let new = def {name = "chappie"} :: NewApp
+  (owner, tid, [regularMember]) <- createTeam domain 2
+  let new =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          } ::
+          NewApp
 
-  bindResponse (createApp bob tid new) $ \resp -> do
+  -- Regular team member can't create apps
+  bindResponse (createApp regularMember tid new) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
+  -- Owner can create an app
+  (appId, cookie) <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
     appId <- resp.json %. "user.id" & asString
     cookie <- resp.json %. "cookie" & asString
     pure (appId, cookie)
 
-  -- app user should have type "app"
+  -- App user should have type "app"
   let appIdObject = object ["domain" .= domain, "id" .= appId]
-  bindResponse (getUser alice appIdObject) $ \resp -> do
+  bindResponse (getUser owner appIdObject) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
 
-  -- creator should have type "regular"
-  bindResponse (getUser alice alice) $ \resp -> do
+  -- Creator should have type "regular"
+  bindResponse (getUser owner owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "regular"
 
@@ -55,6 +63,29 @@ testCreateApp = do
     resp.json %. "user" `shouldMatch` appId
     resp.json %. "token_type" `shouldMatch` "Bearer"
     resp.json %. "access_token" & asString
+
+  -- Get app for the app created above succeeds
+  void $ getApp regularMember tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "name") `shouldMatch` "chappie"
+    (resp.json %. "description") `shouldMatch` "some description of this app"
+    (resp.json %. "category") `shouldMatch` "ai"
+
+  -- A teamless user can't get the app
+  outsideUser <- randomUser OwnDomain def
+  bindResponse (getApp outsideUser tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "app-no-permission"
+
+  -- Another team's owner nor member can't get the app
+  (owner2, tid2, [regularMember2]) <- createTeam domain 2
+  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
+  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
+
+  -- Category must be any of the values for the Category enum
+  void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
+    resp.status `shouldMatchInt` 400
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
