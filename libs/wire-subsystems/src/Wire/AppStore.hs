@@ -38,6 +38,9 @@ data StoredApp = StoredApp
   }
   deriving (Eq, Ord, Show)
 
+-- The `PostgresMarshall` instances are here in this module -- as
+-- having them elsewhere would make them orphan instances of
+-- `StoredApp`.
 instance PostgresMarshall StoredApp (UUID, UUID, Value, Text, Text, UUID) where
   postgresMarshall app =
     ( postgresMarshall app.id,
