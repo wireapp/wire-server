@@ -690,9 +690,10 @@ dedupMembers convId memsWithConvIds =
   let sortFunction (cid1, mem1) (cid2, mem2)
         | cid1 == cid2 = EQ
         | cid1 == convId = LT
+        | cid2 == convId = GT
         | otherwise = compare (cid1, mem1.id_) (cid2, mem2.id_)
-      orderedMemsWithConvIds = sortBy sortFunction memsWithConvIds
-   in map snd $ nubBy ((==) `on` ((.id_) . snd)) orderedMemsWithConvIds
+      orderedMems = snd <$> sortBy sortFunction memsWithConvIds
+   in nubBy ((==) `on` (.id_)) orderedMems
 
 -- | The members must be deduped using 'dedupMembers' before use
 selectLocalMembersStmt :: Hasql.Statement ConvId [(ConvId, LocalMember)]
