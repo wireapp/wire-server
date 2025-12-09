@@ -17,7 +17,11 @@
 
 module Test.MLS.Notifications where
 
+import API.Common (recipient)
 import API.Gundeck
+import API.GundeckInternal (postPush)
+import Control.Concurrent (threadDelay)
+import Data.Timeout
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -45,3 +49,78 @@ testWelcomeNotification = do
           size = Just 10000
         }
       >>= getJSON 200
+
+testNotificationPagination :: (HasCallStack) => App ()
+testNotificationPagination = do
+  let overrides =
+        def
+          { gundeckCfg =
+              setField "settings.maxPayloadLoadSize" (Just ((2 :: Int) * 1024))
+                >=> setField "settings.notificationTTL" (2 #> Second)
+          }
+  withModifiedBackend overrides $ \dom -> do
+    user <- randomUser dom def
+
+    liftIO $ threadDelay 2_100_000 -- let notifications expire
+
+    -- Create a single oversized notification so Cassandra paging stops after the first row.
+    r <- recipient user
+    let bigPayload = replicate (3 * 1024) 'x' -- 3 KiB > maxPayloadLoadSize
+        push =
+          object
+            [ "recipients" .= [r],
+              "payload" .= [object ["blob" .= bigPayload]]
+            ]
+
+    postPush user [push] >>= assertSuccess
+
+    notifId <-
+      getNotifications user def `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        notif <- resp.json %. "notifications" >>= asList >>= assertOne
+        notif %. "id" >>= asString
+
+    -- Re-request starting after that notification
+    getNotifications user def {since = Just notifId}
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "notifications" >>= asList >>= shouldBeEmpty
+        resp.json %. "has_more" `shouldMatch` False
+
+testNotificationPaginationOversizeSince :: (HasCallStack) => App ()
+testNotificationPaginationOversizeSince = do
+  let overrides =
+        def
+          { gundeckCfg =
+              setField "settings.maxPayloadLoadSize" (Just ((2 :: Int) * 1024))
+                >=> setField "settings.notificationTTL" (2 #> Second)
+          }
+  withModifiedBackend overrides $ \dom -> do
+    user <- randomUser dom def
+    liftIO $ threadDelay 2_100_000 -- let notifications expire
+    r <- recipient user
+    let bigPayload = replicate (3 * 1024) 'x'
+        smallPayload = "ok"
+        mkPush payload =
+          object
+            [ "recipients" .= [r],
+              "payload" .= [object ["blob" .= payload]]
+            ]
+
+    postPush user [mkPush bigPayload] >>= assertSuccess
+
+    bigNotifId <-
+      getNotifications user def `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        notif <- resp.json %. "notifications" >>= asList >>= assertOne
+        notif %. "id" >>= asString
+
+    -- Send a second, small notification that should show up after the anchor.
+    postPush user [mkPush smallPayload] >>= assertSuccess
+
+    getNotifications user def {since = Just bigNotifId}
+      `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "has_more" `shouldMatch` False
+        n <- resp.json %. "notifications" >>= asList >>= assertOne
+        n %. "payload.0.blob" `shouldMatch` "ok"
