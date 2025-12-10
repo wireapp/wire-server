@@ -1015,8 +1015,8 @@ removeMemberFromChannel user channel userToBeRemoved = do
       }
 
 resetMLSConversation ::
-  (HasCallStack, MakesValue cid, MakesValue conv) =>
-  cid ->
+  (HasCallStack, MakesValue conv) =>
+  ClientIdentity ->
   conv ->
   App Value
 resetMLSConversation cid conv = do
@@ -1043,4 +1043,8 @@ resetMLSConversation cid conv = do
             )
             $ Map.delete convId mls.convs
       }
+
+  mlsConv' <- getMLSConv convId'
+  keys <- getMLSPublicKeys cid >>= getJSON 200
+  resetClientGroup mlsConv'.ciphersuite cid mlsConv'.groupId convId' keys
   pure conv'

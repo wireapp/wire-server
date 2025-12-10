@@ -93,6 +93,28 @@ testPastStaleApplicationMessage otherDomain = do
   -- bob's application messages are now rejected
   void $ postMLSMessage bob1 msg2.message >>= getJSON 409
 
+testEpochZeroApplicationMessage :: (HasCallStack) => App ()
+testEpochZeroApplicationMessage = do
+  [alice] <- createAndConnectUsers [make OwnDomain]
+  alice1 <- createMLSClient def alice
+  conv <- createNewGroup def alice1
+  void $ createAddCommit alice1 conv [] >>= sendAndConsumeCommitBundle
+  mlsConv <- getMLSConv conv
+
+  -- send message, make sure that's succeeding
+  msg <- createApplicationMessage mlsConv.convId alice1 "group is initialised"
+  postMLSMessage alice1 msg.message >>= assertStatus 201
+
+  -- reset conversation, so it exists on server and client with epoch 0
+  convId' <- objConvId =<< resetMLSConversation alice1 conv
+
+  -- send message, make sure that's failing
+  msg' <- createApplicationMessage convId' alice1 "group not initialised"
+  postMLSMessage alice1 msg'.message >>= flip withResponse \resp -> do
+    j <- getJSON 400 resp
+    j %. "label" `shouldMatch` "mls-protocol-error"
+    j %. "message" `shouldMatch` "Application messages at epoch 0 are not supported"
+
 testFutureStaleApplicationMessage :: (HasCallStack) => App ()
 testFutureStaleApplicationMessage = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OwnDomain]
