@@ -1515,7 +1515,7 @@ getConvsOk2 = do
       Just actual -> do
         assertEqual "name mismatch" expected.metadata.cnvmName actual.cnvMetadata.cnvmName
         assertEqual "members.self" expected.members.self (Just actual.cnvMembers.cmSelf)
-        assertEqual "members.others" expected.members.others actual.cnvMembers.cmOthers
+        assertEqual "members.others" (sort expected.members.others) (sort actual.cnvMembers.cmOthers)
 
 getConvsFailMaxSizeV2 :: TestM ()
 getConvsFailMaxSizeV2 = do
