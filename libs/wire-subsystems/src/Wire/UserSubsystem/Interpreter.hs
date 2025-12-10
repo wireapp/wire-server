@@ -453,11 +453,9 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
     let user = mkUserFromStored domain locale storedUser
         usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
-    app <- lift $ mapM (getApp storedUser.id) storedUser.teamId
+    userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
     lift $ deleteLocalIfExpired user
-    pure $ case join app of
-      Nothing -> usrProfile
-      Just _ -> usrProfile {profileType = UserTypeApp}
+    pure $ usrProfile {profileType = userType}
 
 getSelfProfileImpl ::
   ( Member (Input UserSubsystemConfig) r,
@@ -864,27 +862,22 @@ searchLocally searcher searchTerm maybeMaxResults = do
 
     exactHandleSearch :: Sem r (Maybe Contact)
     exactHandleSearch = runMaybeT $ do
-      handle <- MaybeT . pure $ Handle.parseHandle searchTerm
+      handle <- hoistMaybe $ Handle.parseHandle searchTerm
       owner <- MaybeT $ UserStore.lookupHandle handle
       storedUser <- MaybeT $ UserStore.getUser owner
       config <- lift input
-      let contact = contactFromStoredUser (tDomain searcher) storedUser
-          isContactVisible =
+      let isContactVisible =
             (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
       if isContactVisible && fromMaybe True storedUser.searchable
-        then pure contact
-        else MaybeT $ pure Nothing
-
-    contactFromStoredUser :: Domain -> StoredUser -> Contact
-    contactFromStoredUser domain storedUser =
-      Contact
-        { contactQualifiedId = Qualified storedUser.id domain,
-          contactName = fromName storedUser.name,
-          contactHandle = Handle.fromHandle <$> storedUser.handle,
-          contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
-          contactTeam = storedUser.teamId
-        }
+        then pure $ Contact
+          { contactQualifiedId = Qualified storedUser.id (tDomain searcher),
+            contactName = fromName storedUser.name,
+            contactHandle = Handle.fromHandle <$> storedUser.handle,
+            contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
+            contactTeam = storedUser.teamId
+          }
+        else hoistMaybe Nothing
 
 searchRemotely ::
   ( Member FederationConfigStore r,
@@ -1166,3 +1159,21 @@ setUserSearchableImpl luid uid searchable = do
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
+
+-- * Helpers
+
+getUserType ::
+  forall r.
+  ( Member AppStore r
+  ) =>
+  UserId ->
+  Maybe TeamId ->
+  Maybe ServiceId ->
+  Sem r UserType
+getUserType uid mTid mbServiceId = case mbServiceId of
+  Just _ -> pure UserTypeBot
+  Nothing -> do
+    mmApp <- mapM (getApp uid) mTid
+    case join mmApp of
+      Just _ -> pure UserTypeApp
+      Nothing -> pure UserTypeRegular

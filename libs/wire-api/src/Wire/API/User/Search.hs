@@ -138,7 +138,7 @@ deriving via (Schema (SearchResult TeamContact)) instance S.ToSchema (SearchResu
 --------------------------------------------------------------------------------
 -- Contact
 
--- | Returned by 'searchIndex' under @/contacts/search@.
+-- | Returned by 'searchIndex' under @/search/contacts@.
 -- This is a subset of 'User' and json instances should reflect that.
 data Contact = Contact
   { contactQualifiedId :: Qualified UserId,
