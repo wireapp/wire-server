@@ -66,7 +66,8 @@ type FeatureAPI =
     :<|> AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
-    :<|> FeatureAPIGetPut CellsConfig
+    :<|> FeatureAPIGet CellsConfig
+    :<|> FeatureAPIPut CellsConfig
     :<|> FeatureAPIGet AllowedGlobalOperationsConfig
     :<|> FeatureAPIGet AssetAuditLogConfig
     :<|> FeatureAPIGet ConsumableNotificationsConfig

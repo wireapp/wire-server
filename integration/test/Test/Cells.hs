@@ -42,7 +42,7 @@ testCellsEvent :: (HasCallStack) => App ()
 testCellsEvent = do
   (alice, tid, [bob, chaz, dean, eve]) <- createTeam OwnDomain 5
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
-  q <- watchCellsEvents (convEvents conv)
+  q <- watchCellsEventsForTeam tid (convEvents conv)
 
   bobId <- bob %. "qualified_id"
   chazId <- chaz %. "qualified_id"
@@ -80,9 +80,8 @@ testCellsEvent = do
 
 testCellsCreationEvent :: (HasCallStack) => App ()
 testCellsCreationEvent = do
-  -- start watcher before creating conversation
-  q0 <- watchCellsEvents def
   (alice, tid, _) <- createTeam OwnDomain 1
+  q0 <- watchCellsEventsForTeam tid def
   conv <- postConversation alice defProteus {team = Just tid, cells = True} >>= getJSON 201
 
   let q = q0 {filter = isNotifConv conv} :: QueueConsumer
@@ -96,9 +95,8 @@ testCellsCreationEvent = do
 
 testCellsDeletionEvent :: (HasCallStack) => App ()
 testCellsDeletionEvent = do
-  -- start watcher before creating conversation
-  q0 <- watchCellsEvents def
   (alice, tid, _) <- createTeam OwnDomain 1
+  q0 <- watchCellsEventsForTeam tid def
   conv <- postConversation alice defProteus {team = Just tid, cells = True} >>= getJSON 201
   void $ deleteTeamConversation tid conv alice >>= assertSuccess
 
@@ -116,9 +114,8 @@ testCellsDeletionEvent = do
 
 testCellsCreationEventIsSentOnlyOnce :: (HasCallStack) => App ()
 testCellsCreationEventIsSentOnlyOnce = do
-  -- start watcher before creating conversation
-  q0 <- watchCellsEvents def
   (alice, tid, members) <- createTeam OwnDomain 2
+  q0 <- watchCellsEventsForTeam tid def
   conv <- postConversation alice defProteus {team = Just tid, cells = True, qualifiedUsers = members} >>= getJSON 201
 
   let q = q0 {filter = isNotifConv conv} :: QueueConsumer
@@ -141,16 +138,16 @@ testCellsFeatureCheck = do
 
 testCellsEventOnFeatureToggle :: (HasCallStack) => App ()
 testCellsEventOnFeatureToggle = do
-  q0 <- watchCellsEvents def
   (_, tid, _) <- createTeam OwnDomain 1
+  q <- watchCellsEventsForTeam tid def
   I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
-  getMessage q0 >>= \event -> do
+  getMessage q >>= \event -> do
     event %. "payload.0.type" `shouldMatch` "feature-config.update"
     event %. "payload.0.name" `shouldMatch` "cells"
     event %. "payload.0.team" `shouldMatch` (asString tid)
     event %. "payload.0.data.status" `shouldMatch` "disabled"
   I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "enabled"]) >>= assertSuccess
-  getMessage q0 >>= \event -> do
+  getMessage q >>= \event -> do
     event %. "payload.0.type" `shouldMatch` "feature-config.update"
     event %. "payload.0.name" `shouldMatch` "cells"
     event %. "payload.0.team" `shouldMatch` (asString tid)
@@ -169,7 +166,7 @@ testCellsIgnoredEvents = do
   (alice, tid, _) <- createTeam OwnDomain 1
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
   I.setCellsState alice conv "ready" >>= assertSuccess
-  q <- watchCellsEvents (convEvents conv)
+  q <- watchCellsEventsForTeam tid (convEvents conv)
   void $ updateMessageTimer alice conv 1000 >>= getBody 200
   assertNoMessage q
 
@@ -307,3 +304,11 @@ watchCellsEvents opts = do
   watcher <- ensureWatcher domain
   chan <- liftIO $ atomically $ dupTChan watcher.broadcast
   pure QueueConsumer {filter = opts.filter, chan}
+
+watchCellsEventsForTeam :: String -> WatchCellsEvents -> App QueueConsumer
+watchCellsEventsForTeam tid opts = do
+  q <- watchCellsEvents opts
+  let isEventForTeam v = fieldEquals @Value v "payload.0.team" tid
+  -- the cells event queue is shared by tests
+  -- let's hope this filter reduces the risk of tests interfering with each other
+  pure $ q {filter = isEventForTeam}
