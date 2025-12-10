@@ -87,31 +87,31 @@ spec = describe "API" $ do
               <> "    <samlp:SessionIndex>1</samlp:SessionIndex>"
               <> "</samlp:LogoutRequest>"
           Right want =
-            parseText def $
-              "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\""
-                <> " \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-                <> "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\">"
-                <> "<body onload=\"document.forms[0].submit()\">"
-                <> "<noscript>"
-                <> "<p>"
-                <> "<strong>Note:</strong>Since your browser does not support JavaScript,"
-                <> " you must press the Continue button once to proceed."
-                <> "</p>"
-                <> "</noscript>"
-                <> "<form action=\"https://ServiceProvider.com/SAML/SLO/Browser/%25%25\""
-                <> " method=\"post\" accept-charset=\"utf-8\">"
-                <> "<input type=\"hidden\" name=\"SAMLRequest\""
-                <> " value=\"PHNhbWxwOkxvZ291dFJlcXVlc3QgSUQ9ImQyYjdjMzg4Y2VjMzZmYTdjMzljMjhmZDI5ODY0NGE4IiBJc3N1ZUluc3RhbnQ9IjIwMDQtMDEtMjFUMTk6MDA6NDlaIiBWZXJzaW9uPSIyLjAiIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiPiAgICA8SXNzdWVyIHhtbG5zPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj5odHRwczovL0lkZW50aXR5UHJvdmlkZXIuY29tL1NBTUw8L0lzc3Vlcj4gICAgPE5hbWVJRCBGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpuYW1laWQtZm9ybWF0OnBlcnNpc3RlbnQiIHhtbG5zPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj4wMDVhMDZlMC1hZDgyLTExMGQtYTU1Ni0wMDQwMDViMTNhMmI8L05hbWVJRD4gICAgPHNhbWxwOlNlc3Npb25JbmRleD4xPC9zYW1scDpTZXNzaW9uSW5kZXg+PC9zYW1scDpMb2dvdXRSZXF1ZXN0Pg==\"/>"
-                <> "<noscript>"
-                <> "<input type=\"submit\" value=\"Continue\"/>"
-                <> "</noscript>"
-                <> "</form>"
-                <> "</body>"
-                <> "</html>"
+            parseText def
+              $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+              <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\""
+              <> " \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+              <> "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\">"
+              <> "<body onload=\"document.forms[0].submit()\">"
+              <> "<noscript>"
+              <> "<p>"
+              <> "<strong>Note:</strong>Since your browser does not support JavaScript,"
+              <> " you must press the Continue button once to proceed."
+              <> "</p>"
+              <> "</noscript>"
+              <> "<form action=\"https://ServiceProvider.com/SAML/SLO/Browser/%25%25\""
+              <> " method=\"post\" accept-charset=\"utf-8\">"
+              <> "<input type=\"hidden\" name=\"SAMLRequest\""
+              <> " value=\"PHNhbWxwOkxvZ291dFJlcXVlc3QgSUQ9ImQyYjdjMzg4Y2VjMzZmYTdjMzljMjhmZDI5ODY0NGE4IiBJc3N1ZUluc3RhbnQ9IjIwMDQtMDEtMjFUMTk6MDA6NDlaIiBWZXJzaW9uPSIyLjAiIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiPiAgICA8SXNzdWVyIHhtbG5zPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj5odHRwczovL0lkZW50aXR5UHJvdmlkZXIuY29tL1NBTUw8L0lzc3Vlcj4gICAgPE5hbWVJRCBGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpuYW1laWQtZm9ybWF0OnBlcnNpc3RlbnQiIHhtbG5zPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj4wMDVhMDZlMC1hZDgyLTExMGQtYTU1Ni0wMDQwMDViMTNhMmI8L05hbWVJRD4gICAgPHNhbWxwOlNlc3Npb25JbmRleD4xPC9zYW1scDpTZXNzaW9uSW5kZXg+PC9zYW1scDpMb2dvdXRSZXF1ZXN0Pg==\"/>"
+              <> "<noscript>"
+              <> "<input type=\"submit\" value=\"Continue\"/>"
+              <> "</noscript>"
+              <> "</form>"
+              <> "</body>"
+              <> "</html>"
           Right (SomeSAMLRequest -> doc) = XML.parseText XML.def have
           spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%%|]
-      Right want `shouldBe` (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (FormRedirect spuri doc))
+      (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (FormRedirect spuri doc)) `shouldBe` Right want
 
   describe "simpleVerifyAuthnResponse" $ do
     let check :: Bool -> Maybe Bool -> Bool -> Spec
