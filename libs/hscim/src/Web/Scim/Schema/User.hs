@@ -206,8 +206,8 @@ instance (FromJSON (UserExtra tag)) => FromJSON (User tag) where
 instance (ToJSON (UserExtra tag)) => ToJSON (User tag) where
   toJSON User {..} =
     let mainObject =
-          KeyMap.fromList
-            $ concat
+          KeyMap.fromList $
+            concat
               [ ["schemas" .= schemas],
                 ["userName" .= userName],
                 optionalField "externalId" externalId,

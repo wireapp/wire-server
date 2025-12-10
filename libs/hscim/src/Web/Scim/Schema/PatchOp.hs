@@ -31,8 +31,7 @@ import Data.Aeson.Types
 import Data.Bifunctor (first)
 import Data.Text (pack)
 import Web.Scim.Schema.Common (lowerKey)
-import Web.Scim.Schema.Error (ScimError, badRequest)
-import Web.Scim.Schema.Error (ScimErrorType (..))
+import Web.Scim.Schema.Error (ScimError, ScimErrorType (..), badRequest)
 import Web.Scim.Schema.Schema (Schema (PatchOp20))
 
 -- | For scim patches (both user and group), we use the aeson-diff

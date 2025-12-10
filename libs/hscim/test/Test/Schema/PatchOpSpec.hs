@@ -117,7 +117,7 @@ spec = do
       let resultLower = eitherDecode (encode patchJsonLower) :: Either String PatchOp
       let resultUpper = eitherDecode (encode patchJsonUpper) :: Either String PatchOp
       let resultMixed = eitherDecode (encode patchJsonMixed) :: Either String PatchOp
-      
+
       case (resultLower, resultUpper, resultMixed) of
         (Right patchLower, Right patchUpper, Right patchMixed) -> do
           -- All three should parse and be equal
@@ -140,20 +140,22 @@ spec = do
 
       for_ examples1 $ \ex -> it ex $ do
         -- Simple path examples should work
-        let patchJson = object
-              [ "schemas" .= [PatchOp20 :: Schema]
-              , "Operations" .= [object ["op" .= ("add" :: Text), "path" .= ex, "value" .= ("test" :: Text)]]
-              ]
+        let patchJson =
+              object
+                [ "schemas" .= [PatchOp20 :: Schema],
+                  "Operations" .= [object ["op" .= ("add" :: Text), "path" .= ex, "value" .= ("test" :: Text)]]
+                ]
         case fromJSON patchJson of
           Error _ -> expectationFailure $ "Should parse path: " ++ show ex
           Success (_ :: PatchOp) -> pure ()
 
       for_ examples2 $ \ex -> it ex $ do
         -- Value-path examples (with filters) should be rejected during parsing or application
-        let patchJson = object
-              [ "schemas" .= [PatchOp20 :: Schema]
-              , "Operations" .= [object ["op" .= ("add" :: Text), "path" .= ex, "value" .= ("test" :: Text)]]
-              ]
+        let patchJson =
+              object
+                [ "schemas" .= [PatchOp20 :: Schema],
+                  "Operations" .= [object ["op" .= ("add" :: Text), "path" .= ex, "value" .= ("test" :: Text)]]
+                ]
         case fromJSON patchJson of
           Error _ -> pure () -- Expected: rejected during parsing if aeson-diff can detect it
           Success (patchOp :: PatchOp) -> do
@@ -223,17 +225,17 @@ prop_patchRoundtrip :: Property
 prop_patchRoundtrip = property $ do
   user1 <- forAll genSimpleUser
   user2 <- forAll genSimpleUser
-  
+
   let patchOp = PatchOp $ AD.diff (toJSON user1) (toJSON user2)
-  
+
   -- Only test if the patch is legal (no array operations)
   when (isLegalPatchOp patchOp) $ do
     case runExcept (User.applyPatch patchOp user1) of
-      Left _ -> 
+      Left _ ->
         -- Patch application can fail for valid reasons (e.g., trying to set invalid values)
         -- This is acceptable behavior
         success
-      Right result -> 
+      Right result ->
         -- If patch succeeds, result should equal user2
         result === user2
 
@@ -244,8 +246,9 @@ genSimpleUser = do
   externalId' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   displayName' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   active' <- Gen.maybe $ ScimBool <$> Gen.bool
-  pure $ (User.empty [User20] userName' NoUserExtra)
-    { User.externalId = externalId'
-    , User.displayName = displayName'
-    , User.active = active'
-    }
+  pure $
+    (User.empty [User20] userName' NoUserExtra)
+      { User.externalId = externalId',
+        User.displayName = displayName',
+        User.active = active'
+      }
