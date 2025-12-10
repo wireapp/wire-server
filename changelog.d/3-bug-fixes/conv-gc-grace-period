@@ -1,0 +1,3 @@
+Reduce gc_grace_period for all conversation related tables to 1 day. This will
+help restart the postgresql migration after a day, if it fails mid way. Lowering
+it too much runs the risk of offline nodes resurrecting deleted data.
