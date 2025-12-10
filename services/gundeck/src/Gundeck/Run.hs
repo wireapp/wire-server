@@ -70,10 +70,13 @@ import Network.Wai.Utilities.Server hiding (serverPort)
 import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
 import OpenTelemetry.Trace (defaultSpanArguments, inSpan, kind)
 import OpenTelemetry.Trace qualified as Otel
+import Pulsar.Client qualified as Pulsar
+import Pulsar.Client.Logging
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
 import System.Logger qualified as Log
 import System.Logger.Class qualified as MonadLogger
+import System.Logger.Extended qualified as Logger
 import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Notification
@@ -84,31 +87,34 @@ import Wire.OpenTelemetry
 
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
-  (rThreads, env) <- createEnv opts
-  let logger = env ^. applog
+  logger <- Logger.mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishToPulsar" logger)}) (toPulsarUrl (opts ^. Gundeck.Options.pulsar)) $ do
+    pulsarC <- ask
+    liftIO $ do
+      (rThreads, env) <- createEnv opts logger pulsarC
 
-  runDirect env setUpRabbitMqExchangesAndQueues
+      runDirect env setUpRabbitMqExchangesAndQueues
 
-  runClient (env ^. cstate) $
-    versionCheck lastSchemaVersion
-  let s = newSettings $ defaultServer (unpack . host $ opts ^. gundeck) (port $ opts ^. gundeck) logger
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ opts ^. (settings . sqsThrottleMillis)
+      runClient (env ^. cstate) $
+        versionCheck lastSchemaVersion
+      let s = newSettings $ defaultServer (unpack . host $ opts ^. gundeck) (port $ opts ^. gundeck) logger
+      let throttleMillis = fromMaybe defSqsThrottleMillis $ opts ^. (settings . sqsThrottleMillis)
 
-  lst <- Async.async $ Aws.execute (env ^. awsEnv) (Aws.listen throttleMillis (runDirect env . onEvent))
-  wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
-  wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
+      lst <- Async.async $ Aws.execute (env ^. awsEnv) (Aws.listen throttleMillis (runDirect env . onEvent))
+      wtbs <- forM (env ^. threadBudgetState) $ \tbs -> Async.async $ runDirect env $ watchThreadBudgetState tbs 10
+      wCollectAuth <- Async.async (collectAuthMetrics (Aws._awsEnv (Env._awsEnv env)))
 
-  app <- middleware env <*> pure (mkApp env)
-  inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
-    Log.info logger $ Log.msg (Log.val "Shutting down ...")
-    shutdown (env ^. cstate)
-    Async.cancel lst
-    Async.cancel wCollectAuth
-    forM_ wtbs Async.cancel
-    forM_ rThreads Async.cancel
-    Redis.disconnect =<< takeMVar (env ^. rstate)
-    whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
-    Log.close (env ^. applog)
+      app <- middleware env <*> pure (mkApp env)
+      inSpan tracer "gundeck" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing) `finally` do
+        Log.info logger $ Log.msg (Log.val "Shutting down ...")
+        shutdown (env ^. cstate)
+        Async.cancel lst
+        Async.cancel wCollectAuth
+        forM_ wtbs Async.cancel
+        forM_ rThreads Async.cancel
+        Redis.disconnect =<< takeMVar (env ^. rstate)
+        whenJust (env ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
+        Log.close (env ^. applog)
   where
     setUpRabbitMqExchangesAndQueues :: Gundeck ()
     setUpRabbitMqExchangesAndQueues = do

@@ -71,7 +71,7 @@ createPulsarChannel uid mCid env = do
       Log.debug env.logg $
         Log.msg (Log.val "Connecting Pulsar consumer")
           . Log.field "topic" (show topic)
-      void . async $ Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "createPulsarChannel" env.logg)}) env.pulsarUrl $ do
+      void . async $ flip runReaderT env.pulsarClient $ do
         Pulsar.withConsumerNoUnsubscribe
           ( Pulsar.defaultConsumerConfiguration
               { Pulsar.consumerType = Just Pulsar.ConsumerExclusive,
@@ -205,7 +205,7 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
   where
     publishSyncMessage :: UserId -> ByteString -> IO ()
     publishSyncMessage userId message =
-      Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "publishSyncMessage" e.logg)}) e.pulsarUrl $ do
+      flip runReaderT e.pulsarClient $ do
         let topic = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ unpack (userRoutingKey userId)
         Pulsar.withProducer Pulsar.defaultProducerConfiguration topic (onPulsarError "publishSyncMessage producer" e.logg) $ do
           result <- runResourceT $ do

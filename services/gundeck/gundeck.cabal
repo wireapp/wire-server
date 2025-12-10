@@ -309,6 +309,7 @@ executable gundeck-integration
     , cassandra-util
     , containers
     , exceptions
+    , extended
     , gundeck
     , HsOpenSSL
     , http-client
@@ -320,6 +321,7 @@ executable gundeck-integration
     , network
     , network-uri
     , optparse-applicative
+    , pulsar-client-hs
     , random
     , retry
     , safe

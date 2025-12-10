@@ -50,6 +50,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended (AmqpEndpoint)
 import Prometheus
+import Pulsar.Client qualified as Pulsar
 import Servant qualified
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
@@ -110,8 +111,9 @@ mkEnv ::
   GenIO ->
   Clock ->
   AmqpEndpoint ->
+  Pulsar.Client ->
   Codensity IO Env
-mkEnv external o cs l d conns p g t endpoint = do
+mkEnv external o cs l d conns p g t endpoint pulsarC = do
   let poolOpts =
         RabbitMqPoolOptions
           { endpoint = endpoint,
@@ -138,6 +140,7 @@ mkEnv external o cs l d conns p g t endpoint = do
           pool
           (o ^. notificationTTL)
           (o ^. pulsar . to toPulsarUrl)
+          pulsarC
   pure $ Env o l d conns (RequestId defRequestId) wsEnv
 
 runCannon :: Env -> Cannon a -> IO a

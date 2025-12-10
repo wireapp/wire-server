@@ -47,6 +47,7 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.TLS as TLS
 import Network.TLS.Extra qualified as TLS
+import Pulsar.Client qualified as Pulsar
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 import Util.Options (Endpoint)
@@ -64,14 +65,14 @@ data Env = Env
     _threadBudgetState :: !(Maybe ThreadBudgetState),
     _rabbitMqChannel :: MVar Channel,
     _pulsar :: Endpoint,
-    _pulsarAdmin :: Endpoint
+    _pulsarAdmin :: Endpoint,
+    _pulsarClient :: Pulsar.Client
   }
 
 makeLenses ''Env
 
-createEnv :: Opts -> IO ([Async ()], Env)
-createEnv o = do
-  l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
+createEnv :: Opts -> Logger.Logger -> Pulsar.Client -> IO ([Async ()], Env)
+createEnv o l pulsarClientArg = do
   n <-
     newManager
       tlsManagerSettings
@@ -108,7 +109,7 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar (o ^. Opt.pulsar) (o ^. Opt.pulsarAdmin)
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar (o ^. Opt.pulsar) (o ^. Opt.pulsarAdmin) pulsarClientArg
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

@@ -186,6 +186,7 @@ mkDerivation {
     network
     network-uri
     optparse-applicative
+    pulsar-client-hs
     random
     retry
     safe
