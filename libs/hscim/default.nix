@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, aeson-diff
 , aeson-qq
 , attoparsec
 , attoparsec-aeson
@@ -57,7 +56,6 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
-    aeson-diff
     aeson-qq
     attoparsec
     attoparsec-aeson
@@ -106,6 +104,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    attoparsec
     base
     bytestring
     email-validate

@@ -66,7 +66,6 @@ module Web.Scim.Schema.User
     NoUserExtra (..),
     resultToScimError,
     isUserSchema,
-    applyPatch,
     module Web.Scim.Schema.UserTypes,
   )
 where
@@ -79,7 +78,6 @@ import GHC.Generics (Generic)
 import Lens.Micro
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error
-import Web.Scim.Schema.PatchOp (applyPatch)
 import Web.Scim.Schema.Schema (Schema (..))
 import Web.Scim.Schema.User.Address (Address)
 import Web.Scim.Schema.User.Certificate (Certificate)
@@ -206,8 +204,8 @@ instance (FromJSON (UserExtra tag)) => FromJSON (User tag) where
 instance (ToJSON (UserExtra tag)) => ToJSON (User tag) where
   toJSON User {..} =
     let mainObject =
-          KeyMap.fromList $
-            concat
+          KeyMap.fromList
+            $ concat
               [ ["schemas" .= schemas],
                 ["userName" .= userName],
                 optionalField "externalId" externalId,
