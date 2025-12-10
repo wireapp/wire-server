@@ -83,7 +83,7 @@ defNameSpaces =
 encode :: forall a. (HasXMLRoot a) => a -> LT
 encode = Text.XML.renderText settings . renderToDocument
   where
-    settings = def {rsNamespaces = nameSpaces (Proxy @a), rsXMLDeclaration = False}
+    settings = def {rsNamespaces = nameSpaces (Proxy @a), rsXMLDeclaration = True}
 
 decode :: forall m a. (HasXMLRoot a, MonadError String m) => LT -> m a
 decode = either (throwError . show @SomeException) parseFromDocument . parseText def
