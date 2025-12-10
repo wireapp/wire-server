@@ -149,11 +149,14 @@ library
     , network-uri                           >=2.6
     , prometheus-client
     , psqueues                              >=0.2.2
+    , pulsar-admin
+    , pulsar-client-hs
     , raw-strings-qq
     , resourcet                             >=1.1
     , retry                                 >=0.5
     , safe-exceptions
     , servant
+    , servant-client
     , servant-server
     , text                                  >=1.1
     , these
@@ -306,6 +309,7 @@ executable gundeck-integration
     , cassandra-util
     , containers
     , exceptions
+    , extended
     , gundeck
     , HsOpenSSL
     , http-client
@@ -317,6 +321,7 @@ executable gundeck-integration
     , network
     , network-uri
     , optparse-applicative
+    , pulsar-client-hs
     , random
     , retry
     , safe

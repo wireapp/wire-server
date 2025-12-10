@@ -27,7 +27,9 @@ data TestOptions = TestOptions
     excludeTests :: [String],
     listTests :: Bool,
     xmlReport :: Maybe FilePath,
-    configFile :: String
+    configFile :: String,
+    shardingGroup :: Word
+
   }
 
 parser :: Parser TestOptions
@@ -63,6 +65,13 @@ parser =
           <> metavar "FILE"
           <> help "Use configuration FILE"
           <> value "services/integration.yaml"
+      )
+    <*> option
+      auto
+      ( long "sharding-group"
+          <> short 's'
+          <> help "The sharding group of this instance"
+          <> value 0
       )
 
 optInfo :: ParserInfo TestOptions

@@ -77,6 +77,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request)
+import Pulsar.Client qualified as Pulsar
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
@@ -159,7 +160,9 @@ data Env = Env
     wsOpts :: WSOpts,
     cassandra :: ClientState,
     pool :: RabbitMqPool,
-    notificationTTL :: Int
+    notificationTTL :: Int,
+    pulsarUrl :: String,
+    pulsarClient :: Pulsar.Client
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -210,8 +213,10 @@ env ::
   ClientState ->
   RabbitMqPool ->
   Int ->
+  String ->
+  Pulsar.Client ->
   Env
-env externalHostname portnum gundeckHost gundeckPort logg manager websockets rabbitConnections rand clock drainOpts wsOpts cassandra pool notificationTTL =
+env externalHostname portnum gundeckHost gundeckPort logg manager websockets rabbitConnections rand clock drainOpts wsOpts cassandra pool notificationTTL pulsarUrl pulsarClient =
   let upstream = (Bilge.host gundeckHost . Bilge.port gundeckPort $ empty)
       reqId = RequestId defRequestId
    in Env {..}

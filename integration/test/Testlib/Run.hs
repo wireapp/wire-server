@@ -123,6 +123,7 @@ main = do
   opts <- getOptions
   let f = testFilter opts
       cfg = opts.configFile
+      shardingGroup = opts.shardingGroup
 
   allTests <- mkAllTests
   let tests =
@@ -132,10 +133,10 @@ main = do
             let qualifiedName = fromMaybe module_ (stripPrefix "Test." module_) <> "." <> name
              in (qualifiedName, summary, full, action)
 
-  if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
+  if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg shardingGroup
 
-runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> IO ()
-runTests tests mXMLOutput cfg = do
+runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> Word -> IO ()
+runTests tests mXMLOutput cfg shardingGroup = do
   output <- newChan
   let displayOutput =
         readChan output >>= \case
@@ -180,7 +181,7 @@ runTests tests mXMLOutput cfg = do
   where
     mkEnvs :: FilePath -> Codensity IO (GlobalEnv, Env)
     mkEnvs fp = do
-      g <- mkGlobalEnv fp
+      g <- mkGlobalEnv fp shardingGroup
       e <- mkEnv Nothing g
       pure (g, e)
 

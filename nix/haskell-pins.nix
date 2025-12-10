@@ -71,6 +71,18 @@ let
       };
     };
 
+    pulsar-hs = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/pulsar-hs";
+        rev = "8135d4ace819c6d4b8f5030a11c07aeaf8ad2498";
+        hash = "sha256-w+s365QpHwAiLMwo6h/GfyKAQxTOYbPg0hZ3xkZ0GII=";
+      };
+      packages = {
+        pulsar-client-hs = "pulsar-client-hs";
+        pulsar-admin = "pulsar-admin";
+      };
+    };
+
     # --------------------
     # END maintained by us
     # --------------------

@@ -18,6 +18,7 @@
 module Util where
 
 import Bilge qualified
+import Cassandra.Options
 import Control.Concurrent (forkFinally)
 import Control.Concurrent.Async (race_)
 import Control.Exception qualified as E
@@ -33,17 +34,24 @@ import Imports
 import Network.Socket hiding (openSocket)
 import Network.Socket.ByteString (recv, sendAll)
 import Network.Wai.Utilities.MockServer (withMockServer)
+import Pulsar.Client qualified as Pulsar
+import Pulsar.Client.Logging
+import System.Logger.Extended qualified as Logger
 import TestSetup
 
 withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
 withSettingsOverrides f action = do
   ts <- ask
   let opts = f (view tsOpts ts)
-  (_rThreads, env) <- liftIO $ createEnv opts
-  liftIO . lowerCodensity $ do
-    let app = mkApp env
-    p <- withMockServer app
-    liftIO $ Bilge.runHttpT (ts ^. tsManager) $ runReaderT (runTestM action) $ ts & tsGundeck .~ GundeckR (mkRequest p)
+  logger <- liftIO $ Logger.mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "withSettingsOverrides" logger)}) (toPulsarUrl (opts ^. Gundeck.Options.pulsar)) $ do
+    pulsarC <- ask
+    liftIO $ do
+      (_rThreads, env) <- liftIO $ createEnv opts logger pulsarC
+      liftIO . lowerCodensity $ do
+        let app = mkApp env
+        p <- withMockServer app
+        liftIO $ Bilge.runHttpT (ts ^. tsManager) $ runReaderT (runTestM action) $ ts & tsGundeck .~ GundeckR (mkRequest p)
   where
     mkRequest p = Bilge.host "127.0.0.1" . Bilge.port p
 

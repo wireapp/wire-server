@@ -8,6 +8,7 @@
 , api-field-json-th
 , async
 , base
+, base64
 , bilge
 , binary
 , bytestring
@@ -34,12 +35,14 @@
 , metrics-wai
 , mwc-random
 , prometheus-client
+, pulsar-client-hs
 , QuickCheck
 , random
 , retry
 , safe-exceptions
 , servant-conduit
 , servant-server
+, stm
 , strict
 , tasty
 , tasty-hunit
@@ -50,6 +53,7 @@
 , types-common
 , unix
 , unliftio
+, utf8-string
 , uuid
 , vector
 , wai
@@ -72,6 +76,7 @@ mkDerivation {
     api-field-json-th
     async
     base
+    base64
     bilge
     binary
     bytestring
@@ -95,10 +100,12 @@ mkDerivation {
     metrics-wai
     mwc-random
     prometheus-client
+    pulsar-client-hs
     retry
     safe-exceptions
     servant-conduit
     servant-server
+    stm
     strict
     text
     tinylog
@@ -106,6 +113,7 @@ mkDerivation {
     types-common
     unix
     unliftio
+    utf8-string
     vector
     wai
     wai-extra

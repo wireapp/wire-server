@@ -21,7 +21,7 @@ module Cannon.API.Public
 where
 
 import Cannon.App (wsapp)
-import Cannon.RabbitMqConsumerApp (rabbitMQWebSocketApp)
+import Cannon.PulsarConsumerApp (pulsarWebSocketApp)
 import Cannon.Types
 import Cannon.WS
 import Control.Monad.IO.Class
@@ -47,4 +47,4 @@ streamData userId connId clientId con = do
 consumeEvents :: UserId -> Maybe ClientId -> Maybe Text -> PendingConnection -> Cannon ()
 consumeEvents userId mClientId mSyncMarker con = do
   e <- wsenv
-  liftIO $ rabbitMQWebSocketApp userId mClientId mSyncMarker e con
+  liftIO $ pulsarWebSocketApp userId mClientId mSyncMarker e con

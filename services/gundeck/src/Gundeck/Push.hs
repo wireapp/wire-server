@@ -53,7 +53,10 @@ import Control.Error
 import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (throwError)
+import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
+import Data.ByteString qualified as B
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List.Extra qualified as List
@@ -62,6 +65,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TE
 import Data.These
 import Data.Timeout
 import Data.UUID qualified as UUID
@@ -84,9 +88,12 @@ import Network.AMQP (Message (..))
 import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai.Utilities
+import Pulsar.Client qualified as Pulsar
+import Pulsar.Client.Logging
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
+import UnliftIO.Resource
 import Util.Options
 import Wire.API.Internal.Notification
 import Wire.API.Notification
@@ -115,6 +122,7 @@ class (MonadThrow m) => MonadPushAll m where
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
   mpaPublishToRabbitMq :: Text -> Text -> Q.Message -> m ()
+  mpaPublishToPulsar :: Text -> Q.Message -> m ()
 
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . settings . notificationTTL)
@@ -128,11 +136,34 @@ instance MonadPushAll Gundeck where
   mpaRunWithBudget = runWithBudget''
   mpaGetClients = getClients
   mpaPublishToRabbitMq = publishToRabbitMq
+  mpaPublishToPulsar = publishToPulsar
 
 publishToRabbitMq :: Text -> Text -> Q.Message -> Gundeck ()
 publishToRabbitMq exchangeName routingKey qMsg = do
   chan <- getRabbitMqChan
   void $ liftIO $ Q.publishMsg chan exchangeName routingKey qMsg
+
+publishToPulsar :: Text -> Q.Message -> Gundeck ()
+publishToPulsar routingKey qMsg = do
+  logger <- view applog
+  pulsarC <- view Gundeck.Env.pulsarClient
+  flip runReaderT pulsarC $
+    Pulsar.withProducer Pulsar.defaultProducerConfiguration topicName (onPulsarError "publishToPulsar" logger) $ do
+      result <- runResourceT $ do
+        (_, message) <- Pulsar.buildMessage $ Pulsar.defaultMessageBuilder {Pulsar.content = Just $ BS.toStrict (A.encode pulsarMessage)}
+        lift $ Pulsar.sendMessage message
+      logPulsarResult "publishToPulsar" logger result
+  where
+    topicName = Pulsar.TopicName $ "persistent://wire/user-notifications/" ++ Text.unpack routingKey
+
+    pulsarMessage :: PulsarMessage
+    pulsarMessage =
+      PulsarMessage
+        { msgBody = TE.decodeUtf8 . B.toStrict $ (Q.msgBody qMsg),
+          msgContentType = "application/json",
+          -- TODO: This could be a sum type
+          msgType = Nothing
+        }
 
 -- | Another layer of wrap around 'runWithBudget'.
 runWithBudget'' :: Int -> a -> Gundeck a -> Gundeck a
@@ -247,7 +278,7 @@ pushAll pushes = do
   pushAllLegacy legacyNotifs allUserClients
 
   rabbitmqNotifs <- mapM mkNewNotification rabbitmqPushes
-  pushAllViaRabbitMq rabbitmqNotifs allUserClients
+  pushAllViaMessageBroker rabbitmqNotifs allUserClients
 
   -- Note that Cells needs all notifications because it doesn't matter whether
   -- some recipients have rabbitmq clients or not.
@@ -297,28 +328,23 @@ pushNativeWithBudget notif psh dontPush = do
     mpaRunWithBudget cost () $
       mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' dontPush
 
-pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
-pushAllViaRabbitMq newNotifs userClientsFull = do
-  for_ newNotifs $ pushViaRabbitMq
+pushAllViaMessageBroker :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
+pushAllViaMessageBroker newNotifs userClientsFull = do
+  for_ newNotifs $ pushViaPulsar
   mpaForkIO $ do
     for_ newNotifs $ \newNotif -> do
       let cassandraClients = Map.map (Set.filter $ not . supportsConsumableNotifications) userClientsFull.userClientsFull
           cassandraClientIds = Map.foldMapWithKey (\uid clients -> Set.map (\c -> (uid, c.clientId)) clients) cassandraClients
       pushNativeWithBudget newNotif.nnNotification newNotif.nnPush (Set.toList $ cassandraClientIds)
 
-pushViaRabbitMq :: (MonadPushAll m) => NewNotification -> m ()
-pushViaRabbitMq newNotif = do
+pushViaPulsar :: (MonadPushAll m) => NewNotification -> m ()
+pushViaPulsar newNotif = do
   qMsg <- mkMessage newNotif.nnNotification
-  let routingKeys =
-        Set.unions $
-          flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
-            case r._recipientClients of
-              RecipientClientsAll ->
-                Set.singleton $ userRoutingKey r._recipientId
-              RecipientClientsSome (toList -> cs) ->
-                Set.fromList $ map (clientRoutingKey r._recipientId) cs
+  let routingKeys = Set.unions $
+        flip Set.map (Set.fromList . toList $ newNotif.nnRecipients) \r ->
+          Set.singleton $ userRoutingKey r._recipientId
   for_ routingKeys $ \routingKey ->
-    mpaPublishToRabbitMq userNotificationExchangeName routingKey qMsg
+    mpaPublishToPulsar routingKey qMsg
 
 pushAllToCells :: (MonadPushAll m, Log.MonadLogger m) => [NewNotification] -> m ()
 pushAllToCells newNotifs = do

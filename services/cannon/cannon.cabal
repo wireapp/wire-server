@@ -23,8 +23,8 @@ library
     Cannon.App
     Cannon.Dict
     Cannon.Options
+    Cannon.PulsarConsumerApp
     Cannon.RabbitMq
-    Cannon.RabbitMqConsumerApp
     Cannon.Run
     Cannon.Types
     Cannon.WS
@@ -85,6 +85,7 @@ library
     , api-field-json-th                     >=0.1.0.2
     , async                                 >=2.0
     , base                                  >=4.6     && <5
+    , base64
     , bilge                                 >=0.12
     , binary
     , bytestring                            >=0.10
@@ -108,10 +109,12 @@ library
     , metrics-wai                           >=0.4
     , mwc-random                            >=0.13
     , prometheus-client
+    , pulsar-client-hs
     , retry                                 >=0.7
     , safe-exceptions
     , servant-conduit
     , servant-server
+    , stm
     , strict                                >=0.3.2
     , text                                  >=1.1
     , tinylog                               >=0.10
@@ -119,6 +122,7 @@ library
     , types-common                          >=0.16
     , unix
     , unliftio
+    , utf8-string
     , vector                                >=0.10
     , wai                                   >=3.0
     , wai-extra                             >=3.0

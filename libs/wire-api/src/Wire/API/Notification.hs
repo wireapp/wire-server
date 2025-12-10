@@ -45,6 +45,7 @@ module Wire.API.Notification
     temporaryRoutingKey,
     clientRoutingKey,
     queueOpts,
+    PulsarMessage (..),
   )
 where
 
@@ -255,3 +256,15 @@ queueOpts qName =
               )
             ]
     }
+
+data PulsarMessage = PulsarMessage
+  { msgBody :: Text,
+    msgContentType :: String,
+    -- TODO: This could be a sum type
+    msgType :: Maybe String
+  }
+  deriving (Generic, Show)
+
+instance FromJSON PulsarMessage
+
+instance ToJSON PulsarMessage

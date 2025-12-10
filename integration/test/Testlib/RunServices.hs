@@ -88,8 +88,10 @@ main = do
           let cp = proc "sh" (["-c", "exec \"$@\"", "--"] <> opts.runSubprocess)
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
+      -- The shardingGroup only matters for the testBench test; probably not here.
+      shardingGroup = 0
 
-  runCodensity (mkGlobalEnv cfg >>= mkEnv Nothing) $ \env ->
+  runCodensity (mkGlobalEnv cfg shardingGroup >>= mkEnv Nothing) $ \env ->
     runAppWithEnv env
       $ lowerCodensity
       $ do

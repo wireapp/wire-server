@@ -23,6 +23,7 @@ library
     Hasql.Pool.Extended
     Network.AMQP.Extended
     Network.RabbitMqAdmin
+    Pulsar.Client.Logging
     Servant.API.Extended
     Servant.API.Extended.Endpath
     System.Logger.Extended
@@ -98,6 +99,7 @@ library
     , metrics-wai
     , monad-control
     , prometheus-client
+    , pulsar-client-hs
     , retry
     , servant
     , servant-client

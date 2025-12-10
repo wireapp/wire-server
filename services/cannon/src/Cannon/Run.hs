@@ -30,6 +30,7 @@ import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.Types hiding (Env)
 import Cannon.WS hiding (drainOpts, env)
+import Cassandra.Options (toPulsarUrl)
 import Cassandra.Util (defInitCassandra)
 import Control.Concurrent
 import Control.Concurrent.Async qualified as Async
@@ -52,6 +53,8 @@ import OpenTelemetry.Instrumentation.Wai
 import OpenTelemetry.Trace hiding (Server)
 import OpenTelemetry.Trace qualified as Otel
 import Prometheus qualified as Prom
+import Pulsar.Client qualified as Pulsar
+import Pulsar.Client.Logging
 import Servant
 import System.IO.Strict qualified as Strict
 import System.Logger.Class qualified as LC
@@ -68,61 +71,60 @@ import Wire.OpenTelemetry (withTracer)
 type CombinedAPI = CannonAPI :<|> Internal.API
 
 run :: Opts -> IO ()
-run o = lowerCodensity $ do
-  lift $ validateOpts o
-  tracer <- Codensity withTracer
-  when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
-    error "drainOpts.millisecondsBetweenBatches must not be set to 0."
-  when (o ^. drainOpts . gracePeriodSeconds == 0) $
-    error "drainOpts.gracePeriodSeconds must not be set to 0."
-  ext <- lift loadExternal
-  g <-
-    Codensity $
-      E.bracket
-        (L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat))
-        L.close
-  cassandra <- lift $ defInitCassandra (o ^. cassandraOpts) g
+run o = do
+  g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
+  Pulsar.withClient (Pulsar.defaultClientConfiguration {Pulsar.clientLogger = Just (pulsarClientLogger "Cannon run" g)}) (toPulsarUrl (o ^. pulsar)) $ do
+    pulsarClient <- ask
+    liftIO . lowerCodensity $ do
+      lift $ validateOpts o
+      tracer <- Codensity withTracer
+      when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
+        error "drainOpts.millisecondsBetweenBatches must not be set to 0."
+      when (o ^. drainOpts . gracePeriodSeconds == 0) $
+        error "drainOpts.gracePeriodSeconds must not be set to 0."
+      ext <- lift loadExternal
+      cassandra <- lift $ defInitCassandra (o ^. cassandraOpts) g
 
-  e <- do
-    d1 <- D.empty numDictSlices
-    d2 <- D.empty numDictSlices
-    man <- lift $ newManager defaultManagerSettings {managerConnCount = 128}
-    rnd <- lift createSystemRandom
-    clk <- lift mkClock
-    mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq)
+      e <- do
+        d1 <- D.empty numDictSlices
+        d2 <- D.empty numDictSlices
+        man <- lift $ newManager defaultManagerSettings {managerConnCount = 128}
+        rnd <- lift createSystemRandom
+        clk <- lift mkClock
+        mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq) pulsarClient
 
-  void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
-  let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
+      void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
+      let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
 
-  otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
-  let middleware :: Wai.Middleware
-      middleware =
-        versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
-          . requestIdMiddleware g defaultRequestIdHeaderName
-          . servantPrometheusMiddleware (Proxy @CombinedAPI)
-          . otelMiddleWare
-          . Gzip.gzip Gzip.def
-          . catchErrors g defaultRequestIdHeaderName
-      app :: Application
-      app = middleware (serve (Proxy @CombinedAPI) server)
-      server :: Servant.Server CombinedAPI
-      server =
-        hoistServer (Proxy @CannonAPI) (runCannonToServant e) publicAPIServer
-          :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
-  tid <- lift myThreadId
+      otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
+      let middleware :: Wai.Middleware
+          middleware =
+            versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
+              . requestIdMiddleware g defaultRequestIdHeaderName
+              . servantPrometheusMiddleware (Proxy @CombinedAPI)
+              . otelMiddleWare
+              . Gzip.gzip Gzip.def
+              . catchErrors g defaultRequestIdHeaderName
+          app :: Application
+          app = middleware (serve (Proxy @CombinedAPI) server)
+          server :: Servant.Server CombinedAPI
+          server =
+            hoistServer (Proxy @CannonAPI) (runCannonToServant e) publicAPIServer
+              :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
+      tid <- lift myThreadId
 
-  Codensity $ \k ->
-    inSpan tracer "cannon" defaultSpanArguments {kind = Otel.Server} (k ())
-  lift $
-    E.handle uncaughtExceptionHandler $ do
-      let handler = signalHandler (env e) (o ^. drainOpts) tid
-      void $ installHandler sigTERM handler Nothing
-      void $ installHandler sigINT handler Nothing
-      -- FUTUREWORK(@akshaymankar, @fisx): we may want to call `runSettingsWithShutdown` here,
-      -- but it's a sensitive change, and it looks like this is closing all the websockets at
-      -- the same time and then calling the drain script. I suspect this might be due to some
-      -- cleanup in wai.  this needs to be tested very carefully when touched.
-      runSettings s app
+      Codensity $ \k ->
+        inSpan tracer "cannon" defaultSpanArguments {kind = Otel.Server} (k ())
+      lift $
+        E.handle uncaughtExceptionHandler $ do
+          let handler = signalHandler (env e) (o ^. drainOpts) tid
+          void $ installHandler sigTERM handler Nothing
+          void $ installHandler sigINT handler Nothing
+          -- FUTUREWORK(@akshaymankar, @fisx): we may want to call `runSettingsWithShutdown` here,
+          -- but it's a sensitive change, and it looks like this is closing all the websockets at
+          -- the same time and then calling the drain script. I suspect this might be due to some
+          -- cleanup in wai.  this needs to be tested very carefully when touched.
+          runSettings s app
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
     -- Each cannon instance advertises its own location (ip or dns name) to gundeck.

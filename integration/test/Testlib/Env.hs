@@ -62,8 +62,8 @@ serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 serviceHostPort m WireServerEnterprise = m.wireServerEnterprise
 
-mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
-mkGlobalEnv cfgFile = do
+mkGlobalEnv :: FilePath -> Word -> Codensity IO GlobalEnv
+mkGlobalEnv cfgFile shardingGroup = do
   eith <- liftIO $ Yaml.decodeFileEither cfgFile
   intConfig <- liftIO $ case eith of
     Left err -> do
@@ -145,7 +145,11 @@ mkGlobalEnv cfgFile = do
         gDNSMockServerConfig = intConfig.dnsMockServer,
         gCellsEventQueue = intConfig.cellsEventQueue,
         gCellsEventWatchersLock,
-        gCellsEventWatchers
+        gCellsEventWatchers,
+        gShardingGroupCount = intConfig.shardingGroupCount,
+        gShardingGroup = shardingGroup,
+        gMaxUserNo = intConfig.maxUserNo,
+        gMaxDeliveryDelay = intConfig.maxDeliveryDelay
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -201,7 +205,11 @@ mkEnv currentTestName ge = do
           dnsMockServerConfig = ge.gDNSMockServerConfig,
           cellsEventQueue = ge.gCellsEventQueue,
           cellsEventWatchersLock = ge.gCellsEventWatchersLock,
-          cellsEventWatchers = ge.gCellsEventWatchers
+          cellsEventWatchers = ge.gCellsEventWatchers,
+          shardingGroupCount = ge.gShardingGroupCount,
+          shardingGroup = ge.gShardingGroup,
+          maxUserNo = ge.gMaxUserNo,
+          maxDeliveryDelay = ge.gMaxDeliveryDelay
         }
 
 allCiphersuites :: [Ciphersuite]
