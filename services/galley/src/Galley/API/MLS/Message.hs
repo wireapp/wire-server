@@ -354,8 +354,14 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage convOrSub.members
     pure (events, newClients)
 
+  -- send welcome messages
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
+
+  -- TODO: send optional application message
+  for_ bundle.appMessage $ \_msg -> do
+    pure ()
+
   pure events
 
 handleGroupInfoMismatch ::
@@ -510,8 +516,28 @@ postMLSMessageToLocalConv ::
   Sem r [LocalConversationUpdate]
 postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
-  let convOrSub = tUnqualified lConvOrSub
+  validateMessage qusr c lConvOrSub msg
 
+  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
+  pure []
+
+validateMessage ::
+  ( HasProposalEffects r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS MLSClientSenderUserMismatch) r,
+    Member (ErrorS MLSStaleMessage) r,
+    Member (ErrorS MLSUnsupportedMessage) r,
+    Member (Error MLSOutOfSyncError) r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (Input EnableOutOfSyncCheck) r
+  ) =>
+  Qualified UserId ->
+  ClientId ->
+  Local ConvOrSubConv ->
+  IncomingMessage ->
+  Sem r ()
+validateMessage qusr c lConvOrSub msg = do
+  let convOrSub = tUnqualified lConvOrSub
   for_ msg.sender $ \sender ->
     void $ getSenderIdentity qusr c sender lConvOrSub
 
@@ -549,9 +575,6 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
                 || epochInt msg.epoch > epochInt activeData.epoch
             )
             $ throwS @'MLSStaleMessage
-
-  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure []
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,

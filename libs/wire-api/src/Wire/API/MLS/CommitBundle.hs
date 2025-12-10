@@ -30,7 +30,7 @@ data CommitBundle = CommitBundle
   { commitMsg :: RawMLS Message,
     welcome :: Maybe (RawMLS Welcome),
     groupInfo :: RawMLS GroupInfo,
-    appMessage :: Maybe (RawMLS PrivateMessage)
+    appMessage :: Maybe (RawMLS Message)
   }
   deriving stock (Eq, Show, Generic)
 
@@ -38,7 +38,7 @@ data CommitBundleF f = CommitBundleF
   { commitMsg :: f (RawMLS Message),
     welcome :: f (RawMLS Welcome),
     groupInfo :: f (RawMLS GroupInfo),
-    appMessage :: f (RawMLS PrivateMessage)
+    appMessage :: f (RawMLS Message)
   }
 
 deriving instance Show (CommitBundleF [])
@@ -79,7 +79,7 @@ findMessageInStream msg = case msg.value.content of
     _ -> Left "unexpected proposal"
   MessageWelcome w -> pure (CommitBundleF empty (pure w) empty empty)
   MessageGroupInfo gi -> pure (CommitBundleF empty empty (pure gi) empty)
-  MessagePrivate priv -> pure (CommitBundleF empty empty empty (pure priv))
+  MessagePrivate _ -> pure (CommitBundleF empty empty empty (pure msg))
   _ -> Left "unexpected message type"
 
 findMessagesInStream :: (Alternative f) => [RawMLS Message] -> Either Text (CommitBundleF f)

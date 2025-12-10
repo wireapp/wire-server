@@ -71,6 +71,7 @@ data IncomingBundle = IncomingBundle
     sender :: Sender,
     commit :: RawMLS Commit,
     rawMessage :: RawMLS Message,
+    appMessage :: Maybe IncomingMessage,
     welcome :: Maybe (RawMLS Welcome),
     groupInfo :: RawMLS GroupInfo,
     serialized :: ByteString
@@ -137,6 +138,7 @@ mkIncomingBundle bundle = do
         sender = content.sender,
         commit = commit,
         rawMessage = bundle.value.commitMsg,
+        appMessage = bundle.value.appMessage >>= mkIncomingMessage,
         welcome = bundle.value.welcome,
         groupInfo = bundle.value.groupInfo,
         serialized = bundle.raw

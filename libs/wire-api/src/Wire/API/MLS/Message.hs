@@ -76,7 +76,8 @@ data Message = Message
   { protocolVersion :: ProtocolVersion,
     content :: MessageContent
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Message
 
 mkMessage :: MessageContent -> Message
 mkMessage = Message defaultProtocolVersion
@@ -102,7 +103,8 @@ data MessageContent
   | MessageWelcome (RawMLS Welcome)
   | MessageGroupInfo (RawMLS GroupInfo)
   | MessageKeyPackage (RawMLS KeyPackage)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform MessageContent
 
 instance HasField "wireFormat" MessageContent WireFormatTag where
   getField (MessagePrivate _) = WireFormatPrivateTag
@@ -148,7 +150,8 @@ data PublicMessage = PublicMessage
     -- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-4
     membershipTag :: Maybe ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform PublicMessage
 
 instance ParseMLS PublicMessage where
   parseMLS = do
@@ -252,7 +255,8 @@ data FramedContent = FramedContent
     authenticatedData :: ByteString,
     content :: FramedContentData
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform FramedContent
 
 instance ParseMLS FramedContent where
   parseMLS =
@@ -289,7 +293,8 @@ data FramedContentData
   = FramedContentApplicationData ByteString
   | FramedContentProposal (RawMLS Proposal)
   | FramedContentCommit (RawMLS Commit)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform FramedContentData
 
 framedContentDataTag :: FramedContentData -> FramedContentDataTag
 framedContentDataTag (FramedContentApplicationData _) = FramedContentApplicationDataTag
@@ -337,7 +342,8 @@ data FramedContentAuthData = FramedContentAuthData
     -- Present iff it is part of a commit.
     confirmationTag :: Maybe ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform FramedContentAuthData
 
 parseFramedContentAuthData :: FramedContentDataTag -> Get FramedContentAuthData
 parseFramedContentAuthData t = do
