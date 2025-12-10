@@ -1,0 +1,6 @@
+Implement some missing parts of `PATCH /scim/v2/User/{:id}`.
+
+It also replaces our own ad-hoc implementation by one using aeson-diff
+as a backbone. Still missing: Multi-valued attributes and array
+operations; value-path filters (e.g., "emails[type eq 'work']");
+Immutability checks for 'id' and 'meta' fields.
