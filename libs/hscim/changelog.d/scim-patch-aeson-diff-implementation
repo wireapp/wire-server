@@ -1,0 +1,22 @@
+Implement SCIM PATCH operations using aeson-diff library.
+
+This change implements the core validation and application logic for SCIM PATCH operations that were previously stubbed:
+
+- Implemented `isLegalPatchOp` and `operationIsLegal` to validate patch operations
+  - Only Add, Remove (Rem), and Replace (Rep) operations are supported
+  - Operations referencing array indices are rejected
+  - Move, Copy, and Test operations are rejected as unsupported
+- Implemented `applyPatch` function to apply patches to SCIM resources
+  - Validates operations before applying
+  - Converts resources to JSON, applies aeson-diff patch, and parses back
+  - Maps aeson-diff errors to appropriate SCIM error responses (InvalidPath, InvalidValue)
+- Added `applyPatch` export from Web.Scim.Schema.User module
+- Conservative implementation: multi-valued attribute operations are rejected
+
+Known limitations (marked FUTUREWORK):
+- Multi-valued attributes and array operations are not supported
+- Value-path filters (e.g., "emails[type eq 'work']") are not supported
+- Immutability checks for 'id' and 'meta' fields are not yet implemented
+- These limitations are documented in code comments and test stubs
+
+This implementation prioritizes correctness and follows SCIM RFC 7644 section 3.5.2 for basic PATCH semantics.
