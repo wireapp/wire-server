@@ -61,7 +61,9 @@ tests s =
       test s "POST /meetings/:domain/:id/invitations/:email/delete - meeting not found (404)" testMeetingRemoveInvitationNotFound,
       test s "POST /meetings - personal user creates trial meeting" testMeetingCreatePersonalUserTrial,
       test s "POST /meetings - non-paying team creates trial meeting" testMeetingCreateNonPayingTeamTrial,
-      test s "POST /meetings - paying team creates non-trial meeting" testMeetingCreatePayingTeamNonTrial
+      test s "POST /meetings - paying team creates non-trial meeting" testMeetingCreatePayingTeamNonTrial,
+      test s "POST /meetings - disabled MeetingConfig blocks creation" testMeetingConfigDisabledBlocksCreate,
+      test s "GET /meetings - disabled MeetingConfig blocks listing" testMeetingConfigDisabledBlocksList
     ]
 
 testMeetingCreate :: TestM ()
@@ -579,12 +581,12 @@ testMeetingCreateNonPayingTeamTrial :: TestM ()
 testMeetingCreateNonPayingTeamTrial = do
   (owner, tid) <- createBindingTeam
 
-  -- Ensure payingTeam feature is disabled (default)
+  -- Ensure meetingPremium feature is disabled (default)
   g <- viewGalley
   void $
     put
       ( g
-          . paths ["i", "teams", toByteString' tid, "features", "payingTeam"]
+          . paths ["i", "teams", toByteString' tid, "features", "meetingPremium"]
           . json (object ["status" .= ("disabled" :: Text)])
       )
       <!! const 200 === statusCode
@@ -618,12 +620,12 @@ testMeetingCreatePayingTeamNonTrial :: TestM ()
 testMeetingCreatePayingTeamNonTrial = do
   (owner, tid) <- createBindingTeam
 
-  -- Enable payingTeam feature
+  -- Enable meetingPremium feature
   g <- viewGalley
   void $
     put
       ( g
-          . paths ["i", "teams", toByteString' tid, "features", "payingTeam"]
+          . paths ["i", "teams", toByteString' tid, "features", "meetingPremium"]
           . json (object ["status" .= ("enabled" :: Text)])
       )
       <!! const 200 === statusCode
@@ -651,3 +653,90 @@ testMeetingCreatePayingTeamNonTrial = do
 
   let meeting = responseJsonUnsafe r :: Meeting
   liftIO $ meeting.trial @?= False
+
+-- Test that disabled MeetingConfig feature blocks meeting creation
+testMeetingConfigDisabledBlocksCreate :: TestM ()
+testMeetingConfigDisabledBlocksCreate = do
+  (owner, tid) <- createBindingTeam
+  g <- viewGalley
+
+  -- Disable the MeetingConfig feature
+  put
+    ( g
+        . paths ["i", "teams", toByteString' tid, "features", "meeting"]
+        . json
+          ( object
+              [ "status" .= ("disabled" :: Text),
+                "lockStatus" .= ("unlocked" :: Text)
+              ]
+          )
+    )
+    !!! const 200 === statusCode
+
+  -- Try to create a meeting - should fail
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting =
+        object
+          [ "title" .= ("Team Standup" :: Text),
+            "start_date" .= startTime,
+            "end_date" .= endTime
+          ]
+
+  post
+    ( g
+        . paths ["meetings"]
+        . zUser owner
+        . zConn "conn"
+        . json newMeeting
+    )
+    !!! const 403 === statusCode
+
+-- Test that disabled MeetingConfig feature blocks meeting listing
+testMeetingConfigDisabledBlocksList :: TestM ()
+testMeetingConfigDisabledBlocksList = do
+  (owner, tid) <- createBindingTeam
+  g <- viewGalley
+
+  -- First create a meeting while feature is enabled
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting =
+        object
+          [ "title" .= ("Team Standup" :: Text),
+            "start_date" .= startTime,
+            "end_date" .= endTime
+          ]
+
+  post
+    ( g
+        . paths ["meetings"]
+        . zUser owner
+        . zConn "conn"
+        . json newMeeting
+    )
+    !!! const 201 === statusCode
+
+  -- Disable the MeetingConfig feature
+  put
+    ( g
+        . paths ["i", "teams", toByteString' tid, "features", "meeting"]
+        . json
+          ( object
+              [ "status" .= ("disabled" :: Text),
+                "lockStatus" .= ("unlocked" :: Text)
+              ]
+          )
+    )
+    !!! const 200 === statusCode
+
+  -- Try to list meetings - should fail
+  get
+    ( g
+        . paths ["meetings", "list"]
+        . zUser owner
+        . zConn "conn"
+    )
+    !!! const 403 === statusCode

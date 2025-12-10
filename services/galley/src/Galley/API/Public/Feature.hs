@@ -76,7 +76,8 @@ featureAPI =
     <@> mkNamedAPI @'("get", SimplifiedUserConnectionRequestQRCodeConfig) getFeature
     <@> mkNamedAPI @'("get", StealthUsersConfig) getFeature
     <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
-    <@> featureAPIGetPut
+    <@> featureAPIGetPut @MeetingConfig
+    <@> featureAPIGetPut @MeetingPremiumConfig
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
