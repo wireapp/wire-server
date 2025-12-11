@@ -20,6 +20,7 @@ import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
+import Control.Retry
 
 -- | This is a bit silly, but it allows us to write more straight-forward code and still get
 -- better error messages than "something went wrong in your code, please try again".
@@ -235,7 +236,8 @@ validateStateLoginAllUsers owner tid state = do
         void $ loginWithSamlEmail True tid email idp
         bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
           resp.status `shouldMatchInt` 204
-        void $ loginWithSamlEmail False tid email idp
+        let pol = limitRetriesByCumulativeDelay 12_000_000 (fullJitterBackoff 5_000)
+        void $ recoverAll pol (\_ -> void $ loginWithSamlEmail False tid email idp)
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
