@@ -14,16 +14,13 @@ import API.Common (defPassword)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Nginz (login)
 import API.Spar
-import Control.Concurrent
-import Control.Concurrent.Async
-import Control.Monad.Reader
-import Control.Retry
 import qualified Data.Map as Map
 import qualified SAML2.WebSSO as SAML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
+import Control.Retry
 
 -- | This is a bit silly, but it allows us to write more straight-forward code and still get
 -- better error messages than "something went wrong in your code, please try again".
@@ -237,16 +234,10 @@ validateStateLoginAllUsers owner tid state = do
         -- check that no invitation was sent
         getInvitationByEmail OwnDomain email >>= assertStatus 404
         void $ loginWithSamlEmail True tid email idp
-        env :: Env <- ask
-        let delAction :: IO () = do
-              threadDelay 5_000_000
-              runAppWithEnv env $ do
-                bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
-                  resp.status `shouldMatchInt` 204
-        let checkAction :: IO () = do
-              -- let pol = limitRetriesByCumulativeDelay 1_000_000 (fullJitterBackoff 5_000)
-              void $ runAppWithEnv env $ loginWithSamlEmail False tid email idp
-        liftIO $ withAsync delAction (\_ -> checkAction)
+        bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
+          resp.status `shouldMatchInt` 204
+        let pol = limitRetriesByCumulativeDelay 12_000_000 (fullJitterBackoff 5_000)
+        void $ recoverAll pol (\_ -> void $ loginWithSamlEmail False tid email idp)
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
