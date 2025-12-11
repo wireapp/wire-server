@@ -447,7 +447,7 @@ forgetLock ws = Feature ws.status ws.config
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
 withLockStatus ls (Feature s c) = LockableFeature s ls c
 
-instance (IsFeatureConfig cfg) => ToSchema (Feature cfg) where
+instance (ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
       Feature
@@ -461,26 +461,11 @@ instance (IsFeatureConfig cfg) => ToSchema (Feature cfg) where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
 
-instance (ToSchema (Versioned v cfg)) => ToSchema (Versioned v (Feature cfg)) where
-  schema =
-    Versioned
-      <$> unVersioned
-        .= object
-          name
-          ( Feature
-              <$> (.status) .= field "status" schema
-              <*> (.config) .= field "config" configSchema
-              <* const FeatureTTLUnlimited
-                .= optField
-                  "ttl"
-                  (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
-          )
-    where
-      configSchema :: ValueSchema NamedSwaggerDoc cfg
-      configSchema = Versioned .= (schema :: ValueSchema NamedSwaggerDoc (Versioned v cfg)) `withParser` (pure . unVersioned)
-
-      inner = schema @(Versioned v cfg)
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
+instance
+  (ToObjectSchema (Versioned v cfg), ToSchema (Versioned v cfg)) =>
+  ToSchema (Versioned v (Feature cfg))
+  where
+  schema = Versioned . fmap unVersioned <$> (fmap Versioned . unVersioned) .= schema @(Feature (Versioned v cfg))
 
 ----------------------------------------------------------------------
 -- FeatureTTL
@@ -1545,7 +1530,10 @@ instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
         <$> foo .= fieldF "foo" schema
 
 instance ToSchema (Versioned V13 CellsConfig) where
-  schema = object "CellsConfigV13" $ pure $ Versioned def
+  schema = object "CellsConfigV13" objectSchema
+
+instance ToObjectSchema (Versioned V13 CellsConfig) where
+  objectSchema = pure $ Versioned def
 
 instance Default (LockableFeature CellsConfig) where
   def = defLockedFeature
