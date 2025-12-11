@@ -46,6 +46,9 @@ module Data.Json.Util
     fromBase64TextLenient,
     fromBase64Text,
     toBase64Text,
+
+    -- * Other
+    BigNatString (..),
   )
 where
 
@@ -65,9 +68,11 @@ import Data.ByteString.UTF8 qualified as UTF8
 import Data.Fixed
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
+import Data.Text.Read qualified as TR
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
 import Data.Time.Lens qualified as TL
@@ -89,6 +94,54 @@ infixr 5 #
 (#) :: A.Pair -> [A.Pair] -> [A.Pair]
 (#) = append
 {-# INLINE (#) #-}
+
+-----------------------------------------------------------------------------
+-- BigNatString
+
+-- | A wrapper type for arbitrary-precision /signed/ integer values that must
+--   be serialized and deserialized as decimal strings in JSON and OpenAPI
+--   schemas.
+--
+--   This type is intended for situations where numeric values may grow beyond
+--   the safe integer range of JavaScript (2^53-1), and therefore cannot be
+--   represented as JSON numbers without losing precision. Instead, values are
+--   encoded as textual decimal representations, ensuring:
+--
+--   * Arbitrary size support – backed by 'Integer', so values never overflow.
+--   * Lossless JSON round-trips – encoded as JSON strings rather than numbers.
+--   * Type-safe usage in APIs – OpenAPI schema ('ToSchema') reflects a
+--     string-based representation with integer parsing rules.
+--
+--   The textual form must be a (possibly negative) decimal integer without
+--   fractional parts, for example:
+--
+--   * @"0"@
+--   * @"42"@
+--   * @"-9000"@
+--
+--   This type is generic and not bound to any specific unit. It can represent
+--   large counts of seconds, bytes, IDs, or any other quantity that must
+--   remain precise end-to-end across systems with differing numeric
+--   capabilities.
+newtype BigNatString = BigNatString {unBigNatString :: Integer}
+  deriving (Show, Eq, Ord, Generic, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BigNatString
+
+instance ToSchema BigNatString where
+  schema = toText .= (BigNatString <$> bigNatStringSchema)
+    where
+      toText :: BigNatString -> Text
+      toText = T.pack . show . unBigNatString
+
+      bigNatStringSchema :: ValueSchemaP NamedSwaggerDoc Text Integer
+      bigNatStringSchema = schema `withParser` p
+        where
+          p :: Text -> A.Parser Integer
+          p txt = do
+            (n, rest) <- either fail pure (TR.signed TR.decimal txt :: Either String (Integer, Text))
+            unless (T.null rest) $
+              fail "numBytes must be an integer string without decimals"
+            pure n
 
 -----------------------------------------------------------------------------
 -- UTCTimeMillis
