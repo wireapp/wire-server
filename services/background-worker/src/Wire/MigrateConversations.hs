@@ -25,8 +25,8 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.ConversationStore.Migration
 
-startWorker :: AppT IO CleanupAction
-startWorker = do
+startWorker :: MigrationOptions -> AppT IO CleanupAction
+startWorker migOpts = do
   cassClient <- asks (.cassandraGalley)
   pgPool <- asks (.hasqlPool)
   logger <- asks (.logger)
@@ -39,8 +39,8 @@ startWorker = do
   userMigFinished <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_finished" "Whether the migration of remote conversation membership data to Postgresql is finished successfully"
   userMigFailed <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_failed" "Whether the migration of remote conversation membership data to Postgresql has failed"
 
-  convLoop <- async . lift $ migrateConvsLoop cassClient pgPool logger convMigCounter convMigFinished convMigFailed
-  userLoop <- async . lift $ migrateUsersLoop cassClient pgPool logger userMigCounter userMigFinished userMigFailed
+  convLoop <- async . lift $ migrateConvsLoop migOpts cassClient pgPool logger convMigCounter convMigFinished convMigFailed
+  userLoop <- async . lift $ migrateUsersLoop migOpts cassClient pgPool logger userMigCounter userMigFinished userMigFailed
 
   Log.info logger $ Log.msg (Log.val "started conversation migration")
   pure $ do

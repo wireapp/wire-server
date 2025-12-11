@@ -65,6 +65,9 @@ backendNotificationPusher:
   remotesRefreshInterval: 10000 # 10ms
 
 migrateConversations: false
+migrateConversationsOptions:
+  pageSize: 10000
+  parallelism: 2
 
 # Background jobs consumer configuration for integration
 backgroundJobs:

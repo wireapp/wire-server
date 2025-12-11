@@ -22,6 +22,7 @@ module Wire.ConversationStore.Migration where
 import Cassandra
 import Cassandra.Settings hiding (pageSize)
 import Control.Error (lastMay)
+import Data.Aeson (FromJSON)
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
@@ -36,6 +37,7 @@ import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
 import Data.Tuple.Extra
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
+import GHC.Generics (Generically (..))
 import Hasql.Pool qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -71,6 +73,8 @@ import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Migration.Types
 import Wire.ConversationStore.MigrationLock
 import Wire.Postgres
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (..), unsafePooledMapConcurrentlyN_)
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Paging.Cassandra
@@ -79,15 +83,22 @@ import Wire.Util
 
 -- * Top level logic
 
-type EffectStack = [State Int, Input ClientState, Input Hasql.Pool, Async, Race, TinyLog, Embed IO, Final IO]
+type EffectStack = [State Int, Input ClientState, Input Hasql.Pool, Async, Race, TinyLog, Embed IO, Concurrency 'Unsafe, Final IO]
 
-migrateConvsLoop :: ClientState -> Hasql.Pool -> Log.Logger -> Prometheus.Counter -> Prometheus.Counter -> Prometheus.Counter -> IO ()
-migrateConvsLoop cassClient pgPool logger migCounter migFinished migFailed =
-  migrationLoop cassClient pgPool logger "conversations" migFinished migFailed $ migrateAllConversations migCounter
+data MigrationOptions = MigrationOptions
+  { pageSize :: Int32,
+    parallelism :: Int
+  }
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON) via Generically MigrationOptions
 
-migrateUsersLoop :: ClientState -> Hasql.Pool -> Log.Logger -> Prometheus.Counter -> Prometheus.Counter -> Prometheus.Counter -> IO ()
-migrateUsersLoop cassClient pgPool logger migCounter migFinished migFailed =
-  migrationLoop cassClient pgPool logger "users" migFinished migFailed $ migrateAllUsers migCounter
+migrateConvsLoop :: MigrationOptions -> ClientState -> Hasql.Pool -> Log.Logger -> Prometheus.Counter -> Prometheus.Counter -> Prometheus.Counter -> IO ()
+migrateConvsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+  migrationLoop cassClient pgPool logger "conversations" migFinished migFailed $ migrateAllConversations migOpts migCounter
+
+migrateUsersLoop :: MigrationOptions -> ClientState -> Hasql.Pool -> Log.Logger -> Prometheus.Counter -> Prometheus.Counter -> Prometheus.Counter -> IO ()
+migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+  migrationLoop cassClient pgPool logger "users" migFinished migFailed $ migrateAllUsers migOpts migCounter
 
 migrationLoop :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Prometheus.Counter -> Prometheus.Counter -> ConduitT () Void (Sem EffectStack) () -> IO ()
 migrationLoop cassClient pgPool logger name migFinished migFailed migration = do
@@ -128,6 +139,7 @@ migrationLoop cassClient pgPool logger name migFinished migFailed migration = do
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
   runFinal
+    . unsafelyPerformConcurrency
     . embedToFinal
     . loggerToTinyLog logger
     . mapLogger (Log.field "migration" name .)
@@ -138,9 +150,6 @@ interpreter cassClient pgPool logger name =
     . runInputConst cassClient
     . runState 0
 
-pageSize :: Int32
-pageSize = 10000
-
 migrateAllConversations ::
   ( Member (Input Hasql.Pool) r,
     Member (Embed IO) r,
@@ -148,15 +157,17 @@ migrateAllConversations ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
-    Member (State Int) r
+    Member (State Int) r,
+    Member (Concurrency Unsafe) r
   ) =>
+  MigrationOptions ->
   Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
-migrateAllConversations migCounter = do
+migrateAllConversations migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllConversations")
-  withCount (paginateSem select (paramsP LocalQuorum () pageSize) x5)
-    .| logRetrievedPage
-    .| C.mapM_ (mapM_ (handleErrors (migrateConversation migCounter) "conv"))
+  withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
+    .| logRetrievedPage migOpts.pageSize
+    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateConversation migCounter) "conv"))
   where
     select :: PrepQuery R () (Identity ConvId)
     select = "select conv from conversation"
@@ -168,21 +179,23 @@ migrateAllUsers ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
-    Member (State Int) r
+    Member (State Int) r,
+    Member (Concurrency 'Unsafe) r
   ) =>
+  MigrationOptions ->
   Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
-migrateAllUsers migCounter = do
+migrateAllUsers migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllUsers")
-  withCount (paginateSem select (paramsP LocalQuorum () pageSize) x5)
-    .| logRetrievedPage
-    .| C.mapM_ (mapM_ (handleErrors (migrateUser migCounter) "user"))
+  withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
+    .| logRetrievedPage migOpts.pageSize
+    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateUser migCounter) "user"))
   where
     select :: PrepQuery R () (Identity UserId)
     select = "select distinct user from user_remote_conv"
 
-logRetrievedPage :: (Member TinyLog r) => ConduitM (Int32, [Identity (Id a)]) [Id a] (Sem r) ()
-logRetrievedPage =
+logRetrievedPage :: (Member TinyLog r) => Int32 -> ConduitM (Int32, [Identity (Id a)]) [Id a] (Sem r) ()
+logRetrievedPage pageSize =
   C.mapM
     ( \(i, rows) -> do
         let estimatedRowsSoFar = (i - 1) * pageSize + fromIntegral (length rows)
