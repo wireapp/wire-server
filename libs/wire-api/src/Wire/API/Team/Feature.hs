@@ -1561,11 +1561,11 @@ instance ToSchema CellsPublicLinks where
   schema =
     object "CellsPublicLinks" $
       CellsPublicLinks
-        <$> enableFiles .= field "enabledFiles" schema
-        <*> enableFolders .= field "enabledFiles" schema
-        <*> enforcePassword .= field "enabledFiles" schema
-        <*> enforceExpirationMax .= field "enabledFiles" schema
-        <*> enforceExpirationDefault .= field "enabledFiles" schema
+        <$> enableFiles .= field "enableFiles" schema
+        <*> enableFolders .= field "enableFolders" schema
+        <*> enforcePassword .= field "enforcePassword " schema
+        <*> enforceExpirationMax .= field "enforceExpirationMax" schema
+        <*> enforceExpirationDefault .= field "enforceExpirationDefault" schema
 
 data CellsRecycle = CellsRecycle
   { autoPurgeDays :: Int,
