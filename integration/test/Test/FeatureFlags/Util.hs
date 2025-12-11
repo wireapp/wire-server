@@ -149,7 +149,16 @@ defAllFeatures =
                   "allowed_to_open_channels" .= "team-members"
                 ]
           ],
-      "cells" .= enabled,
+      "cells"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "foo" .= "bar"
+                ]
+          ],
       "assetAuditLog" .= disabledLocked,
       "allowedGlobalOperations"
         .= object

@@ -163,6 +163,8 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
+        config:
+          foo: bar
     cellsInternal:
       defaults:
         status: enabled

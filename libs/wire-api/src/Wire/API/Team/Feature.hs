@@ -85,7 +85,8 @@ module Wire.API.Team.Feature
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
-    CellsConfig (..),
+    CellsConfig,
+    CellsConfigB (..),
     CellsInternalConfig,
     CellsInternalConfigB (..),
     CellsCollabora (..),
@@ -161,6 +162,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature.Profunctor
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -444,7 +446,7 @@ forgetLock ws = Feature ws.status ws.config
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
 withLockStatus ls (Feature s c) = LockableFeature s ls c
 
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
+instance (IsFeatureConfig cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
       Feature
@@ -456,6 +458,27 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
             (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
     where
       inner = schema @cfg
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
+
+instance (ToSchema (Versioned v cfg)) => ToSchema (Versioned v (Feature cfg)) where
+  schema =
+    Versioned
+      <$> unVersioned
+        .= object
+          name
+          ( Feature
+              <$> (.status) .= field "status" schema
+              <*> (.config) .= field "config" configSchema
+              <* const FeatureTTLUnlimited
+                .= optField
+                  "ttl"
+                  (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
+          )
+    where
+      configSchema :: ValueSchema NamedSwaggerDoc cfg
+      configSchema = Versioned .= (schema :: ValueSchema NamedSwaggerDoc (Versioned v cfg)) `withParser` (pure . unVersioned)
+
+      inner = schema @(Versioned v cfg)
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
 
 ----------------------------------------------------------------------
@@ -1442,14 +1465,45 @@ instance IsFeatureConfig DomainRegistrationConfig where
 --------------------------------------------------------------------------------
 -- Cells feature
 
-data CellsConfig = CellsConfig
-  deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform CellsConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName CellsConfig)
-  deriving (Default, ParseDbFeature) via (TrivialFeature CellsConfig)
+data CellsConfigB t f = CellsConfig
+  { foo :: Wear t f Text
+  }
+  deriving (Generic, BareB)
 
-instance ToSchema CellsConfig where
-  schema = object "CellsConfig" objectSchema
+deriving instance FunctorB (CellsConfigB Covered)
+
+deriving instance ApplicativeB (CellsConfigB Covered)
+
+deriving instance TraversableB (CellsConfigB Covered)
+
+type CellsConfig = CellsConfigB Bare Identity
+
+deriving instance Eq CellsConfig
+
+deriving instance Show CellsConfig
+
+deriving via (RenderableTypeName CellsConfig) instance (RenderableSymbol CellsConfig)
+
+deriving via (GenericUniform CellsConfig) instance (Arbitrary CellsConfig)
+
+deriving via (BarbieFeature CellsConfigB) instance (ParseDbFeature CellsConfig)
+
+deriving via (BarbieFeature CellsConfigB) instance (ToSchema CellsConfig)
+
+instance Default CellsConfig where
+  def =
+    CellsConfig
+      { foo = mempty
+      }
+
+instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
+  schema =
+    object "CellsConfig" $
+      CellsConfig
+        <$> foo .= fieldF "foo" schema
+
+instance ToSchema (Versioned V13 CellsConfig) where
+  schema = object "CellsConfigV13" $ pure $ Versioned def
 
 instance Default (LockableFeature CellsConfig) where
   def = defLockedFeature
@@ -1457,7 +1511,7 @@ instance Default (LockableFeature CellsConfig) where
 instance IsFeatureConfig CellsConfig where
   type FeatureSymbol CellsConfig = "cells"
   featureSingleton = FeatureSingletonCellsConfig
-  objectSchema = pure CellsConfig
+  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- Cells Internal
