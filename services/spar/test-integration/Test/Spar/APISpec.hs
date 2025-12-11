@@ -929,7 +929,7 @@ specCRUDIdentityProvider = do
         rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
         liftIO $ do
           idp `shouldBe` idp'
-          let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+          let prefix = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
           ST.take (ST.length prefix) rawmeta `shouldBe` prefix
       it "first IdP gets handle 'IdP 1', second gets 'IdP 2'" $ do
         env <- ask
@@ -973,7 +973,7 @@ specCRUDIdentityProvider = do
           rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ do
             idp `shouldBe` idp'
-            let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
+            let prefix = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
 
     describe "replaces an existing idp"
