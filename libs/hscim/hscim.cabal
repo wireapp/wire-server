@@ -101,6 +101,7 @@ library
     , http-api-data
     , http-media
     , http-types
+    , imports
     , list-t
     , microlens
     , mmorph
@@ -220,6 +221,7 @@ test-suite spec
     , hspec-wai
     , http-types
     , hw-hspec-hedgehog
+    , imports
     , indexed-traversable
     , microlens
     , network-uri
