@@ -2125,7 +2125,7 @@ type AppsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Capture "id" UserId
+               :> Capture "uid" UserId
                :> Get '[JSON] GetApp
            )
     :<|> Named
