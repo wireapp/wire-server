@@ -34,6 +34,7 @@ import Wire.PaginationState
 data UserGroupPageRequest = UserGroupPageRequest
   { team :: TeamId,
     searchString :: Maybe Text,
+    managedByFilter :: Maybe ManagedBy,
     paginationState :: PaginationState UserGroupId,
     sortOrder :: SortOrder,
     pageSize :: PageSize,

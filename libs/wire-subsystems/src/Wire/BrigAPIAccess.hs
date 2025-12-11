@@ -161,7 +161,7 @@ data BrigAPIAccess m a where
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
   GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
-  GetGroupsInternal :: TeamId -> Maybe Scim.Filter -> BrigAPIAccess m UserGroupPageWithMembers
+  GetGroupsInternal :: TeamId -> Maybe Scim.Filter -> Maybe ManagedBy -> BrigAPIAccess m UserGroupPageWithMembers
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m (Either Wai.Error ())
   DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
 

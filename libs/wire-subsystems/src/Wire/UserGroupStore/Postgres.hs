@@ -280,8 +280,14 @@ getUserGroupsWithMembers req =
 groupMatchIdName :: UserGroupPageRequest -> [QueryFragment]
 groupMatchIdName req =
   clause1 "ug.team_id" "=" req.team
-    : case req.searchString of
+    : managedByClause
+      <> nameClause
+  where
+    nameClause = case req.searchString of
       Just name -> [like "ug.name" name]
+      Nothing -> []
+    managedByClause = case req.managedByFilter of
+      Just managedBy -> [clause1 "ug.managed_by" "=" (managedByToInt32 managedBy)]
       Nothing -> []
 
 groupPaginationWhereClause :: UserGroupPageRequest -> [QueryFragment]

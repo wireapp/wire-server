@@ -639,6 +639,55 @@ testSparScimDeleteUserGroup = do
   getScimUserGroup OwnDomain tok gid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 404
 
+testSparScimGroupSearchOnlyReturnsScimGroups :: (HasCallStack) => App ()
+testSparScimGroupSearchOnlyReturnsScimGroups = do
+  (owner, tid, [regularMember]) <- createTeam OwnDomain 2
+  tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
+
+  assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" "disabled"
+  assertSuccess =<< setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ registerTestIdPWithMetaWithPrivateCreds owner
+
+  let mkScimMemberCandidate :: App String
+      mkScimMemberCandidate = do
+        scimUserEmail <- randomEmail
+        scimUser <- randomScimUserWith def {mkExternalId = pure scimUserEmail}
+        uid <- createScimUser owner tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+        registerInvitedUser OwnDomain tid scimUserEmail
+        pure uid
+
+  scimUserId <- mkScimMemberCandidate
+
+  -- Create a wire-managed group using the regular team member
+  regularMemberId <- regularMember %. "id" >>= asString
+  let wireGroupPayload =
+        object
+          [ "name" .= "wire-managed-group",
+            "members" .= [regularMemberId]
+          ]
+  wireGroupResp <- createUserGroup owner wireGroupPayload
+  wireGroupResp.status `shouldMatchInt` 200
+  wireGroupId <- wireGroupResp.json %. "id" >>= asString
+
+  -- Verify the wire-managed group was created with managedBy = "wire"
+  wireGroupGet <- getUserGroup owner wireGroupId
+  wireGroupGet.status `shouldMatchInt` 200
+  wireGroupGet.json %. "managedBy" `shouldMatch` "wire"
+
+  -- Create a SCIM-managed group using the SCIM user
+  scimGroupResp <- createScimUserGroup OwnDomain tok $ mkScimGroup "scim-managed-group" [mkScimUser scimUserId]
+  scimGroupResp.status `shouldMatchInt` 201
+  scimGroupId <- scimGroupResp.json %. "id" >>= asString
+
+  -- Call the SCIM groups search endpoint (without filter)
+  filterScimUserGroup OwnDomain tok Nothing `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resources <- resp.json %. "Resources" >>= asList
+    resourceIds <- for resources $ \g -> g %. "id" >>= asString
+
+    -- Assert: Only the SCIM-managed group should be returned, not the wire-managed group
+    resourceIds `shouldMatch` [scimGroupId]
+
 ----------------------------------------------------------------------
 -- saml stuff
 
