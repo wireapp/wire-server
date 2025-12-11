@@ -1563,7 +1563,7 @@ instance ToSchema CellsPublicLinks where
       CellsPublicLinks
         <$> enableFiles .= field "enableFiles" schema
         <*> enableFolders .= field "enableFolders" schema
-        <*> enforcePassword .= field "enforcePassword " schema
+        <*> enforcePassword .= field "enforcePassword" schema
         <*> enforceExpirationMax .= field "enforceExpirationMax" schema
         <*> enforceExpirationDefault .= field "enforceExpirationDefault" schema
 
@@ -1623,7 +1623,7 @@ instance ToSchema CellsNamespaces where
   schema =
     object "CellsNamespaces" $
       CellsNamespaces
-        <$> usermetaTags .= field "usermeatTags" schema
+        <$> usermetaTags .= field "usermetaTags" schema
 
 newtype CellsMetadata = CellsMetadata {namespaces :: CellsNamespaces}
   deriving (Eq, Show, Generic)
@@ -1714,7 +1714,7 @@ instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
         <$> channels .= fieldF "channels" schema
         <*> groups .= fieldF "groups" schema
         <*> one2one .= fieldF "one2one" schema
-        <*> users .= fieldF "guests" schema
+        <*> users .= fieldF "users" schema
         <*> (.collabora) .= fieldF "collabora" schema
         <*> publicLinks .= fieldF "publicLinks" schema
         <*> (.storage) .= fieldF "storage" schema
@@ -1784,13 +1784,16 @@ instance Arbitrary NumBytes where
   arbitrary = NumBytes . BigNatString <$> choose (0 :: Integer, 99999999999999999999999999)
 
 instance ToSchema NumBytes where
-  schema = schema `withParser` p
-    where
-      p :: NumBytes -> A.Parser NumBytes
-      p v@(NumBytes (BigNatString i)) = do
-        when (i <= 0) $
-          fail "numBytes must be positive"
-        pure v
+  schema =
+    NumBytes
+      <$> unNumBytes
+        .= withParser
+          schema
+          ( \n@(BigNatString i) -> do
+              when (i <= 0) $
+                fail "numBytes must be positive"
+              pure n
+          )
 
 newtype CellsStorage = CellsStorage
   { teamQuotaBytes :: NumBytes

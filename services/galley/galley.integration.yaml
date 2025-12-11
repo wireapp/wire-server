@@ -164,7 +164,37 @@ settings:
         status: enabled
         lockStatus: unlocked
         config:
-          foo: bar
+          channels:
+            enabled: true
+            default: enabled
+          groups:
+            enabled: true
+            default: enabled
+          one2one:
+            enabled: true
+            default: enabled
+          users:
+            externals: true
+            guests: false
+          collabora:
+            enabled: false
+          publicLinks:
+            enableFiles: true
+            enableFolders: true
+            enforcePassword: false
+            enforceExpirationMax: "0"          # seconds
+            enforceExpirationDefault: "0"      # seconds
+          storage:
+            perFileQuotaBytes: "1000000000"            # size in bytes as string
+            recycle:
+              autoPurgeDays: 30                  # days
+              disable: false
+              allowSkip: false
+          metadata:
+            namespaces:
+              usermetaTags:
+                defaultValues: []
+                allowFreeValues: true
     cellsInternal:
       defaults:
         status: enabled
