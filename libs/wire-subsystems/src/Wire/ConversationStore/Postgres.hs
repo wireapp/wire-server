@@ -272,7 +272,13 @@ getConversationsImpl cids = do
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
                          WHERE conv = ANY ($1 :: uuid[])
-                         OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
+
+                         UNION ALL
+
+                         SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                         FROM conversation_member
+                         WHERE conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
                         |]
     selectAllRemoteMembers :: Hasql.Statement [ConvId] [RemoteMemberRow]
     selectAllRemoteMembers =
@@ -280,7 +286,12 @@ getConversationsImpl cids = do
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
                          FROM local_conversation_remote_member
                          WHERE conv = ANY ($1 :: uuid[])
-                         OR conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
+
+                         UNION ALL
+
+                         SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
+                         FROM local_conversation_remote_member
+                         WHERE conv IN (SELECT parent_conv FROM conversation WHERE id = ANY ($1 :: uuid[]))
                         |]
 
     findMembers :: (HasField "id_" a b, Eq b) => ConvId -> Maybe ConvId -> [(ConvId, a)] -> [a]
