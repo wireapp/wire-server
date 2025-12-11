@@ -77,6 +77,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley hiding (id)
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
@@ -93,6 +94,7 @@ import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -144,7 +146,8 @@ onClientRemoved ::
     Member Now r,
     Member ProposalStore r,
     Member Random r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -267,7 +270,7 @@ leaveConversation ::
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -278,7 +281,8 @@ leaveConversation ::
     Member TinyLog r,
     Member TeamSubsystem r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -393,7 +397,7 @@ sendMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member (Error InvalidInput) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -424,10 +428,10 @@ onUserDeleted ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (Input Env) r,
     Member ProposalStore r,
     Member Random r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   UserDeletedConversationsNotification ->
@@ -481,7 +485,7 @@ updateConversation ::
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Error InternalError) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
@@ -499,7 +503,8 @@ updateConversation ::
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -621,7 +626,7 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -637,7 +642,8 @@ sendMLSCommitBundle ::
     Member Random r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -682,7 +688,7 @@ sendMLSMessage ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -739,7 +745,8 @@ leaveSubConversation ::
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
@@ -971,7 +978,7 @@ queryGroupInfo origDomain req =
 
 updateTypingIndicator ::
   ( Member NotificationSubsystem r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationStore r,
     Member Now r,
     Member (Input (Local ())) r,

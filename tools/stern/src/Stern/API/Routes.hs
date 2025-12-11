@@ -309,6 +309,8 @@ type SternAPI =
            )
     :<|> Named "get-route-cells" (MkFeatureGetRoute CellsConfig)
     :<|> Named "put-route-cells" (MkFeatureStatusPutRoute CellsConfig)
+    :<|> Named "get-route-cells-internal" (MkFeatureGetRoute CellsInternalConfig)
+    :<|> Named "put-route-cells-internal" (MkFeaturePutRoute CellsInternalConfig)
     :<|> Named "get-route-guest-links" (MkFeatureGetRoute GuestLinksConfig)
     :<|> Named "put-route-guest-links" (MkFeatureStatusPutRoute GuestLinksConfig)
     :<|> Named "get-route-self-deleting-messages" (MkFeatureGetRoute SelfDeletingMessagesConfig)

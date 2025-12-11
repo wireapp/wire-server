@@ -26,7 +26,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Galley.Data.Types
 import Galley.Effects
-import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -44,6 +43,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
+import Wire.ProposalStore
 
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,

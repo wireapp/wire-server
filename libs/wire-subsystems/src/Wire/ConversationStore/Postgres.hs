@@ -35,6 +35,7 @@ import GHC.Records (HasField)
 import Hasql.Decoders qualified as HD
 import Hasql.Pipeline qualified as Pipeline
 import Hasql.Pool qualified as Hasql
+import Hasql.Session qualified as HasqlSession
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction (Transaction)
@@ -203,8 +204,8 @@ getConversationImpl cid =
     case mConvRow of
       Nothing -> pure Nothing
       Just convRow -> do
-        localMembers <- Transaction.statement cid selectLocalMembersStmt
-        remoteMembers <- Transaction.statement cid selectRemoteMembersStmt
+        localMembers <- dedupMembers cid <$> Transaction.statement cid selectLocalMembersStmt
+        remoteMembers <- dedupMembers cid <$> Transaction.statement cid selectRemoteMembersStmt
         pure $ toConv cid localMembers remoteMembers (Just convRow)
 
 selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
@@ -646,7 +647,13 @@ createBotMemberImpl serviceRef botId convId = do
 
 getLocalMemberImpl :: (PGConstraints r) => ConvId -> UserId -> Sem r (Maybe LocalMember)
 getLocalMemberImpl convId userId = do
-  mRow <- runStatement (convId, userId) selectMember
+  mRow <-
+    runSession $ do
+      mDirectMember <- HasqlSession.statement (convId, userId) selectMember
+      case mDirectMember of
+        Nothing -> HasqlSession.statement (convId, userId) selectParentMember
+        Just mem -> pure (Just mem)
+
   pure $ snd . mkLocalMember <$> mRow
   where
     selectMember :: Hasql.Statement (ConvId, UserId) (Maybe (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
@@ -655,30 +662,44 @@ getLocalMemberImpl convId userId = do
         [maybeStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                         FROM conversation_member
-                        WHERE (conv = ($1 :: uuid)
-                             OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
+                        WHERE conv = ($1 :: uuid)
                         AND "user" = ($2 :: uuid)
-                        ORDER BY CASE
-                          WHEN conv = ($1 :: uuid) THEN 1
-                          ELSE 2
-                          END
-                        LIMIT 1
+                       |]
+
+    selectParentMember :: Hasql.Statement (ConvId, UserId) (Maybe (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName))
+    selectParentMember =
+      dimapPG
+        [maybeStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                               (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                        FROM conversation_member
+                        WHERE conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid))
+                        AND "user" = ($2 :: uuid)
                        |]
 
 getLocalMembersImpl :: (PGConstraints r) => ConvId -> Sem r [LocalMember]
 getLocalMembersImpl convId =
-  runStatement convId selectLocalMembersStmt
+  dedupMembers convId <$> runStatement convId selectLocalMembersStmt
 
 type LocalMemberRow = (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 
-selectLocalMembersStmt :: Hasql.Statement ConvId [LocalMember]
-selectLocalMembersStmt =
-  dedupMembers <$> select
-  where
-    dedupMembers rows =
-      let localMembers = mkLocalMember <$> rows
-       in map snd $ nubBy ((==) `on` ((.id_) . snd)) localMembers
+-- | A user can be member of a conv and its parent. If the user is only part of
+-- the one of these, we return that member object. If the user is part of both,
+-- we return the one corresponding to the conversation being queried.
+dedupMembers :: (HasField "id_" mem a, Ord a) => ConvId -> [(ConvId, mem)] -> [mem]
+dedupMembers convId memsWithConvIds =
+  let sortFunction (cid1, mem1) (cid2, mem2)
+        | cid1 == cid2 = EQ
+        | cid1 == convId = LT
+        | cid2 == convId = GT
+        | otherwise = compare (cid1, mem1.id_) (cid2, mem2.id_)
+      orderedMems = snd <$> sortBy sortFunction memsWithConvIds
+   in nubBy ((==) `on` (.id_)) orderedMems
 
+-- | The members must be deduped using 'dedupMembers' before use
+selectLocalMembersStmt :: Hasql.Statement ConvId [(ConvId, LocalMember)]
+selectLocalMembersStmt =
+  mkLocalMember <$$> select
+  where
     select :: Hasql.Statement ConvId [LocalMemberRow]
     select =
       dimapPG
@@ -686,11 +707,13 @@ selectLocalMembersStmt =
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
                          WHERE conv = ($1 :: uuid)
-                         OR    conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid))
-                         ORDER BY CASE
-                           WHEN conv = ($1 :: uuid) THEN 1
-                           ELSE 2
-                           END
+
+                         UNION ALL
+
+                         SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
+                                (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
+                         FROM conversation_member
+                         WHERE conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid))
                         |]
 
 mkLocalMember :: LocalMemberRow -> (ConvId, LocalMember)
@@ -712,8 +735,15 @@ mkLocalMember (cid, uid, mServiceId, mProviderId, msOtrMutedStatus, msOtrMutedRe
 type RemoteMemberRow = (ConvId, Domain, UserId, RoleName)
 
 getRemoteMemberImpl :: (PGConstraints r) => ConvId -> Remote UserId -> Sem r (Maybe RemoteMember)
-getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
-  snd . mkRemoteMember <$$> runStatement (convId, domain, uid) selectMember
+getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) = do
+  mRow <-
+    runSession $ do
+      mDirectMember <- HasqlSession.statement (convId, domain, uid) selectMember
+      case mDirectMember of
+        Nothing -> HasqlSession.statement (convId, domain, uid) selectParentMember
+        Just mem -> pure (Just mem)
+
+  pure $ snd . mkRemoteMember <$> mRow
   where
     selectMember :: Hasql.Statement (ConvId, Domain, UserId) (Maybe RemoteMemberRow)
     selectMember =
@@ -722,38 +752,40 @@ getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) =
                          FROM local_conversation_remote_member
                          WHERE user_remote_domain = ($2 :: text)
                          AND user_remote_id = ($3 :: uuid)
-                         AND (conv = ($1 :: uuid)
-                                OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
-                         ORDER BY CASE
-                           WHEN conv = ($1 :: uuid) THEN 1
-                           ELSE 2
-                           END
-                         LIMIT 1
+                         AND conv = ($1 :: uuid)
+                        |]
+
+    selectParentMember :: Hasql.Statement (ConvId, Domain, UserId) (Maybe RemoteMemberRow)
+    selectParentMember =
+      dimapPG
+        [maybeStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
+                         FROM local_conversation_remote_member
+                         WHERE user_remote_domain = ($2 :: text)
+                         AND user_remote_id = ($3 :: uuid)
+                         AND conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid))
                         |]
 
 getRemoteMembersImpl :: (PGConstraints r) => ConvId -> Sem r [RemoteMember]
 getRemoteMembersImpl convId =
-  runStatement convId selectRemoteMembersStmt
+  dedupMembers convId <$> runStatement convId selectRemoteMembersStmt
 
-selectRemoteMembersStmt :: Hasql.Statement ConvId [RemoteMember]
+-- | The members must be deduped using 'dedupMembers' before use
+selectRemoteMembersStmt :: Hasql.Statement ConvId [(ConvId, RemoteMember)]
 selectRemoteMembersStmt =
-  dedupMembers <$> select
+  mkRemoteMember <$$> select
   where
-    dedupMembers rows =
-      let localMembers = mkRemoteMember <$> rows
-       in map snd $ nubBy ((==) `on` ((.id_) . snd)) localMembers
-
     select :: Hasql.Statement ConvId [(ConvId, Domain, UserId, RoleName)]
     select =
       dimapPG
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
                          FROM local_conversation_remote_member
-                         WHERE (conv = ($1 :: uuid)
-                                OR conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid)))
-                         ORDER BY CASE
-                           WHEN conv = ($1 :: uuid) THEN 1
-                           ELSE 2
-                           END
+                         WHERE conv = ($1 :: uuid)
+
+                         UNION ALL
+
+                         SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
+                         FROM local_conversation_remote_member
+                         WHERE conv IN (SELECT parent_conv FROM conversation WHERE id = ($1 :: uuid))
                         |]
 
 mkRemoteMember :: (ConvId, Domain, UserId, RoleName) -> (ConvId, RemoteMember)

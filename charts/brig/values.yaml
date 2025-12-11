@@ -68,7 +68,6 @@ config:
   multiSFT:
     enabled: false # keep multiSFT default in sync with sft chart's multiSFT.enabled
   enableFederation: false # keep in sync with background-worker, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
-  # Not used if enableFederation is false
   rabbitmq:
     host: rabbitmq
     port: 5672

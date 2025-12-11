@@ -86,6 +86,13 @@ module Wire.API.Team.Feature
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
     CellsConfig (..),
+    CellsInternalConfig,
+    CellsInternalConfigB (..),
+    CellsCollabora (..),
+    CollaboraEdition (..),
+    CellsBackend (..),
+    CellsStorage (..),
+    NumBytes (..),
     AllowedGlobalOperationsConfig (..),
     AssetAuditLogConfig (..),
     ConsumableNotificationsConfig (..),
@@ -126,7 +133,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Map qualified as M
-import Data.Misc (HttpsUrl)
+import Data.Misc (HttpsUrl (..))
 import Data.Monoid hiding (All, First)
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -139,15 +146,17 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
+import Data.Text.Read qualified as TR
 import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports hiding (All, First)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (getPrintableString)
+import Test.QuickCheck (choose, getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
+import URI.ByteString.QQ qualified as URI.QQ
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
@@ -256,6 +265,7 @@ data FeatureSingleton cfg where
   FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig :: FeatureSingleton SimplifiedUserConnectionRequestQRCodeConfig
   FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
   FeatureSingletonStealthUsersConfig :: FeatureSingleton StealthUsersConfig
+  FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1432,7 +1442,6 @@ instance IsFeatureConfig DomainRegistrationConfig where
 --------------------------------------------------------------------------------
 -- Cells feature
 
--- | This feature does not have a PUT endpoint. See Note [unsettable features].
 data CellsConfig = CellsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
   deriving (Arbitrary) via (GenericUniform CellsConfig)
@@ -1449,6 +1458,137 @@ instance IsFeatureConfig CellsConfig where
   type FeatureSymbol CellsConfig = "cells"
   featureSingleton = FeatureSingletonCellsConfig
   objectSchema = pure CellsConfig
+
+----------------------------------------------------------------------
+-- Cells Internal
+
+data CollaboraEdition = No | Code | Cool
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CollaboraEdition
+  deriving (Arbitrary) via (GenericUniform CollaboraEdition)
+
+instance ToSchema CollaboraEdition where
+  schema =
+    enum @Text "CollaboraEdition" $
+      mconcat
+        [ element "NO" No,
+          element "CODE" Code,
+          element "COOL" Cool
+        ]
+
+newtype CellsCollabora = CellsCollabora
+  { edition :: CollaboraEdition
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsCollabora
+  deriving (Arbitrary) via (GenericUniform CellsCollabora)
+
+instance ToSchema CellsCollabora where
+  schema =
+    object "CellsCollabora" $
+      CellsCollabora
+        <$> edition .= field "edition" schema
+
+newtype CellsBackend = CellsBackend
+  { url :: HttpsUrl
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsBackend
+  deriving newtype (Arbitrary)
+
+instance ToSchema CellsBackend where
+  schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
+
+newtype NumBytes = NumBytes {unNumBytes :: Int64}
+  deriving newtype (Show, Eq)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema NumBytes
+
+instance Arbitrary NumBytes where
+  arbitrary = NumBytes <$> choose (0 :: Int64, maxBound)
+
+instance ToSchema NumBytes where
+  schema = toText .= (NumBytes <$> numBytesSchema)
+    where
+      toText :: NumBytes -> Text
+      toText = T.pack . show . unNumBytes
+
+      numBytesSchema :: ValueSchemaP NamedSwaggerDoc Text Int64
+      numBytesSchema = schema `withParser` parseNumBytes
+        where
+          parseNumBytes :: Text -> A.Parser Int64
+          parseNumBytes txt = do
+            (n, rest) <- either fail pure (TR.decimal txt :: Either String (Integer, Text))
+            unless (T.null rest) $
+              fail "numBytes must be an integer string without decimals"
+            when (n <= 0) $
+              fail "numBytes must be positive"
+            when (n > toInteger (maxBound @Int64)) $
+              fail "numBytes must fit into Int64"
+            pure (fromInteger n)
+
+newtype CellsStorage = CellsStorage
+  { teamQuotaBytes :: NumBytes
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsStorage
+  deriving newtype (Arbitrary)
+
+instance ToSchema CellsStorage where
+  schema =
+    object "CellsStorage" $
+      CellsStorage
+        <$> teamQuotaBytes .= field "teamQuotaBytes" schema
+
+data CellsInternalConfigB t f = CellsInternalConfig
+  { backend :: Wear t f CellsBackend,
+    collabora :: Wear t f CellsCollabora,
+    storage :: Wear t f CellsStorage
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (CellsInternalConfigB Covered)
+
+deriving instance ApplicativeB (CellsInternalConfigB Covered)
+
+deriving instance TraversableB (CellsInternalConfigB Covered)
+
+type CellsInternalConfig = CellsInternalConfigB Bare Identity
+
+deriving instance Eq CellsInternalConfig
+
+deriving instance Show CellsInternalConfig
+
+deriving via (RenderableTypeName CellsInternalConfig) instance (RenderableSymbol CellsInternalConfig)
+
+deriving via (GenericUniform CellsInternalConfig) instance (Arbitrary CellsInternalConfig)
+
+deriving via (BarbieFeature CellsInternalConfigB) instance (ParseDbFeature CellsInternalConfig)
+
+deriving via (BarbieFeature CellsInternalConfigB) instance (ToSchema CellsInternalConfig)
+
+instance Default CellsInternalConfig where
+  def =
+    CellsInternalConfig
+      { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
+        collabora = CellsCollabora Cool,
+        storage = CellsStorage $ NumBytes 1000000000000 -- 1 TB
+      }
+
+instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
+  schema =
+    object "CellsInternalConfig" $
+      CellsInternalConfig
+        <$> backend .= fieldF "backend" schema
+        <*> collabora .= fieldF "collabora" schema
+        <*> storage .= fieldF "storage" schema
+
+instance Default (LockableFeature CellsInternalConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig CellsInternalConfig where
+  type FeatureSymbol CellsInternalConfig = "cellsInternal"
+  featureSingleton = FeatureSingletonCellsInternalConfig
+  objectSchema = field "config" schema
 
 --------------------------------------------------------------------------------
 -- Allowed Global Operations feature
@@ -1713,7 +1853,8 @@ type Features =
     AppsConfig,
     SimplifiedUserConnectionRequestQRCodeConfig,
     AssetAuditLogConfig,
-    StealthUsersConfig
+    StealthUsersConfig,
+    CellsInternalConfig
   ]
 
 -- | list of available features as a record
@@ -1895,7 +2036,7 @@ mkAllFeatures m =
 
 isCellsFeatureConfigEvent :: forall cfg. (IsFeatureConfig cfg) => Bool
 isCellsFeatureConfigEvent =
-  featureName @cfg == featureName @CellsConfig
+  featureName @cfg `elem` [featureName @CellsConfig, featureName @CellsInternalConfig]
 
 --------------------------------------------------------------------------------
 -- Team Feature Migration

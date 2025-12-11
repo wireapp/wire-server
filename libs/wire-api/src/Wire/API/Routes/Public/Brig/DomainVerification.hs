@@ -459,6 +459,12 @@ type DomainVerificationAPI =
     :<|> Named
            "get-domain-registration"
            ( Summary "Get domain registration configuration by email"
+               :> Description
+                    "- `due_to_existing_account`: boolean (optional, only present if `domain_redirect` is `no-registration`)\n\
+                    \- `backend`: object (optional, must be present if `domain_redirect` is `backend`)\n\
+                    \  - `config_url`: string (required)\n\
+                    \  - `webapp_url`: string (optional)\n\
+                    \- `sso_code`: string (optional, must be present if `domain_redirect` is `sso`)"
                :> From V10
                :> CanThrow DomainVerificationInvalidDomain
                :> "get-domain-registration"

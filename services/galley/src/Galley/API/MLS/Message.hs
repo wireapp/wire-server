@@ -58,7 +58,6 @@ import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.FederatorAccess
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -73,6 +72,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
@@ -88,6 +88,8 @@ import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -183,7 +185,8 @@ postMLSCommitBundle ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -213,7 +216,8 @@ postMLSCommitBundleFromLocalUser ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Version ->
   Local UserId ->
@@ -247,7 +251,8 @@ postMLSCommitBundleToLocalConv ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -313,7 +318,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
         lift $
-          checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
+          checkGroupState convOrSub newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
         events <-
@@ -332,7 +337,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         pure (events, newClients)
       Nothing -> do
         (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
-        lift $ checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
+        lift $ checkGroupState convOrSub newIndexMap bundle.groupInfo.value
         let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
           senderIdentity'
@@ -384,7 +389,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationStore r,
     Member TinyLog r

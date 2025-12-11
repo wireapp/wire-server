@@ -286,10 +286,13 @@ library
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
+    Wire.ProposalStore
+    Wire.ProposalStore.Cassandra
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
     Wire.ScimSubsystem
+    Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra

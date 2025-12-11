@@ -20,7 +20,7 @@
 
 module Galley.API.Util where
 
-import Control.Lens (to, view, (^.))
+import Control.Lens (view, (^.))
 import Control.Monad.Extra (allM, anyM)
 import Control.Monad.Trans.Maybe
 import Data.Bifunctor
@@ -46,9 +46,7 @@ import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.FederatorAccess
 import Galley.Env
-import Galley.Options
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -70,6 +68,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
@@ -78,7 +77,6 @@ import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
-import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Member.Error
@@ -89,7 +87,9 @@ import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
 import Wire.ExternalAccess
+import Wire.FederationAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.LegalHoldStore
@@ -303,7 +303,7 @@ ensureConvRoleNotElevated origMember targetRole = do
 
 checkGroupIdSupport ::
   ( Member (ErrorS GroupIdVersionNotSupported) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local x ->
   StoredConversation ->
@@ -323,7 +323,7 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- check that each remote backend is compatible with group ID version >= 2
   let (_, remoteUsers) = partitionQualified loc joinAction.users
   lift
-    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @Brig remoteUsers)
+    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @_ @Brig remoteUsers)
     $ \_ -> do
       guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
   where
@@ -918,7 +918,7 @@ registerRemoteConversationMemberships ::
     Member (Error UnreachableBackends) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
@@ -1051,15 +1051,15 @@ getLHStatus teamOfUser other = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 anyLegalholdActivated ::
-  ( Member (Input Opts) r,
+  ( Member (Input ConversationSubsystemConfig) r,
     Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   [UserId] ->
   Sem r Bool
 anyLegalholdActivated uids = do
-  opts <- input
-  case view (settings . featureFlags . to npProject) opts of
+  cfg <- input
+  case legalholdDefaults cfg of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
@@ -1070,7 +1070,7 @@ anyLegalholdActivated uids = do
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
 allLegalholdConsentGiven ::
-  ( Member (Input Opts) r,
+  ( Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamSubsystem r
@@ -1078,8 +1078,8 @@ allLegalholdConsentGiven ::
   [UserId] ->
   Sem r Bool
 allLegalholdConsentGiven uids = do
-  opts <- input
-  case view (settings . featureFlags . to npProject) opts of
+  cfg <- input
+  case legalholdDefaults cfg of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
@@ -1124,7 +1124,7 @@ getTeamMembersForFanout tid = do
 ensureMemberLimit ::
   ( Foldable f,
     ( Member (ErrorS 'TooManyMembers) r,
-      Member (Input Opts) r
+      Member (Input ConversationSubsystemConfig) r
     )
   ) =>
   ProtocolTag ->
@@ -1133,8 +1133,8 @@ ensureMemberLimit ::
   Sem r ()
 ensureMemberLimit ProtocolMLSTag _ _ = pure ()
 ensureMemberLimit _ old new = do
-  o <- input
-  let maxSize = fromIntegral (o ^. settings . maxConvSize)
+  cfg <- input
+  let maxSize = fromIntegral (cfg.maxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
 

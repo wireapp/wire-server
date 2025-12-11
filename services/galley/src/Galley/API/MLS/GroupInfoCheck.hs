@@ -22,6 +22,7 @@ module Galley.API.MLS.GroupInfoCheck
 where
 
 import Control.Lens (view)
+import Data.Bifunctor
 import Data.Id
 import Galley.API.Teams.Features.Get
 import Galley.Effects
@@ -31,6 +32,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.NonDet
+import Wire.API.Conversation hiding (Member)
+import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
@@ -38,41 +41,65 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.RatchetTree
+import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature
+import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 
 data GroupInfoMismatch = GroupInfoMismatch
   {clients :: [(Int, ClientIdentity)]}
+  deriving (Show)
 
 checkGroupState ::
   forall r.
   ( Member (Error GroupInfoMismatch) r,
     Member (Input Opts) r,
     Member (Error MLSProtocolError) r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member ConversationStore r
   ) =>
-  Maybe TeamId ->
+  ConvOrSubConv ->
   IndexMap ->
   GroupInfo ->
   Sem r ()
-checkGroupState mTid leaves groupInfo = do
-  check <- isGroupInfoCheckEnabled mTid
-  when check $ do
-    trees <-
-      either
-        (\_ -> throw (mlsProtocolError "Could not parse ratchet tree extension in GroupInfo"))
-        pure
-        $ findExtension groupInfo.tbs.extensions
-    tree :: RatchetTree <- case trees of
-      (tree : _) -> pure tree
-      _ -> throw $ mlsProtocolError "No ratchet tree extension found in GroupInfo"
-    giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
-    when (leaves /= giLeaves) $ throw (GroupInfoMismatch (imAssocs leaves))
+checkGroupState convOrSub newLeaves groupInfo = do
+  check <- isGroupInfoCheckEnabled convOrSub.conv.mcMetadata.cnvmTeam
+  case (check, groupStateMismatch newLeaves groupInfo) of
+    (True, Left e) -> throw (mlsProtocolError e)
+    (True, Right (Just mismatch)) -> do
+      existingMismatch <- existingGroupStateMismatch convOrSub
+      when (isNothing existingMismatch) $ throw mismatch
+    _ -> pure ()
+
+groupStateMismatch :: IndexMap -> GroupInfo -> Either Text (Maybe GroupInfoMismatch)
+groupStateMismatch leaves groupInfo = do
+  trees <-
+    first
+      (const "Could not parse ratchet tree extension in GroupInfo")
+      $ findExtension groupInfo.tbs.extensions
+  tree :: RatchetTree <- case trees of
+    (tree : _) -> pure tree
+    _ -> Left "No ratchet tree extension found in GroupInfo"
+  giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
+  pure $ guard (leaves /= giLeaves) $> GroupInfoMismatch (imAssocs leaves)
   where
-    getIdentity :: LeafNode -> Sem r ClientIdentity
-    getIdentity leaf = case credentialIdentityAndKey leaf.credential of
-      Left e -> throw (mlsProtocolError e)
-      Right (cid, _) -> pure cid
+    getIdentity :: LeafNode -> Either Text ClientIdentity
+    getIdentity leaf = fst <$> credentialIdentityAndKey leaf.credential
+
+existingGroupStateMismatch ::
+  (Member ConversationStore r) =>
+  ConvOrSubConv ->
+  Sem r (Maybe GroupInfoMismatch)
+existingGroupStateMismatch convOrSub =
+  fmap join . runErrorS @MLSMissingGroupInfo $
+    do
+      groupInfoData <- getConvOrSubGroupInfo convOrSub.id >>= noteS @MLSMissingGroupInfo
+      groupInfo <-
+        either (\_ -> throwS @MLSMissingGroupInfo) pure $
+          decodeMLS' (unGroupInfoData groupInfoData)
+      case groupStateMismatch convOrSub.indexMap groupInfo of
+        Left _ -> throwS @MLSMissingGroupInfo
+        Right m -> pure m
 
 isGroupInfoCheckEnabled ::
   ( Member TeamFeatureStore r,

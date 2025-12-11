@@ -631,6 +631,7 @@ servantSitemap =
     appsAPI :: ServerT AppsAPI (Handler r)
     appsAPI =
       Named @"create-app" createApp
+        :<|> Named @"get-app" getApp
         :<|> Named @"refresh-app-cookie" refreshAppCookie
 
 ---------------------------------------------------------------------------
@@ -1752,6 +1753,9 @@ checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
+
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r GetApp
+getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
 
 refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
 refreshAppCookie lusr tid appId = do

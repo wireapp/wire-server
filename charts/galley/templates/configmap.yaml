@@ -186,6 +186,10 @@ data:
         cells:
           {{- toYaml .settings.featureFlags.cells | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.cellsInternal }}
+        cellsInternal:
+          {{- toYaml .settings.featureFlags.cellsInternal | nindent 10 }}
+        {{- end }}
         {{- if .settings.featureFlags.allowedGlobalOperations }}
         allowedGlobalOperations:
           {{- toYaml .settings.featureFlags.allowedGlobalOperations | nindent 10 }}

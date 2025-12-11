@@ -412,6 +412,8 @@ instance GetFeatureConfig DomainRegistrationConfig
 
 instance GetFeatureConfig CellsConfig
 
+instance GetFeatureConfig CellsInternalConfig
+
 instance GetFeatureConfig AllowedGlobalOperationsConfig
 
 instance GetFeatureConfig AssetAuditLogConfig

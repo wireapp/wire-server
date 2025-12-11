@@ -203,16 +203,16 @@ instance ToJSON UserSSOId where
 
 instance FromJSON UserSSOId where
   parseJSON = A.withObject "UserSSOId" $ \obj -> do
-    mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
-    msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
+    mtenant <- mapM lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
+    msubject <- mapM lenientlyParseSAMLNameID =<< (obj A..:? "subject")
     meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
       (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
-lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
-lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
+lenientlyParseSAMLIssuer :: LText -> A.Parser SAML.Issuer
+lenientlyParseSAMLIssuer txt = do
   let asxml :: Either String SAML.Issuer
       asxml = SAML.decodeElem txt
 
@@ -222,13 +222,12 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
           URI.parseURI URI.laxURIParserOptions (encodeUtf8 . LT.toStrict $ txt)
 
       err :: String
-      err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)
+      err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, txt)
 
   maybe (fail err) pure $ hush asxml <|> hush asurl
 
-lenientlyParseSAMLNameID :: Maybe LText -> A.Parser (Maybe SAML.NameID)
-lenientlyParseSAMLNameID Nothing = pure Nothing
-lenientlyParseSAMLNameID (Just txt) = do
+lenientlyParseSAMLNameID :: LText -> A.Parser SAML.NameID
+lenientlyParseSAMLNameID txt = do
   let asxml :: Either String SAML.NameID
       asxml = SAML.decodeElem txt
 
@@ -249,7 +248,7 @@ lenientlyParseSAMLNameID (Just txt) = do
 
   maybe
     (fail err)
-    (pure . Just)
+    pure
     (hush asxml <|> hush asemail <|> hush astxt)
 
 -- | For testing.  Create a sample 'SAML.UserRef' value with random seeds to make 'Issuer' and

@@ -51,8 +51,7 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.FederatorAccess qualified as E
-import Galley.Options
+import Galley.Options (Opts)
 import Galley.Types.Teams (notTeamMember)
 import Galley.Validation
 import Imports hiding ((\\))
@@ -67,6 +66,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
 import Wire.API.Push.V2 qualified as PushV2
@@ -82,6 +82,8 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -116,7 +118,7 @@ createGroupConversationUpToV3 ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -127,7 +129,8 @@ createGroupConversationUpToV3 ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -163,10 +166,11 @@ createGroupOwnConversation ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -210,10 +214,11 @@ createGroupConversation ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -259,7 +264,7 @@ createGroupConvAndMkResponse ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member P.TinyLog r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
@@ -269,7 +274,8 @@ createGroupConvAndMkResponse ::
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -301,10 +307,11 @@ createGroupConversationGeneric ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -354,7 +361,7 @@ createGroupConversationGeneric lusr conn newConv joinType = do
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member TeamSubsystem r
@@ -500,7 +507,7 @@ createOne2OneConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member TeamStore r,
@@ -587,7 +594,7 @@ createLegacyOne2OneConversationUnchecked ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -631,7 +638,7 @@ createOne2OneConversationUnchecked ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -656,7 +663,7 @@ createOne2OneConversationLocally ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -711,7 +718,7 @@ createConnectConversation ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -883,7 +890,7 @@ notifyCreatedConversation ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member Now r,

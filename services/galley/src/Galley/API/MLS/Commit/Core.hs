@@ -36,7 +36,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.Effects
-import Galley.Effects.FederatorAccess
 import Galley.Env
 import Galley.Options
 import Imports
@@ -52,6 +51,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
@@ -67,6 +67,8 @@ import Wire.API.User.Client
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -87,7 +89,8 @@ type HasProposalActionEffects r =
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
@@ -147,7 +150,7 @@ incrementEpoch (SubConv c s) = do
 
 getClientInfo ::
   ( Member BrigAPIAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r
   ) =>
   Local x ->
@@ -157,7 +160,7 @@ getClientInfo ::
 getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
-  ( Member FederatorAccess r,
+  ( Member (FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r
   ) =>
   Remote UserId ->
@@ -175,7 +178,7 @@ getRemoteMLSClients rusr suite = do
 
 getSingleClientInfo ::
   ( Member BrigAPIAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r
   ) =>
   Local x ->
@@ -186,7 +189,7 @@ getSingleClientInfo ::
 getSingleClientInfo loc = foldQualified loc getLocalMLSClient getRemoteMLSClient
 
 getRemoteMLSClient ::
-  ( Member FederatorAccess r,
+  ( Member (FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r
   ) =>
   Remote UserId ->
@@ -245,7 +248,7 @@ checkUpdatePath ::
     Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r
   ) =>
   Local ConvOrSubConv ->

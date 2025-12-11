@@ -44,7 +44,6 @@ import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.FederatorAccess
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -57,6 +56,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
@@ -66,6 +66,8 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore qualified as Eff
 import Wire.ConversationStore.MLS.Types as Eff
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation
@@ -84,7 +86,7 @@ getSubConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
     Member (Error FederationError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -136,7 +138,8 @@ getRemoteSubConversation ::
       '[ ErrorS 'ConvNotFound,
          ErrorS 'ConvAccessDenied,
          ErrorS 'MLSSubConvUnsupportedConvType,
-         FederatorAccess
+         Error FederationError,
+         FederationAPIAccess FederatorClient
        ]
       r,
     RethrowErrors MLSGetSubConvStaticErrors r
@@ -163,7 +166,7 @@ getSubConversationGroupInfo ::
   ( Members
       '[ ConversationStore,
          Error FederationError,
-         FederatorAccess,
+         FederationAPIAccess FederatorClient,
          Input Env
        ]
       r,
@@ -207,7 +210,7 @@ deleteSubConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (Error FederationError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Input Env) r,
     Member Resource r,
     Member Eff.MLSCommitLockStore r,
@@ -232,7 +235,7 @@ resetRemoteSubConversation ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (Error FederationError) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -260,7 +263,7 @@ type HasLeaveSubConversationEffects r =
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member Now r,
@@ -285,7 +288,8 @@ leaveSubConversation ::
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
     Member Eff.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   ClientId ->
@@ -311,7 +315,8 @@ leaveLocalSubConversation ::
     Member Resource r,
     Members LeaveSubConversationStaticErrors r,
     Member Eff.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   ClientIdentity ->
   Local ConvId ->
@@ -352,7 +357,7 @@ leaveRemoteSubConversation ::
          ErrorS 'ConvAccessDenied,
          Error FederationError,
          Error MLSProtocolError,
-         FederatorAccess
+         FederationAPIAccess FederatorClient
        ]
       r
   ) =>

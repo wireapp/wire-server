@@ -36,6 +36,7 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
@@ -45,7 +46,7 @@ import Wire.ConversationStore.MLS.Types
 
 checkClients ::
   ( Member BrigAPIAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSClientMismatch) r,
     Member (ErrorS MLSIdentityMismatch) r,
     Member (Error MLSProtocolError) r
@@ -132,7 +133,7 @@ mkClientData clientInfo =
 -- | Get list of mls clients from Brig (local or remote).
 getClientData ::
   ( Member BrigAPIAccess r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local x ->
   CipherSuiteTag ->
