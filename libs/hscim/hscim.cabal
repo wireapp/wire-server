@@ -211,6 +211,8 @@ test-suite spec
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
+    , aeson-diff
+    , aeson-qq
     , base
     , bytestring
     , email-validate
@@ -225,6 +227,7 @@ test-suite spec
     , indexed-traversable
     , microlens
     , network-uri
+    , QuickCheck
     , servant
     , servant-server
     , stm-containers
