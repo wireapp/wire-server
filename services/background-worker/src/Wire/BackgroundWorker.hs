@@ -53,7 +53,7 @@ run opts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversations" $
-            MigrateConversations.startWorker
+            MigrateConversations.startWorker opts.migrateConversationsOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $

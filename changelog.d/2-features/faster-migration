@@ -1,0 +1,10 @@
+Allow configuring page size and parallelism for conversation migration to
+PostgreSQL. This can be configured like this:
+
+```yaml
+background-worker:
+  config:
+    migrateConversationsOptions:
+      pageSize: 10000
+      parallelism: 2
+```

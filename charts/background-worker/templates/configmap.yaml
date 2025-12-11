@@ -90,6 +90,8 @@ data:
     {{- end }}
 
     migrateConversations: {{ .migrateConversations }}
+    migrateConversationsOptions:
+{{toYaml .migrateConversationsOptions | indent 6 }}
 
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}
