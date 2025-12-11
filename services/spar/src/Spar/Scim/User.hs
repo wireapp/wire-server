@@ -851,7 +851,15 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     deleteUserInSpar account = do
       mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
-      case Brig.veidFromBrigUser account ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) account.userEmailUnvalidated of
+      -- delete user with idp associated *before* this update.
+      case Brig.oldVeidFromBrigUser account of
+        Nothing -> pure ()
+        Just veid -> lift $ do
+          for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
+          ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
+
+      -- delete user with idp associated to current scim token.
+      case Brig.newVeidFromBrigUser account ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
         Left _ -> pure ()
         Right veid -> lift $ do
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
@@ -1101,34 +1109,32 @@ getUserById ::
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 getUserById midp stiTeam uid = do
   brigUser <- MaybeT . lift $ BrigAccess.getAccount Brig.WithPendingInvitations uid
-  let mbveid =
-        Brig.veidFromBrigUser
-          brigUser
-          ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
-          brigUser.userEmailUnvalidated
-  case mbveid of
+  let mbOldVeid = Brig.oldVeidFromBrigUser brigUser
+      mbNewVeid = Brig.newVeidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
+  case mbNewVeid of
     Right veid | userTeam brigUser == Just stiTeam -> lift $ do
       storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
       -- if we get a user from brig that hasn't been touched by scim yet, we call this
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
+      handleVeidChange brigUser mbOldVeid veid
       createValidScimUserSpar stiTeam uid storedUser veid
-      lift $ do
-        when (veidChanged brigUser veid) $
-          BrigAccess.setSSOId uid (veidToUserSSOId veid)
-        when (managedByChanged brigUser) $
-          BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
   where
-    veidChanged :: User -> ST.ValidScimId -> Bool
-    veidChanged usr veid = case userIdentity usr of
-      Nothing -> True
-      Just (EmailIdentity _) -> True
-      Just (SSOIdentity ssoid _) -> Brig.veidToUserSSOId veid /= ssoid
-
-    managedByChanged :: User -> Bool
-    managedByChanged usr = userManagedBy usr /= ManagedByScim
+    handleVeidChange :: User -> Maybe ValidScimId -> ValidScimId -> Scim.ScimHandler (Sem r) ()
+    handleVeidChange brigUser mbOldVeid newVeid = do
+      -- set sso_id
+      when (mbOldVeid /= Just newVeid) do
+        lift $ BrigAccess.setSSOId uid (veidToUserSSOId newVeid)
+      -- set managed_by
+      when (userManagedBy brigUser /= ManagedByScim) do
+        lift $ BrigAccess.setManagedBy uid ManagedByScim
+      -- remove dangling entry from spar.user_v2 table (cassandra)
+      case mbOldVeid of
+        Just oldVeid | ST.veidUref newVeid /= ST.veidUref oldVeid -> do
+          lift $ SAMLUserStore.delete uid `mapM_` ST.veidUref oldVeid
+        _ -> pure ()
 
 scimFindUserByHandle ::
   forall r.

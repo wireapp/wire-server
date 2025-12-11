@@ -7,7 +7,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7mIWfK3KzS3dh5XHiAV6Z4AKzhK7lHVugezBtZY2vcFi7gDC9DiStSTii9adK62
+\restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -400,6 +400,13 @@ CREATE INDEX conversation_member_user_idx ON public.conversation_member USING bt
 
 
 --
+-- Name: conversation_team_group_type_lower_name_id_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_team_group_type_lower_name_id_idx ON public.conversation USING btree (team, group_conv_type, lower(name), id);
+
+
+--
 -- Name: conversation_team_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
@@ -480,4 +487,4 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7mIWfK3KzS3dh5XHiAV6Z4AKzhK7lHVugezBtZY2vcFi7gDC9DiStSTii9adK62
+\unrestrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620

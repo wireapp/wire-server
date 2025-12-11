@@ -4,6 +4,7 @@ import sys
 import subprocess
 from subprocess import PIPE
 import re
+import hashlib
 
 def run_psql(container, expr, dbname="postgres", user="wire-server"):
     p = (
@@ -50,6 +51,17 @@ def list_databases(container, user="wire-server"):
             dbs.append(match.group(1))
     return dbs
 
+def normalize_rls_hashes(dump_output, dbname):
+    """Replace random RLS policy hashes with deterministic ones based on database name."""
+    # Create a deterministic hash based on the database name
+    det_hash = hashlib.sha256(dbname.encode()).hexdigest()[:63]
+
+    # Replace both \restrict and \unrestrict hashes
+    output = re.sub(r'\\restrict [A-Za-z0-9]+', f'\\\\restrict {det_hash}', dump_output)
+    output = re.sub(r'\\unrestrict [A-Za-z0-9]+', f'\\\\unrestrict {det_hash}', output)
+
+    return output
+
 def main():
     container = get_container_id()
     print("-- automatically generated with `make postgres-schema`")
@@ -65,7 +77,8 @@ def main():
     for db in databases:
         print(f"\n------------------------------------------------------------------------------------------")
         print(f"-- Database: {db}\n")
-        print(run_pg_dump(container, db, user="wire-server"))
+        dump = run_pg_dump(container, db, user="wire-server")
+        print(normalize_rls_hashes(dump, db))
 
 if __name__ == "__main__":
     main()
