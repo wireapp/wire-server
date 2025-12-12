@@ -30,6 +30,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List.Extra
 import Data.Map qualified as Map
+import Data.Ord (Down)
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -65,7 +66,7 @@ import Wire.Sem.Random qualified as Random
 import Wire.Sem.Random.Null qualified as Random
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
-import Wire.UserGroupStore (UserGroupPageRequest(..))
+import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
 import Wire.UserSubsystem
@@ -389,6 +390,48 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                       .&&. all'
                         (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
                         (drop (length results - 2) results)
+
+    prop "getGroups: pagination via offset" $ do
+      WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
+      runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
+        -- Create groups
+        groups <- forM ["1", "2", "3", "4", "5"] $ \name -> do
+          passTime 1
+          createGroup (ownerId team1) $ newUserGroup $ UserGroupName $ unsafeRange name
+        let groupIds = map (.id_) groups :: [UserGroupId]
+
+        -- Define helper to fetch all pages, providing desired
+        -- sortOrder and page size to the mock database
+        let getAllPages sortOrder' pageSize' = go 0
+              where
+                go offset = do
+                  p <-
+                    getGroups
+                      (ownerId team1)
+                      def
+                        { paginationState = PaginationOffset offset,
+                          pageSize = PageSize $ unsafeRange pageSize',
+                          sortOrder = sortOrder'
+                        }
+                  if length p.page < fromIntegral pageSize'
+                    then pure [p]
+                    else (p :) <$> go (offset + pageSize')
+
+        ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
+        descendingPages :: [UserGroupPage] <- getAllPages Desc 3
+
+        pure do
+          -- Page sizes are as expected
+          map (length . (.page)) ascendingPages `shouldBe` [2, 2, 1]
+          map (length . (.page)) descendingPages `shouldBe` [3, 2]
+
+          -- Page sizes are unique
+          length (nub $ map (.id_) . (.page) =<< ascendingPages) `shouldBe` 5
+          length (nub $ map (.id_) . (.page) =<< descendingPages) `shouldBe` 5
+
+          -- Sort order is accountid for
+          (map (.id_) . (.page) =<< ascendingPages) `shouldBe` sort groupIds
+          (map (.id_) . (.page) =<< descendingPages) `shouldBe` sortBy (comparing Down) groupIds
 
     it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
