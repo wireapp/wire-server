@@ -1,0 +1,123 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module MlsUsers.Types where
+
+import qualified Cassandra as C
+import Control.Lens
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Encode.Pretty as A
+import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Id
+import Data.Text.Strict.Lens
+import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
+import Imports
+import Options.Applicative
+import Wire.API.User
+
+data UserRow = UserRow
+  { userId :: UserId,
+    activated :: Bool,
+    status :: Maybe AccountStatus,
+    supportedProtocols :: Set BaseProtocolTag
+  }
+  deriving (Generic)
+
+instance A.ToJSON UserRow
+
+recordInstance ''UserRow
+
+instance Show UserRow where
+  show = LC8.unpack . A.encodePretty
+
+data Result = Result
+  { totalUsers :: Int,
+    activeNoMLS :: Int
+  }
+  deriving (Generic)
+
+instance A.ToJSON Result
+
+instance Show Result where
+  show = LC8.unpack . A.encodePretty
+
+instance Semigroup Result where
+  r1 <> r2 =
+    Result
+      { totalUsers = r1.totalUsers + r2.totalUsers,
+        activeNoMLS = r1.activeNoMLS + r2.activeNoMLS
+      }
+
+instance Monoid Result where
+  mempty = Result {totalUsers = 0, activeNoMLS = 0}
+
+data CassandraSettings = CassandraSettings
+  { host :: String,
+    port :: Int,
+    keyspace :: C.Keyspace
+  }
+
+data Opts = Opts
+  { brigDb :: CassandraSettings,
+    limit :: Maybe Int
+  }
+
+optsParser :: Parser Opts
+optsParser =
+  Opts
+    <$> brigCassandraParser
+    <*> optional
+      ( option
+          auto
+          ( long "limit"
+              <> short 'l'
+              <> metavar "INT"
+              <> help "Limit the number of users to process"
+          )
+      )
+
+brigCassandraParser :: Parser CassandraSettings
+brigCassandraParser =
+  CassandraSettings
+    <$> strOption
+      ( long "brig-cassandra-host"
+          <> metavar "HOST"
+          <> help "Cassandra Host for brig"
+          <> value "localhost"
+          <> showDefault
+      )
+    <*> option
+      auto
+      ( long "brig-cassandra-port"
+          <> metavar "PORT"
+          <> help "Cassandra Port for brig"
+          <> value 9042
+          <> showDefault
+      )
+    <*> ( C.Keyspace
+            . view packed
+            <$> strOption
+              ( long "brig-cassandra-keyspace"
+                  <> metavar "STRING"
+                  <> help "Cassandra Keyspace for brig"
+                  <> value "brig_test"
+                  <> showDefault
+              )
+        )

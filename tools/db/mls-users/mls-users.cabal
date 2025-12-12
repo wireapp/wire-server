@@ -1,0 +1,99 @@
+cabal-version: 3.0
+name:          mls-users
+version:       1.0.0
+synopsis:      Find users without MLS support
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2025 Wire Swiss GmbH
+license:       AGPL-3.0-only
+build-type:    Simple
+
+library
+  hs-source-dirs:     src
+  default-language:   Haskell2010
+  exposed-modules:
+    MlsUsers.Lib
+    MlsUsers.Types
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , bytestring
+    , cassandra-util
+    , conduit
+    , containers
+    , cql
+    , extra
+    , imports
+    , lens
+    , optparse-applicative
+    , time
+    , tinylog
+    , types-common
+    , wire-api
+
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+executable mls-users
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , mls-users
+
+  hs-source-dirs:   app
+  default-language: Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages
