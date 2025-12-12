@@ -63,32 +63,29 @@ fromList list =
 toPage :: Natural -> Maybe Natural -> [a] -> ListResponse a
 toPage startIndex mbCount list = case mbCount of
   Nothing ->
-    let len = length list'
-     in ListResponse
-          { schemas = [ListResponse20],
-            totalResults = len,
-            itemsPerPage = len,
-            startIndex = startIndex',
-            resources = list'
-          }
+    ListResponse
+      { schemas = [ListResponse20],
+        totalResults = totalResults',
+        startIndex = startIndex',
+        itemsPerPage = length list',
+        resources = list'
+      }
   Just count ->
-    let (c, page, rest) = splitAtCount count list'
-        c' = fromEnum c
+    let (c, page, _rest) = splitAtCount count list'
      in ListResponse
           { schemas = [ListResponse20],
-            totalResults = c' + length rest,
-            itemsPerPage = c',
+            totalResults = totalResults',
             startIndex = startIndex',
+            itemsPerPage = fromIntegral c,
             resources = page
           }
   where
-    startIndex' = fromIntegral startIndex
-    list' =
-      if startIndex' <= 1
-        then list
-        else drop (startIndex' - 1) list
+    totalResults' = length list
+    startIndex' = max (fromIntegral startIndex) 1
+    list' = drop (startIndex' - 1) list
 
--- | Split @list@ at @n@, while returning the count actually taken, the taken, and the rest.
+-- | Split @list@ at @n@, while returning the count of elements
+-- actually in the prefix (as it can be shorter than @n@).
 splitAtCount :: Natural -> [a] -> (Natural, [a], [a])
 splitAtCount n list = go n 0 list
   where

@@ -97,7 +97,6 @@ spec = with app $ do
             numFieldMatch page "itemsPerPage" expectedItemsPerPage
             numFieldMatch page "startIndex" expectedStartIndex
 
-      -- Any test with startIndex not 1 fails
       hasMembers (getJson "/?startIndex=1&count=2") 1 2 5
       hasMembers (getJson "/?startIndex=3&count=2") 3 2 5
       hasMembers (getJson "/?startIndex=5&count=2") 5 1 5
