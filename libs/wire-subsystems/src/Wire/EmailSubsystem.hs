@@ -27,6 +27,7 @@ import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Client (Client (..))
+import Wire.API.User.IdentityProvider (IdP)
 
 data EmailSubsystem m a where
   SendPasswordResetMail :: EmailAddress -> PasswordResetPair -> Maybe Locale -> EmailSubsystem m ()
@@ -43,5 +44,7 @@ data EmailSubsystem m a where
   SendTeamInvitationMail :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
   -- | send invitation to an email address associated with a personal user account.
   SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
+  SendSAMLIdPCreated :: EmailAddress -> IdP -> EmailSubsystem m ()
+  SendSAMLIdPUpdated :: EmailSubsystem m ()
 
 makeSem ''EmailSubsystem
