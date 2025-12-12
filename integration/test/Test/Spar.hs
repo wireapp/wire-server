@@ -1102,8 +1102,14 @@ testIdpUpdate = do
     resp <- updateIdp owner idpId idpmeta
     (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
   -- the SCIM users can still login
-  for_ uids $ \(_, email) -> do
+  for_ uids $ \(uid, email) -> do
+    waitForUpdates (fst idp3) uid
     void $ loginWithSamlEmail True tid email idp3
+  where
+    waitForUpdates :: String -> String -> App ()
+    waitForUpdates idp uid = do
+      -- no, wait -- what is taking more time here?  write to brig.user?  to spar.user_v2?  something else?
+      undefined idp uid
 
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --
