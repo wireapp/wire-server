@@ -142,6 +142,7 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
       dropBeforeStart,
       orderByKeys,
       narrowToSearchString,
+      narrowToManagedBy,
       narrowToTeam ::
         [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
 
@@ -150,9 +151,13 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
         . dropBeforeStart
         . orderByKeys
         . narrowToSearchString
+        . narrowToManagedBy
         . narrowToTeam
 
     narrowToTeam = filter (\((thisTid, _), _) -> thisTid == team)
+
+    narrowToManagedBy =
+      filter (\(_, ug) -> maybe True (== ug.managedBy) managedByFilter)
 
     narrowToSearchString =
       filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) searchString)

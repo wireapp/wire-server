@@ -86,7 +86,7 @@ interpretUserGroupSubsystem = interpret $ \case
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
-  GetGroupsInternal tid displayNameSubstring -> getUserGroupsInternal tid displayNameSubstring
+  GetGroupsInternal tid displayNameSubstring mbManagedBy -> getUserGroupsInternal tid displayNameSubstring mbManagedBy
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -268,6 +268,7 @@ getUserGroups getter search = do
                 search.lastId,
             team = team,
             searchString = search.query,
+            managedByFilter = Nothing,
             includeMemberCount = search.includeMemberCount,
             includeChannels = search.includeChannels
           }
@@ -282,8 +283,9 @@ getUserGroupsInternal ::
   ) =>
   TeamId ->
   Maybe Text ->
+  Maybe ManagedBy ->
   Sem r UserGroupPageWithMembers
-getUserGroupsInternal team displayNameSubstring = do
+getUserGroupsInternal team displayNameSubstring mbManagedBy = do
   let -- hscim doesn't support pagination at the time of writing this,
       -- so we better fit all groups into one page!
       pageSize = pageSizeFromIntUnsafe 500
@@ -294,6 +296,7 @@ getUserGroupsInternal team displayNameSubstring = do
             paginationState = mkPaginationState SortByName (Just "displayName") Nothing Nothing,
             team = team,
             searchString = displayNameSubstring,
+            managedByFilter = mbManagedBy,
             includeMemberCount = True,
             includeChannels = False
           }
@@ -535,6 +538,7 @@ removeUserFromAllGroups uid tid = do
                 fmap Store.userGroupCreatedAtPaginationState mug,
             team = tid,
             searchString = Nothing,
+            managedByFilter = Nothing,
             includeMemberCount = False,
             includeChannels = False
           }
