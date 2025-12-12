@@ -97,6 +97,7 @@ data UserStore m a where
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
   DeleteEmail :: UserId -> UserStore m ()
   SetUserSearchable :: UserId -> SetSearchable -> UserStore m ()
+  GetEmails :: [UserId] -> UserStore m [EmailAddress]
 
 makeSem ''UserStore
 
