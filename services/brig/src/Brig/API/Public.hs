@@ -179,6 +179,7 @@ import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
+import Wire.PaginationState
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
@@ -195,6 +196,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserGroupStore qualified as UserGroupStore
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
@@ -1707,21 +1709,17 @@ getUserGroups ::
   Bool ->
   Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
-  lift . liftSem $
-    UserGroup.getGroups
-      (tUnqualified lusr)
-      UserGroup.GroupSearch
-        { query = q,
-          sortBy,
-          sortOrder,
-          pageSize,
-          lastName = fmap userGroupNameToText lastName,
-          lastCreatedAt = fmap fromUTCTimeMillis lastCreatedAt,
-          lastId,
-          includeMemberCount,
-          includeChannels
-        }
+getUserGroups lusr searchString sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
+  lift . liftSem $ UserGroup.getGroups (tUnqualified lusr) $ UserGroupStore.UserGroupPageRequest
+    { pageSize = fromMaybe def pageSize,
+      sortOrder = fromMaybe Desc sortOrder,
+      paginationState = case fromMaybe def sortBy of
+        SortByName -> PaginationSortByName $ (,) <$> fmap userGroupNameToText lastName <*> lastId
+        SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> fmap fromUTCTimeMillis lastCreatedAt <*> lastId,
+      searchString,
+      includeMemberCount,
+      includeChannels
+    }
 
 updateUserGroup :: (_) => Local UserId -> UserGroupId -> UserGroupUpdate -> (Handler r) ()
 updateUserGroup lusr gid gupd = lift . liftSem $ UserGroup.updateGroup (tUnqualified lusr) gid gupd

@@ -23,6 +23,7 @@ module Spar.Scim.Group where
 
 import Data.Aeson qualified as Aeson
 import Imports
+import Numeric.Natural
 import Polysemy
 import Web.Scim.Class.Auth
 import Web.Scim.Class.Group qualified as SCG
@@ -39,8 +40,11 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
   getGroups ::
     AuthInfo SparTag ->
     Maybe Filter ->
+    Maybe Natural ->
+    Maybe Natural ->
     ScimHandler (Sem r) (ListResponse (SCG.StoredGroup SparTag))
-  getGroups ((.stiTeam) -> tid) mbFilter = lift $ scimGetUserGroups tid mbFilter
+  getGroups ((.stiTeam) -> tid) mbFilter mbStartIndex mbCount =
+    lift $ scimGetUserGroups tid mbFilter (fromIntegral <$> mbStartIndex) (fromIntegral <$> mbCount)
 
   -- \| Get a single group by ID.
   --

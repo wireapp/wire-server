@@ -291,17 +291,19 @@ groupPaginationWhereClause req = case paginationClause req.paginationState of
 
 groupPaginationOrderBy :: UserGroupPageRequest -> [QueryFragment]
 groupPaginationOrderBy req =
-  [ orderBy
-      [ (sortColumn req.paginationState, req.sortOrder),
-        ("ug.id", req.sortOrder)
-      ],
+  [ orderBy $
+      ( case req.paginationState of
+          PaginationSortByName _ -> [("ug.name", req.sortOrder)]
+          PaginationSortByCreatedAt _ -> [("ug.created_at", req.sortOrder)]
+          _ -> []
+      )
+        <> [ ("ug.id", req.sortOrder)
+           ],
     limit (pageSizeToInt32 req.pageSize)
   ]
-  where
-    sortColumn :: PaginationState a -> Text
-    sortColumn = \case
-      PaginationSortByName _ -> "ug.name"
-      PaginationSortByCreatedAt _ -> "ug.created_at"
+    <> case req.paginationState of
+      PaginationOffset n -> [offset n]
+      _ -> []
 
 getUserGroupCount :: UserGroupPageRequest -> Tx.Transaction Int
 getUserGroupCount req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder

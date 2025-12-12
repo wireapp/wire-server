@@ -60,10 +60,12 @@ import Wire.BackgroundJobsPublisher qualified as BackgroundJobsPublisher
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
+import Wire.PaginationState
 import Wire.Sem.Random qualified as Random
 import Wire.Sem.Random.Null qualified as Random
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserGroupStore (UserGroupPageRequest(..))
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
 import Wire.UserSubsystem
@@ -274,14 +276,14 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             getGroups
               (ownerId team)
               def
-                { query = Just (userGroupNameToText userGroupName)
+                { searchString = Just (userGroupNameToText userGroupName)
                 }
           getGroupsOutsider <-
             try $
               getGroups
                 (ownerId otherTeam)
                 def
-                  { query = Just (userGroupNameToText userGroupName)
+                  { searchString = Just (userGroupNameToText userGroupName)
                   }
           pure $
             getGroupAdmin === Just group1
@@ -308,13 +310,13 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 getGroups
                   (ownerId team1)
                   def
-                    { query = Just (userGroupNameToText userGroupName1)
+                    { searchString = Just (userGroupNameToText userGroupName1)
                     }
               getOtherGroups <-
                 getGroups
                   (ownerId team1)
                   def
-                    { query = Just (userGroupNameToText userGroupName2)
+                    { searchString = Just (userGroupNameToText userGroupName2)
                     }
 
               pure $
@@ -329,10 +331,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         let newGroups = [newUserGroup (either undefined id $ userGroupNameFromText name) | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
-        get0 <- getGroups (ownerId team1) def {query = Just "nope"}
-        get1 <- getGroups (ownerId team1) def {query = Just "1"}
-        get2 <- getGroups (ownerId team1) def {query = Just "2"}
-        get3 <- getGroups (ownerId team1) def {query = Just "3"}
+        get0 <- getGroups (ownerId team1) def {searchString = Just "nope"}
+        get1 <- getGroups (ownerId team1) def {searchString = Just "1"}
+        get2 <- getGroups (ownerId team1) def {searchString = Just "2"}
+        get3 <- getGroups (ownerId team1) def {searchString = Just "3"}
 
         pure do
           get0.page `shouldBe` []
@@ -364,11 +366,8 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                             getGroups
                               (ownerId team1)
                               def
-                                { sortBy = Just SortByCreatedAt,
-                                  pageSize = Just pageSize,
-                                  lastName = fmap (userGroupNameToText . (.name)) mLastThing,
-                                  lastCreatedAt = fmap (fromUTCTimeMillis . (.createdAt)) mLastThing,
-                                  lastId = fmap (.id_) mLastThing
+                                { paginationState = PaginationSortByCreatedAt $ (,) <$> fmap (fromUTCTimeMillis . (.createdAt)) mLastThing <*> fmap (.id_) mLastThing,
+                                  pageSize
                                 }
                           if length p.page < pageSizeToInt pageSize
                             then pure [p]
@@ -391,6 +390,46 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
                         (drop (length results - 2) results)
 
+    prop "getGroups: pagination via offset" $ do
+      WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
+      runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
+
+        -- Create groups
+        groups <- forM ["1", "2", "3", "4", "5"] $ \name -> do
+          passTime 1
+          createGroup (ownerId team1) $ newUserGroup $ UserGroupName $ unsafeRange name
+        let groupIds = map (.id_) groups :: [UserGroupId]
+
+        -- Define helper to fetch all pages, providing desired
+        -- sortOrder and page size to the mock database
+        let getAllPages sortOrder' pageSize' = go 0
+              where
+                go offset = do
+                  p <- getGroups (ownerId team1) def
+                    { paginationState = PaginationOffset offset,
+                      pageSize = PageSize $ unsafeRange pageSize',
+                      sortOrder = sortOrder'
+                    }
+                  if length p.page < fromIntegral pageSize'
+                    then pure [p]
+                    else (p :) <$> go (offset + pageSize')
+
+        ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
+        descendingPages :: [UserGroupPage] <- getAllPages Desc 3
+
+        pure do
+          -- Page sizes are as expected
+          map (length . (.page)) ascendingPages `shouldBe` [2, 2, 1]
+          map (length . (.page)) descendingPages `shouldBe` [3, 2]
+
+          -- Page sizes are unique
+          (length $ nub $ map (.id_) . (.page) =<< ascendingPages) `shouldBe` 5
+          (length $ nub $ map (.id_) . (.page) =<< descendingPages) `shouldBe` 5
+
+          -- Sort order is accountid for
+          (map (.id_) . (.page) =<< ascendingPages) `shouldBe` sort groupIds
+          (map (.id_) . (.page) =<< descendingPages) `shouldBe` reverse (sort groupIds)
+
     it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
@@ -412,15 +451,15 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroups
             (ownerId team1)
             def
-              { sortBy = Just SortByName,
-                sortOrder = Just Desc
+              { paginationState = PaginationSortByName Nothing,
+                sortOrder = Desc
               }
         sortByCreatedAtAsc <-
           getGroups
             (ownerId team1)
             def
-              { sortBy = Just SortByCreatedAt,
-                sortOrder = Just Asc
+              { paginationState = PaginationSortByCreatedAt Nothing,
+                sortOrder = Asc
               }
 
         let expectSortByDefaults = [[group1b, group2b, group3b], [group1a, group2a, group3a]]
