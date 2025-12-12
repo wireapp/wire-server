@@ -75,6 +75,8 @@ type FeatureAPI =
     :<|> FeatureAPIGet SimplifiedUserConnectionRequestQRCodeConfig
     :<|> FeatureAPIGet StealthUsersConfig
     :<|> FeatureAPIGet CellsInternalConfig
+    :<|> FeatureAPIGetPut MeetingConfig
+    :<|> FeatureAPIGetPut MeetingPremiumConfig
 
 type DeprecationNotice1 = "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022"
 

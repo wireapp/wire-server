@@ -48,10 +48,10 @@ import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Teams.Features.Get (getFeatureForTeam)
-import Galley.API.Util
+import Galley.API.Util hiding (notifyCreatedConversation)
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Options (Opts)
+import Galley.Options
 import Galley.Types.Teams (notTeamMember)
 import Galley.Validation
 import Imports hiding ((\\))
@@ -429,6 +429,8 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       -- so we don't allow an external partner to create an MLS group conversation at all
       when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
         void $ permissionCheck AddRemoveConvMember teamAssociation
+    MeetingConversation ->
+      throwS @OperationDenied
 
   convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
@@ -750,19 +752,7 @@ createConnectConversation lusr conn j = do
   where
     create lcnv nc = do
       c <- E.upsertConversation lcnv nc
-      now <- Now.get
-      let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConnect j)
-      notifyCreatedConversation lusr conn c def
-      pushNotifications
-        [ def
-            { origin = Just (tUnqualified lusr),
-              json = toJSONObject e,
-              recipients = map localMemberToRecipient c.localMembers,
-              isCellsEvent = shouldPushToCells c.metadata e,
-              route = PushV2.RouteDirect,
-              conn
-            }
-        ]
+      notifyConversationCreated lusr conn j lcnv c
       conversationCreated lusr c
     update n conv = do
       let mems = conv.localMembers
@@ -789,24 +779,12 @@ createConnectConversation lusr conn j = do
                       else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-          let lcnv = qualifyAs lusr conv.id_
           n' <- case n of
             Just x -> do
               E.setConversationName conv.id_ x
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
-          t <- Now.get
-          let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
-          pushNotifications
-            [ def
-                { origin = Just (tUnqualified lusr),
-                  json = toJSONObject e,
-                  recipients = map localMemberToRecipient conv.localMembers,
-                  isCellsEvent = shouldPushToCells conv.metadata e,
-                  route = PushV2.RouteDirect,
-                  conn
-                }
-            ]
+          notifyConversationUpdated lusr conn j conv
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 

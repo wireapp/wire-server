@@ -330,6 +330,20 @@ newtype instance FeatureDefaults StealthUsersConfig
   deriving (FromJSON) via Defaults (LockableFeature StealthUsersConfig)
   deriving (ParseFeatureDefaults) via OptionalField StealthUsersConfig
 
+newtype instance FeatureDefaults MeetingConfig
+  = MeetingDefaults (LockableFeature MeetingConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature MeetingConfig)
+  deriving (ParseFeatureDefaults) via OptionalField MeetingConfig
+
+newtype instance FeatureDefaults MeetingPremiumConfig
+  = MeetingPremiumDefaults (LockableFeature MeetingPremiumConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON) via Defaults (LockableFeature MeetingPremiumConfig)
+  deriving (ParseFeatureDefaults) via OptionalField MeetingPremiumConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 

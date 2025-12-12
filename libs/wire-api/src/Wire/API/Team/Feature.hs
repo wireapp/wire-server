@@ -100,6 +100,8 @@ module Wire.API.Team.Feature
     AppsConfig (..),
     SimplifiedUserConnectionRequestQRCodeConfig (..),
     StealthUsersConfig (..),
+    MeetingConfig (..),
+    MeetingPremiumConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -266,6 +268,8 @@ data FeatureSingleton cfg where
   FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
   FeatureSingletonStealthUsersConfig :: FeatureSingleton StealthUsersConfig
   FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
+  FeatureSingletonMeetingConfig :: FeatureSingleton MeetingConfig
+  FeatureSingletonMeetingPremiumConfig :: FeatureSingleton MeetingPremiumConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1761,6 +1765,54 @@ instance IsFeatureConfig StealthUsersConfig where
 
   objectSchema = pure StealthUsersConfig
 
+--------------------------------------------------------------------------------
+-- Meeting Feature
+--
+-- Controls whether meetings functionality is available. When enabled, users can
+-- create and manage meetings. When disabled, meeting endpoints are not accessible.
+
+data MeetingConfig = MeetingConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform MeetingConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName MeetingConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature MeetingConfig
+
+instance ToSchema MeetingConfig where
+  schema = object "MeetingConfig" objectSchema
+
+instance Default (LockableFeature MeetingConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig MeetingConfig where
+  type FeatureSymbol MeetingConfig = "meeting"
+  featureSingleton = FeatureSingletonMeetingConfig
+
+  objectSchema = pure MeetingConfig
+
+--------------------------------------------------------------------------------
+-- MeetingPremium Feature
+--
+-- Indicates whether a team has premium meeting features. When enabled, meetings
+-- created by team members are not marked as trial. When disabled, meetings are trial.
+
+data MeetingPremiumConfig = MeetingPremiumConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform MeetingPremiumConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName MeetingPremiumConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature MeetingPremiumConfig
+
+instance ToSchema MeetingPremiumConfig where
+  schema = object "MeetingPremiumConfig" objectSchema
+
+instance Default (LockableFeature MeetingPremiumConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig MeetingPremiumConfig where
+  type FeatureSymbol MeetingPremiumConfig = "meetingPremium"
+  featureSingleton = FeatureSingletonMeetingPremiumConfig
+
+  objectSchema = pure MeetingPremiumConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1854,7 +1906,9 @@ type Features =
     SimplifiedUserConnectionRequestQRCodeConfig,
     AssetAuditLogConfig,
     StealthUsersConfig,
-    CellsInternalConfig
+    CellsInternalConfig,
+    MeetingConfig,
+    MeetingPremiumConfig
   ]
 
 -- | list of available features as a record

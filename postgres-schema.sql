@@ -163,6 +163,29 @@ CREATE TABLE public.local_conversation_remote_member (
 ALTER TABLE public.local_conversation_remote_member OWNER TO "wire-server";
 
 --
+-- Name: meetings; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.meetings (
+    id uuid NOT NULL,
+    domain text NOT NULL,
+    title text NOT NULL,
+    creator uuid NOT NULL,
+    start_date timestamp with time zone NOT NULL,
+    end_date timestamp with time zone NOT NULL,
+    schedule text,
+    conversation_id uuid NOT NULL,
+    conversation_domain text NOT NULL,
+    invited_emails text[] DEFAULT '{}'::text[],
+    trial boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.meetings OWNER TO "wire-server";
+
+--
 -- Name: mls_group_member_client; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -315,6 +338,14 @@ ALTER TABLE ONLY public.conversation
 
 
 --
+-- Name: meetings meetings_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.meetings
+    ADD CONSTRAINT meetings_pkey PRIMARY KEY (domain, id);
+
+
+--
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -411,6 +442,34 @@ CREATE INDEX conversation_team_group_type_lower_name_id_idx ON public.conversati
 --
 
 CREATE INDEX conversation_team_idx ON public.conversation USING btree (team);
+
+
+--
+-- Name: idx_meetings_conversation; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_conversation ON public.meetings USING btree (conversation_id, conversation_domain);
+
+
+--
+-- Name: idx_meetings_creator; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_creator ON public.meetings USING btree (creator);
+
+
+--
+-- Name: idx_meetings_end_date; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_end_date ON public.meetings USING btree (end_date);
+
+
+--
+-- Name: idx_meetings_start_date; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_start_date ON public.meetings USING btree (start_date);
 
 
 --

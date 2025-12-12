@@ -112,6 +112,7 @@ library
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Locale
+    Wire.API.Meeting
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.AuthenticatedContent
@@ -205,6 +206,7 @@ library
     Wire.API.Routes.Public.Galley.CustomBackend
     Wire.API.Routes.Public.Galley.Feature
     Wire.API.Routes.Public.Galley.LegalHold
+    Wire.API.Routes.Public.Galley.Meetings
     Wire.API.Routes.Public.Galley.Messaging
     Wire.API.Routes.Public.Galley.MLS
     Wire.API.Routes.Public.Galley.Team

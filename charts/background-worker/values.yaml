@@ -84,6 +84,15 @@ config:
     # Total attempts, including the first try
     maxAttempts: 3
 
+  # Meetings cleanup configuration
+  meetingsCleanup:
+    # Delete meetings older than this many hours (48 hours = 2 days)
+    cleanOlderThanHours: 48
+    # Maximum number of meetings to delete per batch
+    batchSize: 1000
+    # Frequency in seconds to run the cleanup job (3600 = 1 hour)
+    cleanFrequencySeconds: 3600
+
   # Controls where conversation data is stored/accessed
   postgresMigration:
     conversation: postgresql
