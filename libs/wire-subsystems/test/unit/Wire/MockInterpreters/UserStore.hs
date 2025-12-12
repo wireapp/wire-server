@@ -114,6 +114,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
         if u.id == uid
           then u {Wire.StoredUser.searchable = Just searchable} :: StoredUser
           else u
+  GetEmails uids -> gets $ mapMaybe (.email) . filter (\user -> user.id `elem` uids)
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =
