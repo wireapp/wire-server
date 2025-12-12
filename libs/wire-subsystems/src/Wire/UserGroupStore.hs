@@ -30,6 +30,7 @@ import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.PaginationState
+import Data.Default
 
 data UserGroupPageRequest = UserGroupPageRequest
   { team :: TeamId,
@@ -40,6 +41,17 @@ data UserGroupPageRequest = UserGroupPageRequest
     includeMemberCount :: Bool,
     includeChannels :: Bool
   }
+
+instance Default UserGroupPageRequest where
+  def = UserGroupPageRequest
+    { team = undefined,
+      searchString = Nothing,
+      paginationState = PaginationSortByCreatedAt Nothing, -- XXX: Default SortBy is SortByCreatedAt
+      sortOrder = Desc,
+      pageSize = def, -- XXX: 15
+      includeMemberCount = True,
+      includeChannels = False
+    }
 
 userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTime, UserGroupId)
 userGroupCreatedAtPaginationState ug = (fromUTCTimeMillis ug.createdAt, ug.id_)
