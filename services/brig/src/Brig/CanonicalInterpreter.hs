@@ -109,6 +109,8 @@ import Wire.PropertySubsystem.Interpreter
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.SAMLEmailSubsystem
+import Wire.SAMLEmailSubsystem.Interpreter
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
@@ -163,7 +165,8 @@ type BrigCanonicalEffects =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ TeamSubsystem,
+  '[ SAMLEmailSubsystem,
+     TeamSubsystem,
      TeamCollaboratorsStore,
      AppStore,
      EmailSubsystem,
@@ -393,6 +396,7 @@ runBrigToIO e (AppT ma) = do
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
+              . samlEmailSubsystemInterpreter
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem

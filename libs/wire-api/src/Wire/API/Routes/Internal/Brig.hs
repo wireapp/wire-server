@@ -42,6 +42,7 @@ module Wire.API.Routes.Internal.Brig
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
     EnterpriseLoginApi,
+    SAMLIdPAPI,
   )
 where
 
@@ -95,6 +96,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -693,7 +695,18 @@ type API =
            :<|> FederationRemotesAPI
            :<|> ProviderAPI
            :<|> EnterpriseLoginApi
+           :<|> SAMLIdPAPI
        )
+
+type SAMLIdPAPI =
+  Named
+    "send-idp-created-email"
+    ( Summary "Send an email about the new IdP to all team admins and owners"
+        :> "idp"
+        :> "send-idp-created-email"
+        :> ReqBody '[Servant.JSON] IdP
+        :> Post '[Servant.JSON] ()
+    )
 
 type IStatusAPI =
   Named
