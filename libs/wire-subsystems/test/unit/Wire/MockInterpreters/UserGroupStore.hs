@@ -164,7 +164,8 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
           (PaginationSortByName _, Desc) -> (n', i') `compare` (n, i)
           (PaginationSortByCreatedAt _, Asc) -> (c, i) `compare` (c', i')
           (PaginationSortByCreatedAt _, Desc) -> (c', i') `compare` (c, i)
-          (PaginationOffset _, _) -> i' `compare` i -- XXX
+          (PaginationOffset _, Asc) -> i `compare` i'
+          (PaginationOffset _, Desc) -> i' `compare` i
           where
             n = ug.name
             n' = ug'.name
