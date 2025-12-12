@@ -217,8 +217,8 @@ config:
           lockStatus: locked
       cells:
         defaults:
-          status: enabled
-          lockStatus: unlocked
+          status: disabled
+          lockStatus: locked
       cellsInternal:
         defaults:
           status: enabled
