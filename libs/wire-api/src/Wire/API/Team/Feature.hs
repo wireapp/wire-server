@@ -85,7 +85,18 @@ module Wire.API.Team.Feature
     EnforceFileDownloadLocationConfig,
     LimitedEventFanoutConfig (..),
     DomainRegistrationConfig (..),
-    CellsConfig (..),
+    CellsConfig,
+    CellsConfigB (..),
+    CellsProperty (..),
+    CellsPropertyStatus (..),
+    CellsUsers (..),
+    CellsCollaboraStatus (..),
+    CellsPublicLinks (..),
+    CellsConfigStorage (..),
+    CellsRecycle (..),
+    CellsMetadata (..),
+    CellsNamespaces (..),
+    CellsUserMetaTags (..),
     CellsInternalConfig,
     CellsInternalConfigB (..),
     CellsCollabora (..),
@@ -146,7 +157,6 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
-import Data.Text.Read qualified as TR
 import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
@@ -161,6 +171,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature.Profunctor
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -215,8 +226,15 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 9. Add a section to the documentation at an appropriate place
 -- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
+class ToObjectSchema a where
+  objectSchema :: ObjectSchema SwaggerDoc a
+
 class
   ( Default cfg,
+    -- \| Should be "pure MyFeatureConfig" if the feature doesn't have config,
+    -- which results in a trivial empty schema and the "config" field being
+    -- omitted/ignored in the JSON encoder / parser.
+    ToObjectSchema cfg,
     ToSchema cfg,
     Default (LockableFeature cfg),
     KnownSymbol (FeatureSymbol cfg),
@@ -227,12 +245,6 @@ class
   where
   type FeatureSymbol cfg :: Symbol
   featureSingleton :: FeatureSingleton cfg
-
-  objectSchema ::
-    -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
-    -- which results in a trivial empty schema and the "config" field being
-    -- omitted/ignored in the JSON encoder / parser.
-    ObjectSchema SwaggerDoc cfg
 
 data FeatureSingleton cfg where
   FeatureSingletonGuestLinksConfig :: FeatureSingleton GuestLinksConfig
@@ -444,7 +456,7 @@ forgetLock ws = Feature ws.status ws.config
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
 withLockStatus ls (Feature s c) = LockableFeature s ls c
 
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
+instance (ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
       Feature
@@ -457,6 +469,12 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (Feature cfg) where
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
+
+instance
+  (ToObjectSchema (Versioned v cfg), ToSchema (Versioned v cfg)) =>
+  ToSchema (Versioned v (Feature cfg))
+  where
+  schema = Versioned . fmap unVersioned <$> (fmap Versioned . unVersioned) .= schema @(Feature (Versioned v cfg))
 
 ----------------------------------------------------------------------
 -- FeatureTTL
@@ -627,11 +645,12 @@ instance ToSchema GuestLinksConfig where
 instance Default (LockableFeature GuestLinksConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema GuestLinksConfig where
+  objectSchema = pure GuestLinksConfig
+
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
   featureSingleton = FeatureSingletonGuestLinksConfig
-
-  objectSchema = pure GuestLinksConfig
 
 --------------------------------------------------------------------------------
 -- Legalhold feature
@@ -645,10 +664,12 @@ data LegalholdConfig = LegalholdConfig
 instance Default (LockableFeature LegalholdConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema LegalholdConfig where
+  objectSchema = pure LegalholdConfig
+
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
   featureSingleton = FeatureSingletonLegalholdConfig
-  objectSchema = pure LegalholdConfig
 
 instance ToSchema LegalholdConfig where
   schema = object "LegalholdConfig" objectSchema
@@ -666,10 +687,12 @@ data SSOConfig = SSOConfig
 instance Default (LockableFeature SSOConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema SSOConfig where
+  objectSchema = pure SSOConfig
+
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
   featureSingleton = FeatureSingletonSSOConfig
-  objectSchema = pure SSOConfig
 
 instance ToSchema SSOConfig where
   schema = object "SSOConfig" objectSchema
@@ -688,10 +711,12 @@ data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
 instance Default (LockableFeature SearchVisibilityAvailableConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema SearchVisibilityAvailableConfig where
+  objectSchema = pure SearchVisibilityAvailableConfig
+
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
   featureSingleton = FeatureSingletonSearchVisibilityAvailableConfig
-  objectSchema = pure SearchVisibilityAvailableConfig
 
 instance ToSchema SearchVisibilityAvailableConfig where
   schema = object "SearchVisibilityAvailableConfig" objectSchema
@@ -714,10 +739,12 @@ instance ToSchema ValidateSAMLEmailsConfig where
 instance Default (LockableFeature ValidateSAMLEmailsConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema ValidateSAMLEmailsConfig where
+  objectSchema = pure ValidateSAMLEmailsConfig
+
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
   featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
-  objectSchema = pure ValidateSAMLEmailsConfig
 
 type instance DeprecatedFeatureName V2 ValidateSAMLEmailsConfig = "validate-saml-emails"
 
@@ -734,10 +761,12 @@ data DigitalSignaturesConfig = DigitalSignaturesConfig
 instance Default (LockableFeature DigitalSignaturesConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema DigitalSignaturesConfig where
+  objectSchema = pure DigitalSignaturesConfig
+
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
   featureSingleton = FeatureSingletonDigitalSignaturesConfig
-  objectSchema = pure DigitalSignaturesConfig
 
 type instance DeprecatedFeatureName V2 DigitalSignaturesConfig = "digital-signatures"
 
@@ -804,10 +833,12 @@ instance Default ConferenceCallingConfig where
 instance Default (LockableFeature ConferenceCallingConfig) where
   def = defLockedFeature {status = FeatureStatusEnabled}
 
+instance ToObjectSchema ConferenceCallingConfig where
+  objectSchema = fromMaybe def <$> optField "config" schema
+
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   featureSingleton = FeatureSingletonConferenceCallingConfig
-  objectSchema = fromMaybe def <$> optField "config" schema
 
 instance (OptWithDefault f) => ToSchema (ConferenceCallingConfigB Covered f) where
   schema =
@@ -832,10 +863,12 @@ instance ToSchema SndFactorPasswordChallengeConfig where
 instance Default (LockableFeature SndFactorPasswordChallengeConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema SndFactorPasswordChallengeConfig where
+  objectSchema = pure SndFactorPasswordChallengeConfig
+
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
   featureSingleton = FeatureSingletonSndFactorPasswordChallengeConfig
-  objectSchema = pure SndFactorPasswordChallengeConfig
 
 --------------------------------------------------------------------------------
 -- SearchVisibilityInbound feature
@@ -850,10 +883,12 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
 instance Default (LockableFeature SearchVisibilityInboundConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema SearchVisibilityInboundConfig where
+  objectSchema = pure SearchVisibilityInboundConfig
+
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
   featureSingleton = FeatureSingletonSearchVisibilityInboundConfig
-  objectSchema = pure SearchVisibilityInboundConfig
 
 instance ToSchema SearchVisibilityInboundConfig where
   schema = object "SearchVisibilityInboundConfig" objectSchema
@@ -889,11 +924,12 @@ instance ToSchema ClassifiedDomainsConfig where
 instance Default (LockableFeature ClassifiedDomainsConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema ClassifiedDomainsConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig ClassifiedDomainsConfig where
   type FeatureSymbol ClassifiedDomainsConfig = "classifiedDomains"
-
   featureSingleton = FeatureSingletonClassifiedDomainsConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- AppLock feature
@@ -937,11 +973,12 @@ instance (FieldF f) => ToSchema (AppLockConfigB Covered f) where
 instance Default (LockableFeature AppLockConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema AppLockConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig AppLockConfig where
   type FeatureSymbol AppLockConfig = "appLock"
-
   featureSingleton = FeatureSingletonAppLockConfig
-  objectSchema = field "config" schema
 
 newtype EnforceAppLock = EnforceAppLock Bool
   deriving stock (Eq, Show, Ord, Generic)
@@ -966,10 +1003,12 @@ instance Default FileSharingConfig where
 instance Default (LockableFeature FileSharingConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema FileSharingConfig where
+  objectSchema = pure FileSharingConfig
+
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
   featureSingleton = FeatureSingletonFileSharingConfig
-  objectSchema = pure FileSharingConfig
 
 instance ToSchema FileSharingConfig where
   schema = object "FileSharingConfig" objectSchema
@@ -1014,10 +1053,12 @@ instance (FieldF f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
 instance Default (LockableFeature SelfDeletingMessagesConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema SelfDeletingMessagesConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig SelfDeletingMessagesConfig where
   type FeatureSymbol SelfDeletingMessagesConfig = "selfDeletingMessages"
   featureSingleton = FeatureSingletonSelfDeletingMessagesConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- MLSConfig
@@ -1083,10 +1124,12 @@ instance (FieldF f) => ToSchema (MLSConfigB Covered f) where
 instance Default (LockableFeature MLSConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}
 
+instance ToObjectSchema MLSConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"
   featureSingleton = FeatureSingletonMLSConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- ChannelsConfig
@@ -1144,10 +1187,12 @@ instance (FieldF f) => ToSchema (ChannelsConfigB Covered f) where
 instance Default (LockableFeature ChannelsConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema ChannelsConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig ChannelsConfig where
   type FeatureSymbol ChannelsConfig = "channels"
   featureSingleton = FeatureSingletonChannelsConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- ExposeInvitationURLsToTeamAdminConfig
@@ -1161,10 +1206,12 @@ data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConf
 instance Default (LockableFeature ExposeInvitationURLsToTeamAdminConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema ExposeInvitationURLsToTeamAdminConfig where
+  objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
+
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
   featureSingleton = FeatureSingletonExposeInvitationURLsToTeamAdminConfig
-  objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
 
 instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
   schema = object "ExposeInvitationURLsToTeamAdminConfig" objectSchema
@@ -1183,10 +1230,12 @@ data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
 instance Default (LockableFeature OutlookCalIntegrationConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema OutlookCalIntegrationConfig where
+  objectSchema = pure OutlookCalIntegrationConfig
+
 instance IsFeatureConfig OutlookCalIntegrationConfig where
   type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
   featureSingleton = FeatureSingletonOutlookCalIntegrationConfig
-  objectSchema = pure OutlookCalIntegrationConfig
 
 instance ToSchema OutlookCalIntegrationConfig where
   schema = object "OutlookCalIntegrationConfig" objectSchema
@@ -1283,10 +1332,12 @@ instance (FieldF f) => ToSchema (MlsE2EIdConfigB Covered f) where
 instance Default (LockableFeature MlsE2EIdConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema MlsE2EIdConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
   featureSingleton = FeatureSingletonMlsE2EIdConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- MlsMigration
@@ -1338,10 +1389,12 @@ instance (NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
 instance Default (LockableFeature MlsMigrationConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema MlsMigrationConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig MlsMigrationConfig where
   type FeatureSymbol MlsMigrationConfig = "mlsMigration"
   featureSingleton = FeatureSingletonMlsMigrationConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- EnforceFileDownloadLocationConfig
@@ -1388,10 +1441,12 @@ instance (NestedMaybe f) => ToSchema (EnforceFileDownloadLocationConfigB Covered
 instance Default (LockableFeature EnforceFileDownloadLocationConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema EnforceFileDownloadLocationConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig EnforceFileDownloadLocationConfig where
   type FeatureSymbol EnforceFileDownloadLocationConfig = "enforceFileDownloadLocation"
   featureSingleton = FeatureSingletonEnforceFileDownloadLocationConfig
-  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- Guarding the fanout of events when a team member is deleted.
@@ -1410,10 +1465,12 @@ data LimitedEventFanoutConfig = LimitedEventFanoutConfig
 instance Default (LockableFeature LimitedEventFanoutConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema LimitedEventFanoutConfig where
+  objectSchema = pure LimitedEventFanoutConfig
+
 instance IsFeatureConfig LimitedEventFanoutConfig where
   type FeatureSymbol LimitedEventFanoutConfig = "limitedEventFanout"
   featureSingleton = FeatureSingletonLimitedEventFanoutConfig
-  objectSchema = pure LimitedEventFanoutConfig
 
 instance ToSchema LimitedEventFanoutConfig where
   schema = object "LimitedEventFanoutConfig" objectSchema
@@ -1434,30 +1491,260 @@ instance ToSchema DomainRegistrationConfig where
 instance Default (LockableFeature DomainRegistrationConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema DomainRegistrationConfig where
+  objectSchema = pure DomainRegistrationConfig
+
 instance IsFeatureConfig DomainRegistrationConfig where
   type FeatureSymbol DomainRegistrationConfig = "domainRegistration"
   featureSingleton = FeatureSingletonDomainRegistrationConfig
-  objectSchema = pure DomainRegistrationConfig
 
 --------------------------------------------------------------------------------
 -- Cells feature
 
-data CellsConfig = CellsConfig
-  deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform CellsConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName CellsConfig)
-  deriving (Default, ParseDbFeature) via (TrivialFeature CellsConfig)
+data CellsPropertyStatus = Enabled | Disabled | Enforced
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsPropertyStatus
+  deriving (Arbitrary) via (GenericUniform CellsPropertyStatus)
 
-instance ToSchema CellsConfig where
-  schema = object "CellsConfig" objectSchema
+instance ToSchema CellsPropertyStatus where
+  schema =
+    enum @Text "CellsPropertyStatus" $
+      mconcat
+        [ element "enabled" Enabled,
+          element "disabled" Disabled,
+          element "enforced" Enforced
+        ]
+
+data CellsProperty = CellsProperty
+  { enabled :: Bool,
+    default_ :: CellsPropertyStatus
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsProperty
+  deriving (Arbitrary) via (GenericUniform CellsProperty)
+
+instance ToSchema CellsProperty where
+  schema =
+    object "CellsProperty" $
+      CellsProperty
+        <$> (.enabled) .= field "enabled" schema
+        <*> (.default_) .= field "default" schema
+
+data CellsUsers = CellsUsers
+  { externals :: Bool,
+    guests :: Bool
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsUsers
+  deriving (Arbitrary) via (GenericUniform CellsUsers)
+
+instance ToSchema CellsUsers where
+  schema =
+    object "CellsUsers" $
+      CellsUsers
+        <$> (.externals) .= field "externals" schema
+        <*> (.guests) .= field "guests" schema
+
+newtype CellsCollaboraStatus = CellsCollaboraStatus {enabled :: Bool}
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsCollaboraStatus
+  deriving (Arbitrary) via (GenericUniform CellsCollaboraStatus)
+
+instance ToSchema CellsCollaboraStatus where
+  schema =
+    object "CellsCollaboraStatus" $
+      CellsCollaboraStatus
+        <$> (.enabled) .= field "enabled" schema
+
+data CellsPublicLinks = CellsPublicLinks
+  { enableFiles :: Bool,
+    enableFolders :: Bool,
+    enforcePassword :: Bool,
+    enforceExpirationMax :: BigNatString,
+    enforceExpirationDefault :: BigNatString
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsPublicLinks
+  deriving (Arbitrary) via (GenericUniform CellsPublicLinks)
+
+instance ToSchema CellsPublicLinks where
+  schema =
+    object "CellsPublicLinks" $
+      CellsPublicLinks
+        <$> enableFiles .= field "enableFiles" schema
+        <*> enableFolders .= field "enableFolders" schema
+        <*> enforcePassword .= field "enforcePassword" schema
+        <*> enforceExpirationMax .= field "enforceExpirationMax" schema
+        <*> enforceExpirationDefault .= field "enforceExpirationDefault" schema
+
+data CellsRecycle = CellsRecycle
+  { autoPurgeDays :: Int,
+    disable :: Bool,
+    allowSkip :: Bool
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsRecycle
+  deriving (Arbitrary) via (GenericUniform CellsRecycle)
+
+instance ToSchema CellsRecycle where
+  schema =
+    object "CellsRecycle" $
+      CellsRecycle
+        <$> autoPurgeDays .= field "autoPurgeDays" schema
+        <*> disable .= field "disable" schema
+        <*> allowSkip .= field "allowSkip" schema
+
+data CellsConfigStorage = CellsConfigStorage
+  { perFileQuotaBytes :: NumBytes,
+    recycle :: CellsRecycle
+  }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsConfigStorage
+  deriving (Arbitrary) via (GenericUniform CellsConfigStorage)
+
+instance ToSchema CellsConfigStorage where
+  schema =
+    object "CellsConfigStorage" $
+      CellsConfigStorage
+        <$> perFileQuotaBytes .= field "perFileQuotaBytes" schema
+        <*> recycle .= field "recycle" schema
+
+data CellsUserMetaTags = CellsUserMetaTags
+  { defaultValues :: [Text],
+    allowFreeValues :: Bool
+  }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsUserMetaTags
+  deriving (Arbitrary) via (GenericUniform CellsUserMetaTags)
+
+instance ToSchema CellsUserMetaTags where
+  schema =
+    object "CellsUserMetaTags" $
+      CellsUserMetaTags
+        <$> defaultValues .= field "defaultValues" (array schema)
+        <*> allowFreeValues .= field "allowFreeValues" schema
+
+newtype CellsNamespaces = CellsNamespaces {usermetaTags :: CellsUserMetaTags}
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsNamespaces
+  deriving (Arbitrary) via (GenericUniform CellsNamespaces)
+
+instance ToSchema CellsNamespaces where
+  schema =
+    object "CellsNamespaces" $
+      CellsNamespaces
+        <$> usermetaTags .= field "usermetaTags" schema
+
+newtype CellsMetadata = CellsMetadata {namespaces :: CellsNamespaces}
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsMetadata
+  deriving (Arbitrary) via (GenericUniform CellsMetadata)
+
+instance ToSchema CellsMetadata where
+  schema =
+    object "CellsMetadata" $
+      CellsMetadata
+        <$> namespaces .= field "namespaces" schema
+
+data CellsConfigB t f = CellsConfig
+  { channels :: Wear t f CellsProperty,
+    groups :: Wear t f CellsProperty,
+    one2one :: Wear t f CellsProperty,
+    users :: Wear t f CellsUsers,
+    collabora :: Wear t f CellsCollaboraStatus,
+    publicLinks :: Wear t f CellsPublicLinks,
+    storage :: Wear t f CellsConfigStorage,
+    metadata :: Wear t f CellsMetadata
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (CellsConfigB Covered)
+
+deriving instance ApplicativeB (CellsConfigB Covered)
+
+deriving instance TraversableB (CellsConfigB Covered)
+
+type CellsConfig = CellsConfigB Bare Identity
+
+deriving instance Eq CellsConfig
+
+deriving instance Show CellsConfig
+
+deriving via (RenderableTypeName CellsConfig) instance (RenderableSymbol CellsConfig)
+
+deriving via (GenericUniform CellsConfig) instance (Arbitrary CellsConfig)
+
+deriving via (BarbieFeature CellsConfigB) instance (ParseDbFeature CellsConfig)
+
+deriving via (BarbieFeature CellsConfigB) instance (ToSchema CellsConfig)
+
+instance Default CellsConfig where
+  def =
+    CellsConfig
+      { channels = CellsProperty {enabled = True, default_ = Enabled},
+        groups = CellsProperty {enabled = True, default_ = Enabled},
+        one2one = CellsProperty {enabled = True, default_ = Enabled},
+        users = CellsUsers {externals = True, guests = False},
+        collabora = CellsCollaboraStatus {enabled = False},
+        publicLinks =
+          CellsPublicLinks
+            { enableFiles = True,
+              enableFolders = True,
+              enforcePassword = False,
+              enforceExpirationMax = BigNatString 0,
+              enforceExpirationDefault = BigNatString 0
+            },
+        storage =
+          CellsConfigStorage
+            { perFileQuotaBytes = NumBytes $ BigNatString 1000000000, -- 100MB
+              recycle =
+                CellsRecycle
+                  { autoPurgeDays = 30,
+                    disable = False,
+                    allowSkip = False
+                  }
+            },
+        metadata =
+          CellsMetadata
+            { namespaces =
+                CellsNamespaces
+                  { usermetaTags =
+                      CellsUserMetaTags
+                        { defaultValues = [],
+                          allowFreeValues = True
+                        }
+                  }
+            }
+      }
+
+instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
+  schema =
+    object "CellsConfig" $
+      CellsConfig
+        <$> channels .= fieldF "channels" schema
+        <*> groups .= fieldF "groups" schema
+        <*> one2one .= fieldF "one2one" schema
+        <*> users .= fieldF "users" schema
+        <*> (.collabora) .= fieldF "collabora" schema
+        <*> publicLinks .= fieldF "publicLinks" schema
+        <*> (.storage) .= fieldF "storage" schema
+        <*> metadata .= fieldF "metadata" schema
+
+instance ToSchema (Versioned V13 CellsConfig) where
+  schema = object "CellsConfigV13" objectSchema
+
+instance ToObjectSchema (Versioned V13 CellsConfig) where
+  objectSchema = pure $ Versioned def
 
 instance Default (LockableFeature CellsConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema CellsConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig CellsConfig where
   type FeatureSymbol CellsConfig = "cells"
   featureSingleton = FeatureSingletonCellsConfig
-  objectSchema = pure CellsConfig
 
 ----------------------------------------------------------------------
 -- Cells Internal
@@ -1499,32 +1786,24 @@ newtype CellsBackend = CellsBackend
 instance ToSchema CellsBackend where
   schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
 
-newtype NumBytes = NumBytes {unNumBytes :: Int64}
+newtype NumBytes = NumBytes {unNumBytes :: BigNatString}
   deriving newtype (Show, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema NumBytes
 
 instance Arbitrary NumBytes where
-  arbitrary = NumBytes <$> choose (0 :: Int64, maxBound)
+  arbitrary = NumBytes . BigNatString <$> choose (0 :: Integer, 99999999999999999999999999)
 
 instance ToSchema NumBytes where
-  schema = toText .= (NumBytes <$> numBytesSchema)
-    where
-      toText :: NumBytes -> Text
-      toText = T.pack . show . unNumBytes
-
-      numBytesSchema :: ValueSchemaP NamedSwaggerDoc Text Int64
-      numBytesSchema = schema `withParser` parseNumBytes
-        where
-          parseNumBytes :: Text -> A.Parser Int64
-          parseNumBytes txt = do
-            (n, rest) <- either fail pure (TR.decimal txt :: Either String (Integer, Text))
-            unless (T.null rest) $
-              fail "numBytes must be an integer string without decimals"
-            when (n <= 0) $
-              fail "numBytes must be positive"
-            when (n > toInteger (maxBound @Int64)) $
-              fail "numBytes must fit into Int64"
-            pure (fromInteger n)
+  schema =
+    NumBytes
+      <$> unNumBytes
+        .= withParser
+          schema
+          ( \n@(BigNatString i) -> do
+              when (i <= 0) $
+                fail "numBytes must be positive"
+              pure n
+          )
 
 newtype CellsStorage = CellsStorage
   { teamQuotaBytes :: NumBytes
@@ -1571,7 +1850,7 @@ instance Default CellsInternalConfig where
     CellsInternalConfig
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Cool,
-        storage = CellsStorage $ NumBytes 1000000000000 -- 1 TB
+        storage = CellsStorage $ NumBytes $ BigNatString 1000000000000 -- 1 TB
       }
 
 instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
@@ -1579,16 +1858,18 @@ instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
     object "CellsInternalConfig" $
       CellsInternalConfig
         <$> backend .= fieldF "backend" schema
-        <*> collabora .= fieldF "collabora" schema
-        <*> storage .= fieldF "storage" schema
+        <*> (.collabora) .= fieldF "collabora" schema
+        <*> (.storage) .= fieldF "storage" schema
 
 instance Default (LockableFeature CellsInternalConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema CellsInternalConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig CellsInternalConfig where
   type FeatureSymbol CellsInternalConfig = "cellsInternal"
   featureSingleton = FeatureSingletonCellsInternalConfig
-  objectSchema = field "config" schema
 
 --------------------------------------------------------------------------------
 -- Allowed Global Operations feature
@@ -1618,11 +1899,13 @@ instance ToSchema AllowedGlobalOperationsConfig where
 instance Default (LockableFeature AllowedGlobalOperationsConfig) where
   def = defLockedFeature {status = FeatureStatusEnabled}
 
+instance ToObjectSchema AllowedGlobalOperationsConfig where
+  objectSchema = field "config" schema
+
 instance IsFeatureConfig AllowedGlobalOperationsConfig where
   type FeatureSymbol AllowedGlobalOperationsConfig = "allowedGlobalOperations"
 
   featureSingleton = FeatureSingletonAllowedGlobalOperationsConfig
-  objectSchema = field "config" schema
 
 --------------------------------------------------------------------------------
 -- Asset Audit Log feature
@@ -1648,10 +1931,12 @@ instance Default AssetAuditLogConfig where
 instance Default (LockableFeature AssetAuditLogConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema AssetAuditLogConfig where
+  objectSchema = pure AssetAuditLogConfig
+
 instance IsFeatureConfig AssetAuditLogConfig where
   type FeatureSymbol AssetAuditLogConfig = "assetAuditLog"
   featureSingleton = FeatureSingletonAssetAuditLogConfig
-  objectSchema = pure AssetAuditLogConfig
 
 --------------------------------------------------------------------------------
 -- ConsumableNotifications feature
@@ -1669,10 +1954,12 @@ instance ToSchema ConsumableNotificationsConfig where
 instance Default (LockableFeature ConsumableNotificationsConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema ConsumableNotificationsConfig where
+  objectSchema = pure ConsumableNotificationsConfig
+
 instance IsFeatureConfig ConsumableNotificationsConfig where
   type FeatureSymbol ConsumableNotificationsConfig = "consumableNotifications"
   featureSingleton = FeatureSingletonConsumableNotificationsConfig
-  objectSchema = pure ConsumableNotificationsConfig
 
 --------------------------------------------------------------------------------
 -- Chat Bubbles Feature
@@ -1689,11 +1976,12 @@ instance ToSchema ChatBubblesConfig where
 instance Default (LockableFeature ChatBubblesConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema ChatBubblesConfig where
+  objectSchema = pure ChatBubblesConfig
+
 instance IsFeatureConfig ChatBubblesConfig where
   type FeatureSymbol ChatBubblesConfig = "chatBubbles"
   featureSingleton = FeatureSingletonChatBubblesConfig
-
-  objectSchema = pure ChatBubblesConfig
 
 -------------------------------------------------------------------------------
 -- Apps Feature
@@ -1710,11 +1998,12 @@ instance ToSchema AppsConfig where
 instance Default (LockableFeature AppsConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema AppsConfig where
+  objectSchema = pure AppsConfig
+
 instance IsFeatureConfig AppsConfig where
   type FeatureSymbol AppsConfig = "apps"
   featureSingleton = FeatureSingletonAppsConfig
-
-  objectSchema = pure AppsConfig
 
 --------------------------------------------------------------------------------
 -- "Simplified User Connection Request QR Code" Feature
@@ -1734,11 +2023,12 @@ instance ToSchema SimplifiedUserConnectionRequestQRCodeConfig where
 instance Default (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig) where
   def = defUnlockedFeature
 
+instance ToObjectSchema SimplifiedUserConnectionRequestQRCodeConfig where
+  objectSchema = pure SimplifiedUserConnectionRequestQRCodeConfig
+
 instance IsFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig where
   type FeatureSymbol SimplifiedUserConnectionRequestQRCodeConfig = "simplifiedUserConnectionRequestQRCode"
   featureSingleton = FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig
-
-  objectSchema = pure SimplifiedUserConnectionRequestQRCodeConfig
 
 --------------------------------------------------------------------------------
 -- Stealth Users
@@ -1755,11 +2045,12 @@ instance ToSchema StealthUsersConfig where
 instance Default (LockableFeature StealthUsersConfig) where
   def = defLockedFeature
 
+instance ToObjectSchema StealthUsersConfig where
+  objectSchema = pure StealthUsersConfig
+
 instance IsFeatureConfig StealthUsersConfig where
   type FeatureSymbol StealthUsersConfig = "stealthUsers"
   featureSingleton = FeatureSingletonStealthUsersConfig
-
-  objectSchema = pure StealthUsersConfig
 
 ---------------------------------------------------------------------------------
 -- FeatureStatus

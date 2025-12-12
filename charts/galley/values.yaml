@@ -219,6 +219,40 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
+          status: disabled
+          lockStatus: locked
+          config:
+            channels:
+              enabled: true
+              default: enabled
+            groups:
+              enabled: true
+              default: enabled
+            one2one:
+              enabled: true
+              default: enabled
+            users:
+              externals: true
+              guests: false
+            collabora:
+              enabled: false
+            publicLinks:
+              enableFiles: true
+              enableFolders: true
+              enforcePassword: false
+              enforceExpirationMax: "0"
+              enforceExpirationDefault: "0"
+            storage:
+              perFileQuotaBytes: "1000000000"
+              recycle:
+                autoPurgeDays: 30
+                disable: false
+                allowSkip: false
+            metadata:
+              namespaces:
+                usermetaTags:
+                  defaultValues: []
+                  allowFreeValues: true
       cellsInternal:
         defaults:
           status: enabled

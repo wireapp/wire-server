@@ -579,11 +579,43 @@ cells:
   defaults:
     status: disabled
     lockStatus: locked
+    config:
+      channels:
+        enabled: true
+        default: enabled
+      groups:
+        enabled: true
+        default: enabled
+      one2one:
+        enabled: true
+        default: enabled
+      users:
+        externals: true
+        guests: false
+      collabora:
+        enabled: false
+      publicLinks:
+        enableFiles: true
+        enableFolders: true
+        enforcePassword: false
+        enforceExpirationMax: "0"
+        enforceExpirationDefault: "0"
+      storage:
+        perFileQuotaBytes: "1000000000"
+        recycle:
+          autoPurgeDays: 30
+          disable: false
+          allowSkip: false
+      metadata:
+        namespaces:
+          usermetaTags:
+            defaultValues: []
+            allowFreeValues: true
 ```
 
-### Cells Interna
+### Cells Internal
 
-Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string that fits in `Int64` bytes.
+Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string.
 
 ```yaml
 # galley.yaml

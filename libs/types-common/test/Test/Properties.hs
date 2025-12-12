@@ -35,6 +35,7 @@ import Data.ByteString.Lazy as L
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
+import Data.Json.Util
 import Data.Json.Util qualified as Util
 import Data.Nonce (Nonce)
 import Data.ProtocolBuffers.Internal
@@ -217,6 +218,10 @@ tests =
         [ testProperty "decode . encode = id" $
             \(x :: Nonce) -> bsRoundtrip x,
           jsonRoundtrip @Nonce
+        ],
+      testGroup
+        "BigNatString"
+        [ jsonRoundtrip @BigNatString
         ]
     ]
 

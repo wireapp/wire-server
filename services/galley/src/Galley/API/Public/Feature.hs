@@ -67,7 +67,9 @@ featureAPI =
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
     <@> featureAPIGetPut
-    <@> featureAPIGetPut
+    <@> mkNamedAPI @'("get", CellsConfig) getFeature
+    <@> mkNamedAPI @"put-CellsConfig@v13" setFeature
+    <@> mkNamedAPI @'("put", CellsConfig) setFeature
     <@> mkNamedAPI @'("get", AllowedGlobalOperationsConfig) getFeature
     <@> mkNamedAPI @'("get", AssetAuditLogConfig) getFeature
     <@> mkNamedAPI @'("get", ConsumableNotificationsConfig) getFeature

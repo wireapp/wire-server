@@ -69,6 +69,63 @@ defEnabledObj conf =
       "config" .= conf
     ]
 
+defCellsConfig :: Value
+defCellsConfig =
+  object
+    [ "channels"
+        .= object
+          [ "enabled" .= True,
+            "default" .= "enabled"
+          ],
+      "groups"
+        .= object
+          [ "enabled" .= True,
+            "default" .= "enabled"
+          ],
+      "one2one"
+        .= object
+          [ "enabled" .= True,
+            "default" .= "enabled"
+          ],
+      "users"
+        .= object
+          [ "externals" .= True,
+            "guests" .= False
+          ],
+      "collabora"
+        .= object
+          ["enabled" .= False],
+      "publicLinks"
+        .= object
+          [ "enableFiles" .= True,
+            "enableFolders" .= True,
+            "enforcePassword" .= False,
+            "enforceExpirationMax" .= "0",
+            "enforceExpirationDefault" .= "0"
+          ],
+      "storage"
+        .= object
+          [ "perFileQuotaBytes" .= "1000000000",
+            "recycle"
+              .= object
+                [ "autoPurgeDays" .= (30 :: Int),
+                  "disable" .= False,
+                  "allowSkip" .= False
+                ]
+          ],
+      "metadata"
+        .= object
+          [ "namespaces"
+              .= object
+                [ "usermetaTags"
+                    .= object
+                      [ "defaultValues" .= ([] :: [String]),
+                        "allowFreeValues" .= True
+                      ]
+                ]
+          ]
+    ]
+
 defAllFeatures :: Value
 defAllFeatures =
   object
@@ -149,7 +206,13 @@ defAllFeatures =
                   "allowed_to_open_channels" .= "team-members"
                 ]
           ],
-      "cells" .= enabled,
+      "cells"
+        .= object
+          [ "lockStatus" .= "unlocked",
+            "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config" .= defCellsConfig
+          ],
       "assetAuditLog" .= disabledLocked,
       "allowedGlobalOperations"
         .= object

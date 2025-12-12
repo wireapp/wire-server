@@ -173,7 +173,7 @@ sitemap' =
     :<|> Named @"get-route-enforce-file-download-location" (mkFeatureGetRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"put-route-enforce-file-download-location" (mkFeaturePutRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"get-route-cells" (mkFeatureGetRoute @CellsConfig)
-    :<|> Named @"put-route-cells" (mkFeatureStatusPutRoute @CellsConfig)
+    :<|> Named @"put-route-cells" (mkFeaturePutRoute @CellsConfig)
     :<|> Named @"get-route-cells-internal" (mkFeatureGetRoute @CellsInternalConfig)
     :<|> Named @"put-route-cells-internal" (mkFeaturePutRoute @CellsInternalConfig)
     :<|> Named @"get-route-guest-links" (mkFeatureGetRoute @GuestLinksConfig)
