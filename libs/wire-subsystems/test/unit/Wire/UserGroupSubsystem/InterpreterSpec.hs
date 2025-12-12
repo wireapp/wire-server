@@ -30,7 +30,6 @@ import Data.Id
 import Data.Json.Util
 import Data.List.Extra
 import Data.Map qualified as Map
-import Data.Ord (Down)
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
