@@ -57,6 +57,7 @@ import Web.Cookie
 import Wire.API.Locale
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.RichInfo as RichInfo
 
 data BrigAccess m a where
@@ -82,5 +83,6 @@ data BrigAccess m a where
   SetStatus :: UserId -> AccountStatus -> BrigAccess m ()
   GetDefaultUserLocale :: BrigAccess m Locale
   CheckAdminGetTeamId :: UserId -> BrigAccess m TeamId
+  SendSAMLIdPCreatedEmail :: IdP -> BrigAccess m ()
 
 makeSem ''BrigAccess

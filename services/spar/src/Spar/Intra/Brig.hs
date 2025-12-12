@@ -43,6 +43,7 @@ module Spar.Intra.Brig
     setStatus,
     getDefaultUserLocale,
     checkAdminGetTeamId,
+    sendSAMLIdPCreatedEmail,
   )
 where
 
@@ -68,6 +69,7 @@ import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.RichInfo as RichInfo
 import Wire.UserSubsystem (HavePendingInvitations (..))
 
@@ -453,3 +455,9 @@ checkAdminGetTeamId uid = do
   case statusCode resp of
     200 -> parseResponse @TeamId "brig" resp
     _ -> rethrow "brig" resp
+
+sendSAMLIdPCreatedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> m ()
+sendSAMLIdPCreatedEmail idp = do
+  resp <- call $ method POST . path "/i/idp/send-idp-created-email" . json idp
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
