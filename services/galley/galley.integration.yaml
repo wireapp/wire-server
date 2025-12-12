@@ -182,12 +182,12 @@ settings:
             enableFiles: true
             enableFolders: true
             enforcePassword: false
-            enforceExpirationMax: "0"          # seconds
-            enforceExpirationDefault: "0"      # seconds
+            enforceExpirationMax: "0"
+            enforceExpirationDefault: "0"
           storage:
-            perFileQuotaBytes: "1000000000"            # size in bytes as string
+            perFileQuotaBytes: "1000000000"
             recycle:
-              autoPurgeDays: 30                  # days
+              autoPurgeDays: 30
               disable: false
               allowSkip: false
           metadata:
