@@ -54,7 +54,7 @@ import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
-import Wire.UserGroupSubsystem (GroupSearch (..), UserGroupSubsystem (..))
+import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
@@ -250,26 +250,13 @@ getUserGroups ::
     Member (Error UserGroupSubsystemError) r
   ) =>
   UserId ->
-  GroupSearch ->
+  UserGroupPageRequest ->
   Sem r UserGroupPage
-getUserGroups getter search = do
+getUserGroups getter pageReq = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
-  let pageReq =
-        UserGroupPageRequest
-          { pageSize = fromMaybe def search.pageSize,
-            sortOrder = fromMaybe Desc search.sortOrder,
-            paginationState = case fromMaybe def search.sortBy of
-              SortByName -> PaginationSortByName $ (,) <$> search.lastName <*> search.lastId
-              SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> search.lastCreatedAt <*> search.lastId,
-            team = team,
-            searchString = search.query,
-            managedByFilter = Nothing,
-            includeMemberCount = search.includeMemberCount,
-            includeChannels = search.includeChannels
-          }
-  Store.getUserGroups pageReq
+  Store.getUserGroups team pageReq
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
@@ -290,13 +277,12 @@ getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount
           { pageSize = maybe (pageSizeFromIntUnsafe 500) (pageSizeFromIntUnsafe . fromIntegral) mbCount, -- XXX: what should the default be?
             sortOrder = Asc,
             paginationState = maybe (PaginationOffset 0) (PaginationOffset . fromIntegral . (\ix -> ix - 1)) mbStartIndex,
-            team = team,
             searchString = displayNameSubstring,
             managedByFilter = mbManagedBy,
             includeMemberCount = True,
             includeChannels = False
           }
-  Store.getUserGroupsWithMembers pageReq
+  Store.getUserGroupsWithMembers team pageReq
 
 updateGroup ::
   ( Member UserSubsystem r,
@@ -525,14 +511,13 @@ removeUserFromAllGroups uid tid = do
     go [] = pure ()
 
     nextPage mug =
-      fmap (.page) . Store.getUserGroups $
+      fmap (.page) . Store.getUserGroups tid $
         UserGroupPageRequest
           { pageSize = def,
             sortOrder = Desc,
             paginationState =
               PaginationSortByCreatedAt $
                 fmap Store.userGroupCreatedAtPaginationState mug,
-            team = tid,
             searchString = Nothing,
             managedByFilter = Nothing,
             includeMemberCount = False,

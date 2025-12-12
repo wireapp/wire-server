@@ -20,48 +20,20 @@
 
 module Wire.UserGroupSubsystem where
 
-import Data.Default
 import Data.Id
-import Data.Time.Clock
 import Data.Vector (Vector)
 import Imports
 import Polysemy
-import Wire.API.Pagination
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-
-data GroupSearch = GroupSearch
-  { query :: Maybe Text,
-    sortBy :: Maybe SortBy,
-    sortOrder :: Maybe SortOrder,
-    pageSize :: Maybe PageSize,
-    lastName :: Maybe Text,
-    lastCreatedAt :: Maybe UTCTime,
-    lastId :: Maybe UserGroupId,
-    includeMemberCount :: Bool,
-    includeChannels :: Bool
-  }
-
-instance Default GroupSearch where
-  def =
-    GroupSearch
-      { query = Nothing,
-        sortBy = Nothing,
-        sortOrder = Nothing,
-        pageSize = Nothing,
-        lastName = Nothing,
-        lastCreatedAt = Nothing,
-        lastId = Nothing,
-        includeMemberCount = False,
-        includeChannels = False
-      }
+import Wire.UserGroupStore (UserGroupPageRequest)
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup
   GetGroup :: UserId -> UserGroupId -> Bool -> UserGroupSubsystem m (Maybe UserGroup)
-  GetGroups :: UserId -> GroupSearch -> UserGroupSubsystem m UserGroupPage
+  GetGroups :: UserId -> UserGroupPageRequest -> UserGroupSubsystem m UserGroupPage
   UpdateGroup :: UserId -> UserGroupId -> UserGroupUpdate -> UserGroupSubsystem m ()
   DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()
   DeleteGroupManaged :: ManagedBy -> TeamId -> UserGroupId -> UserGroupSubsystem m ()

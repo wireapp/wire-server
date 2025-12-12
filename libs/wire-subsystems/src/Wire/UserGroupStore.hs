@@ -19,6 +19,7 @@
 
 module Wire.UserGroupStore where
 
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Time.Clock
@@ -32,8 +33,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.PaginationState
 
 data UserGroupPageRequest = UserGroupPageRequest
-  { team :: TeamId,
-    searchString :: Maybe Text,
+  { searchString :: Maybe Text,
     managedByFilter :: Maybe ManagedBy,
     paginationState :: PaginationState UserGroupId,
     sortOrder :: SortOrder,
@@ -42,14 +42,26 @@ data UserGroupPageRequest = UserGroupPageRequest
     includeChannels :: Bool
   }
 
+instance Default UserGroupPageRequest where
+  def =
+    UserGroupPageRequest
+      { searchString = Nothing,
+        managedByFilter = Nothing,
+        paginationState = PaginationSortByCreatedAt Nothing, -- sort by createdAt, with no state (obviously)
+        sortOrder = Desc,
+        pageSize = def, -- default is 15
+        includeMemberCount = True,
+        includeChannels = False
+      }
+
 userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTime, UserGroupId)
 userGroupCreatedAtPaginationState ug = (fromUTCTimeMillis ug.createdAt, ug.id_)
 
 data UserGroupStore m a where
   CreateUserGroup :: TeamId -> NewUserGroup -> ManagedBy -> UserGroupStore m UserGroup
   GetUserGroup :: TeamId -> UserGroupId -> Bool -> UserGroupStore m (Maybe UserGroup)
-  GetUserGroups :: UserGroupPageRequest -> UserGroupStore m UserGroupPage
-  GetUserGroupsWithMembers :: UserGroupPageRequest -> UserGroupStore m UserGroupPageWithMembers
+  GetUserGroups :: TeamId -> UserGroupPageRequest -> UserGroupStore m UserGroupPage
+  GetUserGroupsWithMembers :: TeamId -> UserGroupPageRequest -> UserGroupStore m UserGroupPageWithMembers
   GetUserGroupsForConv :: ConvId -> UserGroupStore m (Vector UserGroup)
   UpdateUserGroup :: TeamId -> UserGroupId -> UserGroupUpdate -> UserGroupStore m (Maybe ())
   DeleteUserGroup :: TeamId -> UserGroupId -> UserGroupStore m (Maybe ())

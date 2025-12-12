@@ -62,8 +62,8 @@ userGroupStoreTestInterpreter =
   interpret $ \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
-    GetUserGroups req -> getUserGroupsImpl req
-    GetUserGroupsWithMembers req -> getUserGroupsWithMembersImpl req
+    GetUserGroups tid req -> getUserGroupsImpl tid req
+    GetUserGroupsWithMembers tid req -> getUserGroupsWithMembersImpl tid req
     GetUserGroupsForConv cid -> getUserGroupsForConvImpl cid
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
@@ -124,16 +124,16 @@ filterChannels includeChannels ug =
     then (ug :: UserGroup) {channelsCount = Just $ maybe 0 length ug.channels}
     else (ug :: UserGroup) {channels = mempty}
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
-getUserGroupsImpl req = do
-  UserGroupPage pages count <- getUserGroupsWithMembersImpl req
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupPageRequest -> Sem r UserGroupPage
+getUserGroupsImpl tid req = do
+  UserGroupPage pages count <- getUserGroupsWithMembersImpl tid req
   pure $ UserGroupPage (map removeMembers pages) count
   where
     removeMembers :: UserGroup -> UserGroupMeta
     removeMembers UserGroup_ {..} = UserGroup_ {members = Const (), ..}
 
-getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPageWithMembers
-getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
+getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupPageRequest -> Sem r UserGroupPageWithMembers
+getUserGroupsWithMembersImpl tid UserGroupPageRequest {..} = do
   meta <- ((snd <$>) . sieve . fmap (_2 %~ (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
   where
@@ -154,7 +154,7 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
         . narrowToManagedBy
         . narrowToTeam
 
-    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == team)
+    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == tid)
 
     narrowToManagedBy =
       filter (\(_, ug) -> maybe True (== ug.managedBy) managedByFilter)
@@ -169,7 +169,7 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
           (PaginationSortByName _, Desc) -> (n', i') `compare` (n, i)
           (PaginationSortByCreatedAt _, Asc) -> (c, i) `compare` (c', i')
           (PaginationSortByCreatedAt _, Desc) -> (c', i') `compare` (c, i)
-          (PaginationOffset _, _) -> i' `compare` i
+          (PaginationOffset _, _) -> i' `compare` i -- XXX
           where
             n = ug.name
             n' = ug'.name
