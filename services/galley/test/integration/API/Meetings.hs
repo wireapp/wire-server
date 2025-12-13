@@ -60,6 +60,8 @@ tests s =
       test s "POST /meetings/:domain/:id/invitations/:email/delete - remove invitation" testMeetingRemoveInvitation,
       test s "POST /meetings/:domain/:id/invitations/:email/delete - meeting not found (404)" testMeetingRemoveInvitationNotFound,
       test s "POST /meetings - personal user creates trial meeting" testMeetingCreatePersonalUserTrial,
+      test s "POST /meetings - create meeting with invalid dates" testMeetingCreateInvalidDates,
+      test s "PUT /meetings/:domain/:id - update meeting with invalid dates" testMeetingUpdateInvalidDates,
       test s "POST /meetings - non-paying team creates trial meeting" testMeetingCreateNonPayingTeamTrial,
       test s "POST /meetings - paying team creates non-trial meeting" testMeetingCreatePayingTeamNonTrial,
       test s "POST /meetings - disabled MeetingConfig blocks creation" testMeetingConfigDisabledBlocksCreate,
@@ -823,4 +825,73 @@ testMeetingRecurrence = do
         r.interval @?= Just 1
         r.until @?= Just recurrenceUntil
       Nothing -> assertFailure "Recurrence should not be Nothing"
+
+testMeetingCreateInvalidDates :: TestM ()
+testMeetingCreateInvalidDates = do
+  (owner, _tid) <- createBindingTeam
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTimeInvalid = addUTCTime 3500 now -- endDate is before startDate
+      newMeetingInvalid =
+        object
+          [ "title" .= ("Invalid Date Meeting" :: Text),
+            "start_date" .= startTime,
+            "end_date" .= endTimeInvalid,
+            "invited_emails" .= ([] :: [Text])
+          ]
+
+  galley <- viewGalley
+  post
+    ( galley
+        . paths ["meetings"]
+        . zUser owner
+        . zConn "conn"
+        . json newMeetingInvalid
+    )
+    !!! const 403 === statusCode
+
+testMeetingUpdateInvalidDates :: TestM ()
+testMeetingUpdateInvalidDates = do
+  (owner, _tid) <- createBindingTeam
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting =
+        object
+          [ "title" .= ("Valid Meeting" :: Text),
+            "start_date" .= startTime,
+            "end_date" .= endTime,
+            "invited_emails" .= ([] :: [Text])
+          ]
+
+  galley <- viewGalley
+  r1 <-
+    post
+      ( galley
+          . paths ["meetings"]
+          . zUser owner
+          . zConn "conn"
+          . json newMeeting
+      )
+      <!! const 201 === statusCode
+
+  let meeting = responseJsonUnsafe r1 :: Meeting
+      meetingId = qUnqualified meeting.id
+      domain = qDomain meeting.id
+      updatedStartTime = addUTCTime 1800 now
+      updatedEndTimeInvalid = addUTCTime 1000 now -- endDate is before startDate
+      updatedMeeting =
+        object
+          [ "start_date" .= updatedStartTime,
+            "end_date" .= updatedEndTimeInvalid
+          ]
+
+  put
+    ( galley
+        . paths ["meetings", toByteString' domain, meetingIdToBS meetingId]
+        . zUser owner
+        . zConn "conn"
+        . json updatedMeeting
+    )
+    !!! const 403 === statusCode
 
