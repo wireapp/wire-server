@@ -25,10 +25,9 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Data.Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Id (randomId, toUUID)
+import Data.Id (MeetingId, idToText, randomId)
 import Data.Qualified (qDomain, qUnqualified)
 import Data.Time.Clock
-import Data.UUID qualified as UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit ((@?=))
@@ -39,7 +38,7 @@ import Wire.API.User.Identity (emailAddressText)
 
 -- Helper to convert MeetingId to ByteString for URL paths
 meetingIdToBS :: MeetingId -> ByteString
-meetingIdToBS = toByteString' . UUID.toText . unMeetingId
+meetingIdToBS = toByteString' . idToText
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -178,8 +177,7 @@ testMeetingGet = do
 testMeetingGetNotFound :: TestM ()
 testMeetingGetNotFound = do
   (owner, _tid) <- createBindingTeam
-  uuid <- randomId
-  let fakeMeetingId = MeetingId (toUUID uuid)
+  fakeMeetingId <- randomId
   localDomain <- viewFederationDomain
 
   galley <- viewGalley
@@ -242,8 +240,7 @@ testMeetingUpdate = do
 testMeetingUpdateNotFound :: TestM ()
 testMeetingUpdateNotFound = do
   (owner, _tid) <- createBindingTeam
-  uuid <- randomId
-  let fakeMeetingId = MeetingId (toUUID uuid)
+  fakeMeetingId <- randomId
   localDomain <- viewFederationDomain
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
@@ -358,8 +355,7 @@ testMeetingDelete = do
 testMeetingDeleteNotFound :: TestM ()
 testMeetingDeleteNotFound = do
   (owner, _tid) <- createBindingTeam
-  uuid <- randomId
-  let fakeMeetingId = MeetingId (toUUID uuid)
+  fakeMeetingId <- randomId
   localDomain <- viewFederationDomain
 
   galley <- viewGalley
@@ -463,8 +459,7 @@ testMeetingAddInvitation = do
 testMeetingAddInvitationNotFound :: TestM ()
 testMeetingAddInvitationNotFound = do
   (owner, _tid) <- createBindingTeam
-  uuid <- randomId
-  let fakeMeetingId = MeetingId (toUUID uuid)
+  fakeMeetingId <- randomId
   localDomain <- viewFederationDomain
   let invitation = object ["emails" .= ["bob@example.com" :: Text]]
 
@@ -532,8 +527,7 @@ testMeetingRemoveInvitation = do
 testMeetingRemoveInvitationNotFound :: TestM ()
 testMeetingRemoveInvitationNotFound = do
   (owner, _tid) <- createBindingTeam
-  uuid <- randomId
-  let fakeMeetingId = MeetingId (toUUID uuid)
+  fakeMeetingId <- randomId
   localDomain <- viewFederationDomain
   let removeInvitation = object ["emails" .= ["alice@example.com" :: Text]]
 

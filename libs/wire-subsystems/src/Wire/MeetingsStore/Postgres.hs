@@ -77,7 +77,7 @@ createMeetingImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  Qualified API.MeetingId ->
+  Qualified MeetingId ->
   Qualified UserId ->
   Text ->
   UTCTime ->
@@ -96,7 +96,7 @@ createMeetingImpl qMeetingId qCreator title startDate endDate recurrence qConvId
     session = statement params insertStatement
 
     params =
-      ( UUID.toText (API.unMeetingId (qUnqualified qMeetingId)),
+      ( idToText (qUnqualified qMeetingId),
         _domainText (qDomain qMeetingId),
         title,
         toUUID (qUnqualified qCreator),
@@ -126,7 +126,7 @@ getMeetingImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  Qualified API.MeetingId ->
+  Qualified MeetingId ->
   Sem r (Maybe API.Meeting)
 getMeetingImpl qMeetingId = do
   pool <- input
@@ -134,7 +134,7 @@ getMeetingImpl qMeetingId = do
   either throw pure result
   where
     session :: Session (Maybe API.Meeting)
-    session = statement (_domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) getMeetingStatement
+    session = statement (_domainText (qDomain qMeetingId), idToText (qUnqualified qMeetingId)) getMeetingStatement
 
     getMeetingStatement :: Statement (Text, Text) (Maybe API.Meeting)
     getMeetingStatement =
@@ -215,7 +215,7 @@ updateMeetingImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  Qualified API.MeetingId ->
+  Qualified MeetingId ->
   Maybe Text ->
   Maybe UTCTime ->
   Maybe UTCTime ->
@@ -234,10 +234,10 @@ updateMeetingImpl qMeetingId mTitle mStartDate mEndDate mRecurrence = do
           mEndDate,
           fmap toJSON mRecurrence,
           _domainText (qDomain qMeetingId),
-          UUID.toText (API.unMeetingId (qUnqualified qMeetingId))
+          idToText (qUnqualified qMeetingId)
         )
         updateStatement
-      statement (_domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) getMeetingStatement
+      statement (_domainText (qDomain qMeetingId), idToText (qUnqualified qMeetingId)) getMeetingStatement
 
     updateStatement :: Statement (Maybe Text, Maybe UTCTime, Maybe UTCTime, Maybe Value, Text, Text) ()
     updateStatement =
@@ -269,7 +269,7 @@ deleteMeetingImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  Qualified API.MeetingId ->
+  Qualified MeetingId ->
   Sem r ()
 deleteMeetingImpl qMeetingId = do
   pool <- input
@@ -277,7 +277,7 @@ deleteMeetingImpl qMeetingId = do
   either throw pure result
   where
     session :: Session ()
-    session = statement (_domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) deleteStatement
+    session = statement (_domainText (qDomain qMeetingId), idToText (qUnqualified qMeetingId)) deleteStatement
 
     deleteStatement :: Statement (Text, Text) ()
     deleteStatement =
@@ -291,7 +291,7 @@ addInvitedEmailsImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  Qualified API.MeetingId ->
+  Qualified MeetingId ->
   [EmailAddress] ->
   Sem r ()
 addInvitedEmailsImpl qMeetingId emails = do
@@ -300,7 +300,7 @@ addInvitedEmailsImpl qMeetingId emails = do
   either throw pure result
   where
     session :: Session ()
-    session = statement (V.fromList (fromEmail <$> emails), _domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) addEmailStatement
+    session = statement (V.fromList (fromEmail <$> emails), _domainText (qDomain qMeetingId), idToText (qUnqualified qMeetingId)) addEmailStatement
 
     addEmailStatement :: Statement (V.Vector Text, Text, Text) ()
     addEmailStatement =
@@ -315,7 +315,7 @@ removeInvitedEmailsImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  Qualified API.MeetingId ->
+  Qualified MeetingId ->
   [EmailAddress] ->
   Sem r ()
 removeInvitedEmailsImpl qMeetingId emails = do
@@ -324,7 +324,7 @@ removeInvitedEmailsImpl qMeetingId emails = do
   either throw pure result
   where
     session :: Session ()
-    session = statement (V.fromList (fromEmail <$> emails), _domainText (qDomain qMeetingId), UUID.toText (API.unMeetingId (qUnqualified qMeetingId))) removeEmailStatement
+    session = statement (V.fromList (fromEmail <$> emails), _domainText (qDomain qMeetingId), idToText (qUnqualified qMeetingId)) removeEmailStatement
 
     removeEmailStatement :: Statement (V.Vector Text, Text, Text) ()
     removeEmailStatement =
@@ -371,7 +371,7 @@ deleteMeetingBatchImpl ::
     Member (Embed IO) r,
     Member (Error UsageError) r
   ) =>
-  [Qualified API.MeetingId] ->
+  [Qualified MeetingId] ->
   Sem r Int64
 deleteMeetingBatchImpl meetingIds = do
   pool <- input
@@ -381,9 +381,9 @@ deleteMeetingBatchImpl meetingIds = do
     session :: Session Int64
     session = foldM deleteSingle 0 meetingIds
 
-    deleteSingle :: Int64 -> Qualified API.MeetingId -> Session Int64
+    deleteSingle :: Int64 -> Qualified MeetingId -> Session Int64
     deleteSingle acc qMeetingId = do
-      count <- statement (UUID.toText (API.unMeetingId (qUnqualified qMeetingId)), _domainText (qDomain qMeetingId)) deleteStatement
+      count <- statement (idToText (qUnqualified qMeetingId), _domainText (qDomain qMeetingId)) deleteStatement
       pure (acc + count)
 
     deleteStatement :: Statement (Text, Text) Int64
@@ -397,7 +397,7 @@ deleteMeetingBatchImpl meetingIds = do
 
 rowToMeeting :: (UUID, Text, Text, UUID, Text, UTCTime, UTCTime, Maybe Value, UUID, Text, V.Vector Text, Bool) -> API.Meeting
 rowToMeeting (meetingIdUUID, domainText_, titleText, creatorUUID, creatorDomainText, startDate', endDate', recurrenceJSON, convIdUUID, convDomainText, emailsVec, trial') =
-  let meetingId' = API.MeetingId meetingIdUUID
+  let meetingId' = Id meetingIdUUID
       domain' = Domain domainText_
       qMeetingId = Qualified meetingId' domain'
       creator' = Id creatorUUID

@@ -21,7 +21,6 @@ import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
-import Data.UUID.V4 qualified as UUIDV4
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
@@ -71,7 +70,7 @@ createMeetingImpl ::
   Sem r (Meeting, StoredConversation)
 createMeetingImpl zUser newMeeting trial = do
   -- Generate meeting ID
-  meetingId <- liftIO $ MeetingId <$> UUIDV4.nextRandom
+  meetingId <- randomId
   let qMeetingId = tUntagged (qualifyAs zUser meetingId)
 
   -- Generate new conversation ID

@@ -19,30 +19,16 @@ module Wire.API.Meeting where
 
 import Control.Lens ((?~))
 import Data.Aeson ()
-import Data.Id (ConvId, UserId, uuidSchema)
+import Data.Id (ConvId, MeetingId, UserId)
 import Data.Json.Util (utcTimeSchema)
 import Data.OpenApi qualified as S
-import Data.Qualified (Qualified, qualifiedSchema)
+import Data.Qualified (Qualified)
 import Data.Schema
 import Data.Time.Clock
-import Data.UUID (UUID)
 import Deriving.Aeson
 import Imports
-import Servant (FromHttpApiData, ToHttpApiData)
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
-
--- | Unique identifier for a meeting
-newtype MeetingId = MeetingId {unMeetingId :: UUID}
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, FromHttpApiData, ToHttpApiData, S.ToSchema, S.ToParamSchema)
-  deriving (Arbitrary) via (GenericUniform MeetingId)
-
-instance ToSchema MeetingId where
-  schema = MeetingId <$> unMeetingId .= uuidSchema
-
-instance ToSchema (Qualified MeetingId) where
-  schema = qualifiedSchema "MeetingId" "id" schema
 
 -- | Core Meeting type
 data Meeting = Meeting

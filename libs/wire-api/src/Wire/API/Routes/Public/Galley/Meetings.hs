@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Galley.Meetings where
 
 import Data.Domain (Domain)
+import Data.Id (MeetingId)
 import Servant
 import Wire.API.Error
 import Wire.API.Error.Galley
