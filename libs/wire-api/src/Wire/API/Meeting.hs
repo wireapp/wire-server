@@ -87,7 +87,8 @@ data NewMeeting = NewMeeting
   deriving (Arbitrary) via (GenericUniform NewMeeting)
 
 data Recurrence = Recurrence
-  { freq :: Frequency,
+  { -- | The interval between occurrences, e.g., every 2 weeks for Weekly frequency with interval=2
+    freq :: Frequency,
     interval :: Maybe Int,
     until :: Maybe UTCTime
   }
