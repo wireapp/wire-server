@@ -30,7 +30,7 @@ import Data.Qualified (qDomain, qUnqualified)
 import Data.Time.Clock
 import Imports
 import Test.Tasty
-import Test.Tasty.HUnit ((@?=))
+import Test.Tasty.HUnit ((@?=), assertFailure)
 import TestHelpers
 import TestSetup
 import Wire.API.Meeting
@@ -45,6 +45,7 @@ tests s =
   testGroup
     "Meetings API"
     [ test s "POST /meetings - create meeting" testMeetingCreate,
+      test s "POST /meetings - create meeting with recurrence" testMeetingRecurrence,
       test s "GET /meetings/list - list meetings" testMeetingLists,
       test s "GET /meetings/:domain/:id - get meeting" testMeetingGet,
       test s "GET /meetings/:domain/:id - meeting not found (404)" testMeetingGetNotFound,
@@ -195,12 +196,20 @@ testMeetingUpdate = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
+      recurrenceUntil = addUTCTime (60 * 24 * 3600) now -- 60 days from now
+      initialRecurrence =
+        object
+          [ "frequency" .= ("Daily" :: Text),
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
+          ]
       newMeeting =
         object
           [ "title" .= ("Team Standup" :: Text),
             "start_date" .= startTime,
             "end_date" .= endTime,
-            "invited_emails" .= ([] :: [Text])
+            "invited_emails" .= ([] :: [Text]),
+            "recurrence" .= initialRecurrence
           ]
 
   galley <- viewGalley
@@ -217,11 +226,17 @@ testMeetingUpdate = do
   let meeting = responseJsonUnsafe r1 :: Meeting
       meetingId = qUnqualified meeting.id
       domain = qDomain meeting.id
+      updatedRecurrence =
+        object
+          [ "frequency" .= ("Weekly" :: Text),
+            "interval" .= (2 :: Int)
+          ]
       updatedMeeting =
         object
           [ "title" .= ("Updated Standup" :: Text),
             "start_date" .= startTime,
-            "end_date" .= endTime
+            "end_date" .= endTime,
+            "recurrence" .= updatedRecurrence
           ]
 
   r2 <-
@@ -235,7 +250,15 @@ testMeetingUpdate = do
       <!! const 200 === statusCode
 
   let updated = responseJsonUnsafe r2 :: Meeting
-  liftIO $ updated.title @?= "Updated Standup"
+  liftIO $ do
+    updated.title @?= "Updated Standup"
+    isJust updated.recurrence @?= True
+    case updated.recurrence of
+      Just r -> do
+        r.freq @?= Weekly
+        r.interval @?= Just 2
+        r.until @?= Nothing -- Should be Nothing as it was not provided in the update
+      Nothing -> assertFailure "Recurrence should not be Nothing"
 
 testMeetingUpdateNotFound :: TestM ()
 testMeetingUpdateNotFound = do
@@ -313,12 +336,20 @@ testMeetingDelete = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
+      recurrenceUntil = addUTCTime (30 * 24 * 3600) now
+      recurrence =
+        object
+          [ "frequency" .= ("Daily" :: Text),
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
+          ]
       newMeeting =
         object
           [ "title" .= ("Team Standup" :: Text),
             "start_date" .= startTime,
             "end_date" .= endTime,
-            "invited_emails" .= ([] :: [Text])
+            "invited_emails" .= ([] :: [Text]),
+            "recurrence" .= recurrence
           ]
 
   galley <- viewGalley
@@ -734,3 +765,62 @@ testMeetingConfigDisabledBlocksList = do
         . zConn "conn"
     )
     !!! const 403 === statusCode
+
+testMeetingRecurrence :: TestM ()
+testMeetingRecurrence = do
+  (owner, _tid) <- createBindingTeam
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      recurrenceUntil = addUTCTime (30 * 24 * 3600) now -- 30 days from now
+      recurrence =
+        object
+          [ "frequency" .= ("Daily" :: Text),
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
+          ]
+      newMeeting =
+        object
+          [ "title" .= ("Daily Standup with Recurrence" :: Text),
+            "start_date" .= startTime,
+            "end_date" .= endTime,
+            "recurrence" .= recurrence,
+            "invited_emails" .= (["charlie@example.com"] :: [Text])
+          ]
+
+  galley <- viewGalley
+  r1 <-
+    post
+      ( galley
+          . paths ["meetings"]
+          . zUser owner
+          . zConn "conn"
+          . json newMeeting
+      )
+      <!! const 201 === statusCode
+
+  let meeting = responseJsonUnsafe r1 :: Meeting
+      meetingId = qUnqualified meeting.id
+      domain = qDomain meeting.id
+
+  -- Retrieve the created meeting
+  r2 <-
+    get
+      ( galley
+          . paths ["meetings", toByteString' domain, meetingIdToBS meetingId]
+          . zUser owner
+          . zConn "conn"
+      )
+      <!! const 200 === statusCode
+
+  let fetchedMeeting = responseJsonUnsafe r2 :: Meeting
+  liftIO $ do
+    fetchedMeeting.title @?= "Daily Standup with Recurrence"
+    isJust fetchedMeeting.recurrence @?= True
+    case fetchedMeeting.recurrence of
+      Just r -> do
+        r.freq @?= Daily
+        r.interval @?= Just 1
+        r.until @?= Just recurrenceUntil
+      Nothing -> assertFailure "Recurrence should not be Nothing"
+
