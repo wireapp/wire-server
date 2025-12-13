@@ -290,12 +290,12 @@ config:
           lockStatus: locked
       meeting:
         defaults:
-          status: disabled
-          lockStatus: locked
+          status: enabled
+          lockStatus: unlocked
       meetingPremium:
         defaults:
-          status: disabled
-          lockStatus: locked
+          status: enabled
+          lockStatus: unlocked
   aws:
     region: "eu-west-1"
   proxy: {}

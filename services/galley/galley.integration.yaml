@@ -228,6 +228,14 @@ settings:
       defaults:
         status: disabled
         lockStatus: locked
+    meeting:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    meetingPremium:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
 
 logLevel: Warn
 logNetStrings: false

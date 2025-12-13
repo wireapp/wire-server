@@ -15,17 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.FeatureFlags.PayingTeam where
+module Test.FeatureFlags.Meeting where
 
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchPayingTeam :: (HasCallStack) => App ()
-testPatchPayingTeam = checkPatch OwnDomain "payingTeam" disabled
+testPatchMeeting :: (HasCallStack) => App ()
+testPatchMeeting = checkPatch OwnDomain "meeting" disabled
 
-testPayingTeam :: (HasCallStack) => APIAccess -> App ()
-testPayingTeam access =
-  mkFeatureTests "payingTeam"
+testMeeting :: (HasCallStack) => APIAccess -> App ()
+testMeeting access =
+  mkFeatureTests "meeting"
     & addUpdate disabled
     & addUpdate enabled
     & runFeatureTests OwnDomain access
