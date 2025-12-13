@@ -145,7 +145,7 @@ getMeetingImpl qMeetingId = do
           SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
                  conversation_id :: uuid, conversation_domain :: text,
-                 invited_emails :: text[], trial :: boolean
+                 invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE domain = ($1 :: text) AND id :: text = ($2 :: text)
         |]
@@ -174,7 +174,7 @@ listMeetingsByUserImpl userId = do
           SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
                  conversation_id :: uuid, conversation_domain :: text,
-                 invited_emails :: text[], trial :: boolean
+                 invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE creator = ($1 :: uuid)
           ORDER BY start_date ASC
@@ -204,7 +204,7 @@ listMeetingsByConversationImpl qConvId = do
           SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
                  conversation_id :: uuid, conversation_domain :: text,
-                 invited_emails :: text[], trial :: boolean
+                 invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE conversation_id = ($1 :: uuid) AND conversation_domain = ($2 :: text)
           ORDER BY start_date ASC
@@ -246,7 +246,8 @@ updateMeetingImpl qMeetingId mTitle mStartDate mEndDate mRecurrence = do
         SET title = COALESCE($1 :: text?, title),
             start_date = COALESCE($2 :: timestamptz?, start_date),
             end_date = COALESCE($3 :: timestamptz?, end_date),
-            recurrence = COALESCE($4 :: jsonb?, recurrence)
+            recurrence = COALESCE($4 :: jsonb?, recurrence),
+            updated_at = NOW()
         WHERE domain = ($5 :: text) AND id :: text = ($6 :: text)
       |]
 
@@ -259,7 +260,7 @@ updateMeetingImpl qMeetingId mTitle mStartDate mEndDate mRecurrence = do
           SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
                  conversation_id :: uuid, conversation_domain :: text,
-                 invited_emails :: text[], trial :: boolean
+                 invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE domain = ($1 :: text) AND id :: text = ($2 :: text)
         |]
@@ -306,7 +307,8 @@ addInvitedEmailsImpl qMeetingId emails = do
     addEmailStatement =
       [resultlessStatement|
         UPDATE meetings
-        SET invited_emails = array_cat(invited_emails, $1 :: text[])
+        SET invited_emails = array_cat(invited_emails, $1 :: text[]),
+            updated_at = NOW()
         WHERE domain = ($2 :: text) AND id :: text = ($3 :: text)
       |]
 
@@ -330,7 +332,8 @@ removeInvitedEmailsImpl qMeetingId emails = do
     removeEmailStatement =
       [resultlessStatement|
         UPDATE meetings M
-        SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[])))
+        SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[]))),
+            updated_at = NOW()
         WHERE domain = ($2 :: text) AND id :: text = ($3 :: text)
       |]
 
@@ -359,7 +362,7 @@ getOldMeetingsImpl cutoffTime batchSize = do
           SELECT id :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
                  conversation_id :: uuid, conversation_domain :: text,
-                 invited_emails :: text[], trial :: bool
+                 invited_emails :: text[], trial :: bool, updated_at :: timestamptz
           FROM meetings
           WHERE end_date < ($1 :: timestamptz)
           ORDER BY end_date ASC
@@ -395,8 +398,8 @@ deleteMeetingBatchImpl meetingIds = do
 
 -- Helper functions
 
-rowToMeeting :: (UUID, Text, Text, UUID, Text, UTCTime, UTCTime, Maybe Value, UUID, Text, V.Vector Text, Bool) -> API.Meeting
-rowToMeeting (meetingIdUUID, domainText_, titleText, creatorUUID, creatorDomainText, startDate', endDate', recurrenceJSON, convIdUUID, convDomainText, emailsVec, trial') =
+rowToMeeting :: (UUID, Text, Text, UUID, Text, UTCTime, UTCTime, Maybe Value, UUID, Text, V.Vector Text, Bool, UTCTime) -> API.Meeting
+rowToMeeting (meetingIdUUID, domainText_, titleText, creatorUUID, creatorDomainText, startDate', endDate', recurrenceJSON, convIdUUID, convDomainText, emailsVec, trial', updatedAt') =
   let meetingId' = Id meetingIdUUID
       domain' = Domain domainText_
       qMeetingId = Qualified meetingId' domain'
@@ -420,5 +423,6 @@ rowToMeeting (meetingIdUUID, domainText_, titleText, creatorUUID, creatorDomainT
           API.recurrence = recurrence',
           API.conversationId = qConvId,
           API.invitedEmails = emails',
-          API.trial = trial'
+          API.trial = trial',
+          API.updatedAt = updatedAt'
         }

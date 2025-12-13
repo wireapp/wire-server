@@ -20,7 +20,7 @@ module Wire.MeetingsSubsystem.Interpreter where
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
@@ -119,6 +119,7 @@ createMeetingImpl zUser newMeeting trial = do
     newMeeting.invitedEmails
     trial
 
+  now <- liftIO getCurrentTime
   -- Return created meeting
   pure
     ( Meeting
@@ -130,7 +131,8 @@ createMeetingImpl zUser newMeeting trial = do
           recurrence = newMeeting.recurrence,
           conversationId = qConvId,
           invitedEmails = newMeeting.invitedEmails,
-          trial = trial
+          trial = trial,
+          updatedAt = now
         },
       storedConv
     )

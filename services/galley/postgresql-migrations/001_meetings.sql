@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS meetings (
 
     -- Timestamps
     created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
 
     -- Primary key
     PRIMARY KEY (domain, id)
@@ -100,3 +101,4 @@ COMMENT ON COLUMN meetings.conversation_domain IS 'Domain of the associated conv
 COMMENT ON COLUMN meetings.invited_emails IS 'Array of email addresses invited to the meeting';
 COMMENT ON COLUMN meetings.trial IS 'Whether this meeting is created under a trial account';
 COMMENT ON COLUMN meetings.created_at IS 'Timestamp when the meeting was created';
+COMMENT ON COLUMN meetings.updated_at IS 'Timestamp when the meeting was last updated';

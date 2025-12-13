@@ -40,7 +40,8 @@ data Meeting = Meeting
     recurrence :: Maybe Recurrence,
     conversationId :: Qualified ConvId,
     invitedEmails :: [EmailAddress],
-    trial :: Bool
+    trial :: Bool,
+    updatedAt :: UTCTime
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
@@ -59,6 +60,7 @@ instance ToSchema Meeting where
         <*> (.conversationId) .= field "qualified_conversation" schema
         <*> (.invitedEmails) .= field "invited_emails" (array schema)
         <*> (.trial) .= field "trial" schema
+        <*> (.updatedAt) .= field "updated_at" utcTimeSchema
 
 -- | Request to create a new meeting
 data NewMeeting = NewMeeting
