@@ -45,7 +45,7 @@ tests s =
   testGroup
     "Meetings API"
     [ test s "POST /meetings - create meeting" testMeetingCreate,
-      test s "GET /meetings - list meetings" testMeetingLists,
+      test s "GET /meetings/list - list meetings" testMeetingLists,
       test s "GET /meetings/:domain/:id - get meeting" testMeetingGet,
       test s "GET /meetings/:domain/:id - meeting not found (404)" testMeetingGetNotFound,
       test s "PUT /meetings/:domain/:id - update meeting" testMeetingUpdate,
