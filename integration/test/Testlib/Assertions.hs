@@ -224,6 +224,16 @@ shouldNotMatchInt ::
   App ()
 shouldNotMatchInt = shouldNotMatch
 
+-- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
+shouldMatchText ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  Text.Text ->
+  App ()
+shouldMatchText = shouldMatch
+
 shouldMatchRange ::
   (MakesValue a, HasCallStack) =>
   -- | The actual value

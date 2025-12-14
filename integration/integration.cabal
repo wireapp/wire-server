@@ -173,6 +173,7 @@ library
     Test.Federator
     Test.LegalHold
     Test.Login
+    Test.Meetings
     Test.MessageTimer
     Test.MLS
     Test.MLS.Clients
