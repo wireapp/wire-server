@@ -54,6 +54,7 @@ import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Data.Text.Encoding qualified as TE
+import Data.Typeable (typeRep)
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
@@ -110,9 +111,9 @@ instance Traversable SearchResult where
     newResults <- traverse f (searchResults r)
     pure $ r {searchResults = newResults}
 
-instance (ToSchema a) => ToSchema (SearchResult a) where
+instance (ToSchema a, Typeable a) => ToSchema (SearchResult a) where
   schema =
-    object "SearchResult" $
+    object ("SearchResult " <> T.pack (show $ typeRep $ Proxy @a)) $
       SearchResult
         <$> searchFound .= fieldWithDocModifier "found" (S.description ?~ "Total number of hits") schema
         <*> searchReturned .= fieldWithDocModifier "returned" (S.description ?~ "Total number of hits returned") schema
