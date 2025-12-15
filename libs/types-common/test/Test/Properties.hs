@@ -220,8 +220,8 @@ tests =
           jsonRoundtrip @Nonce
         ],
       testGroup
-        "BigNatString"
-        [ jsonRoundtrip @BigNatString
+        "BigIntString"
+        [ jsonRoundtrip @BigIntString
         ]
     ]
 

@@ -1696,7 +1696,7 @@ instance Default CellsConfig where
             },
         storage =
           CellsConfigStorage
-            { perFileQuotaBytes = NumBytes $ BigNatString 100000000, -- 100MB
+            { perFileQuotaBytes = NumBytes $ BigIntString 100000000, -- 100MB
               recycle =
                 CellsRecycle
                   { autoPurgeDays = 30,
@@ -1786,12 +1786,12 @@ newtype CellsBackend = CellsBackend
 instance ToSchema CellsBackend where
   schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
 
-newtype NumBytes = NumBytes {unNumBytes :: BigNatString}
+newtype NumBytes = NumBytes {unNumBytes :: BigIntString}
   deriving newtype (Show, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema NumBytes
 
 instance Arbitrary NumBytes where
-  arbitrary = NumBytes . BigNatString <$> choose (0 :: Integer, 99999999999999999999999999)
+  arbitrary = NumBytes . BigIntString <$> choose (0 :: Integer, 99999999999999999999999999)
 
 instance ToSchema NumBytes where
   schema =
@@ -1799,9 +1799,9 @@ instance ToSchema NumBytes where
       <$> unNumBytes
         .= withParser
           schema
-          ( \n@(BigNatString i) -> do
-              when (i <= 0) $
-                fail "numBytes must be positive"
+          ( \n@(BigIntString i) -> do
+              when (i < 0) $
+                fail "numBytes must be non-negative"
               pure n
           )
 
@@ -1850,7 +1850,7 @@ instance Default CellsInternalConfig where
     CellsInternalConfig
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Cool,
-        storage = CellsStorage $ NumBytes $ BigNatString 1000000000000 -- 1 TB
+        storage = CellsStorage $ NumBytes $ BigIntString 1000000000000 -- 1 TB
       }
 
 instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where

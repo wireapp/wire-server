@@ -33,7 +33,7 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Handle
 import Data.Id
-import Data.Json.Util (BigNatString (..))
+import Data.Json.Util (BigIntString (..))
 import Data.Misc (HttpsUrl)
 import Data.Range (unsafeRange)
 import Data.Schema
@@ -362,7 +362,7 @@ testCellsConfigRoutes = do
                       },
                   storage =
                     CellsConfigStorage
-                      { perFileQuotaBytes = NumBytes (BigNatString 2000000000),
+                      { perFileQuotaBytes = NumBytes (BigIntString 2000000000),
                         recycle =
                           CellsRecycle
                             { autoPurgeDays = 14,
@@ -400,7 +400,7 @@ testCellsInternalConfig = do
               cfg.config
                 { backend = CellsBackend newBackend,
                   collabora = CellsCollabora Cool,
-                  storage = CellsStorage (NumBytes (BigNatString 2000000000000))
+                  storage = CellsStorage (NumBytes (BigIntString 2000000000000))
                 }
           } ::
           LockableFeature CellsInternalConfig

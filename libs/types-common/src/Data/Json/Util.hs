@@ -48,7 +48,7 @@ module Data.Json.Util
     toBase64Text,
 
     -- * Other
-    BigNatString (..),
+    BigIntString (..),
   )
 where
 
@@ -96,7 +96,7 @@ infixr 5 #
 {-# INLINE (#) #-}
 
 -----------------------------------------------------------------------------
--- BigNatString
+-- BigIntString
 
 -- | A wrapper type for arbitrary-precision /signed/ integer values that must
 --   be serialized and deserialized as decimal strings in JSON and OpenAPI
@@ -123,15 +123,15 @@ infixr 5 #
 --   large counts of seconds, bytes, IDs, or any other quantity that must
 --   remain precise end-to-end across systems with differing numeric
 --   capabilities.
-newtype BigNatString = BigNatString {unBigNatString :: Integer}
+newtype BigIntString = BigIntString {unBigIntString :: Integer}
   deriving (Show, Eq, Ord, Generic, Arbitrary)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BigNatString
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema BigIntString
 
-instance ToSchema BigNatString where
-  schema = toText .= (BigNatString <$> bigNatStringSchema)
+instance ToSchema BigIntString where
+  schema = toText .= (BigIntString <$> bigNatStringSchema)
     where
-      toText :: BigNatString -> Text
-      toText = T.pack . show . unBigNatString
+      toText :: BigIntString -> Text
+      toText = T.pack . show . unBigIntString
 
       bigNatStringSchema :: ValueSchemaP NamedSwaggerDoc Text Integer
       bigNatStringSchema = schema `withParser` p
