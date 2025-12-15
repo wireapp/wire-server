@@ -55,6 +55,23 @@ putTeamFeature user tid featureName payload = do
   req <- baseRequest user Galley Unversioned (joinHttpPath ["i", "teams", tid, "features", featureName])
   submit "PUT" $ req & addJSON payload
 
+-- Helper to create a default new meeting JSON object
+defaultMeetingJson :: Text -> UTCTime -> UTCTime -> [Text] -> Aeson.Value
+defaultMeetingJson title startTime endTime invitedEmails =
+  Aeson.object
+    [ "title" Aeson..= title,
+      "start_date" Aeson..= startTime,
+      "end_date" Aeson..= endTime,
+      "invited_emails" Aeson..= invitedEmails
+    ]
+
+-- Helper to extract meetingId and domain from a meeting JSON object
+getMeetingIdAndDomain :: (HasCallStack) => Aeson.Value -> App (String, String)
+getMeetingIdAndDomain meeting = do
+  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
+  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  return (meetingId, domain)
+
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -62,13 +79,7 @@ testMeetingCreate = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= (["alice@example.com" :: Text, "bob@example.com"])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
   resp <- postMeetings owner newMeeting
   resp.status `shouldMatchInt` 201
@@ -84,13 +95,7 @@ testMeetingLists = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   postMeetings owner newMeeting `shouldMatchStatus` 201
 
@@ -106,20 +111,13 @@ testMeetingGet = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
 
   r2 <- getMeeting owner domain meetingId
   r2.status `shouldMatchInt` 200
@@ -160,8 +158,7 @@ testMeetingUpdate = do
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
   let updatedRecurrence =
         Aeson.object
           [ "frequency" Aeson..= ("weekly" :: Text),
@@ -207,20 +204,13 @@ testMeetingUpdateUnauthorized = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
   let update =
         Aeson.object
           [ "title" Aeson..= ("Hijacked" :: Text),
@@ -256,8 +246,7 @@ testMeetingDelete = do
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
 
   deleteMeeting owner domain meetingId `shouldMatchStatus` 200
 
@@ -277,20 +266,13 @@ testMeetingDeleteUnauthorized = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
 
   deleteMeeting otherUser domain meetingId `shouldMatchStatus` 404
 
@@ -300,20 +282,13 @@ testMeetingAddInvitation = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= (["alice@example.com"] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
   let invitation = Aeson.object ["emails" Aeson..= ["bob@example.com" :: Text]]
 
   postMeetingInvitation owner domain meetingId invitation `shouldMatchStatus` 200
@@ -338,20 +313,13 @@ testMeetingRemoveInvitation = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= (["alice@example.com", "bob@example.com"] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
   let removeInvitation = Aeson.object ["emails" Aeson..= ["alice@example.com" :: Text]]
 
   deleteMeetingInvitation owner domain meetingId removeInvitation `shouldMatchStatus` 200
@@ -377,13 +345,7 @@ testMeetingCreatePersonalUserTrial = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Personal Meeting" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Personal Meeting" startTime endTime []
 
   r <- postMeetings personalUser newMeeting
   r.status `shouldMatchInt` 201
@@ -402,13 +364,7 @@ testMeetingCreateNonPayingTeamTrial = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Non-Paying Team Meeting" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Non-Paying Team Meeting" startTime endTime []
 
   r <- postMeetings owner newMeeting
   r.status `shouldMatchInt` 201
@@ -421,19 +377,13 @@ testMeetingCreatePayingTeamNonTrial :: (HasCallStack) => App ()
 testMeetingCreatePayingTeamNonTrial = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
-  let teamId = tid
-  putTeamFeature owner teamId "meetingPremium" (Aeson.object ["status" Aeson..= ("enabled" :: Text)]) `shouldMatchStatus` 200
+  let firstMeeting = Aeson.object ["status" Aeson..= ("enabled" :: Text)]
+  putTeamFeature owner tid "meetingPremium" firstMeeting `shouldMatchStatus` 200
 
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Paying Team Meeting" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Paying Team Meeting" startTime endTime []
 
   r <- postMeetings owner newMeeting
   r.status `shouldMatchInt` 201
@@ -447,19 +397,14 @@ testMeetingConfigDisabledBlocksCreate = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
   -- Disable the MeetingConfig feature
-  let teamId = tid
-  putTeamFeature owner teamId "meeting" (Aeson.object ["status" Aeson..= ("disabled" :: Text), "lockStatus" Aeson..= ("unlocked" :: Text)]) `shouldMatchStatus` 200
+  let firstMeeting = Aeson.object ["status" Aeson..= ("disabled" :: Text), "lockStatus" Aeson..= ("unlocked" :: Text)]
+  putTeamFeature owner tid "meeting" firstMeeting `shouldMatchStatus` 200
 
   -- Try to create a meeting - should fail
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   postMeetings owner newMeeting `shouldMatchStatus` 403
 
@@ -472,18 +417,13 @@ testMeetingConfigDisabledBlocksList = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Team Standup" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime
-          ]
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   postMeetings owner newMeeting `shouldMatchStatus` 201
 
   -- Disable the MeetingConfig feature
-  let teamId = tid
-  putTeamFeature owner teamId "meeting" (Aeson.object ["status" Aeson..= ("disabled" :: Text), "lockStatus" Aeson..= ("unlocked" :: Text)]) `shouldMatchStatus` 200
+  let updatedMeeting = Aeson.object ["status" Aeson..= ("disabled" :: Text), "lockStatus" Aeson..= ("unlocked" :: Text)]
+  putTeamFeature owner tid "meeting" updatedMeeting `shouldMatchStatus` 200
 
   -- Try to list meetings - should fail
   getMeetingsList owner `shouldMatchStatus` 403
@@ -507,15 +447,14 @@ testMeetingRecurrence = do
             "start_date" Aeson..= startTime,
             "end_date" Aeson..= endTime,
             "recurrence" Aeson..= recurrence,
-            "invited_emails" Aeson..= (["charlie@example.com"] :: [Text])
+            "invited_emails" Aeson..= ["charlie@example.com" :: Text]
           ]
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
 
   r2 <- getMeeting owner domain meetingId
   r2.status `shouldMatchInt` 200
@@ -533,13 +472,7 @@ testMeetingCreateInvalidDates = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTimeInvalid = addUTCTime 3500 now -- endDate is before startDate
-      newMeetingInvalid =
-        Aeson.object
-          [ "title" Aeson..= ("Invalid Date" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTimeInvalid,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeetingInvalid = defaultMeetingJson "Invalid Date" startTime endTimeInvalid []
 
   postMeetings owner newMeetingInvalid `shouldMatchStatus` 403
 
@@ -549,20 +482,13 @@ testMeetingUpdateInvalidDates = do
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting =
-        Aeson.object
-          [ "title" Aeson..= ("Valid Meeting" :: Text),
-            "start_date" Aeson..= startTime,
-            "end_date" Aeson..= endTime,
-            "invited_emails" Aeson..= ([] :: [Text])
-          ]
+      newMeeting = defaultMeetingJson "Valid Meeting" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
   r1.status `shouldMatchInt` 201
 
   meeting <- assertOne r1.jsonBody
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
   let updatedStartTime = addUTCTime 1800 now
       updatedEndTimeInvalid = addUTCTime 1000 now -- endDate is before startDate
       updatedMeeting =
