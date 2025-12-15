@@ -503,7 +503,7 @@ in
       pkgs.kind
       pkgs.netcat
       pkgs.niv
-      pkgs.haskellPackages.apply-refact
+      haskellPackages.apply-refact
       (pkgs.python3.withPackages
         (ps: with ps; [
           black
