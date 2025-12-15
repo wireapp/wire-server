@@ -140,7 +140,7 @@ instance ToSchema BigIntString where
           p txt = do
             (n, rest) <- either fail pure (TR.signed TR.decimal txt :: Either String (Integer, Text))
             unless (T.null rest) $
-              fail "numBytes must be an integer string without decimals"
+              fail "value must be an integer string without decimals"
             pure n
 
 -----------------------------------------------------------------------------

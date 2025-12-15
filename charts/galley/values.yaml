@@ -219,8 +219,6 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
-          status: disabled
-          lockStatus: locked
           config:
             channels:
               enabled: true
