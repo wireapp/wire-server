@@ -18,7 +18,9 @@
 module Wire.MeetingsSubsystem.Interpreter where
 
 import Data.Id
+import Data.Map qualified as Map
 import Data.Qualified
+import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
@@ -32,6 +34,7 @@ import Wire.API.User.Identity (EmailAddress)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
+import Wire.Sem.Paging.Cassandra (ResultSet (..), ResultSetType (..))
 import Wire.StoredConversation
 import Wire.UserList
 
@@ -173,21 +176,66 @@ listMeetingsImpl zUser = do
   -- List all meetings created by the user
   createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser)
 
-  -- Filter meetings to include only those where user is authorized
-  -- (creator or conversation member)
-  filterM (isAuthorized zUser) createdMeetings
+  -- Loop over local conversations accessible by the user, then filter to only keep meetings.
+  memberMeetings <- getAllMemberMeetings zUser
+
+  -- Combine and deduplicate
+  let allMeetings = createdMeetings <> memberMeetings
+      uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
+
+  pure uniqueMeetings
+
+getAllMemberMeetings ::
+  ( Member Store.MeetingsStore r,
+    Member ConvStore.ConversationStore r
+  ) =>
+  Local UserId ->
+  Sem r [Meeting]
+getAllMemberMeetings zUser = do
+  -- We process conversations in pages
+  processPage Nothing
   where
-    isAuthorized :: (Member ConvStore.ConversationStore r) => Local UserId -> Meeting -> Sem r Bool
-    isAuthorized lUser meeting = do
-      -- User is authorized if they are the creator
-      let isCreator = meeting.creator == tUntagged lUser
-      if isCreator
-        then pure True
+    processPage ::
+      ( Member Store.MeetingsStore r,
+        Member ConvStore.ConversationStore r
+      ) =>
+      Maybe (Qualified ConvId) ->
+      Sem r [Meeting]
+    processPage lastId = do
+      let range = unsafeRange 1000 :: Range 1 1000 Int32
+      resultSet <- ConvStore.getConversationIdsResultSet zUser range lastId
+
+      let qConvIds = resultSet.resultSetResult
+          uConvIds = map qUnqualified qConvIds
+
+      if null uConvIds
+        then pure []
         else do
-          -- Or if they are a member of the associated conversation
-          let convId = qUnqualified meeting.conversationId
-          maybeMember <- ConvStore.getLocalMember convId (tUnqualified lUser)
-          pure $ isJust maybeMember
+          convs <- ConvStore.getConversations uConvIds
+
+          let meetingConvs = filter isMeetingConv convs
+              meetingConvIds = Set.fromList $ map (.id_) meetingConvs
+
+          -- Identify which Qualified ConvIds correspond to meeting conversations
+          -- We use the original Qualified IDs to query the meeting store
+          let targetQConvIds = filter (\qId -> qUnqualified qId `Set.member` meetingConvIds) qConvIds
+
+          -- Fetch meetings for these conversations
+          pageMeetings <- forM targetQConvIds $ \qConvId -> do
+            Store.listMeetingsByConversation qConvId
+
+          let currentMeetings = concat pageMeetings
+
+          -- Check if there are more pages
+          case resultSet.resultSetType of
+            ResultSetTruncated -> do
+              -- Recurse with last ID
+              rest <- processPage (Just (last qConvIds))
+              pure (currentMeetings <> rest)
+            ResultSetComplete -> pure currentMeetings
+
+    isMeetingConv :: StoredConversation -> Bool
+    isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
 
 updateMeetingImpl ::
   (Member Store.MeetingsStore r) =>
