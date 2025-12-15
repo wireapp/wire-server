@@ -58,15 +58,19 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
   SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
-  SendSAMLIdPCreated email idp -> sendSAMLIdPCreatedImpl email idp
-  SendSAMLIdPUpdated -> sendSAMLIdPUpdatedImpl
+  SendSAMLIdPCreated idp email -> sendSAMLIdPCreatedImpl idp email
+  SendSAMLIdPDeleted idp email -> sendSAMLIdPDeletedImpl idp email
+  SendSAMLIdPUpdated old new email -> sendSAMLIdPUpdatedImpl old new email
 
 -- TODO: Move these functions down in this file.
-sendSAMLIdPUpdatedImpl :: Sem r ()
+sendSAMLIdPUpdatedImpl :: IdP -> IdP -> EmailAddress -> Sem r ()
 sendSAMLIdPUpdatedImpl = todo
 
-sendSAMLIdPCreatedImpl :: EmailAddress -> IdP -> Sem r ()
+sendSAMLIdPCreatedImpl :: IdP -> EmailAddress -> Sem r ()
 sendSAMLIdPCreatedImpl = todo
+
+sendSAMLIdPDeletedImpl :: IdP -> EmailAddress -> Sem r ()
+sendSAMLIdPDeletedImpl = todo
 
 -------------------------------------------------------------------------------
 -- Verification Email for

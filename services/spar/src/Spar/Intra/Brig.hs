@@ -44,6 +44,8 @@ module Spar.Intra.Brig
     getDefaultUserLocale,
     checkAdminGetTeamId,
     sendSAMLIdPCreatedEmail,
+    sendSAMLIdPDeletedEmail,
+    sendSAMLIdPUpdatedEmail,
   )
 where
 
@@ -459,5 +461,17 @@ checkAdminGetTeamId uid = do
 sendSAMLIdPCreatedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> m ()
 sendSAMLIdPCreatedEmail idp = do
   resp <- call $ method POST . path "/i/idp/send-idp-created-email" . json idp
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
+
+sendSAMLIdPDeletedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> m ()
+sendSAMLIdPDeletedEmail idp = do
+  resp <- call $ method POST . path "/i/idp/send-idp-deleted-email" . json idp
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
+
+sendSAMLIdPUpdatedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> IdP -> m ()
+sendSAMLIdPUpdatedEmail old new = do
+  resp <- call $ method POST . path "/i/idp/send-idp-updated-email" . json (old, new)
   unless (statusCode resp == 200) $
     rethrow "brig" resp

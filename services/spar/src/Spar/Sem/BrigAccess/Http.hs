@@ -66,3 +66,5 @@ brigAccessToHttp mgr req =
       GetDefaultUserLocale -> Intra.getDefaultUserLocale
       CheckAdminGetTeamId itlu -> Intra.checkAdminGetTeamId itlu
       SendSAMLIdPCreatedEmail idp -> Intra.sendSAMLIdPCreatedEmail idp
+      SendSAMLIdPDeletedEmail idp -> Intra.sendSAMLIdPDeletedEmail idp
+      SendSAMLIdPUpdatedEmail old new -> Intra.sendSAMLIdPUpdatedEmail old new

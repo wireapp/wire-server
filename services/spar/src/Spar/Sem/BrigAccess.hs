@@ -42,6 +42,8 @@ module Spar.Sem.BrigAccess
     getDefaultUserLocale,
     checkAdminGetTeamId,
     sendSAMLIdPCreatedEmail,
+    sendSAMLIdPDeletedEmail,
+    sendSAMLIdPUpdatedEmail,
   )
 where
 
@@ -85,5 +87,7 @@ data BrigAccess m a where
   GetDefaultUserLocale :: BrigAccess m Locale
   CheckAdminGetTeamId :: UserId -> BrigAccess m TeamId
   SendSAMLIdPCreatedEmail :: IdP -> BrigAccess m ()
+  SendSAMLIdPDeletedEmail :: IdP -> BrigAccess m ()
+  SendSAMLIdPUpdatedEmail :: IdP -> IdP -> BrigAccess m ()
 
 makeSem ''BrigAccess

@@ -702,14 +702,29 @@ type API =
        )
 
 type SAMLIdPAPI =
-  Named
-    "send-idp-created-email"
-    ( Summary "Send an email about the new IdP to all team admins and owners"
-        :> "idp"
-        :> "send-idp-created-email"
-        :> ReqBody '[Servant.JSON] IdP
-        :> Post '[Servant.JSON] ()
-    )
+  "idp"
+    :> ( Named
+           "send-idp-created-email"
+           ( Summary "Send an email about the new IdP to all team admins and owners"
+               :> "send-idp-created-email"
+               :> ReqBody '[Servant.JSON] IdP
+               :> Post '[Servant.JSON] ()
+           )
+           :<|> Named
+                  "send-idp-deleted-email"
+                  ( Summary "Send an email about the deleted IdP to all team admins and owners"
+                      :> "send-idp-deleted-email"
+                      :> ReqBody '[Servant.JSON] IdP
+                      :> Post '[Servant.JSON] ()
+                  )
+           :<|> Named
+                  "send-idp-updated-email"
+                  ( Summary "Send an email about the IdP update to all team admins and owners"
+                      :> "send-idp-updated-email"
+                      :> ReqBody '[Servant.JSON] (IdP, IdP)
+                      :> Post '[Servant.JSON] ()
+                  )
+       )
 
 type IStatusAPI =
   Named
