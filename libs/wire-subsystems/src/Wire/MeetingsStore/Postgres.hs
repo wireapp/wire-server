@@ -382,18 +382,13 @@ deleteMeetingBatchImpl meetingIds = do
   either throw pure result
   where
     session :: Session Int64
-    session = foldM deleteSingle 0 meetingIds
+    session = statement (V.fromList (toUUID . qUnqualified <$> meetingIds), V.fromList (_domainText . qDomain <$> meetingIds)) deleteStatement
 
-    deleteSingle :: Int64 -> Qualified MeetingId -> Session Int64
-    deleteSingle acc qMeetingId = do
-      count <- statement (idToText (qUnqualified qMeetingId), _domainText (qDomain qMeetingId)) deleteStatement
-      pure (acc + count)
-
-    deleteStatement :: Statement (Text, Text) Int64
+    deleteStatement :: Statement (V.Vector UUID, V.Vector Text) Int64
     deleteStatement =
       [rowsAffectedStatement|
         DELETE FROM meetings
-        WHERE id :: text = ($1 :: text) AND domain = ($2 :: text)
+        WHERE (id, domain) IN (SELECT * FROM unnest($1::uuid[], $2::text[]))
       |]
 
 -- Helper functions
