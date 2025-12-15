@@ -276,7 +276,7 @@ getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount
         UserGroupPageRequest
           { pageSize = maybe def pageSizeFromIntUnsafe mbCount,
             sortOrder = Asc,
-            paginationState = maybe (PaginationOffset 0) (PaginationOffset . fromIntegral . (\ix -> ix - 1)) mbStartIndex,
+            paginationState = maybe (PaginationOffset 0) (PaginationOffset . (\ix -> max 0 (ix - 1))) mbStartIndex,
             searchString = displayNameSubstring,
             managedByFilter = mbManagedBy,
             includeMemberCount = True,
