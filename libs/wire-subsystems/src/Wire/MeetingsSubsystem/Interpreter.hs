@@ -307,12 +307,14 @@ cleanupOldMeetingsImpl cutoffTime batchSize = do
 
       -- 4. Delete associated conversations if they are meeting conversations
       -- We need to check if conversation has GroupConvType = MeetingConversation
-      for_ convIds $ \qConvId -> do
+      for_ (zip oldMeetings convIds) $ \(meeting, qConvId) -> do
         let convId = qUnqualified qConvId
         maybeConv <- ConvStore.getConversation convId
         case maybeConv of
           Just conv
-            | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
+            | conv.metadata.cnvmGroupConvType == Just MeetingConversation,
+              conv.id_ == convId,
+              meeting.conversationId == qConvId ->
                 ConvStore.deleteConversation convId
           _ -> pure ()
 
