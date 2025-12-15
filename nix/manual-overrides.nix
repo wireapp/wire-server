@@ -8,13 +8,15 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
+  apply-refact = hlib.markUnbroken (hlib.dontCheck hsuper.apply-refact);
+
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
 
-  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
+  quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
 
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
@@ -25,7 +27,7 @@ hself: hsuper: {
   hasql = hlib.dontCheck hsuper.hasql;
   hasql-pool = hlib.dontCheck hsuper.hasql-pool;
   hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_0_1;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction; # users 1.2.1 from nixpkgs
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
 
   # ---------------------
@@ -72,7 +74,7 @@ hself: hsuper: {
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_14_2_0;
 
-  text-builder = hlib.doJailbreak (hsuper.text-builder_1_0_0_4);
+  text-builder = hlib.doJailbreak hsuper.text-builder; # uses 1.0.0.4 from nixpkgs
 
   # -----------------
   # flags and patches

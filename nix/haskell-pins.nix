@@ -251,6 +251,7 @@ let
         hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
         hs-opentelemetry-exporter-otlp = "exporters/otlp";
         hs-opentelemetry-utils-exceptions = "utils/exceptions";
+        hs-opentelemetry-instrumentation-conduit = "instrumentation/conduit";
       };
     };
 
