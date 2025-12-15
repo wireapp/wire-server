@@ -653,6 +653,7 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+  BrigAccess.sendSAMLIdPCreatedEmail idp
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP

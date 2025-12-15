@@ -41,6 +41,7 @@ module Spar.Sem.BrigAccess
     setStatus,
     getDefaultUserLocale,
     checkAdminGetTeamId,
+    sendSAMLIdPCreatedEmail,
   )
 where
 
