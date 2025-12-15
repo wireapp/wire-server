@@ -143,7 +143,7 @@ testMeetingUpdate = do
       recurrenceUntil = addUTCTime (60 * 24 * 3600) now -- 60 days from now
       initialRecurrence =
         Aeson.object
-          [ "frequency" Aeson..= ("Daily" :: Text),
+          [ "frequency" Aeson..= ("daily" :: Text),
             "interval" Aeson..= (1 :: Int),
             "until" Aeson..= recurrenceUntil
           ]
@@ -164,7 +164,7 @@ testMeetingUpdate = do
   domain <- meeting %. "qualified_id" %. "domain" >>= asString
   let updatedRecurrence =
         Aeson.object
-          [ "frequency" Aeson..= ("Weekly" :: Text),
+          [ "frequency" Aeson..= ("weekly" :: Text),
             "interval" Aeson..= (2 :: Int)
           ]
       updatedMeeting =
@@ -181,7 +181,7 @@ testMeetingUpdate = do
   updated <- assertOne r2.jsonBody
   updated %. "title" `shouldMatchText` "Updated Standup"
   recurrence <- updated %. "recurrence"
-  recurrence %. "frequency" `shouldMatchText` "Weekly"
+  recurrence %. "frequency" `shouldMatchText` "weekly"
   recurrence %. "interval" `shouldMatchInt` 2
 
 testMeetingUpdateNotFound :: (HasCallStack) => App ()
@@ -239,7 +239,7 @@ testMeetingDelete = do
       recurrenceUntil = addUTCTime (30 * 24 * 3600) now
       recurrence =
         Aeson.object
-          [ "frequency" Aeson..= ("Daily" :: Text),
+          [ "frequency" Aeson..= ("daily" :: Text),
             "interval" Aeson..= (1 :: Int),
             "until" Aeson..= recurrenceUntil
           ]
@@ -497,7 +497,7 @@ testMeetingRecurrence = do
       recurrenceUntil = addUTCTime (30 * 24 * 3600) now -- 30 days from now
       recurrence =
         Aeson.object
-          [ "frequency" Aeson..= ("Daily" :: Text),
+          [ "frequency" Aeson..= ("daily" :: Text),
             "interval" Aeson..= (1 :: Int),
             "until" Aeson..= recurrenceUntil
           ]
@@ -523,7 +523,7 @@ testMeetingRecurrence = do
   fetchedMeeting <- assertOne r2.jsonBody
   fetchedMeeting %. "title" `shouldMatchText` "Daily Standup with Recurrence"
   recurrence' <- fetchedMeeting %. "recurrence"
-  recurrence' %. "frequency" `shouldMatchText` "Daily"
+  recurrence' %. "frequency" `shouldMatchText` "daily"
   recurrence' %. "interval" `shouldMatchInt` 1
   recurrence' %. "until" `shouldMatch` recurrenceUntil
 

@@ -18,7 +18,6 @@
 module Wire.API.Meeting where
 
 import Control.Lens ((?~))
-import Data.Aeson ()
 import Data.Id (ConvId, MeetingId, UserId)
 import Data.Json.Util (utcTimeSchema)
 import Data.OpenApi qualified as S
@@ -89,6 +88,16 @@ data Frequency = Daily | Weekly | Monthly | Yearly
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Frequency)
   deriving (Arbitrary) via (GenericUniform Frequency)
 
+instance ToSchema Frequency where
+  schema =
+    enum @Text "Frequency" $
+      mconcat
+        [ element "daily" Daily,
+          element "weekly" Weekly,
+          element "monthly" Monthly,
+          element "yearly" Yearly
+        ]
+
 instance ToSchema NewMeeting where
   schema =
     objectWithDocModifier "NewMeeting" (description ?~ "Request to create a new meeting") $
@@ -118,16 +127,6 @@ instance ToSchema UpdateMeeting where
         <*> (.endDate) .= maybe_ (optField "end_date" utcTimeSchema)
         <*> (.title) .= maybe_ (optField "title" schema)
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
-
-instance ToSchema Frequency where
-  schema =
-    enum @Text "Frequency" $
-      mconcat
-        [ element "Daily" Daily,
-          element "Weekly" Weekly,
-          element "Monthly" Monthly,
-          element "Yearly" Yearly
-        ]
 
 instance ToSchema Recurrence where
   schema =
