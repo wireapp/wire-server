@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -46,7 +48,7 @@ module Wire.API.Routes.Internal.Brig
   )
 where
 
-import Control.Lens ((.~), (?~))
+import Control.Lens (makePrisms, (.~), (?~), _1)
 import Data.Aeson (FromJSON, ToJSON, Value (Null))
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -96,7 +98,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.API.User.IdentityProvider (IdP)
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Orphans ()
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -1016,3 +1019,39 @@ runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient a
   let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
       clientEnv = Servant.mkClientEnv httpMgr baseUrl
   Servant.runClientM action clientEnv
+
+data IdpChangedNotification = IdPCreated IdP | IdPDeleted IdP | IdPUpdated IdP IdP
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema IdpChangedNotification)
+
+data IdpChangedNotificationTag = IdPCreatedTag | IdPDeletedTag | IdPUpdatedTag
+  deriving (Eq, Enum, Bounded)
+
+makePrisms ''IdpChangedNotification
+
+instance Data.Schema.ToSchema IdpChangedNotification where
+  schema =
+    object "IdpChangedNotification" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: IdpChangedNotification -> (IdpChangedNotificationTag, IdpChangedNotification)
+      toTagged d@(IdPCreated _) = (IdPCreatedTag, d)
+      toTagged d@(IdPDeleted _) = (IdPDeletedTag, d)
+      toTagged d@(IdPUpdated _ _) = (IdPUpdatedTag, d)
+
+      fromTagged :: (IdpChangedNotificationTag, IdpChangedNotification) -> IdpChangedNotification
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        IdPCreatedTag -> tag _IdPCreated (Data.Schema.unnamed schema)
+        IdPDeletedTag -> tag _IdPDeleted (Data.Schema.unnamed schema)
+        IdPUpdatedTag -> tag _IdPUpdated (Data.Schema.unnamed schema)
+
+      tagSchema :: ValueSchema NamedSwaggerDoc IdpChangedNotificationTag
+      tagSchema =
+        enum @Text "Detail Tag" $
+          mconcat [element "created" IdPCreatedTag, element "deleted" IdPDeletedTag, element "updated" IdPUpdatedTag]

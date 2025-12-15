@@ -171,10 +171,12 @@ import Data.List qualified as L
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NL
 import Data.Maybe
+import Data.OpenApi qualified as S
 import Data.Schema qualified as Schema
 import Data.String.Conversions (ST, cs)
 import Data.Text (Text)
 import Data.Text qualified as ST
+import Data.Text.Encoding qualified as T
 import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, parseTimeM)
 import Data.UUID as UUID
 import Data.X509 qualified as X509
@@ -230,14 +232,15 @@ data UserRef = UserRef {_uidTenant :: Issuer, _uidSubject :: NameID}
 -- | More correctly, an 'Issuer' is a 'NameID', but we only support 'URI'.
 newtype Issuer = Issuer {_fromIssuer :: URI}
   deriving (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema.Schema Issuer
 
-instance FromJSON Issuer where
-  parseJSON = withText "Issuer" $ \uri -> case parseURI' uri of
-    Right i -> pure $ Issuer i
-    Left msg -> fail $ "Issuer: " <> show msg
-
-instance ToJSON Issuer where
-  toJSON = toJSON . renderURI . _fromIssuer
+instance Schema.ToSchema Issuer where
+  schema =
+    Issuer
+      <$> _fromIssuer Schema..= uriSchema
+    where
+      uriSchema :: Schema.ValueSchema Schema.NamedSwaggerDoc URI
+      uriSchema = renderURI Schema..= Schema.parsedText "URI" parseURI'
 
 ----------------------------------------------------------------------
 -- meta [4/2.3.2]
@@ -307,11 +310,33 @@ data IdPMetadata = IdPMetadata
     _edCertAuthnResponse :: NonEmpty X509.SignedCertificate
   }
   deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema.Schema IdPMetadata)
+
+instance Schema.ToSchema IdPMetadata where
+  schema =
+    Schema.object "IdPMetadata" $
+      IdPMetadata
+        <$> (_edIssuer Schema..= Schema.field "issuer" Schema.schema)
+        <*> (_edRequestURI Schema..= Schema.field "requestURI" Schema.schema)
+        <*> (_edCertAuthnResponse Schema..= Schema.field "certAuthnResponse" Schema.schema)
 
 ----------------------------------------------------------------------
 -- idp info
 
-newtype IdPId = IdPId {fromIdPId :: UUID} deriving (Eq, Show, Generic, Ord)
+newtype IdPId = IdPId {fromIdPId :: UUID}
+  deriving (Eq, Show, Generic, Ord)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema.Schema IdPId
+
+instance Schema.ToSchema IdPId where
+  schema =
+    IdPId
+      <$> fromIdPId Schema..= idpIdSchema
+    where
+      idpIdSchema :: Schema.ValueSchema Schema.NamedSwaggerDoc UUID
+      idpIdSchema = UUID.toText Schema..= Schema.parsedText "URI" parseUUID
+
+      parseUUID :: Text -> Either String UUID
+      parseUUID = maybe (Left "Cannot parse UUID") Right . UUID.fromText
 
 type IdPConfig_ = IdPConfig ()
 
@@ -321,6 +346,15 @@ data IdPConfig extra = IdPConfig
     _idpExtraInfo :: extra
   }
   deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema.Schema (IdPConfig extra))
+
+instance (Schema.ToSchema extra) => Schema.ToSchema (IdPConfig extra) where
+  schema =
+    Schema.object "IdPConfig" $
+      IdPConfig
+        <$> (_idpId Schema..= Schema.field "id" Schema.schema)
+        <*> (_idpMetadata Schema..= Schema.field "metadata" Schema.schema)
+        <*> (_idpExtraInfo Schema..= Schema.field "extraInfo" Schema.schema)
 
 ----------------------------------------------------------------------
 -- request, response
@@ -720,18 +754,6 @@ makePrisms ''AccessVerdict
 makePrisms ''Statement
 
 makePrisms ''UnqualifiedNameID
-
-deriveJSON deriveJSONOptions ''IdPMetadata
-
-deriveJSON deriveJSONOptions ''IdPConfig
-
-instance FromJSON IdPId where
-  parseJSON value = ((maybe unerror (pure . IdPId) . UUID.fromText) <=< parseJSON) value
-    where
-      unerror = fail ("could not parse config: " <> (show value))
-
-instance ToJSON IdPId where
-  toJSON = toJSON . UUID.toText . fromIdPId
 
 idPIdToST :: IdPId -> ST
 idPIdToST = UUID.toText . fromIdPId

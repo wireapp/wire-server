@@ -11,10 +11,10 @@ import Data.Aeson
 import Data.ByteString
 import Data.ByteString.Builder
 import Data.Schema as Schema
-import Data.String.Conversions
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
 import Data.X509 as X509
 import Data.Yaml.Aeson qualified as A
 import SAML2.Util (normURI, parseURI', renderURI)
@@ -37,11 +37,14 @@ instance ToHttpApiData URI where
 instance FromHttpApiData URI where
   parseUrlPiece = either (Left . Text.pack) pure . parseURI' <=< parseUrlPiece
 
-instance FromJSON X509.SignedCertificate where
-  parseJSON = withText "KeyInfo element" $ either fail pure . parseKeyInfo False . cs
+instance Schema.ToSchema SignedCertificate where
+  schema = serialize Schema..= Schema.parsedText "SignedCertificate" parse
+    where
+      parse :: Text.Text -> Either String SignedCertificate
+      parse = parseKeyInfo False . TL.fromStrict
 
-instance ToJSON X509.SignedCertificate where
-  toJSON = String . cs . renderKeyInfo
+      serialize :: SignedCertificate -> Text.Text
+      serialize = TL.toStrict . renderKeyInfo
 
 -- This can unfortunately not live in wire-api, because wire-api depends on
 -- saml2-web-sso.
