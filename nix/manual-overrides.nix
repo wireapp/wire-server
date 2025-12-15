@@ -8,8 +8,6 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
-  apply-refact = hlib.markUnbroken (hlib.dontCheck hsuper.apply-refact);
-
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
@@ -39,6 +37,8 @@ hself: hsuper: {
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   postie = hlib.doJailbreak hsuper.postie;
+  lrucaching = hlib.doJailbreak (hlib.markUnbroken hsuper.lrucaching);
+  apply-refact = hlib.doJailbreak (hlib.markUnbroken hsuper.apply-refact);
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -61,7 +61,6 @@ hself: hsuper: {
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
   system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
-  lrucaching = hlib.markUnbroken hsuper.lrucaching;
 
   # -----------------
   # version overrides
