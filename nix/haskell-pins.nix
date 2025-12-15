@@ -263,14 +263,6 @@ let
       };
     };
 
-    HaskellNet = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/HaskellNet";
-        rev = "74cde03b4beb09794a6120ea5321a09430bcd2c7";
-        hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
-      };
-    };
-
     # Our fork of 2.0.0. This release hasn't been updated for a while and Nix
     # is bad in coping with Hackage patched revisions and overriding
     # ghc-options. So, we have our fork to gain GHC 9.8 compatibility.
