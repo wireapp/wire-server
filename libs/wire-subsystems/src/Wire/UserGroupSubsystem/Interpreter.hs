@@ -268,13 +268,13 @@ getUserGroupsInternal ::
   TeamId ->
   Maybe Text ->
   Maybe ManagedBy ->
-  Maybe Int ->
-  Maybe Int ->
+  Maybe Int32 ->
+  Maybe Int32 ->
   Sem r UserGroupPageWithMembers
 getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount = do
   let pageReq =
         UserGroupPageRequest
-          { pageSize = maybe (pageSizeFromIntUnsafe 500) (pageSizeFromIntUnsafe . fromIntegral) mbCount, -- XXX: what should the default be?
+          { pageSize = maybe def pageSizeFromIntUnsafe mbCount,
             sortOrder = Asc,
             paginationState = maybe (PaginationOffset 0) (PaginationOffset . fromIntegral . (\ix -> ix - 1)) mbStartIndex,
             searchString = displayNameSubstring,

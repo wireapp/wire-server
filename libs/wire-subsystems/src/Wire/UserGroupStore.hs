@@ -47,7 +47,7 @@ instance Default UserGroupPageRequest where
     UserGroupPageRequest
       { searchString = Nothing,
         managedByFilter = Nothing,
-        paginationState = PaginationSortByCreatedAt Nothing, -- sort by createdAt, with no state (obviously)
+        paginationState = PaginationSortByCreatedAt Nothing, -- default sort by is 'createdAt', with no state
         sortOrder = Desc,
         pageSize = def, -- default is 15
         includeMemberCount = True,
