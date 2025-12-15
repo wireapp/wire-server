@@ -31,12 +31,11 @@ import Data.Id
 import Data.Qualified
 import Galley.API.Error
 import Galley.API.Teams.Features.Get (getFeatureForTeam)
-import Galley.API.Util
-import Galley.Effects
+import Galley.Effects.TeamFeatureStore
 import Galley.Options (Opts)
 import Imports
 import Polysemy
-import Polysemy.Error
+import Polysemy.Error (Error, runError, throw)
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation (JoinType (InternalAdd))
@@ -46,7 +45,11 @@ import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Meeting
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingConfig, MeetingPremiumConfig)
-import Wire.FederationAPIAccess ()
+import Wire.BackendNotificationQueueAccess
+import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationSubsystem.Notification (notifyCreatedConversation)
+import Wire.ConversationSubsystem.View qualified as ViewError
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.MeetingsSubsystem qualified as Meetings
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -54,7 +57,7 @@ import Wire.TeamStore qualified as TeamStore
 
 -- | Check if meetings feature is enabled for the user (if they're in a team)
 checkMeetingsEnabled ::
-  ( Member TeamStore r,
+  ( Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Input Opts) r
@@ -73,7 +76,6 @@ checkMeetingsEnabled userId = do
 createMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -83,7 +85,7 @@ createMeeting ::
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
@@ -94,33 +96,27 @@ createMeeting lUser newMeeting = do
   -- Check if meetings feature is enabled
   checkMeetingsEnabled (tUnqualified lUser)
 
-  -- Validate that endDate > startDate
-  when (newMeeting.endDate <= newMeeting.startDate) $
-    throwS @'InvalidOperation
-
-  -- Determine trial status based on team membership and premium feature
   maybeTeamId <- TeamStore.getOneUserTeam (tUnqualified lUser)
-  trial <- case maybeTeamId of
+  premium <- case maybeTeamId of
     Nothing -> pure True -- Personal users create trial meetings
     Just teamId -> do
-      -- Verify user is a team member (not just a collaborator)
-      maybeMember <- TeamStore.getTeamMember teamId (tUnqualified lUser)
-      case maybeMember of
-        Nothing -> throwS @'NotATeamMember -- User not a member
-        Just _member -> do
-          -- Check meeting premium feature status to determine trial
-          premiumFeature <- getFeatureForTeam @MeetingPremiumConfig teamId
-          pure $ case premiumFeature of
-            LockableFeature {status = FeatureStatusEnabled} -> False -- premium team, not trial
-            _ -> True -- non-premium team or disabled, is trial
-  (meeting, conversation) <- Meetings.createMeeting lUser newMeeting trial
-  notifyCreatedConversation lUser Nothing conversation InternalAdd
+      premiumFeature <- getFeatureForTeam @MeetingPremiumConfig teamId
+      pure $ case premiumFeature of
+        LockableFeature {status = FeatureStatusEnabled} -> True
+        _ -> False
+
+  (meeting, conversation) <- Meetings.createMeeting lUser newMeeting premium
+  res <- runError @ViewError.ViewError $ notifyCreatedConversation lUser Nothing conversation InternalAdd
+  case res of
+    Left ViewError.BadMemberState -> throw (InternalErrorWithDescription "Internal error: Member state inconsistent")
+    Right () -> pure ()
+
   pure meeting
 
 getMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Input Opts) r
@@ -139,7 +135,7 @@ getMeeting zUser domain meetingId = do
 
 listMeetings ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Input Opts) r
@@ -154,7 +150,7 @@ updateMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
@@ -182,7 +178,7 @@ deleteMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
@@ -200,7 +196,7 @@ addMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
@@ -219,7 +215,7 @@ removeMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,
     Member (ErrorS 'MeetingNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>

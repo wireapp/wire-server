@@ -123,6 +123,7 @@ import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.Postgres (PGConstraints)
 import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
@@ -284,7 +285,17 @@ logAndMapError fErr fLog logMsg action =
 
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
-  let convStoreInterpreter =
+  let convStoreInterpreter ::
+        forall r a.
+        ( Member TinyLog r,
+          PGConstraints r,
+          Member Async r,
+          Member (Error MigrationError) r,
+          Member Race r
+        ) =>
+        Sem (ConversationStore ': r) a ->
+        Sem r a
+      convStoreInterpreter =
         case (e ^. options . postgresMigration).conversation of
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)

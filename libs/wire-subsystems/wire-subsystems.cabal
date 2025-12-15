@@ -226,6 +226,8 @@ library
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
     Wire.ConversationSubsystem.Interpreter
+    Wire.ConversationSubsystem.Notification
+    Wire.ConversationSubsystem.View
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -276,6 +278,8 @@ library
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
     Wire.MeetingsSubsystem.Interpreter
+    Wire.MeetingsSubsystemCleaning
+    Wire.MeetingsSubsystemCleaning.Interpreter
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState

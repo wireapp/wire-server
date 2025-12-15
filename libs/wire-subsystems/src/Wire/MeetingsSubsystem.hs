@@ -21,7 +21,6 @@ module Wire.MeetingsSubsystem where
 
 import Data.Id
 import Data.Qualified
-import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Meeting
@@ -32,7 +31,7 @@ data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
     NewMeeting ->
-    -- | trial: True if this is a trial meeting
+    -- | premium: True if this is a premium meeting
     Bool ->
     MeetingsSubsystem m (Meeting, StoredConversation)
   GetMeeting ::
@@ -61,10 +60,5 @@ data MeetingsSubsystem m a where
     Qualified MeetingId ->
     [EmailAddress] ->
     MeetingsSubsystem m Bool
-  -- Cleanup operation
-  CleanupOldMeetings ::
-    UTCTime ->
-    Int ->
-    MeetingsSubsystem m Int64
 
 makeSem ''MeetingsSubsystem

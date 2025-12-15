@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -22,13 +24,16 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Clock (getCurrentTime)
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState (CellsState (CellsDisabled))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Meeting
+import Wire.API.Error (ErrorS)
+import Wire.API.Error hiding (DynError, ErrorS)
+import Wire.API.Error.Galley
+import Wire.API.Meeting qualified as API
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.ConversationStore qualified as ConvStore
@@ -36,22 +41,26 @@ import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.Sem.Paging.Cassandra (ResultSet (..), ResultSetType (..))
 import Wire.StoredConversation
+import Wire.TeamStore qualified as TeamStore
 import Wire.UserList
 
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
     Member ConvStore.ConversationStore r,
-    Member (Embed IO) r
+    Member TeamStore.TeamStore r,
+    Member (Embed IO) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'InvalidOperation) r
   ) =>
   InterpreterFor MeetingsSubsystem r
 interpretMeetingsSubsystem = interpret $ \case
-  CreateMeeting zUser newMeeting trial ->
-    createMeetingImpl zUser newMeeting trial
+  CreateMeeting zUser newMeeting premium ->
+    createMeetingImpl zUser newMeeting premium
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId
   ListMeetings zUser ->
     listMeetingsImpl zUser
-  Wire.MeetingsSubsystem.UpdateMeeting zUser meetingId update ->
+  UpdateMeeting zUser meetingId update ->
     updateMeetingImpl zUser meetingId update
   DeleteMeeting zUser meetingId ->
     deleteMeetingImpl zUser meetingId
@@ -59,19 +68,35 @@ interpretMeetingsSubsystem = interpret $ \case
     addInvitedEmailsImpl zUser meetingId emails
   RemoveInvitedEmails zUser meetingId emails ->
     removeInvitedEmailsImpl zUser meetingId emails
-  CleanupOldMeetings cutoffTime batchSize ->
-    cleanupOldMeetingsImpl cutoffTime batchSize
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConvStore.ConversationStore r,
-    Member (Embed IO) r
+    Member TeamStore.TeamStore r,
+    Member (Embed IO) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'InvalidOperation) r
   ) =>
   Local UserId ->
-  NewMeeting ->
+  API.NewMeeting ->
   Bool ->
-  Sem r (Meeting, StoredConversation)
-createMeetingImpl zUser newMeeting trial = do
+  Sem r (API.Meeting, StoredConversation)
+createMeetingImpl zUser newMeeting premium = do
+  -- Validate that endDate > startDate
+  when (newMeeting.endDate <= newMeeting.startDate) $
+    throwS @'InvalidOperation
+
+  -- Determine trial status based on team membership and premium feature
+  maybeTeamId <- TeamStore.getOneUserTeam (tUnqualified zUser)
+  trial <- case maybeTeamId of
+    Nothing -> pure True -- Personal users create trial meetings
+    Just teamId -> do
+      -- Verify user is a team member (not just a collaborator)
+      maybeMember <- TeamStore.getTeamMember teamId (tUnqualified zUser)
+      case maybeMember of
+        Nothing -> throwS @'NotATeamMember -- User not a member
+        Just _member -> pure $ not premium
+
   -- Generate meeting ID
   meetingId <- randomId
   let qMeetingId = tUntagged (qualifyAs zUser meetingId)
@@ -125,7 +150,7 @@ createMeetingImpl zUser newMeeting trial = do
   now <- liftIO getCurrentTime
   -- Return created meeting
   pure
-    ( Meeting
+    ( API.Meeting
         { id = qMeetingId,
           title = newMeeting.title,
           creator = tUntagged zUser,
@@ -146,7 +171,7 @@ getMeetingImpl ::
   ) =>
   Local UserId ->
   Qualified MeetingId ->
-  Sem r (Maybe Meeting)
+  Sem r (Maybe API.Meeting)
 getMeetingImpl zUser meetingId = do
   -- Get meeting from store
   maybeMeeting <- Store.getMeeting meetingId
@@ -171,7 +196,7 @@ listMeetingsImpl ::
     Member ConvStore.ConversationStore r
   ) =>
   Local UserId ->
-  Sem r [Meeting]
+  Sem r [API.Meeting]
 listMeetingsImpl zUser = do
   -- List all meetings created by the user
   createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser)
@@ -190,7 +215,7 @@ getAllMemberMeetings ::
     Member ConvStore.ConversationStore r
   ) =>
   Local UserId ->
-  Sem r [Meeting]
+  Sem r [API.Meeting]
 getAllMemberMeetings zUser = do
   -- We process conversations in pages
   processPage Nothing
@@ -200,7 +225,7 @@ getAllMemberMeetings zUser = do
         Member ConvStore.ConversationStore r
       ) =>
       Maybe (Qualified ConvId) ->
-      Sem r [Meeting]
+      Sem r [API.Meeting]
     processPage lastId = do
       let range = unsafeRange 1000 :: Range 1 1000 Int32
       resultSet <- ConvStore.getConversationIdsResultSet zUser range lastId
@@ -238,12 +263,21 @@ getAllMemberMeetings zUser = do
     isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
 
 updateMeetingImpl ::
-  (Member Store.MeetingsStore r) =>
+  ( Member Store.MeetingsStore r,
+    Member (ErrorS 'InvalidOperation) r
+  ) =>
   Local UserId ->
   Qualified MeetingId ->
-  UpdateMeeting ->
-  Sem r (Maybe Meeting)
+  API.UpdateMeeting ->
+  Sem r (Maybe API.Meeting)
 updateMeetingImpl zUser meetingId update = do
+  when (isNothing update.title && isNothing update.startDate && isNothing update.endDate && isNothing update.recurrence) $
+    throwS @'InvalidOperation
+
+  case (update.startDate, update.endDate) of
+    (Just start, Just end) -> when (end <= start) $ throwS @'InvalidOperation
+    _ -> pure ()
+
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
@@ -293,7 +327,8 @@ deleteMeetingImpl zUser meetingId = do
           pure True
 
 addInvitedEmailsImpl ::
-  (Member Store.MeetingsStore r) =>
+  ( Member Store.MeetingsStore r
+  ) =>
   Local UserId ->
   Qualified MeetingId ->
   [EmailAddress] ->
@@ -313,7 +348,8 @@ addInvitedEmailsImpl zUser meetingId emails = do
           pure True
 
 removeInvitedEmailsImpl ::
-  (Member Store.MeetingsStore r) =>
+  ( Member Store.MeetingsStore r
+  ) =>
   Local UserId ->
   Qualified MeetingId ->
   [EmailAddress] ->
@@ -331,39 +367,3 @@ removeInvitedEmailsImpl zUser meetingId emails = do
           -- Remove invited email
           Store.removeInvitedEmails meetingId emails
           pure True
-
-cleanupOldMeetingsImpl ::
-  ( Member Store.MeetingsStore r,
-    Member ConvStore.ConversationStore r
-  ) =>
-  UTCTime ->
-  Int ->
-  Sem r Int64
-cleanupOldMeetingsImpl cutoffTime batchSize = do
-  -- 1. Fetch old meetings
-  oldMeetings <- Store.getOldMeetings cutoffTime batchSize
-
-  if null oldMeetings
-    then pure 0
-    else do
-      -- 2. Extract meeting IDs and conversation IDs
-      let meetingIds = map (.id) oldMeetings
-          convIds = map (.conversationId) oldMeetings
-
-      -- 3. Delete meetings from database
-      deletedCount <- Store.deleteMeetingBatch meetingIds
-
-      -- 4. Delete associated conversations if they are meeting conversations
-      -- We need to check if conversation has GroupConvType = MeetingConversation
-      for_ (zip oldMeetings convIds) $ \(meeting, qConvId) -> do
-        let convId = qUnqualified qConvId
-        maybeConv <- ConvStore.getConversation convId
-        case maybeConv of
-          Just conv
-            | conv.metadata.cnvmGroupConvType == Just MeetingConversation,
-              conv.id_ == convId,
-              meeting.conversationId == qConvId ->
-                ConvStore.deleteConversation convId
-          _ -> pure ()
-
-      pure deletedCount

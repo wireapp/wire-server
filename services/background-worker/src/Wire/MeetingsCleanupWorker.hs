@@ -36,8 +36,8 @@ import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util (CleanupAction)
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
-import Wire.MeetingsSubsystem qualified as Meetings
-import Wire.MeetingsSubsystem.Interpreter (interpretMeetingsSubsystem)
+import Wire.MeetingsSubsystemCleaning qualified as Meetings
+import Wire.MeetingsSubsystemCleaning.Interpreter (interpretMeetingsSubsystemCleaning)
 
 data CleanupConfig = CleanupConfig
   { retentionHours :: Int,
@@ -135,5 +135,5 @@ runMeetingsCleanup env cutoffTime batchSize =
     . interpretMeetingsStoreToPostgres
     . runInputConst env.hasqlPool
     . interpretConversationStoreToPostgres
-    . interpretMeetingsSubsystem
+    . interpretMeetingsSubsystemCleaning
     $ Meetings.cleanupOldMeetings cutoffTime batchSize
