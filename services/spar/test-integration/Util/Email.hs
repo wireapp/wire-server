@@ -28,13 +28,13 @@ import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch)
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.ZAuth.Token as ZAuth
+import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Test.Tasty.HUnit
 import Util.Activation
 import Util.Core
 import Util.Types
-import qualified Wire.API.Team.Feature as Feature
+import Wire.API.Team.Feature qualified as Feature
 import Wire.API.User
 import Wire.API.User.Activation
 

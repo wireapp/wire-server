@@ -28,23 +28,23 @@ where
 
 import Bilge
 import Cassandra as Cas
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Monad.Except (ExceptT (..), MonadError, runExceptT)
-import qualified Data.Text.Lazy as LText
+import Data.Text.Lazy qualified as LText
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Error
 import Spar.Intra.Brig (MonadSparToBrig (..))
 import Spar.Intra.Galley (MonadSparToGalley)
-import qualified Spar.Intra.Galley as Intra
-import qualified System.Logger as TinyLog
-import qualified System.Logger.Class as TinyLog
+import Spar.Intra.Galley qualified as Intra
+import System.Logger qualified as TinyLog
+import System.Logger.Class qualified as TinyLog
 import Wire.API.User.Saml
 import Wire.Sem.Logger (Logger)
-import qualified Wire.Sem.Logger as Logger
+import Wire.Sem.Logger qualified as Logger
 
 -- | Run an embedded Cassandra 'Client'  in @Final IO@.
 interpretClientToIO ::

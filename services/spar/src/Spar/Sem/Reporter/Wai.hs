@@ -21,11 +21,11 @@ module Spar.Sem.Reporter.Wai
 where
 
 import Imports
-import qualified Network.Wai.Utilities.Server as Wai
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Input
 import Spar.Sem.Reporter
-import qualified System.Logger as TinyLog
+import System.Logger qualified as TinyLog
 
 reporterToTinyLogWai ::
   ( Member (Embed IO) r,

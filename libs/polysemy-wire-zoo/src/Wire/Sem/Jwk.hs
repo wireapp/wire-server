@@ -23,7 +23,7 @@ import Control.Exception
 import Crypto.JOSE.JWK
 import Data.Aeson
 import Data.ByteString (fromStrict)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Imports
 import Polysemy
 

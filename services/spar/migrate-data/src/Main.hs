@@ -18,7 +18,7 @@
 module Main where
 
 import Imports
-import qualified Spar.DataMigration.Run as Run
+import Spar.DataMigration.Run qualified as Run
 
 main :: IO ()
 main = Run.main

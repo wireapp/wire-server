@@ -22,9 +22,9 @@ module PhoneUsers.Types where
 
 import Cassandra as C
 import Control.Lens
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Encode.Pretty as A
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Aeson qualified as A
+import Data.Aeson.Encode.Pretty qualified as A
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.Text.Strict.Lens
 import Database.CQL.Protocol hiding (Result)

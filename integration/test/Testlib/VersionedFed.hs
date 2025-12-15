@@ -19,7 +19,7 @@ module Testlib.VersionedFed where
 
 import Control.Monad.Reader
 import Data.Proxy
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC.TypeLits
 import System.Environment
 import Testlib.PTest

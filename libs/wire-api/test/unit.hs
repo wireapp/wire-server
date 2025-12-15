@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import Imports
-import qualified Test.Wire.API.Run as Run
+import Test.Wire.API.Run qualified as Run
 
 main :: IO ()
 main = Run.main

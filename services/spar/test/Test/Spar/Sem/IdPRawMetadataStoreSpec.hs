@@ -22,7 +22,7 @@ module Test.Spar.Sem.IdPRawMetadataStoreSpec where
 import Arbitrary ()
 import Imports
 import Polysemy
-import qualified Spar.Sem.IdPRawMetadataStore as E
+import Spar.Sem.IdPRawMetadataStore qualified as E
 import Spar.Sem.IdPRawMetadataStore.Mem
 import Spar.Sem.IdPRawMetadataStore.Spec
 import Test.Hspec

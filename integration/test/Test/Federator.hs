@@ -22,7 +22,7 @@ module Test.Federator where
 import API.Brig
 import API.Federator (getMetrics)
 import Data.Attoparsec.Text
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.String.Conversions
 import Data.Text
 import SetupHelpers (randomUser)

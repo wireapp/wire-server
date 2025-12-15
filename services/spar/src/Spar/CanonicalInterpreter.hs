@@ -24,7 +24,7 @@ module Spar.CanonicalInterpreter
   )
 where
 
-import qualified Cassandra as Cas
+import Cassandra qualified as Cas
 import Control.Monad.Except hiding (mapError)
 import Imports
 import Polysemy
@@ -68,7 +68,7 @@ import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSparError)
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
-import qualified System.Logger as TinyLog
+import System.Logger qualified as TinyLog
 import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)

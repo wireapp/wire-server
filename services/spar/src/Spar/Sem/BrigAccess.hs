@@ -52,7 +52,7 @@ import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword6)
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Web.Cookie
 import Wire.API.Locale
 import Wire.API.Team.Role

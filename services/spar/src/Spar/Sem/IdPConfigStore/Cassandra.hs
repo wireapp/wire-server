@@ -27,20 +27,20 @@ import Cassandra
 import Control.Lens ((^.))
 import Control.Monad.Except
 import Data.Id
-import qualified Data.List.NonEmpty as NL
+import Data.List.NonEmpty qualified as NL
 import Data.Text (pack)
 import Data.X509 (SignedCertificate)
 import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Data.Instances ()
 import Spar.Error
 import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
 import URI.ByteString
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
-import qualified Wire.API.User.IdentityProvider as IP
+import Wire.API.User.IdentityProvider qualified as IP
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
 
 idPToCassandra ::

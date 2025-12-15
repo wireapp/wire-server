@@ -22,14 +22,14 @@ where
 
 import Control.Lens ((^.))
 import Data.Id (Id (Id), UserId)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports hiding (head)
-import qualified Spar.Intra.BrigApp as Intra
+import Spar.Intra.BrigApp qualified as Intra
 import Spar.Sem.BrigAccess (getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess qualified as BrigAccess
 import Test.QuickCheck
 import Util
-import qualified Web.Scim.Schema.User as Scim.User
+import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.User (DeleteUserResult (..), fromEmail)
 
 spec :: SpecWith TestEnv

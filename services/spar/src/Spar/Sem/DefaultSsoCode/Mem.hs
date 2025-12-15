@@ -25,7 +25,7 @@ where
 import Imports
 import Polysemy
 import Polysemy.State (get, put, runState)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode (..))
 
 defaultSsoCodeToMem :: Sem (DefaultSsoCode ': r) a -> Sem r (Maybe SAML.IdPId, a)

@@ -21,29 +21,29 @@ import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
 import Imports
-import qualified Spar.Schema.V0 as V0
-import qualified Spar.Schema.V1 as V1
-import qualified Spar.Schema.V10 as V10
-import qualified Spar.Schema.V11 as V11
-import qualified Spar.Schema.V12 as V12
-import qualified Spar.Schema.V13 as V13
-import qualified Spar.Schema.V14 as V14
-import qualified Spar.Schema.V15 as V15
-import qualified Spar.Schema.V16 as V16
-import qualified Spar.Schema.V17 as V17
-import qualified Spar.Schema.V18 as V18
-import qualified Spar.Schema.V19 as V19
-import qualified Spar.Schema.V2 as V2
-import qualified Spar.Schema.V20 as V20
-import qualified Spar.Schema.V21 as V21
-import qualified Spar.Schema.V3 as V3
-import qualified Spar.Schema.V4 as V4
-import qualified Spar.Schema.V5 as V5
-import qualified Spar.Schema.V6 as V6
-import qualified Spar.Schema.V7 as V7
-import qualified Spar.Schema.V8 as V8
-import qualified Spar.Schema.V9 as V9
-import qualified System.Logger.Extended as Log
+import Spar.Schema.V0 qualified as V0
+import Spar.Schema.V1 qualified as V1
+import Spar.Schema.V10 qualified as V10
+import Spar.Schema.V11 qualified as V11
+import Spar.Schema.V12 qualified as V12
+import Spar.Schema.V13 qualified as V13
+import Spar.Schema.V14 qualified as V14
+import Spar.Schema.V15 qualified as V15
+import Spar.Schema.V16 qualified as V16
+import Spar.Schema.V17 qualified as V17
+import Spar.Schema.V18 qualified as V18
+import Spar.Schema.V19 qualified as V19
+import Spar.Schema.V2 qualified as V2
+import Spar.Schema.V20 qualified as V20
+import Spar.Schema.V21 qualified as V21
+import Spar.Schema.V3 qualified as V3
+import Spar.Schema.V4 qualified as V4
+import Spar.Schema.V5 qualified as V5
+import Spar.Schema.V6 qualified as V6
+import Spar.Schema.V7 qualified as V7
+import Spar.Schema.V8 qualified as V8
+import Spar.Schema.V9 qualified as V9
+import System.Logger.Extended qualified as Log
 import Util.Options
 
 main :: IO ()

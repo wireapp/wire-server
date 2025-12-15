@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified MlsUsers.Lib as Lib
+import MlsUsers.Lib qualified as Lib
 
 main :: IO ()
 main = Lib.main

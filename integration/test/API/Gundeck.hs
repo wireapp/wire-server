@@ -18,9 +18,9 @@
 module API.Gundeck where
 
 import API.Common
-import qualified Data.ByteString.Base16 as Base16
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.ByteString.Base16 qualified as Base16
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Testlib.Prelude
 
 data GetNotifications = GetNotifications

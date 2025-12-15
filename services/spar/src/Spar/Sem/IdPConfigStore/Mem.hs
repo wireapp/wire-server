@@ -21,15 +21,15 @@ module Spar.Sem.IdPConfigStore.Mem (idPToMem, TypedState) where
 
 import Control.Lens ((.~), (^.))
 import Data.Id (TeamId)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
 import Wire.API.User.IdentityProvider (IdPHandle (IdPHandle))
-import qualified Wire.API.User.IdentityProvider as IP
-import qualified Wire.API.User.IdentityProvider as SAML
+import Wire.API.User.IdentityProvider qualified as IP
+import Wire.API.User.IdentityProvider qualified as SAML
 
 type TypedState = Map SAML.IdPId IP.IdP
 

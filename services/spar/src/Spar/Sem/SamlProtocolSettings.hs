@@ -29,8 +29,8 @@ import Data.Domain
 import Data.Id (TeamId)
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO.Types as SAML
-import qualified URI.ByteString as URI
+import SAML2.WebSSO.Types qualified as SAML
+import URI.ByteString qualified as URI
 
 data SamlProtocolSettings m a where
   SpIssuer :: Maybe TeamId -> Maybe Domain -> SamlProtocolSettings m (Maybe SAML.Issuer)

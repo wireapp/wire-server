@@ -17,9 +17,9 @@
 
 module Test.Swagger where
 
-import qualified API.Brig as BrigP
-import qualified Data.ByteString as B
-import qualified Data.Set as Set
+import API.Brig qualified as BrigP
+import Data.ByteString qualified as B
+import Data.Set qualified as Set
 import Data.String.Conversions
 import GHC.Stack
 import System.Exit

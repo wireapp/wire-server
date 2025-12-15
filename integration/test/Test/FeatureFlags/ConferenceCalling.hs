@@ -17,7 +17,7 @@
 
 module Test.FeatureFlags.ConferenceCalling where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 

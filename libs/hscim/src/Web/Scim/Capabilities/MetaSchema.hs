@@ -27,7 +27,7 @@ module Web.Scim.Capabilities.MetaSchema
 where
 
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Text (Text)
 import Data.Typeable (Typeable, cast)
 import Servant hiding (URI)
@@ -40,7 +40,7 @@ import Web.Scim.Capabilities.MetaSchema.Schema
 import Web.Scim.Capabilities.MetaSchema.User
 import Web.Scim.ContentType
 import Web.Scim.Handler
-import qualified Web.Scim.Schema.AuthenticationScheme as AuthScheme
+import Web.Scim.Schema.AuthenticationScheme qualified as AuthScheme
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error hiding (schemas)
 import Web.Scim.Schema.ListResponse as ListResponse hiding (schemas)

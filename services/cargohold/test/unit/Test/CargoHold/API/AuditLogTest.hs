@@ -19,16 +19,16 @@ module Test.CargoHold.API.AuditLogTest (tests) where
 
 import CargoHold.API.AuditLog
 import CargoHold.S3 (AssetAuditLogMetadata (..), S3AssetMeta (..))
-import qualified CargoHold.Types.V3 as V3
-import qualified Codec.MIME.Type as MIME
+import CargoHold.Types.V3 qualified as V3
+import Codec.MIME.Type qualified as MIME
 import Data.Aeson ((.=))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..), domainText)
 import Data.Id (UserId, botUserId)
 import Data.Misc (IpAddr)
 import Data.Qualified
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
 import Imports
 import System.Logger.Extended (LoggerT, runWithLogger)
@@ -36,7 +36,7 @@ import Test.CargoHold.API.LogJSON
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 import URI.ByteString
-import qualified Wire.API.Asset as Asset
+import Wire.API.Asset qualified as Asset
 import qualified Wire.Arbitrary ()
 
 tests :: TestTree

@@ -2,11 +2,11 @@
 -- structures.
 module Testlib.KleisliXML where
 
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
 import Testlib.Prelude
-import qualified Text.XML as XML
-import qualified Text.XML.Cursor as XML
+import Text.XML qualified as XML
+import Text.XML.Cursor qualified as XML
 
 findElement :: XML.Name -> XML.Cursor -> Maybe XML.Cursor
 findElement name = listToMaybe . (XML.$// XML.element name)

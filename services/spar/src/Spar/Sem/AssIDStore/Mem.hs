@@ -22,11 +22,11 @@ module Spar.Sem.AssIDStore.Mem
   )
 where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Spar.Sem.AssIDStore
 import Wire.API.User.Saml (AssId)
 import Wire.Sem.Now

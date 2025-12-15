@@ -29,25 +29,25 @@ import API.Spar
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Base16 as Base16
-import qualified Data.ByteString.Base64.Lazy as EL
-import qualified Data.ByteString.Base64.URL as B64Url
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Base16 qualified as Base16
+import Data.ByteString.Base64.Lazy qualified as EL
+import Data.ByteString.Base64.URL qualified as B64Url
 import Data.ByteString.Char8 (unpack)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Default
 import Data.Function
 import Data.String.Conversions (cs)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Vector (fromList)
 import GHC.Stack
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.API.Example as SAML
-import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.API.Example qualified as SAML
+import SAML2.WebSSO.Test.MockResponse qualified as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import System.Random (randomRIO)
 import Test.DNSMock
@@ -55,9 +55,9 @@ import Testlib.JSON
 import Testlib.Prelude
 import Testlib.Printing (indent)
 import Text.Regex.TDFA ((=~))
-import qualified Text.XML as XML
-import qualified Text.XML.Cursor as XML
-import qualified Text.XML.DSig as SAML
+import Text.XML qualified as XML
+import Text.XML.Cursor qualified as XML
+import Text.XML.DSig qualified as SAML
 import UnliftIO (pooledForConcurrentlyN)
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value

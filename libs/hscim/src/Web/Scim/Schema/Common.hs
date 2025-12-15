@@ -23,14 +23,14 @@
 module Web.Scim.Schema.Common where
 
 import Data.Aeson
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.CaseInsensitive as CI
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.CaseInsensitive qualified as CI
 import Data.List (nub, (\\))
 import Data.String.Conversions (cs)
 import Data.Text (Text, pack, unpack)
-import qualified Data.Text as Text
-import qualified Network.URI as Network
+import Data.Text qualified as Text
+import Network.URI qualified as Network
 
 data WithId id a = WithId
   { id :: id,

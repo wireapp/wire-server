@@ -26,29 +26,29 @@ module Test.Schema.UserSpec
 where
 
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Either (isLeft, isRight)
 import Data.Foldable (for_)
 import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Lens.Micro
 import Network.URI.Static (uri)
 import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress, validate)
-import qualified Web.Scim.Class.User as UserClass
+import Web.Scim.Class.User qualified as UserClass
 import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
-import qualified Web.Scim.Schema.ListResponse as ListResponse
+import Web.Scim.Schema.ListResponse qualified as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
 import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
-import qualified Web.Scim.Schema.PatchOp as PatchOp
+import Web.Scim.Schema.PatchOp qualified as PatchOp
 import Web.Scim.Schema.Schema (Schema (..))
 import Web.Scim.Schema.User (NoUserExtra (..), User (..))
-import qualified Web.Scim.Schema.User as User
+import Web.Scim.Schema.User qualified as User
 import Web.Scim.Schema.User.Address as Address
 import Web.Scim.Schema.User.Certificate as Certificate
 import Web.Scim.Schema.User.Email as Email

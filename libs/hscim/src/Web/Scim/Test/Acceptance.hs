@@ -28,9 +28,9 @@ module Web.Scim.Test.Acceptance
 where
 
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as L
+import Data.Aeson qualified as Aeson
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as L
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Network.HTTP.Types.Status
@@ -41,7 +41,7 @@ import Test.Hspec.Wai (matchStatus)
 import Test.Hspec.Wai.Internal (runWaiSession)
 import Web.Scim.Class.User
 import Web.Scim.Schema.Common as Hscim
-import qualified Web.Scim.Schema.ListResponse as ListResponse
+import Web.Scim.Schema.ListResponse qualified as ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.UserTypes
 import Web.Scim.Test.Util

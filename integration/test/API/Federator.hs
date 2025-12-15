@@ -19,7 +19,7 @@ module API.Federator where
 
 import Data.Function
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
 
 getMetrics ::

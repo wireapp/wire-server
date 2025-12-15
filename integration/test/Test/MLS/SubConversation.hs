@@ -20,8 +20,8 @@ module Test.MLS.SubConversation where
 import API.Galley
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import MLS.Util
 import Notifications
 import SetupHelpers

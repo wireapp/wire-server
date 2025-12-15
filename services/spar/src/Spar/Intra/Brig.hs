@@ -55,13 +55,13 @@ import Data.Code as Code
 import Data.Handle (Handle (fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword6)
-import qualified Data.Text.Lazy as Lazy
+import Data.Text.Lazy qualified as Lazy
 import Imports
 import Network.HTTP.Types.Method
-import qualified Network.Wai.Utilities.Error as Wai
-import qualified SAML2.WebSSO as SAML
+import Network.Wai.Utilities.Error qualified as Wai
+import SAML2.WebSSO qualified as SAML
 import Spar.Error
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Web.Cookie
 import Wire.API.Locale
 import Wire.API.Team.Role (Role)

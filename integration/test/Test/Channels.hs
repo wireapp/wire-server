@@ -23,7 +23,7 @@ import API.Brig
 import API.Common (randomName)
 import API.Galley
 import API.GalleyInternal hiding (getConversation, setTeamFeatureConfig)
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import GHC.Stack
 import MLS.Util
 import Notifications (isChannelAddPermissionUpdate, isMemberJoinNotif, isWelcomeNotif)

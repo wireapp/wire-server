@@ -28,7 +28,7 @@ module Test.Schema.Util
 where
 
 import Data.Aeson
-import qualified Data.Aeson.Key as Key
+import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap as KeyMap
 import Data.Foldable.WithIndex (ifoldl')
 import Data.Text (Text, toCaseFold, toLower, toUpper)

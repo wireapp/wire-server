@@ -21,8 +21,8 @@ import API.Brig
 import API.BrigInternal
 import API.Common
 import API.GalleyInternal
-import qualified API.Nginz as Nginz
-import qualified Data.ByteString.Char8 as BSChar8
+import API.Nginz qualified as Nginz
+import Data.ByteString.Char8 qualified as BSChar8
 import SetupHelpers
 import Testlib.Prelude
 import Text.Read

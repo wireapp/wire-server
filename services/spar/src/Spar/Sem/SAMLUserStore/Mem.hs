@@ -25,12 +25,12 @@ where
 
 import Control.Lens (view)
 import Data.Id
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State (gets, modify, runState)
 import SAML2.WebSSO (uidTenant)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Sem.SAMLUserStore
 
 newtype UserRefOrd = UserRefOrd {unUserRefOrd :: SAML.UserRef}

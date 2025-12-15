@@ -21,15 +21,15 @@ import API.Brig
 import API.Common
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.List.Extra
 import Data.Streaming.Network
 import Data.UnixTime
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types
 import Network.Socket (Socket)
-import qualified Network.Socket as NS
-import qualified Network.Socket.ByteString as NSB
+import Network.Socket qualified as NS
+import Network.Socket.ByteString qualified as NSB
 import SetupHelpers
 import System.FilePath ((</>))
 import System.IO (writeFile)
@@ -40,7 +40,7 @@ import Testlib.Prelude
 import Text.RawString.QQ
 import UnliftIO (bracket)
 import UnliftIO.Async (async, waitBoth)
-import qualified UnliftIO.Async as Async
+import UnliftIO.Async qualified as Async
 import UnliftIO.Directory
 import UnliftIO.Process
 import UnliftIO.Timeout (timeout)

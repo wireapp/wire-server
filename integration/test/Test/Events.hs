@@ -24,8 +24,8 @@ import API.BrigCommon
 import API.Common
 import API.Galley
 import API.Gundeck
-import qualified API.GundeckInternal as GundeckInternal
-import qualified Control.Concurrent.Timeout as Timeout
+import API.GundeckInternal qualified as GundeckInternal
+import Control.Concurrent.Timeout qualified as Timeout
 import Control.Lens ((.~), (^?!))
 import Control.Monad.Codensity
 import Control.Monad.RWS (asks)
@@ -33,22 +33,22 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Control.Retry
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ProtoLens as Proto
+import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
 import Data.Proxy (Proxy (..))
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Timeout
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
-import qualified Network.WebSockets as WS
+import Network.WebSockets qualified as WS
 import Notifications
 import Numeric.Lens
-import qualified Proto.Otr as Proto
-import qualified Proto.Otr_Fields as Proto
+import Proto.Otr qualified as Proto
+import Proto.Otr_Fields qualified as Proto
 import Servant.API (AsApi, ToServant, toServant)
 import Servant.API.Generic (fromServant)
 import Servant.Client (AsClientT)
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool

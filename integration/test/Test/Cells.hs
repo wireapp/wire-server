@@ -20,17 +20,17 @@
 module Test.Cells where
 
 import API.Galley
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Control.Retry
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.IORef
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Network.AMQP
 import Network.AMQP.Extended
 import Notifications

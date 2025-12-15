@@ -23,16 +23,16 @@ import Cassandra as C hiding (All)
 import Cassandra.Settings as C hiding (All)
 import Conduit
 import Control.Monad.Extra
-import qualified Data.Conduit.Combinators as Conduit
-import qualified Data.Conduit.List as ConduitL
+import Data.Conduit.Combinators qualified as Conduit
+import Data.Conduit.List qualified as ConduitL
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time.Clock
-import qualified Database.CQL.Protocol as CQL
+import Database.CQL.Protocol qualified as CQL
 import Imports
 import MlsUsers.Types
 import Options.Applicative
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Message ((.=), (~~))
 import Wire.API.User
 

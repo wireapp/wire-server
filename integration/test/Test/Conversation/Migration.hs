@@ -18,11 +18,11 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
-import qualified Data.IntSet as IntSet
+import Data.IntMap qualified as IntMap
+import Data.IntSet qualified as IntSet
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import GHC.Stack
 import MLS.Util
 import Notifications

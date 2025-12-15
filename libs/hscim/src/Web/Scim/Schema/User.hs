@@ -74,11 +74,11 @@ where
 import Control.Monad
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.List ((\\))
 import Data.Text (Text, pack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Lens.Micro
 import Web.Scim.AttrName

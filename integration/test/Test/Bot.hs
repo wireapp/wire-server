@@ -22,16 +22,16 @@ import API.Common
 import API.Galley
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.ProtoLens as Proto
+import Data.Aeson qualified as Aeson
+import Data.ProtoLens qualified as Proto
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Network.HTTP.Types (status200, status201)
 import Network.Wai (responseLBS)
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Numeric.Lens (hex)
-import qualified Proto.Otr as Proto
-import qualified Proto.Otr_Fields as Proto
+import Proto.Otr qualified as Proto
+import Proto.Otr_Fields qualified as Proto
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Server

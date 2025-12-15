@@ -28,7 +28,7 @@ where
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 
 data IdPRawMetadataStore m a where
   Store :: SAML.IdPId -> Text -> IdPRawMetadataStore m ()

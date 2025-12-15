@@ -40,11 +40,11 @@ import Control.Exception
 import Data.Aeson hiding (Error)
 import Data.ByteString.UTF8 (fromString)
 import Data.Text (Text, pack)
-import qualified Data.Text.Lazy.Encoding as LText
+import Data.Text.Lazy.Encoding qualified as LText
 import GHC.Generics (Generic)
-import qualified Network.HTTP.Types.Header as HTTP
-import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types.Header qualified as HTTP
+import Network.HTTP.Types.Status qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
 import Servant (ServerError (..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema

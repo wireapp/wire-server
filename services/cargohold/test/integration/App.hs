@@ -25,8 +25,8 @@ import CargoHold.Options as Opts
 import Control.Exception
 import Control.Lens
 import Data.ByteString.Conversion
-import qualified Data.Map as Map
-import qualified Data.Text as T
+import Data.Map qualified as Map
+import Data.Text qualified as T
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

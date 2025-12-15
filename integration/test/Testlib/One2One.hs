@@ -20,13 +20,13 @@
 module Testlib.One2One (generateRemoteAndConvIdWithDomain) where
 
 import Control.Error (atMay)
-import qualified Crypto.Hash as Crypto
+import Crypto.Hash qualified as Crypto
 import Data.Bits
 import Data.ByteArray (convert)
 import Data.ByteString
-import qualified Data.ByteString as B
+import Data.ByteString qualified as B
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.UUID as UUID
 import SetupHelpers (randomUser)
 import Testlib.Prelude

@@ -22,8 +22,8 @@ import Control.Lens
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
-import qualified Data.Map as Map
-import qualified Data.Text.Encoding as T
+import Data.Map qualified as Map
+import Data.Text.Encoding qualified as T
 import Imports
 import Polysemy
 import SAML2.WebSSO

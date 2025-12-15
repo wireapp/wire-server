@@ -32,7 +32,7 @@ import Spar.Sem.IdPConfigStore
 import Spar.Sem.IdPConfigStore.Mem (idPToMem)
 import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore qualified as ScimExternalIdStore
 import Spar.Sem.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
 import Spar.Sem.ScimUserTimesStore
 import Spar.Sem.ScimUserTimesStore.Mem (scimUserTimesStoreToMem)

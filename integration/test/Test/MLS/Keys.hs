@@ -18,9 +18,9 @@
 module Test.MLS.Keys where
 
 import API.Galley
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Base64.URL as B64U
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Base64.URL qualified as B64U
+import Data.ByteString.Char8 qualified as B8
 import SetupHelpers
 import Testlib.Prelude
 

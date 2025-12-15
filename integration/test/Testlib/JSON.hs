@@ -23,26 +23,26 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.Aeson.Key as KM
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.Aeson.Key qualified as KM
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
 import Data.Maybe (fromMaybe)
-import qualified Data.Scientific as Sci
-import qualified Data.Set as Set
+import Data.Scientific qualified as Sci
+import Data.Set qualified as Set
 import Data.String
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Vector ((!?))
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import GHC.Stack
 import Testlib.Types
 import Prelude

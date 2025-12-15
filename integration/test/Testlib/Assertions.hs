@@ -22,33 +22,33 @@ module Testlib.Assertions where
 import Control.Applicative ((<|>))
 import Control.Exception as E
 import Control.Lens ((^?))
-import qualified Control.Lens.Plated as LP
+import Control.Lens.Plated qualified as LP
 import Control.Monad
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Monad.Reader
 import Control.Retry
 import Data.Aeson (Value)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Diff as AD
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.Aeson.KeyMap as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Diff qualified as AD
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.Aeson.KeyMap qualified as Aeson
 import Data.Aeson.Lens (_Array, _Object)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Lazy as BS
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Lazy qualified as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
 import Data.List
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (isJust, mapMaybe)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TL
 import GHC.Stack as Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing

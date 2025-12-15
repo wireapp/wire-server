@@ -31,21 +31,21 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C8
 import Data.IORef
 import Data.Map
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Streaming.Network
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
-import qualified Network.HTTP2.Client as HTTP2
-import qualified Network.Socket as NS
-import qualified OpenSSL.Session as SSL
+import Network.HTTP2.Client qualified as HTTP2
+import Network.Socket qualified as NS
+import OpenSSL.Session qualified as SSL
 import System.IO.Error
 import qualified System.TimeManager
 import System.Timeout

@@ -18,8 +18,8 @@
 module Testlib.Certs where
 
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
-import qualified Crypto.PubKey.RSA as RSA
-import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
+import Crypto.PubKey.RSA qualified as RSA
+import Crypto.PubKey.RSA.PKCS15 qualified as PKCS15
 import Crypto.Store.PKCS8 (PrivateKeyFormat (PKCS8Format), keyToPEM)
 import Crypto.Store.X509 (pubKeyToPEM)
 import Data.ASN1.OID (OIDable (getObjectID))

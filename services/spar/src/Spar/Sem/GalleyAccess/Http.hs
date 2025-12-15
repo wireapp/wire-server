@@ -27,10 +27,10 @@ import Imports hiding (log)
 import Polysemy
 import Polysemy.Error
 import Spar.Error (SparError)
-import qualified Spar.Intra.Galley as Intra
+import Spar.Intra.Galley qualified as Intra
 import Spar.Sem.GalleyAccess
 import Spar.Sem.Utils
-import qualified System.Logger as TinyLog
+import System.Logger qualified as TinyLog
 import Wire.Sem.Logger (Logger)
 
 galleyAccessToHttp ::

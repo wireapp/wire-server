@@ -32,7 +32,7 @@ import Cassandra (Page)
 import Data.Id
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 
 data SAMLUserStore m a where
   Insert :: SAML.UserRef -> UserId -> SAMLUserStore m ()

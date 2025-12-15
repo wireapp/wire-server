@@ -19,7 +19,7 @@ module Web.Scim.Schema.Schema where
 
 import Data.Aeson (FromJSON, ToJSON, Value, parseJSON, toJSON, withText)
 import Data.Attoparsec.ByteString (Parser)
-import qualified Data.Attoparsec.ByteString.Char8 as Parser
+import Data.Attoparsec.ByteString.Char8 qualified as Parser
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Web.Scim.Capabilities.MetaSchema.Group

@@ -17,7 +17,7 @@
 
 module Test.FeatureFlags.SearchVisibilityInbound where
 
-import qualified API.Galley as Public
+import API.Galley qualified as Public
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude

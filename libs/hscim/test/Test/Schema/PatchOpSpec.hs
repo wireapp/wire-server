@@ -20,10 +20,10 @@
 
 module Test.Schema.PatchOpSpec where
 
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (Result (Error, Success), Value (String), fromJSON, toJSON)
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Attoparsec.ByteString (parseOnly)
 import Data.Either (isLeft)
 import Data.Foldable (for_)
@@ -31,8 +31,8 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog (Gen, Property, forAll, property, tripping)
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Test.FilterSpec (genAttrPath, genSubAttr, genValuePath)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy, xit)
 import Test.Schema.Util (mk_prop_caseInsensitive)

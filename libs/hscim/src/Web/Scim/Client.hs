@@ -51,14 +51,14 @@ import Data.Text
 import Servant.API
 import Servant.Client
 import Servant.Client.Generic
-import qualified Web.Scim.Capabilities.MetaSchema as MetaSchema
+import Web.Scim.Capabilities.MetaSchema qualified as MetaSchema
 import Web.Scim.Class.Auth
 import Web.Scim.Class.Group (Group, GroupId, StoredGroup)
 import Web.Scim.Class.User (StoredUser)
 import Web.Scim.Filter (Filter)
 import Web.Scim.Schema.ListResponse (ListResponse)
 import Web.Scim.Schema.PatchOp (PatchOp)
-import qualified Web.Scim.Schema.ResourceType as ResourceType
+import Web.Scim.Schema.ResourceType qualified as ResourceType
 import Web.Scim.Schema.User (User)
 import Web.Scim.Schema.UserTypes (UserExtra, UserId)
 import Web.Scim.Server

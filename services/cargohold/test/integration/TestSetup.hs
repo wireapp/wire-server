@@ -42,14 +42,14 @@ import Control.Lens
 import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Morph
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Encoding
 import Data.Yaml
 import Imports
 import Network.HTTP.Client hiding (responseBody)
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS
 import Servant.Client.Streaming
 import Test.Tasty

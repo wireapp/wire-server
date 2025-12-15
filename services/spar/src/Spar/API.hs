@@ -48,18 +48,18 @@ where
 import Brig.Types.Intra
 import Cassandra as Cas
 import Control.Lens hiding ((.=))
-import qualified Data.ByteString as SBS
+import Data.ByteString qualified as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
 import Data.Text.Encoding.Error
-import qualified Data.Text.Lazy as T
+import Data.Text.Lazy qualified as T
 import Data.Text.Lazy.Encoding
 import Data.Time
 import Imports
@@ -69,45 +69,45 @@ import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant
-import qualified Servant.Multipart as Multipart
+import Servant.Multipart qualified as Multipart
 import Servant.Server.Experimental.Auth
 import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
-import qualified Spar.Intra.BrigApp as Brig
+import Spar.Intra.BrigApp qualified as Brig
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess qualified as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
+import Spar.Sem.DefaultSsoCode qualified as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Spar.Sem.GalleyAccess qualified as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
+import Spar.Sem.IdPConfigStore qualified as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
-import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
+import Spar.Sem.IdPRawMetadataStore qualified as IdPRawMetadataStore
 import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAML2 (SAML2)
-import qualified Spar.Sem.SAML2 as SAML2
+import Spar.Sem.SAML2 qualified as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
 import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
-import qualified Spar.Sem.SamlProtocolSettings as SamlProtocolSettings
+import Spar.Sem.SamlProtocolSettings qualified as SamlProtocolSettings
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimTokenStore qualified as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
+import Spar.Sem.ScimUserTimesStore qualified as ScimUserTimesStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
+import Spar.Sem.VerdictFormatStore qualified as VerdictFormatStore
 import System.Logger (Msg)
-import qualified URI.ByteString as URI
+import URI.ByteString qualified as URI
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZHostValue)
@@ -118,10 +118,10 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
-import qualified Wire.Sem.Logger as Logger
+import Wire.Sem.Logger qualified as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
-import qualified Wire.Sem.Random as Random
+import Wire.Sem.Random qualified as Random
 
 app :: Env -> Application
 app ctx0 req cont = do

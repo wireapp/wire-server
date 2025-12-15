@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified Assets.Lib as Lib
+import Assets.Lib qualified as Lib
 
 main :: IO ()
 main = Lib.main

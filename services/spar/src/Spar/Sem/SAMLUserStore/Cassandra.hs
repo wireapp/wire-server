@@ -30,8 +30,8 @@ import Control.Lens
 import Data.Id
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
-import qualified Spar.Data as Data
+import SAML2.WebSSO qualified as SAML
+import Spar.Data qualified as Data
 import Spar.Data.Instances ()
 import Spar.Sem.SAMLUserStore
 

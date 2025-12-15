@@ -51,16 +51,16 @@ module Web.Scim.Test.Util
   )
 where
 
-import qualified Control.Retry as Retry
+import Control.Retry qualified as Retry
 import Data.Aeson
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.QQ
 import Data.Aeson.Types (JSONPathElement (Key))
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BS8
+import Data.ByteString.Lazy qualified as L
 import Data.Proxy
 import Data.Text
 import Data.UUID as UUID

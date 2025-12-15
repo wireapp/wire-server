@@ -24,13 +24,13 @@ import Control.Lens
 import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Status (statusCode)
-import qualified Network.Wai.Test as HW
+import Network.Wai.Test qualified as HW
 import Spar.App
 import Spar.Run (mkApp)
 import System.IO.Silently (capture)
 import System.Logger as Log
-import qualified Test.Hspec.Wai as HW
-import qualified Test.Hspec.Wai.Internal as HW
+import Test.Hspec.Wai qualified as HW
+import Test.Hspec.Wai.Internal qualified as HW
 import Util
 
 spec :: SpecWith TestEnv

@@ -17,9 +17,9 @@
 
 module Test.FeatureFlags.MlsMigration where
 
-import qualified API.Galley as Public
-import qualified API.GalleyInternal as Internal
-import qualified Data.Aeson as A
+import API.Galley qualified as Public
+import API.GalleyInternal qualified as Internal
+import Data.Aeson qualified as A
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude

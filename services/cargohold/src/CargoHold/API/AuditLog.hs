@@ -24,7 +24,7 @@ module CargoHold.API.AuditLog
 where
 
 import CargoHold.S3 (AssetAuditLogMetadata (..), S3AssetMeta (..))
-import qualified CargoHold.Types.V3 as V3
+import CargoHold.Types.V3 qualified as V3
 import Codec.MIME.Type (showType)
 import Data.ByteString.Conversion.To (toByteString)
 import Data.Id (UserId, botUserId)
@@ -32,7 +32,7 @@ import Data.Misc (IpAddr)
 import Data.Qualified (Local, Qualified, Remote, qDomain, qUnqualified, tDomain, tUnqualified)
 import Data.Text.Encoding (decodeUtf8)
 import Imports
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import URI.ByteString
 import Wire.API.Asset (unAssetMIMEType)

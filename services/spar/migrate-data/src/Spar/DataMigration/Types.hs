@@ -20,13 +20,13 @@
 
 module Spar.DataMigration.Types where
 
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Cassandra.Options
 import Control.Lens
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Imports
 import Numeric.Natural (Natural)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 
 data Migration = Migration
   { version :: MigrationVersion,

@@ -24,7 +24,7 @@ import Data.Text (Text)
 import Data.Text.Encoding
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method (methodGet)
-import qualified StmContainers.Map as STMMap
+import StmContainers.Map qualified as STMMap
 import Test.Hspec
 import Test.Hspec.Wai hiding (patch, post, put)
 import Web.Scim.Capabilities.MetaSchema (empty)

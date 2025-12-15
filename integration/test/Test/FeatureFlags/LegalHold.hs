@@ -17,8 +17,8 @@
 
 module Test.FeatureFlags.LegalHold where
 
-import qualified API.Galley as Public
-import qualified API.GalleyInternal as Internal
+import API.Galley qualified as Public
+import API.GalleyInternal qualified as Internal
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Reader
 import SetupHelpers

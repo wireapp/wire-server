@@ -22,12 +22,12 @@ module Spar.Sem.AReqIDStore.Mem
   )
 where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State
 import SAML2.WebSSO.Types (Issuer)
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Spar.Sem.AReqIDStore
 import Wire.API.User.Saml (AReqId)
 import Wire.Sem.Now

@@ -63,14 +63,14 @@ module Spar.Scim
 where
 
 import Data.ByteString (toStrict)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports
 import Polysemy
 import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
 import Polysemy.Input (Input)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.Server.Generic (AsServerT)
 import Spar.App (sparToServerErrorWithLogging, throwSparSem)
@@ -91,13 +91,13 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
-import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
-import qualified Web.Scim.Class.Group as Scim.Group
-import qualified Web.Scim.Class.User as Scim.User
-import qualified Web.Scim.Handler as Scim
-import qualified Web.Scim.Schema.Error as Scim
-import qualified Web.Scim.Schema.Schema as Scim.Schema
-import qualified Web.Scim.Server as Scim
+import Web.Scim.Capabilities.MetaSchema qualified as Scim.Meta
+import Web.Scim.Class.Group qualified as Scim.Group
+import Web.Scim.Class.User qualified as Scim.User
+import Web.Scim.Handler qualified as Scim
+import Web.Scim.Schema.Error qualified as Scim
+import Web.Scim.Schema.Schema qualified as Scim.Schema
+import Web.Scim.Server qualified as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
 import Wire.ScimSubsystem

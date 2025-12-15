@@ -20,7 +20,7 @@
 
 module Test.IntersperseSpec where
 
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Imports hiding (intersperse)
 import Polysemy
 import Polysemy.Output (output)

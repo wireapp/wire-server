@@ -34,16 +34,16 @@ where
 import Control.Monad.Catch
 import Control.Monad.Reader
 import qualified Data.Aeson
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Streaming.Network
 import Data.String.Conversions (cs)
 import Network.HTTP.Types
 import Network.Socket
-import qualified Network.Socket as Socket
+import Network.Socket qualified as Socket
 import Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.Warp.Internal qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
 import Testlib.Prelude hiding (IntegrationConfig (integrationTestHostName))
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async

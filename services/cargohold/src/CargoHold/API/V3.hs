@@ -31,15 +31,15 @@ import CargoHold.API.AuditLog
 import CargoHold.API.Error
 import CargoHold.API.Util
 import CargoHold.App
-import qualified CargoHold.Metrics as Metrics
+import CargoHold.Metrics qualified as Metrics
 import CargoHold.Options
 import CargoHold.S3 (AssetAuditLogMetadata (AssetAuditLogMetadata))
-import qualified CargoHold.S3 as S3
+import CargoHold.S3 qualified as S3
 import CargoHold.Types.V3
-import qualified CargoHold.Types.V3 as V3
+import CargoHold.Types.V3 qualified as V3
 import CargoHold.Util
-import qualified Codec.MIME.Parse as MIME
-import qualified Codec.MIME.Type as MIME
+import Codec.MIME.Parse qualified as MIME
+import Codec.MIME.Type qualified as MIME
 import qualified Conduit
 import Control.Applicative (optional)
 import Control.Error
@@ -49,15 +49,15 @@ import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Conduit
-import qualified Data.Conduit.Attoparsec as Conduit
+import Data.Conduit.Attoparsec qualified as Conduit
 import Data.Id
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Qualified
-import qualified Data.Text.Ascii as Ascii
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (decodeLatin1)
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Data.UUID.V4
 import Imports hiding (take)

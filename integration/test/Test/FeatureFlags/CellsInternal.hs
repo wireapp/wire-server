@@ -17,7 +17,7 @@
 
 module Test.FeatureFlags.CellsInternal where
 
-import qualified API.GalleyInternal as Internal
+import API.GalleyInternal qualified as Internal
 import SetupHelpers
 import Test.Cells (QueueConsumer (..), getMessage, watchCellsEvents)
 import Test.FeatureFlags.Util

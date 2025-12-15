@@ -31,12 +31,12 @@ import Spar.App as App
 import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
 import Spar.Intra.BrigApp (veidFromUserSSOId)
 import Spar.Options
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
-import qualified Spar.Sem.AssIDStore as AssIDStore
-import qualified Spar.Sem.IdPConfigStore as IdPEffect
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
+import Spar.Sem.AReqIDStore qualified as AReqIDStore
+import Spar.Sem.AssIDStore qualified as AssIDStore
+import Spar.Sem.IdPConfigStore qualified as IdPEffect
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
+import Spar.Sem.ScimTokenStore qualified as ScimTokenStore
+import Spar.Sem.VerdictFormatStore qualified as VerdictFormatStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core

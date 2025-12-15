@@ -36,27 +36,27 @@ module Spar.App
 where
 
 import Bilge
-import qualified Cassandra as Cas
+import Cassandra qualified as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import Data.ByteString (toStrict)
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.UTF8 as UTF8
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.UTF8 qualified as UTF8
+import Data.CaseInsensitive qualified as CI
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Text as Text
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Text qualified as Text
 import Data.Text.Ascii (encodeBase64, toText)
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.Encoding as LText
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LText
+import Data.Text.Lazy.Encoding qualified as LText
 import Data.These
 import Imports hiding (MonadReader, asks, log)
-import qualified Network.HTTP.Types.Status as Http
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types.Status qualified as Http
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import SAML2.Util (renderURI)
@@ -67,31 +67,31 @@ import SAML2.WebSSO
     idpExtraInfo,
     idpId,
   )
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant
-import qualified Servant.Multipart as Multipart
+import Servant.Multipart qualified as Multipart
 import Spar.Error hiding (sparToServerErrorWithLogging)
-import qualified Spar.Intra.BrigApp as Intra
+import Spar.Intra.BrigApp qualified as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess qualified as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Spar.Sem.GalleyAccess qualified as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
+import Spar.Sem.IdPConfigStore qualified as IdPConfigStore
 import Spar.Sem.Reporter (Reporter)
-import qualified Spar.Sem.Reporter as Reporter
+import Spar.Sem.Reporter qualified as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore qualified as ScimExternalIdStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimTokenStore qualified as ScimTokenStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
-import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
-import qualified System.Logger as TinyLog
+import Spar.Sem.VerdictFormatStore qualified as VerdictFormatStore
+import System.Logger qualified as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
@@ -101,9 +101,9 @@ import Wire.API.User.Saml
 import Wire.Error
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
-import qualified Wire.Sem.Logger as Logger
+import Wire.Sem.Logger qualified as Logger
 import Wire.Sem.Random (Random)
-import qualified Wire.Sem.Random as Random
+import Wire.Sem.Random qualified as Random
 
 throwSparSem :: (Member (Error SparError) r) => SparCustomError -> Sem r a
 throwSparSem = throw . SAML.CustomError

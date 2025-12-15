@@ -20,21 +20,21 @@
 module Test.Cargohold.API where
 
 import API.Cargohold
-import qualified Codec.MIME.Type as MIME
+import Codec.MIME.Type qualified as MIME
 import Control.Lens hiding (sets, (.=))
-import qualified Data.Aeson.KeyMap as KM
+import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Pair)
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as LBS hiding (replicate)
-import qualified Data.ByteString.Lazy.Char8 as L8
+import Data.ByteString.Char8 qualified as BC
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as LBS hiding (replicate)
+import Data.ByteString.Lazy.Char8 qualified as L8
 import Data.CaseInsensitive (mk)
 import Data.String.Conversions
 import Data.Time (UTCTime, defaultTimeLocale, parseTimeOrError, rfc822DateFormat)
 import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import Network.HTTP.Client (parseUrlThrow)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import SetupHelpers (createTeam, randomId, randomUser)
 import Testlib.Prelude
 import UnliftIO.Concurrent

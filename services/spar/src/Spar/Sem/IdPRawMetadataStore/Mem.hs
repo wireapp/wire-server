@@ -19,11 +19,11 @@
 
 module Spar.Sem.IdPRawMetadataStore.Mem (idpRawMetadataStoreToMem, RawState) where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State (State, gets, modify, runState)
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Spar.Sem.IdPRawMetadataStore
 
 type RawState = Map SAML.IdPId Text

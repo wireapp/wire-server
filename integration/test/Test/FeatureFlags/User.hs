@@ -17,9 +17,9 @@
 
 module Test.FeatureFlags.User where
 
-import qualified API.BrigInternal as I
+import API.BrigInternal qualified as I
 import API.Galley
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import SetupHelpers
 import Testlib.Prelude
 

@@ -20,11 +20,11 @@ module CargoHold.Util where
 import CargoHold.API.AuditLog
 import CargoHold.AWS
 import CargoHold.App
-import qualified CargoHold.CloudFront as CloudFront
+import CargoHold.CloudFront qualified as CloudFront
 import CargoHold.Options
 import CargoHold.S3 (S3AssetMeta)
-import qualified CargoHold.S3 as S3
-import qualified CargoHold.Types as V3
+import CargoHold.S3 qualified as S3
+import CargoHold.Types qualified as V3
 import Data.ByteString.Conversion
 import Data.Qualified (Qualified)
 import Imports

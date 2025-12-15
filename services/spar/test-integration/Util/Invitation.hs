@@ -27,7 +27,7 @@ where
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import Control.Lens
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion
 import Data.Id

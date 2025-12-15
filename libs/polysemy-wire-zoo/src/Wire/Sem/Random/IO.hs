@@ -21,7 +21,7 @@ module Wire.Sem.Random.IO
 where
 
 import Data.Id (randomId)
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
 import OpenSSL.BN
 import OpenSSL.Random (randBytes)

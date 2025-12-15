@@ -26,11 +26,11 @@ import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
-import qualified Data.Text.Lazy as LText
+import Data.Text.Lazy qualified as LText
 import Imports
 import Network.HTTP.Types.Method
 import Spar.Error
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Role

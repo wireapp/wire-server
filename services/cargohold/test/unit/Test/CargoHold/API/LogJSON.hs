@@ -20,16 +20,16 @@ module Test.CargoHold.API.LogJSON
   )
 where
 
-import qualified Control.Concurrent as CC
+import Control.Concurrent qualified as CC
 import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
 import Data.Aeson (Value)
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Char8 as BS8
-import qualified Data.ByteString.Lazy as LBS
-import qualified GHC.IO.Handle as IOH
+import Data.Aeson qualified as A
+import Data.ByteString.Char8 qualified as BS8
+import Data.ByteString.Lazy qualified as LBS
+import GHC.IO.Handle qualified as IOH
 import Imports
-import qualified System.IO as IO
-import qualified System.IO.Error as IOE
+import System.IO qualified as IO
+import System.IO.Error qualified as IOE
 import System.Logger.Extended
 import System.Posix.IO (closeFd, createPipe, fdToHandle)
 import System.Posix.Types (Fd)

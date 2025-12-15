@@ -44,7 +44,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.CaseInsensitive (original)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Handle (Handle, parseHandle)
 import Data.HavePendingInvitations
 import Data.Id (TeamId, UserId)
@@ -55,12 +55,12 @@ import Data.These.Combinators
 import Imports
 import Polysemy
 import Polysemy.Error
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Error
 import Spar.Sem.BrigAccess (BrigAccess)
-import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess qualified as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Spar.Sem.GalleyAccess qualified as GalleyAccess
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm, TeamMember)
 import Wire.API.User
 import Wire.API.User.Scim (ValidScimId (..))

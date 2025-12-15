@@ -25,25 +25,25 @@ where
 
 import Bilge
 import Control.Lens
-import qualified Data.ByteString.Builder as Builder
+import Data.ByteString.Builder qualified as Builder
 import Data.Id
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.String.Conversions
 import Imports
 import SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import SAML2.WebSSO.Test.MockResponse qualified as SAML
 import qualified Servant
-import qualified Spar.App as Spar
+import Spar.App qualified as Spar
 import Spar.Orphans ()
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import qualified Text.XML as XML
-import qualified Text.XML.DSig as DSig
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
+import Text.XML qualified as XML
+import Text.XML.DSig qualified as DSig
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 import Web.Cookie
 import Wire.API.User.IdentityProvider (IdP)
-import qualified Wire.API.User.IdentityProvider as User
+import Wire.API.User.IdentityProvider qualified as User
 
 spec :: SpecWith TestEnv
 spec = describe "accessVerdict" $ do

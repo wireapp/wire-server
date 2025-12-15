@@ -19,12 +19,12 @@
 
 module Test.FeatureFlags where
 
-import qualified API.Galley as Public
-import qualified API.GalleyInternal as Internal
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Key as A
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Set as Set
+import API.Galley qualified as Public
+import API.GalleyInternal qualified as Internal
+import Data.Aeson qualified as A
+import Data.Aeson.Key qualified as A
+import Data.Aeson.KeyMap qualified as KM
+import Data.Set qualified as Set
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude

@@ -23,7 +23,7 @@ module Spar.Sem.ScimExternalIdStore.Mem
 where
 
 import Data.Id (TeamId, UserId)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State

@@ -37,14 +37,14 @@ import Control.Monad.Random (randomRIO)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import qualified Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Csv as Csv
+import Data.CaseInsensitive qualified as CI
+import Data.Csv qualified as Csv
 import Data.Handle (Handle, fromHandle, parseHandle, parseHandleEither)
 import Data.HavePendingInvitations
 import Data.Id (TeamId, UserId, idToText, randomId)
@@ -53,49 +53,49 @@ import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.String.Conversions
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import qualified Data.Vector as V
-import qualified Data.ZAuth.Token as ZAuth
+import Data.Vector qualified as V
+import Data.ZAuth.Token qualified as ZAuth
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Test.MockResponse qualified as SAML
 import SAML2.WebSSO.Test.Util.TestSP (makeSampleIdPMetadata)
-import qualified SAML2.WebSSO.Test.Util.Types as SAML
-import qualified Spar.Intra.BrigApp as Intra
+import SAML2.WebSSO.Test.Util.Types qualified as SAML
+import Spar.Intra.BrigApp qualified as Intra
 import Spar.Options
 import Spar.Scim
 import Spar.Scim.Types (normalizeLikeStored)
-import qualified Spar.Scim.User as SU
-import qualified Spar.Sem.BrigAccess as BrigAccess
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
+import Spar.Scim.User qualified as SU
+import Spar.Sem.BrigAccess qualified as BrigAccess
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
+import Spar.Sem.ScimExternalIdStore qualified as ScimExternalIdStore
+import Spar.Sem.ScimUserTimesStore qualified as ScimUserTimesStore
 import Test.Tasty.HUnit ((@?=))
-import qualified Text.XML.DSig as SAML
+import Text.XML.DSig qualified as SAML
 import Util
 import Util.Invitation
-import qualified Web.Scim.Class.User as Scim.UserC
-import qualified Web.Scim.Filter as Filter
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Error as Scim
-import qualified Web.Scim.Schema.ListResponse as Scim
-import qualified Web.Scim.Schema.Meta as Scim
+import Web.Scim.Class.User qualified as Scim.UserC
+import Web.Scim.Filter qualified as Filter
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.Error qualified as Scim
+import Web.Scim.Schema.ListResponse qualified as Scim
+import Web.Scim.Schema.Meta qualified as Scim
 import Web.Scim.Schema.PatchOp (Operation)
-import qualified Web.Scim.Schema.PatchOp as PatchOp
-import qualified Web.Scim.Schema.User as Scim.User
-import qualified Web.Scim.Schema.User.Email as Scim.Email
-import qualified Wire.API.Team.Export as CsvExport
-import qualified Wire.API.Team.Feature as Feature
+import Web.Scim.Schema.PatchOp qualified as PatchOp
+import Web.Scim.Schema.User qualified as Scim.User
+import Web.Scim.Schema.User.Email qualified as Scim.Email
+import Wire.API.Team.Export qualified as CsvExport
+import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.Team.Role (Role (..), defaultRole)
 import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
-import qualified Wire.API.User.IdentityProvider as User
+import Wire.API.User.IdentityProvider qualified as User
 import Wire.API.User.RichInfo
-import qualified Wire.API.User.Scim as Spar.Types
-import qualified Wire.API.User.Search as Search
+import Wire.API.User.Scim qualified as Spar.Types
+import Wire.API.User.Search qualified as Search
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv

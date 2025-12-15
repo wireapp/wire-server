@@ -17,7 +17,7 @@
 
 module Test.FeatureFlags.EnforceFileDownloadLocation where
 
-import qualified API.GalleyInternal as Internal
+import API.GalleyInternal qualified as Internal
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude

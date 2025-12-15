@@ -18,7 +18,7 @@ module Test.LegalHold where
 
 import API.Brig
 import API.BrigCommon as BrigC
-import qualified API.BrigInternal as BrigI
+import API.BrigInternal qualified as BrigI
 import API.Common
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
@@ -28,21 +28,21 @@ import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks, local)
 import Control.Monad.Trans.Class (lift)
 import Data.Aeson.Lens
-import qualified Data.ByteString.Char8 as BS8
+import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy (LazyByteString)
 import Data.List.Extra (trim)
-import qualified Data.Map as Map
-import qualified Data.ProtoLens as Proto
+import Data.Map qualified as Map
+import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
-import qualified Data.Set as Set
-import qualified Data.Text as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
 import GHC.Stack
 import MLS.Util
 import Network.Wai (Request (pathInfo, requestMethod))
 import Notifications
 import Numeric.Lens (hex)
-import qualified Proto.Otr as Proto
-import qualified Proto.Otr_Fields as Proto
+import Proto.Otr qualified as Proto
+import Proto.Otr_Fields qualified as Proto
 import SetupHelpers
 import Testlib.MockIntegrationService
 import Testlib.Prekeys

@@ -18,16 +18,16 @@
 module API.Spar where
 
 import API.Common (defPassword)
-import qualified Data.ByteString.Base64.Lazy as EL
+import Data.ByteString.Base64.Lazy qualified as EL
 import Data.String.Conversions (cs)
 import Data.String.Conversions.Monomorphic (fromLT)
 import GHC.Stack
 import Network.HTTP.Client (Request)
 import Network.HTTP.Client.MultipartFormData
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Test.MockResponse qualified as SAML
 import Testlib.Prelude
-import qualified Text.XML as XML
+import Text.XML qualified as XML
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_scim_auth_tokens
 getScimTokens :: (HasCallStack, MakesValue caller) => caller -> App Response

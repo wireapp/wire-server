@@ -24,16 +24,16 @@ import API.Spar
 import Control.Arrow ((>>>))
 import Data.ByteString.Base64
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
-import qualified Data.UUID as UUID
+import Data.Text qualified as T
+import Data.UUID qualified as UUID
 import GHC.Stack
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SetupHelpers
-import qualified Testlib.KleisliXML as KXML
+import Testlib.KleisliXML qualified as KXML
 import Testlib.Prelude
-import qualified Text.XML as XML
-import qualified Text.XML.Cursor as XML
-import qualified Text.XML.DSig as SAML
+import Text.XML qualified as XML
+import Text.XML.Cursor qualified as XML
+import Text.XML.DSig qualified as SAML
 
 -- | Test multi-ingress SSO with an IdP that is not bound to a domain.
 --

@@ -24,17 +24,17 @@ module Test.EJPD
 where
 
 import API.Brig
-import qualified API.BrigInternal as BI
+import API.BrigInternal qualified as BI
 import API.Galley
 import API.Gundeck
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.Lens
 import Data.String.Conversions (cs)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
-import qualified Network.Wreq as Wreq
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
+import Network.Wreq qualified as Wreq
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude

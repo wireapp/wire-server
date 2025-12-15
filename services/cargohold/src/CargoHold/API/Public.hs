@@ -18,17 +18,17 @@
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
 import CargoHold.API.Error (unverifiedUser, userNotFound)
-import qualified CargoHold.API.Legacy as LegacyAPI
+import CargoHold.API.Legacy qualified as LegacyAPI
 import CargoHold.API.Util
-import qualified CargoHold.API.V3 as V3
+import CargoHold.API.V3 qualified as V3
 import CargoHold.App
 import CargoHold.Federation
-import qualified CargoHold.Types.V3 as V3
+import CargoHold.Types.V3 qualified as V3
 import Control.Lens
 import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Builder
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.Kind
@@ -36,7 +36,7 @@ import Data.Qualified
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Imports hiding (head)
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString as URI

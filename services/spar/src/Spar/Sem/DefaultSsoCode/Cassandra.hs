@@ -27,7 +27,7 @@ where
 import Cassandra
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Spar.Data.Instances ()
 import Spar.Sem.DefaultSsoCode
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()

@@ -21,7 +21,7 @@
 module Test.Brig where
 
 import API.Brig as BrigP
-import qualified API.BrigInternal as BrigI
+import API.BrigInternal qualified as BrigI
 import API.Common
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
@@ -29,8 +29,8 @@ import Control.Retry
 import Data.Aeson.Types hiding ((.=))
 import Data.List.Split
 import Data.String.Conversions
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import GHC.Stack
 import SetupHelpers
 import System.IO.Extra

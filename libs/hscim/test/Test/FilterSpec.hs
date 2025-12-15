@@ -22,8 +22,8 @@ module Test.FilterSpec where
 import Data.Text (Text, cons)
 import HaskellWorks.Hspec.Hedgehog
 import Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Test.Hspec
 import Web.Scim.AttrName
 import Web.Scim.Filter

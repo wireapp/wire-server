@@ -27,16 +27,16 @@ import API.Spar
 import API.SparInternal
 import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Types as A
-import qualified Data.CaseInsensitive as CI
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Aeson.Types qualified as A
+import Data.CaseInsensitive qualified as CI
 import Data.String.Conversions (cs)
-import qualified Data.Text as ST
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.MockResponse as SAML
-import qualified SAML2.WebSSO.Test.Util as SAML
-import qualified SAML2.WebSSO.XML as SAMLXML
+import Data.Text qualified as ST
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Test.MockResponse qualified as SAML
+import SAML2.WebSSO.Test.Util qualified as SAML
+import SAML2.WebSSO.XML qualified as SAMLXML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
