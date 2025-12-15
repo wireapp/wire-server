@@ -105,7 +105,7 @@ defCellsConfig =
           ],
       "storage"
         .= object
-          [ "perFileQuotaBytes" .= "1000000000",
+          [ "perFileQuotaBytes" .= "100000000",
             "recycle"
               .= object
                 [ "autoPurgeDays" .= (30 :: Int),

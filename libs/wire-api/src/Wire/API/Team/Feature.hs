@@ -1696,7 +1696,7 @@ instance Default CellsConfig where
             },
         storage =
           CellsConfigStorage
-            { perFileQuotaBytes = NumBytes $ BigNatString 1000000000, -- 100MB
+            { perFileQuotaBytes = NumBytes $ BigNatString 100000000, -- 100MB
               recycle =
                 CellsRecycle
                   { autoPurgeDays = 30,

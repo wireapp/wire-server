@@ -601,7 +601,7 @@ cells:
         enforceExpirationMax: "0"
         enforceExpirationDefault: "0"
       storage:
-        perFileQuotaBytes: "1000000000"
+        perFileQuotaBytes: "100000000"
         recycle:
           autoPurgeDays: 30
           disable: false
