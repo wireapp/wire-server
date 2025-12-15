@@ -147,6 +147,9 @@ let
 
     # missing upstream PR, this will get removed when completing
     # servantification
+    #
+    # TODO: Some utilities use this library, but the utilities may be unused,
+    # see if we can get rid of this dep.
     wai-predicates = {
       src = fetchgit {
         url = "https://github.com/wireapp/wai-predicates";
@@ -213,6 +216,7 @@ let
     };
 
     # open PR https://github.com/yesodweb/wai/pull/958 for sending connection: close when closing connection
+    # TODO: Rebase the PR and add tests as the maintainer asked for.
     warp = {
       packages.warp = "warp";
       src = pkgs.fetchFromGitHub {
@@ -227,6 +231,8 @@ let
     # and should be switched to upstream as soon as we can
     # version = "5.2.5";
     # This patch also includes suppressing ConnectionIsClosed
+    #
+    # TODO: Try to use latest http2
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
@@ -237,6 +243,8 @@ let
 
     # hs-opentelemetry-* has not been released for a while on hackage. Thus,
     # we're following main.
+    #
+    # TODO: This pin is likely not necessary anymore
     hs-opentelemetry = {
       src = fetchgit {
         url = "https://github.com/iand675/hs-opentelemetry";
@@ -270,6 +278,8 @@ let
     # N.B. only the listed packages work. If you want to use another:
     # - list it here
     # - patch it on the fork (if required)
+    #
+    # TODO: Try to not use our fork
     amazonka = {
       src = fetchgit {
         url = "https://github.com/wireapp/amazonka";
