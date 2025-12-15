@@ -67,8 +67,8 @@ validConfig b =
                 [ "enableFiles" .= True,
                   "enableFolders" .= True,
                   "enforcePassword" .= False,
-                  "enforceExpirationMax" .= "0",
-                  "enforceExpirationDefault" .= "0"
+                  "enforceExpirationMax" .= (0 :: Int),
+                  "enforceExpirationDefault" .= (0 :: Int)
                 ],
             "storage"
               .= object

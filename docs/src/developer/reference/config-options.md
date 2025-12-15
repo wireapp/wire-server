@@ -598,8 +598,8 @@ cells:
         enableFiles: true
         enableFolders: true
         enforcePassword: false
-        enforceExpirationMax: "0"
-        enforceExpirationDefault: "0"
+        enforceExpirationMax: 0
+        enforceExpirationDefault: 0
       storage:
         perFileQuotaBytes: "100000000"
         recycle:

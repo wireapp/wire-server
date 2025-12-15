@@ -1560,8 +1560,8 @@ data CellsPublicLinks = CellsPublicLinks
   { enableFiles :: Bool,
     enableFolders :: Bool,
     enforcePassword :: Bool,
-    enforceExpirationMax :: BigNatString,
-    enforceExpirationDefault :: BigNatString
+    enforceExpirationMax :: Int64,
+    enforceExpirationDefault :: Int64
   }
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsPublicLinks
@@ -1691,8 +1691,8 @@ instance Default CellsConfig where
             { enableFiles = True,
               enableFolders = True,
               enforcePassword = False,
-              enforceExpirationMax = BigNatString 0,
-              enforceExpirationDefault = BigNatString 0
+              enforceExpirationMax = 0,
+              enforceExpirationDefault = 0
             },
         storage =
           CellsConfigStorage

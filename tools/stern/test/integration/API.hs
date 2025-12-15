@@ -357,8 +357,8 @@ testCellsConfigRoutes = do
                       { enableFiles = True,
                         enableFolders = False,
                         enforcePassword = True,
-                        enforceExpirationMax = BigNatString 86400,
-                        enforceExpirationDefault = BigNatString 3600
+                        enforceExpirationMax = 86400,
+                        enforceExpirationDefault = 3600
                       },
                   storage =
                     CellsConfigStorage
