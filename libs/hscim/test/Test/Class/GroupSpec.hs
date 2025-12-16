@@ -29,6 +29,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (ByteString)
 import Data.String
 import qualified Data.Vector as V
+import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Network.Wai (Application)
 import Network.Wai.Test
@@ -85,7 +86,7 @@ spec = with app $ do
                     field <> " is " <> show gotten <> " instead of " <> show expected
               Nothing -> fail_ $ "missing field: " <> field
 
-          hasMembers :: WaiSession () A.Value -> Int -> Int -> Int -> WaiSession () ()
+          hasMembers :: (HasCallStack) => WaiSession () A.Value -> Int -> Int -> Int -> WaiSession () ()
           hasMembers getPage expectedStartIndex expectedItemsPerPage expectedTotalResults = do
             page :: A.Value <- getPage
             case page ^? A.key "Resources" . A._Array of
