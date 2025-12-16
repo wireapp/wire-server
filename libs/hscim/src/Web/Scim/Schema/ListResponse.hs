@@ -73,7 +73,8 @@ toPage startIndex mbCount list = case mbCount of
         resources = toList list'
       }
   Just count ->
-    let (page, _rest) = Seq.splitAt (fromIntegral (max 0 count)) list'
+    let safeCount = fromIntegral (max 0 (min count (fromIntegral (maxBound :: Int)))) :: Int
+        (page, _rest) = Seq.splitAt safeCount list'
      in ListResponse
           { schemas = [ListResponse20],
             totalResults = totalResults',
