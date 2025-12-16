@@ -26,7 +26,6 @@ where
 
 import Data.Aeson
 import GHC.Generics (Generic)
-import Numeric.Natural
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
 
@@ -60,7 +59,7 @@ fromList list =
   where
     len = length list
 
-toPage :: Natural -> Maybe Natural -> [a] -> ListResponse a
+toPage :: Integer -> Maybe Integer -> [a] -> ListResponse a
 toPage startIndex mbCount list = case mbCount of
   Nothing ->
     ListResponse
@@ -71,7 +70,7 @@ toPage startIndex mbCount list = case mbCount of
         resources = list'
       }
   Just count ->
-    let (c, page, _rest) = splitAtCount count list'
+    let (c, page, _rest) = splitAtCount (max 0 count) list'
      in ListResponse
           { schemas = [ListResponse20],
             totalResults = totalResults',
@@ -86,10 +85,10 @@ toPage startIndex mbCount list = case mbCount of
 
 -- | Split @list@ at @n@, while returning the count of elements
 -- actually in the prefix (as it can be shorter than @n@).
-splitAtCount :: Natural -> [a] -> (Natural, [a], [a])
+splitAtCount :: Integer -> [a] -> (Integer, [a], [a])
 splitAtCount n list = go n 0 list
   where
-    go :: Natural -> Natural -> [a] -> (Natural, [a], [a])
+    go :: Integer -> Integer -> [a] -> (Integer, [a], [a])
     go _ c [] = (c, [], [])
     go 0 c rest = (c, [], rest)
     go n' c (x : xs) =

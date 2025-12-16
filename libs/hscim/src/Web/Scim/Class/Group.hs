@@ -31,7 +31,6 @@ where
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Text
-import Numeric.Natural
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic
@@ -86,8 +85,8 @@ data GroupSite tag route = GroupSite
   { gsGetGroups ::
       route
         :- QueryParam "filter" Filter
-          :> QueryParam "startIndex" Natural
-          :> QueryParam "count" Natural
+          :> QueryParam "startIndex" Integer
+          :> QueryParam "count" Integer
           :> Get '[SCIM] (ListResponse (StoredGroup tag)),
     gsGetGroup ::
       route
@@ -122,8 +121,8 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   getGroups ::
     AuthInfo tag ->
     Maybe Filter ->
-    Maybe Natural ->
-    Maybe Natural ->
+    Maybe Integer ->
+    Maybe Integer ->
     ScimHandler m (ListResponse (StoredGroup tag))
 
   -- | Get a single group by ID.
