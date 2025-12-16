@@ -29,7 +29,7 @@ import Data.Range (Bounds, Range)
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import Data.Text.Encoding.Error
-import Imports
+import Imports hiding (List)
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 
 newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]}

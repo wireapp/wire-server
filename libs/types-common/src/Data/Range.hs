@@ -92,7 +92,7 @@ import Data.Text.Lazy qualified as TL
 import Data.Type.Bool
 import Data.Type.Ord
 import GHC.TypeNats
-import Imports
+import Imports hiding (List)
 import Servant (FromHttpApiData (..))
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
