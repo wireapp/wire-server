@@ -26,7 +26,7 @@ testMeetingCreate = do
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
   resp <- postMeetings owner newMeeting
-  resp.status `shouldMatchInt` 201
+  assertSuccess resp
 
   meeting <- assertOne resp.jsonBody
   meeting %. "title" `shouldMatchText` "Team Standup"
@@ -41,10 +41,10 @@ testMeetingLists = do
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
-  postMeetings owner newMeeting `shouldMatchStatus` 201
+  postMeetings owner newMeeting >>= assertStatus 201
 
   resp <- getMeetingsList owner
-  resp.status `shouldMatchInt` 200
+  assertSuccess resp
 
   meetings <- resp.jsonBody & asList
   length (meetings :: [Value]) `shouldMatchInt` 1
@@ -58,13 +58,13 @@ testMeetingGet = do
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
   r2 <- getMeeting owner domain meetingId
-  r2.status `shouldMatchInt` 200
+  assertSuccess r2
 
   fetchedMeeting <- assertOne r2.jsonBody
   fetchedMeeting %. "title" `shouldMatchText` "Team Standup"
@@ -74,7 +74,7 @@ testMeetingGetNotFound = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   fakeMeetingId <- randomId
 
-  getMeeting owner "example.com" fakeMeetingId `shouldMatchStatus` 404
+  getMeeting owner "example.com" fakeMeetingId >>= assertStatus 404
 
 testMeetingUpdate :: (HasCallStack) => App ()
 testMeetingUpdate = do
@@ -99,7 +99,7 @@ testMeetingUpdate = do
           ]
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -117,7 +117,7 @@ testMeetingUpdate = do
           ]
 
   r2 <- putMeeting owner domain meetingId updatedMeeting
-  r2.status `shouldMatchInt` 200
+  assertSuccess r2
 
   updated <- assertOne r2.jsonBody
   updated %. "title" `shouldMatchText` "Updated Standup"
@@ -139,7 +139,7 @@ testMeetingUpdateNotFound = do
             "end_date" Aeson..= endTime
           ]
 
-  putMeeting owner "example.com" fakeMeetingId update `shouldMatchStatus` 404
+  putMeeting owner "example.com" fakeMeetingId update >>= assertStatus 404
 
 testMeetingUpdateUnauthorized :: (HasCallStack) => App ()
 testMeetingUpdateUnauthorized = do
@@ -151,7 +151,7 @@ testMeetingUpdateUnauthorized = do
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -162,7 +162,7 @@ testMeetingUpdateUnauthorized = do
             "end_date" Aeson..= endTime
           ]
 
-  putMeeting otherUser domain meetingId update `shouldMatchStatus` 404
+  putMeeting otherUser domain meetingId update >>= assertStatus 404
 
 testMeetingDelete :: (HasCallStack) => App ()
 testMeetingDelete = do
@@ -187,21 +187,21 @@ testMeetingDelete = do
           ]
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  deleteMeeting owner domain meetingId `shouldMatchStatus` 200
+  deleteMeeting owner domain meetingId >>= assertStatus 200
 
-  getMeeting owner domain meetingId `shouldMatchStatus` 404
+  getMeeting owner domain meetingId >>= assertStatus 404
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()
 testMeetingDeleteNotFound = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   fakeMeetingId <- randomId
 
-  deleteMeeting owner "example.com" fakeMeetingId `shouldMatchStatus` 404
+  deleteMeeting owner "example.com" fakeMeetingId >>= assertStatus 404
 
 testMeetingDeleteUnauthorized :: (HasCallStack) => App ()
 testMeetingDeleteUnauthorized = do
@@ -213,12 +213,12 @@ testMeetingDeleteUnauthorized = do
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  deleteMeeting otherUser domain meetingId `shouldMatchStatus` 404
+  deleteMeeting otherUser domain meetingId >>= assertStatus 404
 
 testMeetingAddInvitation :: (HasCallStack) => App ()
 testMeetingAddInvitation = do
@@ -229,16 +229,16 @@ testMeetingAddInvitation = do
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   let invitation = Aeson.object ["emails" Aeson..= ["bob@example.com" :: Text]]
 
-  postMeetingInvitation owner domain meetingId invitation `shouldMatchStatus` 200
+  postMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
 
   r2 <- getMeeting owner domain meetingId
-  r2.status `shouldMatchInt` 200
+  assertSuccess r2
 
   updated <- assertOne r2.jsonBody
   updated %. "invited_emails" `shouldMatch` ["alice@example.com" :: Text, "bob@example.com"]
@@ -249,7 +249,7 @@ testMeetingAddInvitationNotFound = do
   fakeMeetingId <- randomId
   let invitation = Aeson.object ["emails" Aeson..= ["bob@example.com" :: Text]]
 
-  postMeetingInvitation owner "example.com" fakeMeetingId invitation `shouldMatchStatus` 404
+  postMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404
 
 testMeetingRemoveInvitation :: (HasCallStack) => App ()
 testMeetingRemoveInvitation = do
@@ -260,16 +260,16 @@ testMeetingRemoveInvitation = do
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   let removeInvitation = Aeson.object ["emails" Aeson..= ["alice@example.com" :: Text]]
 
-  deleteMeetingInvitation owner domain meetingId removeInvitation `shouldMatchStatus` 200
+  deleteMeetingInvitation owner domain meetingId removeInvitation >>= assertStatus 200
 
   r2 <- getMeeting owner domain meetingId
-  r2.status `shouldMatchInt` 200
+  assertSuccess r2
 
   updated <- assertOne r2.jsonBody
   updated %. "invited_emails" `shouldMatch` ["bob@example.com" :: Text]
@@ -280,7 +280,7 @@ testMeetingRemoveInvitationNotFound = do
   fakeMeetingId <- randomId
   let removeInvitation = Aeson.object ["emails" Aeson..= ["alice@example.com" :: Text]]
 
-  deleteMeetingInvitation owner "example.com" fakeMeetingId removeInvitation `shouldMatchStatus` 404
+  deleteMeetingInvitation owner "example.com" fakeMeetingId removeInvitation >>= assertStatus 404
 
 -- Test that personal (non-team) users create trial meetings
 testMeetingCreatePersonalUserTrial :: (HasCallStack) => App ()
@@ -292,7 +292,7 @@ testMeetingCreatePersonalUserTrial = do
       newMeeting = defaultMeetingJson "Personal Meeting" startTime endTime []
 
   r <- postMeetings personalUser newMeeting
-  r.status `shouldMatchInt` 201
+  assertSuccess r
 
   meeting <- assertOne r.jsonBody
   meeting %. "trial" `shouldMatch` True
@@ -303,7 +303,7 @@ testMeetingCreateNonPayingTeamTrial = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
   let teamId = tid
-  putTeamFeature owner teamId "meetingPremium" (Aeson.object ["status" Aeson..= ("disabled" :: Text)]) `shouldMatchStatus` 200
+  putTeamFeature owner teamId "meetingPremium" (Aeson.object ["status" Aeson..= ("disabled" :: Text)]) >>= assertStatus 200
 
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
@@ -311,7 +311,7 @@ testMeetingCreateNonPayingTeamTrial = do
       newMeeting = defaultMeetingJson "Non-Paying Team Meeting" startTime endTime []
 
   r <- postMeetings owner newMeeting
-  r.status `shouldMatchInt` 201
+  assertSuccess r
 
   meeting <- assertOne r.jsonBody
   meeting %. "trial" `shouldMatch` True
@@ -322,7 +322,7 @@ testMeetingCreatePayingTeamNonTrial = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
   let firstMeeting = Aeson.object ["status" Aeson..= ("enabled" :: Text)]
-  putTeamFeature owner tid "meetingPremium" firstMeeting `shouldMatchStatus` 200
+  putTeamFeature owner tid "meetingPremium" firstMeeting >>= assertStatus 200
 
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
@@ -330,7 +330,7 @@ testMeetingCreatePayingTeamNonTrial = do
       newMeeting = defaultMeetingJson "Paying Team Meeting" startTime endTime []
 
   r <- postMeetings owner newMeeting
-  r.status `shouldMatchInt` 201
+  assertSuccess r
 
   meeting <- assertOne r.jsonBody
   meeting %. "trial" `shouldMatch` False
@@ -342,7 +342,7 @@ testMeetingConfigDisabledBlocksCreate = do
 
   -- Disable the MeetingConfig feature
   let firstMeeting = Aeson.object ["status" Aeson..= ("disabled" :: Text), "lockStatus" Aeson..= ("unlocked" :: Text)]
-  putTeamFeature owner tid "meeting" firstMeeting `shouldMatchStatus` 200
+  putTeamFeature owner tid "meeting" firstMeeting >>= assertStatus 200
 
   -- Try to create a meeting - should fail
   now <- liftIO getCurrentTime
@@ -350,7 +350,7 @@ testMeetingConfigDisabledBlocksCreate = do
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
-  postMeetings owner newMeeting `shouldMatchStatus` 403
+  postMeetings owner newMeeting >>= assertStatus 403
 
 -- Test that disabled MeetingConfig feature blocks meeting listing
 testMeetingConfigDisabledBlocksList :: (HasCallStack) => App ()
@@ -363,14 +363,14 @@ testMeetingConfigDisabledBlocksList = do
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
 
-  postMeetings owner newMeeting `shouldMatchStatus` 201
+  postMeetings owner newMeeting >>= assertStatus 201
 
   -- Disable the MeetingConfig feature
   let updatedMeeting = Aeson.object ["status" Aeson..= ("disabled" :: Text), "lockStatus" Aeson..= ("unlocked" :: Text)]
-  putTeamFeature owner tid "meeting" updatedMeeting `shouldMatchStatus` 200
+  putTeamFeature owner tid "meeting" updatedMeeting >>= assertStatus 200
 
   -- Try to list meetings - should fail
-  getMeetingsList owner `shouldMatchStatus` 403
+  getMeetingsList owner >>= assertStatus 403
 
 testMeetingRecurrence :: (HasCallStack) => App ()
 testMeetingRecurrence = do
@@ -395,13 +395,13 @@ testMeetingRecurrence = do
           ]
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
   r2 <- getMeeting owner domain meetingId
-  r2.status `shouldMatchInt` 200
+  assertSuccess r2
 
   fetchedMeeting <- assertOne r2.jsonBody
   fetchedMeeting %. "title" `shouldMatchText` "Daily Standup with Recurrence"
@@ -418,7 +418,7 @@ testMeetingCreateInvalidDates = do
       endTimeInvalid = addUTCTime 3500 now -- endDate is before startDate
       newMeetingInvalid = defaultMeetingJson "Invalid Date" startTime endTimeInvalid []
 
-  postMeetings owner newMeetingInvalid `shouldMatchStatus` 403
+  postMeetings owner newMeetingInvalid >>= assertStatus 403
 
 testMeetingUpdateInvalidDates :: (HasCallStack) => App ()
 testMeetingUpdateInvalidDates = do
@@ -429,7 +429,7 @@ testMeetingUpdateInvalidDates = do
       newMeeting = defaultMeetingJson "Valid Meeting" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -441,7 +441,7 @@ testMeetingUpdateInvalidDates = do
             "end_date" Aeson..= updatedEndTimeInvalid
           ]
 
-  putMeeting owner domain meetingId updatedMeeting `shouldMatchStatus` 403
+  putMeeting owner domain meetingId updatedMeeting >>= assertStatus 403
 
 testMeetingUpdateInvalidDatesPartialEnd :: (HasCallStack) => App ()
 testMeetingUpdateInvalidDatesPartialEnd = do
@@ -452,7 +452,7 @@ testMeetingUpdateInvalidDatesPartialEnd = do
       newMeeting = defaultMeetingJson "Valid Meeting" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -462,7 +462,7 @@ testMeetingUpdateInvalidDatesPartialEnd = do
           [ "end_date" Aeson..= updatedEndTimeInvalid
           ]
 
-  putMeeting owner domain meetingId updatedMeeting `shouldMatchStatus` 403
+  putMeeting owner domain meetingId updatedMeeting >>= assertStatus 403
 
 testMeetingUpdateInvalidDatesPartialStart :: (HasCallStack) => App ()
 testMeetingUpdateInvalidDatesPartialStart = do
@@ -473,7 +473,7 @@ testMeetingUpdateInvalidDatesPartialStart = do
       newMeeting = defaultMeetingJson "Valid Meeting" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
-  r1.status `shouldMatchInt` 201
+  assertSuccess r1
 
   meeting <- assertOne r1.jsonBody
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -483,14 +483,9 @@ testMeetingUpdateInvalidDatesPartialStart = do
           [ "start_date" Aeson..= updatedStartTimeInvalid
           ]
 
-  putMeeting owner domain meetingId updatedMeeting `shouldMatchStatus` 403
+  putMeeting owner domain meetingId updatedMeeting >>= assertStatus 403
 
 -- * Helpers
-
-shouldMatchStatus :: (HasCallStack) => App Response -> Int -> App ()
-shouldMatchStatus mkResp expectedStatus = do
-  resp <- mkResp
-  resp.status `shouldMatchInt` expectedStatus
 
 -- Custom API helper functions for meetings
 postMeetings :: (HasCallStack, MakesValue user) => user -> Aeson.Value -> App Response
