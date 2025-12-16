@@ -276,14 +276,15 @@ let
     # TODO: Try to not use our fork
     amazonka = {
       src = fetchgit {
-        url = "https://github.com/wireapp/amazonka";
-        rev = "d98cefc04bcc7076a915076a322ab5905c6a4945";
-        hash = "sha256-8HNHoTUaLi5lyOrKYybacZsDSHrju9/oo+Lf/YulbIo=";
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "a7d699be1076e2aad05a1930ca3937ffea954ad8";
+        hash = "sha256-cCRhHH/IgM7tPy8rXHTSRec1zxohO8NWxSVZEG1OjQw=";
       };
       packages = {
         amazonka = "lib/amazonka";
         amazonka-core = "lib/amazonka-core";
         amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+        amazonka-dynamodb-attributevalue = "lib/amazonka-dynamodb-attributevalue";
         amazonka-s3 = "lib/services/amazonka-s3";
         amazonka-sts = "lib/services/amazonka-sts";
         amazonka-sqs = "lib/services/amazonka-sqs";
