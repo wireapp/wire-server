@@ -210,10 +210,12 @@ instance HasDoc (SchemaDoc doc a b) (SchemaDoc doc' a b) doc doc' where
 -- excessive generality, but it is useful to represent "intermediate"
 -- schemas arising when building complex ones. For example, a schema
 -- which is able to work with fields of a JSON object (see 'field')
--- should not output full-blown objects, but only lists of pairs, so
--- that they can be combined correctly via the usual 'Monoid'
--- structure of lists when using the 'Applicative' interface of
--- 'SchemaP d v w a b'.
+-- should not output full-blown objects (`ValueSchemaP`), but only
+-- lists of pairs (`ObjectSchemaP`), so that they can be combined
+-- correctly via the usual 'Monoid' structure of lists when using the
+-- 'Applicative' interface of 'SchemaP d v w a b'.  Example: This is
+-- used for writing schemas of objects that draw their field from more
+-- than one different schema.
 --
 -- The idea of using the profunctor structure of 'SchemaP' is taken
 -- from the [codec](https://github.com/chpatrick/codec) library.
