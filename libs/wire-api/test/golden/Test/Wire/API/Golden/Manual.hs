@@ -41,6 +41,7 @@ import Test.Wire.API.Golden.Manual.FederationRestriction
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
+import Test.Wire.API.Golden.Manual.IdP
 import Test.Wire.API.Golden.Manual.InvitationUserView
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
@@ -429,5 +430,11 @@ tests =
                   (testObject_DomainRedirectConfig_2, "testObject_DomainRedirectConfig_2.json"),
                   (testObject_DomainRedirectConfig_4, "testObject_DomainRedirectConfig_4.json")
                 ]
+          ],
+      testGroup
+        "IdP"
+        $ testObjects
+          [ (testObject_IdP_1, "testObject_IdP_1.json"),
+            (testObject_IdP_2, "testObject_IdP_2.json")
           ]
     ]
