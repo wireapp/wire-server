@@ -402,6 +402,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         -- sortOrder and page size to the mock database
         let getAllPages sortOrder' pageSize' = go 0
               where
+                go :: (Member UserGroupSubsystem r) => PosInt32 -> Sem r [UserGroupPage]
                 go offset = do
                   p <-
                     getGroups
@@ -413,7 +414,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         }
                   if length p.page < fromIntegral pageSize'
                     then pure [p]
-                    else (p :) <$> go (offset + pageSize')
+                    else (p :) <$> go (offset + fromJust (mkPosInt32 pageSize'))
 
         ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
         descendingPages :: [UserGroupPage] <- getAllPages Desc 3

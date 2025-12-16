@@ -309,7 +309,7 @@ groupPaginationOrderBy req =
     limit (pageSizeToInt32 req.pageSize)
   ]
     <> case req.paginationState of
-      PaginationOffset n -> [offset n]
+      PaginationOffset n -> [offset (fromIntegral n :: Int32)]
       _ -> []
 
 getUserGroupCount :: TeamId -> UserGroupPageRequest -> Tx.Transaction Int

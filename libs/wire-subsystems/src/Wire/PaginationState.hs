@@ -17,6 +17,9 @@
 
 module Wire.PaginationState
   ( PaginationState (..),
+    PosInt32,
+    mkPosInt32,
+    fromPosInt32,
     paginationClause,
   )
 where
@@ -28,7 +31,17 @@ import Wire.Postgres
 data PaginationState a
   = PaginationSortByName (Maybe (Text, a))
   | PaginationSortByCreatedAt (Maybe (UTCTime, a))
-  | PaginationOffset Int32
+  | PaginationOffset PosInt32
+
+-- | `Int32` with a smart constructor `mkInt32` to forbid 0 and negative values.
+newtype PosInt32 = PosInt32 {fromPosInt32 :: Int32}
+  deriving newtype (Eq, Ord, Enum, Show, Num, Real, Integral)
+
+mkPosInt32 :: (Integral i) => i -> Maybe PosInt32
+mkPosInt32 i =
+  if i > 0
+    then Just (fromIntegral i)
+    else Nothing
 
 paginationClause :: (PostgresValue a) => PaginationState a -> Maybe Clause
 paginationClause s = case s of

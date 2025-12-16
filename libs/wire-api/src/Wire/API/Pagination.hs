@@ -83,11 +83,11 @@ pageSizeFromInt :: Int32 -> Either Text PageSize
 pageSizeFromInt = fmap PageSize . first T.pack . Range.checkedEither
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
-pageSizeFromIntUnsafe :: Int32 -> PageSize
-pageSizeFromIntUnsafe = PageSize . unsafeRange . (+ 1) . (`mod` 500) . (+ (-1))
+pageSizeFromIntUnsafe :: (Integral i) => i -> PageSize
+pageSizeFromIntUnsafe = PageSize . unsafeRange . (+ 1) . (`mod` 500) . (+ (-1)) . fromIntegral
 
 instance Arbitrary PageSize where
-  arbitrary = pageSizeFromIntUnsafe <$> arbitrary
+  arbitrary = pageSizeFromIntUnsafe <$> (arbitrary @Int)
 
 instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema

@@ -1031,8 +1031,8 @@ getGroupsInternalH ::
   TeamId ->
   Maybe T.Text ->
   Maybe ManagedBy ->
-  Maybe Int32 ->
-  Maybe Int32 ->
+  Maybe Int ->
+  Maybe Int ->
   Handler r UserGroupPageWithMembers
 getGroupsInternalH tid nameContains managedBy mbStartIndex mbCount =
   lift . liftSem $ getGroupsInternal tid nameContains managedBy mbStartIndex mbCount

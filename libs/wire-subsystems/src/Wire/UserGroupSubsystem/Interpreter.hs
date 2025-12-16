@@ -268,15 +268,21 @@ getUserGroupsInternal ::
   TeamId ->
   Maybe Text ->
   Maybe ManagedBy ->
-  Maybe Int32 ->
-  Maybe Int32 ->
+  Maybe Int ->
+  Maybe Int ->
   Sem r UserGroupPageWithMembers
 getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount = do
   let pageReq =
         UserGroupPageRequest
           { pageSize = maybe def pageSizeFromIntUnsafe mbCount,
             sortOrder = Asc,
-            paginationState = maybe (PaginationOffset 0) (PaginationOffset . (\ix -> max 0 (ix - 1))) mbStartIndex,
+            paginationState =
+              -- scim starts counting page items at 1, but from here
+              -- on, we start at 0.
+              maybe
+                (PaginationOffset 0)
+                (PaginationOffset . (+ (-1)))
+                (mbStartIndex >>= mkPosInt32),
             searchString = displayNameSubstring,
             managedByFilter = mbManagedBy,
             includeMemberCount = True,
