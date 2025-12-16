@@ -81,7 +81,7 @@ import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Char8 qualified as BS
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion as BSC
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Domain
 import Data.Handle (Handle)
@@ -196,7 +196,7 @@ getUserConnections uid = do
       parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
-getUsersConnections :: List UserId -> Handler [ConnectionStatus]
+getUsersConnections :: BSC.List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
   b <- asks (.brig)
