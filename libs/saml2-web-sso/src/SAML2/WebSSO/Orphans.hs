@@ -46,6 +46,10 @@ instance Schema.ToSchema SignedCertificate where
       serialize :: SignedCertificate -> Text.Text
       serialize = TL.toStrict . renderKeyInfo
 
+deriving via (Schema.Schema SignedCertificate) instance FromJSON SignedCertificate
+
+deriving via (Schema.Schema SignedCertificate) instance ToJSON SignedCertificate
+
 -- This can unfortunately not live in wire-api, because wire-api depends on
 -- saml2-web-sso.
 instance ToSchema URI where
@@ -72,3 +76,14 @@ instance ToSchema Level where
 deriving instance Enum Level
 
 deriving instance Bounded Level
+
+-- | Used in tests to have no @extra@ in @IdPConfig extra@
+instance Schema.ToSchema () where
+  schema = Schema.named "unit" $ Schema.null_
+
+-- | Used in tests to have JSON as @extra@ in @IdPConfig extra@
+instance Schema.ToSchema A.Value where
+  schema =
+    Schema.named (Text.pack "Value") $
+      id
+        Schema..= Schema.jsonValue

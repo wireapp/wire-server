@@ -161,7 +161,6 @@ module SAML2.WebSSO.Types
 where
 
 import Control.Lens
-import Control.Monad ((<=<))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
@@ -176,7 +175,6 @@ import Data.Schema qualified as Schema
 import Data.String.Conversions (ST, cs)
 import Data.Text (Text)
 import Data.Text qualified as ST
-import Data.Text.Encoding qualified as T
 import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, parseTimeM)
 import Data.UUID as UUID
 import Data.X509 qualified as X509
@@ -318,7 +316,7 @@ instance Schema.ToSchema IdPMetadata where
       IdPMetadata
         <$> (_edIssuer Schema..= Schema.field "issuer" Schema.schema)
         <*> (_edRequestURI Schema..= Schema.field "requestURI" Schema.schema)
-        <*> (_edCertAuthnResponse Schema..= Schema.field "certAuthnResponse" Schema.schema)
+        <*> (_edCertAuthnResponse Schema..= Schema.field "certAuthnResponse" (Schema.nonEmptyArray Schema.schema))
 
 ----------------------------------------------------------------------
 -- idp info
