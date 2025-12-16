@@ -1,0 +1,2 @@
+Fix swagger docs for `GET` and `POST` on `/conversations/{cnv}/code` to show
+that the response will always include the `uri` field.

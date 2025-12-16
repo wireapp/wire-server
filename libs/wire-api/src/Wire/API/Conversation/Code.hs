@@ -83,8 +83,7 @@ instance ToSchema JoinConversationByCode where
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
-    conversationCode :: Code.Value,
-    conversationUri :: Maybe HttpsUrl
+    conversationCode :: Code.Value
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCode)
@@ -103,13 +102,6 @@ conversationCodeObjectSchema =
         "code"
         (description ?~ "Conversation code (random)")
         schema
-    <*> conversationUri
-      .= maybe_
-        ( optFieldWithDocModifier
-            "uri"
-            (description ?~ "Full URI (containing key/code) to join a conversation")
-            schema
-        )
 
 instance ToSchema ConversationCode where
   schema =
@@ -120,6 +112,7 @@ instance ToSchema ConversationCode where
 
 data ConversationCodeInfo = ConversationCodeInfo
   { code :: ConversationCode,
+    uri :: HttpsUrl,
     hasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)
@@ -133,11 +126,12 @@ instance ToSchema ConversationCodeInfo where
       (description ?~ "Contains conversation properties to update")
       $ ConversationCodeInfo
         <$> (.code) .= conversationCodeObjectSchema
+        <*> (.uri) .= (fieldWithDocModifier "uri" (description ?~ "Full URI (containing key/code) to join a conversation") schema)
         <*> (.hasPassword) .= fieldWithDocModifier "has_password" (description ?~ "Whether the conversation has a password") schema
 
 mkConversationCodeInfo :: Bool -> Code.Key -> Code.Value -> HttpsUrl -> ConversationCodeInfo
 mkConversationCodeInfo hasPw k v (HttpsUrl prefix) =
-  ConversationCodeInfo (ConversationCode k v (Just (HttpsUrl link))) hasPw
+  ConversationCodeInfo (ConversationCode k v) (HttpsUrl link) hasPw
   where
     q = [("key", toByteString' k), ("code", toByteString' v)]
     link = prefix & (URI.queryL . URI.queryPairsL) .~ q
