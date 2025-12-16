@@ -428,7 +428,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           length (nub $ map (.id_) . (.page) =<< ascendingPages) `shouldBe` 5
           length (nub $ map (.id_) . (.page) =<< descendingPages) `shouldBe` 5
 
-          -- Sort order is accountid for
+          -- Sort order is accounted for
           (map (.id_) . (.page) =<< ascendingPages) `shouldBe` sort groupIds
           (map (.id_) . (.page) =<< descendingPages) `shouldBe` sortBy (comparing Down) groupIds
 
