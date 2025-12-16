@@ -274,15 +274,14 @@ updateMeetingImpl zUser meetingId update = do
   when (isNothing update.title && isNothing update.startDate && isNothing update.endDate && isNothing update.recurrence) $
     throwS @'InvalidOperation
 
-  case (update.startDate, update.endDate) of
-    (Just start, Just end) -> when (end <= start) $ throwS @'InvalidOperation
-    _ -> pure ()
-
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
     Nothing -> pure Nothing
-    Just meeting ->
+    Just meeting -> do
+      when (fromMaybe meeting.startDate update.startDate >= fromMaybe meeting.endDate update.endDate) $
+        throwS @'InvalidOperation
+
       -- Check authorization (only creator can update)
       if meeting.creator /= tUntagged zUser
         then pure Nothing

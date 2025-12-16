@@ -9,62 +9,6 @@ import Data.Time.Clock
 import SetupHelpers
 import Testlib.Prelude as P
 
-shouldMatchStatus :: (HasCallStack) => App Response -> Int -> App ()
-shouldMatchStatus mkResp expectedStatus = do
-  resp <- mkResp
-  resp.status `shouldMatchInt` expectedStatus
-
--- Custom API helper functions for meetings
-postMeetings :: (HasCallStack, MakesValue user) => user -> Aeson.Value -> App Response
-postMeetings user newMeeting = do
-  req <- baseRequest user Galley Versioned "/meetings"
-  submit "POST" $ req & addJSON newMeeting
-
-getMeetingsList :: (HasCallStack, MakesValue user) => user -> App Response
-getMeetingsList user = do
-  req <- baseRequest user Galley Versioned "/meetings/list"
-  submit "GET" req
-
-getMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-getMeeting user domain meetingId = do
-  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
-  submit "GET" req
-
-putMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
-putMeeting user domain meetingId updatedMeeting = do
-  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
-  submit "PUT" $ req & addJSON updatedMeeting
-
-deleteMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
-deleteMeeting user domain meetingId = do
-  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
-  submit "DELETE" req
-
-postMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
-postMeetingInvitation user domain meetingId invitation = do
-  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations"])
-  submit "POST" $ req & addJSON invitation
-
-deleteMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
-deleteMeetingInvitation user domain meetingId removeInvitation = do
-  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations", "delete"])
-  submit "POST" $ req & addJSON removeInvitation
-
-putTeamFeature :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
-putTeamFeature user tid featureName payload = do
-  req <- baseRequest user Galley Unversioned (joinHttpPath ["i", "teams", tid, "features", featureName])
-  submit "PUT" $ req & addJSON payload
-
--- Helper to create a default new meeting JSON object
-defaultMeetingJson :: Text -> UTCTime -> UTCTime -> [Text] -> Aeson.Value
-defaultMeetingJson title startTime endTime invitedEmails =
-  Aeson.object
-    [ "title" Aeson..= title,
-      "start_date" Aeson..= startTime,
-      "end_date" Aeson..= endTime,
-      "invited_emails" Aeson..= invitedEmails
-    ]
-
 -- Helper to extract meetingId and domain from a meeting JSON object
 getMeetingIdAndDomain :: (HasCallStack) => Aeson.Value -> App (String, String)
 getMeetingIdAndDomain meeting = do
@@ -498,3 +442,103 @@ testMeetingUpdateInvalidDates = do
           ]
 
   putMeeting owner domain meetingId updatedMeeting `shouldMatchStatus` 403
+
+testMeetingUpdateInvalidDatesPartialEnd :: (HasCallStack) => App ()
+testMeetingUpdateInvalidDatesPartialEnd = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Valid Meeting" startTime endTime []
+
+  r1 <- postMeetings owner newMeeting
+  r1.status `shouldMatchInt` 201
+
+  meeting <- assertOne r1.jsonBody
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let updatedEndTimeInvalid = addUTCTime 1000 now -- endDate is before startDate
+      updatedMeeting =
+        Aeson.object
+          [ "end_date" Aeson..= updatedEndTimeInvalid
+          ]
+
+  putMeeting owner domain meetingId updatedMeeting `shouldMatchStatus` 403
+
+testMeetingUpdateInvalidDatesPartialStart :: (HasCallStack) => App ()
+testMeetingUpdateInvalidDatesPartialStart = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Valid Meeting" startTime endTime []
+
+  r1 <- postMeetings owner newMeeting
+  r1.status `shouldMatchInt` 201
+
+  meeting <- assertOne r1.jsonBody
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let updatedStartTimeInvalid = addUTCTime 8000 now -- startDate is after endDate
+      updatedMeeting =
+        Aeson.object
+          [ "start_date" Aeson..= updatedStartTimeInvalid
+          ]
+
+  putMeeting owner domain meetingId updatedMeeting `shouldMatchStatus` 403
+
+-- * Helpers
+
+shouldMatchStatus :: (HasCallStack) => App Response -> Int -> App ()
+shouldMatchStatus mkResp expectedStatus = do
+  resp <- mkResp
+  resp.status `shouldMatchInt` expectedStatus
+
+-- Custom API helper functions for meetings
+postMeetings :: (HasCallStack, MakesValue user) => user -> Aeson.Value -> App Response
+postMeetings user newMeeting = do
+  req <- baseRequest user Galley Versioned "/meetings"
+  submit "POST" $ req & addJSON newMeeting
+
+getMeetingsList :: (HasCallStack, MakesValue user) => user -> App Response
+getMeetingsList user = do
+  req <- baseRequest user Galley Versioned "/meetings/list"
+  submit "GET" req
+
+getMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getMeeting user domain meetingId = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "GET" req
+
+putMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+putMeeting user domain meetingId updatedMeeting = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "PUT" $ req & addJSON updatedMeeting
+
+deleteMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+deleteMeeting user domain meetingId = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "DELETE" req
+
+postMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+postMeetingInvitation user domain meetingId invitation = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations"])
+  submit "POST" $ req & addJSON invitation
+
+deleteMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+deleteMeetingInvitation user domain meetingId removeInvitation = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations", "delete"])
+  submit "POST" $ req & addJSON removeInvitation
+
+putTeamFeature :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+putTeamFeature user tid featureName payload = do
+  req <- baseRequest user Galley Unversioned (joinHttpPath ["i", "teams", tid, "features", featureName])
+  submit "PUT" $ req & addJSON payload
+
+-- Helper to create a default new meeting JSON object
+defaultMeetingJson :: Text -> UTCTime -> UTCTime -> [Text] -> Aeson.Value
+defaultMeetingJson title startTime endTime invitedEmails =
+  Aeson.object
+    [ "title" Aeson..= title,
+      "start_date" Aeson..= startTime,
+      "end_date" Aeson..= endTime,
+      "invited_emails" Aeson..= invitedEmails
+    ]
