@@ -21,13 +21,14 @@ module Test.Wire.API.Golden.Generated.Event_user where
 
 import Data.Domain
 import Data.Id
-import Data.Misc (Milliseconds (Ms, ms))
+import Data.Misc (HttpsUrl (..), Milliseconds (Ms, ms))
 import Data.Qualified
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
 import Data.Text.Ascii (validate)
 import Data.UUID qualified as UUID (fromString)
 import Imports
+import URI.ByteString
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
@@ -308,14 +309,31 @@ testObject_Event_user_14 =
     Nothing
     (EdConvCodeUpdate cc)
   where
+    testURI :: HttpsUrl
+    testURI =
+      HttpsUrl
+        URI
+          { uriScheme = Scheme {schemeBS = "https"},
+            uriAuthority =
+              Just
+                ( Authority
+                    { authorityUserInfo = Nothing,
+                      authorityHost = Host {hostBS = "example.com"},
+                      authorityPort = Nothing
+                    }
+                ),
+            uriPath = "",
+            uriQuery = Query {queryPairs = []},
+            uriFragment = Nothing
+          }
     cc =
       ConversationCodeInfo
         ( ConversationCode
             { conversationKey = Key {asciiKey = unsafeRange (fromRight undefined (validate "NEN=eLUWHXclTp=_2Nap"))},
-              conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
-              conversationUri = Nothing
+              conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))}
             }
         )
+        testURI
         False
 
 testObject_Event_user_15 :: Event
