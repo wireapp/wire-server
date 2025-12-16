@@ -108,6 +108,7 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification (IdPCreated, IdPDeleted, IdPUpdated))
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZHostValue)
@@ -573,7 +574,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
-    BrigAccess.sendSAMLIdPDeletedEmail idp
+    BrigAccess.sendSAMLIdPChangedEmail $ IdPDeleted idp
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
@@ -654,7 +655,7 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
-  BrigAccess.sendSAMLIdPCreatedEmail idp
+  BrigAccess.sendSAMLIdPChangedEmail $ IdPCreated idp
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -835,7 +836,7 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
-  BrigAccess.sendSAMLIdPUpdatedEmail previousIdP idp''
+  BrigAccess.sendSAMLIdPChangedEmail $ IdPUpdated previousIdP idp''
   pure idp''
   where
     -- Ensure that the domain is not in use by an existing IDP

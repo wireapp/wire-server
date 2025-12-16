@@ -43,9 +43,7 @@ module Spar.Intra.Brig
     setStatus,
     getDefaultUserLocale,
     checkAdminGetTeamId,
-    sendSAMLIdPCreatedEmail,
-    sendSAMLIdPDeletedEmail,
-    sendSAMLIdPUpdatedEmail,
+    sendSAMLIdPChangedEmail,
   )
 where
 
@@ -67,11 +65,11 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.Locale
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
-import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.RichInfo as RichInfo
 import Wire.UserSubsystem (HavePendingInvitations (..))
 
@@ -458,20 +456,8 @@ checkAdminGetTeamId uid = do
     200 -> parseResponse @TeamId "brig" resp
     _ -> rethrow "brig" resp
 
-sendSAMLIdPCreatedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> m ()
-sendSAMLIdPCreatedEmail idp = do
-  resp <- call $ method POST . path "/i/idp/send-idp-created-email" . json idp
-  unless (statusCode resp == 200) $
-    rethrow "brig" resp
-
-sendSAMLIdPDeletedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> m ()
-sendSAMLIdPDeletedEmail idp = do
-  resp <- call $ method POST . path "/i/idp/send-idp-deleted-email" . json idp
-  unless (statusCode resp == 200) $
-    rethrow "brig" resp
-
-sendSAMLIdPUpdatedEmail :: (HasCallStack, MonadSparToBrig m) => IdP -> IdP -> m ()
-sendSAMLIdPUpdatedEmail old new = do
-  resp <- call $ method POST . path "/i/idp/send-idp-updated-email" . json (old, new)
+sendSAMLIdPChangedEmail :: (HasCallStack, MonadSparToBrig m) => IdpChangedNotification -> m ()
+sendSAMLIdPChangedEmail notif = do
+  resp <- call $ method POST . path "/i/idp/send-idp-changed-email" . json notif
   unless (statusCode resp == 200) $
     rethrow "brig" resp

@@ -3,11 +3,10 @@
 module Wire.SAMLEmailSubsystem where
 
 import Polysemy
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.User.IdentityProvider (IdP)
 
 data SAMLEmailSubsystem m a where
-  SendSAMLIdPCreated :: IdP -> SAMLEmailSubsystem m ()
-  SendSAMLIdPDeleted :: IdP -> SAMLEmailSubsystem m ()
-  SendSAMLIdPUpdated :: IdP -> IdP -> SAMLEmailSubsystem m ()
+  SendSAMLIdPChanged :: IdpChangedNotification -> SAMLEmailSubsystem m ()
 
 makeSem ''SAMLEmailSubsystem

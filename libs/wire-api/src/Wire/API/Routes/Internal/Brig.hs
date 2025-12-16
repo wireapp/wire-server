@@ -45,6 +45,7 @@ module Wire.API.Routes.Internal.Brig
     FoundInvitationCode (..),
     EnterpriseLoginApi,
     SAMLIdPAPI,
+    IdpChangedNotification (..),
   )
 where
 
@@ -707,26 +708,12 @@ type API =
 type SAMLIdPAPI =
   "idp"
     :> ( Named
-           "send-idp-created-email"
-           ( Summary "Send an email about the new IdP to all team admins and owners"
-               :> "send-idp-created-email"
-               :> ReqBody '[Servant.JSON] IdP
+           "send-idp-changed-email"
+           ( Summary "Send an email about IdP creation, deletion or update to all team admins and owners"
+               :> "send-idp-changed-email"
+               :> ReqBody '[Servant.JSON] IdpChangedNotification
                :> Post '[Servant.JSON] ()
            )
-           :<|> Named
-                  "send-idp-deleted-email"
-                  ( Summary "Send an email about the deleted IdP to all team admins and owners"
-                      :> "send-idp-deleted-email"
-                      :> ReqBody '[Servant.JSON] IdP
-                      :> Post '[Servant.JSON] ()
-                  )
-           :<|> Named
-                  "send-idp-updated-email"
-                  ( Summary "Send an email about the IdP update to all team admins and owners"
-                      :> "send-idp-updated-email"
-                      :> ReqBody '[Servant.JSON] (IdP, IdP)
-                      :> Post '[Servant.JSON] ()
-                  )
        )
 
 type IStatusAPI =
@@ -999,27 +986,6 @@ instance S.ToSchema GetRichInfoMultiResponse where
       S.NamedSchema (Just $ "GetRichInfoMultiResponse") $
         mempty & S.description ?~ "List of pairs of UserId and RichInfo"
 
-swaggerDoc :: OpenApi
-swaggerDoc = brigSwaggerDoc
-
-brigSwaggerDoc :: OpenApi
-brigSwaggerDoc =
-  ( toOpenApi (Proxy @API)
-      & info . title .~ "Wire-Server internal brig API"
-  )
-
-newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
-  deriving newtype (Functor, Applicative, Monad, Servant.RunClient)
-
-brigInternalClient :: forall (name :: Symbol) endpoint. (HasEndpoint API endpoint name, Servant.HasClient BrigInternalClient endpoint) => Servant.Client BrigInternalClient endpoint
-brigInternalClient = namedClient @API @name @BrigInternalClient
-
-runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
-runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
-  let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
-      clientEnv = Servant.mkClientEnv httpMgr baseUrl
-  Servant.runClientM action clientEnv
-
 data IdpChangedNotificationTag = IdPCreatedTag | IdPDeletedTag | IdPUpdatedTag
   deriving (Eq, Enum, Bounded)
 
@@ -1067,3 +1033,24 @@ deriving via (Schema IdpChangedNotification) instance FromJSON IdpChangedNotific
 deriving via (Schema IdpChangedNotification) instance ToJSON IdpChangedNotification
 
 deriving via (Schema IdpChangedNotification) instance S.ToSchema IdpChangedNotification
+
+swaggerDoc :: OpenApi
+swaggerDoc = brigSwaggerDoc
+
+brigSwaggerDoc :: OpenApi
+brigSwaggerDoc =
+  ( toOpenApi (Proxy @API)
+      & info . title .~ "Wire-Server internal brig API"
+  )
+
+newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
+  deriving newtype (Functor, Applicative, Monad, Servant.RunClient)
+
+brigInternalClient :: forall (name :: Symbol) endpoint. (HasEndpoint API endpoint name, Servant.HasClient BrigInternalClient endpoint) => Servant.Client BrigInternalClient endpoint
+brigInternalClient = namedClient @API @name @BrigInternalClient
+
+runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
+runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
+  let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
+      clientEnv = Servant.mkClientEnv httpMgr baseUrl
+  Servant.runClientM action clientEnv

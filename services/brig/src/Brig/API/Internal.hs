@@ -123,7 +123,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
-import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPCreated, sendSAMLIdPDeleted, sendSAMLIdPUpdated)
+import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -519,10 +519,7 @@ enterpriseLoginApi =
     :<|> Named @"domain-registration-get" getDomainRegistrationH
 
 samlIdPApi :: (Member SAMLEmailSubsystem r) => ServerT SAMLIdPAPI (Handler r)
-samlIdPApi =
-  Named @"send-idp-created-email" (lift . liftSem . sendSAMLIdPCreated)
-    :<|> Named @"send-idp-deleted-email" (lift . liftSem . sendSAMLIdPDeleted)
-    :<|> Named @"send-idp-updated-email" (lift . liftSem . uncurry sendSAMLIdPUpdated)
+samlIdPApi = Named @"send-idp-changed-email" (lift . liftSem . sendSAMLIdPChanged)
 
 ---------------------------------------------------------------------------
 -- Handlers

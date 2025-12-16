@@ -8,8 +8,9 @@ import Imports
 import Polysemy
 import SAML2.WebSSO.Types
 import Text.Email.Parser
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member
-import Wire.API.User.IdentityProvider (IdP, team)
+import Wire.API.User.IdentityProvider
 import Wire.EmailSubsystem qualified as Email
 import Wire.SAMLEmailSubsystem
 import Wire.TeamSubsystem
@@ -22,43 +23,30 @@ samlEmailSubsystemInterpreter ::
   ) =>
   InterpreterFor SAMLEmailSubsystem r
 samlEmailSubsystemInterpreter = interpret \case
-  SendSAMLIdPCreated idp -> sendSAMLIdPCreatedImpl idp
-  SendSAMLIdPDeleted idp -> sendSAMLIdPDeletedImpl idp
-  SendSAMLIdPUpdated old new -> sendSAMLIdPUpdatedImpl old new
+  SendSAMLIdPChanged idp -> sendSAMLIdPChangedImpl idp
 
-sendSAMLIdPCreatedImpl ::
+sendSAMLIdPChangedImpl ::
   ( Member TeamSubsystem r,
     Member UserStore r,
     Member Email.EmailSubsystem r
   ) =>
-  IdP ->
+  IdpChangedNotification ->
   Sem r ()
-sendSAMLIdPCreatedImpl idp = do
-  emails <- getEmailAddresses idp
-  mapM_ (Email.sendSAMLIdPCreated idp) emails
+sendSAMLIdPChangedImpl notif = do
+  emails <- getEmailAddresses origIdP
+  mapM_ delegate emails
+  where
+    delegate :: (Member Email.EmailSubsystem r) => EmailAddress -> Sem r ()
+    delegate email = case notif of
+      IdPCreated idp -> Email.sendSAMLIdPCreated idp email
+      IdPDeleted idp -> Email.sendSAMLIdPDeleted idp email
+      IdPUpdated old new -> Email.sendSAMLIdPUpdated old new email
 
-sendSAMLIdPDeletedImpl ::
-  ( Member TeamSubsystem r,
-    Member UserStore r,
-    Member Email.EmailSubsystem r
-  ) =>
-  IdP ->
-  Sem r ()
-sendSAMLIdPDeletedImpl idp = do
-  emails <- getEmailAddresses idp
-  mapM_ (Email.sendSAMLIdPDeleted idp) emails
-
-sendSAMLIdPUpdatedImpl ::
-  ( Member TeamSubsystem r,
-    Member UserStore r,
-    Member Email.EmailSubsystem r
-  ) =>
-  IdP ->
-  IdP ->
-  Sem r ()
-sendSAMLIdPUpdatedImpl old new = do
-  emails <- getEmailAddresses old
-  mapM_ (Email.sendSAMLIdPUpdated old new) emails
+    origIdP :: IdP
+    origIdP = case notif of
+      IdPCreated idp -> idp
+      IdPDeleted idp -> idp
+      IdPUpdated old _new -> old
 
 getEmailAddresses ::
   ( Member TeamSubsystem r,
