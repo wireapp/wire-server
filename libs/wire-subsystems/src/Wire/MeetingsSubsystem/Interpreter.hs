@@ -138,12 +138,12 @@ createMeetingImpl zUser newMeeting premium = do
   -- Store meeting (trial status is provided by caller)
   Store.createMeeting
     qMeetingId
-    (tUntagged zUser)
+    (tUnqualified zUser)
     newMeeting.title
     newMeeting.startDate
     newMeeting.endDate
     newMeeting.recurrence
-    qConvId
+    storedConv.id_
     newMeeting.invitedEmails
     trial
 

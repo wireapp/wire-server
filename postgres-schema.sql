@@ -171,12 +171,10 @@ CREATE TABLE public.meetings (
     domain text NOT NULL,
     title text NOT NULL,
     creator uuid NOT NULL,
-    creator_domain text NOT NULL,
     start_date timestamp with time zone NOT NULL,
     end_date timestamp with time zone NOT NULL,
     recurrence text,
     conversation_id uuid NOT NULL,
-    conversation_domain text NOT NULL,
     invited_emails text[] DEFAULT '{}'::text[],
     trial boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
@@ -449,7 +447,7 @@ CREATE INDEX conversation_team_idx ON public.conversation USING btree (team);
 -- Name: idx_meetings_conversation; Type: INDEX; Schema: public; Owner: wire-server
 --
 
-CREATE INDEX idx_meetings_conversation ON public.meetings USING btree (conversation_domain, conversation_id);
+CREATE INDEX idx_meetings_conversation ON public.meetings USING btree (domain, conversation_id);
 
 
 --

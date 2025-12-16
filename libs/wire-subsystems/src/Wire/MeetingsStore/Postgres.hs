@@ -78,16 +78,16 @@ createMeetingImpl ::
     Member (Error UsageError) r
   ) =>
   Qualified MeetingId ->
-  Qualified UserId ->
+  UserId ->
   Text ->
   UTCTime ->
   UTCTime ->
   Maybe API.Recurrence ->
-  Qualified ConvId ->
+  ConvId ->
   [EmailAddress] ->
   Bool ->
   Sem r ()
-createMeetingImpl qMeetingId qCreator title startDate endDate recurrence qConvId emails trial = do
+createMeetingImpl qMeetingId creator title startDate endDate recurrence convId emails trial = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
@@ -96,29 +96,27 @@ createMeetingImpl qMeetingId qCreator title startDate endDate recurrence qConvId
     session = statement params insertStatement
 
     params =
-      ( idToText (qUnqualified qMeetingId),
+      ( toUUID (qUnqualified qMeetingId),
         _domainText (qDomain qMeetingId),
         title,
-        toUUID (qUnqualified qCreator),
-        _domainText (qDomain qCreator),
+        toUUID creator,
         startDate,
         endDate,
         fmap toJSON recurrence,
-        toUUID (qUnqualified qConvId),
-        _domainText (qDomain qConvId),
+        toUUID convId,
         V.fromList (map fromEmail emails),
         trial
       )
 
-    insertStatement :: Statement (Text, Text, Text, UUID.UUID, Text, UTCTime, UTCTime, Maybe Value, UUID.UUID, Text, V.Vector Text, Bool) ()
+    insertStatement :: Statement (UUID.UUID, Text, Text, UUID.UUID, UTCTime, UTCTime, Maybe Value, UUID.UUID, V.Vector Text, Bool) ()
     insertStatement =
       [resultlessStatement|
         INSERT INTO meetings
-        (id, domain, title, creator, creator_domain, start_date, end_date, recurrence,
-         conversation_id, conversation_domain, invited_emails, trial)
+        (id, domain, title, creator, start_date, end_date, recurrence,
+         conversation_id, invited_emails, trial)
         VALUES
-        ($1 :: text :: uuid, $2 :: text, $3 :: text, $4 :: uuid, $5 :: text, $6 :: timestamptz,
-         $7 :: timestamptz, $8 :: jsonb?, $9 :: uuid, $10 :: text, $11 :: text[], $12 :: boolean)
+        ($1 :: uuid, $2 :: text, $3 :: text, $4 :: uuid, $5 :: timestamptz,
+         $6 :: timestamptz, $7 :: jsonb?, $8 :: uuid, $9 :: text[], $10 :: boolean)
       |]
 
 getMeetingImpl ::
@@ -142,9 +140,9 @@ getMeetingImpl qMeetingId = do
         Imports.id
         (fmap rowToMeeting)
         $ [maybeStatement|
-          SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
+          SELECT id :: uuid, domain :: text, title :: text, creator :: uuid,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
-                 conversation_id :: uuid, conversation_domain :: text,
+                 conversation_id :: uuid,
                  invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE domain = ($1 :: text) AND id :: text = ($2 :: text)
@@ -171,9 +169,9 @@ listMeetingsByUserImpl userId = do
         Imports.id
         (V.toList . fmap rowToMeeting)
         $ [vectorStatement|
-          SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
+          SELECT id :: uuid, domain :: text, title :: text, creator :: uuid,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
-                 conversation_id :: uuid, conversation_domain :: text,
+                 conversation_id :: uuid,
                  invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE creator = ($1 :: uuid)
@@ -201,12 +199,12 @@ listMeetingsByConversationImpl qConvId = do
         Imports.id
         (V.toList . fmap rowToMeeting)
         $ [vectorStatement|
-          SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
+          SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
-                 conversation_id :: uuid, conversation_domain :: text,
+                 conversation_id :: uuid,
                  invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
-          WHERE conversation_id = ($1 :: uuid) AND conversation_domain = ($2 :: text)
+          WHERE conversation_id = ($1 :: uuid) AND domain = ($2 :: text)
           ORDER BY start_date ASC
         |]
 
@@ -257,9 +255,9 @@ updateMeetingImpl qMeetingId mTitle mStartDate mEndDate mRecurrence = do
         Imports.id
         (fmap rowToMeeting)
         $ [maybeStatement|
-          SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
+          SELECT id :: text :: uuid, domain :: text, title :: text, creator :: uuid,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
-                 conversation_id :: uuid, conversation_domain :: text,
+                 conversation_id :: uuid,
                  invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
           WHERE domain = ($1 :: text) AND id :: text = ($2 :: text)
@@ -359,9 +357,9 @@ getOldMeetingsImpl cutoffTime batchSize = do
         id
         (fmap rowToMeeting . V.toList)
         [vectorStatement|
-          SELECT id :: uuid, domain :: text, title :: text, creator :: uuid, creator_domain :: text,
+          SELECT id :: uuid, domain :: text, title :: text, creator :: uuid,
                  start_date :: timestamptz, end_date :: timestamptz, recurrence :: jsonb?,
-                 conversation_id :: uuid, conversation_domain :: text,
+                 conversation_id :: uuid,
                  invited_emails :: text[], trial :: bool, updated_at :: timestamptz
           FROM meetings
           WHERE end_date < ($1 :: timestamptz)
@@ -393,17 +391,15 @@ deleteMeetingBatchImpl meetingIds = do
 
 -- Helper functions
 
-rowToMeeting :: (UUID, Text, Text, UUID, Text, UTCTime, UTCTime, Maybe Value, UUID, Text, V.Vector Text, Bool, UTCTime) -> API.Meeting
-rowToMeeting (meetingIdUUID, domainText_, titleText, creatorUUID, creatorDomainText, startDate', endDate', recurrenceJSON, convIdUUID, convDomainText, emailsVec, trial', updatedAt') =
+rowToMeeting :: (UUID, Text, Text, UUID, UTCTime, UTCTime, Maybe Value, UUID, V.Vector Text, Bool, UTCTime) -> API.Meeting
+rowToMeeting (meetingIdUUID, domainText_, titleText, creatorUUID, startDate', endDate', recurrenceJSON, convIdUUID, emailsVec, trial', updatedAt') =
   let meetingId' = Id meetingIdUUID
       domain' = Domain domainText_
       qMeetingId = Qualified meetingId' domain'
       creator' = Id creatorUUID
-      creatorDomain' = Domain creatorDomainText
-      qCreator = Qualified creator' creatorDomain'
+      qCreator = Qualified creator' domain'
       convId' = Id convIdUUID
-      convDomain' = Domain convDomainText
-      qConvId = Qualified convId' convDomain'
+      qConvId = Qualified convId' domain'
       emails' = mapMaybe emailAddressText (V.toList emailsVec)
       recurrence' =
         recurrenceJSON >>= \v -> case fromJSON v of

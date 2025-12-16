@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS meetings (
     -- Meeting metadata
     title text NOT NULL,
     creator uuid NOT NULL,
-    creator_domain text NOT NULL,
 
     -- Scheduling information
     start_date timestamptz NOT NULL,
@@ -35,7 +34,6 @@ CREATE TABLE IF NOT EXISTS meetings (
 
     -- Associated conversation
     conversation_id uuid NOT NULL,
-    conversation_domain text NOT NULL,
 
     -- Invitations
     invited_emails text[] NOT NULL DEFAULT '{}',
@@ -59,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_meetings_creator
 
 -- Index for looking up meetings by conversation
 CREATE INDEX IF NOT EXISTS idx_meetings_conversation
-    ON meetings(conversation_domain, conversation_id);
+    ON meetings(domain, conversation_id);
 
 -- Index for cleanup queries (finding old meetings)
 CREATE INDEX IF NOT EXISTS idx_meetings_end_date
@@ -92,12 +90,10 @@ COMMENT ON COLUMN meetings.id IS 'Unique meeting identifier (UUID)';
 COMMENT ON COLUMN meetings.domain IS 'Federation domain for the meeting';
 COMMENT ON COLUMN meetings.title IS 'Meeting title/subject';
 COMMENT ON COLUMN meetings.creator IS 'User ID who created the meeting';
-COMMENT ON COLUMN meetings.creator_domain IS 'Domain of the user who created the meeting';
 COMMENT ON COLUMN meetings.start_date IS 'Meeting start time';
 COMMENT ON COLUMN meetings.end_date IS 'Meeting end time';
 COMMENT ON COLUMN meetings.recurrence IS 'Optional recurring schedule information (JSON)';
 COMMENT ON COLUMN meetings.conversation_id IS 'Associated conversation ID';
-COMMENT ON COLUMN meetings.conversation_domain IS 'Domain of the associated conversation';
 COMMENT ON COLUMN meetings.invited_emails IS 'Array of email addresses invited to the meeting';
 COMMENT ON COLUMN meetings.trial IS 'Whether this meeting is created under a trial account';
 COMMENT ON COLUMN meetings.created_at IS 'Timestamp when the meeting was created';
