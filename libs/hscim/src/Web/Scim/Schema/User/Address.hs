@@ -18,7 +18,7 @@
 module Web.Scim.Schema.User.Address where
 
 import Data.Aeson
-import Data.Text hiding (dropWhile)
+import Data.Text hiding (dropWhile, show)
 import GHC.Generics (Generic)
 import Web.Scim.Schema.Common
 
