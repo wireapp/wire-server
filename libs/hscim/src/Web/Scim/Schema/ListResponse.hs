@@ -25,6 +25,9 @@ module Web.Scim.Schema.ListResponse
 where
 
 import Data.Aeson
+import Data.Foldable (toList)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import GHC.Generics (Generic)
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
@@ -66,34 +69,23 @@ toPage startIndex mbCount list = case mbCount of
       { schemas = [ListResponse20],
         totalResults = totalResults',
         startIndex = startIndex',
-        itemsPerPage = length list',
-        resources = list'
+        itemsPerPage = Seq.length list',
+        resources = toList list'
       }
   Just count ->
-    let (c, page, _rest) = splitAtCount (max 0 count) list'
+    let (page, _rest) = Seq.splitAt (fromIntegral (max 0 count)) list'
      in ListResponse
           { schemas = [ListResponse20],
             totalResults = totalResults',
             startIndex = startIndex',
-            itemsPerPage = fromIntegral c,
-            resources = page
+            itemsPerPage = Seq.length page,
+            resources = toList page
           }
   where
     totalResults' = length list
     startIndex' = max (fromIntegral startIndex) 1
-    list' = drop (startIndex' - 1) list
-
--- | Split @list@ at @n@, while returning the count of elements
--- actually in the prefix (as it can be shorter than @n@).
-splitAtCount :: Integer -> [a] -> (Integer, [a], [a])
-splitAtCount n list = go n 0 list
-  where
-    go :: Integer -> Integer -> [a] -> (Integer, [a], [a])
-    go _ c [] = (c, [], [])
-    go 0 c rest = (c, [], rest)
-    go n' c (x : xs) =
-      let (c', xs', rest) = go (n' - 1) (c + 1) xs
-       in (c', x : xs', rest)
+    list' :: Seq a
+    list' = Seq.drop (startIndex' - 1) (Seq.fromList list)
 
 instance (FromJSON a) => FromJSON (ListResponse a) where
   parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower

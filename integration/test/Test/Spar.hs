@@ -455,7 +455,8 @@ testSparScimCreateGetSearchUserGroup = do
           OwnDomain
           tok
           (Just $ "displayName co \"" <> substr <> "\"")
-          (Just (startIndex, count))
+          (Just startIndex)
+          (Just count)
       createGroup name = createScimUserGroup OwnDomain tok $ mkScimGroup name [mkScimUser scimUserId]
 
   -- Create 20 groups
@@ -474,6 +475,55 @@ testSparScimCreateGetSearchUserGroup = do
           json' %. "itemsPerPage" `shouldMatchInt` expectedItemsPerPage
           resources <- json' %. "Resources" & asList
           length resources `shouldMatchInt` expectedItemsPerPage
+
+  -- 5. Additional pagination edge cases
+
+  -- 5a. Paginate through all groups without filter
+  filterScimUserGroupPaginate OwnDomain tok Nothing (Just 1) (Just 10) `bindResponse` \resp -> do
+    json' <- resp.json
+    json' %. "startIndex" `shouldMatchInt` 1
+    -- totalResults depends on how many groups exist in the team (including empty group created earlier)
+    resources <- json' %. "Resources" & asList
+    length resources `shouldMatchInt` 10
+
+  -- 5b. startIndex=0 edge case (should be treated as 1 according to SCIM spec)
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 0) (Just 5) `bindResponse` \resp -> do
+    json' <- resp.json
+    -- startIndex of 0 should be treated as 1
+    resources <- json' %. "Resources" & asList
+    length resources `shouldMatchInt` 5
+
+  -- 5c. Only startIndex, no count
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 5) Nothing `bindResponse` \resp -> do
+    json' <- resp.json
+    json' %. "startIndex" `shouldMatchInt` 5
+    json' %. "totalResults" `shouldMatchInt` expectedTotalResults
+
+  -- 5d. Only count, no startIndex
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") Nothing (Just 3) `bindResponse` \resp -> do
+    json' <- resp.json
+    json' %. "startIndex" `shouldMatchInt` 1
+    json' %. "itemsPerPage" `shouldMatchInt` 3
+    resources <- json' %. "Resources" & asList
+    length resources `shouldMatchInt` 3
+
+  -- 5e. Filter with empty result
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"nonexistent-filter-xyz\"") (Just 1) (Just 10) `bindResponse` \resp -> do
+    json' <- resp.json
+    json' %. "startIndex" `shouldMatchInt` 1
+    json' %. "totalResults" `shouldMatchInt` 0
+    json' %. "itemsPerPage" `shouldMatchInt` 0
+    resources <- json' %. "Resources" & asList
+    length resources `shouldMatchInt` 0
+
+  -- 5f. All results in less than one page
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 1) (Just 100) `bindResponse` \resp -> do
+    json' <- resp.json
+    json' %. "startIndex" `shouldMatchInt` 1
+    json' %. "totalResults" `shouldMatchInt` expectedTotalResults
+    json' %. "itemsPerPage" `shouldMatchInt` expectedTotalResults
+    resources <- json' %. "Resources" & asList
+    length resources `shouldMatchInt` expectedTotalResults
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
