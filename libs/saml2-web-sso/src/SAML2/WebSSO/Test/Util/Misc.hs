@@ -24,11 +24,13 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString.Base64.Lazy qualified as EL (encode)
 import Data.ByteString.Lazy qualified as LBS
+import Data.Char (isSpace)
 import Data.EitherR
 import Data.Generics.Uniplate.Data
 import Data.List (sort)
 import Data.String
 import Data.String.Conversions
+import Data.Text qualified as T
 import Data.Text.Lazy.IO qualified as LT
 import Data.Typeable
 import Data.UUID as UUID
@@ -114,17 +116,24 @@ normalizeDocument =
   renderAndParse
     . transformBis
       [ [transformer $ \(Name nm nmspace _prefix) -> Name nm nmspace Nothing],
-        [transformer $ \(Element nm attrs nodes) -> Element nm attrs (sort . filter (not . isSignature) $ nodes)]
+        [transformer $ \(Element nm attrs nodes) -> Element nm attrs (sort . filter (not . isIgnorableNode) $ nodes)]
       ]
 
 renderAndParse :: (HasCallStack) => Document -> Document
-renderAndParse doc = case parseText def $ renderText def {rsPretty = True} doc of
+renderAndParse doc = case parseText def $ renderText def doc of
   Right doc' -> doc'
   bad@(Left _) -> error $ "impossible: " <> show bad
 
 isSignature :: Node -> Bool
 isSignature (NodeElement (Element name _ _)) = name == "{http://www.w3.org/2000/09/xmldsig#}Signature"
 isSignature _ = False
+
+isIgnorableNode :: Node -> Bool
+isIgnorableNode node = isSignature node || isWhitespaceOnly node
+
+isWhitespaceOnly :: Node -> Bool
+isWhitespaceOnly (NodeContent txt) = T.all isSpace txt
+isWhitespaceOnly _ = False
 
 ----------------------------------------------------------------------
 -- helpers
