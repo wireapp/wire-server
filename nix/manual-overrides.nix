@@ -38,7 +38,10 @@ hself: hsuper: {
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   postie = hlib.doJailbreak hsuper.postie;
   lrucaching = hlib.doJailbreak (hlib.markUnbroken hsuper.lrucaching);
-  apply-refact = hlib.doJailbreak (hlib.markUnbroken hsuper.apply-refact);
+  apply-refact = hlib.doJailbreak (hlib.markUnbroken (hlib.dontCheck hsuper.apply-refact));
+  # added servant-openapi3 because the version bounds of some dependent packages
+  # of our pin exclude the versions in our current nixpkgs
+  servant-openapi3 = hlib.doJailbreak (hlib.dontCheck hsuper.servant-openapi3);
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18

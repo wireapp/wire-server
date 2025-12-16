@@ -255,6 +255,8 @@ let
         hs-opentelemetry-sdk = "sdk";
         hs-opentelemetry-api = "api";
         hs-opentelemetry-propagator-datadog = "propagators/datadog";
+        hs-opentelemetry-propagator-b3 = "propagators/b3";
+        hs-opentelemetry-propagator-w3c = "propagators/w3c";
         hs-opentelemetry-instrumentation-http-client = "instrumentation/http-client";
         hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
         hs-opentelemetry-exporter-otlp = "exporters/otlp";
