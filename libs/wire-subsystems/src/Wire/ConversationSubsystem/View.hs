@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Wire.ConversationSubsystem.View where
 
 import Data.Domain (Domain)

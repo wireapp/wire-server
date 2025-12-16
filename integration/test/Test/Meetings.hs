@@ -14,7 +14,7 @@ getMeetingIdAndDomain :: (HasCallStack) => Aeson.Value -> App (String, String)
 getMeetingIdAndDomain meeting = do
   meetingId <- meeting %. "qualified_id" %. "id" >>= asString
   domain <- meeting %. "qualified_id" %. "domain" >>= asString
-  return (meetingId, domain)
+  pure (meetingId, domain)
 
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
