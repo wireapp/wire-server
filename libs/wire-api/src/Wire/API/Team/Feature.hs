@@ -226,9 +226,6 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 9. Add a section to the documentation at an appropriate place
 -- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
-class ToObjectSchema a where
-  objectSchema :: ObjectSchema SwaggerDoc a
-
 class
   ( Default cfg,
     -- \| Should be "pure MyFeatureConfig" if the feature doesn't have config,

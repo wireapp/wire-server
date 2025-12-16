@@ -30,6 +30,7 @@ module Data.Schema
     ObjectSchema,
     ObjectSchemaP,
     ToSchema (..),
+    ToObjectSchema (..),
     Schema (..),
     mkSchema,
     schemaDoc,
@@ -851,6 +852,9 @@ instance HasOpt NamedSwaggerDoc where
 -- previously-defined schema definitions for component types.
 class ToSchema a where
   schema :: ValueSchema NamedSwaggerDoc a
+
+class ToObjectSchema a where
+  objectSchema :: ObjectSchema SwaggerDoc a
 
 -- Newtype wrappers for deriving via
 
