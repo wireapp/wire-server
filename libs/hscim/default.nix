@@ -21,8 +21,10 @@
 , http-api-data
 , http-media
 , http-types
+, HUnit
 , hw-hspec-hedgehog
 , indexed-traversable
+, lens-aeson
 , lib
 , list-t
 , microlens
@@ -43,6 +45,7 @@
 , time
 , utf8-string
 , uuid
+, vector
 , wai
 , wai-extra
 , wai-utilities
@@ -113,14 +116,17 @@ mkDerivation {
     hspec-expectations
     hspec-wai
     http-types
+    HUnit
     hw-hspec-hedgehog
     indexed-traversable
+    lens-aeson
     microlens
     network-uri
     servant
     servant-server
     stm-containers
     text
+    vector
     wai
     wai-extra
   ];

@@ -124,8 +124,8 @@ interpretBrigAccess brigEndpoint =
         getAccountsBy localGetBy
       CreateGroupInternal managedBy teamId creatorUserId newGroup ->
         createGroupInternal managedBy teamId creatorUserId newGroup
-      GetGroupsInternal tid mbFilter mbManagedBy ->
-        getGroupsInternal tid mbFilter mbManagedBy
+      GetGroupsInternal tid mbFilter mbManagedBy startIndex mbCount ->
+        getGroupsInternal tid mbFilter mbManagedBy startIndex mbCount
       GetGroupInternal tid gid includeChannels ->
         getGroupInternal tid gid includeChannels
       UpdateGroup req ->
@@ -606,8 +606,10 @@ getGroupsInternal ::
   TeamId ->
   Maybe Scim.Filter ->
   Maybe ManagedBy ->
+  Maybe Int ->
+  Maybe Int ->
   Sem r UserGroupPageWithMembers
-getGroupsInternal tid mbFilter mbManagedBy = do
+getGroupsInternal tid mbFilter mbManagedBy mbStartIndex mbCount = do
   maybeDisplayName :: Maybe Text <- case mbFilter of
     Just filter' -> case filter' of
       FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
@@ -619,6 +621,8 @@ getGroupsInternal tid mbFilter mbManagedBy = do
         . paths ["i", "user-groups", toByteString' tid]
         . maybe id (queryItem "nameContains" . Text.encodeUtf8) maybeDisplayName
         . maybe id (queryItem "managedBy" . toByteString') mbManagedBy
+        . maybe id (queryItem "startIndex" . toByteString') mbStartIndex
+        . maybe id (queryItem "count" . toByteString') mbCount
         . expect2xx
   decodeBodyOrThrow "brig" r
 

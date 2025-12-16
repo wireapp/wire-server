@@ -22,15 +22,38 @@ module Test.Class.GroupSpec
   )
 where
 
+import Control.Monad
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Lens as A
+import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (ByteString)
+import Data.String
+import qualified Data.Vector as V
+import GHC.Stack (HasCallStack)
+import Lens.Micro
 import Network.Wai (Application)
+import Network.Wai.Test
 import Servant (Proxy (Proxy))
 import Servant.API.Generic
+import Test.HUnit
 import Test.Hspec hiding (shouldSatisfy)
 import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
 import Web.Scim.Server (GroupAPI, groupServer, mkapp)
 import Web.Scim.Server.Mock
 import Web.Scim.Test.Util
+
+fail_ :: String -> WaiSession () a
+fail_ = liftIO . assertFailure
+
+getJson :: BS.ByteString -> WaiSession () A.Value
+getJson path' =
+  get path'
+    >>= ( \case
+            Just v -> pure v
+            Nothing -> fail_ "Response doesn't parse as JSON!"
+        )
+      . A.decode
+      . simpleBody
 
 app :: IO Application
 app = do
@@ -50,6 +73,46 @@ spec = with app $ do
     it "can insert then retrieve stored group" $ do
       post "/" adminGroup `shouldRespondWith` 201
       get "/" `shouldRespondWith` groups
+
+    it "paginates groups" $ do
+      forM_ [0 .. 4 :: Int] $ \_ -> post "/" adminGroup `shouldRespondWith` 201
+
+      let numFieldMatch :: A.Value -> String -> Int -> WaiSession () ()
+          numFieldMatch v field expected = do
+            case v ^? A.key (fromString field) . A._Number of
+              Just gotten ->
+                when (gotten /= fromIntegral expected) $
+                  fail_ $
+                    field <> " is " <> show gotten <> " instead of " <> show expected
+              Nothing -> fail_ $ "missing field: " <> field
+
+          hasMembers :: (HasCallStack) => WaiSession () A.Value -> Int -> Int -> Int -> WaiSession () ()
+          hasMembers getPage expectedStartIndex expectedItemsPerPage expectedTotalResults = do
+            page :: A.Value <- getPage
+            case page ^? A.key "Resources" . A._Array of
+              Just v -> do
+                let l = V.length v
+                when (l /= expectedItemsPerPage) $ fail_ $ "ListResponse Resources has length " <> show l <> " instead of " <> show expectedItemsPerPage
+              Nothing -> fail_ "missing Resources field"
+            numFieldMatch page "totalResults" expectedTotalResults
+            numFieldMatch page "itemsPerPage" expectedItemsPerPage
+            numFieldMatch page "startIndex" expectedStartIndex
+
+      hasMembers (getJson "/?startIndex=1&count=2") 1 2 5
+      hasMembers (getJson "/?startIndex=3&count=2") 3 2 5
+      hasMembers (getJson "/?startIndex=5&count=2") 5 1 5
+
+      hasMembers (getJson "/?startIndex=1&count=100") 1 5 5
+      hasMembers (getJson "/?startIndex=6&count=100") 6 0 5
+
+      hasMembers (getJson "/?startIndex=1") 1 5 5
+      hasMembers (getJson "/?startIndex=2") 2 4 5
+      hasMembers (getJson "/?startIndex=3") 3 3 5
+      hasMembers (getJson "/?startIndex=4") 4 2 5
+      hasMembers (getJson "/?startIndex=5") 5 1 5
+      hasMembers (getJson "/?startIndex=6") 6 0 5
+      hasMembers (getJson "/") 1 5 5
+
   describe "GET /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
       get "/9999" `shouldRespondWith` 404

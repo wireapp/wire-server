@@ -20,6 +20,7 @@
 module Wire.ScimSubsystem where
 
 import Data.Id
+import Data.Int
 import Data.Maybe
 import Polysemy
 import Web.Scim.Class.Group qualified as SCG
@@ -32,6 +33,6 @@ data ScimSubsystem m a where
   ScimGetUserGroup :: TeamId -> UserGroupId -> ScimSubsystem m (SCG.StoredGroup SparTag)
   ScimUpdateUserGroup :: TeamId -> UserGroupId -> SCG.Group -> ScimSubsystem m (SCG.StoredGroup SparTag)
   ScimDeleteUserGroup :: TeamId -> SCG.GroupId SparTag -> ScimSubsystem m ()
-  ScimGetUserGroups :: TeamId -> Maybe Scim.Filter -> ScimSubsystem m (Scim.ListResponse (SCG.StoredGroup SparTag))
+  ScimGetUserGroups :: TeamId -> Maybe Scim.Filter -> Maybe Int -> Maybe Int -> ScimSubsystem m (Scim.ListResponse (SCG.StoredGroup SparTag))
 
 makeSem ''ScimSubsystem
