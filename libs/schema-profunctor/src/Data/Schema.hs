@@ -193,7 +193,7 @@ instance HasDoc (SchemaDoc doc a b) (SchemaDoc doc' a b) doc doc' where
 -- live in different "languages". The parser portion of @sch@ takes a
 -- JSON-encoded value of type @a@ and produces a value of type @b@,
 -- while the serialiser portion of @sch@ takes a haskell value of type
--- @a@ and produces a JSON-encoding of something of type @b@.
+-- @b@ and produces a JSON-encoding of something of type @a@.
 --
 -- In terms of composability, this way of representing schemas (based
 -- on input and output types) is superior to the perhaps more natural
