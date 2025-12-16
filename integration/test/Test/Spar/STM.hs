@@ -9,11 +9,12 @@
 -- and thus get property-based integration tests!
 module Test.Spar.STM (testCreateIdpsAndScimsV7) where
 
-import API.BrigInternal (getInvitationByEmail)
+import API.BrigInternal
 import API.Common (defPassword)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Nginz (login)
 import API.Spar
+import Control.Retry
 import qualified Data.Map as Map
 import qualified SAML2.WebSSO as SAML
 import SetupHelpers
@@ -235,7 +236,16 @@ validateStateLoginAllUsers owner tid state = do
         void $ loginWithSamlEmail True tid email idp
         bindResponse (deleteScimUser owner (unScimToken tok) uid) $ \resp -> do
           resp.status `shouldMatchInt` 204
+        waitForUserGone uid
         void $ loginWithSamlEmail False tid email idp
+  where
+    waitForUserGone :: String -> App ()
+    waitForUserGone uid = do
+      let pol = limitRetriesByCumulativeDelay 12_000_000 (fullJitterBackoff 5_000)
+      void $ recoverAll pol $ const do
+        getUsersId OwnDomain [uid] `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json `shouldMatch` ([] :: [()])
 
 validateError :: Response -> Int -> String -> App ()
 validateError resp errStatus errLabel = do
