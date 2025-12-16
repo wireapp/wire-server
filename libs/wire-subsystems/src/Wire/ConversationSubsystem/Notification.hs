@@ -10,8 +10,8 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.List.Extra (nubOrd)
-import Data.List.NonEmpty qualified as NE
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
@@ -21,15 +21,15 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog qualified as P
-import Wire.API.Component (Component(..))
+import Wire.API.Component (Component (..))
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.Error.Galley (UnreachableBackends(..))
+import Wire.API.Error.Galley (UnreachableBackends (..))
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (fedClient, sendBundle, makeConversationUpdateBundle)
+import Wire.API.Federation.API (fedClient, makeConversationUpdateBundle, sendBundle)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error

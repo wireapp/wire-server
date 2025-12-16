@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -24,11 +25,11 @@ import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Conversation (GroupConvType (MeetingConversation), cnvmGroupConvType)
-import Wire.API.Meeting (Meeting(..))
+import Wire.API.Meeting (Meeting (..))
 import Wire.ConversationStore qualified as ConvStore
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystemCleaning
-import Wire.StoredConversation (StoredConversation(..))
+import Wire.StoredConversation (StoredConversation (..))
 
 interpretMeetingsSubsystemCleaning ::
   ( Member Store.MeetingsStore r,
@@ -54,8 +55,8 @@ cleanupOldMeetingsImpl cutoffTime batchSize = do
     then pure 0
     else do
       -- 2. Extract meeting IDs and conversation IDs
-      let meetingIds = map (\Meeting{id = mid} -> mid) oldMeetings
-          convIds = map (\Meeting{conversationId = cid} -> cid) oldMeetings
+      let meetingIds = map (\Meeting {id = mid} -> mid) oldMeetings
+          convIds = map (\Meeting {conversationId = cid} -> cid) oldMeetings
 
       -- 3. Delete meetings from database
       deletedCount <- Store.deleteMeetingBatch meetingIds

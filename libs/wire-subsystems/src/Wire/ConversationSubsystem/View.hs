@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+
 module Wire.ConversationSubsystem.View where
 
 import Data.Domain (Domain)
@@ -34,7 +35,7 @@ conversationView ::
   Maybe (Local UserId) ->
   StoredConversation ->
   Conversation
-conversationView l luid conv = 
+conversationView l luid conv =
   let remoteMembers = map remoteMemberToOther $ conv.remoteMembers
       localMembers = map (localMemberToOther (tDomain l)) $ conv.localMembers
       selfs = filter (\m -> fmap tUnqualified luid == Just m.id_) (conv.localMembers)
@@ -61,10 +62,10 @@ conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
-      P.err . msg $ 
-        val "User " 
+      P.err . msg $
+        val "User "
           +++ idToText (tUnqualified luid)
-          +++ val " is not a member of conv " 
+          +++ val " is not a member of conv "
           +++ idToText conv.id_
       throw BadMemberState
 
@@ -73,54 +74,54 @@ conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
   self <- localMemberToSelf luid <$> listToMaybe selfs
   let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
-  pure $ 
-    OwnConversation 
+  pure $
+    OwnConversation
       (tUntagged . qualifyAs luid $ conv.id_)
-      conv.metadata 
+      conv.metadata
       (OwnConvMembers self others)
       conv.protocol
 
-remoteConversationView :: 
-  Local UserId -> 
-  MemberStatus -> 
-  Remote RemoteConversationV2 -> 
+remoteConversationView ::
+  Local UserId ->
+  MemberStatus ->
+  Remote RemoteConversationV2 ->
   OwnConversation
-remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) = 
+remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
       others = mems.others
-      self = 
-        localMemberToSelf 
-          uid 
-          LocalMember 
+      self =
+        localMemberToSelf
+          uid
+          LocalMember
             { id_ = tUnqualified uid,
               service = Nothing,
               status = status,
               convRoleName = mems.selfRole
             }
-   in OwnConversation 
+   in OwnConversation
         (Qualified rconv.id rDomain)
-        rconv.metadata 
+        rconv.metadata
         (OwnConvMembers self others)
         rconv.protocol
 
-conversationToRemote :: 
-  Domain -> 
-  Remote UserId -> 
-  StoredConversation -> 
+conversationToRemote ::
+  Domain ->
+  Remote UserId ->
+  StoredConversation ->
   Maybe RemoteConversationV2
 conversationToRemote localDomain ruid conv = do
   let (selfs, rothers) = partition (\r -> r.id_ == ruid) (conv.remoteMembers)
       lothers = conv.localMembers
   selfRole' <- (.convRoleName) <$> listToMaybe selfs
-  let others' = 
-        map (localMemberToOther localDomain) lothers 
+  let others' =
+        map (localMemberToOther localDomain) lothers
           <> map remoteMemberToOther rothers
-  pure $ 
-    RemoteConversationV2 
+  pure $
+    RemoteConversationV2
       { id = conv.id_,
         metadata = conv.metadata,
-        members = 
-          RemoteConvMembers 
+        members =
+          RemoteConvMembers
             { selfRole = selfRole',
               others = others'
             },
@@ -128,8 +129,8 @@ conversationToRemote localDomain ruid conv = do
       }
 
 localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
-localMemberToSelf loc lm = 
-  Conversation.Member 
+localMemberToSelf loc lm =
+  Conversation.Member
     { memId = tUntagged . qualifyAs loc $ lm.id_,
       memService = lm.service,
       memOtrMutedStatus = msOtrMutedStatus st,
