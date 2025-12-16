@@ -179,22 +179,23 @@ getUserGroupsWithMembersImpl tid UserGroupPageRequest {..} = do
             c = ug.createdAt
             c' = ug'.createdAt
 
-    dropBeforeStart = case paginationState of
-      PaginationOffset n -> drop (fromIntegral n)
-      _ -> dropWhile sqlConds
-        where
-          sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
-          sqlConds ((_, _), row) =
-            case (paginationState, sortOrder) of
-              (PaginationSortByName (Just (name, tieBreaker)), Asc) ->
-                (name, tieBreaker) >= (userGroupNameToText row.name, row.id_)
-              (PaginationSortByName (Just (name, tieBreaker)), Desc) ->
-                (name, tieBreaker) <= (userGroupNameToText row.name, row.id_)
-              (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) ->
-                (ts, tieBreaker) >= (fromUTCTimeMillis row.createdAt, row.id_)
-              (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) ->
-                (ts, tieBreaker) <= (fromUTCTimeMillis row.createdAt, row.id_)
-              (_, _) -> False
+    dropBeforeStart = do
+      case paginationState of
+        PaginationOffset n -> drop (fromIntegral n)
+        _ -> dropWhile sqlConds
+      where
+        sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
+        sqlConds ((_, _), row) =
+          case (paginationState, sortOrder) of
+            (PaginationSortByName (Just (name, tieBreaker)), Asc) ->
+              (name, tieBreaker) >= (userGroupNameToText row.name, row.id_)
+            (PaginationSortByName (Just (name, tieBreaker)), Desc) ->
+              (name, tieBreaker) <= (userGroupNameToText row.name, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Asc) ->
+              (ts, tieBreaker) >= (fromUTCTimeMillis row.createdAt, row.id_)
+            (PaginationSortByCreatedAt (Just (ts, tieBreaker)), Desc) ->
+              (ts, tieBreaker) <= (fromUTCTimeMillis row.createdAt, row.id_)
+            (_, _) -> False
 
     dropAfterPageSize = take (pageSizeToInt pageSize)
 
