@@ -218,7 +218,8 @@ instance HasDoc (SchemaDoc doc a b) (SchemaDoc doc' a b) doc doc' where
 -- than one different schema.
 --
 -- The idea of using the profunctor structure of 'SchemaP' is taken
--- from the [codec](https://github.com/chpatrick/codec) library.
+-- from the [codec](https://github.com/chpatrick/codec)
+-- library. (TODO: why are we using this and not codec?)
 data SchemaP doc v w a b
   = SchemaP
       (SchemaDoc doc a b)
