@@ -390,8 +390,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                         (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
                         (drop (length results - 2) results)
 
-    prop "getGroups: pagination via offset" $ do
-      WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
+    prop "getGroups: pagination via offset" $ \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) ->
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
         -- Create groups
         groups <- forM ["1", "2", "3", "4", "5"] $ \name -> do
@@ -418,17 +417,15 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
         ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
         descendingPages :: [UserGroupPage] <- getAllPages Desc 3
+        exactlyOnePage :: [UserGroupPage] <- getAllPages Desc 5
 
         pure do
           -- Page sizes are as expected
           map (length . (.page)) ascendingPages `shouldBe` [2, 2, 1]
           map (length . (.page)) descendingPages `shouldBe` [3, 2]
+          map (length . (.page)) exactlyOnePage `shouldBe` [5, 0]
 
-          -- Page sizes are unique
-          length (nub $ map (.id_) . (.page) =<< ascendingPages) `shouldBe` 5
-          length (nub $ map (.id_) . (.page) =<< descendingPages) `shouldBe` 5
-
-          -- Sort order is accounted for
+          -- Sort order is accounted for, pages do not overlap
           (map (.id_) . (.page) =<< ascendingPages) `shouldBe` sort groupIds
           (map (.id_) . (.page) =<< descendingPages) `shouldBe` sortBy (comparing Down) groupIds
 
