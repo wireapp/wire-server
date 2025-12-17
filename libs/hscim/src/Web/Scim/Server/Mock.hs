@@ -265,9 +265,11 @@ createMeta rType =
       lastModified = testDate,
       version = Weak "testVersion",
       location =
-        Common.URI $ -- FUTUREWORK: getting the actual schema, authority, and path here
-        -- is a bit of work, but it may be required one day.
-          URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
+        Common.URI
+          $ URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
+          -- FUTUREWORK: getting the actual schema, authority, and
+          -- path here is a bit of work, but it may be required one
+          -- day.
     }
 
 -- Natural transformation from our transformer stack to the Servant stack
