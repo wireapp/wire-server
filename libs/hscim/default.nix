@@ -10,6 +10,7 @@
 , base
 , bytestring
 , case-insensitive
+, containers
 , email-validate
 , gitignoreSource
 , hashable
@@ -65,6 +66,7 @@ mkDerivation {
     base
     bytestring
     case-insensitive
+    containers
     email-validate
     hashable
     hspec
