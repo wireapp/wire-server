@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# OPTIONS_GHC -Wno-unused-imports -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
