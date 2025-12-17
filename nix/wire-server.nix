@@ -416,7 +416,7 @@ let
     pkgs.ripgrep
     pkgs.kubernetes-helm
     pkgs.helmfile
-    pkgs.hlint
+    pkgs.haskell.packages.ghc912.hlint
     pkgs.jq
     pkgs.kubectl
     pkgs.kubelogin-oidc
