@@ -77,9 +77,9 @@ backgroundJobs:
 
 # Meetings cleanup configuration for integration
 meetingsCleanup:
-  cleanOlderThanHours: 24  # Clean meetings older than 24 hours (for testing)
+  cleanOlderThanHours: 0.0014  # Clean meetings older than ~5 seconds
   batchSize: 100
-  cleanFrequencySeconds: 3600  # Run every hour
+  schedule: "* * * * *"  # Run every minute
 
 postgresMigration:
   conversation: postgresql

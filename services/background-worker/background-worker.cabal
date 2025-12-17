@@ -39,6 +39,7 @@ library
     , bytestring-conversion
     , cassandra-util
     , containers
+    , cron
     , data-timeout
     , exceptions
     , extended

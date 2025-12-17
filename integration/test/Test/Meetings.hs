@@ -3,11 +3,17 @@
 
 module Test.Meetings where
 
+import Control.Concurrent (threadDelay)
+import Control.Monad.Reader (ask) -- Explicitly import ask
 import Data.Aeson as Aeson
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import SetupHelpers
+import System.Timeout (timeout) -- New import
 import Testlib.Prelude as P
+import Text.Regex.TDFA ((=~))
 
 -- Helper to extract meetingId and domain from a meeting JSON object
 getMeetingIdAndDomain :: (HasCallStack) => Aeson.Value -> App (String, String)
@@ -537,3 +543,70 @@ defaultMeetingJson title startTime endTime invitedEmails =
       "end_date" Aeson..= endTime,
       "invited_emails" Aeson..= invitedEmails
     ]
+
+testMeetingCleanup :: (HasCallStack) => App ()
+testMeetingCleanup = do
+  env <- ask
+  timedOutResult <- liftIO $ timeout (2 * 60 * 1_000_000) $ runAppWithEnv env $ do
+    -- 2 minutes timeout
+    (owner, _tid, _members) <- createTeam OwnDomain 1
+    now <- liftIO getCurrentTime
+    -- Create a meeting that ends now.
+    -- Configured retention is 0.0014 hours (~5 seconds).
+    -- cutoffTime will be now' - 5s.
+    -- We need end_date < cutoffTime.
+    -- If we wait 6 seconds, now' = now + 6s.
+    -- cutoffTime = now + 6s - 5s = now + 1s.
+    -- end_date (now) < cutoffTime (now + 1s).
+    let startTime = addUTCTime (negate 3600) now
+        endTime = now
+        newMeeting = defaultMeetingJson "Cleanup Test" startTime endTime []
+
+    r1 <- postMeetings owner newMeeting
+    assertSuccess r1
+    meeting <- assertOne r1.jsonBody
+    (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+    -- Wait 6 seconds to ensure meeting is old enough
+    liftIO $ threadDelay 6_000_000
+
+    -- Wait for cleanup job to run
+    waitForCleanupJob OwnDomain
+
+    -- Check it's gone
+    getMeeting owner domain meetingId >>= assertStatus 404
+
+  case timedOutResult of
+    Just () -> pure ()
+    Nothing -> assertFailure "testMeetingCleanup timed out after 2 minutes"
+
+waitForCleanupJob :: (HasCallStack, MakesValue domain) => domain -> App ()
+waitForCleanupJob domain = do
+  initialMetrics <- getMetricsBody domain
+  let initialCount = getRunCount initialMetrics
+
+  waitForIncrease domain initialCount
+  where
+    getMetricsBody d = do
+      getMetrics d BackgroundWorker `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        pure $ Text.decodeUtf8 resp.body
+
+    getRunCount metrics =
+      let (_, _, _, matches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "wire_meetings_cleanup_runs_total ([0-9]+)")
+       in case matches of
+            [val] -> read (Text.unpack val) :: Int
+            _ -> 0
+
+    waitForIncrease d oldVal = do
+      metrics <- getMetricsBody d
+      let newVal = getRunCount metrics
+      -- We wait until it increases.
+      -- Note: if oldVal was 0 (metric didn't exist), getting 0 again means it hasn't run.
+      -- If it runs, it should become >= 1.
+      -- But wait, if matches is empty, we return 0.
+      -- If the metric appears, it will be >= 1 (initialized at 0? Counter starts at 0).
+      -- If it runs, it increments.
+      when (newVal <= oldVal) $ do
+        liftIO $ threadDelay 1_000_000 -- Wait 1s
+        waitForIncrease d oldVal

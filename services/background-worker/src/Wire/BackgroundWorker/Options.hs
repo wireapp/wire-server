@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +20,7 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
+import Data.Aeson.Types (JSONPathElement (Key), parserThrowError)
 import Data.Domain (Domain)
 import Data.Misc
 import Data.Range (Range)
@@ -25,6 +28,7 @@ import GHC.Generics
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
+import System.Cron (CronSchedule, parseCronSchedule)
 import System.Logger.Extended
 import Util.Options
 import Wire.ConversationStore (PostgresMigrationOpts)
@@ -99,11 +103,22 @@ data BackgroundJobsConfig = BackgroundJobsConfig
 
 data MeetingsCleanupConfig = MeetingsCleanupConfig
   { -- | Delete meetings older than this many hours
-    cleanOlderThanHours :: Int,
+    cleanOlderThanHours :: Double,
     -- | Maximum number of meetings to delete per batch
     batchSize :: Int,
-    -- | Frequency in seconds to run the cleanup job
-    cleanFrequencySeconds :: Int
+    -- | Cron schedule for the cleanup job
+    schedule :: CronSchedule
   }
   deriving (Show, Generic)
-  deriving (FromJSON) via Generically MeetingsCleanupConfig
+
+instance FromJSON MeetingsCleanupConfig where
+  parseJSON =
+    withObject "MeetingsCleanupConfig" $ \o -> do
+      cleanOlderThanHours <- o .: "cleanOlderThanHours"
+      batchSize <- o .: "batchSize"
+      scheduleRaw <- o .: "schedule"
+      schedule <-
+        case parseCronSchedule scheduleRaw of
+          Left e -> parserThrowError [Key "schedule"] $ "Cannot parse cronjob syntax: " <> e
+          Right x -> pure x
+      pure $ MeetingsCleanupConfig {..}

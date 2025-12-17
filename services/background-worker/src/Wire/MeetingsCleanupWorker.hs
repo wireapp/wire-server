@@ -29,9 +29,10 @@ import Imports
 import Polysemy
 import Polysemy.Error (runError)
 import Polysemy.Input (runInputConst)
+import Prometheus (incCounter)
+import System.Cron (Job (..), forkJob)
 import System.Logger qualified as Log
-import UnliftIO (async)
-import Wire.BackgroundWorker.Env (AppT, Env (..))
+import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util (CleanupAction)
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
@@ -40,7 +41,7 @@ import Wire.MeetingsSubsystemCleaning qualified as Meetings
 import Wire.MeetingsSubsystemCleaning.Interpreter (interpretMeetingsSubsystemCleaning)
 
 data CleanupConfig = CleanupConfig
-  { retentionHours :: Int,
+  { retentionHours :: Double,
     batchSize :: Int
   }
   deriving (Show, Eq)
@@ -48,31 +49,25 @@ data CleanupConfig = CleanupConfig
 -- | Start the meetings cleanup worker thread
 --
 -- This worker runs periodically to clean up old meetings based on the configuration.
--- It sleeps for the configured frequency and then runs the cleanup operation.
 startWorker ::
   MeetingsCleanupConfig ->
   AppT IO CleanupAction
 startWorker config = do
   env <- ask
-  -- Start the worker loop in a separate thread
-  void . async $ workerLoop env config
-  -- Return a no-op cleanup action (worker will be killed when the process exits)
-  pure $ pure ()
-
--- | Worker loop that runs periodically
-workerLoop :: Env -> MeetingsCleanupConfig -> AppT IO ()
-workerLoop env config = forever $ do
-  -- Sleep for the configured frequency (convert seconds to microseconds)
-  liftIO $ threadDelay (config.cleanFrequencySeconds * 1_000_000)
-
   Log.info env.logger $
-    Log.msg (Log.val "Starting scheduled meetings cleanup")
+    Log.msg (Log.val "Starting meetings cleanup worker")
+      . Log.field "schedule" (show config.schedule)
       . Log.field "clean_older_than_hours" config.cleanOlderThanHours
-      . Log.field "batch_size" config.batchSize
-      . Log.field "frequency_seconds" config.cleanFrequencySeconds
 
-  -- Run the cleanup
-  cleanupOldMeetings (configFromOptions config)
+  void . liftIO $ do
+    forkJob $
+      Job config.schedule $
+        runAppT env $ do
+          Log.info env.logger $ Log.msg (Log.val "Starting scheduled meetings cleanup")
+          cleanupOldMeetings (configFromOptions config)
+          liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
+
+  pure $ pure ()
 
 -- | Convert MeetingsCleanupConfig to CleanupConfig
 configFromOptions :: MeetingsCleanupConfig -> CleanupConfig
@@ -87,7 +82,7 @@ cleanupOldMeetings :: CleanupConfig -> AppT IO ()
 cleanupOldMeetings config = do
   env <- ask
   now <- liftIO getCurrentTime
-  let cutoffTime = addUTCTime (negate $ fromIntegral config.retentionHours * 3600) now
+  let cutoffTime = addUTCTime (negate $ realToFrac config.retentionHours * 3600) now
 
   Log.info env.logger $
     Log.msg (Log.val "Starting cleanup of old meetings")

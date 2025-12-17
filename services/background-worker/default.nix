@@ -10,6 +10,7 @@
 , bytestring-conversion
 , cassandra-util
 , containers
+, cron
 , data-default
 , data-timeout
 , exceptions
@@ -65,6 +66,7 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    cron
     data-timeout
     exceptions
     extended
