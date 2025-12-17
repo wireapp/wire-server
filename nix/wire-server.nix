@@ -422,7 +422,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    pkgs.ormolu
+    pkgs.haskell.packages.ghc98.ormolu
     pkgs.vacuum-go
     pkgs.shellcheck
     pkgs.treefmt
