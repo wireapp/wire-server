@@ -979,8 +979,8 @@ specCRUDIdentityProvider = do
     describe "replaces an existing idp"
       $ forM_
         [ (u, e)
-        | u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
-          e <- [False, True] -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
+          | u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
+            e <- [False, True] -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
         ]
       $ \(updateNotReplace, externalIdIsEmail) -> do
         let updateOrReplaceIdps :: (UserId, IdP, SAML.IdPMetadata) -> TestSpar ()
@@ -1466,7 +1466,8 @@ specSsoSettings = do
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
           (statusCode resp == 200)
-            && (responseJsonEither resp == Right (ssoSettings (Just idpid1)))
+            && ( responseJsonEither resp == Right (ssoSettings (Just idpid1))
+               )
       -- update to 2
       callSetDefaultSsoCode (env ^. teSpar) idpid2
         `shouldRespondWith` \resp ->
@@ -1475,7 +1476,8 @@ specSsoSettings = do
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
           (statusCode resp == 200)
-            && (responseJsonEither resp == Right (ssoSettings (Just idpid2)))
+            && ( responseJsonEither resp == Right (ssoSettings (Just idpid2))
+               )
     it "allows removing the default SSO code" $ do
       env <- ask
       (userid, _teamid) <- callCreateUserWithTeam
@@ -1492,7 +1494,8 @@ specSsoSettings = do
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
           (statusCode resp == 200)
-            && (responseJsonEither resp == Right (ssoSettings Nothing))
+            && ( responseJsonEither resp == Right (ssoSettings Nothing)
+               )
     it "removes the default SSO code if the IdP gets removed" $ do
       env <- ask
       (userid, _teamid) <- callCreateUserWithTeam
@@ -1508,7 +1511,8 @@ specSsoSettings = do
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
           (statusCode resp == 200)
-            && (responseJsonEither resp == Right (ssoSettings Nothing))
+            && ( responseJsonEither resp == Right (ssoSettings Nothing)
+               )
   where
     ssoSettings maybeCode =
       object

@@ -160,12 +160,14 @@ testObject_UserEvent_12 =
 testObject_UserEvent_13 :: Event
 testObject_UserEvent_13 =
   PropertyEvent
-    (PropertySet (PropertyKey "a") (toJSON (39 :: Int)))
+    ( PropertySet (PropertyKey "a") (toJSON (39 :: Int))
+    )
 
 testObject_UserEvent_14 :: Event
 testObject_UserEvent_14 =
   PropertyEvent
-    (PropertyDeleted (PropertyKey "a"))
+    ( PropertyDeleted (PropertyKey "a")
+    )
 
 testObject_UserEvent_15 :: Event
 testObject_UserEvent_15 = PropertyEvent PropertiesCleared

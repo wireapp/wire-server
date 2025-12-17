@@ -397,7 +397,8 @@ createUser rateLimitKey new = do
     lift $ do
       mHashedPassword <-
         traverse
-          (liftSem . HashPassword.hashPassword8 rateLimitKey)
+          ( liftSem . HashPassword.hashPassword8 rateLimitKey
+          )
           new'.newUserPassword
       newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid mbHandle
   domain <- viewFederationDomain
@@ -1100,7 +1101,8 @@ lookupActivationCode email = do
   pure $ (k,) <$> c
 
 lookupPasswordResetCode ::
-  (Member AuthenticationSubsystem r) =>
+  ( Member AuthenticationSubsystem r
+  ) =>
   EmailAddress ->
   (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode =

@@ -273,7 +273,8 @@ testUpdateTeamInvite = forM_ [ExplicitVersion 8, Versioned] \version -> do
 
   -- admin should not be able to set team-invite if the team hasn't been authorized
   bindResponse
-    (updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= tid]))
+    ( updateTeamInvite owner domain (object ["team_invite" .= "team", "team" .= tid])
+    )
     $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"
@@ -282,7 +283,8 @@ testUpdateTeamInvite = forM_ [ExplicitVersion 8, Versioned] \version -> do
 
   -- non-admin should not be able to set team-invite
   bindResponse
-    (updateTeamInvite mem domain (object ["team_invite" .= "team", "team" .= tid]))
+    ( updateTeamInvite mem domain (object ["team_invite" .= "team", "team" .= tid])
+    )
     $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "operation-forbidden-for-domain-registration-state"

@@ -65,4 +65,5 @@ prop_nowNow =
     pure $
       simpleLaw
         (liftA2 (<=) E.get E.get)
-        (pure True)
+        ( pure True
+        )

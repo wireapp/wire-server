@@ -725,7 +725,8 @@ updateServiceWhitelist uid con tid upd = do
           .| C.mapM_
             ( pooledMapConcurrentlyN_
                 16
-                (uncurry (deleteBot uid (Just con)))
+                ( uncurry (deleteBot uid (Just con))
+                )
             )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
@@ -851,7 +852,8 @@ addBot zuid zcon cid add = do
         bcl
         newClt
         maxPermClients
-        (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
+        ( Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent
+        )
       )
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 

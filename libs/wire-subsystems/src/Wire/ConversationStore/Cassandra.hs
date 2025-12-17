@@ -260,7 +260,8 @@ localConversations ::
   Sem r [StoredConversation]
 localConversations client =
   collectAndLog
-    <=< (runEmbedded (runClient client) . embed . UnliftIO.pooledMapConcurrentlyN 8 localConversation')
+    <=< ( runEmbedded (runClient client) . embed . UnliftIO.pooledMapConcurrentlyN 8 localConversation'
+        )
   where
     collectAndLog cs = case partitionEithers cs of
       (errs, convs) -> traverse_ (warn . Log.msg) errs $> convs

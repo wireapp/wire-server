@@ -319,11 +319,13 @@ eventObjectSchema =
           EventTypeUserLegalholdEnabled ->
             tag
               _UserEvent
-              (tag _UserLegalHoldEnabled (field "id" schema))
+              ( tag _UserLegalHoldEnabled (field "id" schema)
+              )
           EventTypeUserLegalholdDisabled ->
             tag
               _UserEvent
-              (tag _UserLegalHoldDisabled (field "id" schema))
+              ( tag _UserLegalHoldDisabled (field "id" schema)
+              )
           EventTypeUserLegalholdRequested ->
             tag
               _UserEvent

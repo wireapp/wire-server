@@ -170,7 +170,8 @@ type IdpDelete =
 type SsoSettingsGet =
   Named
     "sso-settings"
-    (Get '[JSON] SsoSettings)
+    ( Get '[JSON] SsoSettings
+    )
 
 sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> Maybe Domain -> m (Maybe SAML.Issuer)
 sparSPIssuer mbtid = (SAML.Issuer <$$>) . sparResponseURI mbtid

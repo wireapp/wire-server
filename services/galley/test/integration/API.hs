@@ -2661,7 +2661,8 @@ leaveRemoteConvDenied = do
         guardComponent Galley
         mockReply $
           LeaveConversationResponse
-            (Left RemoveFromConversationErrorRemovalNotAllowed)
+            ( Left RemoveFromConversationErrorRemovalNotAllowed
+            )
 
   (resp, fedRequests) <-
     withTempMockFederator' mockResponses $

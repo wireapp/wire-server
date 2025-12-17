@@ -53,7 +53,7 @@ generateTeamEvents uid tid eventsData = do
                 { recipientUserId = u,
                   recipientClients = RecipientClientsAll
                 }
-            | u <- admins ^.. TM.teamMembers . traverse . TM.userId
+              | u <- admins ^.. TM.teamMembers . traverse . TM.userId
             ],
           transient = False
         }

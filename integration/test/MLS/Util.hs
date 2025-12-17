@@ -181,7 +181,7 @@ initMLSClient opts cid = do
   let keys =
         object
           [ csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)
-          | (ciphersuite, pkey) <- suitePKeys
+            | (ciphersuite, pkey) <- suitePKeys
           ]
   bindResponse
     ( updateClient

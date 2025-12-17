@@ -46,7 +46,8 @@ domain = Domain "golden.example.com"
 convId :: Qualified ConvId
 convId =
   Qualified
-    (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
+    ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))
+    )
     domain
 
 testObject_PublicSubConversation_1 :: PublicSubConversation
@@ -81,6 +82,7 @@ testObject_PublicSubConversation_2 =
     user :: Qualified UserId
     user =
       Qualified
-        (Id (fromJust (UUID.fromString "00000000-0000-0007-0000-000a00000002")))
+        ( Id (fromJust (UUID.fromString "00000000-0000-0007-0000-000a00000002"))
+        )
         domain
     cid = ClientId 0xdeadbeef

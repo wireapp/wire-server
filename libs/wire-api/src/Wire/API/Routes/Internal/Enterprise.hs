@@ -29,7 +29,8 @@ type InternalAPI = "i" :> InternalAPIBase
 type InternalAPIBase =
   Named
     "status"
-    ("status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ())
+    ( "status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ()
+    )
     :<|> Named
            "create-verification-token"
            ( "create-verification-token"

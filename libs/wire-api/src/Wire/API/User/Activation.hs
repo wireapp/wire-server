@@ -205,7 +205,8 @@ instance ToSchema SendActivationCode where
           .= maybe_
             ( optFieldWithDocModifier
                 "locale"
-                (description ?~ "Locale to use for the activation code template.")
+                ( description ?~ "Locale to use for the activation code template."
+                )
                 schema
             )
     where

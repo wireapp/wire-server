@@ -304,10 +304,10 @@ updateServiceMapInConfig resource forSrv config =
     )
     config
     [ (srv, berInternalServicePorts resource srv :: Int)
-    | srv <- allServices,
-      -- if a service is not enabled, do not set its endpoint configuration,
-      -- unless we are starting the service itself
-      berEnableService resource srv || srv == forSrv
+      | srv <- allServices,
+        -- if a service is not enabled, do not set its endpoint configuration,
+        -- unless we are starting the service itself
+        berEnableService resource srv || srv == forSrv
     ]
 
 startBackend ::

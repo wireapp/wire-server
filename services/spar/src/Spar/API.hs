@@ -889,7 +889,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
           ( case fromMaybe defWireIdPAPIVersion $ previousIdP ^. SAML.idpExtraInfo . apiVersion of
               WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe newIssuer
               WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe newIssuer teamId
-          )
+            )
             <&> ( \case
                     Just idpFound -> idpFound ^. SAML.idpId /= _idpId
                     Nothing -> False

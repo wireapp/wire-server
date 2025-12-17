@@ -49,7 +49,8 @@ receiveCommitMock clients =
       "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
       "get-mls-clients"
         ~> Set.fromList
-          (map (\c -> ClientInfo c.ciClient mempty True) clients)
+          ( map (\c -> ClientInfo c.ciClient mempty True) clients
+          )
     ]
 
 receiveCommitMockByDomain :: [ClientIdentity] -> Mock LByteString

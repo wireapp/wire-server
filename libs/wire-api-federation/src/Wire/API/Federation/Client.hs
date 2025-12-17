@@ -186,7 +186,8 @@ instance (KnownComponent c) => RunClient (FederatorClient c) where
             { requestHeaders =
                 ( versionHeader,
                   toByteString'
-                    (versionInt (fromMaybe V0 v))
+                    ( versionInt (fromMaybe V0 v)
+                    )
                 )
                   :<| requestHeaders req
             }

@@ -954,7 +954,8 @@ newConvSchema v sch =
       <*> newConvCells .= (fromMaybe False <$> optField "cells" schema)
       <*> newConvChannelAddPermission
         .= maybe_
-          (optFieldWithDocModifier "add_permission" (description ?~ "Channel add permission") schema)
+          ( optFieldWithDocModifier "add_permission" (description ?~ "Channel add permission") schema
+          )
       <*> newConvSkipCreator
         .= ( fromMaybe False
                <$> optFieldWithDocModifier

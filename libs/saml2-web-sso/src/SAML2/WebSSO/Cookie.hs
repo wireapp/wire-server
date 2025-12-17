@@ -52,7 +52,7 @@ headerValueToCookie txt = do
   let cookie = parseSetCookie $ cs txt
   case ["missing cookie name" | setCookieName cookie == ""]
     <> [ cs $ "wrong cookie name: got " <> setCookieName cookie <> ", expected " <> cookieName (Proxy @name)
-       | setCookieName cookie /= cookieName (Proxy @name)
+         | setCookieName cookie /= cookieName (Proxy @name)
        ]
     <> ["missing cookie value" | setCookieValue cookie == ""] of
     errs@(_ : _) -> throwError $ ST.intercalate ", " errs

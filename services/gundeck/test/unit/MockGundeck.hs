@@ -606,8 +606,8 @@ mockBulkPush notifs = do
   let delivered :: [(Notification, [Presence])]
       delivered =
         [ (nid, prcs)
-        | (nid, filter (`elem` deliveredprcs) -> prcs) <- notifs,
-          not $ null prcs -- (sic!) (this is what gundeck currently does)
+          | (nid, filter (`elem` deliveredprcs) -> prcs) <- notifs,
+            not $ null prcs -- (sic!) (this is what gundeck currently does)
         ]
       deliveredprcs :: [Presence]
       deliveredprcs = filter isreachable . mconcat . fmap fakePresences $ allRecipients env

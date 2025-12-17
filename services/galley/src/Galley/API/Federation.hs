@@ -1000,7 +1000,8 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)
 
 onTypingIndicatorUpdated ::
-  (Member NotificationSubsystem r) =>
+  ( Member NotificationSubsystem r
+  ) =>
   Domain ->
   TypingDataUpdated ->
   Sem r EmptyResponse

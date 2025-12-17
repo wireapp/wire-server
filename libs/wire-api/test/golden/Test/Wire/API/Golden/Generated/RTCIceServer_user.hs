@@ -62,7 +62,8 @@ testObject_RTCIceServer_user_1 =
 testObject_RTCIceServer_user_2 :: RTCIceServer
 testObject_RTCIceServer_user_2 =
   rtcIceServer
-    (NonEmpty.singleton (turnURI SchemeTurn (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP)))
+    ( NonEmpty.singleton (turnURI SchemeTurn (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP))
+    )
     ( turnUsername (secondsToNominalDiffTime 3.000000000000) "a8kdffu4"
         & tuVersion .~ 5
         & tuKeyindex .~ 24

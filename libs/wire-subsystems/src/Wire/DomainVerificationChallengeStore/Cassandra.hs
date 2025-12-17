@@ -34,7 +34,8 @@ import Wire.DomainVerificationChallengeStore
 
 interpretDomainVerificationChallengeStoreToCassandra ::
   forall r.
-  (Member (Embed IO) r) =>
+  ( Member (Embed IO) r
+  ) =>
   ClientState ->
   Timeout ->
   InterpreterFor DomainVerificationChallengeStore r

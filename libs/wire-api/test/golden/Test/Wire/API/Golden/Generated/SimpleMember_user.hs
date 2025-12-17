@@ -31,7 +31,8 @@ testObject_SimpleMember_user_1 =
     { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003a-0000-0042-0000-007500000037"))) (Domain "faraway.example.com"),
       smConvRoleName =
         fromJust
-          (parseRoleName "wire_member")
+          ( parseRoleName "wire_member"
+          )
     }
 
 testObject_SimpleMember_user_2 :: SimpleMember
@@ -40,5 +41,6 @@ testObject_SimpleMember_user_2 =
     { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003a-0000-0042-0000-007500000037"))) (Domain "faraway.example.com"),
       smConvRoleName =
         fromJust
-          (parseRoleName "wire_admin")
+          ( parseRoleName "wire_admin"
+          )
     }
