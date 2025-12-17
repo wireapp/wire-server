@@ -66,7 +66,7 @@ createUser domain cu = do
                      [ "name" .= "integration test team",
                        "icon" .= "default"
                      ]
-                 | cu.team
+               | cu.team
                ]
         )
 

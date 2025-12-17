@@ -606,8 +606,7 @@ getSelfMember lusr cnv = do
       pure $ Just $ conv.cnvMembers.cmSelf
 
 getLocalSelf ::
-  ( Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   ConvId ->
   Sem r (Maybe Public.Member)

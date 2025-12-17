@@ -461,8 +461,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       evtFrom e @?= EventFromUser (userQualifiedId bob)
       evtData e
         @?= EdOtrMessage
-          ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
-          )
+          (OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just ""))
 
 -- alice creates a conversation on domain 1 with bob on domain 2, then bob
 -- sends a message to alice
@@ -524,8 +523,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
       evtFrom e @?= EventFromUser (userQualifiedId bob)
       evtData e
         @?= EdOtrMessage
-          ( OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just "")
-          )
+          (OtrMessage bobClient.clientId aliceClient.clientId (toBase64Text msgText) (Just ""))
 
 testDeleteUser :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
 testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do

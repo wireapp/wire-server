@@ -102,7 +102,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     Nothing
                     (mkUserFromStored domain miniLocale targetUser)
                     defUserLegalHoldStatus
-                  | targetUser <- users
+                | targetUser <- users
                 ]
               expectedLocalProfiles = mkExpectedProfiles localDomain localTargetUsers
               expectedProfiles1 = mkExpectedProfiles remoteDomain1 targetUsers1

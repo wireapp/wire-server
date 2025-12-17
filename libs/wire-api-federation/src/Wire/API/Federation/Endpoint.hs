@@ -63,8 +63,7 @@ type UnnamedFedEndpointWithMods (mods :: [Type]) path input output =
 type FedEndpointWithMods (mods :: [Type]) name input output =
   Named
     name
-    ( UnnamedFedEndpointWithMods mods (FedPath name) input output
-    )
+    (UnnamedFedEndpointWithMods mods (FedPath name) input output)
 
 type FedEndpoint name input output = FedEndpointWithMods '[] name input output
 
@@ -156,8 +155,7 @@ data StreamPostWithRemoteIp framing (ct :: Type) a
 
 -- Server-side simply delegates to the standard 'StreamPost' implementation.
 instance
-  ( HasServer (StreamPost framing ct a) context
-  ) =>
+  (HasServer (StreamPost framing ct a) context) =>
   HasServer (StreamPostWithRemoteIp framing ct a) context
   where
   type ServerT (StreamPostWithRemoteIp framing ct a) m = ServerT (StreamPost framing ct a) m

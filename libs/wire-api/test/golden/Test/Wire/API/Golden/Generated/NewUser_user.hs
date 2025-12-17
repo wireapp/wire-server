@@ -160,8 +160,7 @@ testObject_NewUser_user_8 =
       newUserIdentity =
         Just
           ( EmailIdentity
-              ( unsafeEmailAddress "some" "example"
-              )
+              (unsafeEmailAddress "some" "example")
           ),
       newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }

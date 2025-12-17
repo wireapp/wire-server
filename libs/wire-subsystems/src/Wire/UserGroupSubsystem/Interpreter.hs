@@ -279,8 +279,7 @@ getUserGroups getter search = do
 
 getUserGroupsInternal ::
   forall r.
-  ( Member Store.UserGroupStore r
-  ) =>
+  (Member Store.UserGroupStore r) =>
   TeamId ->
   Maybe Text ->
   Maybe ManagedBy ->

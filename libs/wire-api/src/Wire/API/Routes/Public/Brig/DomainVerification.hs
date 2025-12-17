@@ -299,8 +299,7 @@ instance ToSchema DomainRedirectResponseV9 where
       DomainRedirectResponse
         <$> (\r -> True <$ guard r.propagateUserExists)
           .= maybe_
-            ( fromMaybe False <$> optField "due_to_existing_account" schema
-            )
+            (fromMaybe False <$> optField "due_to_existing_account" schema)
         <*> (.redirect) .= domainRedirectSchemaV9
 
 type DomainRedirectResponseV10 = DomainRedirectResponse V10
@@ -319,8 +318,7 @@ instance ToSchema DomainRedirectResponseV10 where
       DomainRedirectResponse
         <$> (\r -> True <$ guard r.propagateUserExists)
           .= maybe_
-            ( fromMaybe False <$> optField "due_to_existing_account" schema
-            )
+            (fromMaybe False <$> optField "due_to_existing_account" schema)
         <*> (.redirect) .= domainRedirectSchema V10
 
 type DomainVerificationChallengeAPI =

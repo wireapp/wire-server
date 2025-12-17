@@ -299,8 +299,7 @@ instance ToSchema VersionExp where
         <> tag
           _VersionExpDevelopment
           ( unnamed
-              ( enum @Text "VersionExpDevelopment" (element "development" ())
-              )
+              (enum @Text "VersionExpDevelopment" (element "development" ()))
           )
 
 deriving via Schema VersionExp instance (FromJSON VersionExp)

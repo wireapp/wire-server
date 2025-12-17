@@ -359,15 +359,15 @@ testUserGroupGetGroupsAllInputs = do
             includeMemberCount = includeMemberCount',
             includeChannels = includeChannels'
           }
-        | q' <- qs,
-          sortBy' <- sortByKeysList,
-          sortOrder' <- sortOrders,
-          pSize' <- pSizes,
-          lastName' <- lastNames,
-          lastCreatedAt' <- lastCreatedAts,
-          lastId' <- lastIds,
-          includeMemberCount' <- [False, True],
-          includeChannels' <- [False, True]
+      | q' <- qs,
+        sortBy' <- sortByKeysList,
+        sortOrder' <- sortOrders,
+        pSize' <- pSizes,
+        lastName' <- lastNames,
+        lastCreatedAt' <- lastCreatedAts,
+        lastId' <- lastIds,
+        includeMemberCount' <- [False, True],
+        includeChannels' <- [False, True]
       ]
       where
         qs = [Nothing, Just "A"]

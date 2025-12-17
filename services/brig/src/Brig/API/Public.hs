@@ -309,7 +309,7 @@ versionedSwaggerDocsAPI Nothing = tocPage
                   renderLink "swagger.json" ("/" <> v <> "/api/swagger.json"),
                   "<br>"
                 ]
-                | v <- versionToLByteString <$> [minBound :: Version ..]
+              | v <- versionToLByteString <$> [minBound :: Version ..]
               ]
 
         internal :: [LByteString]
@@ -325,7 +325,7 @@ versionedSwaggerDocsAPI Nothing = tocPage
                   renderLink "swagger.json" ("/api-internal/swagger-ui/" <> s <> "-swagger.json"),
                   "<br>"
                 ]
-                | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
+              | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
               ]
 
         federated :: [LByteString]
@@ -338,10 +338,10 @@ versionedSwaggerDocsAPI Nothing = tocPage
                          renderLink "swagger.json" ("/" <> v <> "/api-federation/swagger-ui/" <> s <> "-swagger.json"),
                          "<br>"
                        ]
-                     | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
+                   | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
                    ]
                    <> "<br>"
-                 | s <- ["brig", "galley", "cargohold"]
+               | s <- ["brig", "galley", "cargohold"]
                ]
 
         versionToLByteString :: (ToHttpApiData v) => v -> LByteString
@@ -1249,8 +1249,7 @@ beginPasswordReset (Public.NewPasswordReset target) =
   lift (liftSem $ createPasswordResetCode $ mkEmailKey target)
 
 completePasswordReset ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   Public.CompletePasswordReset ->
   Handler r ()
 completePasswordReset req = do
@@ -1770,8 +1769,7 @@ deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingRes
 deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   Public.PasswordResetKey ->
   Public.PasswordReset ->
   (Handler r) ()

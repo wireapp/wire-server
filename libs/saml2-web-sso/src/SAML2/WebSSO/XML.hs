@@ -516,7 +516,7 @@ exportConditions conds =
       HX.conditions =
         [HX.OneTimeUse | conds ^. condOneTimeUse]
           <> [ HX.AudienceRestriction (HX.Audience . exportURI <$> hsrs)
-               | hsrs <- conds ^. condAudienceRestriction
+             | hsrs <- conds ^. condAudienceRestriction
              ]
     }
 

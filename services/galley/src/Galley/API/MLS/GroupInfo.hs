@@ -65,8 +65,7 @@ getGroupInfo lusr qcnvId = do
     qcnvId
 
 getGroupInfoFromLocalConv ::
-  ( Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Qualified UserId ->
   Local ConvId ->

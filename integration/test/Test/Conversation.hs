@@ -104,9 +104,9 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     -- between backends when the federation strategy is 'allowDynamic'.
     sequence_
       [ BrigI.createFedConn x (BrigI.FedConn y "full_search" Nothing)
-        | x <- [domainA, domainB, domainC],
-          y <- [domainA, domainB, domainC],
-          x /= y
+      | x <- [domainA, domainB, domainC],
+        y <- [domainA, domainB, domainC],
+        x /= y
       ]
     uidA <- randomUser domainA def {BrigI.team = True}
     uidB <- randomUser domainB def {BrigI.team = True}

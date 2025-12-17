@@ -30,8 +30,7 @@ testObject_LoginId_user_1 =
 testObject_LoginId_user_2 :: LoginId
 testObject_LoginId_user_2 =
   LoginByEmail
-    ( unsafeEmailAddress "some" "example"
-    )
+    (unsafeEmailAddress "some" "example")
 
 testObject_LoginId_user_3 :: LoginId
 testObject_LoginId_user_3 = LoginByHandle (fromJust (parseHandle "7a8gg3v98"))

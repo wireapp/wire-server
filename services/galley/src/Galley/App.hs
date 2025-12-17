@@ -396,5 +396,4 @@ evalGalley e =
 interpretTeamFeatureSpecialContext :: Env -> Sem (Input (FeatureDefaults LegalholdConfig) ': r) a -> Sem r a
 interpretTeamFeatureSpecialContext e =
   runInputConst
-    ( e ^. options . settings . featureFlags . to npProject
-    )
+    (e ^. options . settings . featureFlags . to npProject)

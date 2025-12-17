@@ -559,8 +559,7 @@ sendAuditMail url subject mBefore mAfter = do
           url
             <> " called;\nOld value:\n"
             <> fromLazyText
-              ( LT.decodeUtf8 (encodeDomainRegistrationPretty mBefore)
-              )
+              (LT.decodeUtf8 (encodeDomainRegistrationPretty mBefore))
             <> "\nNew value:\n"
             <> fromLazyText
               ( LT.decodeUtf8

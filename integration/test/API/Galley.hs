@@ -595,8 +595,7 @@ updateRole caller target role qcnv = do
       caller
       Galley
       Versioned
-      ( joinHttpPath ["conversations", cnvDomain, cnvId, "members", tarDomain, tarId]
-      )
+      (joinHttpPath ["conversations", cnvDomain, cnvId, "members", tarDomain, tarId])
   submit "PUT" (req & addJSONObject ["conversation_role" .= roleReq])
 
 updateReceiptMode ::

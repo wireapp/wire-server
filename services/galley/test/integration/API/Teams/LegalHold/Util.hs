@@ -550,8 +550,7 @@ errWith wantStatus wantBody rsp = liftIO $ do
   assertEqual "" wantStatus (statusCode rsp)
   assertBool
     (show $ responseBody rsp)
-    ( maybe False wantBody (responseJsonMaybe rsp)
-    )
+    (maybe False wantBody (responseJsonMaybe rsp))
 
 ------------------------------------
 
