@@ -65,6 +65,7 @@ import Amazonka.SQS.Lens qualified as SQS
 import Amazonka.SQS.Types
 import Control.Category ((>>>))
 import Control.Error hiding (err, isRight)
+import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -208,7 +209,7 @@ mkEnv lgr opts mgr = do
     getQueueUrl e q = do
       x <-
         runResourceT $
-          AWS.trying AWS._Error $
+          trying AWS._Error $
             AWS.send e (SQS.newGetQueueUrl q)
       either
         (throwM . GeneralError)
@@ -473,14 +474,14 @@ listen throttleMillis callback = do
 -- Utilities
 
 sendCatch ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  (AWSRequest r) =>
   AWS.Env ->
   r ->
   Amazon (Either AWS.Error (AWSResponse r))
-sendCatch env = AWS.trying AWS._Error . AWS.send env
+sendCatch env = trying AWS._Error . AWS.send env
 
 send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  (AWSRequest r) =>
   AWS.Env ->
   r ->
   Amazon (AWSResponse r)
