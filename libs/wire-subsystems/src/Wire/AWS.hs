@@ -26,6 +26,7 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
+import Control.Exception.Lens
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ProtoLens.Encoding (encodeMessage)
@@ -123,7 +124,7 @@ mkEnv lgr mgr endpoint qname = do
     getQueueUrl e q = do
       x <-
         runResourceT $
-          AWS.trying AWS._Error $
+          trying AWS._Error $
             AWS.send e (SQS.newGetQueueUrl q)
       either
         (throwM . GeneralError)
@@ -158,7 +159,7 @@ sendCatch ::
   Sem r (Either AWS.Error (AWS.AWSResponse req))
 sendCatch req = do
   env <- input
-  embed $ runResourceT (AWS.trying AWS._Error (AWS.send env req))
+  embed $ runResourceT (trying AWS._Error (AWS.send env req))
 
 -- Amazon monad variant
 sendCatchEnv ::
@@ -169,7 +170,7 @@ sendCatchEnv ::
   AWS.Env ->
   r ->
   Amazon (Either AWS.Error (AWS.AWSResponse r))
-sendCatchEnv e = AWS.trying AWS._Error . AWS.send e
+sendCatchEnv e = trying AWS._Error . AWS.send e
 
 canRetry :: Either AWS.Error a -> Bool
 canRetry (Right _) = False

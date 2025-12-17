@@ -554,7 +554,7 @@ withOptLock u c ma = go (10 :: Int)
       Prom.incCounter optimisticLockFailedCounter
     execDyn ::
       forall r x.
-      (AWS.AWSRequest r, Typeable r, Typeable (AWS.AWSResponse r)) =>
+      (AWS.AWSRequest r) =>
       (AWS.AWSResponse r -> Maybe x) ->
       (Text -> r) ->
       m (Maybe x)

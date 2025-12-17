@@ -43,6 +43,7 @@ import CargoHold.Options hiding (cloudFront, s3Bucket)
 import Conduit
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
+import Control.Exception.Lens
 import Control.Retry
 import Data.ByteString.Builder (toLazyByteString)
 import Imports
@@ -151,11 +152,11 @@ instance Exception Error
 -- Utilities
 
 sendCatch ::
-  (MonadCatch m, AWSRequest r, MonadResource m, Typeable r, Typeable (AWSResponse r)) =>
+  (MonadCatch m, AWSRequest r, MonadResource m) =>
   AWS.Env ->
   r ->
   m (Either AWS.Error (AWSResponse r))
-sendCatch env = AWS.trying AWS._Error . AWS.send env
+sendCatch env = trying AWS._Error . AWS.send env
 
 exec ::
   ( AWSRequest r,
