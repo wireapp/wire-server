@@ -37,6 +37,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , metrics-wai
 , MonadRandom
 , mtl
@@ -108,6 +109,7 @@ mkDerivation {
     http-types
     imports
     lens
+    memory
     metrics-wai
     mtl
     network-uri

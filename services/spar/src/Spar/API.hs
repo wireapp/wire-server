@@ -62,6 +62,8 @@ import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
+import qualified Data.UUID as UUID
+import Data.X509.Extended
 import Imports
 import Network.Wai (Request, requestHeaders)
 import Network.Wai.Utilities.Request
@@ -107,6 +109,7 @@ import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
+import qualified System.Logger as Log
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (IdPCreated, IdPDeleted, IdPUpdated))
 import Wire.API.Routes.Internal.Spar
@@ -214,6 +217,7 @@ apiSSO opts =
 apiIDP ::
   ( Member Random r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -628,6 +632,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
 -- (internal) https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
 idpCreate ::
   ( Member Random r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
     Member GalleyAccess r,
     Member BrigAccess r,
@@ -656,6 +661,14 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   BrigAccess.sendSAMLIdPChangedEmail $ IdPCreated idp
+  Logger.info $
+    Log.msg ("IdP created" :: String)
+      . Log.field "team" (idToText tid)
+      . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
+      . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
+      . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
+      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -681,6 +694,7 @@ filterMultiIngressZHost _ _ = Nothing
 idpCreateV7 ::
   ( Member Random r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
