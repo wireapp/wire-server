@@ -42,7 +42,7 @@ import Web.Scim.Server (GroupAPI, groupServer, mkapp)
 import Web.Scim.Server.Mock
 import Web.Scim.Test.Util
 
-fail_ :: String -> WaiSession () a
+fail_ :: (HasCallStack) => String -> WaiSession () a
 fail_ = liftIO . assertFailure
 
 getJson :: BS.ByteString -> WaiSession () A.Value
@@ -59,8 +59,8 @@ app :: IO Application
 app = do
   storage <- emptyTestStorage
   let auth = Just "authorized"
-  pure $
-    mkapp @Mock
+  pure
+    $ mkapp @Mock
       (Proxy @(GroupAPI Mock))
       (toServant (groupServer @Mock auth))
       (nt storage)
@@ -81,9 +81,13 @@ spec = with app $ do
           numFieldMatch v field expected = do
             case v ^? A.key (fromString field) . A._Number of
               Just gotten ->
-                when (gotten /= fromIntegral expected) $
-                  fail_ $
-                    field <> " is " <> show gotten <> " instead of " <> show expected
+                when (gotten /= fromIntegral expected)
+                  $ fail_
+                  $ field
+                  <> " is "
+                  <> show gotten
+                  <> " instead of "
+                  <> show expected
               Nothing -> fail_ $ "missing field: " <> field
 
           hasMembers :: (HasCallStack) => WaiSession () A.Value -> Int -> Int -> Int -> WaiSession () ()
