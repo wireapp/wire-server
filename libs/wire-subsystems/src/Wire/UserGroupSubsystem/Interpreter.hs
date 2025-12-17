@@ -279,6 +279,8 @@ getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount
             paginationState =
               -- scim starts counting page items at 1, but from here
               -- on, we start at 0.
+              --
+              -- TODO: why do no tests fail if I keep counting from 1 here?
               maybe
                 (PaginationOffset 0)
                 (PaginationOffset . (+ (-1)))
