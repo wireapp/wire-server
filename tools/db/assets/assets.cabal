@@ -84,7 +84,7 @@ executable assets
     , base
 
   hs-source-dirs:   app
-  default-language: Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path

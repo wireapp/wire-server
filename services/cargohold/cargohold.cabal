@@ -141,7 +141,7 @@ library
     , wire-api-federation
     , yaml                   >=0.8
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable cargohold
   main-is:            exec/Main.hs
@@ -204,7 +204,7 @@ executable cargohold
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable cargohold-integration
   main-is:            Main.hs
@@ -298,7 +298,7 @@ executable cargohold-integration
     , wire-api-federation
     , yaml                   >=0.8
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite cargohold-tests
   type:               exitcode-stdio-1.0
@@ -374,4 +374,4 @@ test-suite cargohold-tests
     , uri-bytestring         >=0.2
     , wire-api
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

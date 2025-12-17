@@ -106,7 +106,7 @@ library
     , unliftio
     , uuid
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite spec
   type:               exitcode-stdio-1.0
@@ -175,4 +175,4 @@ test-suite spec
     , polysemy-wire-zoo
     , unliftio
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

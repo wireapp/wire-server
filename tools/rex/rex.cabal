@@ -43,4 +43,4 @@ executable rex
   if flag(static)
     ld-options: -static
 
-  default-language: Haskell2010
+  default-language:   GHC2021
