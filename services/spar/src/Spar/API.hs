@@ -548,6 +548,7 @@ idpDelete ::
   forall r.
   ( Member Random r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -579,6 +580,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
     BrigAccess.sendSAMLIdPChangedEmail $ IdPDeleted idp
+  logIdPAction "IdP deleted" idp Nothing
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
@@ -661,14 +663,7 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   BrigAccess.sendSAMLIdPChangedEmail $ IdPCreated idp
-  Logger.info $
-    Log.msg ("IdP created" :: String)
-      . Log.field "team" (idToText tid)
-      . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
-      . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
-      . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
-      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
-      . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
+  logIdPAction "IdP created" idp mReplaces
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -685,6 +680,17 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
       let domains = idps ^.. traverse . SAML.idpExtraInfo . domain . _Just
       when (zHost `elem` domains) $
         throwSparSem SparIdPDomainInUse
+
+logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> Maybe SAML.IdPId -> Sem r ()
+logIdPAction msg idp mReplaces =
+  Logger.info $
+    Log.msg (msg)
+      . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
+      . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
+      . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
+      . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
+      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
 filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
