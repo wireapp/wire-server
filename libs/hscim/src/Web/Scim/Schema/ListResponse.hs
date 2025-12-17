@@ -20,15 +20,10 @@
 module Web.Scim.Schema.ListResponse
   ( ListResponse (..),
     fromList,
-    toPage,
   )
 where
 
 import Data.Aeson
-import Data.Foldable (toList)
-import Data.Int (Int32)
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
 import GHC.Generics (Generic)
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
@@ -62,32 +57,6 @@ fromList list =
     }
   where
     len = length list
-
-toPage :: forall a. Int32 -> Maybe Int32 -> [a] -> ListResponse a
-toPage startIndex mbCount list = case mbCount of
-  Nothing ->
-    ListResponse
-      { schemas = [ListResponse20],
-        totalResults = totalResults',
-        startIndex = startIndex',
-        itemsPerPage = Seq.length list',
-        resources = toList list'
-      }
-  Just count ->
-    let (page, _rest) = Seq.splitAt (fromIntegral safeCount) list'
-        safeCount = max 0 (min count (maxBound @Int32))
-     in ListResponse
-          { schemas = [ListResponse20],
-            totalResults = totalResults',
-            startIndex = startIndex',
-            itemsPerPage = Seq.length page,
-            resources = toList page
-          }
-  where
-    totalResults' = length list
-    startIndex' = max (fromIntegral startIndex) 1
-    list' :: Seq a
-    list' = Seq.drop (startIndex' - 1) (Seq.fromList list)
 
 instance (FromJSON a) => FromJSON (ListResponse a) where
   parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower

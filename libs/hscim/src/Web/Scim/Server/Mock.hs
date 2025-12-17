@@ -29,8 +29,12 @@ import Control.Monad.Reader
 import Control.Monad.STM (STM, atomically)
 import Data.Aeson
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Foldable as Fold
 import Data.Hashable
+import Data.Int (Int32)
 import Data.Maybe (fromMaybe)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.Text (Text, pack)
 import Data.Time.Calendar
 import Data.Time.Clock
@@ -51,7 +55,7 @@ import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.ResourceType
-import Web.Scim.Schema.Schema (Schema (Group20, User20))
+import Web.Scim.Schema.Schema (Schema (Group20, ListResponse20, User20))
 import Web.Scim.Schema.User hiding (displayName)
 
 -- | Tag used in the mock server.
@@ -202,6 +206,32 @@ instance GroupDB Mock TestServer where
     liftSTM (STMMap.lookup gid m) >>= \case
       Nothing -> throwScim (notFound "Group" (pack (show gid)))
       Just _ -> liftSTM $ STMMap.delete gid m
+
+toPage :: forall a. Int32 -> Maybe Int32 -> [a] -> ListResponse a
+toPage startIx mbCount list = case mbCount of
+  Nothing ->
+    ListResponse
+      { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
+        totalResults = totalResults',
+        startIndex = startIx',
+        itemsPerPage = Seq.length list',
+        resources = Fold.toList list'
+      }
+  Just count ->
+    let (page, _rest) = Seq.splitAt (fromIntegral safeCount) list'
+        safeCount = max 0 (min count (maxBound @Int32))
+     in ListResponse
+          { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
+            totalResults = totalResults',
+            startIndex = startIx',
+            itemsPerPage = Seq.length page,
+            resources = Fold.toList page
+          }
+  where
+    totalResults' = length list
+    startIx' = max (fromIntegral startIx) 1
+    list' :: Seq a
+    list' = Seq.drop (startIx' - 1) (Seq.fromList list)
 
 ----------------------------------------------------------------------------
 -- AuthDB
