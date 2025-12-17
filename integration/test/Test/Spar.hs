@@ -455,7 +455,8 @@ testSparScimCreateGetSearchUserGroup = do
           OwnDomain
           tok
           (Just $ "displayName co \"" <> substr <> "\"")
-          (Just (startIndex, count))
+          (Just startIndex)
+          (Just count)
       createGroup name = createScimUserGroup OwnDomain tok $ mkScimGroup name [mkScimUser scimUserId]
 
   -- Create 20 groups
@@ -468,12 +469,53 @@ testSparScimCreateGetSearchUserGroup = do
         count = 7
         expectedItemsPerPage = max 0 (min count (expectedTotalResults - startIndex + 1)) -- expected between 0 and `count` depending on if it's a full, half or empty page
      in searchPage "newGroupNo" startIndex count `bindResponse` \resp -> do
-          json' <- resp.json
-          json' %. "startIndex" `shouldMatchInt` startIndex
-          json' %. "totalResults" `shouldMatchInt` expectedTotalResults
-          json' %. "itemsPerPage" `shouldMatchInt` expectedItemsPerPage
-          resources <- json' %. "Resources" & asList
+          resp.json %. "startIndex" `shouldMatchInt` startIndex
+          resp.json %. "totalResults" `shouldMatchInt` expectedTotalResults
+          resp.json %. "itemsPerPage" `shouldMatchInt` expectedItemsPerPage
+          resources <- resp.json %. "Resources" & asList
           length resources `shouldMatchInt` expectedItemsPerPage
+
+  -- 5. Additional pagination edge cases
+
+  -- no filter
+  filterScimUserGroupPaginate OwnDomain tok Nothing (Just 1) (Just 3) `bindResponse` \resp -> do
+    resp.json %. "startIndex" `shouldMatchInt` 1
+    resources <- resp.json %. "Resources" & asList
+    length resources `shouldMatchInt` 3
+
+  -- startIndex=0 edge case (should be treated as 1 according to SCIM spec)
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 0) (Just 5) `bindResponse` \resp -> do
+    -- startIndex of 0 should be treated as 1
+    resources <- resp.json %. "Resources" & asList
+    length resources `shouldMatchInt` 5
+
+  -- Only startIndex, no count
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 5) Nothing `bindResponse` \resp -> do
+    resp.json %. "startIndex" `shouldMatchInt` 5
+    resp.json %. "totalResults" `shouldMatchInt` expectedTotalResults
+
+  -- Only count, no startIndex
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") Nothing (Just 3) `bindResponse` \resp -> do
+    resp.json %. "startIndex" `shouldMatchInt` 1
+    resp.json %. "itemsPerPage" `shouldMatchInt` 3
+    resources <- resp.json %. "Resources" & asList
+    length resources `shouldMatchInt` 3
+
+  -- 5e. Filter with empty result
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"nonexistent-filter-xyz\"") (Just 1) (Just 10) `bindResponse` \resp -> do
+    resp.json %. "startIndex" `shouldMatchInt` 1
+    resp.json %. "totalResults" `shouldMatchInt` 0
+    resp.json %. "itemsPerPage" `shouldMatchInt` 0
+    resources <- resp.json %. "Resources" & asList
+    length resources `shouldMatchInt` 0
+
+  -- 5f. All results in less than one page
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 1) (Just 100) `bindResponse` \resp -> do
+    resp.json %. "startIndex" `shouldMatchInt` 1
+    resp.json %. "totalResults" `shouldMatchInt` expectedTotalResults
+    resp.json %. "itemsPerPage" `shouldMatchInt` expectedTotalResults
+    resources <- resp.json %. "Resources" & asList
+    length resources `shouldMatchInt` expectedTotalResults
 
 testSparScimUpdateUserGroup :: (HasCallStack) => App ()
 testSparScimUpdateUserGroup = do
