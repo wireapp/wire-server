@@ -117,8 +117,7 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   Local UserId ->
   ClientId ->
   NewClient ->
@@ -565,7 +564,7 @@ withOptLock u c ma = go (10 :: Int)
       where
         execDyn' ::
           forall y p.
-          (AWS.AWSRequest p, Typeable (AWS.AWSResponse p), Typeable p) =>
+          (AWS.AWSRequest p) =>
           AWS.Env ->
           (AWS.AWSResponse p -> Maybe y) ->
           p ->

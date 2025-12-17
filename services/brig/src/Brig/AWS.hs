@@ -219,9 +219,7 @@ throwA = either (throwM . GeneralError) pure
 
 execCatch ::
   ( AWSRequest a,
-    Typeable a,
     MonadUnliftIO m,
-    Typeable (AWSResponse a),
     MonadCatch m
   ) =>
   AWS.Env ->
@@ -234,8 +232,6 @@ execCatch e cmd =
 
 exec ::
   ( AWSRequest a,
-    Typeable a,
-    Typeable (AWSResponse a),
     MonadCatch m,
     MonadIO m
   ) =>

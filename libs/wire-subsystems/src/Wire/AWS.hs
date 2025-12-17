@@ -22,11 +22,11 @@ module Wire.AWS where
 import Amazonka qualified as AWS
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
+import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
-import Control.Exception.Lens
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ProtoLens.Encoding (encodeMessage)
@@ -151,9 +151,7 @@ enqueue ev = do
 sendCatch ::
   ( Member (Embed IO) r,
     Member (Input AWS.Env) r,
-    AWS.AWSRequest req,
-    Typeable req,
-    Typeable (AWS.AWSResponse req)
+    AWS.AWSRequest req
   ) =>
   req ->
   Sem r (Either AWS.Error (AWS.AWSResponse req))
@@ -163,10 +161,7 @@ sendCatch req = do
 
 -- Amazon monad variant
 sendCatchEnv ::
-  ( AWS.AWSRequest r,
-    Typeable r,
-    Typeable (AWS.AWSResponse r)
-  ) =>
+  (AWS.AWSRequest r) =>
   AWS.Env ->
   r ->
   Amazon (Either AWS.Error (AWS.AWSResponse r))
