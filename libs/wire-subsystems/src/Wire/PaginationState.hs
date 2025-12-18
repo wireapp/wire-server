@@ -38,9 +38,9 @@ newtype PosInt32 = PosInt32 {fromPosInt32 :: Int32}
   deriving newtype (Eq, Ord, Enum, Show, Num, Real, Integral)
 
 mkPosInt32 :: (Integral i) => i -> Maybe PosInt32
-mkPosInt32 i =
-  if i > 0
-    then Just (fromIntegral i)
+mkPosInt32 (fromIntegral -> i) =
+  if i > 0 && i < maxBound
+    then Just (PosInt32 i)
     else Nothing
 
 paginationClause :: (PostgresValue a) => PaginationState a -> Maybe Clause

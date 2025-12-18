@@ -39,8 +39,8 @@ instance (AuthDB SparTag (Sem r), Member ScimSubsystem r) => SCG.GroupDB SparTag
   getGroups ::
     AuthInfo SparTag ->
     Maybe Filter ->
-    Maybe Int32 ->
-    Maybe Int32 ->
+    Maybe Int ->
+    Maybe Int ->
     ScimHandler (Sem r) (ListResponse (SCG.StoredGroup SparTag))
   getGroups ((.stiTeam) -> tid) mbFilter mbStartIndex mbCount =
     lift $ scimGetUserGroups tid mbFilter (fromIntegral <$> mbStartIndex) (fromIntegral <$> mbCount)

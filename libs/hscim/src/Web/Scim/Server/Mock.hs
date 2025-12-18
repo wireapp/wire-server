@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -207,13 +208,13 @@ instance GroupDB Mock TestServer where
       Nothing -> throwScim (notFound "Group" (pack (show gid)))
       Just _ -> liftSTM $ STMMap.delete gid m
 
-toPage :: forall a. Int32 -> Maybe Int32 -> [a] -> ListResponse a
-toPage startIx mbCount list = case mbCount of
+toPage :: forall a. Int -> Maybe Int -> [a] -> ListResponse a
+toPage (max 1 . fromIntegral -> startIx) (fmap fromIntegral -> mbCount) list = case mbCount of
   Nothing ->
     ListResponse
       { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
         totalResults = totalResults',
-        startIndex = startIx',
+        startIndex = startIx,
         itemsPerPage = Seq.length list',
         resources = Fold.toList list'
       }
@@ -223,15 +224,14 @@ toPage startIx mbCount list = case mbCount of
      in ListResponse
           { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
             totalResults = totalResults',
-            startIndex = startIx',
+            startIndex = startIx,
             itemsPerPage = Seq.length page,
             resources = Fold.toList page
           }
   where
     totalResults' = length list
-    startIx' = max (fromIntegral startIx) 1
     list' :: Seq a
-    list' = Seq.drop (startIx' - 1) (Seq.fromList list)
+    list' = Seq.drop (startIx - 1) (Seq.fromList list)
 
 ----------------------------------------------------------------------------
 -- AuthDB
