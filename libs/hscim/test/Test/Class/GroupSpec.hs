@@ -1,5 +1,4 @@
 {-# LANGUAGE QuasiQuotes #-}
-{-# OPTIONS_GHC -Wno-unused-imports -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,7 +29,6 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (ByteString)
 import Data.String
 import qualified Data.Vector as V
-import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Network.Wai (Application)
 import Network.Wai.Test
