@@ -412,9 +412,11 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                           pageSize = PageSize $ unsafeRange pageSize',
                           sortOrder = sortOrder'
                         }
-                  if length p.page < fromIntegral pageSize'
-                    then pure [p]
-                    else (p :) <$> go (offset + fromJust (mkPosInt32 pageSize'))
+                  let len = length p.page
+                  if
+                    | len > 0 && len < fromIntegral pageSize' -> pure [p]
+                    | len == 0 -> pure []
+                    | otherwise -> (p :) <$> go (offset + fromJust (mkPosInt32 pageSize'))
 
         ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
         descendingPages :: [UserGroupPage] <- getAllPages Desc 3
@@ -424,7 +426,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           -- Page sizes are as expected
           map (length . (.page)) ascendingPages `shouldBe` [2, 2, 1]
           map (length . (.page)) descendingPages `shouldBe` [3, 2]
-          map (length . (.page)) exactlyOnePage `shouldBe` [5, 0]
+          map (length . (.page)) exactlyOnePage `shouldBe` [5]
 
           -- Sort order is accounted for, pages do not overlap
           (map (.id_) . (.page) =<< ascendingPages) `shouldBe` sort groupIds
