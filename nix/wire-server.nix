@@ -441,10 +441,11 @@ let
   # nicely in docker.nix at the root of https://github.com/nixos/nix. We get
   # this file using "${pkgs.nix.src}/docker.nix" so we don't have to also pin
   # the nix repository along with the nixpkgs repository.
-  ciImage = import "${pkgs.nix.src}/docker.nix" {
+  ciImage = import "${pkgs.nixVersions.latest.src}/docker.nix" {
     inherit pkgs;
     name = "quay.io/wire/wire-server-ci";
     maxLayers = 2;
+    nix = pkgs.nixVersions.latest;
     # We don't need to push the "latest" tag, every step in CI should depend
     # deterministically on a specific image.
     tag = null;
