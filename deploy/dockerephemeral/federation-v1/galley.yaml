@@ -53,6 +53,9 @@ settings:
   guestLinkTTLSeconds: 604800
   disabledAPIVersions: []
 
+  meetings:
+    validityPeriodHours: 48.0
+
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: whitelist-teams-and-implicit-consent

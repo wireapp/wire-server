@@ -22,7 +22,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
@@ -50,22 +50,23 @@ interpretMeetingsSubsystem ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'InvalidOperation) r
   ) =>
+  NominalDiffTime ->
   InterpreterFor MeetingsSubsystem r
-interpretMeetingsSubsystem = interpret $ \case
+interpretMeetingsSubsystem validityPeriod = interpret $ \case
   CreateMeeting zUser newMeeting premium ->
     createMeetingImpl zUser newMeeting premium
   GetMeeting zUser meetingId ->
-    getMeetingImpl zUser meetingId
+    getMeetingImpl zUser meetingId validityPeriod
   ListMeetings zUser ->
-    listMeetingsImpl zUser
+    listMeetingsImpl zUser validityPeriod
   UpdateMeeting zUser meetingId update ->
-    updateMeetingImpl zUser meetingId update
+    updateMeetingImpl zUser meetingId update validityPeriod
   DeleteMeeting zUser meetingId ->
-    deleteMeetingImpl zUser meetingId
+    deleteMeetingImpl zUser meetingId validityPeriod
   AddInvitedEmails zUser meetingId emails ->
-    addInvitedEmailsImpl zUser meetingId emails
+    addInvitedEmailsImpl zUser meetingId emails validityPeriod
   RemoveInvitedEmails zUser meetingId emails ->
-    removeInvitedEmailsImpl zUser meetingId emails
+    removeInvitedEmailsImpl zUser meetingId emails validityPeriod
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -165,42 +166,54 @@ createMeetingImpl zUser newMeeting premium = do
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
-    Member ConvStore.ConversationStore r
+    Member ConvStore.ConversationStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
+  NominalDiffTime ->
   Sem r (Maybe API.Meeting)
-getMeetingImpl zUser meetingId = do
+getMeetingImpl zUser meetingId validityPeriod = do
   -- Get meeting from store
   maybeMeeting <- Store.getMeeting meetingId
 
   case maybeMeeting of
     Nothing -> pure Nothing
     Just meeting -> do
-      -- Check authorization: user must be creator OR member of the associated conversation
-      let isCreator = meeting.creator == tUntagged zUser
-      if isCreator
-        then pure (Just meeting)
+      now <- liftIO getCurrentTime
+      let cutoff = addUTCTime (negate validityPeriod) now
+      if meeting.endDate < cutoff
+        then pure Nothing
         else do
-          -- Check if user is a member of the conversation
-          let convId = qUnqualified meeting.conversationId
-          maybeMember <- ConvStore.getLocalMember convId (tUnqualified zUser)
-          case maybeMember of
-            Just _ -> pure (Just meeting) -- User is a member, authorized
-            Nothing -> pure Nothing -- User is not a member, not authorized
+          -- Check authorization: user must be creator OR member of the associated conversation
+          let isCreator = meeting.creator == tUntagged zUser
+          if isCreator
+            then pure (Just meeting)
+            else do
+              -- Check if user is a member of the conversation
+              let convId = qUnqualified meeting.conversationId
+              maybeMember <- ConvStore.getLocalMember convId (tUnqualified zUser)
+              case maybeMember of
+                Just _ -> pure (Just meeting) -- User is a member, authorized
+                Nothing -> pure Nothing -- User is not a member, not authorized
 
 listMeetingsImpl ::
   ( Member Store.MeetingsStore r,
-    Member ConvStore.ConversationStore r
+    Member ConvStore.ConversationStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
+  NominalDiffTime ->
   Sem r [API.Meeting]
-listMeetingsImpl zUser = do
+listMeetingsImpl zUser validityPeriod = do
+  now <- liftIO getCurrentTime
+  let cutoff = addUTCTime (negate validityPeriod) now
+
   -- List all meetings created by the user
-  createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser)
+  createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
 
   -- Loop over local conversations accessible by the user, then filter to only keep meetings.
-  memberMeetings <- getAllMemberMeetings zUser
+  memberMeetings <- getAllMemberMeetings zUser cutoff
 
   -- Combine and deduplicate
   let allMeetings = createdMeetings <> memberMeetings
@@ -213,8 +226,9 @@ getAllMemberMeetings ::
     Member ConvStore.ConversationStore r
   ) =>
   Local UserId ->
+  UTCTime ->
   Sem r [API.Meeting]
-getAllMemberMeetings zUser = do
+getAllMemberMeetings zUser cutoff = do
   -- We process conversations in pages
   processPage Nothing
   where
@@ -245,7 +259,7 @@ getAllMemberMeetings zUser = do
 
           -- Fetch meetings for these conversations
           pageMeetings <- forM targetQConvIds $ \qConvId -> do
-            Store.listMeetingsByConversation qConvId
+            Store.listMeetingsByConversation qConvId cutoff
 
           let currentMeetings = concat pageMeetings
 
@@ -262,13 +276,15 @@ getAllMemberMeetings zUser = do
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (ErrorS 'InvalidOperation) r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
   API.UpdateMeeting ->
+  NominalDiffTime ->
   Sem r (Maybe API.Meeting)
-updateMeetingImpl zUser meetingId update = do
+updateMeetingImpl zUser meetingId update validityPeriod = do
   when (isNothing update.title && isNothing update.startDate && isNothing update.endDate && isNothing update.recurrence) $
     throwS @'InvalidOperation
 
@@ -277,90 +293,116 @@ updateMeetingImpl zUser meetingId update = do
   case maybeMeeting of
     Nothing -> pure Nothing
     Just meeting -> do
-      when (fromMaybe meeting.startDate update.startDate >= fromMaybe meeting.endDate update.endDate) $
-        throwS @'InvalidOperation
-
-      -- Check authorization (only creator can update)
-      if meeting.creator /= tUntagged zUser
+      now <- liftIO getCurrentTime
+      let cutoff = addUTCTime (negate validityPeriod) now
+      if meeting.endDate < cutoff
         then pure Nothing
-        else
-          -- Update meeting
-          Store.updateMeeting
-            meetingId
-            update.title
-            update.startDate
-            update.endDate
-            update.recurrence
+        else do
+          when (fromMaybe meeting.startDate update.startDate >= fromMaybe meeting.endDate update.endDate) $
+            throwS @'InvalidOperation
+
+          -- Check authorization (only creator can update)
+          if meeting.creator /= tUntagged zUser
+            then pure Nothing
+            else
+              -- Update meeting
+              Store.updateMeeting
+                meetingId
+                update.title
+                update.startDate
+                update.endDate
+                update.recurrence
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
-    Member ConvStore.ConversationStore r
+    Member ConvStore.ConversationStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
+  NominalDiffTime ->
   Sem r Bool
-deleteMeetingImpl zUser meetingId = do
+deleteMeetingImpl zUser meetingId validityPeriod = do
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
     Nothing -> pure False
-    Just meeting ->
-      -- Check authorization (only creator can delete)
-      if meeting.creator /= tUntagged zUser
+    Just meeting -> do
+      now <- liftIO getCurrentTime
+      let cutoff = addUTCTime (negate validityPeriod) now
+      if meeting.endDate < cutoff
         then pure False
-        else do
-          -- Delete meeting
-          Store.deleteMeeting meetingId
+        else
+          -- Check authorization (only creator can delete)
+          if meeting.creator /= tUntagged zUser
+            then pure False
+            else do
+              -- Delete meeting
+              Store.deleteMeeting meetingId
 
-          -- Delete associated conversation if it's a meeting conversation
-          let convId = qUnqualified meeting.conversationId
-          maybeConv <- ConvStore.getConversation convId
-          case maybeConv of
-            Just conv
-              | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
-                  ConvStore.deleteConversation convId
-            _ -> pure ()
+              -- Delete associated conversation if it's a meeting conversation
+              let convId = qUnqualified meeting.conversationId
+              maybeConv <- ConvStore.getConversation convId
+              case maybeConv of
+                Just conv
+                  | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
+                      ConvStore.deleteConversation convId
+                _ -> pure ()
 
-          pure True
+              pure True
 
 addInvitedEmailsImpl ::
-  ( Member Store.MeetingsStore r
+  ( Member Store.MeetingsStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
   [EmailAddress] ->
+  NominalDiffTime ->
   Sem r Bool
-addInvitedEmailsImpl zUser meetingId emails = do
+addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
     Nothing -> pure False
-    Just meeting ->
-      -- Check authorization (only creator can add invitations)
-      if meeting.creator /= tUntagged zUser
+    Just meeting -> do
+      now <- liftIO getCurrentTime
+      let cutoff = addUTCTime (negate validityPeriod) now
+      if meeting.endDate < cutoff
         then pure False
-        else do
-          -- Add invited email
-          Store.addInvitedEmails meetingId emails
-          pure True
+        else
+          -- Check authorization (only creator can add invitations)
+          if meeting.creator /= tUntagged zUser
+            then pure False
+            else do
+              -- Add invited email
+              Store.addInvitedEmails meetingId emails
+              pure True
 
 removeInvitedEmailsImpl ::
-  ( Member Store.MeetingsStore r
+  ( Member Store.MeetingsStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
   [EmailAddress] ->
+  NominalDiffTime ->
   Sem r Bool
-removeInvitedEmailsImpl zUser meetingId emails = do
+removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
   -- Get existing meeting
   maybeMeeting <- Store.getMeeting meetingId
   case maybeMeeting of
     Nothing -> pure False
-    Just meeting ->
-      -- Check authorization (only creator can remove invitations)
-      if meeting.creator /= tUntagged zUser
+    Just meeting -> do
+      now <- liftIO getCurrentTime
+      let cutoff = addUTCTime (negate validityPeriod) now
+      if meeting.endDate < cutoff
         then pure False
-        else do
-          -- Remove invited email
-          Store.removeInvitedEmails meetingId emails
-          pure True
+        else
+          -- Check authorization (only creator can remove invitations)
+          if meeting.creator /= tUntagged zUser
+            then pure False
+            else do
+              -- Remove invited email
+              Store.removeInvitedEmails meetingId emails
+              pure True

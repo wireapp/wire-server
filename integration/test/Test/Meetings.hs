@@ -610,3 +610,27 @@ waitForCleanupJob domain = do
       when (newVal <= oldVal) $ do
         liftIO $ threadDelay 1_000_000 -- Wait 1s
         waitForIncrease d oldVal
+
+testMeetingExpiration :: (HasCallStack) => App ()
+testMeetingExpiration = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime (negate 3600) now
+      -- meetingValidityPeriodSeconds is configured to 5 seconds in galley.integration.yaml
+      endTime = now
+      newMeeting = defaultMeetingJson "Expiring Meeting" startTime endTime []
+
+  r1 <- postMeetings owner newMeeting
+  assertSuccess r1
+  meeting <- assertOne r1.jsonBody
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Check it is accessible immediately (endDate = now, so valid until now + 5s)
+  getMeeting owner domain meetingId >>= assertStatus 200
+
+  -- Wait 6 seconds
+  liftIO $ threadDelay 6_000_000
+
+  -- Check it is expired
+  getMeeting owner domain meetingId >>= assertStatus 404
+

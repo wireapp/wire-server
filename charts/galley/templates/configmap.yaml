@@ -112,6 +112,12 @@ data:
       {{- if .settings.checkGroupInfo }}
       checkGroupInfo: {{ .settings.checkGroupInfo }}
       {{- end }}
+      {{- if .settings.meetings }}
+      meetings:
+        {{- if .settings.meetings.validityPeriodHours }}
+        validityPeriodHours: {{ .settings.meetings.validityPeriodHours }}
+        {{- end }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}

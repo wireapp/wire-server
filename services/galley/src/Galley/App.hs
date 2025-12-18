@@ -401,9 +401,11 @@ evalGalley e =
         . interpretSparAPIAccessToRpc (e ^. options . spar)
         . interpretTeamSubsystem teamSubsystemConfig
         . interpretConversationSubsystem
-        . interpretMeetingsSubsystem
+        . interpretMeetingsSubsystem meetingValidityPeriod
         . interpretTeamCollaboratorsSubsystem
   where
+    meetingValidityPeriod =
+      realToFrac $ fromMaybe 48.0 (e ^. options . settings . meetings >>= view validityPeriodHours) * 3600
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)

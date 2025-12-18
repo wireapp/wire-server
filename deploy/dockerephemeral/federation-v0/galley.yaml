@@ -51,6 +51,9 @@ settings:
     removal:
       ed25519: /etc/wire/galley/conf/mls-private-key-ed25519.pem
 
+  meetings:
+    validityPeriodHours: 48.0
+
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: whitelist-teams-and-implicit-consent

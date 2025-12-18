@@ -55,10 +55,10 @@ interpretMeetingsStoreToPostgres =
       createMeetingImpl meetingId creator title startDate endDate schedule convId emails trial
     GetMeeting meetingId ->
       getMeetingImpl meetingId
-    ListMeetingsByUser userId ->
-      listMeetingsByUserImpl userId
-    ListMeetingsByConversation convId ->
-      listMeetingsByConversationImpl convId
+    ListMeetingsByUser userId cutoffTime ->
+      listMeetingsByUserImpl userId cutoffTime
+    ListMeetingsByConversation convId cutoffTime ->
+      listMeetingsByConversationImpl convId cutoffTime
     UpdateMeeting meetingId title startDate endDate schedule ->
       updateMeetingImpl meetingId title startDate endDate schedule
     DeleteMeeting meetingId ->
@@ -154,16 +154,17 @@ listMeetingsByUserImpl ::
     Member (Error UsageError) r
   ) =>
   UserId ->
+  UTCTime ->
   Sem r [API.Meeting]
-listMeetingsByUserImpl userId = do
+listMeetingsByUserImpl userId cutoffTime = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
     session :: Session [API.Meeting]
-    session = statement (toUUID userId) listStatement
+    session = statement (toUUID userId, cutoffTime) listStatement
 
-    listStatement :: Statement UUID.UUID [API.Meeting]
+    listStatement :: Statement (UUID.UUID, UTCTime) [API.Meeting]
     listStatement =
       dimap
         Imports.id
@@ -174,7 +175,7 @@ listMeetingsByUserImpl userId = do
                  conversation_id :: uuid,
                  invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
-          WHERE creator = ($1 :: uuid)
+          WHERE creator = ($1 :: uuid) AND end_date >= ($2 :: timestamptz)
           ORDER BY start_date ASC
         |]
 
@@ -184,16 +185,17 @@ listMeetingsByConversationImpl ::
     Member (Error UsageError) r
   ) =>
   Qualified ConvId ->
+  UTCTime ->
   Sem r [API.Meeting]
-listMeetingsByConversationImpl qConvId = do
+listMeetingsByConversationImpl qConvId cutoffTime = do
   pool <- input
   result <- liftIO $ use pool session
   either throw pure result
   where
     session :: Session [API.Meeting]
-    session = statement (toUUID (qUnqualified qConvId), _domainText (qDomain qConvId)) listStatement
+    session = statement (toUUID (qUnqualified qConvId), _domainText (qDomain qConvId), cutoffTime) listStatement
 
-    listStatement :: Statement (UUID.UUID, Text) [API.Meeting]
+    listStatement :: Statement (UUID.UUID, Text, UTCTime) [API.Meeting]
     listStatement =
       dimap
         Imports.id
@@ -204,7 +206,7 @@ listMeetingsByConversationImpl qConvId = do
                  conversation_id :: uuid,
                  invited_emails :: text[], trial :: boolean, updated_at :: timestamptz
           FROM meetings
-          WHERE conversation_id = ($1 :: uuid) AND domain = ($2 :: text)
+          WHERE conversation_id = ($1 :: uuid) AND domain = ($2 :: text) AND end_date >= ($3 :: timestamptz)
           ORDER BY start_date ASC
         |]
 

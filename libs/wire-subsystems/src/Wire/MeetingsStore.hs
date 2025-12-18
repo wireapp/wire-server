@@ -44,9 +44,11 @@ data MeetingsStore m a where
     MeetingsStore m (Maybe Meeting)
   ListMeetingsByUser ::
     UserId ->
+    UTCTime ->
     MeetingsStore m [Meeting]
   ListMeetingsByConversation ::
     Qualified ConvId ->
+    UTCTime ->
     MeetingsStore m [Meeting]
   UpdateMeeting ::
     Qualified MeetingId ->
