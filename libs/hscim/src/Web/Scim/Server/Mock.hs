@@ -266,7 +266,7 @@ createMeta rType =
       version = Weak "testVersion",
       location =
         Common.URI
-          $ URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
+          (URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" "")
           -- FUTUREWORK: getting the actual schema, authority, and
           -- path here is a bit of work, but it may be required one
           -- day.
