@@ -1,4 +1,4 @@
-{-# LANGUAGE ImplicitParams #-}
+
 
 module Network.Wai.Utilities.Exception where
 
