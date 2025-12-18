@@ -475,19 +475,17 @@ testSparScimCreateGetSearchUserGroup = do
           resources <- resp.json %. "Resources" & asList
           length resources `shouldMatchInt` expectedItemsPerPage
 
-  -- 5. Additional pagination edge cases
-
-  -- no filter
-  filterScimUserGroupPaginate OwnDomain tok Nothing (Just 1) (Just 3) `bindResponse` \resp -> do
+  -- startIndex=0 edge case: the 0 is treated as 1 according to SCIM spec
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 0) (Just 5) `bindResponse` \resp -> do
     resp.json %. "startIndex" `shouldMatchInt` 1
     resources <- resp.json %. "Resources" & asList
-    length resources `shouldMatchInt` 3
-
-  -- startIndex=0 edge case (should be treated as 1 according to SCIM spec)
-  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 0) (Just 5) `bindResponse` \resp -> do
-    -- startIndex of 0 should be treated as 1
-    resources <- resp.json %. "Resources" & asList
     length resources `shouldMatchInt` 5
+
+  -- startIndex=-2 edge case: -2 is treated as 1 according to SCIM spec
+  filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just (-2)) (Just 9) `bindResponse` \resp -> do
+    resp.json %. "startIndex" `shouldMatchInt` 1
+    resources <- resp.json %. "Resources" & asList
+    length resources `shouldMatchInt` 9
 
   -- Only startIndex, no count
   filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 5) Nothing `bindResponse` \resp -> do
@@ -501,7 +499,7 @@ testSparScimCreateGetSearchUserGroup = do
     resources <- resp.json %. "Resources" & asList
     length resources `shouldMatchInt` 3
 
-  -- 5e. Filter with empty result
+  -- Filter with empty result
   filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"nonexistent-filter-xyz\"") (Just 1) (Just 10) `bindResponse` \resp -> do
     resp.json %. "startIndex" `shouldMatchInt` 1
     resp.json %. "totalResults" `shouldMatchInt` 0
@@ -509,7 +507,7 @@ testSparScimCreateGetSearchUserGroup = do
     resources <- resp.json %. "Resources" & asList
     length resources `shouldMatchInt` 0
 
-  -- 5f. All results in less than one page
+  -- All results in one page
   filterScimUserGroupPaginate OwnDomain tok (Just "displayName co \"newGroupNo\"") (Just 1) (Just 100) `bindResponse` \resp -> do
     resp.json %. "startIndex" `shouldMatchInt` 1
     resp.json %. "totalResults" `shouldMatchInt` expectedTotalResults
