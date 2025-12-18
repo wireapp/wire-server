@@ -32,7 +32,6 @@ import Data.Aeson
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Foldable as Fold
 import Data.Hashable
-import Data.Int (Int32)
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
@@ -209,7 +208,7 @@ instance GroupDB Mock TestServer where
       Just _ -> liftSTM $ STMMap.delete gid m
 
 toPage :: forall a. Int -> Maybe Int -> [a] -> ListResponse a
-toPage (max 1 . fromIntegral -> startIx) (fmap fromIntegral -> mbCount) list = case mbCount of
+toPage (max 1 -> startIx) mbCount list = case mbCount of
   Nothing ->
     ListResponse
       { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
@@ -220,7 +219,7 @@ toPage (max 1 . fromIntegral -> startIx) (fmap fromIntegral -> mbCount) list = c
       }
   Just count ->
     let (page, _rest) = Seq.splitAt (fromIntegral safeCount) list'
-        safeCount = max 0 (min count (maxBound @Int32))
+        safeCount = max 0 (min count maxBound)
      in ListResponse
           { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
             totalResults = totalResults',
