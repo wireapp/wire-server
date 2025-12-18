@@ -1,0 +1,1 @@
+Operators: if you override `galley.settings.featureFlags.cells` in your Helm values, update your override to include the newly required cells config fields (channels/groups/one2one/users/collabora/publicLinks/storage/metadata); if you use the chart defaults, no action is needed.

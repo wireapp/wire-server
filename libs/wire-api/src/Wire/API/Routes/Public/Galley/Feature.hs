@@ -29,6 +29,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
@@ -66,7 +67,9 @@ type FeatureAPI =
     :<|> AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
-    :<|> FeatureAPIGetPut CellsConfig
+    :<|> FeatureAPIGet CellsConfig
+    :<|> Until 'V14 ::> VersionedFeatureAPIPut "put-CellsConfig@v13" V13 CellsConfig
+    :<|> From 'V14 ::> FeatureAPIPut CellsConfig
     :<|> FeatureAPIGet AllowedGlobalOperationsConfig
     :<|> FeatureAPIGet AssetAuditLogConfig
     :<|> FeatureAPIGet ConsumableNotificationsConfig
@@ -75,6 +78,25 @@ type FeatureAPI =
     :<|> FeatureAPIGet SimplifiedUserConnectionRequestQRCodeConfig
     :<|> FeatureAPIGet StealthUsersConfig
     :<|> FeatureAPIGet CellsInternalConfig
+
+type VersionedFeatureAPIPut named reqBodyVersion cfg =
+  Named
+    named
+    ( Description (FeatureAPIDesc cfg)
+        :> ZUser
+        :> Summary (AppendSymbol "Put config for " (FeatureSymbol cfg))
+        :> CanThrow OperationDenied
+        :> CanThrow 'NotATeamMember
+        :> CanThrow 'TeamNotFound
+        :> CanThrow TeamFeatureError
+        :> CanThrowMany (FeatureErrors cfg)
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "features"
+        :> FeatureSymbol cfg
+        :> VersionedReqBody reqBodyVersion '[Servant.JSON] (Feature cfg)
+        :> Put '[Servant.JSON] (LockableFeature cfg)
+    )
 
 type DeprecationNotice1 = "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022"
 

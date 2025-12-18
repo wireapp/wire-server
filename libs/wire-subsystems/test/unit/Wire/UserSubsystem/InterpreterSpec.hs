@@ -50,7 +50,7 @@ import Test.QuickCheck
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature (FeatureStatus (..), LockStatus (..), LockableFeature (..), MlsE2EIdConfig, npUpdate)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
