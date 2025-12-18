@@ -1,5 +1,3 @@
-
-
 module Network.Wai.Utilities.Exception where
 
 import Control.Exception

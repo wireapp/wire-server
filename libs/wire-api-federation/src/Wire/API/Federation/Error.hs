@@ -15,7 +15,6 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 -- | Map federation errors to client-facing errors.
 --
 -- This module contains most of the error-mapping logic that turns the various
