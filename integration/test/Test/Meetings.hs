@@ -633,4 +633,3 @@ testMeetingExpiration = do
 
   -- Check it is expired
   getMeeting owner domain meetingId >>= assertStatus 404
-
