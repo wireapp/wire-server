@@ -57,6 +57,12 @@ hself: hsuper: {
       }
     )));
 
+  # hs-opentelemetry pin removal bumps API -> 0.3.0.0 and SDK -> 0.1.0.1 from the pinned commit; instrumentation stays at 0.1.1.0/0.1.0.1.
+  hs-opentelemetry-instrumentation-wai = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-wai);
+  hs-opentelemetry-instrumentation-conduit = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-conduit);
+  hs-opentelemetry-instrumentation-http-client = hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-http-client;
+  hs-opentelemetry-utils-exceptions = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-utils-exceptions);
+
   # ------------------------------------
   # okay but marked broken (nixpkgs bug)
   # (we can unfortunately not do anything here but update nixpkgs)

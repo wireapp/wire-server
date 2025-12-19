@@ -241,29 +241,6 @@ let
       };
     };
 
-    # hs-opentelemetry-* has not been released for a while on hackage. Thus,
-    # we're following main.
-    #
-    # TODO: This pin is likely not necessary anymore
-    hs-opentelemetry = {
-      src = fetchgit {
-        url = "https://github.com/iand675/hs-opentelemetry";
-        rev = "ee8a6dad7db306eb67748ddcd77df4974ad8259e";
-        hash = "sha256-UirBRxY9gAv5x/t87RZcWCy6GtsigzFMABKqrhS9b7s=";
-      };
-      packages = {
-        hs-opentelemetry-sdk = "sdk";
-        hs-opentelemetry-api = "api";
-        hs-opentelemetry-propagator-datadog = "propagators/datadog";
-        hs-opentelemetry-propagator-b3 = "propagators/b3";
-        hs-opentelemetry-propagator-w3c = "propagators/w3c";
-        hs-opentelemetry-instrumentation-http-client = "instrumentation/http-client";
-        hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
-        hs-opentelemetry-exporter-otlp = "exporters/otlp";
-        hs-opentelemetry-utils-exceptions = "utils/exceptions";
-        hs-opentelemetry-instrumentation-conduit = "instrumentation/conduit";
-      };
-    };
 
     # Our fork of 2.0.0. This release hasn't been updated for a while and Nix
     # is bad in coping with Hackage patched revisions and overriding
