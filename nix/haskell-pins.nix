@@ -148,8 +148,7 @@ let
     # missing upstream PR, this will get removed when completing
     # servantification
     #
-    # TODO: Some utilities use this library, but the utilities may be unused,
-    # see if we can get rid of this dep.
+    # this is currently still used/needed in the proxy service 
     wai-predicates = {
       src = fetchgit {
         url = "https://github.com/wireapp/wai-predicates";
