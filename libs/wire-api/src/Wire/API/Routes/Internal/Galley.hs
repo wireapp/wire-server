@@ -94,6 +94,8 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut AppsConfig
     :<|> IFeatureStatusLockStatusPut SimplifiedUserConnectionRequestQRCodeConfig
     :<|> IFeatureStatusLockStatusPut StealthUsersConfig
+    :<|> IFeatureStatusLockStatusPut MeetingsConfig
+    :<|> IFeatureStatusLockStatusPut MeetingsPremiumConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

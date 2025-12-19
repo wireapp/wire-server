@@ -78,6 +78,8 @@ type FeatureAPI =
     :<|> FeatureAPIGet SimplifiedUserConnectionRequestQRCodeConfig
     :<|> FeatureAPIGet StealthUsersConfig
     :<|> FeatureAPIGet CellsInternalConfig
+    :<|> FeatureAPIGetPut MeetingsConfig
+    :<|> FeatureAPIGetPut MeetingsPremiumConfig
 
 type VersionedFeatureAPIPut named reqBodyVersion cfg =
   Named

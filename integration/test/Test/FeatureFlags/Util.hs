@@ -240,7 +240,9 @@ defAllFeatures =
                   "collabora" .= object ["edition" .= "COOL"],
                   "storage" .= object ["teamQuotaBytes" .= "1000000000000"]
                 ]
-          ]
+          ],
+      "meetings" .= enabled,
+      "meetingsPremium" .= disabledLocked
     ]
 
 hasExplicitLockStatus :: String -> Bool

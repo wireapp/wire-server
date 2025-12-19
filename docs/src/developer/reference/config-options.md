@@ -234,6 +234,36 @@ The `conferenceCalling` section is optional in `featureFlags`. If it is omitted 
 
 See also: conference falling for personal accounts (below).
 
+### Meetings
+
+The `meetings` feature flag controls whether a user can initiate a meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+
+```yaml
+meetings:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetings/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+
+### Meetings Premium
+
+The `meetingsPremium` feature flag controls whether a team has premium meetings features. When enabled, meetings created by team members are not marked as trial. When disabled, meetings are trial and limited to 25 minutes. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+
+```yaml
+meetingsPremium:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetingsPremium/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+
 ### File Sharing
 
 File sharing is enabled and unlocked by default. If you want a different configuration, use the following syntax:

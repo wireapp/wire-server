@@ -124,7 +124,11 @@ tests s =
       test s "PUT /teams/:tid/features/chatBubbles{,'?lockOrUnlock'}" $ testLockStatus @ChatBubblesConfig,
       test s "/teams/:tid/features/chatBubbles" $ testFeatureStatus @ChatBubblesConfig,
       test s "PUT /teams/:tid/features/apps{,'?lockOrUnlock'}" $ testLockStatus @AppsConfig,
-      test s "/teams/:tid/features/apps" $ testFeatureStatus @AppsConfig
+      test s "/teams/:tid/features/apps" $ testFeatureStatus @AppsConfig,
+      test s "PUT /teams/:tid/features/meetings{,'?lockOrUnlock'}" $ testLockStatus @MeetingsConfig,
+      test s "/teams/:tid/features/meetings" $ testFeatureStatus @MeetingsConfig,
+      test s "PUT /teams/:tid/features/meetingsPremium{,'?lockOrUnlock'}" $ testLockStatus @MeetingsPremiumConfig,
+      test s "/teams/:tid/features/meetingsPremium" $ testFeatureStatus @MeetingsPremiumConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
