@@ -230,12 +230,12 @@ settings:
         lockStatus: locked
     meetings:
       defaults:
-        status: disabled
+        status: enabled
         lockStatus: unlocked
     meetingsPremium:
       defaults:
         status: disabled
-        lockStatus: unlocked
+        lockStatus: locked
 
 logLevel: Warn
 logNetStrings: false

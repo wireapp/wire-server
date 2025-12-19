@@ -395,12 +395,12 @@ galley:
             lockStatus: locked
         meetings:
           defaults:
-            status: disabled
+            status: enabled
             lockStatus: unlocked
         meetingsPremium:
           defaults:
             status: disabled
-            lockStatus: unlocked
+            lockStatus: locked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
