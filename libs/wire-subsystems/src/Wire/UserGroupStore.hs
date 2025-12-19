@@ -19,40 +19,15 @@
 
 module Wire.UserGroupStore where
 
-import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Time.Clock
 import Data.Vector
 import Imports
 import Polysemy
-import Wire.API.Pagination
 import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-import Wire.PaginationState
-
-data UserGroupPageRequest = UserGroupPageRequest
-  { searchString :: Maybe Text,
-    managedByFilter :: Maybe ManagedBy,
-    paginationState :: PaginationState UserGroupId,
-    sortOrder :: SortOrder,
-    pageSize :: PageSize,
-    includeMemberCount :: Bool,
-    includeChannels :: Bool
-  }
-
-instance Default UserGroupPageRequest where
-  def =
-    UserGroupPageRequest
-      { searchString = Nothing,
-        managedByFilter = Nothing,
-        paginationState = PaginationSortByCreatedAt Nothing, -- default sort by is 'createdAt', with no state
-        sortOrder = Desc,
-        pageSize = def, -- default is 15
-        includeMemberCount = True,
-        includeChannels = False
-      }
 
 userGroupCreatedAtPaginationState :: UserGroup_ f -> (UTCTime, UserGroupId)
 userGroupCreatedAtPaginationState ug = (fromUTCTimeMillis ug.createdAt, ug.id_)

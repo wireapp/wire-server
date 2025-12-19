@@ -60,12 +60,10 @@ import Wire.BackgroundJobsPublisher qualified as BackgroundJobsPublisher
 import Wire.GalleyAPIAccess
 import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
-import Wire.PaginationState
 import Wire.Sem.Random qualified as Random
 import Wire.Sem.Random.Null qualified as Random
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
-import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupSubsystem
 import Wire.UserGroupSubsystem.Interpreter (UserGroupSubsystemError (..), interpretUserGroupSubsystem)
 import Wire.UserSubsystem

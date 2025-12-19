@@ -28,7 +28,6 @@ import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
-import Wire.UserGroupStore (UserGroupPageRequest)
 
 data UserGroupSubsystem m a where
   CreateGroup :: UserId -> NewUserGroup -> UserGroupSubsystem m UserGroup

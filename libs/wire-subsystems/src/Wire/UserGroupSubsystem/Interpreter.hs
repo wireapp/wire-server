@@ -49,10 +49,8 @@ import Wire.BackgroundJobsPublisher
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
-import Wire.PaginationState
 import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
-import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)

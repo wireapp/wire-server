@@ -48,7 +48,7 @@ import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.PaginationState
 import Wire.Postgres
-import Wire.UserGroupStore (UserGroupPageRequest (..), UserGroupStore (..))
+import Wire.UserGroupStore (UserGroupStore (..))
 
 type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,

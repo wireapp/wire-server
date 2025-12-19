@@ -179,7 +179,6 @@ import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
-import Wire.PaginationState
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
@@ -196,7 +195,6 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-import Wire.UserGroupStore qualified as UserGroupStore
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
@@ -1712,7 +1710,7 @@ getUserGroups ::
 getUserGroups lusr searchString sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
   lift . liftSem $
     UserGroup.getGroups (tUnqualified lusr) $
-      UserGroupStore.UserGroupPageRequest
+      UserGroupPageRequest
         { pageSize = fromMaybe def pageSize,
           managedByFilter = Nothing,
           sortOrder = fromMaybe Desc sortOrder,

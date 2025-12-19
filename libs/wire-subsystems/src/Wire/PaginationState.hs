@@ -21,14 +21,9 @@ module Wire.PaginationState
   )
 where
 
-import Data.Time.Clock
 import Imports hiding (sortBy)
+import Wire.API.UserGroup.Pagination
 import Wire.Postgres
-
-data PaginationState a
-  = PaginationSortByName (Maybe (Text, a))
-  | PaginationSortByCreatedAt (Maybe (UTCTime, a))
-  | PaginationOffset Word
 
 paginationClause :: (PostgresValue a) => PaginationState a -> Maybe Clause
 paginationClause s = case s of

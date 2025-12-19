@@ -28,7 +28,6 @@ import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
-import Wire.PaginationState
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
 
