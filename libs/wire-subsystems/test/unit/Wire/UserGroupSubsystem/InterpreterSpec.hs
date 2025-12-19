@@ -36,7 +36,6 @@ import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
-import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
@@ -342,51 +341,53 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
     prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
-       numGroupsPre
-       pageSizePre ->
-          let numGroups = fromIntegral @Natural numGroupsPre + 1
-              pageSize =
-                let smallify = (\case 0 -> 3; other -> other) . (`mod` (numGroups + 5))
-                 in PageSize . unsafeRange . smallify . fromRange . fromPageSize $ pageSizePre
-           in expectRight
-                . runDependencies (allUsers team1) (galleyTeam team1)
-                . interpretUserGroupSubsystem
-                $ do
-                  let mkNewGroup = newUserGroup (either undefined id $ userGroupNameFromText "same name")
-                      mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
+       (Positive (Small (numGroups :: Int)))
+       (Positive (Small (pageSizeFromIntUnsafe @Int -> pageSize))) ->
+          expectRight
+            . runDependencies (allUsers team1) (galleyTeam team1)
+            . interpretUserGroupSubsystem
+            $ do
+              let mkNewGroup = newUserGroup (either undefined id $ userGroupNameFromText "same name")
+                  mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
 
-                  -- groups are only distinguished by creation date
-                  groups <- replicateM (fromIntegral numGroups) mkGroup
+              -- groups are only distinguished by creation date
+              groups <- replicateM numGroups mkGroup
 
-                  results :: [UserGroupPage] <- do
-                    let fetch mLastThing = do
-                          p <-
-                            getGroups
-                              (ownerId team1)
-                              def
-                                { paginationState = PaginationSortByCreatedAt $ (,) <$> fmap (fromUTCTimeMillis . (.createdAt)) mLastThing <*> fmap (.id_) mLastThing,
-                                  pageSize
-                                }
+              results :: [UserGroupPage] <- do
+                let fetch mLastThing = do
+                      p <-
+                        getGroups
+                          (ownerId team1)
+                          def
+                            { paginationState = PaginationSortByCreatedAt $ (,) <$> fmap (fromUTCTimeMillis . (.createdAt)) mLastThing <*> fmap (.id_) mLastThing,
+                              pageSize
+                            }
+                      if null p.page
+                        then pure []
+                        else
                           if length p.page < pageSizeToInt pageSize
                             then pure [p]
                             else (p :) <$> fetch (Just (last p.page))
-                    fetch Nothing
+                fetch Nothing
 
-                  let all' :: (x -> Property) -> [x] -> Property
-                      all' mkProp = foldr (\x acc -> mkProp x .&&. acc) (True === True)
+              let all' :: (x -> Property) -> [x] -> Property
+                  all' mkProp = foldr (\x acc -> mkProp x .&&. acc) (True === True)
 
-                      assertLessThanOrEq :: (Show a, Ord a) => a -> a -> Property
-                      assertLessThanOrEq x y = counterexample (show x <> "\n>\n" <> show y) $ x <= y
-                  pure $
-                    -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
-                    mconcat ((.page) <$> results) === (userGroupToMeta <$> reverse groups)
-                      -- every page has the expected size
-                      .&&. all'
-                        (\r -> length r.page === pageSizeToInt pageSize)
-                        (take (length results - 2) results)
-                      .&&. all'
-                        (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
-                        (drop (length results - 2) results)
+                  assertLessThanOrEq :: (Show a, Ord a) => a -> a -> Property
+                  assertLessThanOrEq x y = counterexample (show x <> "\n>\n" <> show y) $ x <= y
+              pure $
+                Right pageSize === pageSizeFromInt 0
+                  .||. (
+                         -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
+                         mconcat ((.page) <$> results) === (userGroupToMeta <$> reverse groups)
+                           -- every page has the expected size
+                           .&&. all'
+                             (\r -> length r.page === pageSizeToInt pageSize)
+                             (take (length results - 2) results)
+                           .&&. all'
+                             (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
+                             (drop (length results - 2) results)
+                       )
 
     prop "getGroups: pagination via offset" $ \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) ->
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
