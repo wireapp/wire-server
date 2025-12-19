@@ -234,54 +234,6 @@ The `conferenceCalling` section is optional in `featureFlags`. If it is omitted 
 
 See also: conference falling for personal accounts (below).
 
-### Meetings
-
-The `meeting` feature flag controls whether a user can initiate a meeting. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
-
-```yaml
-meeting:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
-```
-
-These are all the possible combinations of `status` and `lockStatus`:
-
-| `status`   | `lockStatus` |                                                   |
-| ---------- | ------------ | ------------------------------------------------- |
-| `enabled`  | `locked`     | Feature enabled, cannot be disabled by team admin |
-| `enabled`  | `unlocked`   | Feature enabled, can be disabled by team admin    |
-| `disabled` | `locked`     | Feature disabled, cannot be enabled by team admin |
-| `disabled` | `unlocked`   | Feature disabled, can be enabled by team admin    |
-
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meeting/(un)?locked`).
-
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
-
-### Meeting Premium
-
-The `meetingPremium` feature flag controls whether a team has premium meeting features. When enabled, meetings created by team members are not marked as trial. When disabled, meetings are trial and limited to 25 minutes. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
-
-```yaml
-meetingPremium:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
-```
-
-These are all the possible combinations of `status` and `lockStatus`:
-
-| `status`   | `lockStatus` |                                                   |
-| ---------- | ------------ | ------------------------------------------------- |
-| `enabled`  | `locked`     | Feature enabled, cannot be disabled by team admin |
-| `enabled`  | `unlocked`   | Feature enabled, can be disabled by team admin    |
-| `disabled` | `locked`     | Feature disabled, cannot be enabled by team admin |
-| `disabled` | `unlocked`   | Feature disabled, can be enabled by team admin    |
-
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetingPremium/(un)?locked`).
-
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
-
 ### File Sharing
 
 File sharing is enabled and unlocked by default. If you want a different configuration, use the following syntax:

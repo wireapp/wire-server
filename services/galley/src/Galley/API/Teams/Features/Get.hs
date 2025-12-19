@@ -428,10 +428,6 @@ instance GetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 
 instance GetFeatureConfig StealthUsersConfig
 
-instance GetFeatureConfig MeetingConfig
-
-instance GetFeatureConfig MeetingPremiumConfig
-
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but
 -- should, are blocked completely.  (This is a workaround until we have 2FA for those
 -- end-points as well.)

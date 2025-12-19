@@ -485,7 +485,3 @@ instance SetFeatureConfig AppsConfig
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 
 instance SetFeatureConfig StealthUsersConfig
-
-instance SetFeatureConfig MeetingConfig
-
-instance SetFeatureConfig MeetingPremiumConfig
