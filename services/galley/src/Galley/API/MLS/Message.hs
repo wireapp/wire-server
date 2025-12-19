@@ -534,10 +534,13 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
       for_ convOrSub.ciphersuite $ \ciphersuite -> do
         checkConversationOutOfSync mempty lConvOrSub ciphersuite
 
-      -- reject application messages older than 2 epochs
-      -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0
+      -- reject application messages for epoch 0
       let epochInt :: Epoch -> Integer
           epochInt = fromIntegral . epochNumber
+      when (epochInt msg.epoch == 0) . throw $
+        mlsProtocolError "Application messages at epoch 0 are not supported"
+
+      -- reject application messages older than 2 epochs
       case convOrSub.mlsMeta.cnvmlsActiveData of
         Nothing -> throw $ mlsProtocolError "Application messages at epoch 0 are not supported"
         Just activeData ->
