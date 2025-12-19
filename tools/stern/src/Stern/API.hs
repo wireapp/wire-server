@@ -192,10 +192,10 @@ sitemap' =
     :<|> Named @"put-route-apps-config" (mkFeatureStatusPutRoute @AppsConfig)
     :<|> Named @"get-route-stealth-users-config" (mkFeatureGetRoute @StealthUsersConfig)
     :<|> Named @"put-route-stealth-users-config" (mkFeatureStatusPutRoute @StealthUsersConfig)
-    :<|> Named @"get-route-meeting-config" (mkFeatureGetRoute @MeetingConfig)
-    :<|> Named @"put-route-meeting-config" (mkFeatureStatusPutRoute @MeetingConfig)
-    :<|> Named @"get-route-meeting-premium-config" (mkFeatureGetRoute @MeetingPremiumConfig)
-    :<|> Named @"put-route-meeting-premium-config" (mkFeatureStatusPutRoute @MeetingPremiumConfig)
+    :<|> Named @"get-route-meetings-config" (mkFeatureGetRoute @MeetingsConfig)
+    :<|> Named @"put-route-meetings-config" (mkFeatureStatusPutRoute @MeetingsConfig)
+    :<|> Named @"get-route-meetings-premium-config" (mkFeatureGetRoute @MeetingsPremiumConfig)
+    :<|> Named @"put-route-meetings-premium-config" (mkFeatureStatusPutRoute @MeetingsPremiumConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -230,8 +230,8 @@ sitemap' =
     :<|> Named @"lock-unlock-route-consumable-notifications-config" (mkFeatureLockUnlockRoute @ConsumableNotificationsConfig)
     :<|> Named @"lock-unlock-route-chat-bubbles-config" (mkFeatureLockUnlockRoute @ChatBubblesConfig)
     :<|> Named @"lock-unlock-route-apps-config" (mkFeatureLockUnlockRoute @AppsConfig)
-    :<|> Named @"lock-unlock-route-meeting-config" (mkFeatureLockUnlockRoute @MeetingConfig)
-    :<|> Named @"lock-unlock-route-meeting-premium-config" (mkFeatureLockUnlockRoute @MeetingPremiumConfig)
+    :<|> Named @"lock-unlock-route-meetings-config" (mkFeatureLockUnlockRoute @MeetingsConfig)
+    :<|> Named @"lock-unlock-route-meetings-premium-config" (mkFeatureLockUnlockRoute @MeetingsPremiumConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

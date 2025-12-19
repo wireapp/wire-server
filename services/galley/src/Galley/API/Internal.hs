@@ -317,8 +317,8 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", AppsConfig) (updateLockStatus @AppsConfig)
     <@> mkNamedAPI @'("ilock", SimplifiedUserConnectionRequestQRCodeConfig) (updateLockStatus @SimplifiedUserConnectionRequestQRCodeConfig)
     <@> mkNamedAPI @'("ilock", StealthUsersConfig) (updateLockStatus @StealthUsersConfig)
-    <@> mkNamedAPI @'("ilock", MeetingConfig) (updateLockStatus @MeetingConfig)
-    <@> mkNamedAPI @'("ilock", MeetingPremiumConfig) (updateLockStatus @MeetingPremiumConfig)
+    <@> mkNamedAPI @'("ilock", MeetingsConfig) (updateLockStatus @MeetingsConfig)
+    <@> mkNamedAPI @'("ilock", MeetingsPremiumConfig) (updateLockStatus @MeetingsPremiumConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 

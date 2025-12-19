@@ -288,13 +288,13 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
-      meeting:
+      meetings:
         defaults:
-          status: enabled
+          status: disabled
           lockStatus: unlocked
-      meetingPremium:
+      meetingsPremium:
         defaults:
-          status: enabled
+          status: disabled
           lockStatus: unlocked
   aws:
     region: "eu-west-1"

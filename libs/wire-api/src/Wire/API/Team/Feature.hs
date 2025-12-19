@@ -111,8 +111,8 @@ module Wire.API.Team.Feature
     AppsConfig (..),
     SimplifiedUserConnectionRequestQRCodeConfig (..),
     StealthUsersConfig (..),
-    MeetingConfig (..),
-    MeetingPremiumConfig (..),
+    MeetingsConfig (..),
+    MeetingsPremiumConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -277,8 +277,8 @@ data FeatureSingleton cfg where
   FeatureSingletonAssetAuditLogConfig :: FeatureSingleton AssetAuditLogConfig
   FeatureSingletonStealthUsersConfig :: FeatureSingleton StealthUsersConfig
   FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
-  FeatureSingletonMeetingConfig :: FeatureSingleton MeetingConfig
-  FeatureSingletonMeetingPremiumConfig :: FeatureSingleton MeetingPremiumConfig
+  FeatureSingletonMeetingsConfig :: FeatureSingleton MeetingsConfig
+  FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2054,54 +2054,54 @@ instance IsFeatureConfig StealthUsersConfig where
   featureSingleton = FeatureSingletonStealthUsersConfig
 
 --------------------------------------------------------------------------------
--- Meeting Feature
+-- Meetings Feature
 --
 -- Controls whether meetings functionality is available. When enabled, users can
--- create and manage meetings. When disabled, meeting endpoints are not accessible.
+-- create and manage meetings. When disabled, meetings endpoints are not accessible.
 
-data MeetingConfig = MeetingConfig
+data MeetingsConfig = MeetingsConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform MeetingConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName MeetingConfig)
-  deriving (ParseDbFeature, Default) via TrivialFeature MeetingConfig
+  deriving (Arbitrary) via (GenericUniform MeetingsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName MeetingsConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature MeetingsConfig
 
-instance ToSchema MeetingConfig where
-  schema = object "MeetingConfig" objectSchema
+instance ToSchema MeetingsConfig where
+  schema = object "MeetingsConfig" objectSchema
 
-instance Default (LockableFeature MeetingConfig) where
+instance Default (LockableFeature MeetingsConfig) where
   def = defUnlockedFeature
 
-instance IsFeatureConfig MeetingConfig where
-  type FeatureSymbol MeetingConfig = "meeting"
-  featureSingleton = FeatureSingletonMeetingConfig
+instance IsFeatureConfig MeetingsConfig where
+  type FeatureSymbol MeetingsConfig = "meetings"
+  featureSingleton = FeatureSingletonMeetingsConfig
 
-instance ToObjectSchema MeetingConfig where
-  objectSchema = pure MeetingConfig
+instance ToObjectSchema MeetingsConfig where
+  objectSchema = pure MeetingsConfig
 
 --------------------------------------------------------------------------------
 -- MeetingPremium Feature
 --
--- Indicates whether a team has premium meeting features. When enabled, meetings
+-- Indicates whether a team has premium meetings features. When enabled, meetings
 -- created by team members are not marked as trial. When disabled, meetings are trial.
 
-data MeetingPremiumConfig = MeetingPremiumConfig
+data MeetingsPremiumConfig = MeetingsPremiumConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform MeetingPremiumConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName MeetingPremiumConfig)
-  deriving (ParseDbFeature, Default) via TrivialFeature MeetingPremiumConfig
+  deriving (Arbitrary) via (GenericUniform MeetingsPremiumConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName MeetingsPremiumConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature MeetingsPremiumConfig
 
-instance ToSchema MeetingPremiumConfig where
-  schema = object "MeetingPremiumConfig" objectSchema
+instance ToSchema MeetingsPremiumConfig where
+  schema = object "MeetingsPremiumConfig" objectSchema
 
-instance Default (LockableFeature MeetingPremiumConfig) where
+instance Default (LockableFeature MeetingsPremiumConfig) where
   def = defUnlockedFeature
 
-instance IsFeatureConfig MeetingPremiumConfig where
-  type FeatureSymbol MeetingPremiumConfig = "meetingPremium"
-  featureSingleton = FeatureSingletonMeetingPremiumConfig
+instance IsFeatureConfig MeetingsPremiumConfig where
+  type FeatureSymbol MeetingsPremiumConfig = "meetingsPremium"
+  featureSingleton = FeatureSingletonMeetingsPremiumConfig
 
-instance ToObjectSchema MeetingPremiumConfig where
-  objectSchema = pure MeetingPremiumConfig
+instance ToObjectSchema MeetingsPremiumConfig where
+  objectSchema = pure MeetingsPremiumConfig
 
 ---------------------------------------------------------------------------------
 -- FeatureStatus
@@ -2197,8 +2197,8 @@ type Features =
     AssetAuditLogConfig,
     StealthUsersConfig,
     CellsInternalConfig,
-    MeetingConfig,
-    MeetingPremiumConfig
+    MeetingsConfig,
+    MeetingsPremiumConfig
   ]
 
 -- | list of available features as a record

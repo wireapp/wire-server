@@ -486,6 +486,6 @@ instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 
 instance SetFeatureConfig StealthUsersConfig
 
-instance SetFeatureConfig MeetingConfig
+instance SetFeatureConfig MeetingsConfig
 
-instance SetFeatureConfig MeetingPremiumConfig
+instance SetFeatureConfig MeetingsPremiumConfig

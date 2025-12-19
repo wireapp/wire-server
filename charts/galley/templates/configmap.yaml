@@ -218,13 +218,13 @@ data:
         stealthUsers:
           {{- toYaml .settings.featureFlags.stealthUsers | nindent 10 }}
         {{- end }}
-        {{- if .settings.featureFlags.meeting }}
-        meeting:
-          {{- toYaml .settings.featureFlags.meeting | nindent 10 }}
+        {{- if .settings.featureFlags.meetings }}
+        meetings:
+          {{- toYaml .settings.featureFlags.meetings | nindent 10 }}
         {{- end }}
-        {{- if .settings.featureFlags.meetingPremium }}
-        meetingPremium:
-          {{- toYaml .settings.featureFlags.meetingPremium | nindent 10 }}
+        {{- if .settings.featureFlags.meetingsPremium }}
+        meetingsPremium:
+          {{- toYaml .settings.featureFlags.meetingsPremium | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

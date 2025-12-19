@@ -241,8 +241,8 @@ defAllFeatures =
                   "storage" .= object ["teamQuotaBytes" .= "1000000000000"]
                 ]
           ],
-      "meeting" .= enabled,
-      "meetingPremium" .= enabled
+      "meetings" .= enabled,
+      "meetingsPremium" .= enabled
     ]
 
 hasExplicitLockStatus :: String -> Bool
@@ -254,8 +254,8 @@ hasExplicitLockStatus "sndFactorPasswordChallenge" = True
 hasExplicitLockStatus "outlookCalIntegration" = True
 hasExplicitLockStatus "enforceFileDownloadLocation" = True
 hasExplicitLockStatus "domainRegistration" = True
-hasExplicitLockStatus "meeting" = True
-hasExplicitLockStatus "meetingPremium" = True
+hasExplicitLockStatus "meetings" = True
+hasExplicitLockStatus "meetingsPremium" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()

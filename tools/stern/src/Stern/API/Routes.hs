@@ -327,10 +327,10 @@ type SternAPI =
     :<|> Named "put-route-apps-config" (MkFeatureStatusPutRoute AppsConfig)
     :<|> Named "get-route-stealth-users-config" (MkFeatureGetRoute StealthUsersConfig)
     :<|> Named "put-route-stealth-users-config" (MkFeatureStatusPutRoute StealthUsersConfig)
-    :<|> Named "get-route-meeting-config" (MkFeatureGetRoute MeetingConfig)
-    :<|> Named "put-route-meeting-config" (MkFeatureStatusPutRoute MeetingConfig)
-    :<|> Named "get-route-meeting-premium-config" (MkFeatureGetRoute MeetingPremiumConfig)
-    :<|> Named "put-route-meeting-premium-config" (MkFeatureStatusPutRoute MeetingPremiumConfig)
+    :<|> Named "get-route-meetings-config" (MkFeatureGetRoute MeetingsConfig)
+    :<|> Named "put-route-meetings-config" (MkFeatureStatusPutRoute MeetingsConfig)
+    :<|> Named "get-route-meetings-premium-config" (MkFeatureGetRoute MeetingsPremiumConfig)
+    :<|> Named "put-route-meetings-premium-config" (MkFeatureStatusPutRoute MeetingsPremiumConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -482,8 +482,8 @@ type SternAPI =
     :<|> Named "lock-unlock-route-consumable-notifications-config" (MkFeatureLockUnlockRoute ConsumableNotificationsConfig)
     :<|> Named "lock-unlock-route-chat-bubbles-config" (MkFeatureLockUnlockRoute ChatBubblesConfig)
     :<|> Named "lock-unlock-route-apps-config" (MkFeatureLockUnlockRoute AppsConfig)
-    :<|> Named "lock-unlock-route-meeting-config" (MkFeatureLockUnlockRoute MeetingConfig)
-    :<|> Named "lock-unlock-route-meeting-premium-config" (MkFeatureLockUnlockRoute MeetingPremiumConfig)
+    :<|> Named "lock-unlock-route-meetings-config" (MkFeatureLockUnlockRoute MeetingsConfig)
+    :<|> Named "lock-unlock-route-meetings-premium-config" (MkFeatureLockUnlockRoute MeetingsPremiumConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger
