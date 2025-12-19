@@ -120,6 +120,9 @@ config:
 
     checkGroupInfo: false
 
+    meetings:
+      validityPeriodHours: 48.0
+
     # To disable proteus for new federated conversations:
     # federationProtocols: ["mls"]
 
@@ -288,6 +291,14 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
+      meeting:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+      meetingPremium:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
   aws:
     region: "eu-west-1"
   proxy: {}

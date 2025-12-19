@@ -99,6 +99,10 @@ data:
     backgroundJobs:
 {{ toYaml . | indent 6 }}
     {{- end }}
+    {{- with .meetingsCleanup }}
+    meetingsCleanup:
+{{ toYaml . | indent 6 }}
+    {{- end }}
     {{- if .postgresMigration }}
     postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
     {{- end }}

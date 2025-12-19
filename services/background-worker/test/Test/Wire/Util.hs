@@ -42,6 +42,7 @@ testEnv = do
       postgresMigration = PostgresMigrationOpts CassandraStorage
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
+  meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
   workerRunningGauge <- mkWorkerRunningGauge
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = Endpoint "localhost" 0

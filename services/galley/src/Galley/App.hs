@@ -119,8 +119,11 @@ import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
+import Wire.MeetingsSubsystem.Interpreter
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.Postgres (PGConstraints)
 import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
@@ -282,7 +285,17 @@ logAndMapError fErr fLog logMsg action =
 
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
-  let convStoreInterpreter =
+  let convStoreInterpreter ::
+        forall r a.
+        ( Member TinyLog r,
+          PGConstraints r,
+          Member Async r,
+          Member (Error MigrationError) r,
+          Member Race r
+        ) =>
+        Sem (ConversationStore ': r) a ->
+        Sem r a
+      convStoreInterpreter =
         case (e ^. options . postgresMigration).conversation of
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
@@ -340,6 +353,8 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
+        . mapError toResponse -- ErrorS 'InvalidOperation
+        . mapError toResponse -- ErrorS 'MeetingNotFound
         . mapError toResponse
         . mapError toResponse
         . mapError rateLimitExceededToHttpError
@@ -373,6 +388,7 @@ evalGalley e =
         . interpretProposalStoreToCassandra
         . interpretCodeStoreToCassandra
         . interpretClientStoreToCassandra
+        . interpretMeetingsStoreToPostgres
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv
@@ -385,8 +401,11 @@ evalGalley e =
         . interpretSparAPIAccessToRpc (e ^. options . spar)
         . interpretTeamSubsystem teamSubsystemConfig
         . interpretConversationSubsystem
+        . interpretMeetingsSubsystem meetingValidityPeriod
         . interpretTeamCollaboratorsSubsystem
   where
+    meetingValidityPeriod =
+      realToFrac $ fromMaybe 48.0 (e ^. options . settings . meetings >>= view validityPeriodHours) * 3600
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)

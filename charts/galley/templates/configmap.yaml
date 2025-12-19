@@ -112,6 +112,12 @@ data:
       {{- if .settings.checkGroupInfo }}
       checkGroupInfo: {{ .settings.checkGroupInfo }}
       {{- end }}
+      {{- if .settings.meetings }}
+      meetings:
+        {{- if .settings.meetings.validityPeriodHours }}
+        validityPeriodHours: {{ .settings.meetings.validityPeriodHours }}
+        {{- end }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
@@ -217,6 +223,14 @@ data:
         {{- if .settings.featureFlags.stealthUsers }}
         stealthUsers:
           {{- toYaml .settings.featureFlags.stealthUsers | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.meeting }}
+        meeting:
+          {{- toYaml .settings.featureFlags.meeting | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.meetingPremium }}
+        meetingPremium:
+          {{- toYaml .settings.featureFlags.meetingPremium | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

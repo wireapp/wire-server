@@ -70,6 +70,7 @@ data Env = Env
     httpManager :: Manager,
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
+    meetingsCleanupMetrics :: MeetingsCleanupMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
     backgroundJobsConfig :: BackgroundJobsConfig,
     workerRunningGauge :: Vector Text Gauge,
@@ -93,12 +94,21 @@ data BackendNotificationMetrics = BackendNotificationMetrics
     stuckQueuesGauge :: Vector Text Gauge
   }
 
+data MeetingsCleanupMetrics = MeetingsCleanupMetrics
+  { runsCounter :: Counter
+  }
+
 mkBackendNotificationMetrics :: IO BackendNotificationMetrics
 mkBackendNotificationMetrics =
   BackendNotificationMetrics
     <$> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_pushed" "Number of notifications pushed")
     <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_errors" "Number of errors that occurred while pushing notifications")
     <*> register (vector "targetDomain" $ gauge $ Prometheus.Info "wire_backend_notifications_stuck_queues" "Set to 1 when pushing notifications is stuck")
+
+mkMeetingsCleanupMetrics :: IO MeetingsCleanupMetrics
+mkMeetingsCleanupMetrics =
+  MeetingsCleanupMetrics
+    <$> register (counter $ Prometheus.Info "wire_meetings_cleanup_runs_total" "Number of times the meetings cleanup job has run")
 
 mkWorkerRunningGauge :: IO (Vector Text Gauge)
 mkWorkerRunningGauge =
@@ -127,6 +137,7 @@ mkEnv opts = do
           (BackgroundJobConsumer, False)
         ]
   backendNotificationMetrics <- mkBackendNotificationMetrics
+  meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
       backgroundJobsConfig = opts.backgroundJobs
       federationDomain = opts.federationDomain

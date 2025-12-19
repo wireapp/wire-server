@@ -79,6 +79,9 @@ settings:
 
   disabledAPIVersions: []
 
+  meetings:
+    validityPeriodHours: 48.0
+
   featureFlags: # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: whitelist-teams-and-implicit-consent
@@ -143,6 +146,14 @@ settings:
           allowed_to_open_channels: team-members
         lockStatus: locked
     cells:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    meeting:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    meetingPremium:
       defaults:
         status: enabled
         lockStatus: unlocked

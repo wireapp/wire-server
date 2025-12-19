@@ -153,6 +153,8 @@ library
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
     Test.FeatureFlags.LegalHold
+    Test.FeatureFlags.Meeting
+    Test.FeatureFlags.MeetingPremium
     Test.FeatureFlags.Mls
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
@@ -171,6 +173,7 @@ library
     Test.Federator
     Test.LegalHold
     Test.Login
+    Test.Meetings
     Test.MessageTimer
     Test.MLS
     Test.MLS.Clients

@@ -366,6 +366,7 @@ spec = do
           brigEndpoint = undefined
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
+      meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
@@ -399,6 +400,7 @@ spec = do
           gundeckEndpoint = undefined
           brigEndpoint = undefined
       backendNotificationMetrics <- mkBackendNotificationMetrics
+      meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
 
