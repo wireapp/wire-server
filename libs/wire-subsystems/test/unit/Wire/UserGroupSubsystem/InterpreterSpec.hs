@@ -400,7 +400,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
         -- Define helper to fetch all pages, providing desired
         -- sortOrder and page size to the mock database
-        let getAllPages :: Member UserGroupSubsystem r => SortOrder -> Word -> Sem r [UserGroupPage]
+        let getAllPages :: (Member UserGroupSubsystem r) => SortOrder -> Word -> Sem r [UserGroupPage]
             getAllPages sortOrder' pageSize' = go 0
               where
                 go :: (Member UserGroupSubsystem r) => Word -> Sem r [UserGroupPage]

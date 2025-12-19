@@ -22,16 +22,16 @@ import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.Default
 import Data.OpenApi qualified as S
+import Data.Proxy
 import Data.Range as Range
 import Data.Schema
 import Data.Text qualified as T
 import GHC.Generics
+import GHC.TypeNats
 import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.Arbitrary as Arbitrary
-import GHC.TypeNats
-import Data.Proxy
 
 data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
