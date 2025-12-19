@@ -71,7 +71,7 @@ instance S.ToParamSchema SortOrder where
 
 --------------------------------------------------------------------------------
 
-newtype PageSize = PageSize {fromPageSize :: Range 0 500 Word}
+newtype PageSize = PageSize {fromPageSize :: Range 0 MaxPageSize Word}
   deriving (Eq, Show, Ord, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
 
@@ -91,7 +91,7 @@ maxPageSize = fromIntegral $ natVal (Proxy @MaxPageSize)
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
 pageSizeFromIntUnsafe :: (Integral i) => i -> PageSize
-pageSizeFromIntUnsafe = PageSize . unsafeRange . max maxPageSize . fromIntegral
+pageSizeFromIntUnsafe = PageSize . unsafeRange . min maxPageSize . max 0 . fromIntegral
 
 instance Arbitrary PageSize where
   arbitrary = pageSizeFromIntUnsafe <$> (arbitrary @Int)
