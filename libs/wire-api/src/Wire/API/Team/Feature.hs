@@ -2094,7 +2094,7 @@ instance ToSchema MeetingsPremiumConfig where
   schema = object "MeetingsPremiumConfig" objectSchema
 
 instance Default (LockableFeature MeetingsPremiumConfig) where
-  def = defUnlockedFeature
+  def = defLockedFeature
 
 instance IsFeatureConfig MeetingsPremiumConfig where
   type FeatureSymbol MeetingsPremiumConfig = "meetingsPremium"
