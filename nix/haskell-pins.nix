@@ -322,6 +322,12 @@ let
       version = "2.0.0.0";
       sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
     };
+
+    # Pin uri-bytestring: newer parser rejects unescaped Set-Cookie in SSO mobile redirect query, breaking Spar’s URI substitution; stick to 0.3.3.1 for now
+    uri-bytestring = {
+      version = "0.3.3.1";
+      sha256 = "sha256-jgSTBBDcxRQ0tjs0wTyvEpEAkGA7npJKjdXDT81VpT4=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
