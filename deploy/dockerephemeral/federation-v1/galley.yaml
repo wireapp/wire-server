@@ -97,6 +97,14 @@ settings:
     limitedEventFanout:
       defaults:
         status: disabled
+    meeting:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    meetingPremium:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
 
 logLevel: Warn
 logNetStrings: false
