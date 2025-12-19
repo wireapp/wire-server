@@ -1186,24 +1186,19 @@ postJoinCodeConvOk = do
   info <- decodeConvCodeEvent <$> postConvCode alice conv
   let cCode = info.code
   liftIO $ info.hasPassword @?= False
-  -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
-  -- POST /code gives code,key,uri
-  -- POST /join expects code,key
-  -- TODO: Should there be two different types?
-  let payload = cCode {conversationUri = Nothing} -- unnecessary step, cCode can be posted as-is also.
-      incorrectCode = cCode {conversationCode = Code.Value (unsafeRange (Ascii.encodeBase64Url "incorrect-code"))}
+  let incorrectCode = cCode {conversationCode = Code.Value (unsafeRange (Ascii.encodeBase64Url "incorrect-code"))}
   -- with ActivatedAccess, bob can join, but not eve
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     -- incorrect code/key does not work
     postJoinCodeConv bob incorrectCode !!! const 404 === statusCode
     -- correct code works
-    postJoinCodeConv bob payload !!! const 200 === statusCode
+    postJoinCodeConv bob cCode !!! const 200 === statusCode
     -- non-admin cannot create invite link
     postConvCode bob conv !!! const 403 === statusCode
     -- test no-op
-    postJoinCodeConv bob payload !!! const 204 === statusCode
+    postJoinCodeConv bob cCode !!! const 204 === statusCode
     -- eve cannot join
-    postJoinCodeConv eve payload !!! const 403 === statusCode
+    postJoinCodeConv eve cCode !!! const 403 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
@@ -1211,13 +1206,13 @@ postJoinCodeConvOk = do
     Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
     let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
     putQualifiedAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
-    postJoinCodeConv eve payload !!! const 200 === statusCode
+    postJoinCodeConv eve cCode !!! const 200 === statusCode
     -- guest cannot create invite link
     postConvCode eve conv !!! const 403 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
     putQualifiedAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
-    postJoinCodeConv dave payload !!! const 404 === statusCode
+    postJoinCodeConv dave cCode !!! const 404 === statusCode
 
 -- @END
 

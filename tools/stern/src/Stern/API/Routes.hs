@@ -308,7 +308,7 @@ type SternAPI =
                :> MkFeaturePutRoute EnforceFileDownloadLocationConfig
            )
     :<|> Named "get-route-cells" (MkFeatureGetRoute CellsConfig)
-    :<|> Named "put-route-cells" (MkFeatureStatusPutRoute CellsConfig)
+    :<|> Named "put-route-cells" (MkFeaturePutRoute CellsConfig)
     :<|> Named "get-route-cells-internal" (MkFeatureGetRoute CellsInternalConfig)
     :<|> Named "put-route-cells-internal" (MkFeaturePutRoute CellsInternalConfig)
     :<|> Named "get-route-guest-links" (MkFeatureGetRoute GuestLinksConfig)

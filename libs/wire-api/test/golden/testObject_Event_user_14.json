@@ -3,7 +3,8 @@
     "data": {
         "code": "lLz-9vR8ENum0kI-xWJs",
         "has_password": false,
-        "key": "NEN=eLUWHXclTp=_2Nap"
+        "key": "NEN=eLUWHXclTp=_2Nap",
+        "uri": "https://example.com"
     },
     "from": "0000114a-0000-7da8-0000-40cb00007fcf",
     "qualified_conversation": {

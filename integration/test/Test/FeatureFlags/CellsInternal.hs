@@ -19,19 +19,14 @@ module Test.FeatureFlags.CellsInternal where
 
 import qualified API.GalleyInternal as Internal
 import SetupHelpers
-import Test.Cells (QueueConsumer (..), getMessage, watchCellsEvents)
+import Test.Cells (getMessage, watchCellsEventsForTeam)
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testCellsInternalEvent :: (HasCallStack) => App ()
 testCellsInternalEvent = do
   (alice, tid, _) <- createTeam OwnDomain 0
-  q <- do
-    q <- watchCellsEvents def
-    let isEventForTeam v = fieldEquals @Value v "payload.0.team" tid
-    -- the cells event queue is shared by tests
-    -- let's hope this filter reduces the risk of tests interfering with each other
-    pure $ q {filter = isEventForTeam}
+  q <- watchCellsEventsForTeam tid def
   let quota = "234723984"
       update = mkFt "enabled" "unlocked" defConf {quota}
   setFeature InternalAPI alice tid "cellsInternal" update >>= assertSuccess
