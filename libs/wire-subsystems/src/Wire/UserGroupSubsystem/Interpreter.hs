@@ -272,7 +272,7 @@ getUserGroupsInternal ::
 getUserGroupsInternal team displayNameSubstring mbManagedBy startIndex mbCount = do
   let pageReq =
         UserGroupPageRequest
-          { pageSize = maybe def pageSizeFromIntUnsafe mbCount,
+          { pageSize = maybe def pageSizeFromIntegralTotal mbCount,
             sortOrder = Asc,
             paginationState = PaginationOffset startIndex,
             searchString = displayNameSubstring,

@@ -86,15 +86,15 @@ pageSizeFromInt = fmap PageSize . first T.pack . Range.checkedEither
 
 type MaxPageSize = 500 :: Nat
 
-maxPageSize :: Word
+maxPageSize :: (Num i) => i
 maxPageSize = fromIntegral $ natVal (Proxy @MaxPageSize)
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
-pageSizeFromIntUnsafe :: (Integral i) => i -> PageSize
-pageSizeFromIntUnsafe = PageSize . unsafeRange . min maxPageSize . max 0 . fromIntegral
+pageSizeFromIntegralTotal :: (Integral i) => i -> PageSize
+pageSizeFromIntegralTotal = PageSize . unsafeRange . fromIntegral . min maxPageSize . max 0
 
 instance Arbitrary PageSize where
-  arbitrary = pageSizeFromIntUnsafe <$> (arbitrary @Int)
+  arbitrary = pageSizeFromIntegralTotal <$> (arbitrary @Int)
 
 instance ToSchema PageSize where
   schema = PageSize <$> fromPageSize .= schema

@@ -342,7 +342,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
     prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
        (Positive (Small (numGroups :: Int)))
-       (Positive (Small (pageSizeFromIntUnsafe @Int -> pageSize))) ->
+       (Positive (Small (pageSizeFromIntegralTotal @Int -> pageSize))) ->
           expectRight
             . runDependencies (allUsers team1) (galleyTeam team1)
             . interpretUserGroupSubsystem
