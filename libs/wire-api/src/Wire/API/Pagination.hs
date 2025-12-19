@@ -30,6 +30,8 @@ import Imports
 import Servant.API
 import Test.QuickCheck.Gen as Arbitrary
 import Wire.Arbitrary as Arbitrary
+import GHC.TypeNats
+import Data.Proxy
 
 data SortOrder = Asc | Desc
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
@@ -69,22 +71,27 @@ instance S.ToParamSchema SortOrder where
 
 --------------------------------------------------------------------------------
 
-newtype PageSize = PageSize {fromPageSize :: Range 1 500 Int32}
+newtype PageSize = PageSize {fromPageSize :: Range 0 500 Word}
   deriving (Eq, Show, Ord, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PageSize
 
 pageSizeToInt :: PageSize -> Int
-pageSizeToInt = fromIntegral . pageSizeToInt32
+pageSizeToInt = fromIntegral . pageSizeToWord
 
-pageSizeToInt32 :: PageSize -> Int32
-pageSizeToInt32 = fromRange . fromPageSize
+pageSizeToWord :: PageSize -> Word
+pageSizeToWord = fromRange . fromPageSize
 
-pageSizeFromInt :: Int32 -> Either Text PageSize
+pageSizeFromInt :: Word -> Either Text PageSize
 pageSizeFromInt = fmap PageSize . first T.pack . Range.checkedEither
+
+type MaxPageSize = 500 :: Nat
+
+maxPageSize :: Word
+maxPageSize = fromIntegral $ natVal (Proxy @MaxPageSize)
 
 -- | Doesn't crash on bad input, but shrinks it into the allowed range.
 pageSizeFromIntUnsafe :: (Integral i) => i -> PageSize
-pageSizeFromIntUnsafe = PageSize . unsafeRange . (+ 1) . (`mod` 500) . (+ (-1)) . fromIntegral
+pageSizeFromIntUnsafe = PageSize . unsafeRange . max maxPageSize . fromIntegral
 
 instance Arbitrary PageSize where
   arbitrary = pageSizeFromIntUnsafe <$> (arbitrary @Int)

@@ -284,8 +284,8 @@ type GetGroupsInternal =
         :> Capture "tid" TeamId
         :> QueryParam' [Optional, Strict] "nameContains" Text.Text
         :> QueryParam' [Optional, Strict] "managedBy" ManagedBy
-        :> QueryParam' [Optional, Strict] "startIndex" Int
-        :> QueryParam' [Optional, Strict] "count" Int
+        :> QueryParam' [Required, Strict] "startIndex" Word
+        :> QueryParam' [Optional, Strict] "count" Word
         :> Get '[Servant.JSON] UserGroupPageWithMembers
     )
 

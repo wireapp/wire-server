@@ -400,23 +400,24 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
         -- Define helper to fetch all pages, providing desired
         -- sortOrder and page size to the mock database
-        let getAllPages sortOrder' pageSize' = go 0
+        let getAllPages :: Member UserGroupSubsystem r => SortOrder -> Word -> Sem r [UserGroupPage]
+            getAllPages sortOrder' pageSize' = go 0
               where
-                go :: (Member UserGroupSubsystem r) => PosInt32 -> Sem r [UserGroupPage]
+                go :: (Member UserGroupSubsystem r) => Word -> Sem r [UserGroupPage]
                 go offset = do
                   p <-
                     getGroups
                       (ownerId team1)
                       def
                         { paginationState = PaginationOffset offset,
-                          pageSize = PageSize $ unsafeRange pageSize',
+                          pageSize = PageSize $ unsafeRange $ fromIntegral pageSize',
                           sortOrder = sortOrder'
                         }
                   let len = length p.page
                   if
                     | len > 0 && len < fromIntegral pageSize' -> pure [p]
                     | len == 0 -> pure []
-                    | otherwise -> (p :) <$> go (offset + fromJust (mkPosInt32 pageSize'))
+                    | otherwise -> (p :) <$> go (offset + pageSize')
 
         ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
         descendingPages :: [UserGroupPage] <- getAllPages Desc 3

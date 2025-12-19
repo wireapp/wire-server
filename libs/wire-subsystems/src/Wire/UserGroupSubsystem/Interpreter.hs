@@ -86,7 +86,7 @@ interpretUserGroupSubsystem = interpret $ \case
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
-  GetGroupsInternal tid displayNameSubstring mbManagedBy mbStartIndex mbCount -> getUserGroupsInternal tid displayNameSubstring mbManagedBy mbStartIndex mbCount
+  GetGroupsInternal tid displayNameSubstring mbManagedBy startIndex mbCount -> getUserGroupsInternal tid displayNameSubstring mbManagedBy startIndex mbCount
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -268,23 +268,15 @@ getUserGroupsInternal ::
   TeamId ->
   Maybe Text ->
   Maybe ManagedBy ->
-  Maybe Int ->
-  Maybe Int ->
+  Word ->
+  Maybe Word ->
   Sem r UserGroupPageWithMembers
-getUserGroupsInternal team displayNameSubstring mbManagedBy mbStartIndex mbCount = do
+getUserGroupsInternal team displayNameSubstring mbManagedBy startIndex mbCount = do
   let pageReq =
         UserGroupPageRequest
           { pageSize = maybe def pageSizeFromIntUnsafe mbCount,
             sortOrder = Asc,
-            paginationState =
-              -- scim starts counting page items at 1, but from here
-              -- on, we start at 0.
-              --
-              -- TODO: why do no tests fail if I keep counting from 1 here?
-              maybe
-                (PaginationOffset 0)
-                (PaginationOffset . (+ (-1)))
-                (mbStartIndex >>= mkPosInt32),
+            paginationState = PaginationOffset startIndex,
             searchString = displayNameSubstring,
             managedByFilter = mbManagedBy,
             includeMemberCount = True,

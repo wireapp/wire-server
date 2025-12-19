@@ -306,7 +306,7 @@ groupPaginationOrderBy req =
       )
         <> [ ("ug.id", req.sortOrder)
            ],
-    limit (pageSizeToInt32 req.pageSize)
+    limit (fromIntegral @_ @Int32 $ pageSizeToWord req.pageSize)
   ]
     <> case req.paginationState of
       PaginationOffset n -> [offset (fromIntegral n :: Int32)]

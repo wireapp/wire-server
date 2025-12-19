@@ -135,7 +135,9 @@ scimGetUserGroupsImpl ::
   Maybe Int ->
   Sem r (Scim.ListResponse (SCG.StoredGroup SparTag))
 scimGetUserGroupsImpl tid mbFilter mbStartIndex mbCount = do
-  UserGroupPage {page, total} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter (Just ManagedByScim) mbStartIndex mbCount
+  let startIndex = fromIntegral (max 0 $ fromMaybe 0 (fmap (\n -> n - 1) mbStartIndex)) :: Word
+      mbCount' = fromIntegral . (max 0) <$> mbCount
+  UserGroupPage {page, total} :: UserGroupPageWithMembers <- BrigAPI.getGroupsInternal tid mbFilter (Just ManagedByScim) startIndex mbCount'
   ScimSubsystemConfig scimBaseUri <- input
   let page' = map (toStoredGroup scimBaseUri) page
   pure $

@@ -606,10 +606,10 @@ getGroupsInternal ::
   TeamId ->
   Maybe Scim.Filter ->
   Maybe ManagedBy ->
-  Maybe Int ->
-  Maybe Int ->
+  Word ->
+  Maybe Word ->
   Sem r UserGroupPageWithMembers
-getGroupsInternal tid mbFilter mbManagedBy mbStartIndex mbCount = do
+getGroupsInternal tid mbFilter mbManagedBy startIndex mbCount = do
   maybeDisplayName :: Maybe Text <- case mbFilter of
     Just filter' -> case filter' of
       FilterAttrCompare (AttrPath _schema "displayName" Nothing) OpCo (ValString str) -> pure $ Just str
@@ -621,7 +621,7 @@ getGroupsInternal tid mbFilter mbManagedBy mbStartIndex mbCount = do
         . paths ["i", "user-groups", toByteString' tid]
         . maybe id (queryItem "nameContains" . Text.encodeUtf8) maybeDisplayName
         . maybe id (queryItem "managedBy" . toByteString') mbManagedBy
-        . maybe id (queryItem "startIndex" . toByteString') mbStartIndex
+        . queryItem "startIndex" (toByteString' startIndex)
         . maybe id (queryItem "count" . toByteString') mbCount
         . expect2xx
   decodeBodyOrThrow "brig" r
