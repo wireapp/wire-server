@@ -241,8 +241,8 @@ defAllFeatures =
                   "storage" .= object ["teamQuotaBytes" .= "1000000000000"]
                 ]
           ],
-      "meetings" .= enabled,
-      "meetingsPremium" .= enabled
+      "meetings" .= disabled,
+      "meetingsPremium" .= disabled
     ]
 
 hasExplicitLockStatus :: String -> Bool

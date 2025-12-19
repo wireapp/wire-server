@@ -21,7 +21,7 @@ import Test.FeatureFlags.Util
 import Testlib.Prelude
 
 testPatchMeetingPremium :: (HasCallStack) => App ()
-testPatchMeetingPremium = checkPatch OwnDomain "meetingsPremium" disabled
+testPatchMeetingPremium = checkPatch OwnDomain "meetingsPremium" enabled
 
 testMeetingPremium :: (HasCallStack) => APIAccess -> App ()
 testMeetingPremium access =
