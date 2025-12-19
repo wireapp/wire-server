@@ -317,7 +317,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
         -- reject message if the conversation is out of sync
         lift $ do
-          let newUsers = Map.keysSet action.paAdd
+          let newUsers = Map.keysSet (unClientMap action.paAdd)
           checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
         lift $

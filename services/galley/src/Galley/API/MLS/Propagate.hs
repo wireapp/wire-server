@@ -120,14 +120,12 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
     localMemberRecipient loc lm = do
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lm.id_
-      clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
+      clients <- nonEmpty $ cmLookupClients localUserQId cmWithoutSender
       pure $ Recipient localUserId (RecipientClientsSome clients)
 
     remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
     remoteMemberMLSClients rm = do
       let remoteUserQId = tUntagged rm.id_
           remoteUserId = qUnqualified remoteUserQId
-      clients <-
-        nonEmpty . map fst $
-          Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender)
+      clients <- nonEmpty $ cmLookupClients remoteUserQId cmWithoutSender
       pure (remoteUserId, clients)

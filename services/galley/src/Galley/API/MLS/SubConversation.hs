@@ -34,7 +34,6 @@ where
 import Control.Arrow
 import Control.Monad.Codensity hiding (reset)
 import Data.Id
-import Data.Map qualified as Map
 import Data.Qualified
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
@@ -336,7 +335,7 @@ leaveLocalSubConversation cid lcnv sub = do
   -- plan to remove the leaver from the member list
   Eff.planClientRemoval gid (Identity cid)
   let cm = cmRemoveClient cid (scMembers subConv)
-  if Map.null cm
+  if cmNull cm
     then do
       resetLocalSubConversation
         (cidQualifiedUser cid)
