@@ -33,33 +33,33 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Crypto.Random (MonadRandom (..))
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as L
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as L
+import Data.CaseInsensitive qualified as CI
 import Data.Char (toLower)
 import Data.Default
 import Data.Functor
 import Data.IORef
 import Data.List
 import Data.Map
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.String
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.URI
 import UnliftIO (MonadUnliftIO)
 import Prelude

@@ -24,11 +24,11 @@ import Data.Aeson
 import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Test.Hspec
 import Test.Schema.Util (mk_prop_caseInsensitive)
-import qualified Web.Scim.Class.Group as GroupClass
+import Web.Scim.Class.Group qualified as GroupClass
 
 prop_roundtrip :: Property
 prop_roundtrip = property $ do

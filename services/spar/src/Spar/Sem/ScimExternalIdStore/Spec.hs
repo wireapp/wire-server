@@ -25,7 +25,7 @@ import Imports
 import Polysemy
 import Polysemy.Check
 import Spar.Scim.Types (ScimUserCreationStatus)
-import qualified Spar.Sem.ScimExternalIdStore as E
+import Spar.Sem.ScimExternalIdStore qualified as E
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

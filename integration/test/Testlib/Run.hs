@@ -32,9 +32,9 @@ import Data.Maybe (fromMaybe)
 import Data.String (IsString (fromString))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import RunAllTests

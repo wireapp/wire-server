@@ -40,8 +40,8 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import qualified SAML2.WebSSO as SAML
-import qualified Wire.API.User.IdentityProvider as IP
+import SAML2.WebSSO qualified as SAML
+import Wire.API.User.IdentityProvider qualified as IP
 
 newtype Replaced = Replaced SAML.IdPId
   deriving (Eq, Ord, Show)

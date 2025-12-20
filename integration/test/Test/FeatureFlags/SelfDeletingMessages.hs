@@ -17,7 +17,7 @@
 
 module Test.FeatureFlags.SelfDeletingMessages where
 
-import qualified Data.Aeson.Types as A
+import Data.Aeson.Types qualified as A
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 

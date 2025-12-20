@@ -18,11 +18,11 @@
 module Test.Spar.APISpec where
 
 import Arbitrary ()
-import qualified Control.Lens as Lens
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Lens as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Control.Lens qualified as Lens
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Aeson.Lens qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Proxy (Proxy (Proxy))

@@ -40,7 +40,7 @@ module CargoHold.Run
 where
 
 import AWS.Util (readAuthExpiration)
-import qualified Amazonka as AWS
+import Amazonka qualified as AWS
 import CargoHold.API.Federation
 import CargoHold.API.Public
 import CargoHold.AWS (amazonkaEnv)
@@ -54,15 +54,15 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (unpack)
 import Imports
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai qualified as Wai
+import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
-import qualified Network.Wai.Utilities.Server as Server
+import Network.Wai.Utilities.Server qualified as Server
 import qualified Servant
 import Servant.API
 import Servant.Server hiding (Handler, runHandler)
-import qualified UnliftIO.Async as Async
+import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold

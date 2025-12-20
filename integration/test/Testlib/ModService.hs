@@ -31,39 +31,39 @@ where
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
-import qualified Data.Attoparsec.Text as Parser
-import qualified Data.Char as Char
+import Data.Attoparsec.Text qualified as Parser
+import Data.Char qualified as Char
 import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.IORef
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.String.Conversions (cs)
 import Data.String.Interpolate
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Traversable
 import Data.Word
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import qualified System.Linux.Proc as LinuxProc
+import System.Linux.Proc qualified as LinuxProc
 import System.Posix (keyboardSignal, killProcess, signalProcess)
 import System.Posix.Types
 import System.Process

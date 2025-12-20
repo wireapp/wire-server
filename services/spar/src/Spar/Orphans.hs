@@ -24,9 +24,9 @@ module Spar.Orphans
   )
 where
 
-import qualified Data.Text.Lazy as LText
+import Data.Text.Lazy qualified as LText
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant (MimeRender (..), PlainText)
 import Servant.API.Extended
 import Spar.Error

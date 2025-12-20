@@ -19,14 +19,14 @@
 
 module Test.Search where
 
-import qualified API.Brig as BrigP
-import qualified API.BrigInternal as BrigI
+import API.Brig qualified as BrigP
+import API.BrigInternal qualified as BrigI
 import API.Common (defPassword)
-import qualified API.Common as API
+import API.Common qualified as API
 import API.Galley
-import qualified API.Galley as Galley
-import qualified API.GalleyInternal as GalleyI
-import qualified Data.Set as Set
+import API.Galley qualified as Galley
+import API.GalleyInternal qualified as GalleyI
+import Data.Set qualified as Set
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions

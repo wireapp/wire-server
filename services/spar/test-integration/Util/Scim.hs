@@ -26,43 +26,43 @@ import Bilge.Assert
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Lazy qualified as Lazy
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Lazy as Lazy
+import Data.Text.Lazy qualified as Lazy
 import Data.These
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
-import qualified Network.Wai.Utilities as Error
+import Network.Wai.Utilities qualified as Error
 import Polysemy.Error (runError)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
-import qualified Spar.Intra.BrigApp as Intra
+import Spar.Intra.BrigApp qualified as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimTokenStore qualified as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
-import qualified Text.XML.DSig as SAML
+import Text.XML.DSig qualified as SAML
 import Util.Core
 import Util.Types
 import Web.HttpApiData (toHeader)
-import qualified Web.Scim.Class.User as Scim
-import qualified Web.Scim.Filter as Filter
-import qualified Web.Scim.Filter as Scim
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Error as Scim
-import qualified Web.Scim.Schema.ListResponse as Scim
-import qualified Web.Scim.Schema.Meta as Scim
-import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
-import qualified Web.Scim.Schema.User as Scim
-import qualified Web.Scim.Schema.User as Scim.User
-import qualified Web.Scim.Schema.User.Email as Scim.Email
-import qualified Web.Scim.Schema.User.Phone as Phone
-import qualified Wire.API.Team.Member as Member
+import Web.Scim.Class.User qualified as Scim
+import Web.Scim.Filter qualified as Filter
+import Web.Scim.Filter qualified as Scim
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.Error qualified as Scim
+import Web.Scim.Schema.ListResponse qualified as Scim
+import Web.Scim.Schema.Meta qualified as Scim
+import Web.Scim.Schema.PatchOp qualified as Scim.PatchOp
+import Web.Scim.Schema.User qualified as Scim
+import Web.Scim.Schema.User qualified as Scim.User
+import Web.Scim.Schema.User.Email qualified as Scim.Email
+import Web.Scim.Schema.User.Phone qualified as Phone
+import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider hiding (handle, team)

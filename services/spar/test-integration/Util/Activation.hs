@@ -21,7 +21,7 @@ import Bilge
 import Control.Lens
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
-import qualified Data.Text.Ascii as Ascii
+import Data.Text.Ascii qualified as Ascii
 import Imports
 import Util.Types
 import Wire.API.User.Activation

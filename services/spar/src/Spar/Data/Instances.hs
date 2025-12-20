@@ -35,14 +35,14 @@ import Cassandra as Cas
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString)
 import Data.Functor.Alt (Alt ((<!>)))
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding as LT
 import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Scim.Types (ScimUserCreationStatus (..))
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString

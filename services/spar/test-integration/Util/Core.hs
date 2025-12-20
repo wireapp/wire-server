@@ -150,8 +150,8 @@ import Control.Retry
 import Crypto.Random.Types (MonadRandom)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens as Aeson
-import qualified Data.ByteString.Base64.Lazy as EL
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Base64.Lazy qualified as EL
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Handle (Handle, parseHandle)
 import Data.Id
@@ -161,60 +161,60 @@ import Data.Range
 import Data.String.Conversions
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Lazy.Encoding as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import Data.These
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.TypeLits
 import Imports hiding (head)
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.MultipartFormData
 import Network.URI (pathSegments)
-import qualified Options.Applicative as OPA
+import Options.Applicative qualified as OPA
 import Polysemy (Sem)
 import SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.API.Example as SAML
+import SAML2.WebSSO.API.Example qualified as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import qualified Spar.App as IdpConfigStire
-import qualified Spar.App as Spar
+import Spar.App qualified as IdpConfigStire
+import Spar.App qualified as Spar
 import Spar.CanonicalInterpreter
 import Spar.Error (SparError)
-import qualified Spar.Intra.BrigApp as Intra
+import Spar.Intra.BrigApp qualified as Intra
 import Spar.Options
 import Spar.Run
 import Spar.Sem.BrigAccess (getAccount)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import qualified System.Logger.Extended as Log
+import Spar.Sem.IdPConfigStore qualified as IdPConfigStore
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
+import Spar.Sem.ScimExternalIdStore qualified as ScimExternalIdStore
+import System.Logger.Extended qualified as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
-import qualified Text.XML as XML
-import qualified Text.XML.Cursor as XML
+import Text.XML qualified as XML
+import Text.XML.Cursor qualified as XML
 import Text.XML.DSig (SignPrivCreds)
-import qualified Text.XML.DSig as SAML
+import Text.XML.DSig qualified as SAML
 import URI.ByteString as URI
 import Util.Options
 import Util.Types
-import qualified Web.Cookie as Web
+import Web.Cookie qualified as Web
 import Web.HttpApiData
 import Wire.API.Routes.Version
 import Wire.API.Team (Icon (..))
-import qualified Wire.API.Team as Galley
+import Wire.API.Team qualified as Galley
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Invitation as TeamInvitation
+import Wire.API.Team.Invitation qualified as TeamInvitation
 import Wire.API.Team.Member (NewTeamMember, TeamMemberList, rolePermissions)
-import qualified Wire.API.Team.Member as Member
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Member
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
-import qualified Wire.API.Team.Role as Role
+import Wire.API.Team.Role qualified as Role
 import Wire.API.User
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim

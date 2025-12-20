@@ -28,16 +28,16 @@ import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.STM (STM, atomically)
 import Data.Aeson
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Hashable
 import Data.Text (Text, pack)
 import Data.Time.Calendar
 import Data.Time.Clock
 import GHC.Exts (sortWith)
 import ListT
-import qualified Network.URI as URI
+import Network.URI qualified as URI
 import Servant
-import qualified StmContainers.Map as STMMap
+import StmContainers.Map qualified as STMMap
 import Text.Read (readMaybe)
 import Web.Scim.Class.Auth
 import Web.Scim.Class.Group hiding (value)
@@ -45,7 +45,7 @@ import Web.Scim.Class.User
 import Web.Scim.Filter (AttrPath (..), CompValue (..), Filter (..), compareStr)
 import Web.Scim.Handler
 import Web.Scim.Schema.Common (WithId (WithId, value))
-import qualified Web.Scim.Schema.Common as Common
+import Web.Scim.Schema.Common qualified as Common
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta

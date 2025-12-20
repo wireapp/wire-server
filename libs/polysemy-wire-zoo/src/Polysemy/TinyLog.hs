@@ -33,9 +33,9 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Wire.Sem.Logger
-import qualified Wire.Sem.Logger as Logger
+import Wire.Sem.Logger qualified as Logger
 
 type TinyLog = Logger (Log.Msg -> Log.Msg)
 

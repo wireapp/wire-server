@@ -18,7 +18,7 @@
 module Test.Cargohold.API.Federation where
 
 import API.Cargohold
-import qualified Codec.MIME.Type as MIME
+import Codec.MIME.Type qualified as MIME
 import Control.Lens hiding ((.=))
 import Crypto.Random (getRandomBytes)
 import Data.ByteString.Builder

@@ -17,8 +17,8 @@
 
 module Test.FeatureFlags.MlsE2EId where
 
-import qualified API.Galley as Public
-import qualified Data.Aeson as A
+import API.Galley qualified as Public
+import Data.Aeson qualified as A
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude

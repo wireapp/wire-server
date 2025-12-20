@@ -20,13 +20,13 @@ module Testlib.App where
 import Control.Applicative ((<|>))
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import qualified Control.Retry as Retry
+import Control.Retry qualified as Retry
 import Data.Aeson hiding ((.=))
 import Data.Bool (bool)
 import Data.IORef
 import Data.Maybe (isJust)
-import qualified Data.Text as T
-import qualified Data.Yaml as Yaml
+import Data.Text qualified as T
+import Data.Yaml qualified as Yaml
 import GHC.Exception
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack, callStack)

@@ -44,82 +44,82 @@ module Spar.Scim.User
   )
 where
 
-import qualified Control.Applicative as Applicative (empty)
+import Control.Applicative qualified as Applicative (empty)
 import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (mapExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Text as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Text qualified as Aeson
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
-import qualified Data.ByteString.UTF8 as UTF8
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Handle (Handle, fromHandle, parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error
-import qualified Data.Text.Lazy as LText
+import Data.Text.Lazy qualified as LText
 import Data.These
 import Data.These.Combinators
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Error (Error, runError, throw)
 import Polysemy.Input
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.App (getUserByUrefUnsafe, getUserByUrefViaOldIssuerUnsafe, getUserIdByScimExternalId)
 import qualified Spar.App
 import Spar.Intra.BrigApp as Intra
-import qualified Spar.Intra.BrigApp as Brig
+import Spar.Intra.BrigApp qualified as Brig
 import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
-import qualified Spar.Scim.Types as ST
+import Spar.Scim.Types qualified as ST
 import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess qualified as BrigAccess
 import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
+import Spar.Sem.IdPConfigStore qualified as IdPConfigStore
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
-import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SAMLUserStore qualified as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore qualified as ScimExternalIdStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
-import qualified System.Logger.Class as Log
+import Spar.Sem.ScimUserTimesStore qualified as ScimUserTimesStore
+import System.Logger.Class qualified as Log
 import System.Logger.Message (Msg)
-import qualified URI.ByteString as URIBS
+import URI.ByteString qualified as URIBS
 import Util.Logging (logFunction, logHandle, logTeam, logUser, sha256String)
-import qualified Web.Scim.Class.User as Scim
+import Web.Scim.Class.User qualified as Scim
 import Web.Scim.Filter (Filter (..), rAttrPath, rCompareOp)
-import qualified Web.Scim.Filter as Scim
-import qualified Web.Scim.Handler as Scim
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Error as Scim
-import qualified Web.Scim.Schema.ListResponse as Scim
-import qualified Web.Scim.Schema.Meta as Scim
-import qualified Web.Scim.Schema.ResourceType as Scim
-import qualified Web.Scim.Schema.User as Scim
-import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import qualified Web.Scim.Schema.User.Email as Scim.Email
-import qualified Wire.API.Team.Member as Member
+import Web.Scim.Filter qualified as Scim
+import Web.Scim.Handler qualified as Scim
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.Error qualified as Scim
+import Web.Scim.Schema.ListResponse qualified as Scim
+import Web.Scim.Schema.Meta qualified as Scim
+import Web.Scim.Schema.ResourceType qualified as Scim
+import Web.Scim.Schema.User qualified as Scim
+import Web.Scim.Schema.User qualified as Scim.User (schemas)
+import Web.Scim.Schema.User.Email qualified as Scim.Email
+import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
-import qualified Wire.API.User.RichInfo as RI
+import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Scim (ScimTokenInfo (..), ValidScimId (..))
-import qualified Wire.API.User.Scim as ST
+import Wire.API.User.Scim qualified as ST
 import Wire.Sem.Logger (Logger)
-import qualified Wire.Sem.Logger as Logger
+import Wire.Sem.Logger qualified as Logger
 import Wire.Sem.Now (Now)
-import qualified Wire.Sem.Now as Now
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
-import qualified Wire.Sem.Random as Random
+import Wire.Sem.Random qualified as Random
 
 ----------------------------------------------------------------------------
 -- UserDB instance

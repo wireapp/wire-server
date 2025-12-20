@@ -3,8 +3,8 @@ module Test.Spar.MultiIngressIdp where
 import API.GalleyInternal
 import API.Spar
 import Control.Lens ((.~), (^.))
-import qualified SAML2.WebSSO.Test.Util as SAML
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Test.Util qualified as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import SetupHelpers
 import Testlib.Prelude
 

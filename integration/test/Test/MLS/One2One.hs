@@ -21,12 +21,12 @@ import API.Brig
 import API.Galley
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Read as T
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Char8 qualified as B8
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Read qualified as T
 import MLS.Util
 import Notifications
 import SetupHelpers

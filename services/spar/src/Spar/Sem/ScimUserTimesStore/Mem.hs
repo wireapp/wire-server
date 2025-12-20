@@ -24,7 +24,7 @@ where
 
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State

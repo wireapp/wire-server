@@ -29,11 +29,11 @@ where
 import Control.Exception
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Time
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Imports
 import Options.Applicative
 import SAML2.WebSSO
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options

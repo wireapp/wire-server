@@ -20,11 +20,11 @@
 
 module MlsUsers.Types where
 
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Lens
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Encode.Pretty as A
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Aeson qualified as A
+import Data.Aeson.Encode.Pretty qualified as A
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.Text.Strict.Lens
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)

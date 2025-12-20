@@ -30,10 +30,10 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Qualified
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Federator.MockServer
 import Imports hiding (head)
-import qualified Network.HTTP.Media as HTTP
+import Network.HTTP.Media qualified as HTTP
 import Network.Wai.Utilities.MockServer
 import TestSetup
 import Util.Options

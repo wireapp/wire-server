@@ -46,11 +46,11 @@ import Cassandra as Cas
 import Control.Lens (makeLenses, view)
 import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.TH
 import Imports
 import Spar.API ()
-import qualified Spar.App as Spar
+import Spar.App qualified as Spar
 import Spar.Options
 import Test.Hspec (pendingWith)
 import Util.Options

@@ -19,7 +19,7 @@ module API.BrigInternal where
 
 import API.BrigCommon
 import API.Common
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (Pair)
 import Data.Function
 import Data.Maybe

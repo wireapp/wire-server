@@ -17,11 +17,11 @@
 
 module API.GalleyInternal where
 
-import qualified Data.Aeson as A
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as A
+import Data.Aeson qualified as Aeson
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
-import qualified Data.Vector as Vector
+import Data.Text qualified as T
+import Data.Vector qualified as Vector
 import GHC.Stack
 import Testlib.Prelude
 

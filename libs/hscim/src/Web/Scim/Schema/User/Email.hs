@@ -22,7 +22,7 @@ import Data.Aeson
 import Data.Text hiding (dropWhile)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
-import qualified Text.Email.Validate as Email
+import Text.Email.Validate qualified as Email
 import Web.Scim.Schema.Common hiding (value)
 
 newtype EmailAddress = EmailAddress

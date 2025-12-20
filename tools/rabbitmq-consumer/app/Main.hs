@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified RabbitMQConsumer.Lib as Lib
+import RabbitMQConsumer.Lib qualified as Lib
 
 main :: IO ()
 main = Lib.main

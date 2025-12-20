@@ -34,7 +34,7 @@ import Cassandra
 import Data.Id
 import Data.Range
 import Imports
-import qualified Wire.Sem.Paging as E
+import Wire.Sem.Paging qualified as E
 
 -- | This paging system uses Cassandra's 'PagingState' to keep track of state,
 -- and does not rely on ordering. This is the preferred way of paging across

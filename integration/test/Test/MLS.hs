@@ -21,16 +21,16 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import Data.Bits
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Read as T
+import Data.ByteString qualified as B
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Char8 qualified as B8
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Read qualified as T
 import MLS.Util
 import Notifications
 import SetupHelpers

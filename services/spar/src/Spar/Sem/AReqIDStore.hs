@@ -28,7 +28,7 @@ where
 import Imports
 import Polysemy
 import SAML2.WebSSO.Types (Issuer)
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Wire.API.User.Saml (AReqId)
 
 data AReqIDStore m a where

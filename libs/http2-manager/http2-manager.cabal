@@ -46,7 +46,7 @@ library
     , text
     , time-manager
 
-  default-language: Haskell2010
+  default-language:   GHC2021
 
 flag test-trailing-dot
   description: "Whether or not include the trailing dot test"

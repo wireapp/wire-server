@@ -25,8 +25,8 @@ where
 import Data.Aeson
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Test.Hspec
 import Test.Schema.Util (genSimpleText, genUri, mk_prop_caseInsensitive)
 import Web.Scim.Capabilities.MetaSchema

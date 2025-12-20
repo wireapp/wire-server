@@ -21,7 +21,7 @@ module Wire.Sem.FromUTC where
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds)
 import Imports
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 
 -- | The class is helpful in interpreters for the 'Now' effect. It makes it
 -- possible to use the interpreters for any time type so long as it implements

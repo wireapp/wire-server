@@ -31,27 +31,27 @@ module Test.Spar.ScimSpec where
 import Control.Lens (view)
 import Data.Aeson
 import Data.Aeson.QQ (aesonQQ)
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Network.URI (parseURI)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Scim
 import Spar.Scim.Types (normalizeLikeStored)
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString
-import qualified Web.Scim.Class.User as ScimC
+import Web.Scim.Class.User qualified as ScimC
 import Web.Scim.Filter (AttrPath (..))
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Meta as Scim
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.Meta qualified as Scim
 import Web.Scim.Schema.PatchOp (Op (Remove), Operation (..), PatchOp (..), Path (NormalPath), applyOperation)
-import qualified Web.Scim.Schema.ResourceType as ScimR
+import Web.Scim.Schema.ResourceType qualified as ScimR
 import Web.Scim.Schema.Schema as Scim
 import Web.Scim.Schema.User as Scim
-import qualified Web.Scim.Schema.User.Name as ScimN
+import Web.Scim.Schema.User.Name qualified as ScimN
 import Wire.API.User.RichInfo
 
 spec :: Spec

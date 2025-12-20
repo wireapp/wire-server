@@ -22,7 +22,7 @@ import Bilge hiding (body)
 import Bilge.Assert
 import CargoHold.Types
 import Control.Exception (throw)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -30,8 +30,8 @@ import Data.UUID.V4
 import Federator.MockServer
 import Imports hiding (head)
 import Network.HTTP.Media ((//))
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup

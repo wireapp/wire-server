@@ -35,15 +35,15 @@ import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except
 import Data.CaseInsensitive (foldCase)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import SAML2.Util (renderURI)
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Spar.Options
-import qualified Spar.Schema.Run as Migrations
+import Spar.Schema.Run qualified as Migrations
 import Wire.API.User.Saml
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.

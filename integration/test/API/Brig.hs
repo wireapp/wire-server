@@ -19,13 +19,13 @@ module API.Brig where
 
 import API.BrigCommon
 import API.Common
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Base64 as Base64
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Vector as V
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Vector qualified as V
 import GHC.Stack
 import Testlib.Prelude
 

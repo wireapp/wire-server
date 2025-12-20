@@ -28,9 +28,9 @@ module CargoHold.CloudFront
 where
 
 import Control.AutoUpdate
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Text.Encoding (encodeUtf8)
@@ -38,7 +38,7 @@ import Data.Time.Clock.POSIX
 import Data.Yaml (FromJSON)
 import Imports
 import OpenSSL.EVP.Digest (getDigestByName)
-import qualified OpenSSL.EVP.Sign as SSL
+import OpenSSL.EVP.Sign qualified as SSL
 import OpenSSL.PEM (PemPasswordSupply (PwNone), readPrivateKey)
 import URI.ByteString
 

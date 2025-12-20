@@ -22,17 +22,17 @@ module Assets.Lib where
 import Cassandra as C
 import Cassandra.Settings as C
 import Control.Lens
-import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser)
+import Data.Attoparsec.ByteString.Char8 qualified as Atto (Parser)
 import Data.ByteString.Conversion
 import Data.Conduit
-import qualified Data.Conduit.Combinators as Conduit
+import Data.Conduit.Combinators qualified as Conduit
 import Data.Id (UserId)
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
 import System.IO (hPutStr)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Wire.API.Asset (AssetKey)
 
 data Opts = Opts

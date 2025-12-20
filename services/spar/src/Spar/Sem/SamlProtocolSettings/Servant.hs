@@ -25,7 +25,7 @@ where
 
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Sem.SamlProtocolSettings
 import Wire.API.Routes.Public.Spar
 

@@ -22,14 +22,14 @@ module TeamInfo.Lib where
 import Cassandra as C
 import Cassandra.Settings as C
 import Data.Conduit
-import qualified Data.Conduit.Combinators as Conduit
-import qualified Data.Conduit.List as CL
+import Data.Conduit.Combinators qualified as Conduit
+import Data.Conduit.List qualified as CL
 import Data.Id (TeamId, UserId)
 import Data.Time
-import qualified Database.CQL.Protocol as CQL
+import Database.CQL.Protocol qualified as CQL
 import Imports
 import Options.Applicative
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import TeamInfo.Types
 
 lookupClientsLastActiveTimestamps :: ClientState -> UserId -> IO [Maybe UTCTime]

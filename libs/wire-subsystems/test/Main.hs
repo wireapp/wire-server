@@ -19,7 +19,7 @@ module Main where
 
 import Imports
 import qualified Spec
-import qualified Test.Hspec as H
+import Test.Hspec qualified as H
 
 main :: IO ()
 main = H.hspec Spec.spec

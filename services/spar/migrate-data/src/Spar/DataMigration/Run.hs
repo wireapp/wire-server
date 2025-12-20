@@ -20,18 +20,18 @@
 module Spar.DataMigration.Run where
 
 import Cassandra (ClientState)
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Control.Monad.Catch (finally)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Imports
-import qualified Options.Applicative as Opts
+import Options.Applicative qualified as Opts
 import Spar.DataMigration.Options (settingsParser)
 import Spar.DataMigration.Types
-import qualified Spar.DataMigration.V2_UserV2 as V2
-import qualified System.Logger as Log
+import Spar.DataMigration.V2_UserV2 qualified as V2
+import System.Logger qualified as Log
 
 main :: IO ()
 main = do

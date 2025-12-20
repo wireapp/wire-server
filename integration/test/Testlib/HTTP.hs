@@ -17,30 +17,30 @@
 
 module Testlib.HTTP where
 
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as L
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as L
+import Data.CaseInsensitive qualified as CI
 import Data.Function
 import Data.List
 import Data.List.Split (splitOn)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Tuple.Extra
 import GHC.Generics
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types (hContentLength, hLocation)
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.URI (parseQuery)
 import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions

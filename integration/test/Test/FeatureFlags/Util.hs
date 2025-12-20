@@ -17,11 +17,11 @@
 
 module Test.FeatureFlags.Util where
 
-import qualified API.Galley as Public
-import qualified API.GalleyInternal as Internal
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Text as Text
+import API.Galley qualified as Public
+import API.GalleyInternal qualified as Internal
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KM
+import Data.Text qualified as Text
 import Notifications
 import SetupHelpers
 import Testlib.Prelude

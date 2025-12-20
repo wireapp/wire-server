@@ -22,9 +22,9 @@ module Test.Errors where
 import API.Brig
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
+import Data.Aeson qualified as Aeson
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
 import SetupHelpers
 import Testlib.Mock
 import Testlib.Prelude

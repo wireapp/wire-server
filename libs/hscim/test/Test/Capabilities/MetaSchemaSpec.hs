@@ -24,12 +24,12 @@ where
 
 import Data.Aeson
 import Data.Coerce
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Text (Text)
 import Network.Wai.Test (SResponse (..))
 import Servant
 import Test.Hspec hiding (shouldSatisfy)
-import qualified Test.Hspec.Expectations as Expect
+import Test.Hspec.Expectations qualified as Expect
 import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
 import Web.Scim.Capabilities.MetaSchema
 import Web.Scim.Server (ConfigAPI, mkapp)

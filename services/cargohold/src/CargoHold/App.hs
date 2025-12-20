@@ -50,15 +50,15 @@ import Amazonka (S3AddressingStyle (S3AddressingStylePath))
 import Bilge (Manager, MonadHttp, newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
-import qualified CargoHold.AWS as AWS
+import CargoHold.AWS qualified as AWS
 import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..), brig)
-import qualified CargoHold.Options as Opt
+import CargoHold.Options qualified as Opt
 import Control.Error (ExceptT, runExceptT)
 import Control.Exception (catch, throwIO)
 import Control.Lens (lensField, lensRules, makeLensesWith, non, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
@@ -66,15 +66,15 @@ import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeou
 import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
-import qualified OpenSSL.Session as SSL
+import OpenSSL.Session qualified as SSL
 import Prometheus
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import System.Logger.Class hiding (settings)
-import qualified System.Logger.Extended as Log
+import System.Logger.Extended qualified as Log
 import Util.Options
 import Util.SuffixNamer
 import Wire.API.Routes.Internal.Brig (BrigInternalClient)
-import qualified Wire.API.Routes.Internal.Brig as IBrig
+import Wire.API.Routes.Internal.Brig qualified as IBrig
 
 -------------------------------------------------------------------------------
 -- Environment

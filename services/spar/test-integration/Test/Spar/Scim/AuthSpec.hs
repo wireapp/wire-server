@@ -31,9 +31,9 @@ import Bilge.Assert
 import Cassandra as Cas
 import Control.Lens
 import Data.Aeson (encode)
-import qualified Data.ByteString.Base64 as ES
+import Data.ByteString.Base64 qualified as ES
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Id (ScimTokenId, TeamId, UserId, randomId)
 import Data.Misc
 import Data.Range (unsafeRange)
@@ -43,17 +43,17 @@ import Data.Time (UTCTime)
 import Data.Time.Clock (getCurrentTime)
 import Imports
 import OpenSSL.Random (randBytes)
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.Util as SAML
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Test.Util qualified as SAML
 import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
 import Wire.API.Team.Feature (featureNameBS)
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member (rolePermissions)
 import Wire.API.Team.Role
 import Wire.API.User (userEmail)
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 import Wire.API.User.Identity
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).

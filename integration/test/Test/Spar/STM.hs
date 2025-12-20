@@ -15,12 +15,12 @@ import API.GalleyInternal (setTeamFeatureStatus)
 import API.Nginz (login)
 import API.Spar
 import Control.Retry
-import qualified Data.Map as Map
-import qualified SAML2.WebSSO as SAML
+import Data.Map qualified as Map
+import SAML2.WebSSO qualified as SAML
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
-import qualified Text.XML.DSig as SAML
+import Text.XML.DSig qualified as SAML
 
 -- | This is a bit silly, but it allows us to write more straight-forward code and still get
 -- better error messages than "something went wrong in your code, please try again".

@@ -22,11 +22,11 @@ module Test.Cargohold.API.V3 where
 import API.Cargohold
 import Codec.MIME.Type (showMIMEType)
 import Crypto.Random
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.ByteString as BS
+import Data.Aeson.KeyMap qualified as KM
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive
 import Data.String.Conversions
 import Data.Text

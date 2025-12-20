@@ -33,7 +33,7 @@ import Cassandra as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens (to, (^.))
-import qualified Data.ByteString.UTF8 as UTF8
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
@@ -41,24 +41,24 @@ import Data.Text.Encoding
 import Imports
 import Network.URI
 import Network.Wai (Application)
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Middleware.Gunzip as GZip
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Utilities.Server
-import qualified Network.Wai.Utilities.Server as WU
-import qualified SAML2.WebSSO as SAML
+import Network.Wai.Utilities.Server qualified as WU
+import SAML2.WebSSO qualified as SAML
 import Spar.API (SparAPI, app)
 import Spar.App
-import qualified Spar.Data as Data
+import Spar.Data qualified as Data
 import Spar.Data.Instances ()
 import Spar.Options as Opt
 import Spar.Orphans ()
 import System.Logger (Logger)
-import qualified System.Logger as Log
-import qualified System.Logger.Extended as Log
-import qualified URI.ByteString as URI
+import System.Logger qualified as Log
+import System.Logger.Extended qualified as Log
+import URI.ByteString qualified as URI
 import Util.Options
-import qualified Web.Scim.Schema.Common as Scim
+import Web.Scim.Schema.Common qualified as Scim
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
 import Wire.ScimSubsystem.Interpreter

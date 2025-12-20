@@ -18,10 +18,10 @@
 module API.Nginz where
 
 import API.Cargohold
-import qualified Codec.MIME.Type as MIME
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as LBS
-import qualified Network.HTTP.Client as HTTP
+import Codec.MIME.Type qualified as MIME
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as LBS
+import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
 
 getSystemSettingsUnAuthorized :: (HasCallStack, MakesValue domain) => domain -> App Response

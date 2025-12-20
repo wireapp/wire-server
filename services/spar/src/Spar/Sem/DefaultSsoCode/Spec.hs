@@ -24,7 +24,7 @@ import Imports
 import Polysemy
 import Polysemy.Check
 import SAML2.WebSSO.Types
-import qualified Spar.Sem.DefaultSsoCode as E
+import Spar.Sem.DefaultSsoCode qualified as E
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

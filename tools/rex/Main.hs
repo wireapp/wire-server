@@ -29,22 +29,22 @@ module Main (main) where
 import Control.Concurrent.Async
 import Control.Monad.Catch
 import Control.Monad.Trans
-import qualified Data.Attoparsec.ByteString.Char8 as Parser
+import Data.Attoparsec.ByteString.Char8 qualified as Parser
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as ByteString
+import Data.ByteString.Char8 qualified as ByteString
 import Data.Foldable
 import Data.Functor (($>))
 import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict qualified as HashMap
 import Data.IP
 import Data.Maybe
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import qualified Data.Text.IO as Text
-import qualified Data.Text.Read as Text
+import Data.Text.IO qualified as Text
+import Data.Text.Read qualified as Text
 import Data.Traversable
 import Data.Word
 import Network.DNS hiding (header)
@@ -55,14 +55,14 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Options.Applicative
 import System.Clock
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Message (msg, val)
 import System.Metrics.Prometheus.Concurrent.RegistryT -- this library sucks
 import System.Metrics.Prometheus.Encode.Text
-import qualified System.Metrics.Prometheus.Metric.Counter as Counter
+import System.Metrics.Prometheus.Metric.Counter qualified as Counter
 import System.Metrics.Prometheus.Metric.Gauge (Gauge)
-import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
-import qualified System.Metrics.Prometheus.Metric.Histogram as Histo
+import System.Metrics.Prometheus.Metric.Gauge qualified as Gauge
+import System.Metrics.Prometheus.Metric.Histogram qualified as Histo
 import System.Metrics.Prometheus.MetricId
 import System.Metrics.Prometheus.Registry (RegistrySample)
 import System.Timeout (timeout)

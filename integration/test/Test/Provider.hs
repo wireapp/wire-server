@@ -19,9 +19,9 @@ module Test.Provider where
 
 import API.Brig
 import API.BrigInternal
-import qualified API.Cargohold as Cargohold
+import API.Cargohold qualified as Cargohold
 import API.Common
-import qualified API.Nginz as Nginz
+import API.Nginz qualified as Nginz
 import Data.String.Conversions (cs)
 import SetupHelpers
 import Testlib.Prelude

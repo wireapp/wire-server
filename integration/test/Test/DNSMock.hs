@@ -21,10 +21,10 @@ module Test.DNSMock where
 
 import Control.Lens
 import Control.Monad.Reader.Class
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Network.DNS
 import Network.DNS.Decode as Dec
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
 
 type LByteString = LBS.ByteString

@@ -19,7 +19,7 @@ module Test.TeamCollaborators where
 
 import API.Brig
 import API.Galley
-import qualified API.GalleyInternal as Internal
+import API.GalleyInternal qualified as Internal
 import Data.Tuple.Extra
 import Notifications (isConvLeaveNotif, isTeamCollaboratorAddedNotif, isTeamCollaboratorRemovedNotif, isTeamMemberLeaveNotif)
 import SetupHelpers

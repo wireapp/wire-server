@@ -32,17 +32,17 @@ import Data.ByteString.Conversion
 import Data.Handle (fromHandle)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Proxy
 import Data.String.Conversions
-import qualified Data.Text as ST
-import qualified Data.Text as T
+import Data.Text qualified as ST
+import Data.Text qualified as T
 import Data.Text.Ascii (decodeBase64, validateBase64)
-import qualified Data.UUID as UUID hiding (fromByteString, null)
-import qualified Data.UUID.V4 as UUID (nextRandom)
-import qualified Data.Vector as Vec
-import qualified Data.ZAuth.Token as ZAuth
+import Data.UUID qualified as UUID hiding (fromByteString, null)
+import Data.UUID.V4 qualified as UUID (nextRandom)
+import Data.Vector qualified as Vec
+import Data.ZAuth.Token qualified as ZAuth
 import Imports hiding (head)
 import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO
@@ -65,29 +65,29 @@ import SAML2.WebSSO
     rqIssuer,
     (-/),
   )
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.API.Example (SimpleSP)
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
-import qualified Spar.Intra.BrigApp as Intra
+import Spar.Intra.BrigApp qualified as Intra
 import Spar.Options
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
-import qualified Spar.Sem.BrigAccess as BrigAccess
-import qualified Spar.Sem.IdPConfigStore as IdPEffect
+import Spar.Sem.AReqIDStore qualified as AReqIDStore
+import Spar.Sem.BrigAccess qualified as BrigAccess
+import Spar.Sem.IdPConfigStore qualified as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
-import qualified URI.ByteString as URI
+import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
 import Util.Scim (createUser, filterBy, listUsers, randomScimUserWithEmail, randomScimUserWithNick, registerScimToken)
-import qualified Util.Scim as ScimT
+import Util.Scim qualified as ScimT
 import Util.Types
-import qualified Web.Cookie as Cky
-import qualified Web.Scim.Class.User as Scim
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Meta as Scim
-import qualified Web.Scim.Schema.User as Scim
-import qualified Web.Scim.Schema.User.Email as Scim
+import Web.Cookie qualified as Cky
+import Web.Scim.Class.User qualified as Scim
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.Meta qualified as Scim
+import Web.Scim.Schema.User qualified as Scim
+import Web.Scim.Schema.User.Email qualified as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData, rolePermissions)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role

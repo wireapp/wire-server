@@ -20,7 +20,7 @@
 module Testlib.Env where
 
 import Control.Concurrent.MVar
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
@@ -28,14 +28,14 @@ import Data.Foldable
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Traversable (for)
-import qualified Data.Yaml as Yaml
-import qualified Database.CQL.IO as Cassandra
+import Data.Yaml qualified as Yaml
+import Database.CQL.IO qualified as Cassandra
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified OpenSSL.Session as OpenSSL
+import Network.HTTP.Client qualified as HTTP
+import OpenSSL.Session qualified as OpenSSL
 import System.Directory
 import System.Environment (lookupEnv)
 import System.Exit

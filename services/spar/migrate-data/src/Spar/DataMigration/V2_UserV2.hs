@@ -20,24 +20,24 @@
 module Spar.DataMigration.V2_UserV2 (migration) where
 
 import Cassandra
-import qualified Conduit as C
-import qualified Data.ByteString.UTF8 as UTF8
+import Conduit qualified as C
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Conduit
-import qualified Data.Conduit.Combinators as CC
+import Data.Conduit.Combinators qualified as CC
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as CL
+import Data.Conduit.List qualified as CL
 import Data.Id
-import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
+import Data.Map.Strict qualified as Map
+import Data.Text qualified as T
 import Data.Time (UTCTime)
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types (Issuer (..))
 import Spar.Data (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
 import Spar.Data.Instances ()
 import Spar.DataMigration.Types (logger)
 import Spar.DataMigration.Types hiding (logger)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import URI.ByteString (serializeURIRef')
 
 -- row in spar.user

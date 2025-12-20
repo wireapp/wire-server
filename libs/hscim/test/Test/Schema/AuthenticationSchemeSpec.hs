@@ -23,10 +23,10 @@ where
 import Data.Aeson
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
-import qualified Hedgehog.Gen as Gen
+import Hedgehog.Gen qualified as Gen
 import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
-import qualified Web.Scim.Schema.AuthenticationScheme as AS
+import Web.Scim.Schema.AuthenticationScheme qualified as AS
 
 prop_roundtrip :: Property
 prop_roundtrip = property $ do

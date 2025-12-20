@@ -19,7 +19,7 @@ module Test.Property where
 
 import API.Brig
 import API.Common
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import SetupHelpers
 import Testlib.Prelude
 

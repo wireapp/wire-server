@@ -22,11 +22,11 @@ module Test.Proxy where
 import API.Proxy
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.CaseInsensitive
 import Data.String.Conversions
 import Network.HTTP.Types (hLocation)
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Servant
 import Testlib.Mock
 import Testlib.Prelude

@@ -9,10 +9,10 @@ import Data.Bool
 import Data.Foldable
 import Data.Function
 import Data.List
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.Monoid
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.String
 import Distribution.Simple hiding (Language (..), Module (..))
 import Distribution.Simple.BuildPaths
@@ -22,7 +22,7 @@ import Distribution.Types.Library
 import Distribution.Types.PackageDescription
 import Distribution.Utils.Path
 import Language.Haskell.Exts (Comment (..), Decl (TypeSig), Language (..), Module (..), Name (..), ParseMode (..), SrcSpanInfo, associateHaddock, fromParseResult, parseFileWithComments)
-import qualified Language.Haskell.Exts as Exts
+import Language.Haskell.Exts qualified as Exts
 import System.Directory
 import System.FilePath
 import Prelude

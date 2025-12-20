@@ -24,7 +24,7 @@ import API.Common (defPassword)
 import API.GalleyInternal
 import API.Nginz (login, loginWith2ndFactor)
 import Control.Concurrent (threadDelay)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import SetupHelpers
 import Testlib.Prelude
 import Text.Printf (printf)

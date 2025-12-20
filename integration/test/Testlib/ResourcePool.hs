@@ -35,7 +35,7 @@ import Control.Monad.IO.Class
 import Data.Foldable (for_)
 import Data.Functor
 import Data.IORef
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.String
 import Data.Tuple
 import Database.CQL.IO

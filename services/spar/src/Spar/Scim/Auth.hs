@@ -36,40 +36,40 @@ module Spar.Scim.Auth
 where
 
 import Control.Lens hiding (Strict, (.=))
-import qualified Data.ByteString.Base64 as ES
+import Data.ByteString.Base64 qualified as ES
 import Data.Code as Code
 import Data.Id
 import Data.Misc
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (throwSparSem)
-import qualified Spar.Error as E
-import qualified Spar.Intra.BrigApp as Intra.Brig
+import Spar.Error qualified as E
+import Spar.Intra.BrigApp qualified as Intra.Brig
 import Spar.Options
 import Spar.Sem.BrigAccess (BrigAccess)
-import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess qualified as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
+import Spar.Sem.IdPConfigStore qualified as IdPConfigStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import qualified Web.Scim.Class.Auth as Scim.Class.Auth
-import qualified Web.Scim.Handler as Scim
-import qualified Web.Scim.Schema.Error as Scim
+import Spar.Sem.ScimTokenStore qualified as ScimTokenStore
+import Web.Scim.Class.Auth qualified as Scim.Class.Auth
+import Web.Scim.Handler qualified as Scim
+import Web.Scim.Schema.Error qualified as Scim
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
 import Wire.API.User.Scim as Api
 import Wire.Sem.Now (Now)
-import qualified Wire.Sem.Now as Now
+import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
-import qualified Wire.Sem.Random as Random
+import Wire.Sem.Random qualified as Random
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance (Member ScimTokenStore r) => Scim.Class.Auth.AuthDB SparTag (Sem r) where

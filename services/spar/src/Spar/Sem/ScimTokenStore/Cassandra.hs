@@ -29,7 +29,7 @@ import Data.Id
 import Data.Time
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Data.Instances ()
 import Spar.Sem.ScimTokenStore
 import Text.RawString.QQ

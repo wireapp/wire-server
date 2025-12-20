@@ -22,7 +22,7 @@ module Web.Scim.AttrName where
 
 import Data.Aeson.Types (FromJSONKey, ToJSONKey)
 import Data.Attoparsec.ByteString.Char8
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Hashable
 import Data.String (IsString, fromString)
 import Data.Text (Text, cons)

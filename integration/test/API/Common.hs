@@ -20,10 +20,10 @@ module API.Common where
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Array ((!))
-import qualified Data.Array as Array
-import qualified Data.ByteString as BS
+import Data.Array qualified as Array
+import Data.ByteString qualified as BS
 import Data.Scientific (scientific)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
 import System.Random (randomIO, randomRIO)
 import Testlib.Prelude
 

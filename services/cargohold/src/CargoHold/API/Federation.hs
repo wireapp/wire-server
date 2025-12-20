@@ -27,7 +27,7 @@ import CargoHold.API.V3
 import CargoHold.App
 import CargoHold.Options
 import CargoHold.S3 (S3AssetMeta)
-import qualified CargoHold.S3 as S3
+import CargoHold.S3 qualified as S3
 import CargoHold.Types.V3 (Principal (UserPrincipal))
 import Control.Error
 import Data.ByteString.Conversion (toByteString')
@@ -39,7 +39,7 @@ import Imports
 import Servant.API
 import Servant.Server hiding (Handler)
 import Wire.API.Federation.API
-import qualified Wire.API.Federation.API.Cargohold as F
+import Wire.API.Federation.API.Cargohold qualified as F
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Named
 

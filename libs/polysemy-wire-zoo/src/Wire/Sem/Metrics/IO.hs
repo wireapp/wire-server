@@ -19,7 +19,7 @@ module Wire.Sem.Metrics.IO where
 
 import Imports
 import Polysemy
-import qualified Prometheus as Prom
+import Prometheus qualified as Prom
 import Wire.Sem.Metrics
 
 runMetricsToIO :: (Member (Embed IO) r) => InterpreterFor Metrics r

@@ -18,7 +18,7 @@
 module Main (main) where
 
 import Imports
-import qualified Test.CargoHold.API.AuditLogTest as AuditLog
+import Test.CargoHold.API.AuditLogTest qualified as AuditLog
 import Test.Tasty
 
 main :: IO ()

@@ -40,40 +40,40 @@ where
 import Amazonka hiding (Error)
 import Amazonka.S3
 import Amazonka.S3.Lens
-import qualified Amazonka.S3.StreamingUpload as SU
+import Amazonka.S3.StreamingUpload qualified as SU
 import CargoHold.API.Error
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
-import qualified CargoHold.AWS as AWS
+import CargoHold.AWS qualified as AWS
 import CargoHold.App hiding (Env)
 import CargoHold.Options
-import qualified CargoHold.Types.V3 as V3
-import qualified Codec.MIME.Parse as MIME
-import qualified Codec.MIME.Type as MIME
+import CargoHold.Types.V3 qualified as V3
+import Codec.MIME.Parse qualified as MIME
+import Codec.MIME.Type qualified as MIME
 import Conduit
 import Control.Error (throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Control.Monad.Catch (try)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Bifunctor (first)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Lazy qualified as LBS
+import Data.CaseInsensitive qualified as CI
 import Data.Conduit.Binary
-import qualified Data.HashMap.Lazy as HML
+import Data.HashMap.Lazy qualified as HML
 import Data.Id
 import Data.Qualified (Qualified)
-import qualified Data.Schema as S
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Schema qualified as S
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString

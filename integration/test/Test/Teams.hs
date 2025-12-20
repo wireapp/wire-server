@@ -19,19 +19,19 @@
 module Test.Teams where
 
 import API.Brig
-import qualified API.BrigInternal as I
+import API.BrigInternal qualified as I
 import API.Common
 import API.Galley (deleteTeamMember, getTeam, getTeamMembers, getTeamMembersCsv, getTeamNotifications)
 import API.GalleyInternal (selectTeamMembers)
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import API.Gundeck
-import qualified API.Nginz as Nginz
+import API.Nginz qualified as Nginz
 import Control.Monad.Codensity (Codensity (runCodensity))
 import Control.Monad.Extra (findM)
 import Control.Monad.Reader (asks)
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.ByteString.Char8 qualified as B8
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Time.Clock
 import Data.Time.Format
 import Notifications

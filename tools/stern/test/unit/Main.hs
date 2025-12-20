@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified Stern.Intra as Intra
+import Stern.Intra qualified as Intra
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Version (supportedVersions)

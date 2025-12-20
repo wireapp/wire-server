@@ -20,7 +20,7 @@
 module Test.ChannelSearch where
 
 import API.Galley
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude

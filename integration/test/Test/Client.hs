@@ -20,7 +20,7 @@
 module Test.Client where
 
 import API.Brig
-import qualified API.Brig as API
+import API.Brig qualified as API
 import API.BrigCommon
 import API.Gundeck
 import Control.Lens hiding ((.=))

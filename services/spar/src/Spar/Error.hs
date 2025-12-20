@@ -47,21 +47,21 @@ import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
 import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.Encoding as LText
+import Data.ByteString.Lazy qualified as LBS
+import Data.Text.Lazy qualified as LText
+import Data.Text.Lazy.Encoding qualified as LText
 import Data.Typeable (typeRep)
 import GHC.Stack (callStack, prettyCallStack)
 import Imports
 import Network.HTTP.Types.Status
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant
-import qualified System.Logger.Class as Log
-import qualified Web.Scim.Schema.Error as Scim
+import System.Logger.Class qualified as Log
+import Web.Scim.Schema.Error qualified as Scim
 import Wire.API.User.Saml (TTLError)
 import Wire.Error
 import Wire.ScimSubsystem.Interpreter

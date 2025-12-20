@@ -35,8 +35,8 @@ module CargoHold.AWS
 where
 
 import Amazonka (AWSRequest, AWSResponse)
-import qualified Amazonka as AWS
-import qualified Amazonka.S3 as S3
+import Amazonka qualified as AWS
+import Amazonka.S3 qualified as S3
 import CargoHold.API.Error
 import CargoHold.CloudFront
 import CargoHold.Options hiding (cloudFront, s3Bucket)
@@ -47,9 +47,9 @@ import Control.Retry
 import Data.ByteString.Builder (toLazyByteString)
 import Imports
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class (Logger, MonadLogger (log), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Options (AWSEndpoint (..))
 
 data Env = Env

@@ -33,13 +33,13 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
+import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.IORef
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isJust)
 import Data.Streaming.Network (bindPortTCP, bindRandomPortTCP)
 import Data.Unique
@@ -48,13 +48,13 @@ import GHC.IO.Exception
 import HTTP2.Client.Manager
 import HTTP2.Client.Manager.Internal
 import Network.HTTP.Types
-import qualified Network.HTTP2.Client as Client
-import qualified Network.HTTP2.Client as HTTP2
+import Network.HTTP2.Client qualified as Client
+import Network.HTTP2.Client qualified as HTTP2
 import Network.HTTP2.Server (defaultServerConfig)
-import qualified Network.HTTP2.Server as Server
+import Network.HTTP2.Server qualified as Server
 import Network.Socket
-import qualified Network.Socket as NS
-import qualified OpenSSL.Session as SSL
+import Network.Socket qualified as NS
+import OpenSSL.Session qualified as SSL
 import System.Random (randomRIO)
 import qualified System.TimeManager
 import Test.Hspec

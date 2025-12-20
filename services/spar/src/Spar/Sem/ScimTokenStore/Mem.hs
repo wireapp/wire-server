@@ -22,7 +22,7 @@ module Spar.Sem.ScimTokenStore.Mem
   )
 where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State

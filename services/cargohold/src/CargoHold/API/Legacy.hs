@@ -23,7 +23,7 @@ module CargoHold.API.Legacy
 where
 
 import CargoHold.App
-import qualified CargoHold.S3 as S3
+import CargoHold.S3 qualified as S3
 import CargoHold.Types.V3 (Principal (UserPrincipal))
 import CargoHold.Util (genSignedURL)
 import Data.Id

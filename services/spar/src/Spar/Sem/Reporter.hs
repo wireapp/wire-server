@@ -24,7 +24,7 @@ module Spar.Sem.Reporter
 where
 
 import Imports
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Network.Wai.Utilities.Error (Error)
 import Polysemy
 

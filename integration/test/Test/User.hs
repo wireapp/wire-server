@@ -23,12 +23,12 @@ import API.Brig
 import API.BrigInternal as I
 import API.Common
 import API.GalleyInternal
-import qualified API.Spar as Spar
+import API.Spar qualified as Spar
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.Aeson qualified as Aeson
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool

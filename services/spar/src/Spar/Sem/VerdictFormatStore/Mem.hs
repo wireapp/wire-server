@@ -22,16 +22,16 @@ module Spar.Sem.VerdictFormatStore.Mem
   )
 where
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Imports
 import Polysemy
 import Polysemy.State hiding (Get)
 import SAML2.WebSSO (addTime)
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Spar.Sem.VerdictFormatStore
 import Wire.API.User.Saml (AReqId, VerdictFormat)
 import Wire.Sem.Now (Now, boolTTL)
-import qualified Wire.Sem.Now as Now
+import Wire.Sem.Now qualified as Now
 
 verdictFormatStoreToMem ::
   (Member Now r) =>

@@ -18,7 +18,7 @@
 module Test.Version where
 
 import API.Brig
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import SetupHelpers
 import Testlib.Prelude
 

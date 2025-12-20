@@ -18,23 +18,23 @@
 module API.Cargohold where
 
 import API.Federator
-import qualified Codec.MIME.Parse as MIME
-import qualified Codec.MIME.Type as MIME
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as Aeson
+import Codec.MIME.Parse qualified as MIME
+import Codec.MIME.Type qualified as MIME
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as Aeson
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.Char8 as LBSC
-import qualified Data.ByteString.Lazy.Char8 as Lazy8
+import Data.ByteString.Lazy qualified as LBS
+import Data.ByteString.Lazy qualified as Lazy
+import Data.ByteString.Lazy.Char8 qualified as LBSC
+import Data.ByteString.Lazy.Char8 qualified as Lazy8
 import Data.CaseInsensitive
 import Data.String.Conversions
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Encoding (decodeLatin1, decodeUtf8, encodeUtf8, encodeUtf8Builder)
 import GHC.Stack
 import Network.HTTP.Client (Request (redirectCount, requestHeaders))
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types.Header (HeaderName)
 import Testlib.Prelude
 import UnliftIO (catch)

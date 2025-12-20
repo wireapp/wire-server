@@ -27,7 +27,7 @@ where
 
 import Imports
 import Polysemy
-import qualified SAML2.WebSSO.Types as SAML
+import SAML2.WebSSO.Types qualified as SAML
 import Wire.API.User.Saml (AssId)
 
 data AssIDStore m a where

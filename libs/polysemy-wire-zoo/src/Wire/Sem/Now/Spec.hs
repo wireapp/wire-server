@@ -27,7 +27,7 @@ import Polysemy.Input
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import qualified Wire.Sem.Now as E
+import Wire.Sem.Now qualified as E
 
 propsForInterpreter ::
   (PropConstraints r f) =>

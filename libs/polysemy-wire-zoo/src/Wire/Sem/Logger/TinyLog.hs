@@ -34,7 +34,7 @@ import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import System.Logger (Level (..))
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Wire.Sem.Logger
 
 loggerToTinyLog ::

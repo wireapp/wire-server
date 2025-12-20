@@ -34,8 +34,8 @@ import Control.Lens (view)
 import Imports
 import Test.QuickCheck (Arbitrary (..))
 import Test.QuickCheck.Gen (elements)
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.User as Scim.User
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.User (AccountStatus (..))
 import Wire.API.User.RichInfo (RichInfo (..), normalizeRichInfoAssocList)
 import Wire.API.User.Scim (ScimUserExtra (..), SparTag, sueRichInfo)

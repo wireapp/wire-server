@@ -22,7 +22,7 @@ where
 
 import Crypto.Random
 import Data.Id (Id (..))
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Polysemy
 import Wire.Sem.Random (Random (..))

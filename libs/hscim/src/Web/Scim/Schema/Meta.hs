@@ -18,9 +18,9 @@
 module Web.Scim.Schema.Meta where
 
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Text (Text, pack, unpack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Time.Clock
 import GHC.Generics (Generic)
 import Text.Read (readEither)

@@ -17,7 +17,7 @@
 
 module Test.MLS.Clients where
 
-import qualified API.BrigInternal as I
+import API.BrigInternal qualified as I
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude

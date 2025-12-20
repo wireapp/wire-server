@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified TeamInfo.Lib as Lib
+import TeamInfo.Lib qualified as Lib
 
 main :: IO ()
 main = Lib.main

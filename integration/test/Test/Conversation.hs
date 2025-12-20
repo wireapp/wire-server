@@ -20,16 +20,16 @@
 module Test.Conversation where
 
 import API.Brig
-import qualified API.BrigInternal as BrigI
+import API.BrigInternal qualified as BrigI
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
-import qualified API.GalleyInternal as I
+import API.GalleyInternal qualified as I
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.Text as T
+import Data.Aeson qualified as Aeson
+import Data.Text qualified as T
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)
