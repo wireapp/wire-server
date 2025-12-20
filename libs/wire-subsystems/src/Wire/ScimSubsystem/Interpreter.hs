@@ -145,7 +145,7 @@ scimGetUserGroupsImpl tid mbFilter mbStartIndex mbCount = do
       { schemas = [Scim.ListResponse20],
         totalResults = total,
         itemsPerPage = length page',
-        startIndex = fromMaybe 1 mbStartIndex,
+        startIndex = fromIntegral startIndex + 1,
         resources = page'
       }
 

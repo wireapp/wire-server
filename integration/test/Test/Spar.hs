@@ -465,7 +465,7 @@ testSparScimCreateGetSearchUserGroup = do
 
   -- Go through 4 pages (the last one is an empty page)
   forM_ [1 .. 4] $ \p ->
-    let startIndex = (p - 1) * 7 + 1 -- 1-based index
+    let startIndex = (p - 1) * count + 1 -- 1-based index
         count = 7
         expectedItemsPerPage = max 0 (min count (expectedTotalResults - startIndex + 1)) -- expected between 0 and `count` depending on if it's a full, half or empty page
      in searchPage "newGroupNo" startIndex count `bindResponse` \resp -> do
