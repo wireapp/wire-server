@@ -85,6 +85,8 @@ data GroupSite tag route = GroupSite
   { gsGetGroups ::
       route
         :- QueryParam "filter" Filter
+          :> QueryParam "startIndex" Int
+          :> QueryParam "count" Int
           :> Get '[SCIM] (ListResponse (StoredGroup tag)),
     gsGetGroup ::
       route
@@ -119,6 +121,8 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   getGroups ::
     AuthInfo tag ->
     Maybe Filter ->
+    Maybe Int ->
+    Maybe Int ->
     ScimHandler m (ListResponse (StoredGroup tag))
 
   -- | Get a single group by ID.
@@ -179,9 +183,9 @@ groupServer ::
   GroupSite tag (AsServerT (ScimHandler m))
 groupServer authData =
   GroupSite
-    { gsGetGroups = \mbFilter -> do
+    { gsGetGroups = \mbFilter mbStartIndex mbCount -> do
         auth <- authCheck @tag authData
-        getGroups @tag auth mbFilter,
+        getGroups @tag auth mbFilter mbStartIndex mbCount,
       gsGetGroup = \gid -> do
         auth <- authCheck @tag authData
         getGroup @tag auth gid,

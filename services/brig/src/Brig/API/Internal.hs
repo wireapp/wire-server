@@ -1031,9 +1031,11 @@ getGroupsInternalH ::
   TeamId ->
   Maybe T.Text ->
   Maybe ManagedBy ->
+  Word ->
+  Maybe Word ->
   Handler r UserGroupPageWithMembers
-getGroupsInternalH tid nameContains managedBy =
-  lift . liftSem $ getGroupsInternal tid nameContains managedBy
+getGroupsInternalH tid nameContains managedBy startIndex mbCount =
+  lift . liftSem $ getGroupsInternal tid nameContains managedBy startIndex mbCount
 
 updateGroupInternalH ::
   ( Member UserGroupSubsystem r

@@ -36,7 +36,6 @@ import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
-import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
@@ -274,14 +273,14 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             getGroups
               (ownerId team)
               def
-                { query = Just (userGroupNameToText userGroupName)
+                { searchString = Just (userGroupNameToText userGroupName)
                 }
           getGroupsOutsider <-
             try $
               getGroups
                 (ownerId otherTeam)
                 def
-                  { query = Just (userGroupNameToText userGroupName)
+                  { searchString = Just (userGroupNameToText userGroupName)
                   }
           pure $
             getGroupAdmin === Just group1
@@ -308,13 +307,13 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 getGroups
                   (ownerId team1)
                   def
-                    { query = Just (userGroupNameToText userGroupName1)
+                    { searchString = Just (userGroupNameToText userGroupName1)
                     }
               getOtherGroups <-
                 getGroups
                   (ownerId team1)
                   def
-                    { query = Just (userGroupNameToText userGroupName2)
+                    { searchString = Just (userGroupNameToText userGroupName2)
                     }
 
               pure $
@@ -329,10 +328,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
         let newGroups = [newUserGroup (either undefined id $ userGroupNameFromText name) | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
-        get0 <- getGroups (ownerId team1) def {query = Just "nope"}
-        get1 <- getGroups (ownerId team1) def {query = Just "1"}
-        get2 <- getGroups (ownerId team1) def {query = Just "2"}
-        get3 <- getGroups (ownerId team1) def {query = Just "3"}
+        get0 <- getGroups (ownerId team1) def {searchString = Just "nope"}
+        get1 <- getGroups (ownerId team1) def {searchString = Just "1"}
+        get2 <- getGroups (ownerId team1) def {searchString = Just "2"}
+        get3 <- getGroups (ownerId team1) def {searchString = Just "3"}
 
         pure do
           get0.page `shouldBe` []
@@ -342,54 +341,96 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
     prop "getGroups: pagination (happy flow)" $ do
       \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam)
-       numGroupsPre
-       pageSizePre ->
-          let numGroups = fromIntegral @Natural numGroupsPre + 1
-              pageSize =
-                let smallify = (\case 0 -> 3; other -> other) . (`mod` (numGroups + 5))
-                 in PageSize . unsafeRange . smallify . fromRange . fromPageSize $ pageSizePre
-           in expectRight
-                . runDependencies (allUsers team1) (galleyTeam team1)
-                . interpretUserGroupSubsystem
-                $ do
-                  let mkNewGroup = newUserGroup (either undefined id $ userGroupNameFromText "same name")
-                      mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
+       (Positive (Small (numGroups :: Int)))
+       (Positive (Small (pageSizeFromIntegralTotal @Int -> pageSize))) ->
+          expectRight
+            . runDependencies (allUsers team1) (galleyTeam team1)
+            . interpretUserGroupSubsystem
+            $ do
+              let mkNewGroup = newUserGroup (either undefined id $ userGroupNameFromText "same name")
+                  mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
 
-                  -- groups are only distinguished by creation date
-                  groups <- replicateM (fromIntegral numGroups) mkGroup
+              -- groups are only distinguished by creation date
+              groups <- replicateM numGroups mkGroup
 
-                  results :: [UserGroupPage] <- do
-                    let fetch mLastThing = do
-                          p <-
-                            getGroups
-                              (ownerId team1)
-                              def
-                                { sortBy = Just SortByCreatedAt,
-                                  pageSize = Just pageSize,
-                                  lastName = fmap (userGroupNameToText . (.name)) mLastThing,
-                                  lastCreatedAt = fmap (fromUTCTimeMillis . (.createdAt)) mLastThing,
-                                  lastId = fmap (.id_) mLastThing
-                                }
+              results :: [UserGroupPage] <- do
+                let fetch mLastThing = do
+                      p <-
+                        getGroups
+                          (ownerId team1)
+                          def
+                            { paginationState = PaginationSortByCreatedAt $ (,) <$> fmap (fromUTCTimeMillis . (.createdAt)) mLastThing <*> fmap (.id_) mLastThing,
+                              pageSize
+                            }
+                      if null p.page
+                        then pure []
+                        else
                           if length p.page < pageSizeToInt pageSize
                             then pure [p]
                             else (p :) <$> fetch (Just (last p.page))
-                    fetch Nothing
+                fetch Nothing
 
-                  let all' :: (x -> Property) -> [x] -> Property
-                      all' mkProp = foldr (\x acc -> mkProp x .&&. acc) (True === True)
+              let all' :: (x -> Property) -> [x] -> Property
+                  all' mkProp = foldr (\x acc -> mkProp x .&&. acc) (True === True)
 
-                      assertLessThanOrEq :: (Show a, Ord a) => a -> a -> Property
-                      assertLessThanOrEq x y = counterexample (show x <> "\n>\n" <> show y) $ x <= y
-                  pure $
-                    -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
-                    mconcat ((.page) <$> results) === (userGroupToMeta <$> reverse groups)
-                      -- every page has the expected size
-                      .&&. all'
-                        (\r -> length r.page === pageSizeToInt pageSize)
-                        (take (length results - 2) results)
-                      .&&. all'
-                        (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
-                        (drop (length results - 2) results)
+                  assertLessThanOrEq :: (Show a, Ord a) => a -> a -> Property
+                  assertLessThanOrEq x y = counterexample (show x <> "\n>\n" <> show y) $ x <= y
+              pure $
+                Right pageSize === pageSizeFromInt 0
+                  .||. (
+                         -- result is complete and correct (`reverse` because `createdAt` defaults to `Desc`)
+                         mconcat ((.page) <$> results) === (userGroupToMeta <$> reverse groups)
+                           -- every page has the expected size
+                           .&&. all'
+                             (\r -> length r.page === pageSizeToInt pageSize)
+                             (take (length results - 2) results)
+                           .&&. all'
+                             (\r -> length r.page `assertLessThanOrEq` pageSizeToInt pageSize)
+                             (drop (length results - 2) results)
+                       )
+
+    prop "getGroups: pagination via offset" $ \(WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) ->
+      runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
+        -- Create groups
+        groups <- forM ["1", "2", "3", "4", "5"] $ \name -> do
+          passTime 1
+          createGroup (ownerId team1) $ newUserGroup $ UserGroupName $ unsafeRange name
+        let groupIds = map (.id_) groups :: [UserGroupId]
+
+        -- Define helper to fetch all pages, providing desired
+        -- sortOrder and page size to the mock database
+        let getAllPages :: (Member UserGroupSubsystem r) => SortOrder -> Word -> Sem r [UserGroupPage]
+            getAllPages sortOrder' pageSize' = go 0
+              where
+                go :: (Member UserGroupSubsystem r) => Word -> Sem r [UserGroupPage]
+                go offset = do
+                  p <-
+                    getGroups
+                      (ownerId team1)
+                      def
+                        { paginationState = PaginationOffset offset,
+                          pageSize = PageSize $ unsafeRange $ fromIntegral pageSize',
+                          sortOrder = sortOrder'
+                        }
+                  let len = length p.page
+                  if
+                    | len > 0 && len < fromIntegral pageSize' -> pure [p]
+                    | len == 0 -> pure []
+                    | otherwise -> (p :) <$> go (offset + pageSize')
+
+        ascendingPages :: [UserGroupPage] <- getAllPages Asc 2
+        descendingPages :: [UserGroupPage] <- getAllPages Desc 3
+        exactlyOnePage :: [UserGroupPage] <- getAllPages Desc 5
+
+        pure do
+          -- Page sizes are as expected
+          map (length . (.page)) ascendingPages `shouldBe` [2, 2, 1]
+          map (length . (.page)) descendingPages `shouldBe` [3, 2]
+          map (length . (.page)) exactlyOnePage `shouldBe` [5]
+
+          -- Sort order is accounted for, pages do not overlap
+          (map (.id_) . (.page) =<< ascendingPages) `shouldBe` sort groupIds
+          (map (.id_) . (.page) =<< descendingPages) `shouldBe` sortBy (comparing Down) groupIds
 
     it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
@@ -412,15 +453,15 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           getGroups
             (ownerId team1)
             def
-              { sortBy = Just SortByName,
-                sortOrder = Just Desc
+              { paginationState = PaginationSortByName Nothing,
+                sortOrder = Desc
               }
         sortByCreatedAtAsc <-
           getGroups
             (ownerId team1)
             def
-              { sortBy = Just SortByCreatedAt,
-                sortOrder = Just Asc
+              { paginationState = PaginationSortByCreatedAt Nothing,
+                sortOrder = Asc
               }
 
         let expectSortByDefaults = [[group1b, group2b, group3b], [group1a, group2a, group3a]]

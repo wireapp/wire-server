@@ -92,6 +92,7 @@ library
     , base
     , bytestring
     , case-insensitive
+    , containers
     , email-validate
     , hashable
     , hspec
@@ -219,14 +220,17 @@ test-suite spec
     , hspec-expectations
     , hspec-wai
     , http-types
+    , HUnit
     , hw-hspec-hedgehog
     , indexed-traversable
+    , lens-aeson
     , microlens
     , network-uri
     , servant
     , servant-server
     , stm-containers
     , text
+    , vector
     , wai
     , wai-extra
 

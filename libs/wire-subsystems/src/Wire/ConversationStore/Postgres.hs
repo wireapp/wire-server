@@ -1284,7 +1284,7 @@ searchConversationsImpl req =
           )
         -- keep ordering consistent with the outer query, therefore case-insensitive
         <> orderBy [("lower(name)", req.sortOrder), ("id", req.sortOrder)]
-        <> limit (pageSizeToInt32 req.pageSize)
+        <> limit (fromIntegral @_ @Int32 $ pageSizeToWord req.pageSize)
         <> literal ")"
 
     discoverableClause

@@ -1707,18 +1707,17 @@ getUserGroups ::
   Bool ->
   Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
+getUserGroups lusr searchString sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
   lift . liftSem $
-    UserGroup.getGroups
-      (tUnqualified lusr)
-      UserGroup.GroupSearch
-        { query = q,
-          sortBy,
-          sortOrder,
-          pageSize,
-          lastName = fmap userGroupNameToText lastName,
-          lastCreatedAt = fmap fromUTCTimeMillis lastCreatedAt,
-          lastId,
+    UserGroup.getGroups (tUnqualified lusr) $
+      UserGroupPageRequest
+        { pageSize = fromMaybe def pageSize,
+          managedByFilter = Nothing,
+          sortOrder = fromMaybe Desc sortOrder,
+          paginationState = case fromMaybe def sortBy of
+            SortByName -> PaginationSortByName $ (,) <$> fmap userGroupNameToText lastName <*> lastId
+            SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> fmap fromUTCTimeMillis lastCreatedAt <*> lastId,
+          searchString,
           includeMemberCount,
           includeChannels
         }

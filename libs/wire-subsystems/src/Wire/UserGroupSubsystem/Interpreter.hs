@@ -49,12 +49,10 @@ import Wire.BackgroundJobsPublisher
 import Wire.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.NotificationSubsystem
-import Wire.PaginationState
 import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
-import Wire.UserGroupStore (UserGroupPageRequest (..))
 import Wire.UserGroupStore qualified as Store
-import Wire.UserGroupSubsystem (GroupSearch (..), UserGroupSubsystem (..))
+import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
 
 interpretUserGroupSubsystem ::
@@ -86,7 +84,7 @@ interpretUserGroupSubsystem = interpret $ \case
   -- Internal API handlers
   CreateGroupInternal managedBy team mbCreator newGroup -> createUserGroupFullImpl managedBy team mbCreator newGroup
   GetGroupInternal tid gid includeChannels -> getUserGroupInternal tid gid includeChannels
-  GetGroupsInternal tid displayNameSubstring mbManagedBy -> getUserGroupsInternal tid displayNameSubstring mbManagedBy
+  GetGroupsInternal tid displayNameSubstring mbManagedBy startIndex mbCount -> getUserGroupsInternal tid displayNameSubstring mbManagedBy startIndex mbCount
   ResetUserGroupInternal req -> resetUserGroupInternal req
 
 data UserGroupSubsystemError
@@ -250,29 +248,13 @@ getUserGroups ::
     Member (Error UserGroupSubsystemError) r
   ) =>
   UserId ->
-  GroupSearch ->
+  UserGroupPageRequest ->
   Sem r UserGroupPage
-getUserGroups getter search = do
+getUserGroups getter pageReq = do
   team :: TeamId <- getUserTeam getter >>= ifNothing UserGroupNotATeamAdmin
   getterCanSeeAll :: Bool <- fromMaybe False <$> runMaybeT (mkGetterCanSeeAll getter team)
   unless getterCanSeeAll (throw UserGroupNotATeamAdmin)
-  let pageReq =
-        UserGroupPageRequest
-          { pageSize = fromMaybe def search.pageSize,
-            sortOrder = fromMaybe Desc search.sortOrder,
-            paginationState =
-              mkPaginationState
-                (fromMaybe def search.sortBy)
-                search.lastName
-                search.lastCreatedAt
-                search.lastId,
-            team = team,
-            searchString = search.query,
-            managedByFilter = Nothing,
-            includeMemberCount = search.includeMemberCount,
-            includeChannels = search.includeChannels
-          }
-  Store.getUserGroups pageReq
+  Store.getUserGroups team pageReq
   where
     ifNothing :: UserGroupSubsystemError -> Maybe a -> Sem r a
     ifNothing e = maybe (throw e) pure
@@ -284,23 +266,21 @@ getUserGroupsInternal ::
   TeamId ->
   Maybe Text ->
   Maybe ManagedBy ->
+  Word ->
+  Maybe Word ->
   Sem r UserGroupPageWithMembers
-getUserGroupsInternal team displayNameSubstring mbManagedBy = do
-  let -- hscim doesn't support pagination at the time of writing this,
-      -- so we better fit all groups into one page!
-      pageSize = pageSizeFromIntUnsafe 500
-      pageReq =
+getUserGroupsInternal team displayNameSubstring mbManagedBy startIndex mbCount = do
+  let pageReq =
         UserGroupPageRequest
-          { pageSize = pageSize,
+          { pageSize = maybe def pageSizeFromIntegralTotal mbCount,
             sortOrder = Asc,
-            paginationState = mkPaginationState SortByName (Just "displayName") Nothing Nothing,
-            team = team,
+            paginationState = PaginationOffset startIndex,
             searchString = displayNameSubstring,
             managedByFilter = mbManagedBy,
             includeMemberCount = True,
             includeChannels = False
           }
-  Store.getUserGroupsWithMembers pageReq
+  Store.getUserGroupsWithMembers team pageReq
 
 updateGroup ::
   ( Member UserSubsystem r,
@@ -529,14 +509,13 @@ removeUserFromAllGroups uid tid = do
     go [] = pure ()
 
     nextPage mug =
-      fmap (.page) . Store.getUserGroups $
+      fmap (.page) . Store.getUserGroups tid $
         UserGroupPageRequest
           { pageSize = def,
             sortOrder = Desc,
             paginationState =
               PaginationSortByCreatedAt $
                 fmap Store.userGroupCreatedAtPaginationState mug,
-            team = tid,
             searchString = Nothing,
             managedByFilter = Nothing,
             includeMemberCount = False,
