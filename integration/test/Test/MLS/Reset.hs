@@ -83,10 +83,10 @@ testResetOne2OneConversation = do
   otherDomain <- asString OtherDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   convOwnerDomain <- asString $ conv %. "conversation.qualified_id.domain"
-  let (user, cid, other) =
+  let (user, other) =
         if convOwnerDomain == otherDomain
-          then (bob, bob1, alice)
-          else (alice, alice1, bob)
+          then (bob1, alice)
+          else (alice1, bob)
   convId <- objConvId (conv %. "conversation")
 
   resetOne2OneGroup def alice1 conv
@@ -94,13 +94,13 @@ testResetOne2OneConversation = do
   void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
-  conv' <- resetMLSConversation cid (conv %. "conversation")
+  conv' <- resetMLSConversation user (conv %. "conversation")
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   convId' <- objConvId conv'
-  resetOne2OneGroupGeneric def cid conv' (conv %. "public_keys")
+  resetOne2OneGroupGeneric def user conv' (conv %. "public_keys")
 
-  void $ createAddCommit cid convId' [other] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit user convId' [other] >>= sendAndConsumeCommitBundle
 
   conv'' <- getConversation user convId >>= getJSON 200
   conv'' %. "epoch" `shouldMatchInt` 1
