@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, aeson-diff
 , aeson-qq
 , attoparsec
 , attoparsec-aeson
@@ -25,7 +24,6 @@
 , http-types
 , HUnit
 , hw-hspec-hedgehog
-, imports
 , indexed-traversable
 , lens-aeson
 , lib
@@ -34,7 +32,6 @@
 , mmorph
 , mtl
 , network-uri
-, QuickCheck
 , retry
 , scientific
 , servant
@@ -63,7 +60,6 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
-    aeson-diff
     aeson-qq
     attoparsec
     attoparsec-aeson
@@ -79,7 +75,6 @@ mkDerivation {
     http-api-data
     http-media
     http-types
-    imports
     list-t
     microlens
     mmorph
@@ -114,8 +109,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
-    aeson-diff
-    aeson-qq
+    attoparsec
     base
     bytestring
     email-validate
@@ -126,12 +120,10 @@ mkDerivation {
     http-types
     HUnit
     hw-hspec-hedgehog
-    imports
     indexed-traversable
     lens-aeson
     microlens
     network-uri
-    QuickCheck
     servant
     servant-server
     stm-containers

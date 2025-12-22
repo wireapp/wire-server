@@ -86,7 +86,6 @@ library
   ghc-options:        -Wall -Wredundant-constraints -Wunused-packages
   build-depends:
       aeson
-    , aeson-diff
     , aeson-qq
     , attoparsec
     , attoparsec-aeson
@@ -102,7 +101,6 @@ library
     , http-api-data
     , http-media
     , http-types
-    , imports
     , list-t
     , microlens
     , mmorph
@@ -212,8 +210,7 @@ test-suite spec
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
-    , aeson-diff
-    , aeson-qq
+    , attoparsec
     , base
     , bytestring
     , email-validate
@@ -225,12 +222,10 @@ test-suite spec
     , http-types
     , HUnit
     , hw-hspec-hedgehog
-    , imports
     , indexed-traversable
     , lens-aeson
     , microlens
     , network-uri
-    , QuickCheck
     , servant
     , servant-server
     , stm-containers
