@@ -67,6 +67,7 @@ import Data.String
 import Data.Text (Text, isInfixOf, isPrefixOf, isSuffixOf, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy (toStrict)
+import Imports (todo)
 import Lens.Micro
 import Web.HttpApiData
 import Web.Scim.AttrName
@@ -153,6 +154,8 @@ topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
 --            \"2819c223-7f76-453a-919d-413861904646\"].displayName"
 -- @
 -- is not supported
+
+-- TODO: why is there no declaration here?
 
 ----------------------------------------------------------------------------
 -- Parsing
@@ -291,3 +294,9 @@ instance FromHttpApiData Filter where
 
 instance ToHttpApiData Filter where
   toUrlPiece = renderFilter
+
+instance ToJSON AttrPath where
+  toJSON = toJSON . rAttrPath
+
+instance FromJSON AttrPath where
+  parseJSON = todo

@@ -148,7 +148,7 @@ patchUser ::
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
-  PatchOp tag ->
+  PatchOp ->
   IO (StoredUser tag)
 patchUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (_ :<|> (r :<|> _))) -> r
 
