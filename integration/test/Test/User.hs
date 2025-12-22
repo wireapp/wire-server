@@ -418,3 +418,26 @@ testEphemeralUserCreation (TaggedBool enabled) = do
   where
     registerEphemeralUser domain = addUser domain def
     registerUserWithEmail domain = addUser domain def {email = Just ("user@" <> domain)}
+
+testBrigSCIMResendVerificationEmail :: (HasCallStack) => App ()
+testBrigSCIMResendVerificationEmail = do
+  -- 1. Create team (owner)
+  (owner, _tid, _) <- createTeam OwnDomain 1
+
+  -- 2. Create SCIM token
+  tok <- bindResponse (Spar.createScimTokenV6 owner def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "token" >>= asString
+
+  -- 3. Create SCIM User
+  scimEmail <- randomEmail
+  scimExtId <- randomEmail
+  scimUser <- randomScimUserWithEmail scimExtId scimEmail
+
+  userId <- bindResponse (Spar.createScimUser OwnDomain tok scimUser) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "id" >>= asString
+
+  -- 4. Re-send verification email
+  putUserEmail owner (object ["id" .= userId, "domain" .= ("example.com" :: String)]) scimEmail `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
