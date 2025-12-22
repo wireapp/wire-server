@@ -214,6 +214,7 @@ test-suite spec
       aeson
     , aeson-diff
     , aeson-qq
+    , attoparsec
     , base
     , bytestring
     , email-validate

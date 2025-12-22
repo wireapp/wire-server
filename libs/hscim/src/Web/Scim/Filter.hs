@@ -64,9 +64,10 @@ import Data.Aeson.Text as Aeson
 import Data.Attoparsec.ByteString.Char8
 import Data.Scientific
 import Data.String
-import Data.Text (Text, isInfixOf, isPrefixOf, isSuffixOf, pack)
+import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
-import Data.Text.Lazy (toStrict)
+import qualified Data.Text.Lazy as LT
+import Imports
 import Lens.Micro
 import Web.HttpApiData
 import Web.Scim.AttrName
@@ -165,7 +166,7 @@ topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
 -- lift an Attoparsec parser (from Aeson) to Megaparsec
 parseFilter :: [Schema] -> Text -> Either Text Filter
 parseFilter supportedSchemas =
-  over _Left pack
+  over _Left T.pack
     . parseOnly (skipSpace *> pFilter supportedSchemas <* skipSpace <* endOfInput)
     . encodeUtf8
 
@@ -253,8 +254,8 @@ rCompValue = \case
   ValNull -> "null"
   ValBool True -> "true"
   ValBool False -> "false"
-  ValNumber n -> toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
-  ValString s -> toStrict $ Aeson.encodeToLazyText (Aeson.String s)
+  ValNumber n -> LT.toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
+  ValString s -> LT.toStrict $ Aeson.encodeToLazyText (Aeson.String s)
 
 -- | Comparison operator renderer.
 rCompareOp :: CompareOp -> Text
@@ -274,9 +275,9 @@ compareStr :: CompareOp -> Text -> Text -> Bool
 compareStr = \case
   OpEq -> (==) -- equal
   OpNe -> (/=) -- not equal
-  OpCo -> flip isInfixOf -- A contains B
-  OpSw -> flip isPrefixOf -- A starts with B
-  OpEw -> flip isSuffixOf -- A ends with B
+  OpCo -> flip T.isInfixOf -- A contains B
+  OpSw -> flip T.isPrefixOf -- A starts with B
+  OpEw -> flip T.isSuffixOf -- A ends with B
   OpGt -> (>) -- greater than
   OpGe -> (>=) -- greater than or equal to
   OpLt -> (<) -- less than
@@ -291,3 +292,9 @@ instance FromHttpApiData Filter where
 
 instance ToHttpApiData Filter where
   toUrlPiece = renderFilter
+
+instance ToJSON AttrPath where
+  toJSON = toJSON . rAttrPath
+
+instance FromJSON AttrPath where
+  parseJSON val = parseJSON @Text val >>= either fail pure . parseOnly (pAttrPath []) . encodeUtf8
