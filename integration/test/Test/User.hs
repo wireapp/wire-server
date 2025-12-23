@@ -441,3 +441,59 @@ testBrigSCIMResendVerificationEmail = do
   -- 4. Re-send verification email
   putUserEmail owner (object ["id" .= userId, "domain" .= ("example.com" :: String)]) scimEmail `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
+
+testBrigSCIMPromotedResendVerificationEmail :: (HasCallStack) => App ()
+testBrigSCIMPromotedResendVerificationEmail = do
+  -- 1. Create team (owner) and a normal user (alice)
+  (owner, tid, _) <- createTeam OwnDomain 1
+
+  aliceEmail <- randomEmail
+  alice <- createUser OwnDomain def {email = Just aliceEmail, password = Just defPassword, activate = True} >>= getJSON 201
+  aliceId <- asString $ alice %. "id"
+
+  -- Add alice to team
+  bindResponse (postInvitation owner def {email = Just aliceEmail}) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+
+  inv <- getInvitationByEmail OwnDomain aliceEmail >>= getJSON 200
+  invCodeResp <- I.getInvitationCodeForTeam OwnDomain tid inv >>= getJSON 200
+  code <- invCodeResp %. "code" & asString
+
+  bindResponse (acceptTeamInvitation alice code (Just defPassword)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- 2. Login as alice
+  (cookie, token) <- bindResponse (login OwnDomain aliceEmail defPassword) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    token <- resp.json %. "access_token" & asString
+    let cookie = fromJust $ getCookie "zuid" resp
+    pure ("zuid=" <> cookie, token)
+
+  -- 3. Alice requests email change to B (pending state)
+  emailDomain <- randomDomain
+  newEmail <- randomName <&> (<> "@" <> emailDomain)
+  updateEmail alice newEmail cookie token >>= assertSuccess
+
+  -- 4. Make alice managed by SCIM (Adopt via PUT)
+  scimToken <- bindResponse (Spar.createScimToken owner def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "token" & asString
+
+  let aliceUserName = map (\c -> if c == '@' then '_' else c) aliceEmail
+  let scimUser =
+        object
+          [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName" .= aliceUserName,
+            "emails" .= [object ["value" .= aliceEmail, "type" .= "work", "primary" .= True]],
+            "externalId" .= aliceId,
+            "name" .= object ["familyName" .= ("User" :: String), "givenName" .= ("Alice" :: String)]
+          ]
+
+  -- Try to update user via SCIM. This should set managed_by=scim.
+  bindResponse (Spar.updateScimUser owner scimToken aliceId scimUser) $ \resp -> do
+    resp.status `shouldMatchOneOf` [Number 200, Number 201, Number 204]
+
+  -- 7. Alice tries to resend verification for B (client side)
+  -- This should now succeed (202) despite being managed-by-scim, because it is a resend of pending email
+  updateEmail alice newEmail cookie token `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 202
