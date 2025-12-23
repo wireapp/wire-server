@@ -20,6 +20,7 @@
 module Test.Apps where
 
 import API.Brig
+import qualified API.BrigInternal as BrigI
 import SetupHelpers
 import Testlib.Prelude
 
@@ -86,6 +87,14 @@ testCreateApp = do
   -- Category must be any of the values for the Category enum
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 400
+
+  -- App's user is findable from /search/contacts
+  BrigI.refreshIndex OwnDomain
+  searchContacts owner new.name OwnDomain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    foundUids <- for docs objId
+    foundUids `shouldMatch` [appId]
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do

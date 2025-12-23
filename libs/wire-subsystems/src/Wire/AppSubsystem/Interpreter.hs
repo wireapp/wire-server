@@ -49,6 +49,7 @@ import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as Store
+import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
 
 runAppSubsystem ::
   ( Member UserStore r,
@@ -61,7 +62,8 @@ runAppSubsystem ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserSubsystem r
   ) =>
   Sem (AppSubsystem ': r) a ->
   Sem r a
@@ -81,7 +83,8 @@ createAppImpl ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -111,6 +114,7 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
   -- create app and user entries
   Store.createApp app
   Store.createUser u Nothing
+  internalUpdateSearchIndex u.id
 
   -- generate a team event
   generateTeamEvents creator.id tid [EdAppCreate u.id]
