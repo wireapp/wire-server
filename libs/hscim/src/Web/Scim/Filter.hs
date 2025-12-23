@@ -120,6 +120,23 @@ data CompareOp
 -- more complex filters
 --
 -- FILTER    = attrExp / logExp / valuePath / *1"not" "(" FILTER ")"
+-- PATH = attrPath / valuePath [subAttr]
+--
+-- FUTUREWORK(fisx): Currently we don't support matching on lists in paths
+-- as we currently don't support filtering on arbitrary attributes yet
+-- e.g.
+-- @
+-- "path":"members[value eq
+--            \"2819c223-7f76-453a-919d-413861904646\"].displayName"
+-- @
+-- is not supported. The code here should actually read something like this:
+-- @
+-- data Filter = FilterAttrCompare (Either AttrPath ValuePath) CompareOp CompValue
+-- @
+--
+-- FUTUREWORK(fisx): does it make sense to have a type-level argument to
+-- AttrPath, ValuePath(?), Filter containing the allowed schemas?
+-- it's certainly information that should be known at compile time...
 data Filter
   = -- | Compare the attribute value with a literal
     FilterAttrCompare AttrPath CompareOp CompValue
@@ -143,17 +160,6 @@ data AttrPath = AttrPath (Maybe Schema) AttrName (Maybe SubAttr)
 -- | Smart constructor that refers to a toplevel field with default schema
 topLevelAttrPath :: Text -> AttrPath
 topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
-
--- | PATH = attrPath / valuePath [subAttr]
---
--- Currently we don't support matching on lists in paths as
--- we currently don't support filtering on arbitrary attributes yet
--- e.g.
--- @
--- "path":"members[value eq
---            \"2819c223-7f76-453a-919d-413861904646\"].displayName"
--- @
--- is not supported
 
 ----------------------------------------------------------------------------
 -- Parsing
