@@ -34,6 +34,7 @@ import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Imports
 import Lens.Micro
 import Network.URI.Static (uri)
 import Test.Hspec
@@ -44,8 +45,9 @@ import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
 import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
-import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
+import Web.Scim.Schema.PatchOp
 import qualified Web.Scim.Schema.PatchOp as PatchOp
+import Web.Scim.Schema.Schema
 import Web.Scim.Schema.Schema (Schema (..))
 import Web.Scim.Schema.User (NoUserExtra (..), User (..))
 import qualified Web.Scim.Schema.User as User
@@ -484,8 +486,8 @@ instance ToJSON UserExtraTest where
   toJSON (UserExtraObject t) =
     object ["urn:hscim:test" .= object ["test" .= t]]
 
-instance Patchable UserExtraTest where
-  applyOperation _ _ = undefined
+instance SupportsSchemas UserExtraTest where
+  supportedSchemas _ = undefined
 
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)

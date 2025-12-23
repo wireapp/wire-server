@@ -67,7 +67,7 @@ data UserSite tag route = UserSite
       route
         :- Capture "id" (UserId tag)
           :> ReqBody '[SCIM] (PatchOp tag)
-          :> Patch '[SCIM] (StoredUser tag),
+          :> Servant.Patch '[SCIM] (StoredUser tag),
     usDeleteUser ::
       route
         :- Capture "id" (UserId tag)

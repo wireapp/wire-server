@@ -116,6 +116,7 @@ mkDerivation {
     aeson
     aeson-diff
     aeson-qq
+    attoparsec
     base
     bytestring
     email-validate

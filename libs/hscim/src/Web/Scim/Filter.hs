@@ -137,6 +137,8 @@ data CompareOp
 -- FUTUREWORK(fisx): does it make sense to have a type-level argument to
 -- AttrPath, ValuePath(?), Filter containing the allowed schemas?
 -- it's certainly information that should be known at compile time...
+--
+-- https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.2
 data Filter
   = -- | Compare the attribute value with a literal
     FilterAttrCompare AttrPath CompareOp CompValue
