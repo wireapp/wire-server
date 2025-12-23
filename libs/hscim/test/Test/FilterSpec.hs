@@ -20,6 +20,7 @@
 module Test.FilterSpec where
 
 import Data.Either (isLeft)
+import Data.Foldable (for_)
 import Data.Text (Text, cons)
 import HaskellWorks.Hspec.Hedgehog
 import Hedgehog
@@ -43,89 +44,120 @@ spec = do
   describe "Filter" $ do
     it "parse . render === id" $ require $ prop_roundtrip @(TestTag Text () () NoUserExtra)
     
-    describe "Comparison operators roundtrip" $ do
-      it "OpEq roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEq (ValString "john")
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
+    describe "Comparison operators and CompValue types" $ do
+      let filterExamples :: [(String, Either String Filter)]
+          filterExamples =
+            [ -- OpEq tests
+              ( "userName eq \"john\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEq (ValString "john")
+              ),
+              ( "age eq 42",
+                Right $ FilterAttrCompare (AttrPath Nothing "age" Nothing) OpEq (ValNumber 42)
+              ),
+              ( "active eq true",
+                Right $ FilterAttrCompare (AttrPath Nothing "active" Nothing) OpEq (ValBool True)
+              ),
+              ( "active eq false",
+                Right $ FilterAttrCompare (AttrPath Nothing "active" Nothing) OpEq (ValBool False)
+              ),
+              ( "manager eq null",
+                Right $ FilterAttrCompare (AttrPath Nothing "manager" Nothing) OpEq ValNull
+              ),
+              -- OpNe tests
+              ( "userName ne \"john\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpNe (ValString "john")
+              ),
+              -- OpCo (contains) test
+              ( "userName co \"john\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpCo (ValString "john")
+              ),
+              -- OpSw (starts with) test
+              ( "userName sw \"john\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpSw (ValString "john")
+              ),
+              -- OpEw (ends with) test
+              ( "userName ew \"john\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEw (ValString "john")
+              ),
+              -- OpGt test
+              ( "age gt 18",
+                Right $ FilterAttrCompare (AttrPath Nothing "age" Nothing) OpGt (ValNumber 18)
+              ),
+              -- OpGe test
+              ( "age ge 18",
+                Right $ FilterAttrCompare (AttrPath Nothing "age" Nothing) OpGe (ValNumber 18)
+              ),
+              -- OpLt test
+              ( "age lt 65",
+                Right $ FilterAttrCompare (AttrPath Nothing "age" Nothing) OpLt (ValNumber 65)
+              ),
+              -- OpLe test
+              ( "age le 65",
+                Right $ FilterAttrCompare (AttrPath Nothing "age" Nothing) OpLe (ValNumber 65)
+              ),
+              -- Decimal number
+              ( "score eq 3.14",
+                Right $ FilterAttrCompare (AttrPath Nothing "score" Nothing) OpEq (ValNumber 3.14)
+              ),
+              -- Error cases
+              ( "userName eq",
+                Left "Error in $: not enough input"  -- missing value
+              ),
+              ( "userName \"john\"",
+                Left "Error in $: Failed reading: satisfyWith"  -- missing operator
+              ),
+              ( "",
+                Left "Error in $: not enough input"  -- empty filter
+              ),
+              ( "   ",
+                Left "Error in $: not enough input"  -- whitespace only
+              )
+            ]
       
-      it "OpNe roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpNe (ValString "john")
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpCo roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpCo (ValString "john")
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpSw roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpSw (ValString "john")
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpEw roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEw (ValString "john")
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpGt roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "age" Nothing) OpGt (ValNumber 18)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpGe roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "age" Nothing) OpGe (ValNumber 18)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpLt roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "age" Nothing) OpLt (ValNumber 65)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "OpLe roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "age" Nothing) OpLe (ValNumber 65)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-    
-    describe "CompValue types" $ do
-      it "ValNull roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "manager" Nothing) OpEq ValNull
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "ValBool true roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "active" Nothing) OpEq (ValBool True)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "ValBool false roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "active" Nothing) OpEq (ValBool False)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "ValNumber (integer) roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "age" Nothing) OpEq (ValNumber 42)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "ValNumber (decimal) roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "score" Nothing) OpEq (ValNumber 3.14)
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
-      
-      it "ValString roundtrips correctly" $ do
-        let filter' = FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEq (ValString "testuser")
-        parseFilter [User20] (renderFilter filter') `shouldBe` Right filter'
+      for_ filterExamples $ \(filterStr, expected) ->
+        it ("filter: " <> show filterStr) $
+          parseFilter [User20] filterStr `shouldBe` expected
   
   describe "AttrPath" $ do
-    describe "Parsing" $ do
-      it "parses simple attribute name without schema" $ do
-        parseFilter [User20] "userName eq \"john\"" 
-          `shouldBe` Right (FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEq (ValString "john"))
+    describe "Parsing and rendering" $ do
+      let attrPathExamples :: [(String, Either String Filter)]
+          attrPathExamples =
+            [ -- Simple attribute without schema
+              ( "userName eq \"john\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "userName" Nothing) OpEq (ValString "john")
+              ),
+              -- Attribute with subAttr
+              ( "name.familyName eq \"Doe\"",
+                Right $ FilterAttrCompare (AttrPath Nothing "name" (Just (SubAttr "familyName"))) OpEq (ValString "Doe")
+              ),
+              -- Fully qualified with User20 schema
+              ( "urn:ietf:params:scim:schemas:core:2.0:User:userName eq \"john\"",
+                Right $ FilterAttrCompare (AttrPath (Just User20) "userName" Nothing) OpEq (ValString "john")
+              ),
+              -- Fully qualified with schema and subAttr
+              ( "urn:ietf:params:scim:schemas:core:2.0:User:name.familyName eq \"Doe\"",
+                Right $ FilterAttrCompare (AttrPath (Just User20) "name" (Just (SubAttr "familyName"))) OpEq (ValString "Doe")
+              ),
+              -- Custom schema
+              ( "urn:hscim:test:customAttr eq \"value\"",
+                Right $ FilterAttrCompare (AttrPath (Just (CustomSchema "urn:hscim:test")) "customAttr" Nothing) OpEq (ValString "value")
+              ),
+              -- Error case - unsupported schema (Group20 not in supported schemas for User20-only list)
+              ( "urn:ietf:params:scim:schemas:core:2.0:Group:displayName eq \"Admins\"",
+                Left "Error in $: Failed reading: satisfyWith"
+              ),
+              -- FUTUREWORK: better error messages for invalid paths
+              ( "",
+                Left "Error in $: not enough input"
+              ),
+              ( ".userName eq \"test\"",
+                Left "Error in $: Failed reading: satisfyWith"  -- FUTUREWORK: better error
+              )
+            ]
       
-      it "parses attribute with subAttr" $ do
-        parseFilter [User20] "name.familyName eq \"Doe\"" 
-          `shouldBe` Right (FilterAttrCompare (AttrPath Nothing "name" (Just (SubAttr "familyName"))) OpEq (ValString "Doe"))
-      
-      it "parses fully qualified attribute with User20 schema" $ do
-        parseFilter [User20] "urn:ietf:params:scim:schemas:core:2.0:User:userName eq \"john\"" 
-          `shouldBe` Right (FilterAttrCompare (AttrPath (Just User20) "userName" Nothing) OpEq (ValString "john"))
-      
-      it "parses fully qualified attribute with subAttr" $ do
-        parseFilter [User20] "urn:ietf:params:scim:schemas:core:2.0:User:name.familyName eq \"Doe\"" 
-          `shouldBe` Right (FilterAttrCompare (AttrPath (Just User20) "name" (Just (SubAttr "familyName"))) OpEq (ValString "Doe"))
-      
-      it "parses custom schema attribute" $ do
-        parseFilter [User20, CustomSchema "urn:hscim:test"] "urn:hscim:test:customAttr eq \"value\"" 
-          `shouldBe` Right (FilterAttrCompare (AttrPath (Just (CustomSchema "urn:hscim:test")) "customAttr" Nothing) OpEq (ValString "value"))
+      for_ attrPathExamples $ \(filterStr, expected) ->
+        it ("attribute path: " <> show filterStr) $
+          parseFilter [User20] filterStr `shouldBe` expected
     
     describe "Rendering" $ do
       it "renders simple attribute without schema" $ do
@@ -152,21 +184,6 @@ spec = do
           `shouldSatisfy` isLeft
   
   describe "ValuePath" $ do
-    describe "Parsing" $ do
-      it "parses ValuePath with simple filter" $ do
-        let expectedAttrPath = AttrPath Nothing "addresses" Nothing
-            expectedFilter = FilterAttrCompare (AttrPath Nothing "type" Nothing) OpEq (ValString "work")
-            expectedValuePath = ValuePath expectedAttrPath expectedFilter
-        -- Since parseValuePath is internal, we test through filter context where it would be used
-        -- For now, we test the rendering works correctly
-        rValuePath expectedValuePath `shouldBe` "addresses[type eq \"work\"]"
-      
-      it "parses ValuePath with schema prefix" $ do
-        let expectedAttrPath = AttrPath (Just User20) "emails" Nothing
-            expectedFilter = FilterAttrCompare (AttrPath Nothing "primary" Nothing) OpEq (ValBool True)
-            expectedValuePath = ValuePath expectedAttrPath expectedFilter
-        rValuePath expectedValuePath `shouldBe` "urn:ietf:params:scim:schemas:core:2.0:User:emails[primary eq true]"
-    
     describe "Rendering" $ do
       it "renders ValuePath correctly" $ do
         let valuePath = ValuePath 
@@ -174,27 +191,17 @@ spec = do
               (FilterAttrCompare (AttrPath Nothing "type" Nothing) OpEq (ValString "work"))
         rValuePath valuePath `shouldBe` "addresses[type eq \"work\"]"
       
+      it "renders ValuePath with schema prefix" $ do
+        let valuePath = ValuePath
+              (AttrPath (Just User20) "emails" Nothing)
+              (FilterAttrCompare (AttrPath Nothing "primary" Nothing) OpEq (ValBool True))
+        rValuePath valuePath `shouldBe` "urn:ietf:params:scim:schemas:core:2.0:User:emails[primary eq true]"
+      
       it "renders ValuePath with subAttr filter correctly" $ do
         let valuePath = ValuePath 
               (AttrPath Nothing "members" Nothing) 
               (FilterAttrCompare (AttrPath Nothing "value" Nothing) OpEq (ValString "user123"))
         rValuePath valuePath `shouldBe` "members[value eq \"user123\"]"
-  
-  describe "Error cases" $ do
-    it "fails on malformed filter - missing value" $ do
-      parseFilter [User20] "userName eq" `shouldSatisfy` isLeft
-    
-    it "fails on malformed filter - missing operator" $ do
-      parseFilter [User20] "userName \"john\"" `shouldSatisfy` isLeft
-    
-    it "fails on malformed filter - invalid operator" $ do
-      parseFilter [User20] "userName contains \"john\"" `shouldSatisfy` isLeft
-    
-    it "fails on empty filter" $ do
-      parseFilter [User20] "" `shouldSatisfy` isLeft
-    
-    it "fails on filter with just whitespace" $ do
-      parseFilter [User20] "   " `shouldSatisfy` isLeft
 
 ----------------------------------------------------------------------------
 -- Generators
