@@ -43,7 +43,9 @@ import qualified Data.Text.Encoding as Text
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
+import qualified Network.HPACK as HPACK
 import qualified Network.HTTP2.Client as HTTP2
+import qualified Network.HTTP2.Client.Internal as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.IO.Error
@@ -466,7 +468,7 @@ data ConnectionAlreadyClosed = ConnectionAlreadyClosed
 
 instance Exception ConnectionAlreadyClosed
 
-bufsize :: Int
+bufsize :: HPACK.BufferSize
 bufsize = 4096
 
 allocHTTP2Config :: Transport -> IO HTTP2.Config
@@ -505,5 +507,6 @@ allocHTTP2Config (SecureTransport ssl) = do
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
         HTTP2.confTimeoutManager = timmgr,
         HTTP2.confMySockAddr = mysa,
-        HTTP2.confPeerSockAddr = peersa
+        HTTP2.confPeerSockAddr = peersa,
+        HTTP2.confReadNTimeout = False
       }

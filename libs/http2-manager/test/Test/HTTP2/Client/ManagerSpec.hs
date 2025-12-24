@@ -52,6 +52,7 @@ import qualified Network.HTTP2.Client as Client
 import qualified Network.HTTP2.Client as HTTP2
 import Network.HTTP2.Server (defaultServerConfig)
 import qualified Network.HTTP2.Server as Server
+import qualified Network.HTTP2.Server.Internal as Server
 import Network.Socket
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
@@ -325,7 +326,8 @@ allocServerConfig (Right ssl) = do
         Server.confPositionReadMaker = Server.defaultPositionReadMaker,
         Server.confTimeoutManager = timmgr,
         Server.confMySockAddr = mysa,
-        Server.confPeerSockAddr = peersa
+        Server.confPeerSockAddr = peersa,
+        HTTP2.confReadNTimeout = False
       }
 
 testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()

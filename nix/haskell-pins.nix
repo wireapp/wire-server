@@ -215,28 +215,21 @@ let
     };
 
     # open PR https://github.com/yesodweb/wai/pull/958 for sending connection: close when closing connection
-    # TODO: Rebase the PR and add tests as the maintainer asked for.
     warp = {
       packages.warp = "warp";
       src = pkgs.fetchFromGitHub {
         owner = "yesodweb";
         repo = "wai";
-        rev = "8b20c9db265a202a2c7ba2a9ec8786a1ee59957b";
-        hash = "sha256-fKUSiRl38FKY1gFSmbksktoqoLfQrDxRRWEh4k+RRW4=";
+        rev = "ef34334b160c74b62435ccc21f5b458f73506b2f";
+        hash = "sha256-7rgZUimPJY+0yVN717pZ2Ep01+XB0z8C/+L9D3Qz9/k=";
       };
     };
 
-    # this contains an important fix to the initialization of the window size
-    # and should be switched to upstream as soon as we can
-    # version = "5.2.5";
-    # This patch also includes suppressing ConnectionIsClosed
-    #
-    # TODO: Try to use latest http2
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
-        rev = "45653e3caab0642e539fab2681cb09402aae29ca";
-        hash = "sha256-L90PQtDw/JFwyltSVFvmfjTAb0ZLhFt9Hl0jbzn+cFQ=";
+        rev = "ca606d86ed304fa780f7a60d11244019c62a10e0";
+        hash = "sha256-eyjFtB28JCcvItZ5R8CT2F5GL62c49oQ49AN8/4HSYw=";
       };
     };
 
@@ -277,18 +270,18 @@ let
   hackagePins = {
     # start pinned dependencies for http2
     http-semantics = {
-      version = "0.1.2";
-      sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
+      version = "0.4.0";
+      sha256 = "sha256-rh0z51EKvsu5rQd5n2z3fSRjjEObouNZSBPO9NFYOF0=";
     };
 
     network-run = {
-      version = "0.3.0";
-      sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";
+      version = "0.5.0";
+      sha256 = "sha256-vbXh+CzxDsGApjqHxCYf/ijpZtUCApFbkcF5gyN0THU=";
     };
 
     time-manager = {
-      version = "0.1.0";
-      sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
+      version = "0.2.4";
+      sha256 = "sha256-sAt/331YLQ2IU3z90aKYSq1nxoazv87irsuJp7ZG3pw=";
     };
     # end pinned dependencies for http2
 
