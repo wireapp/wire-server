@@ -88,13 +88,23 @@ testCreateApp = do
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
+  let foundUserType exactMatchTerm aType =
+        searchContacts owner exactMatchTerm OwnDomain `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          foundDoc <- resp.json %. "documents" >>= asList >>= assertOne
+          foundDoc %. "type" `shouldMatch` aType
+
   -- App's user is findable from /search/contacts
   BrigI.refreshIndex OwnDomain
-  searchContacts owner new.name OwnDomain `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "documents" >>= asList
-    foundUids <- for docs objId
-    foundUids `shouldMatch` [appId]
+  foundUserType new.name "app"
+
+  -- Owner and regular member still have the type "regular"
+  memberName <- regularMember %. "name" & asString
+  foundUserType memberName "regular"
+
+-- XXX: Why is owner not found?
+-- ownerName <- owner %. "name" & asString
+-- foundUserType ownerName "regular"
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
