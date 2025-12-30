@@ -164,9 +164,10 @@ sendRequestWithConnection conn req k = do
       waitError = takeMVar threadKilled
       waitDeath = do
         res <- waitCatch (backgroundThread conn)
-        case res of
-          Left e -> return e
-          Right _ -> return (SomeException ConnectionAlreadyClosed)
+        pure $
+          case res of
+            Left e -> e
+            Right _ -> SomeException ConnectionAlreadyClosed
 
   race waitResult (race waitError waitDeath) >>= \case
     Left r -> pure r
