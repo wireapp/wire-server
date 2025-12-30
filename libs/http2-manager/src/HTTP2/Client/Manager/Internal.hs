@@ -165,7 +165,7 @@ sendRequestWithConnection conn req k = do
       waitDeath = do
         res <- waitCatch (backgroundThread conn)
         case res of
-           Left e -> return (SomeException e)
+           Left e -> return e
            Right _ -> return (SomeException ConnectionAlreadyClosed)
 
   race waitResult (race waitError waitDeath) >>= \case
