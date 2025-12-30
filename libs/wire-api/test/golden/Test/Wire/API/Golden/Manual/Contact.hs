@@ -22,6 +22,7 @@ import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified))
 import Data.UUID qualified as UUID
 import Imports
+import Wire.API.User (UserType (UserTypeRegular))
 import Wire.API.User.Search (Contact (..))
 
 testObject_Contact_1 :: Contact
@@ -31,7 +32,8 @@ testObject_Contact_1 =
       contactName = "Foobar",
       contactColorId = Just 1,
       contactHandle = Just "foobar1",
-      contactTeam = Just $ Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))
+      contactTeam = Just $ Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002")),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_2 :: Contact
@@ -41,5 +43,6 @@ testObject_Contact_2 =
       contactName = "Foobar2",
       contactColorId = Nothing,
       contactHandle = Nothing,
-      contactTeam = Nothing
+      contactTeam = Nothing,
+      contactType = UserTypeRegular
     }
