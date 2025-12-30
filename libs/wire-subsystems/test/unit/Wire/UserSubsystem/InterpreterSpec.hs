@@ -1111,6 +1111,7 @@ spec = describe "UserSubsystem.Interpreter" do
                         contactQualifiedId = Qualified searchee.id localDomain,
                         contactName = fromName searchee.name,
                         contactHandle = fromHandle <$> searchee.handle,
-                        contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId
+                        contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId,
+                        contactType = UserTypeRegular
                       }
               pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]
