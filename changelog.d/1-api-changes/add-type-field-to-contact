@@ -1,0 +1,1 @@
+Add `type` field to search results received from `GET /search/contacts`
