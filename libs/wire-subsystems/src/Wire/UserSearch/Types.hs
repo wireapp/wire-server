@@ -76,7 +76,8 @@ data UserDoc = UserDoc
     udScimExternalId :: Maybe Text,
     udSso :: Maybe Sso,
     udEmailUnvalidated :: Maybe EmailAddress,
-    udSearchable :: Maybe Bool
+    udSearchable :: Maybe Bool,
+    udType :: Maybe UserType
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
@@ -100,7 +101,8 @@ instance ToJSON UserDoc where
         "scim_external_id" .= udScimExternalId ud,
         "sso" .= udSso ud,
         "email_unvalidated" .= udEmailUnvalidated ud,
-        "searchable" .= udSearchable ud
+        "searchable" .= udSearchable ud,
+        "type" .= udType ud
       ]
 
 instance FromJSON UserDoc where
@@ -123,6 +125,7 @@ instance FromJSON UserDoc where
       <*> o .:? "sso"
       <*> o .:? "email_unvalidated"
       <*> o .:? "searchable"
+      <*> o .:? "type"
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"

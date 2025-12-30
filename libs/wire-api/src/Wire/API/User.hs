@@ -472,6 +472,7 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 data UserType = UserTypeRegular | UserTypeApp | UserTypeBot
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserType)
+  deriving (A.FromJSON, A.ToJSON) via (Schema UserType)
 
 instance Default UserType where
   def = UserTypeRegular

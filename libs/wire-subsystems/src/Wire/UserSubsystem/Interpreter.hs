@@ -758,6 +758,7 @@ searchUsersImpl ::
   forall r fedM.
   ( Member UserStore r,
     Member GalleyAPIAccess r,
+    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
     Member FederationConfigStore r,
@@ -793,6 +794,7 @@ searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
 searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
+    Member AppStore r,
     Member UserStore r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r
@@ -844,7 +846,11 @@ searchLocally searcher searchTerm maybeMaxResults = do
           contactName = maybe "" fromName userDoc.udName,
           contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
           contactHandle = Handle.fromHandle <$> userDoc.udHandle,
-          contactTeam = userDoc.udTeam
+          contactTeam = userDoc.udTeam,
+          contactType = fromMaybe UserTypeRegular userDoc.udType -- default to "regular" when missing. All apps should have this set.
+          -- ^ XXX: For the above, to handle the legacy case of bots
+          -- already part of ES index, either test botness here
+          -- somehow, or add "requires full reindex" when deploying.
         }
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
@@ -870,13 +876,17 @@ searchLocally searcher searchTerm maybeMaxResults = do
             (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
       if isContactVisible && fromMaybe True storedUser.searchable
-        then pure $ Contact
-          { contactQualifiedId = Qualified storedUser.id (tDomain searcher),
-            contactName = fromName storedUser.name,
-            contactHandle = Handle.fromHandle <$> storedUser.handle,
-            contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
-            contactTeam = storedUser.teamId
-          }
+        then do
+          userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
+          pure $
+            Contact
+              { contactQualifiedId = Qualified storedUser.id (tDomain searcher),
+                contactName = fromName storedUser.name,
+                contactHandle = Handle.fromHandle <$> storedUser.handle,
+                contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
+                contactTeam = storedUser.teamId,
+                contactType = userType
+              }
         else hoistMaybe Nothing
 
 searchRemotely ::
