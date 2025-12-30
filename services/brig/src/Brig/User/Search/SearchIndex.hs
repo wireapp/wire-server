@@ -35,7 +35,7 @@ import Data.Id
 import Data.Qualified (Qualified (Qualified))
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
-import Wire.API.User (ColourId (..), Name (fromName))
+import Wire.API.User (ColourId (..), Name (fromName), UserType (UserTypeRegular))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
@@ -101,6 +101,7 @@ userDocToContact localDomain UserDoc {..} = do
   let contactColorId = fromIntegral . fromColourId <$> udColourId
       contactHandle = fromHandle <$> udHandle
       contactTeam = udTeam
+      contactType = fromMaybe UserTypeRegular udType -- default to "regular" as all app should have this field set
   pure $ Contact {..}
 
 -- | The default or canonical 'IndexQuery'.

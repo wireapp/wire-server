@@ -101,5 +101,6 @@ contactFromProfile profile =
       contactName = fromName $ profileName profile,
       contactHandle = fromHandle <$> profileHandle profile,
       contactColorId = Just . fromIntegral . fromColourId $ profileAccentId profile,
-      contactTeam = profileTeam profile
+      contactTeam = profileTeam profile,
+      contactType = profileType profile
     }

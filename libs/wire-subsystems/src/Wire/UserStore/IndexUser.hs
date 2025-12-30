@@ -154,7 +154,11 @@ indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udSearchable = value <$> searchable,
+        { udType =
+            if isJust serviceId
+              then Just UserTypeBot
+              else Nothing, -- XXX: When Nothing, it should be checked elsewhere whether this is an "app"
+          udSearchable = value <$> searchable,
           udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
@@ -214,7 +218,8 @@ normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =
   UserDoc
-    { udSearchable = Nothing,
+    { udType = Nothing,
+      udSearchable = Nothing,
       udEmailUnvalidated = Nothing,
       udSso = Nothing,
       udScimExternalId = Nothing,

@@ -59,7 +59,7 @@ import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
-import Wire.API.User (ManagedBy)
+import Wire.API.User (ManagedBy, UserType)
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -145,7 +145,8 @@ data Contact = Contact
     contactName :: Text,
     contactColorId :: Maybe Int,
     contactHandle :: Maybe Text,
-    contactTeam :: Maybe TeamId
+    contactTeam :: Maybe TeamId,
+    contactType :: UserType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
@@ -161,6 +162,7 @@ instance ToSchema Contact where
         <*> contactColorId .= optField "accent_id" (maybeWithDefault Aeson.Null schema)
         <*> contactHandle .= optField "handle" (maybeWithDefault Aeson.Null schema)
         <*> contactTeam .= optField "team" (maybeWithDefault Aeson.Null schema)
+        <*> contactType .= field "type" schema
 
 --------------------------------------------------------------------------------
 -- TeamContact
