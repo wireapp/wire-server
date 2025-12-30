@@ -223,7 +223,7 @@ specTemplate mCtx = do
     -- to know what happens when we don't wait for the background thread to go
     -- away.
     Just deadConn <- Map.lookup (isJust mCtx, "localhost", port) <$> readTVarIO (connections mgr)
-    wait $ backgroundThread deadConn
+    void $ waitCatch $ backgroundThread deadConn
 
     withTestServerOnPort mCtx port $ \TestServer {..} -> do
       echoTest mgr (isJust mCtx) port
