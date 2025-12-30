@@ -576,6 +576,7 @@ guardLockedHandleField user updateOrigin handle = do
 
 updateUserProfileImpl ::
   ( Member UserStore r,
+    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member Events r,
     Member GalleyAPIAccess r,
@@ -640,6 +641,7 @@ updateHandleImpl ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member UserStore r,
+    Member AppStore r,
     Member IndexedUserStore r,
     Member Metrics r
   ) =>
@@ -706,23 +708,27 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 syncUserIndex ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
     Member Metrics r
   ) =>
   UserId ->
   Sem r ()
-syncUserIndex uid = do
-  getIndexUser uid
-    >>= maybe deleteFromIndex upsert
+syncUserIndex uid =
+  getIndexUser uid >>= \case
+    Nothing -> deleteFromIndex
+    Just indexUser -> do
+      userType <- getUserType uid (value <$> indexUser.teamId) (value <$> indexUser.serviceId)
+      upsert indexUser userType
   where
     deleteFromIndex :: Sem r ()
     deleteFromIndex = do
       Metrics.incCounter indexDeleteCounter
       IndexedUserStore.upsert (userIdToDocId uid) (emptyUserDoc uid) ES.NoVersionControl
 
-    upsert :: IndexUser -> Sem r ()
-    upsert indexUser = do
+    upsert :: IndexUser -> UserType -> Sem r ()
+    upsert indexUser userType = do
       vis <-
         maybe
           (pure defaultSearchVisibilityInbound)
@@ -730,7 +736,8 @@ syncUserIndex uid = do
           indexUser.teamId
       tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc' = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc = userDoc' {udType = Just userType}
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -1056,6 +1063,7 @@ getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHan
 acceptTeamInvitationImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
+    Member AppStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
@@ -1120,6 +1128,7 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
 removeEmailEitherImpl ::
   ( Member UserKeyStore r,
     Member UserStore r,
+    Member AppStore r,
     Member Events r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -1154,6 +1163,7 @@ checkUserIsAdminImpl uid = do
 
 setUserSearchableImpl ::
   ( Member UserStore r,
+    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,

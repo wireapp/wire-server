@@ -108,6 +108,11 @@ syncAllUsersWithVersion mkVersion =
 
     mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] (Sem r) ()
     mkUserDocs = Conduit.mapM $ \page -> do
+      -- XXX: Fetch `type` field within this function for each user?
+      -- Because `IndexUser` itself doesn't have a type: it's an
+      -- alternative representation of the Cassandra user
+      -- row. `UserType` on the other hand is a derived field: whether
+      -- a row exists for the user in the apps table for same uid/tid.
       let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) . value <$> u.teamId) page
           teamIds = Map.keys teams
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
