@@ -101,7 +101,7 @@ run o = lowerCodensity $ do
           . requestIdMiddleware g defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . otelMiddleWare
-          . Gzip.gzip Gzip.def
+          . Gzip.gzip Gzip.defaultGzipSettings
           . catchErrors g defaultRequestIdHeaderName
       app :: Application
       app = middleware (serve (Proxy @CombinedAPI) server)

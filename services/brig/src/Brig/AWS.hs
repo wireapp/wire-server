@@ -49,6 +49,7 @@ import Amazonka.SES qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
 import Brig.Options qualified as Opt
+import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -201,14 +202,14 @@ enqueueFIFO url group dedup m = retrying retry5x (const $ pure . canRetry) (cons
 -- Utilities
 
 send ::
-  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  (AWSRequest r) =>
   r ->
   Amazon (AWSResponse r)
 send r = throwA =<< sendCatchAmazon r
 
 -- | Temporary helper to translate polysemy to Amazon monad, it should go away
 -- with more polysemisation
-sendCatchAmazon :: (AWSRequest req, Typeable req, Typeable (AWSResponse req)) => req -> Amazon (Either AWS.Error (AWS.AWSResponse req))
+sendCatchAmazon :: (AWSRequest req) => req -> Amazon (Either AWS.Error (AWS.AWSResponse req))
 sendCatchAmazon req = do
   env <- view amazonkaEnv
   liftIO . runM . runInputConst env $ sendCatch req
@@ -218,9 +219,7 @@ throwA = either (throwM . GeneralError) pure
 
 execCatch ::
   ( AWSRequest a,
-    Typeable a,
     MonadUnliftIO m,
-    Typeable (AWSResponse a),
     MonadCatch m
   ) =>
   AWS.Env ->
@@ -228,13 +227,11 @@ execCatch ::
   m (Either AWS.Error (AWSResponse a))
 execCatch e cmd =
   runResourceT $
-    AWS.trying AWS._Error $
+    trying AWS._Error $
       AWS.send e cmd
 
 exec ::
   ( AWSRequest a,
-    Typeable a,
-    Typeable (AWSResponse a),
     MonadCatch m,
     MonadIO m
   ) =>

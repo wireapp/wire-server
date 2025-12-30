@@ -133,7 +133,7 @@ mkApp opts = do
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
-        . GZip.gzip GZip.def
+        . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName
 
     servantApp :: Env -> Wai.Application

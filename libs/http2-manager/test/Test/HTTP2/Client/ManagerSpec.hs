@@ -52,6 +52,7 @@ import qualified Network.HTTP2.Client as Client
 import qualified Network.HTTP2.Client as HTTP2
 import Network.HTTP2.Server (defaultServerConfig)
 import qualified Network.HTTP2.Server as Server
+import qualified Network.HTTP2.Server.Internal as Server
 import Network.Socket
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
@@ -222,7 +223,7 @@ specTemplate mCtx = do
     -- to know what happens when we don't wait for the background thread to go
     -- away.
     Just deadConn <- Map.lookup (isJust mCtx, "localhost", port) <$> readTVarIO (connections mgr)
-    wait $ backgroundThread deadConn
+    void $ waitCatch $ backgroundThread deadConn
 
     withTestServerOnPort mCtx port $ \TestServer {..} -> do
       echoTest mgr (isJust mCtx) port
@@ -325,7 +326,8 @@ allocServerConfig (Right ssl) = do
         Server.confPositionReadMaker = Server.defaultPositionReadMaker,
         Server.confTimeoutManager = timmgr,
         Server.confMySockAddr = mysa,
-        Server.confPeerSockAddr = peersa
+        Server.confPeerSockAddr = peersa,
+        HTTP2.confReadNTimeout = False
       }
 
 testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()

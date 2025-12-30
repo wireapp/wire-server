@@ -81,7 +81,7 @@ import Data.Aeson hiding (Error)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Char8 qualified as BS
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion as BSC
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Domain
 import Data.Handle (Handle)
@@ -101,6 +101,7 @@ import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode, statusMessage)
 import Network.Wai.Utilities (Error (..), mkError)
+import Network.Wai.Utilities.Exception
 import Servant.API
 import Servant.Client qualified as SC
 import Servant.Server qualified as SS
@@ -196,7 +197,7 @@ getUserConnections uid = do
       parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
-getUsersConnections :: List UserId -> Handler [ConnectionStatus]
+getUsersConnections :: BSC.List UserId -> Handler [ConnectionStatus]
 getUsersConnections uids = do
   info $ msg "Getting user connections"
   b <- asks (.brig)
@@ -1063,7 +1064,7 @@ runClientToHandler :: SC.ClientM a -> Handler a
 runClientToHandler client = do
   clientEnv <- asks (.brigServantClientEnv)
   res <- liftIO $ SC.runClientM client clientEnv
-  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayException) pure res
+  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayExceptionNoBacktrace) pure res
 
 domRegLock :: Domain -> SC.ClientM NoContent
 domRegUnlock :: Domain -> SC.ClientM NoContent

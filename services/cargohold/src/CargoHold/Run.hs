@@ -94,7 +94,7 @@ mkApp o = Codensity $ \k ->
       versionMiddleware (foldMap expandVersionExp o.settings.disabledAPIVersions)
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
-        . GZip.gzip GZip.def
+        . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName
     servantApp :: Env -> Application
     servantApp e0 r cont = do

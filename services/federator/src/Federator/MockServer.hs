@@ -137,7 +137,7 @@ mockInternalRequest ::
 mockInternalRequest remoteCalls mock targetDomain component (RPC path) req cont = do
   domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
   originDomain <- parseDomain domainTxt
-  reqBody <- embed $ Wai.lazyRequestBody req
+  reqBody <- embed $ Wai.strictRequestBody req
   let fedRequest =
         ( FederatedRequest
             { frOriginDomain = originDomain,

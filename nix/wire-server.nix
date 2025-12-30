@@ -422,7 +422,9 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    pkgs.ormolu
+    # FUTUREWORK: we are temporarily using the old ormolu version to prevent the noise of reformatting a lot of code
+    # upgrade ormolu and reformat in a follow up PR
+    pkgs.haskell.packages.ghc98.ormolu
     pkgs.vacuum-go
     pkgs.shellcheck
     pkgs.treefmt
@@ -439,10 +441,11 @@ let
   # nicely in docker.nix at the root of https://github.com/nixos/nix. We get
   # this file using "${pkgs.nix.src}/docker.nix" so we don't have to also pin
   # the nix repository along with the nixpkgs repository.
-  ciImage = import "${pkgs.nix.src}/docker.nix" {
+  ciImage = import "${pkgs.nixVersions.latest.src}/docker.nix" {
     inherit pkgs;
     name = "quay.io/wire/wire-server-ci";
     maxLayers = 2;
+    nix = pkgs.nixVersions.latest;
     # We don't need to push the "latest" tag, every step in CI should depend
     # deterministically on a specific image.
     tag = null;
@@ -498,12 +501,12 @@ in
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "98" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
       pkgs.niv
-      pkgs.haskellPackages.apply-refact
+      pkgs.haskell.packages.ghc912.apply-refact
       (pkgs.python3.withPackages
         (ps: with ps; [
           black

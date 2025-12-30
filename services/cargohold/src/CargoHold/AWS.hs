@@ -41,6 +41,7 @@ import CargoHold.API.Error
 import CargoHold.CloudFront
 import CargoHold.Options hiding (cloudFront, s3Bucket)
 import Conduit
+import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Retry
@@ -151,16 +152,14 @@ instance Exception Error
 -- Utilities
 
 sendCatch ::
-  (MonadCatch m, AWSRequest r, MonadResource m, Typeable r, Typeable (AWSResponse r)) =>
+  (MonadCatch m, AWSRequest r, MonadResource m) =>
   AWS.Env ->
   r ->
   m (Either AWS.Error (AWSResponse r))
-sendCatch env = AWS.trying AWS._Error . AWS.send env
+sendCatch env = trying AWS._Error . AWS.send env
 
 exec ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r,
     MonadLogger m,
     MonadIO m,
@@ -190,8 +189,6 @@ rethrowError e = case e of
 
 execStream ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r
   ) =>
   Env ->
@@ -213,8 +210,6 @@ execStream env request = do
 
 execCatch ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r,
     MonadLogger m,
     MonadIO m

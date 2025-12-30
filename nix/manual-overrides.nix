@@ -14,7 +14,7 @@ hself: hsuper: {
   # tests need network access, cabal2nix disables haddocks
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
 
-  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
+  quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
 
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
@@ -25,7 +25,7 @@ hself: hsuper: {
   hasql = hlib.dontCheck hsuper.hasql;
   hasql-pool = hlib.dontCheck hsuper.hasql-pool;
   hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_0_1;
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction; # users 1.2.1 from nixpkgs
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
 
   # ---------------------
@@ -37,6 +37,10 @@ hself: hsuper: {
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   postie = hlib.doJailbreak hsuper.postie;
+  lrucaching = hlib.doJailbreak (hlib.markUnbroken hsuper.lrucaching);
+  # added servant-openapi3 because the version bounds of some dependent packages
+  # of our pin exclude the versions in our current nixpkgs
+  servant-openapi3 = hlib.doJailbreak (hlib.dontCheck hsuper.servant-openapi3);
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -53,13 +57,18 @@ hself: hsuper: {
       }
     )));
 
+  # hs-opentelemetry pin removal bumps API -> 0.3.0.0 and SDK -> 0.1.0.1 from the pinned commit; instrumentation stays at 0.1.1.0/0.1.0.1.
+  hs-opentelemetry-instrumentation-wai = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-wai);
+  hs-opentelemetry-instrumentation-conduit = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-conduit);
+  hs-opentelemetry-instrumentation-http-client = hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-http-client;
+  hs-opentelemetry-utils-exceptions = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-utils-exceptions);
+
   # ------------------------------------
   # okay but marked broken (nixpkgs bug)
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
   system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
-  lrucaching = hlib.markUnbroken hsuper.lrucaching;
 
   # -----------------
   # version overrides
@@ -72,7 +81,7 @@ hself: hsuper: {
   Cabal = hsuper.Cabal_3_12_1_0;
   Cabal-syntax = hsuper.Cabal-syntax_3_14_2_0;
 
-  text-builder = hlib.doJailbreak (hsuper.text-builder_1_0_0_4);
+  text-builder = hlib.doJailbreak hsuper.text-builder; # uses 1.0.0.4 from nixpkgs
 
   # -----------------
   # flags and patches

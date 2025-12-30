@@ -110,7 +110,7 @@ spec = describe "API" $ do
                 <> "</body>"
                 <> "</html>"
           Right (SomeSAMLRequest -> doc) = XML.parseText XML.def have
-          spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%%|]
+          spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%25%25|]
       (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (FormRedirect spuri doc)) `shouldBe` Right want
 
   describe "simpleVerifyAuthnResponse" $ do

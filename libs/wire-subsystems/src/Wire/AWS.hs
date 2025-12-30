@@ -22,6 +22,7 @@ module Wire.AWS where
 import Amazonka qualified as AWS
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
+import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -123,7 +124,7 @@ mkEnv lgr mgr endpoint qname = do
     getQueueUrl e q = do
       x <-
         runResourceT $
-          AWS.trying AWS._Error $
+          trying AWS._Error $
             AWS.send e (SQS.newGetQueueUrl q)
       either
         (throwM . GeneralError)
@@ -150,26 +151,21 @@ enqueue ev = do
 sendCatch ::
   ( Member (Embed IO) r,
     Member (Input AWS.Env) r,
-    AWS.AWSRequest req,
-    Typeable req,
-    Typeable (AWS.AWSResponse req)
+    AWS.AWSRequest req
   ) =>
   req ->
   Sem r (Either AWS.Error (AWS.AWSResponse req))
 sendCatch req = do
   env <- input
-  embed $ runResourceT (AWS.trying AWS._Error (AWS.send env req))
+  embed $ runResourceT (trying AWS._Error (AWS.send env req))
 
 -- Amazon monad variant
 sendCatchEnv ::
-  ( AWS.AWSRequest r,
-    Typeable r,
-    Typeable (AWS.AWSResponse r)
-  ) =>
+  (AWS.AWSRequest r) =>
   AWS.Env ->
   r ->
   Amazon (Either AWS.Error (AWS.AWSResponse r))
-sendCatchEnv e = AWS.trying AWS._Error . AWS.send e
+sendCatchEnv e = trying AWS._Error . AWS.send e
 
 canRetry :: Either AWS.Error a -> Bool
 canRetry (Right _) = False

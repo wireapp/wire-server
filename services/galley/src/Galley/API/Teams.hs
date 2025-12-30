@@ -61,8 +61,8 @@ import Brig.Types.Team (TeamSize (..))
 import Cassandra (PageWithState (pwsResults), pwsHasMore)
 import Cassandra qualified as C
 import Control.Lens
-import Data.ByteString.Conversion (List, toByteString)
-import Data.ByteString.Conversion qualified
+import Data.ByteString.Conversion (toByteString)
+import Data.ByteString.Conversion qualified as BSC
 import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.HashMap.Strict qualified as HM
@@ -1040,7 +1040,7 @@ setSearchVisibility availableForTeam luid tid req = do
 withTeamIds ::
   (Member TeamStore r, Member (ListItems LegacyPaging TeamId) r) =>
   UserId ->
-  Maybe (Either (Range 1 32 (List TeamId)) TeamId) ->
+  Maybe (Either (Range 1 32 (BSC.List TeamId)) TeamId) ->
   Range 1 100 Int32 ->
   (Bool -> [TeamId] -> Sem r a) ->
   Sem r a
@@ -1052,7 +1052,7 @@ withTeamIds usr range size k = case range of
     r <- E.listItems usr (Just c) (rcast size)
     k (resultSetType r == ResultSetTruncated) (resultSetResult r)
   Just (Left (fromRange -> cc)) -> do
-    ids <- E.selectTeams usr (Data.ByteString.Conversion.fromList cc)
+    ids <- E.selectTeams usr (BSC.fromList cc)
     k False ids
 {-# INLINE withTeamIds #-}
 

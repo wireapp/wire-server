@@ -37,6 +37,7 @@ import qualified Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Streaming.Network
 import Data.String.Conversions (cs)
+import Data.Type.Equality
 import Network.HTTP.Types
 import Network.Socket
 import qualified Network.Socket as Socket

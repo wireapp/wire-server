@@ -147,6 +147,8 @@ let
 
     # missing upstream PR, this will get removed when completing
     # servantification
+    #
+    # this is currently still used/needed in the proxy service 
     wai-predicates = {
       src = fetchgit {
         url = "https://github.com/wireapp/wai-predicates";
@@ -218,49 +220,19 @@ let
       src = pkgs.fetchFromGitHub {
         owner = "yesodweb";
         repo = "wai";
-        rev = "8b20c9db265a202a2c7ba2a9ec8786a1ee59957b";
-        hash = "sha256-fKUSiRl38FKY1gFSmbksktoqoLfQrDxRRWEh4k+RRW4=";
+        rev = "ef34334b160c74b62435ccc21f5b458f73506b2f";
+        hash = "sha256-7rgZUimPJY+0yVN717pZ2Ep01+XB0z8C/+L9D3Qz9/k=";
       };
     };
 
-    # this contains an important fix to the initialization of the window size
-    # and should be switched to upstream as soon as we can
-    # version = "5.2.5";
-    # This patch also includes suppressing ConnectionIsClosed
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
-        rev = "45653e3caab0642e539fab2681cb09402aae29ca";
-        hash = "sha256-L90PQtDw/JFwyltSVFvmfjTAb0ZLhFt9Hl0jbzn+cFQ=";
+        rev = "ca606d86ed304fa780f7a60d11244019c62a10e0";
+        hash = "sha256-eyjFtB28JCcvItZ5R8CT2F5GL62c49oQ49AN8/4HSYw=";
       };
     };
 
-    # hs-opentelemetry-* has not been released for a while on hackage. Thus,
-    # we're following main.
-    hs-opentelemetry = {
-      src = fetchgit {
-        url = "https://github.com/iand675/hs-opentelemetry";
-        rev = "ee8a6dad7db306eb67748ddcd77df4974ad8259e";
-        hash = "sha256-UirBRxY9gAv5x/t87RZcWCy6GtsigzFMABKqrhS9b7s=";
-      };
-      packages = {
-        hs-opentelemetry-sdk = "sdk";
-        hs-opentelemetry-api = "api";
-        hs-opentelemetry-propagator-datadog = "propagators/datadog";
-        hs-opentelemetry-instrumentation-http-client = "instrumentation/http-client";
-        hs-opentelemetry-instrumentation-wai = "instrumentation/wai";
-        hs-opentelemetry-exporter-otlp = "exporters/otlp";
-        hs-opentelemetry-utils-exceptions = "utils/exceptions";
-      };
-    };
-
-    HaskellNet = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/HaskellNet";
-        rev = "74cde03b4beb09794a6120ea5321a09430bcd2c7";
-        hash = "sha256-VIM60sXCVC25ULf/2yPvqANK/h9BY6dEYY3o3/xiEEQ=";
-      };
-    };
 
     # Our fork of 2.0.0. This release hasn't been updated for a while and Nix
     # is bad in coping with Hackage patched revisions and overriding
@@ -269,16 +241,20 @@ let
     # N.B. only the listed packages work. If you want to use another:
     # - list it here
     # - patch it on the fork (if required)
+    # 
+    # Can't currently be removed because amazonka-dynamodb-attributevalue
+    # does not exist on hackage
     amazonka = {
       src = fetchgit {
-        url = "https://github.com/wireapp/amazonka";
-        rev = "d98cefc04bcc7076a915076a322ab5905c6a4945";
-        hash = "sha256-8HNHoTUaLi5lyOrKYybacZsDSHrju9/oo+Lf/YulbIo=";
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "a7d699be1076e2aad05a1930ca3937ffea954ad8";
+        hash = "sha256-cCRhHH/IgM7tPy8rXHTSRec1zxohO8NWxSVZEG1OjQw=";
       };
       packages = {
         amazonka = "lib/amazonka";
         amazonka-core = "lib/amazonka-core";
         amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+        amazonka-dynamodb-attributevalue = "lib/amazonka-dynamodb-attributevalue";
         amazonka-s3 = "lib/services/amazonka-s3";
         amazonka-sts = "lib/services/amazonka-sts";
         amazonka-sqs = "lib/services/amazonka-sqs";
@@ -294,41 +270,18 @@ let
   hackagePins = {
     # start pinned dependencies for http2
     http-semantics = {
-      version = "0.1.2";
-      sha256 = "sha256-S4rGBCIKVPpLPumLcVzrPONrbWm8VBizqxI3dXNIfr0=";
-    };
-
-    tasty-ant-xml = {
-      version = "1.1.9";
-      sha256 = "sha256-aB7B61XSAZ5V+uW+QBe/PKBmhdFfX3OoOjDE9jB7Mek=";
+      version = "0.4.0";
+      sha256 = "sha256-rh0z51EKvsu5rQd5n2z3fSRjjEObouNZSBPO9NFYOF0=";
     };
 
     network-run = {
-      version = "0.3.0";
-      sha256 = "sha256-FP2GZKwacC+TLLwEIVgKBtnKplYPf5xOIjDfvlbQV0o=";
+      version = "0.5.0";
+      sha256 = "sha256-vbXh+CzxDsGApjqHxCYf/ijpZtUCApFbkcF5gyN0THU=";
     };
+
     time-manager = {
-      version = "0.1.0";
-      sha256 = "sha256-WRe9LZrOIPJVBFk0vMN2IMoxgP0a0psQCiCiOFWJc74=";
-    };
-    hasql = {
-      version = "1.9.1.2";
-      sha256 = "sha256-W2pAC3wLIizmbspWHeWDQqb5AROtwA8Ok+lfZtzTlQg=";
-    };
-
-    hasql-pool = {
-      version = "1.3.0.1";
-      sha256 = "sha256-TtNrs1z8L39WnX8277V97g9Ot1DwutKLrAB1JOjQQoQ=";
-    };
-
-    postgresql-syntax = {
-      version = "0.4.1.3";
-      sha256 = "sha256-afC4lQUPUL5cHe+7vTG1lFZ4wWyQzdh9MEhMT/TtP5c=";
-    };
-
-    network-control = {
-      version = "0.1.0";
-      sha256 = "sha256-D6pKb6+0Pr08FnObGbXBVMv04ys3N731p7U+GYH1oEg=";
+      version = "0.2.4";
+      sha256 = "sha256-sAt/331YLQ2IU3z90aKYSq1nxoazv87irsuJp7ZG3pw=";
     };
     # end pinned dependencies for http2
 
@@ -338,6 +291,12 @@ let
     amazonka-s3-streaming = {
       version = "2.0.0.0";
       sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
+    };
+
+    # Pin uri-bytestring: newer parser rejects unescaped Set-Cookie in SSO mobile redirect query, breaking Spar’s URI substitution; stick to 0.3.3.1 for now
+    uri-bytestring = {
+      version = "0.3.3.1";
+      sha256 = "sha256-jgSTBBDcxRQ0tjs0wTyvEpEAkGA7npJKjdXDT81VpT4=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv

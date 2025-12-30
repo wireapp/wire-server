@@ -102,7 +102,7 @@ mkApp opts =
             . servantPrometheusMiddleware (Proxy @CombinedAPI)
             . otelMiddleware
             . GZip.gunzip
-            . GZip.gzip GZip.def
+            . GZip.gzip GZip.defaultGzipSettings
             . catchErrors logger defaultRequestIdHeaderName
     Codensity \k ->
       k () `finally` do
