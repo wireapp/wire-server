@@ -37,6 +37,7 @@ executable entreprise-provisioning
     , types-common
     , uuid
     , vector
+    , wai-utilities
     , wire-api
 
   ghc-options:

@@ -354,7 +354,7 @@ getRemoteConversationsWithFailures lusr convs = do
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
-          . Logger.field "error" (show e)
+          . Logger.field "error" (displayException e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
     handleFailure (Right c) = pure . Right . traverse (.convs) $ c
 
@@ -606,8 +606,7 @@ getSelfMember lusr cnv = do
       pure $ Just $ conv.cnvMembers.cmSelf
 
 getLocalSelf ::
-  ( Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   ConvId ->
   Sem r (Maybe Public.Member)

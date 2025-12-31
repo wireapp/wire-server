@@ -159,8 +159,8 @@ rejectOnError p x = do
 ioErrors :: (MonadLogger m) => Key -> [Handler m ()]
 ioErrors k =
   let f s = Logger.err $ client (key2bytes k) . msg s
-   in [ Handler $ \(x :: HandshakeException) -> f (show x),
-        Handler $ \(x :: IOException) -> f (show x)
+   in [ Handler $ \(x :: HandshakeException) -> f (displayException x),
+        Handler $ \(x :: IOException) -> f (displayException x)
       ]
 
 ping :: Message

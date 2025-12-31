@@ -64,7 +64,7 @@ interpretClientToIO ctx = interpret $ \case
           . SAML.CustomError
           . SparCassandraError
           . LText.pack
-          . show @SomeException
+          . displayException @SomeException
     pure $ action' `Catch.catch` \e -> handler' $ e <$ st
 
 ttlErrorToSparError :: (Member (Error SparError) r) => Sem (Error TTLError ': r) a -> Sem r a

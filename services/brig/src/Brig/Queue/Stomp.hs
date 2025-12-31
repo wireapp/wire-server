@@ -166,7 +166,7 @@ listen b q callback =
       Log.err $
         msg (val "Exception when listening to a STOMP queue")
           ~~ field "queue" (show q)
-          ~~ field "error" (show e)
+          ~~ field "error" (displayException e)
       pure True
 
 -- Note [exception handling]

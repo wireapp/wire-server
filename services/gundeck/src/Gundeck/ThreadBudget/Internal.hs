@@ -308,5 +308,5 @@ safeForever ::
 safeForever action =
   forever $
     action `catchAny` \exc -> do
-      LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "watchThreadBudgetState: crashed; retrying")
+      LC.err $ "error" LC..= displayException exc LC.~~ LC.msg (LC.val "watchThreadBudgetState: crashed; retrying")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable

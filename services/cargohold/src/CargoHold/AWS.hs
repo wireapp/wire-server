@@ -175,7 +175,7 @@ exec env request = do
     Left err -> do
       Logger.info env.logger $
         Log.field "remote" (Log.val "S3")
-          ~~ Log.msg (show err)
+          ~~ Log.msg (displayException err)
           ~~ Log.msg (show req)
       -- We re-throw the error, but distinguish between user errors and server
       -- errors. Logging it here also gives us the request that caused it.
@@ -201,7 +201,7 @@ execStream env request = do
     Left err -> do
       Logger.info env.logger $
         Log.field "remote" (Log.val "S3")
-          ~~ Log.msg (show err)
+          ~~ Log.msg (displayException err)
           ~~ Log.msg (show req)
       -- We just re-throw the error, but logging it here also gives us the request
       -- that caused it.
@@ -224,7 +224,7 @@ execCatch env request = do
     Left err -> do
       Log.info $
         Log.field "remote" (Log.val "S3")
-          ~~ Log.msg (show err)
+          ~~ Log.msg (displayException err)
           ~~ Log.msg (show req)
       pure Nothing
     Right r -> pure $ Just r

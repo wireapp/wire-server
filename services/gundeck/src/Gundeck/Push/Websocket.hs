@@ -125,7 +125,7 @@ logBadCannons (uri, (err, prcs)) = do
         ~~ Log.field "created_at" (ms $ createdAt prc)
         ~~ Log.field "cannon_uri" (show uri)
         ~~ Log.field "resource_target" (show $ resource prc)
-        ~~ Log.field "http_exception" (intercalate " | " . lines . show $ err)
+        ~~ Log.field "http_exception" (intercalate " | " . lines . displayException $ err)
         ~~ Log.msg (val "WebSocket presence unreachable: ")
 
 logPrcsGone :: (Log.MonadLogger m) => Presence -> m ()
@@ -327,7 +327,7 @@ push notif (toList -> tgts) originUser originConn conns = do
         <$> runWithDefaultRedis (Presence.listAll (view targetUser <$> tgts))
     noPresences exn = do
       Log.err $
-        Log.field "error" (show exn)
+        Log.field "error" (displayException exn)
           ~~ Log.msg (val "Failed to get presences.")
       pure []
     filterByClient = map $ \(tgt, ps) ->

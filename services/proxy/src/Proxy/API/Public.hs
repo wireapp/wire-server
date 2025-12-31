@@ -134,7 +134,7 @@ proxy qparam keyname reroute path phost rq k = do
 
     onUpstreamError :: (Proxy () -> IO a) -> SomeException -> p -> (Response -> IO b) -> IO b
     onUpstreamError runInIO x _ next = do
-      void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
+      void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (displayException x))
       next (errorRs error502)
 
     waiProxyResponse :: Env -> Request -> ProxyDest -> WaiProxyResponse

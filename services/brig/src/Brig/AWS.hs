@@ -182,7 +182,7 @@ listen throttleMillis url callback = forever . handleAny unexpectedError $ do
           liftIO $ callback n
           for_ (m ^. SQS.message_receiptHandle) (void . send . SQS.newDeleteMessage url)
     unexpectedError x = do
-      err $ "error" .= show x ~~ msg (val "Failed to read or process message from SQS")
+      err $ "error" .= displayException x ~~ msg (val "Failed to read or process message from SQS")
       threadDelay 3000000
 
 enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse

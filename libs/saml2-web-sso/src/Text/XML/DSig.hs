@@ -42,7 +42,7 @@ module Text.XML.DSig
 where
 
 import Control.Arrow.ArrowTree qualified as Arr
-import Control.Exception (ErrorCall (ErrorCall), SomeException, handle, throwIO, try)
+import Control.Exception (ErrorCall (ErrorCall), SomeException, displayException, handle, throwIO, try)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Except
@@ -225,7 +225,7 @@ verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String
 verify creds el sid = case unsafePerformIO (try @SomeException $ verifyIO creds el sid) of
   Right (_, Right xml) -> pure xml
   Right (_, Left exc) -> throwError $ show exc
-  Left exc -> throwError $ show exc
+  Left exc -> throwError $ displayException exc
 
 -- | Convenient wrapper that picks the ID of the root element node and passes it to `verify`.
 verifyRoot :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> m HXTC.XmlTree
@@ -272,7 +272,7 @@ verifySignatureUnenvelopedSigs :: HS.PublicKeys -> String -> HXTC.XmlTree -> IO 
 verifySignatureUnenvelopedSigs pks xid doc = catchAll $ warpResult <$> verifySignature pks xid doc
   where
     catchAll :: IO (Either HS.SignatureError a) -> IO (Either HS.SignatureError a)
-    catchAll = handle $ pure . Left . HS.SignatureVerificationLegacyFailure . Left . (show @SomeException)
+    catchAll = handle $ pure . Left . HS.SignatureVerificationLegacyFailure . Left . (displayException @SomeException)
 
     warpResult :: Maybe HXTC.XmlTree -> Either HS.SignatureError HXTC.XmlTree
     warpResult (Just xml) = Right xml
@@ -413,7 +413,7 @@ signRootAt sigPos (SignPrivCreds hashAlg (SignPrivKeyRSA keypair)) doc =
                      }
                  ]
     docCanonic :: SBS <-
-      either (throwError . show) (pure . cs) . unsafePerformIO . try @SomeException $
+      either (throwError . displayException) (pure . cs) . unsafePerformIO . try @SomeException $
         HS.applyTransforms transforms (HXT.mkRoot [] [docInHXT])
     let digest :: SBS
         digest = case hashAlg of
@@ -437,7 +437,7 @@ signRootAt sigPos (SignPrivCreds hashAlg (SignPrivKeyRSA keypair)) doc =
     -- (note that there are two rounds of SHA256 application, hence two mentions of the has alg here)
 
     signedInfoSBS :: SBS <-
-      either (throwError . show) (pure . cs) . unsafePerformIO . try @SomeException $
+      either (throwError . displayException) (pure . cs) . unsafePerformIO . try @SomeException $
         HS.applyCanonicalization (HS.signedInfoCanonicalizationMethod signedInfo) Nothing $
           HS.samlToDoc signedInfo
     sigval :: SBS <-

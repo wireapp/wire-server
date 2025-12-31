@@ -34,6 +34,7 @@ import Data.Vector qualified as V
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import Types
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -85,7 +86,7 @@ createChannel manager (ApiUrl apiUrl) (Token token) userId teamId channelName = 
   result <- try $ httpLbs request manager
   case result of
     Left (e :: HttpException) ->
-      pure $ Left $ ErrorDetail 0 (object ["error" .= show e])
+      pure $ Left $ ErrorDetail 0 (object ["error" .= displayExceptionNoBacktrace e])
     Right resp ->
       let respStatus = statusCode (responseStatus resp)
        in case respStatus of
@@ -130,7 +131,7 @@ associateChannelsToGroup manager (ApiUrl apiUrl) (Token token) userId groupId co
   result <- try $ httpLbs request manager
   case result of
     Left (e :: HttpException) ->
-      pure $ Left $ ErrorDetail 0 (object ["error" .= show e])
+      pure $ Left $ ErrorDetail 0 (object ["error" .= displayExceptionNoBacktrace e])
     Right resp ->
       case statusCode (responseStatus resp) of
         200 -> pure $ Right ()
