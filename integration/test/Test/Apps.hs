@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import qualified API.Galley as Galley
 import SetupHelpers
 import Testlib.Prelude
 
@@ -102,9 +103,25 @@ testCreateApp = do
   memberName <- regularMember %. "name" & asString
   foundUserType memberName "regular"
 
--- XXX: Why is owner not found?
--- ownerName <- owner %. "name" & asString
--- foundUserType ownerName "regular"
+  -- XXX: Why is owner not found?
+  -- ownerName <- owner %. "name" & asString
+  -- foundUserType ownerName "regular"
+
+
+  -- GET /one2one-conversations/{usr_domain}/{usr}
+  Galley.getMLSOne2OneConversation regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+  -- Response: 403, "not-connected", "Users are not connected"
+
+  -- POST /mls/key-packages/claim/{user_domain}/{user}
+  claimKeyPackages def regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+  -- Response: 500, "server-error", "Internal Server Error"
+
+  -- POST /connections/{uid_domain}/{uid}
+  postConnection regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+  -- Response: 404, "not-found", "User not found"
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do

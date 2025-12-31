@@ -409,8 +409,15 @@ getMLSOne2OneConversation ::
   self ->
   other ->
   App Response
-getMLSOne2OneConversation self other = do
-  (domain, uid) <- objQid other
+getMLSOne2OneConversation self other = uncurry (getMLSOne2OneConversation_ self) =<< objQid other
+
+getMLSOne2OneConversation_ ::
+  MakesValue user =>
+  user ->
+  String ->
+  String ->
+  App Response
+getMLSOne2OneConversation_ self domain uid = do
   req <-
     baseRequest self Galley Versioned
       $ joinHttpPath ["one2one-conversations", domain, uid]
