@@ -1,0 +1,1 @@
+Make Swagger schema instances for `GET /search/results` and `GET /teams/{tid}/search` distinct
