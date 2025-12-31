@@ -455,7 +455,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
   notfs <-
     ( Intra.getUserNotifications uid (fromMaybe 100 mMaxNotifs)
         <&> toJSON @[QueuedNotification]
-      )
+    )
       `catchE` (pure . String . T.pack . show)
 
   -- galeb

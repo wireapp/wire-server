@@ -441,19 +441,19 @@ mkNameID nid@(UNameIDEntity uri) m1 m2 m3 = do
   mapM_ throwError $
     [ "mkNameID: nameIDNameQ, nameIDSPNameQ, nameIDSPProvidedID MUST be omitted for entity NameIDs."
         <> show [m1, m2, m3]
-      | all isJust [m1, m2, m3]
+    | all isJust [m1, m2, m3]
     ]
       <> [ "mkNameID: entity URI too long: "
              <> show uritxt
-           | uritxt <- [renderURI uri],
-             ST.length uritxt > 1024
+         | uritxt <- [renderURI uri],
+           ST.length uritxt > 1024
          ]
   pure $ NameID nid Nothing Nothing Nothing
 mkNameID nid@(UNameIDPersistent txt) m1 m2 m3 = do
   mapM_ throwError $
     [ "mkNameID: persistent text too long: "
         <> show (nid, ST.length txt)
-      | ST.length txt > 1024
+    | ST.length txt > 1024
     ]
   pure $ NameID nid m1 m2 m3
 mkNameID nid m1 m2 m3 = do

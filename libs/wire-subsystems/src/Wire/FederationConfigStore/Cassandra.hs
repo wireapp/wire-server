@@ -47,8 +47,7 @@ import Wire.FederationConfigStore
 -- In the future the config file will be removed and the database will be the only source of truth.
 interpretFederationDomainConfig ::
   forall r a.
-  ( Member (Embed IO) r
-  ) =>
+  (Member (Embed IO) r) =>
   ClientState ->
   Maybe FederationStrategy ->
   Map Domain FederationDomainConfig ->

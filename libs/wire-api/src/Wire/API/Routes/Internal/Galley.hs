@@ -119,8 +119,7 @@ type InternalAPI = "i" :> InternalAPIBase
 type InternalAPIBase =
   Named
     "status"
-    ( "status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ()
-    )
+    ("status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ())
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     :<|> Named
