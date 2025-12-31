@@ -855,10 +855,10 @@ searchLocally searcher searchTerm maybeMaxResults = do
           contactHandle = Handle.fromHandle <$> userDoc.udHandle,
           contactTeam = userDoc.udTeam,
           contactType = fromMaybe UserTypeRegular userDoc.udType -- default to "regular" when missing. All apps should have this set.
-          -- ^ XXX: For the above, to handle the legacy case of bots
-          -- already part of ES index, either test botness here
-          -- somehow, or add "requires full reindex" when deploying.
         }
+    -- \^ XXX: For the above, to handle the legacy case of bots
+    -- already part of ES index, either test botness here
+    -- somehow, or add "requires full reindex" when deploying.
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = do
