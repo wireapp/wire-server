@@ -515,7 +515,7 @@ assertMatchChan c match = go []
             match n
             refill buf
             `catchAll` \e -> case asyncExceptionFromException e of
-              Just x -> error $ show (x :: SomeAsyncException)
+              Just x -> error $ displayException (x :: SomeAsyncException)
               Nothing -> go (n : buf)
         Nothing -> do
           refill buf
@@ -550,8 +550,7 @@ errWith wantStatus wantBody rsp = liftIO $ do
   assertEqual "" wantStatus (statusCode rsp)
   assertBool
     (show $ responseBody rsp)
-    ( maybe False wantBody (responseJsonMaybe rsp)
-    )
+    (maybe False wantBody (responseJsonMaybe rsp))
 
 ------------------------------------
 

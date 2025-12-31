@@ -310,5 +310,5 @@ logError a m exn =
   Log.err $
     field "user" (toByteString (a ^. addrUser))
       ~~ field "arn" (toText (a ^. addrEndpoint))
-      ~~ field "error" (show exn)
+      ~~ field "error" (displayException exn)
       ~~ msg m

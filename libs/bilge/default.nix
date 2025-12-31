@@ -26,6 +26,7 @@
 , uri-bytestring
 , wai
 , wai-extra
+, wai-utilities
 , wire-otel
 }:
 mkDerivation {
@@ -54,6 +55,7 @@ mkDerivation {
     uri-bytestring
     wai
     wai-extra
+    wai-utilities
     wire-otel
   ];
   description = "Library for composing HTTP requests";

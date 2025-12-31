@@ -52,6 +52,7 @@ import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities as Wai
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
@@ -460,10 +461,10 @@ getUserData uid mMaxConvs mMaxNotifs = do
   -- galeb
   consent <-
     (Intra.getUserConsentValue uid <&> toJSON @ConsentValue)
-      `catchE` (pure . String . T.pack . show)
+      `catchE` (pure . String . T.pack . displayExceptionNoBacktrace)
   consentLog <-
     (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
-      `catchE` (pure . String . T.pack . show)
+      `catchE` (pure . String . T.pack . displayExceptionNoBacktrace)
   let em = userEmail account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
@@ -471,7 +472,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
       (pure $ toJSON noEmail)
       ( \e ->
           (Intra.getMarketoResult e <&> toJSON)
-            `catchE` (pure . String . T.pack . show)
+            `catchE` (pure . String . T.pack . displayExceptionNoBacktrace)
       )
       em
   pure . UserMetaInfo . KeyMap.fromList $

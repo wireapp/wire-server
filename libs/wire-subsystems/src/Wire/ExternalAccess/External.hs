@@ -188,7 +188,7 @@ deliver env pp = mapM (Async.async . exec) pp >>= foldM evaluate [] . zip (map f
             field "provider" (toByteString (s ^. serviceRefProvider))
               ~~ field "service" (toByteString (s ^. serviceRefId))
               ~~ field "bot" (toByteString (botMemId b))
-              ~~ field "error" (show ex)
+              ~~ field "error" (displayException ex)
               ~~ msg (val "External delivery failure")
           pure gone
         Nothing -> do

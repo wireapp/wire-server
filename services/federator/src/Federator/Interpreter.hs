@@ -209,4 +209,4 @@ getFederationDomainConfigs env = do
       clientEnv = mkClientEnv mgr baseurl
   FedUp.getFederationDomainConfigs clientEnv >>= \case
     Right v -> pure v
-    Left e -> error $ show e
+    Left e -> error $ displayException e
