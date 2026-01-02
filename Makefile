@@ -96,6 +96,10 @@ c: treefmt c-fast
 
 .PHONY: c
 c-fast:
+	if [ ! -e "cabal.project.local" ]; then \
+	  echo "'cabal.project.local' not found. please run 'make cabal.project.local' and tweak the output to your liking."
+	  exit 1; \
+	fi
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
