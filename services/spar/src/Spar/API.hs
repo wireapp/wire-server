@@ -803,6 +803,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
 -- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
   ( Member Random r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
     Member GalleyAccess r,
     Member BrigAccess r,
@@ -823,6 +824,7 @@ idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
 
 idpUpdateXML ::
   ( Member Random r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Logger String) r,
     Member GalleyAccess r,
     Member BrigAccess r,
@@ -857,6 +859,15 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   BrigAccess.sendSAMLIdPChangedEmail $ IdPUpdated previousIdP idp''
+  let (removedCerts, newCerts) = compareNonEmpty (previousIdP ^. SAML.idpMetadata . SAML.edCertAuthnResponse) (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+  Logger.info $
+    Log.msg ("IdP updated" :: String)
+      . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
+      . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
+      . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
+      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
+      . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
   pure idp''
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -877,6 +888,14 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
               idps
       when otherIdpsOnSameDomain $
         throwSparSem SparIdPDomainInUse
+
+    compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
+    compareNonEmpty xs ys =
+      let l = nub . toList $ xs
+          r = nub . toList $ ys
+          onlyL = l \\ r
+          onlyR = r \\ l
+       in (onlyL, onlyR)
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as
