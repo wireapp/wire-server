@@ -29,7 +29,6 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Imports
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -497,9 +496,9 @@ testBrigSCIMPromotedResendVerificationEmail = do
   -- 7. Alice tries to resend verification for B (client side)
   -- This should now succeed (202) despite being managed-by-scim, because it is a resend of pending email
   updateEmail alice newEmail cookie token `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 400 -- or something; also check error label.
+    resp.status `shouldMatchInt` 403 -- or something; also check error label.
   updateEmail alice aliceEmail cookie token `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200 -- or 4xx?
+    resp.status `shouldMatchInt` 204
 
 -- (TODO: there may be a refresh problem in team-management here: if
 -- scim updates the user, team-management may not notice.)
