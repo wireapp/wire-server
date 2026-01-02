@@ -135,7 +135,7 @@ ssoIdentity _ = Nothing
 --------------------------------------------------------------------------------
 -- UserSSOId
 
--- | User's external identity.
+-- | User's external identity (both SAML idpid, nameid, and SCIM externalId)
 --
 -- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
 -- deserialiation is more lenient: it also allows for the `Issuer` to be a plain URL (without

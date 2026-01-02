@@ -735,7 +735,7 @@ updateVsuUref team uid old new = do
   ScimExternalIdStore.insert team new.validScimIdExternal uid
   for_ (justThere new.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
-  BrigAccess.setSSOId uid $ veidToUserSSOId new
+  BrigAccess.setSSOId uid $ veidToUserSSOId new -- TODO: theory: this doesn't remove the old email update verification token.
 
 toScimStoredUser ::
   (HasCallStack) =>

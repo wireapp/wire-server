@@ -185,7 +185,7 @@ updateSSOId u ssoid = do
   mteamid <- lookupUserTeam u
   case mteamid of
     Just _ -> do
-      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u)) -- TODO: why is this not asking team member for address verification, even with feature flag enabled?
       pure True
     Nothing -> pure False
 

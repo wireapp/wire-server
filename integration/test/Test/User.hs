@@ -29,6 +29,7 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Imports
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -489,11 +490,23 @@ testBrigSCIMPromotedResendVerificationEmail = do
             "name" .= object ["familyName" .= ("User" :: String), "givenName" .= ("Alice" :: String)]
           ]
 
-  -- Try to update user via SCIM. This should set managed_by=scim.
+  -- Try to update user via SCIM. This should set managed_by=scim.  (`GET .../Users` would have the same effect.)
   bindResponse (Spar.updateScimUser owner scimToken aliceId scimUser) $ \resp -> do
     resp.status `shouldMatchOneOf` [Number 200, Number 201, Number 204]
 
   -- 7. Alice tries to resend verification for B (client side)
   -- This should now succeed (202) despite being managed-by-scim, because it is a resend of pending email
   updateEmail alice newEmail cookie token `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 202
+    resp.status `shouldMatchInt` 400 -- or something; also check error label.
+  updateEmail alice aliceEmail cookie token `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200 -- or 4xx?
+
+-- (TODO: there may be a refresh problem in team-management here: if
+-- scim updates the user, team-management may not notice.)
+
+-- relevant end-points that we may want to test:
+-- https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/accept-team-invitation  (should not work any more, or be a noop, not sure)
+-- https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/head-team-invitations
+-- https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-team-invitation-info
+-- https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/browse-team
+-- https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-team-member
