@@ -74,8 +74,8 @@ ifeq ("$(package)", "all")
 else
 	-if ( test -e dist || test -e dist-newstyle ); then  find dist* -type d -name '$(package)-*' -exec rm -rf {}; fi
 endif
-  # `/dist` shouldn't be created or used by anybody any more, we're just making sure here.
-	-rm -rf dist
+  # `/dist` and `.ghc.environment` shouldn't be created or used by anybody any more, we're just making sure here.
+	-rm -rf dist .ghc.environment
 	-rm -f "bill-of-materials.$(HELM_SEMVER).json"
 
 .PHONY: clean-hint
