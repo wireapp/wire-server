@@ -88,7 +88,7 @@ clean-hint:
 
 .PHONY: cabal.project.local
 cabal.project.local:
-	cp ./hack/bin/cabal.project.local.template ./cabal.project.local
+	cp ./hack/cabal.project.local.template ./cabal.project.local
 
 # Usage: make c package=brig test=1
 .PHONY: c
