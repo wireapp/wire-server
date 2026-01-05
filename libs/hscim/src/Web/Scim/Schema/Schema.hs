@@ -17,6 +17,7 @@
 
 module Web.Scim.Schema.Schema where
 
+import Control.Monad.Error.Class
 import Data.Aeson (FromJSON, ToJSON, Value, parseJSON, toJSON, withText)
 import Data.Attoparsec.ByteString (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as Parser
@@ -24,6 +25,7 @@ import Data.Data (Proxy)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Imports
 import Web.Scim.Capabilities.MetaSchema.Group
 import Web.Scim.Capabilities.MetaSchema.ResourceType
 import Web.Scim.Capabilities.MetaSchema.SPConfig
@@ -159,3 +161,8 @@ class SupportsSchemas a where
   -- | Schemas supported by the the tagged type. API clients touching
   -- fields not contained in the listed schemas triggers error 4xx.
   supportedSchemas :: Proxy a -> Set Schema
+
+-- use https://github.com/ocramz/aeson-schema to validate the listed
+-- schemas.
+validateSchemas :: forall tag m. (SupportsSchemas tag, MonadError String m) => Proxy tag -> Value -> m ()
+validateSchemas = todo

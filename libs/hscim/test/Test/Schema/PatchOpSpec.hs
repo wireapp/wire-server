@@ -34,8 +34,10 @@ import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Web.Scim.AttrName
 import Web.Scim.Filter
 import Web.Scim.Schema.PatchOp
+import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User
 import Web.Scim.Test.Util
 
@@ -45,70 +47,47 @@ type UserExtraPatch = KeyMap.KeyMap Text
 
 spec :: Spec
 spec = do
-  describe "PatchOp" $ do
-    ----------------------------------------------------------------------
-
-    it "golden + simple roundtrip" $ do
-      let check :: (PatchOp PatchTag, Value) -> Expectation
-          check (hs, js) = do
-            toJSON hs `shouldBe` js
-            case parseEither parseJSON js of
-              Left err -> expectationFailure $ "Failed to parse: " ++ err
-              Right (have :: PatchOp PatchTag) -> have `shouldBe` hs
+  describe "Patch" $ do
+    it "golden" $ do
+      let check :: (HasCallStack) => (Patch PatchTag, Value) -> Expectation
+          check (hs, js) = Right (toJSON hs) `shouldBe` lowerAllCaseInsensitiveThingsInPatch js
 
       check
-        `mapM_` [ ( todo, -- PatchOp (AD.Patch []),
+        `mapM_` [ ( Patch [PatchOpAdd (Just $ AttrPath Nothing (AttrName "userName") Nothing) (String "testuser")],
                     [aesonQQ|
-                    {
-                    "schemaS": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                      "OperaTions": [{
-                        "oP": "aDD",
-                        "pATh": "userName",
-                        "vaLUE": "testuser"
-                      }]
+                    { "schemaS": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                      "operATIONS": [
+                        { "oP": "add",
+                          "pATh": "userName",
+                          "vaLUE": "testuser"
+                        }
+                      ]
+                    }
+                    |]
+                  ),
+                  ( Patch [PatchOpReplace Nothing (String "this won't work in applyPatch")],
+                    [aesonQQ|
+                    { "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                      "operations": [
+                        { "oP": "replace",
+                          "vaLUE": "this won't work in applyPatch"
+                        }
+                      ]
+                    }
+                    |]
+                  ),
+                  ( Patch [PatchOpRemove (AttrPath (Just User20) (AttrName "userName") Nothing)],
+                    [aesonQQ|
+                    { "Schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                      "Operations": [
+                        { "op": "remove",
+                          "path": "urn:ietf:params:scim:schemas:core:2.0:User:userName"
+                        }
+                      ]
                     }
                     |]
                   )
                 ]
-
-    -- todo "test missing path field for add, rep"
-
-    it "Operation attributes and value attributes are case-insensitive" $ do
-      let patches :: [Value] =
-            [ [aesonQQ|
-              {
-                "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                "Operations": [{
-                  "op": "replace",
-                  "path": "displayName",
-                  "value": "Name"
-                }]
-              }
-              |],
-              [aesonQQ|
-              {
-                "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                "Operations": [{
-                  "op": "REPLACE",
-                  "path": "displayName",
-                  "value": "Name"
-                }]
-              }
-              |],
-              [aesonQQ|
-              {
-                "Schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                "Operations": [{
-                  "OP": "Replace",
-                  "PATH": "dISPlayName",
-                  "VALUE": "Name"
-                }]
-              }
-              |]
-            ]
-      case nub $ (eitherDecode @(PatchOp PatchTag) . encode) <$> patches of
-        [Right _] -> pure ()
-        bad -> expectationFailure $ "Case insensitivity check failed, the following variantions should not be distinguished: " ++ show bad
 
   describe "applyPatch" $ do
     prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $

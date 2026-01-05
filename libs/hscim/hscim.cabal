@@ -82,6 +82,7 @@ library
     TypeFamilies
     TypeOperators
     TypeSynonymInstances
+    ViewPatterns
 
   ghc-options:        -Wall -Wredundant-constraints -Wunused-packages
   build-depends:
