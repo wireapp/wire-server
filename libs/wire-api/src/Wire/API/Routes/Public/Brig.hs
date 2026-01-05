@@ -1040,8 +1040,7 @@ type UserClientAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    ( VersionedRespond 'V6 200 "List of clients" [Client]
-                    )
+                    (VersionedRespond 'V6 200 "List of clients" [Client])
            )
     :<|> Named
            "list-clients@v7"
@@ -1053,8 +1052,7 @@ type UserClientAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    ( VersionedRespond 'V7 200 "List of clients" [Client]
-                    )
+                    (VersionedRespond 'V7 200 "List of clients" [Client])
            )
     :<|> Named
            "list-clients"
@@ -1065,8 +1063,7 @@ type UserClientAPI =
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    ( Respond 200 "List of clients" [Client]
-                    )
+                    (Respond 200 "List of clients" [Client])
            )
     :<|> Named
            "get-client@v6"

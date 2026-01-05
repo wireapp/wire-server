@@ -401,8 +401,7 @@ testLoginFailure brig = do
   let badmail = unsafeEmailAddress "wrong" "wire.com"
   login
     brig
-    ( MkLogin (LoginByEmail badmail) defPassword Nothing Nothing
-    )
+    (MkLogin (LoginByEmail badmail) defPassword Nothing Nothing)
     PersistentCookie
     !!! const 403 === statusCode
 

@@ -223,8 +223,7 @@ getUserGroup team id_ includeChannels = do
 
 getUserGroupsWithMembers ::
   forall r.
-  ( UserGroupStorePostgresEffectConstraints r
-  ) =>
+  (UserGroupStorePostgresEffectConstraints r) =>
   TeamId ->
   UserGroupPageRequest ->
   Sem r UserGroupPageWithMembers

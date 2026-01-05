@@ -1276,8 +1276,8 @@ searchConversationsImpl req =
                      (sortOrderOperator req.sortOrder)
                      -- the pagination cursor must match the ORDER BY. Therefore the comparison is case-insensitive.
                      (mkClause "lower(name)" (Text.toLower lastName) <> mkClause "id" lastId)
-                   | lastName <- toList req.lastName,
-                     lastId <- toList req.lastId
+                 | lastName <- toList req.lastName,
+                   lastId <- toList req.lastId
                  ]
               <> toList (like "name" <$> req.searchString)
               <> discoverableClause

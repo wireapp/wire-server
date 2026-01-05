@@ -422,9 +422,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    # FUTUREWORK: we are temporarily using the old ormolu version to prevent the noise of reformatting a lot of code
-    # upgrade ormolu and reformat in a follow up PR
-    pkgs.haskell.packages.ghc98.ormolu
+    pkgs.haskellPackages.ormolu
     pkgs.vacuum-go
     pkgs.shellcheck
     pkgs.treefmt

@@ -33,8 +33,7 @@ import Wire.StoredConversation
 
 sendConversationActionNotifications ::
   forall tag r.
-  ( Member ConversationSubsystem r
-  ) =>
+  (Member ConversationSubsystem r) =>
   Sing tag ->
   Qualified UserId ->
   Bool ->

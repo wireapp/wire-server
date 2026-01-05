@@ -125,8 +125,8 @@ mkClientData clientInfo =
       infoMap =
         Map.fromList
           [ (info.clientId, key)
-            | info <- toList clientInfo,
-              key <- toList info.mlsSignatureKey
+          | info <- toList clientInfo,
+            key <- toList info.mlsSignatureKey
           ]
     }
 

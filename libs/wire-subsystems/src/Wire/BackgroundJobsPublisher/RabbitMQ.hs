@@ -38,8 +38,7 @@ interpretBackgroundJobsPublisherRabbitMQ requestId channelMVar =
       publishJob requestId channel jobId jobPayload
 
 publishJob ::
-  ( Member (Embed IO) r
-  ) =>
+  (Member (Embed IO) r) =>
   RequestId ->
   Q.Channel ->
   JobId ->

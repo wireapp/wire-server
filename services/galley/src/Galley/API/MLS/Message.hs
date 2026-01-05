@@ -605,8 +605,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
     MLSMessageResponseOutOfSyncError e -> throw e
 
 storeGroupInfo ::
-  ( Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   ConvOrSubConvId ->
   GroupInfoData ->
   Sem r ()

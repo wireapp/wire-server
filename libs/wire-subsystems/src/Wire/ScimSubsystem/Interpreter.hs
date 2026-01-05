@@ -238,7 +238,7 @@ toStoredGroup scimBaseUri ug = Meta.WithMeta meta (Common.WithId ug.id_ sg)
                   typ = "User",
                   ref = Common.uriToText . mkLocation $ "/Users/" <> idToString uid
                 }
-              | uid <- toList (runIdentity ug.members)
+            | uid <- toList (runIdentity ug.members)
             ]
         }
 

@@ -1165,8 +1165,7 @@ leaveCurrentConv cid qsub = case qUnqualified qsub of
             leaveSubConv (ciUser cid) (ciClient cid) (qsub $> cnv) subId
               !!! const 200 === statusCode
         )
-        ( \rcid -> remoteLeaveCurrentConv rcid (qsub $> cnv) subId
-        )
+        (\rcid -> remoteLeaveCurrentConv rcid (qsub $> cnv) subId)
         (cidQualifiedUser cid $> cid)
     State.modify $ \mls ->
       mls
