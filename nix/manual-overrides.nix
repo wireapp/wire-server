@@ -77,12 +77,6 @@ hself: hsuper: {
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
 
-  # cabal multirepl requires Cabal 3.12
-  Cabal = hsuper.Cabal_3_12_1_0;
-  Cabal-syntax = hsuper.Cabal-syntax_3_14_2_0;
-
-  text-builder = hlib.doJailbreak hsuper.text-builder; # uses 1.0.0.4 from nixpkgs
-
   # -----------------
   # flags and patches
   # (these are fine)
