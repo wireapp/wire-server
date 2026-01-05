@@ -7,7 +7,6 @@ import Imports
 import SAML2.WebSSO.Types
 import Text.XML.DSig
 import URI.ByteString
-import Wire.API.Routes.Version
 import Wire.API.User.IdentityProvider
 
 testObject_IdP_1 :: IdP
