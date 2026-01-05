@@ -1,1 +1,0 @@
-Allowing any newer version of protoc led to issues running the Haskell Language Server (HLS). This override in `cabal.project` has now been removed. A newer version than the one available via Nix shouldn't be required.
