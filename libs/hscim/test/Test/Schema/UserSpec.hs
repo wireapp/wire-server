@@ -42,7 +42,7 @@ import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress, validate)
 import qualified Web.Scim.Class.User as UserClass
 import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
+import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), prsJsonLower)
 import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
 import Web.Scim.Schema.PatchOp

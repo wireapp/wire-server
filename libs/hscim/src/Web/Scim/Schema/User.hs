@@ -178,38 +178,39 @@ empty schemas userName extra =
     }
 
 instance (FromJSON (UserExtra tag)) => FromJSON (User tag) where
-  parseJSON = withObject "User" $ \obj -> do
-    -- Lowercase all fields
-    let o = KeyMap.fromList . map (over _1 lowerKey) . KeyMap.toList $ obj
-    schemas <-
-      -- TODO(fisx): NO! User20 is NOT implicit?
-      -- https://datatracker.ietf.org/doc/html/rfc7643#section-3
-      -- (Also make sure this works as expected in Group!)
-      o .:? "schemas" <&> \case
-        Nothing -> [User20]
-        Just xs -> if User20 `elem` xs then xs else User20 : xs
-    userName <- o .: "username"
-    externalId <- o .:? "externalid"
-    name <- o .:? "name"
-    displayName <- o .:? "displayname"
-    nickName <- o .:? "nickname"
-    profileUrl <- o .:? "profileurl"
-    title <- o .:? "title"
-    userType <- o .:? "usertype"
-    preferredLanguage <- o .:? "preferredlanguage"
-    locale <- o .:? "locale"
-    active <- o .:? "active"
-    password <- o .:? "password"
-    emails <- o .:? "emails" .!= []
-    phoneNumbers <- o .:? "phonenumbers" .!= []
-    ims <- o .:? "ims" .!= []
-    photos <- o .:? "photos" .!= []
-    addresses <- o .:? "addresses" .!= []
-    entitlements <- o .:? "entitlements" .!= []
-    roles <- o .:? "roles" .!= []
-    x509Certificates <- o .:? "x509certificates" .!= []
-    extra <- parseJSON (Object obj)
-    pure User {..}
+  parseJSON = prsJsonLower >=> prs
+    where
+      prs = withObject "User" $ \o -> do
+        -- Lowercase all fields
+        schemas <-
+          -- TODO(fisx): NO! User20 is NOT implicit?
+          -- https://datatracker.ietf.org/doc/html/rfc7643#section-3
+          -- (Also make sure this works as expected in Group!)
+          o .:? "schemas" <&> \case
+            Nothing -> [User20]
+            Just xs -> if User20 `elem` xs then xs else User20 : xs
+        userName <- o .: "username"
+        externalId <- o .:? "externalid"
+        name <- o .:? "name"
+        displayName <- o .:? "displayname"
+        nickName <- o .:? "nickname"
+        profileUrl <- o .:? "profileurl"
+        title <- o .:? "title"
+        userType <- o .:? "usertype"
+        preferredLanguage <- o .:? "preferredlanguage"
+        locale <- o .:? "locale"
+        active <- o .:? "active"
+        password <- o .:? "password"
+        emails <- o .:? "emails" .!= []
+        phoneNumbers <- o .:? "phonenumbers" .!= []
+        ims <- o .:? "ims" .!= []
+        photos <- o .:? "photos" .!= []
+        addresses <- o .:? "addresses" .!= []
+        entitlements <- o .:? "entitlements" .!= []
+        roles <- o .:? "roles" .!= []
+        x509Certificates <- o .:? "x509certificates" .!= []
+        extra <- parseJSON (Object o)
+        pure User {..}
 
 instance (ToJSON (UserExtra tag)) => ToJSON (User tag) where
   toJSON User {..} =
