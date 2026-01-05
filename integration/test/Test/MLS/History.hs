@@ -17,7 +17,6 @@
 
 module Test.MLS.History where
 
-import Control.Concurrent
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text.Encoding as T
 import MLS.Util
@@ -40,8 +39,7 @@ testExtraAppMessage = do
   appPackage <- createApplicationMessage convId alice1 "hello"
   let mp' = mp {appMessage = Just appPackage.message}
 
-  liftIO $ threadDelay 1000000
-  withWebSockets [bob1] $ \wss -> do
+  withWebSockets [bob1, charlie1] $ \wss -> do
     void $ sendAndConsumeCommitBundle mp'
 
     let isAppMessage :: Value -> App Bool

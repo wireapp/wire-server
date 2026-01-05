@@ -35,7 +35,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
-import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -64,7 +63,7 @@ propagateMessage ::
   Local ConvOrSubConv ->
   Maybe ConnId ->
   RawMLS Message ->
-  ClientMap LeafIndex ->
+  ClientMap a ->
   Sem r ()
 propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   now <- Now.get

@@ -336,7 +336,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             bundle.commit.value
         -- the sender client is included in the Add action on the first commit,
         -- but it doesn't need to get a welcome message, so we filter it out here
-        let newClients = filter ((/=) senderIdentity.client) (cmIdentities (paAdd action))
+        let newClients = cmRemoveClient senderIdentity.client (paAdd action)
         pure (events, newClients)
       Nothing -> do
         (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
@@ -350,7 +350,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value.path
-        pure ([], [])
+        pure ([], mempty)
     lift $ do
       updateOutOfSyncFlag senderIdentity.client lConvOrSub
       storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
@@ -359,11 +359,14 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   -- send welcome messages
   for_ bundle.welcome $ \welcome ->
-    sendWelcomes lConvOrSubId qusr conn newClients welcome
+    sendWelcomes lConvOrSubId qusr conn (cmIdentities newClients) welcome
 
   -- send application message
   for_ bundle.appMessage $ \msg -> do
-    propagateMessage qusr (Just c) lConvOrSub conn msg.rawMessage convOrSub.members
+    -- reload conversation from db to make sure we have an up-to-date list of members
+    lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+    propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage $
+      void convOrSub.members <> void newClients
 
   pure events
 
