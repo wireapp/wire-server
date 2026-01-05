@@ -113,7 +113,7 @@ instance Traversable SearchResult where
 
 instance (ToSchema a, Typeable a) => ToSchema (SearchResult a) where
   schema =
-    object ("SearchResult " <> T.pack (show $ typeRep $ Proxy @a)) $
+    object ("SearchResult_" <> T.pack (show $ typeRep $ Proxy @a)) $
       SearchResult
         <$> searchFound .= fieldWithDocModifier "found" (S.description ?~ "Total number of hits") schema
         <*> searchReturned .= fieldWithDocModifier "returned" (S.description ?~ "Total number of hits returned") schema
