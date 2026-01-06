@@ -99,24 +99,24 @@ you may build each individual service by running
 
 ```bash
 nix build -Lv \
-  --experimental-features 'nix-command' \
-  -f ./nix wireServer.<service>
+  --experimental-features 'nix-command flakes' \
+  '.#wireServer.<service>'
 ```
 
 you may build all the libraries that exist locally or are in the closure of `wire-server` by running
 
 ```bash
 nix build -Lv \
-  --experimental-features 'nix-command' \
-  -f ./nix wireServer.haskellPackages.<library>
+  --experimental-features 'nix-command flakes' \
+  '.#wireServer.haskellPackages.<library>'
 ```
 
 you may build all the images that would be deployed by running
 
 ```bash
 nix build -Lv \
-  --experimental-features 'nix-command' \
-  -f ./nix wireServer.allImages
+  --experimental-features 'nix-command flakes' \
+  '.#wireServer.allImages'
 ```
 
 > ℹ️  Info

@@ -303,7 +303,7 @@ treefmt-check:
 
 .PHONY: build-image-%
 build-image-%:
-	nix-build ./nix -A wireServer.imagesNoDocs.$(*) && \
+	nix build '.#wireServer.imagesNoDocs.$(*)' && \
 	./result | docker load | tee /tmp/imageName-$(*) && \
 	imageName=$$(grep quay.io /tmp/imageName-$(*) | awk '{print $$3}') && \
 	echo 'You can run your image locally using' && \
@@ -665,7 +665,7 @@ helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
 sbom.json:
-	nix -Lv build -f nix wireServer.bomDependencies && \
+	nix -Lv build '.#wireServer.bomDependencies' && \
 	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
 
 # Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)

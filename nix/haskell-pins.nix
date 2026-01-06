@@ -25,7 +25,7 @@
 #      };
 #    };
 #
-# 3. Run 'nix build -f ./nix wireServer.haskellPackagesUnoptimizedNoDocs.<your-packge-name>'.
+# 3. Run 'nix build '.#wireServer.haskellPackagesUnoptimizedNoDocs.<your-packge-name>'.
 # This should produce an error saying expected sha <something with a lot of
 # 'A's> and the actual sha. Replace the empty string in 'sha256' with the actual
 # sha.
