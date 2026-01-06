@@ -581,6 +581,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   logIdPAction
     "IdP deleted"
     idp
+    mbzusr
     (Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList)))
   pure NoContent
   where
@@ -646,13 +647,14 @@ idpCreate ::
   ) =>
   SAML.Config ->
   TeamId ->
+  Maybe UserId ->
   Maybe ZHostValue ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
   GalleyAccess.assertSSOEnabled tid
   guardMultiIngressDuplicateDomain tid mbHost
@@ -666,6 +668,7 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   logIdPAction
     "IdP created"
     idp
+    zUser
     ( Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
         . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
     )
@@ -686,14 +689,15 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
       when (zHost `elem` domains) $
         throwSparSem SparIdPDomainInUse
 
-logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> (Msg -> Msg) -> Sem r ()
-logIdPAction msg idp additionalFields =
+logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> Maybe UserId -> (Msg -> Msg) -> Sem r ()
+logIdPAction msg idp zUser additionalFields =
   Logger.info $
     Log.msg (msg)
       . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
       . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
       . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
       . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "user" (fromMaybe "None" (idToText <$> zUser))
       . additionalFields
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
@@ -714,14 +718,15 @@ idpCreateV7 ::
   ) =>
   SAML.Config ->
   TeamId ->
+  Maybe UserId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateV7 samlConfig tid idpmeta mReplaces mApiversion mHandle = do
+idpCreateV7 samlConfig tid zUser idpmeta mReplaces mApiversion mHandle = do
   assertNoScimOrNoIdP
-  idpCreate samlConfig tid Nothing idpmeta mReplaces mApiversion mHandle
+  idpCreate samlConfig tid zUser Nothing idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -892,6 +897,7 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
        in logIdPAction
             "IdP updated"
             idp
+            zusr
             ( Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
                 . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
             )

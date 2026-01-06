@@ -135,8 +135,8 @@ type APIIDP =
   Named "idp-get" (ZOptUser :> IdpGet)
     :<|> Named "idp-get-raw" (ZOptUser :> IdpGetRaw)
     :<|> Named "idp-get-all" (ZOptUser :> IdpGetAll)
-    :<|> Named "idp-create@v7" (Until 'V8 :> AuthProtect "TeamAdmin" :> IdpCreate) -- (change is semantic, see handler)
-    :<|> Named "idp-create" (From 'V8 :> AuthProtect "TeamAdmin" :> ZHostOpt :> IdpCreate)
+    :<|> Named "idp-create@v7" (Until 'V8 :> AuthProtect "TeamAdmin" :> ZOptUser :> IdpCreate) -- (change is semantic, see handler)
+    :<|> Named "idp-create" (From 'V8 :> AuthProtect "TeamAdmin" :> ZOptUser :> ZHostOpt :> IdpCreate)
     :<|> Named "idp-update" (ZOptUser :> ZHostOpt :> IdpUpdate)
     :<|> Named "idp-delete" (ZOptUser :> IdpDelete)
 
