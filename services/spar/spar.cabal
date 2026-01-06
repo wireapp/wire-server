@@ -13,6 +13,14 @@ license:       AGPL-3
 license-file:  LICENSE
 build-type:    Simple
 
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
 library
   -- cabal-fmt: expand src
   exposed-modules:
@@ -340,7 +348,9 @@ executable spar-integration
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
     -Wno-x-partial
 
-  build-tool-depends: hspec-discover:hspec-discover
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
+
   build-depends:
       aeson
     , aeson-qq
@@ -612,7 +622,9 @@ test-suite spec
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
     -Wno-x-partial
 
-  build-tool-depends: hspec-discover:hspec-discover
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
+
   build-depends:
       aeson
     , aeson-qq

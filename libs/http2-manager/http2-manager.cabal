@@ -20,6 +20,14 @@ extra-source-files:
   test/resources/unit-ca-key.pem
   test/resources/unit-ca.pem
 
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
 library
   -- cabal-fmt: expand src
   exposed-modules:
@@ -53,8 +61,8 @@ flag test-trailing-dot
   default:     True
 
 test-suite http2-manager-tests
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -69,8 +77,11 @@ test-suite http2-manager-tests
     Main
     Test.HTTP2.Client.ManagerSpec
 
-  hs-source-dirs:     test
-  build-tool-depends: hspec-discover:hspec-discover
+  hs-source-dirs: test
+
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
+
   build-depends:
       async
     , base

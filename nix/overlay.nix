@@ -1,57 +1,3 @@
-let
-  staticBinaryInTarball = { stdenv, fetchurl, pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
-    stdenv.mkDerivation {
-      inherit pname version;
-
-      src =
-        if stdenv.isDarwin
-        then
-          fetchurl
-            {
-              url = darwinAmd64Url;
-              sha256 = darwinAmd64Sha256;
-            }
-        else
-          fetchurl {
-            url = linuxAmd64Url;
-            sha256 = linuxAmd64Sha256;
-          };
-
-      installPhase = ''
-        mkdir -p $out/bin
-        cp ${binPath} $out/bin
-      '';
-    };
-
-  staticBinary = { stdenv, fetchurl, pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
-    stdenv.mkDerivation {
-      inherit pname version;
-
-      src =
-        if stdenv.isDarwin
-        then
-          fetchurl
-            {
-              url = darwinAmd64Url;
-              sha256 = darwinAmd64Sha256;
-            }
-        else
-          fetchurl {
-            url = linuxAmd64Url;
-            sha256 = linuxAmd64Sha256;
-          };
-      phases = [ "installPhase" "patchPhase" ];
-
-      installPhase = ''
-        mkdir -p $out/bin
-        cp $src $out/bin/${binPath}
-        chmod +x $out/bin/${binPath}
-      '';
-    };
-
-  sources = import ./sources.nix;
-in
-
 self: super: {
 
   cryptobox = self.callPackage ./pkgs/cryptobox { };
@@ -83,4 +29,16 @@ self: super: {
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
   sbomqs = super.callPackage ./pkgs/sbomqs { };
+
+  # Disable hlint in HLS to get around this bug:
+  # https://github.com/haskell/haskell-language-server/issues/4674
+  haskell = super.haskell // {
+    packages = super.haskell.packages // {
+      ghc910 = super.haskell.packages.ghc910.override {
+        overrides = hfinal: hprev: {
+          haskell-language-server = self.haskell.lib.disableCabalFlag hprev.haskell-language-server "hlint";
+        };
+      };
+    };
+  };
 }

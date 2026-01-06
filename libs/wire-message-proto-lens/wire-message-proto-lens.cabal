@@ -19,6 +19,14 @@ custom-setup
     , Cabal             >=3.12
     , proto-lens-setup
 
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
 library
   exposed-modules:
     Proto.Mls
@@ -81,7 +89,9 @@ library
       base
     , proto-lens-runtime
 
-  build-tool-depends: proto-lens-protoc:proto-lens-protoc
+  if !flag(nix-dev-env)
+    build-tool-depends: proto-lens-protoc:proto-lens-protoc
+
   default-language:   GHC2021
   autogen-modules:
     Proto.Otr
