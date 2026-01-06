@@ -695,6 +695,14 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
           throw FederationNotConfigured
       ensureConnectedToRemotes lusr remotes
 
+    -- | Guard conversation member additions against legal-hold consent conflicts:
+    -- - if any conv member has LH enabled then all new users must give consent
+    -- - if any new user has LH enabled then all new users must give consent
+    -- - if new users have LH enabled then
+    --   - ensure that a consented conv admin exists
+    --   - and kick all existing members that do not consent to LH from the conversation
+    -- See also: "Brig.API.Connection.checkLegalholdPolicyConflict"
+    -- and "Galley.API.LegalHold.Conflicts.guardLegalholdPolicyConflictsUid".
     checkLHPolicyConflictsLocal ::
       [UserId] ->
       Sem r ()
