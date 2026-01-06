@@ -106,10 +106,9 @@ parseOptions =
 -- 'Data.CaseInsensitive.foldCase'.  They're not all the same thing!
 -- https://github.com/basvandijk/case-insensitive/issues/31
 --
--- NB: The "recursively" part is mostly redundant: to make the code
--- more robust, we also call `jsonLower` in all relevant `FromJSON`
--- instances.  But recursing anyway is more robust, and recursion
--- depth is <= 2.
+-- NB: The "recursively" part is at least partially redundant because
+-- we call `jsonLower` in all `FromJSON` instances, but we don't care
+-- about the overhead because scim objects are never that deep.
 jsonLower :: forall m. (MonadError String m) => Value -> m Value
 jsonLower (Object (KeyMap.toList -> olist)) =
   Object . KeyMap.fromList <$> (nubCI >> mapM lowerPair olist)
