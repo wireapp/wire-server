@@ -78,6 +78,7 @@ library
     OverloadedStrings
     RankNTypes
     ScopedTypeVariables
+    TupleSections
     TypeApplications
     TypeFamilies
     TypeOperators
@@ -219,6 +220,7 @@ test-suite spec
     , attoparsec
     , base
     , bytestring
+    , case-insensitive
     , email-validate
     , hedgehog
     , hscim
@@ -234,6 +236,7 @@ test-suite spec
     , microlens
     , network-uri
     , QuickCheck
+    , scientific
     , servant
     , servant-server
     , stm-containers

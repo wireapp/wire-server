@@ -100,8 +100,8 @@ getSchemaUri (CustomSchema x) =
 -- that is literally insane. Won't implement.
 pSchema :: [Schema] -> Parser Schema
 pSchema supported =
-  Parser.choice
-    $ map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supported
+  Parser.choice $
+    map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supported
 
 -- | Get a schema by its URI.
 --

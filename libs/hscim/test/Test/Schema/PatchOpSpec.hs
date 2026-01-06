@@ -29,6 +29,8 @@ import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.ByteString as BS
+import qualified Data.CaseInsensitive as CI
+import Data.Scientific (Scientific, scientific)
 import qualified Data.Text as T
 import Imports
 import Test.Hspec
@@ -100,7 +102,7 @@ spec = do
                 ]
 
   describe "applyPatch" $ do
-    focus . prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $
+    prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $
       \(barbie :: User PatchTag) (changedWant :: User PatchTag) ->
         let patchOp :: Patch PatchTag
             patchOp =
@@ -119,6 +121,13 @@ spec = do
               jsonPatchToScimPatch (AD.diff (toJSON barbie) (toJSON changedWant)) (toJSON barbie)
                 & either (error . show) Imports.id
          in applyPatch patchOp barbie === Right changedWant
+
+    focus . prop "arrFilterToIndices/arrIndexToFilter roundtrip on singleton match" $
+      forAll genArrFilterCase $ \(arr, fltr, ix) ->
+        let indices = arrFilterToIndices fltr arr
+            fltr' = arrIndexToFilter ix arr
+         in indices === [ix]
+              .&&. arrFilterToIndices fltr' arr === indices
 
     it "throws expected error when patched object doesn't parse" $ do
       () <- todo
@@ -152,3 +161,60 @@ instance Arbitrary Email where
     value <- EmailAddress . (`unsafeEmailAddress` "example.com") . BS.pack <$> listOf1 arbitrary
     primary <- ScimBool <$$> arbitrary
     pure Email {..}
+
+genArrFilterCase :: Gen ([Value], Filter, Int)
+genArrFilterCase = do
+  compVal <- genCompValue
+  let fltr = FilterAttrCompare (AttrPath Nothing "value" Nothing) OpEq compVal
+  useObject <- arbitrary
+  keyVariant <- elements ["value", "VALUE", "Value"]
+  let matchingValue =
+        if useObject
+          then Object (KeyMap.singleton keyVariant (compValueToValue compVal))
+          else compValueToValue compVal
+  prefix <- listOf (genNonMatchingValue compVal)
+  suffix <- listOf (genNonMatchingValue compVal)
+  let ix = length prefix
+  pure (prefix <> [matchingValue] <> suffix, fltr, ix)
+
+genCompValue :: Gen CompValue
+genCompValue =
+  oneof
+    [ ValString <$> genText,
+      ValNumber <$> genScientific,
+      ValBool <$> arbitrary,
+      pure ValNull
+    ]
+
+genNonMatchingValue :: CompValue -> Gen Value
+genNonMatchingValue compVal = oneof [genPrimitive, genObject]
+  where
+    genPrimitive = compValueToValue <$> genDifferentCompValue compVal
+    genObject = do
+      keyVariant <- elements ["value", "VALUE", "Value"]
+      val <- compValueToValue <$> genDifferentCompValue compVal
+      pure (Object (KeyMap.singleton keyVariant val))
+
+genDifferentCompValue :: CompValue -> Gen CompValue
+genDifferentCompValue compVal = case compVal of
+  ValString s ->
+    ValString <$> suchThat genText (\t -> CI.foldCase t /= CI.foldCase s)
+  ValNumber n -> ValNumber <$> suchThat genScientific (/= n)
+  ValBool b -> pure (ValBool (not b))
+  ValNull -> oneof [ValBool <$> arbitrary, ValNumber <$> genScientific, ValString <$> genText]
+
+compValueToValue :: CompValue -> Value
+compValueToValue = \case
+  ValNull -> Null
+  ValBool b -> Bool b
+  ValNumber n -> Number n
+  ValString s -> String s
+
+genText :: Gen Text
+genText = T.pack <$> listOf1 (elements (['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9']))
+
+genScientific :: Gen Scientific
+genScientific = do
+  coeff <- arbitrary :: Gen Integer
+  exp10 <- chooseInt (-6, 6)
+  pure (scientific coeff exp10)

@@ -99,6 +99,7 @@ mkDerivation {
     time
     utf8-string
     uuid
+    vector
     wai
     wai-extra
     wai-utilities
@@ -119,6 +120,7 @@ mkDerivation {
     attoparsec
     base
     bytestring
+    case-insensitive
     email-validate
     hedgehog
     hspec
@@ -133,6 +135,7 @@ mkDerivation {
     microlens
     network-uri
     QuickCheck
+    scientific
     servant
     servant-server
     stm-containers

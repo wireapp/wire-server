@@ -25,7 +25,9 @@ import qualified Data.Aeson.KeyMap as AK
 import qualified Data.Aeson.Patch as AD
 import qualified Data.Aeson.Pointer as AD
 import Data.Aeson.Types
+import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (Proxy))
+import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text as Text
@@ -115,15 +117,86 @@ scimPatchToJsonPatch (Patch scimOps) jsonOrig = do
       where
         nm@(AD.OKey key) = AD.OKey . AK.fromText . rAttrName $ name
         arr = case jsonOrig of
-          Object obj -> case AK.lookup key obj of
+          Object obj -> case lookupKeyCI key obj of
             Just (Array vec) -> V.toList vec
             _ -> todo
           _ -> todo
         ixToValPaths :: Int -> AD.Pointer
         ixToValPaths ix = todo
+        lookupKeyCI :: AK.Key -> AK.KeyMap Value -> Maybe Value
+        lookupKeyCI target obj =
+          let target' = CI.foldCase (AK.toText target)
+           in snd
+                <$> find
+                  (\(k, _) -> CI.foldCase (AK.toText k) == target')
+                  (AK.toList obj)
 
 arrFilterToIndices :: Filter -> [Value] -> [Int]
-arrFilterToIndices _ _ = todo
+arrFilterToIndices filter arr =
+  [ix | (ix, val) <- zip [0 ..] arr, matches val]
+  where
+    matches :: Value -> Bool
+    matches val = case filter of
+      FilterAttrCompare attr op compVal ->
+        maybe False (compareValue op compVal) (attrValue attr val)
+
+    attrValue :: AttrPath -> Value -> Maybe Value
+    attrValue (AttrPath _ name mbSub) val = case mbSub of
+      Nothing -> lookupAttr name val
+      Just (SubAttr subName) -> do
+        obj <- asObject val
+        top <- lookupAttrInObject name obj
+        subObj <- asObject top
+        lookupAttrInObject subName subObj
+
+    lookupAttr :: AttrName -> Value -> Maybe Value
+    lookupAttr name val = case val of
+      Object obj -> lookupAttrInObject name obj
+      -- e.g. roles[value eq "admin"]
+      _ | name == "value" -> Just val
+      _ -> Nothing
+
+    lookupAttrInObject :: AttrName -> AK.KeyMap Value -> Maybe Value
+    lookupAttrInObject name obj =
+      let target = CI.foldCase (rAttrName name)
+       in snd <$> find (\(key, _) -> CI.foldCase (AK.toText key) == target) (AK.toList obj)
+
+    asObject :: Value -> Maybe (AK.KeyMap Value)
+    asObject = \case
+      Object obj -> Just obj
+      _ -> Nothing
+
+    compareValue :: CompareOp -> CompValue -> Value -> Bool
+    compareValue op compVal val = case (compVal, val) of
+      (ValString s, String t) -> compareStr op (CI.foldCase t) (CI.foldCase s)
+      (ValNumber s, Number t) -> compareNumber op t s
+      (ValBool s, Bool t) -> compareBool op t s
+      (ValNull, Null) -> compareNull op
+      _ -> False
+
+    compareNumber :: CompareOp -> Scientific -> Scientific -> Bool
+    compareNumber = \case
+      OpEq -> (==)
+      OpNe -> (/=)
+      OpGt -> (>)
+      OpGe -> (>=)
+      OpLt -> (<)
+      OpLe -> (<=)
+      OpCo -> \_ _ -> False
+      OpSw -> \_ _ -> False
+      OpEw -> \_ _ -> False
+
+    compareBool :: CompareOp -> Bool -> Bool -> Bool
+    compareBool op a b = case op of
+      OpEq -> a == b
+      OpNe -> a /= b
+      _ -> False
+
+    compareNull :: CompareOp -> Bool
+    compareNull = \case
+      OpEq -> True
+      OpNe -> False
+      _ -> False
 
 -- | The inverse of `jsonPatchToScimPatch`.  This does not validate
 -- schemas, and never fills the schema argument of `AttrPath`.  See
@@ -159,7 +232,56 @@ jsonPatchToScimPatch jsonPatch jsonOrig = do
     mapPath bad = throwError $ "illegal or unsupported attribute path: " <> show bad
 
 arrIndexToFilter :: Int -> [Value] -> Filter
-arrIndexToFilter _ _ = todo
+arrIndexToFilter ix arr = case drop ix arr of
+  [] -> todo
+  (val : _) -> valToFilter val
+  where
+    valToFilter :: Value -> Filter
+    valToFilter = \case
+      Object obj -> objectToFilter obj
+      other ->
+        FilterAttrCompare
+          (AttrPath Nothing "value" Nothing)
+          OpEq
+          (valueToCompValue other)
+
+    objectToFilter :: AK.KeyMap Value -> Filter
+    objectToFilter obj =
+      case lookupPrimitiveKeyCI "value" obj <|> firstPrimitiveKey obj of
+        Just (name, compVal) ->
+          FilterAttrCompare (AttrPath Nothing name Nothing) OpEq compVal
+        Nothing -> todo
+
+    lookupPrimitiveKeyCI :: Text -> AK.KeyMap Value -> Maybe (AttrName, CompValue)
+    lookupPrimitiveKeyCI target obj =
+      let target' = CI.foldCase target
+       in listToMaybe $
+            mapMaybe
+              ( \(k, v) ->
+                  if CI.foldCase (AK.toText k) == target'
+                    then (AttrName (AK.toText k),) <$> valueToCompValueMaybe v
+                    else Nothing
+              )
+              (AK.toList obj)
+
+    firstPrimitiveKey :: AK.KeyMap Value -> Maybe (AttrName, CompValue)
+    firstPrimitiveKey obj =
+      listToMaybe $
+        mapMaybe
+          (\(k, v) -> (AttrName (AK.toText k),) <$> valueToCompValueMaybe v)
+          (AK.toList obj)
+
+    valueToCompValue :: Value -> CompValue
+    valueToCompValue val =
+      fromMaybe todo (valueToCompValueMaybe val)
+
+    valueToCompValueMaybe :: Value -> Maybe CompValue
+    valueToCompValueMaybe = \case
+      String s -> Just (ValString s)
+      Number n -> Just (ValNumber n)
+      Bool b -> Just (ValBool b)
+      Null -> Just ValNull
+      _ -> Nothing
 
 emptyPath :: AD.Pointer
 emptyPath =
