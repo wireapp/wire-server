@@ -145,10 +145,19 @@ data Filter
   deriving (Eq, Show)
 
 -- | valuePath = attrPath "[" valFilter "]"
+--
+-- A `ValuePath` without a `Filter` is morally an `AttrPath`.
+--
+-- Cases covered:
+-- - '.roles'
+-- - '.bla.foo'
+-- - '.email["type" eq "work"]'
+--
 -- TODO(arianvp): This is a slight simplification at the moment as we
 -- don't support the complete Filter grammar. This should be a
 -- valFilter, not a FILTER.
-data ValuePath = ValuePath AttrPath Filter
+-- https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.2
+data ValuePath = ValuePath AttrPath (Maybe Filter)
   deriving (Eq, Show)
 
 -- | subAttr   = "." ATTRNAME
@@ -195,7 +204,7 @@ pSubAttr = char '.' *> (SubAttr <$> pAttrName)
 -- | valuePath = attrPath "[" valFilter "]"
 pValuePath :: [Schema] -> Parser ValuePath
 pValuePath supportedSchemas =
-  ValuePath <$> pAttrPath supportedSchemas <*> (char '[' *> pFilter supportedSchemas <* char ']')
+  ValuePath <$> pAttrPath supportedSchemas <*> (Just <$> (char '[' *> pFilter supportedSchemas <* char ']'))
 
 -- | Value literal parser.
 pCompValue :: Parser CompValue
@@ -254,7 +263,8 @@ rSubAttr :: SubAttr -> Text
 rSubAttr (SubAttr x) = "." <> rAttrName x
 
 rValuePath :: ValuePath -> Text
-rValuePath (ValuePath attrPath filter') = rAttrPath attrPath <> "[" <> renderFilter filter' <> "]"
+rValuePath (ValuePath attrPath Nothing) = rAttrPath attrPath
+rValuePath (ValuePath attrPath (Just filter')) = rAttrPath attrPath <> "[" <> renderFilter filter' <> "]"
 
 -- | Value literal renderer.
 rCompValue :: CompValue -> Text
@@ -306,3 +316,9 @@ instance ToJSON AttrPath where
 
 instance FromJSON AttrPath where
   parseJSON val = parseJSON @Text val >>= either fail pure . parseOnly (pAttrPath []) . encodeUtf8
+
+instance ToJSON ValuePath where
+  toJSON = todo
+
+instance FromJSON ValuePath where
+  parseJSON = todo

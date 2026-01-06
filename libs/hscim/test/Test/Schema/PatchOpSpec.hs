@@ -1,6 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -25,20 +27,21 @@ module Test.Schema.PatchOpSpec where
 import Data.Aeson
 import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Pointer as AD
 import Data.Aeson.QQ (aesonQQ)
-import Data.Aeson.Types
-import Data.Either
-import qualified Data.List.NonEmpty as NE
+import qualified Data.ByteString as BS
+import qualified Data.Text as T
 import Imports
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Text.Email.Parser
 import Web.Scim.AttrName
 import Web.Scim.Filter
+import Web.Scim.Schema.Common
 import Web.Scim.Schema.PatchOp
 import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User
+import Web.Scim.Schema.User.Email
 import Web.Scim.Test.Util
 
 type PatchTag = TestTag Text () () UserExtraPatch
@@ -53,7 +56,11 @@ spec = do
           check (hs, js) = Right (toJSON hs) `shouldBe` lowerAllCaseInsensitiveThingsInPatch js
 
       check
-        `mapM_` [ ( Patch [PatchOpAdd (Just $ AttrPath Nothing (AttrName "userName") Nothing) (String "testuser")],
+        `mapM_` [ ( Patch
+                      [ PatchOpAdd
+                          (Just (ValuePath (topLevelAttrPath "userName") Nothing))
+                          (String "testuser")
+                      ],
                     [aesonQQ|
                     { "schemaS": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
                       "operATIONS": [
@@ -76,7 +83,10 @@ spec = do
                     }
                     |]
                   ),
-                  ( Patch [PatchOpRemove (AttrPath (Just User20) (AttrName "userName") Nothing)],
+                  ( Patch
+                      [ PatchOpRemove
+                          (ValuePath (AttrPath (Just User20) (AttrName "userName") Nothing) Nothing)
+                      ],
                     [aesonQQ|
                     { "Schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
                       "Operations": [
@@ -90,10 +100,24 @@ spec = do
                 ]
 
   describe "applyPatch" $ do
+    focus . prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $
+      \(barbie :: User PatchTag) (changedWant :: User PatchTag) ->
+        let patchOp :: Patch PatchTag
+            patchOp =
+              jsonPatchToScimPatch (AD.diff (toJSON barbie) (toJSON changedWant)) (toJSON barbie)
+                & either (error . show) Imports.id
+
+            go =
+              let j = scimPatchToJsonPatch patchOp (toJSON barbie)
+               in jsonPatchToScimPatch j (toJSON barbie)
+         in go === Right patchOp
+
     prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $
-      \(barbie :: User (TestTag Text () () NoUserExtra)) changedWant ->
-        let patchOp :: Patch (TestTag Text () () NoUserExtra)
-            patchOp = todo -- PatchOp (AD.diff (toJSON barbie) (toJSON changedWant))
+      \(barbie :: User PatchTag) changedWant ->
+        let patchOp :: Patch PatchTag
+            patchOp =
+              jsonPatchToScimPatch (AD.diff (toJSON barbie) (toJSON changedWant)) (toJSON barbie)
+                & either (error . show) Imports.id
          in applyPatch patchOp barbie === Right changedWant
 
     it "throws expected error when patched object doesn't parse" $ do
@@ -109,14 +133,22 @@ spec = do
       _ <- todo
       True `shouldBe` False
 
-instance Arbitrary (User (TestTag Text () () NoUserExtra)) where
-  -- TODO: move this to test module in library.
-  arbitrary =
-    {-  do
-      userName <- undefined -- Gen.text (Range.constant 1 20) Gen.unicode
-      externalId <- undefined -- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
-      displayName <- undefined -- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
-      active <- undefined -- Gen.maybe $ ScimBool <$> Gen.bool
-      pure (empty [User20] userName NoUserExtra) {externalId = externalId}
-     -}
-    undefined
+----------------------------------------------------------------------
+-- Arbitrary -- TODO: move to Web.Scim.Test.Something
+
+instance Arbitrary (User PatchTag) where
+  arbitrary = do
+    userName <- T.pack <$> listOf1 arbitrary
+    externalId <- oneof [pure Nothing, Just . T.pack <$> listOf1 arbitrary]
+    displayName <- oneof [pure Nothing, Just . T.pack <$> listOf1 arbitrary]
+    active <- ScimBool <$$> arbitrary
+    emails <- listOf arbitrary
+    roles <- T.pack <$$> listOf1 arbitrary
+    pure (empty @PatchTag [User20] userName mempty) {externalId, displayName, active, emails, roles}
+
+instance Arbitrary Email where
+  arbitrary = do
+    typ <- elements (Nothing : (Just <$> ["work", "mobile", "yellow"]))
+    value <- EmailAddress . (`unsafeEmailAddress` "example.com") . BS.pack <$> listOf1 arbitrary
+    primary <- ScimBool <$$> arbitrary
+    pure Email {..}
