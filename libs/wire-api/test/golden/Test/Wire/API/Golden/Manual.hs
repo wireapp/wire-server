@@ -435,6 +435,7 @@ tests =
         "IdP"
         $ testObjects
           [ (testObject_IdP_1, "testObject_IdP_1.json"),
-            (testObject_IdP_2, "testObject_IdP_2.json")
+            (testObject_IdP_2, "testObject_IdP_2.json"),
+            (testObject_IdP_3, "testObject_IdP_3.json")
           ]
     ]
