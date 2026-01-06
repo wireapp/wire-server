@@ -10,6 +10,8 @@ let
     ];
   };
 
+  pkgs_24_11 = import sources.nixpkgs_24_11 { };
+
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -20,7 +22,7 @@ let
     '';
   };
 
-  wireServer = import ./wire-server.nix pkgs;
+  wireServer = import ./wire-server.nix pkgs pkgs_24_11;
   nginz = pkgs.callPackage ./nginz.nix { };
 
   # packages necessary to build wire-server docs

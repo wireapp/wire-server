@@ -43,6 +43,7 @@
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
+pkgs_24_11:
 let
   inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
@@ -526,7 +527,7 @@ in
       pkgs.sbomqs
       pkgs.postgresql
 
-      pkgs.cabal-install
+      pkgs_24_11.cabal-install
       pkgs.nix-prefetch-git
       pkgs.haskellPackages.cabal-plan
       pkgs.lsof
