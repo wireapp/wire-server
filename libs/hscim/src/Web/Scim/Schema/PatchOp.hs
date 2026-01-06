@@ -17,7 +17,7 @@
 
 module Web.Scim.Schema.PatchOp where
 
-import Control.Monad.Error.Class (MonadError, throwError)
+import Control.Monad.Error.Class
 import Data.Aeson
 import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.Key as AK
@@ -92,51 +92,52 @@ data PatchOp tag
 --
 -- Scim schema information in `AttrName`s is ignored (`AD.Patch` does
 -- not do schema validation).
-scimPatchToJsonPatch :: forall tag. Patch tag -> Value -> AD.Patch
+scimPatchToJsonPatch :: forall tag m. (MonadError ScimError m) => Patch tag -> Value -> m AD.Patch
 scimPatchToJsonPatch (Patch scimOps) jsonOrig = do
-  AD.Patch (concat (mapOp <$> scimOps))
+  jsonOps <- do
+    let err = throwError . badRequest InvalidValue . Just . Text.pack
+    (mapOp `mapM` scimOps) & either err pure
+  pure $ AD.Patch jsonOps
   where
-    mapOp :: PatchOp tag -> [AD.Operation]
+    mapOp :: PatchOp tag -> Either String AD.Operation
     mapOp = \case
       PatchOpAdd mbAttrPath val -> (`AD.Add` val) <$> mapPath mbAttrPath
       PatchOpRemove attrPath -> AD.Rem <$> mapPath (Just attrPath)
       PatchOpReplace mbAttrPath val -> (`AD.Rep` val) <$> mapPath mbAttrPath
 
-    mapPath :: Maybe ValuePath -> [AD.Pointer]
-    mapPath Nothing = [emptyPath]
+    mapPath :: Maybe ValuePath -> Either String AD.Pointer
+    mapPath Nothing = pure emptyPath
     mapPath (Just (ValuePath (AttrPath _mbSchema name mbSub) Nothing)) =
-      [AD.Pointer (nm : sub)]
+      pure (AD.Pointer (nm : sub))
       where
         nm = AD.OKey . AK.fromText . rAttrName $ name
         sub = [AD.OKey . AK.fromText . rAttrName $ subName | SubAttr subName <- maybeToList mbSub]
     mapPath (Just (ValuePath (AttrPath _mbSchema name Nothing) mbFilter)) =
-      [AD.Pointer [nm]]
-        <> case mbFilter of
-          Nothing -> []
-          Just fltr -> ixToValPaths <$> arrFilterToIndices fltr arr
+      AD.Pointer <$> ((nm :) <$> fltr)
       where
-        nm@(AD.OKey key) = AD.OKey . AK.fromText . rAttrName $ name
-        arr = case jsonOrig of
-          Object obj -> case lookupKeyCI key obj of
-            Just (Array vec) -> V.toList vec
-            _ -> todo
-          _ -> todo
-        ixToValPaths :: Int -> AD.Pointer
-        ixToValPaths ix = todo
-        lookupKeyCI :: AK.Key -> AK.KeyMap Value -> Maybe Value
-        lookupKeyCI target obj =
-          let target' = CI.foldCase (AK.toText target)
-           in snd
-                <$> find
-                  (\(k, _) -> CI.foldCase (AK.toText k) == target')
-                  (AK.toList obj)
+        key = AK.fromText (rAttrName name)
+        nm = AD.OKey key
+
+        fltr :: Either String [AD.Key]
+        fltr = case mbFilter of
+          Nothing -> pure []
+          Just fl -> do
+            arr <- case jsonOrig of
+              Object obj -> case AK.lookup key obj of
+                Just (Array vec) -> pure $ V.toList vec
+                _ -> throwError $ AK.toString key <> " does not point to an object"
+              _ -> throwError $ "not an object"
+            let mkPointer ix = AD.AKey ix
+            pure $ mkPointer <$> arrFilterToIndices fl arr
+    mapPath bad =
+      throwError $ "scimPatchToJsonPatch: illegal or unsupported attribute path: " <> show bad
 
 arrFilterToIndices :: Filter -> [Value] -> [Int]
-arrFilterToIndices filter arr =
+arrFilterToIndices fltr arr =
   [ix | (ix, val) <- zip [0 ..] arr, matches val]
   where
     matches :: Value -> Bool
-    matches val = case filter of
+    matches val = case fltr of
       FilterAttrCompare attr op compVal ->
         maybe False (compareValue op compVal) (attrValue attr val)
 
@@ -202,34 +203,58 @@ arrFilterToIndices filter arr =
 -- schemas, and never fills the schema argument of `AttrPath`.  See
 -- haddocks of `Patch` above.  Since `AD.Patch` is more expressive
 -- than `Patch`, this can have errors.
-jsonPatchToScimPatch :: forall tag m. (MonadError String m) => AD.Patch -> Value -> m (Patch tag)
+jsonPatchToScimPatch :: forall tag m. (MonadError ScimError m) => AD.Patch -> Value -> m (Patch tag)
 jsonPatchToScimPatch jsonPatch jsonOrig = do
-  (mapOp `mapM` (AD.patchOperations jsonPatch)) <&> Patch
+  ops <- do
+    let err = throwError . badRequest InvalidValue . Just . Text.pack
+    (mapOp `mapM` AD.patchOperations jsonPatch) & either err pure
+  pure $ Patch ops
   where
-    mapOp :: AD.Operation -> m (PatchOp tag)
+    mapOp :: AD.Operation -> Either String (PatchOp tag)
     mapOp = \case
-      AD.Add path val -> (`PatchOpAdd` val) <$> mapPath path
-      AD.Rem path -> mapPath path >>= maybe (throwError "remove op requires path argument.") (pure . PatchOpRemove)
-      AD.Rep path val -> (`PatchOpReplace` val) <$> mapPath path
+      AD.Add path val -> (`PatchOpAdd` val) <$> mapPath (traceShowId path)
+      AD.Rem path -> traceShowId (mapPath path) >>= maybe (throwError "remove op requires path argument.") (pure . PatchOpRemove)
+      AD.Rep path val -> (`PatchOpReplace` val) <$> mapPath (traceShowId path)
       AD.Mov {} -> throwError "unsupported patch operation: mov"
       AD.Cpy {} -> throwError "unsupported patch operation: cpy"
       AD.Tst {} -> throwError "unsupported patch operation: tst"
 
-    mapPath :: AD.Pointer -> m (Maybe ValuePath)
+    mapPath :: AD.Pointer -> Either String (Maybe ValuePath)
     mapPath (AD.Pointer []) = pure Nothing
     mapPath (AD.Pointer [AD.OKey key]) = pure $ Just (ValuePath (topLevelAttrPath (AK.toText key)) Nothing)
     mapPath (AD.Pointer [AD.OKey key, AD.OKey sub]) = todo key sub
     mapPath (AD.Pointer [AD.OKey key, AD.AKey ix]) = do
+      arr <- case jsonOrig of
+        Object obj -> case AK.lookup key obj of
+          Just (Array vec) -> pure $ V.toList vec
+          _ -> throwError $ AK.toString key <> " does not point to an object"
+        _ -> throwError $ "not an object"
       let fltr = arrIndexToFilter ix arr
-          arr = case jsonOrig of
-            Object obj -> case AK.lookup key obj of
-              Just (Array vec) -> V.toList vec
-              _ -> todo
-            _ -> todo
           attr = topLevelAttrPath (AK.toText key)
       pure $ Just (ValuePath attr (Just fltr))
-    mapPath (AD.Pointer [AD.OKey key, AD.AKey ix, AD.OKey sub]) = todo key ix sub
-    mapPath bad = throwError $ "illegal or unsupported attribute path: " <> show bad
+    mapPath (AD.Pointer [AD.OKey key, AD.AKey ix, AD.OKey subKey]) = do
+      _
+    mapPath bad = do
+      throwError $ "jsonPatchToScimPatch: illegal or unsupported attribute path: " <> show bad
+
+{-
+
+{emails: [{val: me@me.com, typ: work}, {val: you@you.com, typ: work}]}
+
+emails[1].val
+
+emails[val=you@you.com]
+
+-}
+
+_
+
+-- we don't need diff in production!  this is really good, because
+-- diff works very differently between scim and json.  so we just need
+-- to rip out everything related to diff here, and either copy it to
+-- tests and keep on hacking, or copy diff from aeson-diff to the
+-- tests and hack that, or just write a few unit tests instead of the
+-- property.
 
 arrIndexToFilter :: Int -> [Value] -> Filter
 arrIndexToFilter ix arr = case drop ix arr of
@@ -377,11 +402,11 @@ applyPatch ::
   a ->
   m a
 applyPatch scimPatch (toJSON -> jsonOrig) = do
-  let jsonPatch = scimPatchToJsonPatch scimPatch jsonOrig
-
-      result err = \case
+  let result err = \case
         Success val -> pure val
         Error txt -> throwError . badRequest InvalidValue . Just . err $ Text.pack txt
+
+  jsonPatch <- scimPatchToJsonPatch scimPatch jsonOrig
 
   jsonPatched <-
     AD.patch jsonPatch jsonOrig

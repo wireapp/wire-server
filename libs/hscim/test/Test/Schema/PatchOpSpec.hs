@@ -102,16 +102,23 @@ spec = do
                 ]
 
   describe "applyPatch" $ do
-    prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $
-      \(barbie :: User PatchTag) (changedWant :: User PatchTag) ->
+    focus . prop "arrFilterToIndices/arrIndexToFilter roundtrip on singleton match" $
+      forAll genArrFilterCase $ \(arr, fltr, ix) ->
+        let indices = arrFilterToIndices fltr arr
+            fltr' = arrIndexToFilter ix arr
+         in indices === [ix]
+              .&&. arrFilterToIndices fltr' arr === indices
+
+    focus . prop "roundtrip: jsonPatchToScimPatch and back" $
+      \(oldBarbie :: User PatchTag) (newBarbie :: User PatchTag) ->
         let patchOp :: Patch PatchTag
             patchOp =
-              jsonPatchToScimPatch (AD.diff (toJSON barbie) (toJSON changedWant)) (toJSON barbie)
+              jsonPatchToScimPatch (AD.diff (toJSON oldBarbie) (toJSON newBarbie)) (toJSON oldBarbie)
                 & either (error . show) Imports.id
 
-            go =
-              let j = scimPatchToJsonPatch patchOp (toJSON barbie)
-               in jsonPatchToScimPatch j (toJSON barbie)
+            go = do
+              j <- scimPatchToJsonPatch patchOp (toJSON oldBarbie)
+              jsonPatchToScimPatch j (toJSON oldBarbie)
          in go === Right patchOp
 
     prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $
@@ -121,13 +128,6 @@ spec = do
               jsonPatchToScimPatch (AD.diff (toJSON barbie) (toJSON changedWant)) (toJSON barbie)
                 & either (error . show) Imports.id
          in applyPatch patchOp barbie === Right changedWant
-
-    focus . prop "arrFilterToIndices/arrIndexToFilter roundtrip on singleton match" $
-      forAll genArrFilterCase $ \(arr, fltr, ix) ->
-        let indices = arrFilterToIndices fltr arr
-            fltr' = arrIndexToFilter ix arr
-         in indices === [ix]
-              .&&. arrFilterToIndices fltr' arr === indices
 
     it "throws expected error when patched object doesn't parse" $ do
       () <- todo
