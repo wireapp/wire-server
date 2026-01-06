@@ -3,7 +3,7 @@
 
   inputs = {
     self.submodules = true;
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?rev=09b8fda8959d761445f12b55f380d90375a1d6bb";
     nixpkgs_24_11.url = "github:nixos/nixpkgs?ref=nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
