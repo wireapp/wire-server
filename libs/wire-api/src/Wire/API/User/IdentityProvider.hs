@@ -59,10 +59,8 @@ import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
-import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import Wire.API.Routes.Public (ZHostValue)
-import Wire.API.User.Orphans (samlSchemaOptions)
 import Wire.API.Util.Aeson (defaultOptsDropChar)
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
