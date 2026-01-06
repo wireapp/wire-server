@@ -68,3 +68,19 @@ benchmarks: True
 
 program-options
     ghc-options: -Werror
+
+-- NOTE:
+--
+-- When nix builds proto-lens-setup, it builds it with Cabal-3.12 which is the
+-- default lib:Cabal in ghc-9.10. However, this proto-lens-setup doesn't really
+-- get used when running build with cabal, and for some reason cabal reinstalls
+-- it from hackage.
+--
+-- We use cabal-install-3.16, when hie-bios detects it is using a version >=
+-- 3.15, it uses the `--with-repl` option. This option only works when custom
+-- setups don't use older versions of `Cabal`. This makes HLS not work at all.
+--
+-- Adding this allow-newer option makes cabal compile proto-lens-setup with
+-- newer version of lib:Cabal.
+allow-newer:
+  , proto-lens-setup:Cabal
