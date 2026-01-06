@@ -11,6 +11,14 @@ license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
 common common-all
   default-language:   GHC2021
   ghc-options:
@@ -106,15 +114,17 @@ library
     , warp-tls
 
 test-suite wai-utilities-tests
-  import:             common-all
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
-  ghc-options:        -threaded -with-rtsopts=-N
-  hs-source-dirs:     test
-  build-tool-depends: hspec-discover:hspec-discover
+  import:         common-all
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  ghc-options:    -threaded -with-rtsopts=-N
+  hs-source-dirs: test
+
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
 
   -- cabal-fmt: expand test -Main
-  other-modules:      Network.Wai.Utilities.ServerSpec
+  other-modules:  Network.Wai.Utilities.ServerSpec
   build-depends:
     , bytestring
     , hspec
