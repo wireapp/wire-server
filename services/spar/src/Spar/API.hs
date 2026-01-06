@@ -578,7 +578,10 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
-  logIdPAction "IdP deleted" idp Nothing
+  logIdPAction
+    "IdP deleted"
+    idp
+    (Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList)))
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
@@ -660,7 +663,12 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
-  logIdPAction "IdP created" idp mReplaces
+  logIdPAction
+    "IdP created"
+    idp
+    ( Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
+        . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
+    )
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -678,16 +686,15 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
       when (zHost `elem` domains) $
         throwSparSem SparIdPDomainInUse
 
-logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> Maybe SAML.IdPId -> Sem r ()
-logIdPAction msg idp mReplaces =
+logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> (Msg -> Msg) -> Sem r ()
+logIdPAction msg idp additionalFields =
   Logger.info $
     Log.msg (msg)
       . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
       . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
       . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
-      . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
       . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
-      . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
+      . additionalFields
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
 filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
@@ -882,14 +889,12 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
             compareNonEmpty
               (previousIdP ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
               (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
-       in Logger.info $
-            Log.msg ("IdP updated" :: String)
-              . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
-              . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
-              . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
-              . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
-              . Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
-              . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
+       in logIdPAction
+            "IdP updated"
+            idp
+            ( Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
+                . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
+            )
 
     compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
     compareNonEmpty xs ys =
