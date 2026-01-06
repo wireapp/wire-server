@@ -16,7 +16,7 @@ certToString signedCert =
       issuer = dnToString $ certIssuerDN cert
       subject = dnToString $ certSubjectDN cert
       der = encodeSignedObject signedCert
-      fingerprint :: ByteString = BAE.convertToBase BAE.Base16 (hash der :: Digest SHA256)
+      fingerprint :: ByteString = BAE.convertToBase BAE.Base16 (hash der :: Digest SHA1)
       -- Split into pairs and join with ':'
       fingerprintStr =
         let hex = (T.decodeUtf8 fingerprint)
@@ -25,7 +25,7 @@ certToString signedCert =
    in mconcat . intersperse "; " $
         [ "Issuer: " <> issuer,
           "Subject: " <> subject,
-          "SHA256 Fingerprint: " <> fingerprintStr
+          "SHA1 Fingerprint: " <> fingerprintStr
         ]
 
 dnToString :: DistinguishedName -> String
