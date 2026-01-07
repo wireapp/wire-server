@@ -25,7 +25,7 @@ image_list_file="$tmp_link_store/image-list"
 nix -v --show-trace -L build "$ROOT_DIR#wireServer.imagesList" -o "$image_list_file" --fallback
 
 # Build everything first so we can benefit the most from having many cores.
-nix -v --show-trace -L build -f "$ROOT_DIR#wireServer.$IMAGES_ATTR" --no-link --fallback
+nix -v --show-trace -L build "$ROOT_DIR#wireServer.$IMAGES_ATTR.all" --no-link --fallback
 
 xargs -I {} -P 10 "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.{}" < "$image_list_file"
 
