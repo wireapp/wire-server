@@ -44,6 +44,7 @@
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
 pkgs_24_11:
+inputs:
 let
   inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
@@ -95,9 +96,7 @@ let
   inherit (lib) attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
-    inherit pkgs;
-    inherit (pkgs) fetchgit;
-    inherit lib;
+    inherit lib inputs;
   };
 
   localPackages = { enableOptimization, enableDocs, enableTests }: hsuper: hself:

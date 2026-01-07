@@ -1,5 +1,90 @@
 {
   "nodes": {
+    "amazonka": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1759730860,
+        "narHash": "sha256-cCRhHH/IgM7tPy8rXHTSRec1zxohO8NWxSVZEG1OjQw=",
+        "owner": "brendanhay",
+        "repo": "amazonka",
+        "rev": "a7d699be1076e2aad05a1930ca3937ffea954ad8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "brendanhay",
+        "repo": "amazonka",
+        "rev": "a7d699be1076e2aad05a1930ca3937ffea954ad8",
+        "type": "github"
+      }
+    },
+    "bloodhound": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1739958389,
+        "narHash": "sha256-E3co9FGZP135T3RocX4vbUELbbgGbYddD8CcVNUzHu8=",
+        "owner": "wireapp",
+        "repo": "bloodhound",
+        "rev": "dac0f1384b335ce35dc026bf8154e574b1a15d62",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "bloodhound",
+        "rev": "dac0f1384b335ce35dc026bf8154e574b1a15d62",
+        "type": "github"
+      }
+    },
+    "cql": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1693567589,
+        "narHash": "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=",
+        "owner": "wireapp",
+        "repo": "cql",
+        "rev": "abbd2739969d17a909800f282d10d42a254c4e3b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "cql",
+        "rev": "abbd2739969d17a909800f282d10d42a254c4e3b",
+        "type": "github"
+      }
+    },
+    "cql-io": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1661159563,
+        "narHash": "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=",
+        "owner": "wireapp",
+        "repo": "cql-io",
+        "rev": "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "cql-io",
+        "rev": "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36",
+        "type": "github"
+      }
+    },
+    "cryptobox-haskell": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1469104927,
+        "narHash": "sha256-9mMVgmMB1NWCPm/3inLeF4Ouiju0uIb/92UENoP88TU=",
+        "owner": "wireapp",
+        "repo": "cryptobox-haskell",
+        "rev": "7546a1a25635ef65183e3d44c1052285e8401608",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "cryptobox-haskell",
+        "rev": "7546a1a25635ef65183e3d44c1052285e8401608",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -15,6 +100,91 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "hedis": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1748594228,
+        "narHash": "sha256-BwcqQZf2GaEn2i6o9bVl+jiu/CjShYlHCmO81bYfc8Y=",
+        "owner": "wireapp",
+        "repo": "hedis",
+        "rev": "00d7fbf5f19b812b9e64e12be8860c4741be8558",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "hedis",
+        "rev": "00d7fbf5f19b812b9e64e12be8860c4741be8558",
+        "type": "github"
+      }
+    },
+    "hsaml2": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1717163391,
+        "narHash": "sha256-gufEAC7fFqafG8dXkGIOSfAcVv+ZWkawmBgUV+Ics2s=",
+        "owner": "dylex",
+        "repo": "hsaml2",
+        "rev": "874627ad22e69afe4d9a797e39633ffb30697c78",
+        "type": "github"
+      },
+      "original": {
+        "owner": "dylex",
+        "repo": "hsaml2",
+        "rev": "874627ad22e69afe4d9a797e39633ffb30697c78",
+        "type": "github"
+      }
+    },
+    "hspec-wai": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1699866697,
+        "narHash": "sha256-Nc5POjA+mJt7Vi3drczEivGsv9PXeVOCSwp21lLmz58=",
+        "owner": "wireapp",
+        "repo": "hspec-wai",
+        "rev": "08176f07fa893922e2e78dcaf996c33d79d23ce2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "hspec-wai",
+        "rev": "08176f07fa893922e2e78dcaf996c33d79d23ce2",
+        "type": "github"
+      }
+    },
+    "http-client": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1706706086,
+        "narHash": "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=",
+        "owner": "wireapp",
+        "repo": "http-client",
+        "rev": "37494bb9a89dd52f97a8dc582746c6ff52943934",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "http-client",
+        "rev": "37494bb9a89dd52f97a8dc582746c6ff52943934",
+        "type": "github"
+      }
+    },
+    "http2": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1765325653,
+        "narHash": "sha256-eyjFtB28JCcvItZ5R8CT2F5GL62c49oQ49AN8/4HSYw=",
+        "owner": "wireapp",
+        "repo": "http2",
+        "rev": "ca606d86ed304fa780f7a60d11244019c62a10e0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "http2",
+        "rev": "ca606d86ed304fa780f7a60d11244019c62a10e0",
         "type": "github"
       }
     },
@@ -50,11 +220,63 @@
         "type": "github"
       }
     },
+    "postie": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1725958101,
+        "narHash": "sha256-nNivtyBpr4DFsbaXxlCznX+MYtzNshU7vfVpnhMh52c=",
+        "owner": "alexbiehl",
+        "repo": "postie",
+        "rev": "13404b8cb7164cd9010c9be6cda5423194dd0c06",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alexbiehl",
+        "repo": "postie",
+        "rev": "13404b8cb7164cd9010c9be6cda5423194dd0c06",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
+        "amazonka": "amazonka",
+        "bloodhound": "bloodhound",
+        "cql": "cql",
+        "cql-io": "cql-io",
+        "cryptobox-haskell": "cryptobox-haskell",
         "flake-utils": "flake-utils",
+        "hedis": "hedis",
+        "hsaml2": "hsaml2",
+        "hspec-wai": "hspec-wai",
+        "http-client": "http-client",
+        "http2": "http2",
         "nixpkgs": "nixpkgs",
-        "nixpkgs_24_11": "nixpkgs_24_11"
+        "nixpkgs_24_11": "nixpkgs_24_11",
+        "postie": "postie",
+        "servant-openapi3": "servant-openapi3",
+        "tasty": "tasty",
+        "tasty-ant-xml": "tasty-ant-xml",
+        "text-icu-translit": "text-icu-translit",
+        "tinylog": "tinylog",
+        "wai-predicates": "wai-predicates",
+        "warp": "warp"
+      }
+    },
+    "servant-openapi3": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1716983629,
+        "narHash": "sha256-iKMWd+qm8hHhKepa13VWXDPCpTMXxoOwWyoCk4lLlIY=",
+        "owner": "wireapp",
+        "repo": "servant-openapi3",
+        "rev": "0db0095040df2c469a48f5b8724595f82afbad0c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "servant-openapi3",
+        "rev": "0db0095040df2c469a48f5b8724595f82afbad0c",
+        "type": "github"
       }
     },
     "systems": {
@@ -69,6 +291,108 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "tasty": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1705586441,
+        "narHash": "sha256-oACehxazeKgRr993gASRbQMf74heh5g0B+70ceAg17I=",
+        "owner": "wireapp",
+        "repo": "tasty",
+        "rev": "97df5c1db305b626ffa0b80055361b7b28e69cec",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "tasty",
+        "rev": "97df5c1db305b626ffa0b80055361b7b28e69cec",
+        "type": "github"
+      }
+    },
+    "tasty-ant-xml": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1746711397,
+        "narHash": "sha256-Aj/iTVECsCGq4f+32FXWyYj/iLH5e4Gm4hYRmewnJJM=",
+        "owner": "wireapp",
+        "repo": "tasty-ant-xml",
+        "rev": "11c53e976e2e941f25a33e8768669eb576d19ea8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "tasty-ant-xml",
+        "rev": "11c53e976e2e941f25a33e8768669eb576d19ea8",
+        "type": "github"
+      }
+    },
+    "text-icu-translit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1698840062,
+        "narHash": "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=",
+        "owner": "wireapp",
+        "repo": "text-icu-translit",
+        "rev": "317bbd27ea5ae4e7f93836ee9ca664f9bde7c583",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "text-icu-translit",
+        "rev": "317bbd27ea5ae4e7f93836ee9ca664f9bde7c583",
+        "type": "github"
+      }
+    },
+    "tinylog": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1674551828,
+        "narHash": "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=",
+        "owner": "wireapp",
+        "repo": "tinylog",
+        "rev": "9609104263e8cd2a631417c1c3ef23e090de0d09",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "tinylog",
+        "rev": "9609104263e8cd2a631417c1c3ef23e090de0d09",
+        "type": "github"
+      }
+    },
+    "wai-predicates": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1674147808,
+        "narHash": "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=",
+        "owner": "wireapp",
+        "repo": "wai-predicates",
+        "rev": "ff95282a982ab45cced70656475eaf2cefaa26ea",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "wai-predicates",
+        "rev": "ff95282a982ab45cced70656475eaf2cefaa26ea",
+        "type": "github"
+      }
+    },
+    "warp": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1766622245,
+        "narHash": "sha256-7rgZUimPJY+0yVN717pZ2Ep01+XB0z8C/+L9D3Qz9/k=",
+        "owner": "yesodweb",
+        "repo": "wai",
+        "rev": "ef34334b160c74b62435ccc21f5b458f73506b2f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "yesodweb",
+        "repo": "wai",
+        "rev": "ef34334b160c74b62435ccc21f5b458f73506b2f",
         "type": "github"
       }
     }
