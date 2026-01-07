@@ -389,7 +389,7 @@ let
 
   imagesList = pkgs.writeTextFile {
     name = "imagesList";
-    text = "${lib.concatStringsSep "\n" (builtins.attrNames (images localModsEnableAll))}";
+    text = "${lib.concatStringsSep "\n" (builtins.attrNames (staticExecs localModsEnableAll))}";
   };
   wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll { } { }));
 
