@@ -74,8 +74,8 @@ ifeq ("$(package)", "all")
 else
 	-if ( test -e dist || test -e dist-newstyle ); then  find dist* -type d -name '$(package)-*' -exec rm -rf {}; fi
 endif
-  # `/dist` shouldn't be created or used by anybody any more, we're just making sure here.
-	-rm -rf dist
+  # `/dist` and `.ghc.environment` shouldn't be created or used by anybody any more, we're just making sure here.
+	-rm -rf dist .ghc.environment
 	-rm -f "bill-of-materials.$(HELM_SEMVER).json"
 
 .PHONY: clean-hint
@@ -88,7 +88,7 @@ clean-hint:
 
 .PHONY: cabal.project.local
 cabal.project.local:
-	cp ./hack/bin/cabal.project.local.template ./cabal.project.local
+	cp ./hack/cabal.project.local.template ./cabal.project.local
 
 # Usage: make c package=brig test=1
 .PHONY: c
@@ -96,6 +96,10 @@ c: treefmt c-fast
 
 .PHONY: c
 c-fast:
+	if [ ! -e "cabal.project.local" ]; then \
+	  echo "'cabal.project.local' not found. please run 'make cabal.project.local' and tweak the output to your liking."
+	  exit 1; \
+	fi
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
