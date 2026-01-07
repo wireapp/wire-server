@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Script to delete any helm releases prefixed with `test-` older than 2 hours deemed inactive
+# Script to delete any integration namespaces prefixed with `test-` older than 2 hours.
 # Also deletes leftover nginx ingress classes.
 #
 # Motivation: cleanup of old test clusters that were not deleted (e.g. by the CI system, because it broke)
@@ -9,18 +9,27 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-releases=$(helm list -A -f '^test-' -o json |
-    jq -r -f "$DIR/filter-old-releases.jq")
+NOW=$(date +%s)
+namespaces=$(kubectl get namespaces -o json | jq -r --argjson now "$NOW" '
+  .items[]
+  | .metadata as $meta
+  | $meta.name as $name
+  | select($name | startswith("test-"))
+  | select($name | contains("-fed2") | not)
+  | ($meta.creationTimestamp | fromdateiso8601) as $created
+  | select(($now - $created) > (2 * 60 * 60))
+  | $name
+')
 
-if [ -n "$releases" ]; then
-    while read -r line; do
-        name=$(awk '{print $1}' <<<"$line")
-        namespace=$(awk '{print $2}' <<<"$line")
-        echo "test release '$name' older than 2 hours; deleting..."
-        helm delete -n "$namespace" "$name"
-    done <<<"$releases"
-else
+if [ -z "$namespaces" ]; then
     echo "Nothing to clean up."
+else
+    while read -r namespace; do
+        echo "Test namespace '$namespace' older than 2 hours; tearing down..."
+        if ! NAMESPACE="$namespace" "${DIR}/integration-teardown-federation.sh"; then
+            echo "Failed to tear down namespace '$namespace'; continuing..."
+        fi
+    done <<<"$namespaces"
 fi
 
-"${DIR}"/integration-teardown-ingress-classes.sh
+"${DIR}/integration-teardown-ingress-classes.sh"
