@@ -22,7 +22,7 @@ import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
-import Wire.API.User (UserType (UserTypeRegular))
+import Wire.API.User
 import Wire.API.User.Search (Contact (..))
 
 testObject_Contact_user_1 :: Contact
@@ -52,7 +52,7 @@ testObject_Contact_user_2 =
       contactColorId = Just (-5),
       contactHandle = Just "",
       contactTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000400000002"))),
-      contactType = UserTypeRegular
+      contactType = UserTypeApp
     }
 
 testObject_Contact_user_3 :: Contact
@@ -67,7 +67,7 @@ testObject_Contact_user_3 =
       contactColorId = Just (-4),
       contactHandle = Just "\175177~\35955c",
       contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000700000008"))),
-      contactType = UserTypeRegular
+      contactType = UserTypeBot
     }
 
 testObject_Contact_user_4 :: Contact
