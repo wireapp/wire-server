@@ -562,6 +562,7 @@ test-suite spec
     Test.Spar.DataSpec
     Test.Spar.Intra.BrigSpec
     Test.Spar.Roundtrip.ByteString
+    Test.Spar.Saml.IdPSpec
     Test.Spar.Scim.UserSpec
     Test.Spar.ScimSpec
     Test.Spar.Sem.DefaultSsoCodeSpec

@@ -42,6 +42,14 @@ module Spar.API
     IdpGetAll,
     IdpCreate,
     IdpDelete,
+
+    -- * published to enable testing
+
+    -- FUTUREWORK: This module should be split into two: Servant handler
+    -- subtilities and the functions that do the actual work.
+    idpCreate,
+    idpCreateV7,
+    idpDelete,
   )
 where
 
@@ -546,7 +554,6 @@ idpGetAllByTeamId tid = do
 idpDelete ::
   forall r.
   ( Member Random r,
-    Member (Logger String) r,
     Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
