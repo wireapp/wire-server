@@ -37,7 +37,6 @@ import qualified Data.ByteString.Char8 as C8
 import Data.Default
 import Data.Foldable
 import Data.Function
-import Data.Hex
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -45,7 +44,6 @@ import qualified Data.Text.Encoding as T
 import Data.Traversable
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
-import Debug.Trace
 import GHC.Stack
 import Notifications
 import System.Directory
