@@ -23,7 +23,6 @@ import Data.Text.Template
 import Imports
 import Wire.API.User
 
-
 data InvitationEmailTemplate = InvitationEmailTemplate
   { invitationEmailUrl :: !Template,
     invitationEmailSubject :: !Template,
