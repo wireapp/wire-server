@@ -451,7 +451,7 @@ let
     bundleNixpkgs = false;
     extraPkgs = commonTools ++ [ pkgs.cachix ];
     nixConf = {
-      experimental-features = "nix-command";
+      experimental-features = "nix-command flakes";
     };
   };
 
