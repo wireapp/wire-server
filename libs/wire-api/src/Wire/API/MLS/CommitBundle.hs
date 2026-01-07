@@ -96,6 +96,7 @@ instance SerialiseMLS CommitBundle where
     serialiseMLS cb.commitMsg
     traverse_ (serialiseMLS . mkMessage . MessageWelcome) cb.welcome
     serialiseMLS $ mkMessage (MessageGroupInfo cb.groupInfo)
+    traverse_ serialiseMLS cb.appMessage
 
 instance S.ToSchema CommitBundle where
   declareNamedSchema _ = pure (mlsSwagger "CommitBundle")
