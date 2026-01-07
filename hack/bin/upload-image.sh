@@ -14,12 +14,8 @@ set -euo pipefail
 
 readonly DOCKER_TAG=${DOCKER_TAG:?"Please set the DOCKER_TAG env variable"}
 
-readonly usage="USAGE: $0 <image_attr>"
-readonly IMAGE_ATTR=${1:?$usage}
-
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &>/dev/null && pwd)
-readonly SCRIPT_DIR ROOT_DIR
+readonly usage="USAGE: $0 <image_stream_file>"
+readonly IMAGE_STREAM_FILE=${1:?$usage}
 
 credsArgs=""
 if [[ "${DOCKER_USER+x}" != "" ]]; then
@@ -63,10 +59,8 @@ tmp_link_store=$(mktemp -d)
 # product of other store paths which should already be cached and a lot of our
 # images should have a few common layers. More information:
 # https://nixos.org/manual/nixpkgs/unstable/#ssec-pkgs-dockerTools-streamLayeredImage
-image_stream_file="$tmp_link_store/image_stream"
-nix -v --show-trace -L build "$ROOT_DIR#$IMAGE_ATTR" -o "$image_stream_file"
 image_file="$tmp_link_store/image"
-"$image_stream_file" >"$image_file"
+"$IMAGE_STREAM_FILE" >"$image_file"
 repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
 printf "*** Uploading $image_file to %s:%s\n" "$repo" "$DOCKER_TAG"
 # shellcheck disable=SC2086

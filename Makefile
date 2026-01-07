@@ -319,8 +319,11 @@ upload-images:
 upload-images-dev:
 	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
+HOOGLE_IMAGE_DIR := $(shell mktemp -d -t wire-server-hoogle-image.XXXXXX)
+
 upload-hoogle-image:
-	./hack/bin/upload-image.sh wireServer.hoogleImage
+	nix -v --show-trace -L build ".#wireServer.hoogleImage" --out-link $(HOOGLE_IMAGE_DIR)/image --fallback
+	./hack/bin/upload-image.sh $(HOOGLE_IMAGE_DIR)/image
 
 #################################
 ## cassandra / postgres management

@@ -20,14 +20,13 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &>/dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
 
-tmp_link_store=$(mktemp -d)
-image_list_file="$tmp_link_store/image-list"
-nix -v --show-trace -L build "$ROOT_DIR#wireServer.imagesList" -o "$image_list_file" --fallback
-
 # Build everything first so we can benefit the most from having many cores.
-nix -v --show-trace -L build "$ROOT_DIR#wireServer.$IMAGES_ATTR.all" --no-link --fallback
+result=$(mktemp -d -t stream-images.XXXXXX)
+nix -v --show-trace -L build "$ROOT_DIR#wireServer.$IMAGES_ATTR.all" --out-link "$result/images" --fallback
 
-xargs -I {} -P 10 "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.{}" < "$image_list_file"
+find "$result/images/" -type l -print0 | xargs -0 -I {} -P 10 "$SCRIPT_DIR/upload-image.sh" {}
 
 printf '*** Uploading image %s\n' nginz
-"$SCRIPT_DIR/upload-image.sh" nginz
+nginz_image=$(mktemp -d -t stream-nginz-image.XXXXXX)
+nix -v --show-trace -L build "$ROOT_DIR#nginz" --out-link "$nginz_image/image" --fallback
+"$SCRIPT_DIR/upload-image.sh" "$nginz_image/image"
