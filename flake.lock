@@ -29,8 +29,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "wire-fork",
         "repo": "bloodhound",
-        "rev": "dac0f1384b335ce35dc026bf8154e574b1a15d62",
         "type": "github"
       }
     },
@@ -46,8 +46,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "develop",
         "repo": "cql",
-        "rev": "abbd2739969d17a909800f282d10d42a254c4e3b",
         "type": "github"
       }
     },
@@ -63,25 +63,25 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "control-conn",
         "repo": "cql-io",
-        "rev": "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36",
         "type": "github"
       }
     },
     "cryptobox-haskell": {
       "flake": false,
       "locked": {
-        "lastModified": 1469104927,
-        "narHash": "sha256-9mMVgmMB1NWCPm/3inLeF4Ouiju0uIb/92UENoP88TU=",
+        "lastModified": 1728557781,
+        "narHash": "sha256-LROqEzzvKiJ7YoF8SdKUkEgGXKBRW6Wdtd4EBY3LYOk=",
         "owner": "wireapp",
         "repo": "cryptobox-haskell",
-        "rev": "7546a1a25635ef65183e3d44c1052285e8401608",
+        "rev": "05560b2cfae13aac54414952638dadd62204f361",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
+        "ref": "master",
         "repo": "cryptobox-haskell",
-        "rev": "7546a1a25635ef65183e3d44c1052285e8401608",
         "type": "github"
       }
     },
@@ -115,8 +115,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "wire-changes",
         "repo": "hedis",
-        "rev": "00d7fbf5f19b812b9e64e12be8860c4741be8558",
         "type": "github"
       }
     },
@@ -132,8 +132,8 @@
       },
       "original": {
         "owner": "dylex",
+        "ref": "main",
         "repo": "hsaml2",
-        "rev": "874627ad22e69afe4d9a797e39633ffb30697c78",
         "type": "github"
       }
     },
@@ -149,8 +149,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "body-contains",
         "repo": "hspec-wai",
-        "rev": "08176f07fa893922e2e78dcaf996c33d79d23ce2",
         "type": "github"
       }
     },
@@ -166,25 +166,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "master",
         "repo": "http-client",
-        "rev": "37494bb9a89dd52f97a8dc582746c6ff52943934",
-        "type": "github"
-      }
-    },
-    "http2": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1765325653,
-        "narHash": "sha256-eyjFtB28JCcvItZ5R8CT2F5GL62c49oQ49AN8/4HSYw=",
-        "owner": "wireapp",
-        "repo": "http2",
-        "rev": "ca606d86ed304fa780f7a60d11244019c62a10e0",
-        "type": "github"
-      },
-      "original": {
-        "owner": "wireapp",
-        "repo": "http2",
-        "rev": "ca606d86ed304fa780f7a60d11244019c62a10e0",
         "type": "github"
       }
     },
@@ -223,17 +206,17 @@
     "postie": {
       "flake": false,
       "locked": {
-        "lastModified": 1725958101,
-        "narHash": "sha256-nNivtyBpr4DFsbaXxlCznX+MYtzNshU7vfVpnhMh52c=",
+        "lastModified": 1755365380,
+        "narHash": "sha256-gSWoV2EuqxTiVJgG5DBvpR2GmccAD/tRdGVxoNw8+Rw=",
         "owner": "alexbiehl",
         "repo": "postie",
-        "rev": "13404b8cb7164cd9010c9be6cda5423194dd0c06",
+        "rev": "769dde424327c6b83079d79130a3d476967a9790",
         "type": "github"
       },
       "original": {
         "owner": "alexbiehl",
+        "ref": "master",
         "repo": "postie",
-        "rev": "13404b8cb7164cd9010c9be6cda5423194dd0c06",
         "type": "github"
       }
     },
@@ -249,7 +232,6 @@
         "hsaml2": "hsaml2",
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",
-        "http2": "http2",
         "nixpkgs": "nixpkgs",
         "nixpkgs_24_11": "nixpkgs_24_11",
         "postie": "postie",
@@ -258,8 +240,7 @@
         "tasty-ant-xml": "tasty-ant-xml",
         "text-icu-translit": "text-icu-translit",
         "tinylog": "tinylog",
-        "wai-predicates": "wai-predicates",
-        "warp": "warp"
+        "wai-predicates": "wai-predicates"
       }
     },
     "servant-openapi3": {
@@ -274,8 +255,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "required-request-bodies",
         "repo": "servant-openapi3",
-        "rev": "0db0095040df2c469a48f5b8724595f82afbad0c",
         "type": "github"
       }
     },
@@ -306,8 +287,8 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "mangoiv/full-stacktrace-rebased",
         "repo": "tasty",
-        "rev": "97df5c1db305b626ffa0b80055361b7b28e69cec",
         "type": "github"
       }
     },
@@ -323,25 +304,25 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "drop-console-formatting_rebased",
         "repo": "tasty-ant-xml",
-        "rev": "11c53e976e2e941f25a33e8768669eb576d19ea8",
         "type": "github"
       }
     },
     "text-icu-translit": {
       "flake": false,
       "locked": {
-        "lastModified": 1698840062,
-        "narHash": "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=",
+        "lastModified": 1732177438,
+        "narHash": "sha256-wOZMz0yv29WgQyUuJ8fDejR11GopAUWkeh3nV0zlrow=",
         "owner": "wireapp",
         "repo": "text-icu-translit",
-        "rev": "317bbd27ea5ae4e7f93836ee9ca664f9bde7c583",
+        "rev": "2392d8d1500cd16e12aede1e0a3863ad3c1a7e37",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
+        "ref": "master",
         "repo": "text-icu-translit",
-        "rev": "317bbd27ea5ae4e7f93836ee9ca664f9bde7c583",
         "type": "github"
       }
     },
@@ -357,42 +338,25 @@
       },
       "original": {
         "owner": "wireapp",
+        "ref": "wire-fork",
         "repo": "tinylog",
-        "rev": "9609104263e8cd2a631417c1c3ef23e090de0d09",
         "type": "github"
       }
     },
     "wai-predicates": {
       "flake": false,
       "locked": {
-        "lastModified": 1674147808,
-        "narHash": "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=",
+        "lastModified": 1732803463,
+        "narHash": "sha256-+v3nGZhW/pIki2/ax4sMLeR2F6Ikh7V1/JbGJnZC3Pc=",
         "owner": "wireapp",
         "repo": "wai-predicates",
-        "rev": "ff95282a982ab45cced70656475eaf2cefaa26ea",
+        "rev": "35b0ac568b5e197b21acc12699ed09ee89c1d994",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
+        "ref": "develop",
         "repo": "wai-predicates",
-        "rev": "ff95282a982ab45cced70656475eaf2cefaa26ea",
-        "type": "github"
-      }
-    },
-    "warp": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1766622245,
-        "narHash": "sha256-7rgZUimPJY+0yVN717pZ2Ep01+XB0z8C/+L9D3Qz9/k=",
-        "owner": "yesodweb",
-        "repo": "wai",
-        "rev": "ef34334b160c74b62435ccc21f5b458f73506b2f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "yesodweb",
-        "repo": "wai",
-        "rev": "ef34334b160c74b62435ccc21f5b458f73506b2f",
         "type": "github"
       }
     }

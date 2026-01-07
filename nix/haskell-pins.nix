@@ -142,17 +142,6 @@ let
       src = inputs.text-icu-translit;
     };
 
-    # open PR https://github.com/yesodweb/wai/pull/958 for sending connection: close when closing connection
-    warp = {
-      src = inputs.warp;
-      packages.warp = "warp";
-    };
-
-    http2 = {
-      src = inputs.http2;
-    };
-
-
     # Our fork of 2.0.0. This release hasn't been updated for a while and Nix
     # is bad in coping with Hackage patched revisions and overriding
     # ghc-options. So, we have our fork to gain GHC 9.8 compatibility.
@@ -212,6 +201,15 @@ let
     uri-bytestring = {
       version = "0.3.3.1";
       sha256 = "sha256-jgSTBBDcxRQ0tjs0wTyvEpEAkGA7npJKjdXDT81VpT4=";
+    };
+
+    warp = {
+      version = "3.4.12";
+      sha256 = "sha256-Y9xQ1wBbBtSZ4qw3yTGSYX27qi2uFRDJVtAdmQqRnFQ=";
+    };
+    http2 = {
+      version = "5.4.0";
+      sha256 = "sha256-PeEWVd61bQ8G7LvfLeXklzXqNJFaAjE2ecRMWJZESPE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
