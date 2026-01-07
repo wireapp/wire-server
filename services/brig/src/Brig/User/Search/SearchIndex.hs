@@ -101,7 +101,7 @@ userDocToContact localDomain UserDoc {..} = do
   let contactColorId = fromIntegral . fromColourId <$> udColourId
       contactHandle = fromHandle <$> udHandle
       contactTeam = udTeam
-      contactType = fromMaybe UserTypeRegular udType -- default to "regular" as all app should have this field set
+      contactType = fromMaybe UserTypeRegular udType -- default to "regular" as all apps should have this field set
   pure $ Contact {..}
 
 -- | The default or canonical 'IndexQuery'.
