@@ -52,7 +52,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
-import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.API.Handle qualified as Handle
@@ -929,7 +928,6 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member EmailSending r,
     Member ActivationCodeStore r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -991,15 +989,15 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (Public.CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
         pure ()
       Public.NewTeamMember _ ->
-        Team.sendMemberWelcomeMail e t n l
+        liftSem $ sendMemberWelcomeEmail e t n l
       Public.NewTeamMemberSSO _ ->
-        Team.sendMemberWelcomeMail e t n l
+        liftSem $ sendMemberWelcomeEmail e t n l
 
 getSelf :: (Member UserSubsystem r) => Local UserId -> Handler r Public.SelfProfile
 getSelf self =

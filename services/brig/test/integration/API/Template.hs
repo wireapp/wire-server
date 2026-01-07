@@ -15,7 +15,7 @@ import Polysemy.Output
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
-import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode), Locale)
+import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.EmailAddress
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
@@ -37,25 +37,36 @@ tests opts manager = do
                     invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
                     invInviter = fromJust $ emailAddressText "inviter@example.com"
                   }
-          [ test manager ("[" <> show loc <> "] team invitation") $ testTeamInvitationEmail branding loc input templates,
-            test manager ("[" <> show loc <> "] team invitation existing user") $ testTeamInvitationEmailExistingUser branding loc input templates
+          [ test manager ("[" <> show loc <> "] team invitation") $ testTeamInvitationEmail branding input templates,
+            test manager ("[" <> show loc <> "] team invitation existing user") $ testTeamInvitationEmailExistingUser branding input templates,
+            test manager ("[" <> show loc <> "] member welcome") $ testMemberWelcomeEmail branding templates
             ]
       )
 
-testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> Locale -> InvitationEmail -> TeamTemplates -> Http ()
-testTeamInvitationEmailExistingUser branding loc input templates = do
+testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> InvitationEmail -> TeamTemplates -> Http ()
+testTeamInvitationEmailExistingUser branding input templates = do
   liftIO $ do
     let tpl = templates.existingUserInvitationEmail
-    let (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
+        (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
     mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
     url @?= "http://127.0.0.1:8080/accept-invitation?team-code=ZoMX0xs="
-    assertBool ("InvitationEmailTemplate[" <> show loc <> "] the following variables were not replaced: " <> show errs) (null errs)
+    assertBool ("The following variables were not replaced: " <> show errs) (null errs)
 
-testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> Locale -> InvitationEmail -> TeamTemplates -> Http ()
-testTeamInvitationEmail branding loc input templates = do
+testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> InvitationEmail -> TeamTemplates -> Http ()
+testTeamInvitationEmail branding input templates = do
   liftIO $ do
     let tpl = templates.invitationEmail
-    let (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
+        (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
     mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
     url @?= "http://127.0.0.1:8080/register?team=123e4567-e89b-12d3-a456-426614174000&team_code=ZoMX0xs="
-    assertBool ("InvitationEmailTemplate[" <> show loc <> "] the following variables were not replaced: " <> show errs) (null errs)
+    assertBool ("The following variables were not replaced: " <> show errs) (null errs)
+
+testMemberWelcomeEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
+testMemberWelcomeEmail branding templates = do
+  liftIO $ do
+    let tpl = templates.memberWelcomeEmail
+        to = fromJust $ emailAddressText "test@example.com"
+        tid = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000")
+        tname = "funky team"
+        (errs, _) = run $ runOutputList @Text $ renderMemberWelcomeMail to tid tname tpl branding
+    assertBool ("The following variables were not replaced: " <> show errs) (null errs)

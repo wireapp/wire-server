@@ -60,6 +60,7 @@ emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
   SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls brandingMap email tid from code loc
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls brandingMap email tid from code loc
+  SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls brandingMap email tid teamName loc
   where
     branding x = fromMaybe x (Map.lookup x brandingMap)
 
@@ -492,6 +493,39 @@ renderInvitationEmail InvitationEmail {..} InvitationEmailTemplate {..} branding
 renderInvitationUrl :: (Member (Output Text) r) => Template -> TeamId -> InvitationCode -> Sem r Text
 renderInvitationUrl t tid (InvitationCode c) =
   toStrict <$> renderTextWithBrandingSem t (Map.fromList [("team", idToText tid), ("code", Ascii.toText c)])
+
+-------------------------------------------------------------------------------
+-- Member Welcome Email
+
+sendMemberWelcomeEmailImpl :: (Member EmailSending r, Member TinyLog r) => Localised TeamTemplates -> Map Text Text -> EmailAddress -> TeamId -> Text -> Maybe Locale -> Sem r ()
+sendMemberWelcomeEmailImpl teamTemplates branding to tid teamName loc = do
+  let tpl = memberWelcomeEmail . snd $ forLocale loc teamTemplates
+  mail <- logEmailRenderErrors "member welcome email" $ renderMemberWelcomeMail to tid teamName tpl branding
+  sendMail mail
+
+renderMemberWelcomeMail :: (Member (Output Text) r) => EmailAddress -> TeamId -> Text -> MemberWelcomeEmailTemplate -> Map Text Text -> Sem r Mail
+renderMemberWelcomeMail emailTo tid teamName MemberWelcomeEmailTemplate {..} branding = do
+  let replace =
+        branding
+          & Map.insert "url" memberWelcomeEmailUrl
+          & Map.insert "email" (fromEmail emailTo)
+          & Map.insert "team_id" (idToText tid)
+          & Map.insert "team_name" teamName
+  txt <- renderTextWithBrandingSem memberWelcomeEmailBodyText replace
+  html <- renderHtmlWithBrandingSem memberWelcomeEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem memberWelcomeEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "Welcome")
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
+  where
+    from = Address (Just memberWelcomeEmailSenderName) (fromEmail memberWelcomeEmailSender)
+    to = Address Nothing (fromEmail emailTo)
 
 -------------------------------------------------------------------------------
 -- MIME Conversions
