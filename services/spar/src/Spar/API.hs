@@ -697,7 +697,7 @@ logIdPAction msg idp zUser additionalFields =
       . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
       . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
       . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
-      . Log.field "user" (fromMaybe "None" (idToText <$> zUser))
+      . Log.field "user" (maybe "None" idToText zUser)
       . additionalFields
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
