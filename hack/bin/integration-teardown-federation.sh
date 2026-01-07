@@ -22,4 +22,4 @@ export INGRESS_CHART="ingress-nginx-controller"
 . "$DIR/helm_overrides.sh"
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml.gotmpl" destroy --skip-deps --skip-charts --concurrency 0 || echo "Failed to delete helm deployments, ignoring this failure as next steps will the destroy namespaces anyway."
 
-kubectl delete namespace "$NAMESPACE_1" "$NAMESPACE_2"
+kubectl delete namespace "$NAMESPACE_1" "$NAMESPACE_2" --wait=false
