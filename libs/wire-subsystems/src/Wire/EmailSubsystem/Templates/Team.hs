@@ -32,15 +32,6 @@ data InvitationEmailTemplate = InvitationEmailTemplate
     invitationEmailSenderName :: !Text
   }
 
-data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
-  { creatorWelcomeEmailUrl :: !Text,
-    creatorWelcomeEmailSubject :: !Template,
-    creatorWelcomeEmailBodyText :: !Template,
-    creatorWelcomeEmailBodyHtml :: !Template,
-    creatorWelcomeEmailSender :: !EmailAddress,
-    creatorWelcomeEmailSenderName :: !Text
-  }
-
 data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
   { memberWelcomeEmailUrl :: !Text,
     memberWelcomeEmailSubject :: !Template,
@@ -62,7 +53,6 @@ data NewTeamOwnerWelcomeEmailTemplate = NewTeamOwnerWelcomeEmailTemplate
 data TeamTemplates = TeamTemplates
   { invitationEmail :: !InvitationEmailTemplate,
     existingUserInvitationEmail :: !InvitationEmailTemplate,
-    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
     memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
     newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate
   }
