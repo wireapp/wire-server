@@ -243,7 +243,7 @@ apiINTERNAL ::
     Member (Error SparError) r,
     Member SAMLUserStore r,
     Member ScimUserTimesStore r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member Random r,
     Member GalleyAccess r,
     Member BrigAccess r
@@ -476,7 +476,7 @@ authContext e = authHandler e :. EmptyContext
 
 idpGet ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -509,7 +509,7 @@ idpGetRaw zusr idpid = do
 
 idpGetAll ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -523,7 +523,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 
 idpGetAllByTeamId ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -637,7 +637,6 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
 idpCreate ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -707,7 +706,6 @@ filterMultiIngressZHost _ _ = Nothing
 
 idpCreateV7 ::
   ( Member Random r,
-    Member (Logger String) r,
     Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
@@ -768,7 +766,7 @@ validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -792,8 +790,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
   mbIdp <- case apiversion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
     WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe (_idpMetadata ^. SAML.edIssuer) teamId
-  Logger.log Logger.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  Logger.log Logger.Debug $ show (_idpId, oldIssuersList, mbIdp)
+  Logger.log Logger.Debug . Log.msg $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  Logger.log Logger.Debug . Log.msg $ show (_idpId, oldIssuersList, mbIdp)
 
   let failWithIdPClash :: m ()
       failWithIdPClash = throwSparSem . SparNewIdPAlreadyInUse $ case apiversion of
@@ -918,7 +916,7 @@ validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -975,12 +973,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
             . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
 
-withDebugLog :: (Member (Logger String) r) => String -> (a -> Maybe String) -> Sem r a -> Sem r a
+withDebugLog :: (Member (Logger (Msg -> Msg)) r) => String -> (a -> Maybe String) -> Sem r a -> Sem r a
 withDebugLog msg showval action = do
-  Logger.log Logger.Debug $ "entering " ++ msg
+  Logger.log Logger.Debug . Log.msg $ "entering " ++ msg
   val <- action
   let mshowedval = showval val
-  Logger.log Logger.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  Logger.log Logger.Debug . Log.msg $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
 authorizeIdP ::
