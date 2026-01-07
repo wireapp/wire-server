@@ -19,7 +19,7 @@ readonly SCRIPT_DIR ROOT_DIR
 tmp_link_store=$(mktemp -d)
 
 image_stream_file="$tmp_link_store/image-stream"
-nix -v --show-trace -L build -f "$ROOT_DIR#$IMAGE_ATTR" -o "$image_stream_file"
+nix -v --show-trace -L build "$ROOT_DIR#$IMAGE_ATTR" -o "$image_stream_file"
 image_file="$tmp_link_store/image"
 image_file_tagged="$tmp_link_store/image-tagged"
 "$image_stream_file" > "$image_file"

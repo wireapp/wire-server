@@ -18,7 +18,7 @@ readonly SCRIPT_DIR ROOT_DIR
 
 tmp_link_store=$(mktemp -d)
 image_list_file="$tmp_link_store/image-list"
-nix -v --show-trace -L build -f "$ROOT_DIR#wireServer.imagesList" -o "$image_list_file"
+nix -v --show-trace -L build "$ROOT_DIR#wireServer.imagesList" -o "$image_list_file"
 
 xargs -I {} -P 10 "$SCRIPT_DIR/kind-upload-image.sh" "wireServer.$IMAGES_ATTR.{}" < "$image_list_file"
 

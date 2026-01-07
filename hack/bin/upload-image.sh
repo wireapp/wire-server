@@ -64,7 +64,7 @@ tmp_link_store=$(mktemp -d)
 # images should have a few common layers. More information:
 # https://nixos.org/manual/nixpkgs/unstable/#ssec-pkgs-dockerTools-streamLayeredImage
 image_stream_file="$tmp_link_store/image_stream"
-nix -v --show-trace -L build -f "$ROOT_DIR#$IMAGE_ATTR" -o "$image_stream_file"
+nix -v --show-trace -L build "$ROOT_DIR#$IMAGE_ATTR" -o "$image_stream_file"
 image_file="$tmp_link_store/image"
 "$image_stream_file" >"$image_file"
 repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
