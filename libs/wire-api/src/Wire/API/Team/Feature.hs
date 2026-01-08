@@ -1528,8 +1528,12 @@ instance ToSchema CellsProperty where
   schema =
     object "CellsProperty" $
       CellsProperty
-        <$> (.enabled) .= field "enabled" schema
-        <*> (.default_) .= field "default" schema
+        <$> ((\CellsProperty {enabled} -> enabled) .= field "enabled" schema & doc . S.schema . S.example ?~ enabledDef)
+        <*> ((\CellsProperty {default_} -> default_) .= field "default" schema & doc . S.schema . S.example ?~ defaultDef)
+    where
+      defConf = def @CellsConfig
+      enabledDef = A.toJSON defConf.channels.enabled
+      defaultDef = A.toJSON defConf.channels.default_
 
 data CellsUsers = CellsUsers
   { externals :: Bool,
@@ -1543,8 +1547,12 @@ instance ToSchema CellsUsers where
   schema =
     object "CellsUsers" $
       CellsUsers
-        <$> (.externals) .= field "externals" schema
-        <*> (.guests) .= field "guests" schema
+        <$> ((\CellsUsers {externals} -> externals) .= field "externals" schema & doc . S.schema . S.example ?~ externalsDef)
+        <*> ((\CellsUsers {guests} -> guests) .= field "guests" schema & doc . S.schema . S.example ?~ guestsDef)
+    where
+      defConf = def @CellsConfig
+      externalsDef = A.toJSON defConf.users.externals
+      guestsDef = A.toJSON defConf.users.guests
 
 newtype CellsCollaboraStatus = CellsCollaboraStatus {enabled :: Bool}
   deriving (Show, Eq, Generic)
@@ -1555,7 +1563,10 @@ instance ToSchema CellsCollaboraStatus where
   schema =
     object "CellsCollaboraStatus" $
       CellsCollaboraStatus
-        <$> (.enabled) .= field "enabled" schema
+        <$> ((\CellsCollaboraStatus {enabled} -> enabled) .= field "enabled" schema & doc . S.schema . S.example ?~ enabledDef)
+    where
+      defConf = def @CellsConfig
+      enabledDef = A.toJSON defConf.collabora.enabled
 
 data CellsPublicLinks = CellsPublicLinks
   { enableFiles :: Bool,
@@ -1572,11 +1583,18 @@ instance ToSchema CellsPublicLinks where
   schema =
     object "CellsPublicLinks" $
       CellsPublicLinks
-        <$> enableFiles .= field "enableFiles" schema
-        <*> enableFolders .= field "enableFolders" schema
-        <*> enforcePassword .= field "enforcePassword" schema
-        <*> enforceExpirationMax .= field "enforceExpirationMax" schema
-        <*> enforceExpirationDefault .= field "enforceExpirationDefault" schema
+        <$> (enableFiles .= field "enableFiles" schema & doc . S.schema . S.example ?~ enableFilesDef)
+        <*> (enableFolders .= field "enableFolders" schema & doc . S.schema . S.example ?~ enableFoldersDef)
+        <*> (enforcePassword .= field "enforcePassword" schema & doc . S.schema . S.example ?~ enforcePasswordDef)
+        <*> (enforceExpirationMax .= field "enforceExpirationMax" schema & doc . S.schema . S.example ?~ enforceExpirationMaxDef)
+        <*> (enforceExpirationDefault .= field "enforceExpirationDefault" schema & doc . S.schema . S.example ?~ enforceExpirationDefaultDef)
+    where
+      defConf = def @CellsConfig
+      enableFilesDef = A.toJSON defConf.publicLinks.enableFiles
+      enableFoldersDef = A.toJSON defConf.publicLinks.enableFolders
+      enforcePasswordDef = A.toJSON defConf.publicLinks.enforcePassword
+      enforceExpirationMaxDef = A.toJSON defConf.publicLinks.enforceExpirationMax
+      enforceExpirationDefaultDef = A.toJSON defConf.publicLinks.enforceExpirationDefault
 
 data CellsRecycle = CellsRecycle
   { autoPurgeDays :: Int,
@@ -1591,9 +1609,14 @@ instance ToSchema CellsRecycle where
   schema =
     object "CellsRecycle" $
       CellsRecycle
-        <$> autoPurgeDays .= field "autoPurgeDays" schema
-        <*> disable .= field "disable" schema
-        <*> allowSkip .= field "allowSkip" schema
+        <$> (autoPurgeDays .= field "autoPurgeDays" schema & doc . S.schema . S.example ?~ autoPurgeDaysDef)
+        <*> (disable .= field "disable" schema & doc . S.schema . S.example ?~ disableDef)
+        <*> (allowSkip .= field "allowSkip" schema & doc . S.schema . S.example ?~ allowSkipDef)
+    where
+      defConf = def @CellsConfig
+      autoPurgeDaysDef = A.toJSON defConf.storage.recycle.autoPurgeDays
+      disableDef = A.toJSON defConf.storage.recycle.disable
+      allowSkipDef = A.toJSON defConf.storage.recycle.allowSkip
 
 data CellsConfigStorage = CellsConfigStorage
   { perFileQuotaBytes :: NumBytes,
@@ -1607,8 +1630,12 @@ instance ToSchema CellsConfigStorage where
   schema =
     object "CellsConfigStorage" $
       CellsConfigStorage
-        <$> perFileQuotaBytes .= field "perFileQuotaBytes" schema
-        <*> recycle .= field "recycle" schema
+        <$> (perFileQuotaBytes .= field "perFileQuotaBytes" schema & doc . S.schema . S.example ?~ perFileQuotaBytesDef)
+        <*> (recycle .= field "recycle" schema & doc . S.schema . S.example ?~ recycleDef)
+    where
+      defConf = def @CellsConfig
+      perFileQuotaBytesDef = A.toJSON defConf.storage.perFileQuotaBytes
+      recycleDef = A.toJSON defConf.storage.recycle
 
 data CellsUserMetaTags = CellsUserMetaTags
   { defaultValues :: [Text],
@@ -1622,8 +1649,12 @@ instance ToSchema CellsUserMetaTags where
   schema =
     object "CellsUserMetaTags" $
       CellsUserMetaTags
-        <$> defaultValues .= field "defaultValues" (array schema)
-        <*> allowFreeValues .= field "allowFreeValues" schema
+        <$> (defaultValues .= field "defaultValues" (array schema) & doc . S.schema . S.example ?~ defaultValuesDef)
+        <*> (allowFreeValues .= field "allowFreeValues" schema & doc . S.schema . S.example ?~ allowFreeValuesDef)
+    where
+      defConf = def @CellsConfig
+      defaultValuesDef = A.toJSON defConf.metadata.namespaces.usermetaTags.defaultValues
+      allowFreeValuesDef = A.toJSON defConf.metadata.namespaces.usermetaTags.allowFreeValues
 
 newtype CellsNamespaces = CellsNamespaces {usermetaTags :: CellsUserMetaTags}
   deriving (Eq, Show, Generic)
@@ -1634,7 +1665,10 @@ instance ToSchema CellsNamespaces where
   schema =
     object "CellsNamespaces" $
       CellsNamespaces
-        <$> usermetaTags .= field "usermetaTags" schema
+        <$> (usermetaTags .= field "usermetaTags" schema & doc . S.schema . S.example ?~ usermetaTagsDef)
+    where
+      defConf = def @CellsConfig
+      usermetaTagsDef = A.toJSON defConf.metadata.namespaces.usermetaTags
 
 newtype CellsMetadata = CellsMetadata {namespaces :: CellsNamespaces}
   deriving (Eq, Show, Generic)
@@ -1645,7 +1679,10 @@ instance ToSchema CellsMetadata where
   schema =
     object "CellsMetadata" $
       CellsMetadata
-        <$> namespaces .= field "namespaces" schema
+        <$> (namespaces .= field "namespaces" schema & doc . S.schema . S.example ?~ namespacesDef)
+    where
+      defConf = def @CellsConfig
+      namespacesDef = A.toJSON defConf.metadata.namespaces
 
 data CellsConfigB t f = CellsConfig
   { channels :: Wear t f CellsProperty,
