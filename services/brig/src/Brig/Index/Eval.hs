@@ -39,16 +39,21 @@ import Data.Credentials (Credentials (..))
 import Data.Id
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
+import Hasql.Pool
+import Hasql.Pool.Extended
 import Imports
 import Polysemy
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
-import Util.Options (initCredentials)
+import Util.Options
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.AppStore
+import Wire.AppStore.Postgres
 import Wire.BlockListStore (BlockListStore)
 import Wire.BlockListStore.Cassandra
 import Wire.FederationAPIAccess
@@ -86,6 +91,7 @@ type BrigIndexEffectStack =
     FederationAPIAccess FederatorClient,
     Error FederationError,
     UserStore,
+    AppStore,
     IndexedUserStore,
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
@@ -97,15 +103,18 @@ type BrigIndexEffectStack =
     Metrics,
     TinyLog,
     Concurrency 'Unsafe,
+    Input Pool,
+    Error UsageError,
     Embed IO,
     Final IO
   ]
 
-runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
-runSem esConn cas galleyEndpoint logger action = do
+runSem :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem esConn cas pg galleyEndpoint logger action = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
+  pgPool <- initPostgresPool pg.pool pg.settings pg.password
   let bhEnv =
         BHEnv
           { bhServer = toESServer esConn.esServer,
@@ -125,6 +134,8 @@ runSem esConn cas galleyEndpoint logger action = do
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
   runFinal
     . embedToFinal
+    . throwErrorToIOFinal @UsageError
+    . runInputConst pgPool
     . unsafelyPerformConcurrency
     . loggerToTinyLogReqId reqId logger
     . ignoreMetrics
@@ -138,6 +149,7 @@ runSem esConn cas galleyEndpoint logger action = do
     . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
+    . interpretAppStoreToPostgres
     . interpretUserStoreCassandra casClient
     . throwErrorToIOFinal @FederationError
     . noFederationAPIAccess
@@ -161,17 +173,17 @@ runCommand l = \case
   Reset es galley -> do
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
+  Reindex es cas pg galley -> do
+    runSem (es ^. esConnection) cas pg galley l $
       IndexedUserStoreBulk.syncAllUsers
-  ReindexSameOrNewer es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
+  ReindexSameOrNewer es cas pg galley -> do
+    runSem (es ^. esConnection) cas pg galley l $
       IndexedUserStoreBulk.forceSyncAllUsers
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
-  Migrate es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
+  Migrate es cas pg galley -> do
+    runSem (es ^. esConnection) cas pg galley l $
       IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-

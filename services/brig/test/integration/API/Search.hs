@@ -40,7 +40,7 @@ import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Index.Eval (initIndex, runCommand)
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
-import Brig.Options (ElasticSearchOpts)
+import Brig.Options
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Brig.User.Search.Index
@@ -800,7 +800,7 @@ runReindexFromAnotherIndex logger opts newIndexName migrationIndexName =
    in runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
 runReindexFromDatabase ::
-  (ElasticSettings -> CassandraSettings -> Endpoint -> Command) ->
+  (ElasticSettings -> CassandraSettings -> PostgresSettings -> Endpoint -> Command) ->
   Log.Logger ->
   Opt.Opts ->
   ES.IndexName ->
@@ -824,9 +824,11 @@ runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName =
             & IndexOpts.cPort .~ (opts.cassandra.endpoint.port)
             & IndexOpts.cKeyspace .~ (C.Keyspace opts.cassandra.keyspace)
         )
+      postgresSettings :: PostgresSettings =
+        PostgresSettings opts.postgresqlPool opts.postgresql opts.postgresqlPassword
 
       endpoint :: Endpoint = opts.galley
-   in runCommand logger $ syncCommand elasticSettings cassandraSettings endpoint
+   in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings endpoint
 
 toESConnectionSettings :: ElasticSearchOpts -> ES.IndexName -> ESConnectionSettings
 toESConnectionSettings opts migrationIndexName = ESConnectionSettings {..}
