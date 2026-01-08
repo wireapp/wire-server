@@ -194,7 +194,10 @@ createConnectionToLocalUser self conn target = do
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (wrapClient $ Data.updateConnection c s)
 
--- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
+-- | Guard local connection creation against legal-hold consent conflicts.
+-- Rejects when one user is `no_consent` while the other has LH enabled.
+-- See also: "Galley.API.LegalHold.Conflicts.guardLegalholdPolicyConflictsUid"
+-- and "Galley.API.Action.checkLHPolicyConflictsLocal".
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.

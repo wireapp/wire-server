@@ -105,6 +105,10 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
 
+-- | Guard notification handling against legal-hold policy conflicts.
+-- Ensures that if any user has a LH client then no user can be missing consent.
+-- See also: "Brig.API.Connection.checkLegalholdPolicyConflict"
+-- and "Galley.API.Action.checkLHPolicyConflictsLocal".
 guardLegalholdPolicyConflictsUid ::
   forall r.
   ( Member BrigAPIAccess r,
