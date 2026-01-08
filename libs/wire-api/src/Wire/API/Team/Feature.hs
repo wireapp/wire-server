@@ -1528,8 +1528,8 @@ instance ToSchema CellsProperty where
   schema =
     object "CellsProperty" $
       CellsProperty
-        <$> ((\CellsProperty {enabled} -> enabled) .= field "enabled" schema)
-        <*> ((\CellsProperty {default_} -> default_) .= field "default" schema)
+        <$> (.enabled) .= field "enabled" schema
+        <*> (.default_) .= field "default" schema
 
 data CellsUsers = CellsUsers
   { externals :: Bool,
@@ -1543,8 +1543,8 @@ instance ToSchema CellsUsers where
   schema =
     object "CellsUsers" $
       CellsUsers
-        <$> ((\CellsUsers {externals} -> externals) .= field "externals" schema)
-        <*> ((\CellsUsers {guests} -> guests) .= field "guests" schema)
+        <$> (.externals) .= field "externals" schema
+        <*> (.guests) .= field "guests" schema
 
 newtype CellsCollaboraStatus = CellsCollaboraStatus {enabled :: Bool}
   deriving (Show, Eq, Generic)
@@ -1555,7 +1555,7 @@ instance ToSchema CellsCollaboraStatus where
   schema =
     object "CellsCollaboraStatus" $
       CellsCollaboraStatus
-        <$> ((\CellsCollaboraStatus {enabled} -> enabled) .= field "enabled" schema)
+        <$> (.enabled) .= field "enabled" schema
 
 data CellsPublicLinks = CellsPublicLinks
   { enableFiles :: Bool,
@@ -1721,15 +1721,15 @@ instance Default CellsConfig where
 instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
   schema =
     object "CellsConfig" $
-       CellsConfig
-          <$> (.channels) .= fieldF "channels" schema
-          <*> (.groups) .= fieldF "groups" schema
-          <*> (.one2one) .= fieldF "one2one" schema
-          <*> (.users) .= fieldF "users" schema
-          <*> (.collabora) .= fieldF "collabora" schema
-          <*> (.publicLinks) .= fieldF "publicLinks" schema
-          <*> (.storage) .= fieldF "storage" schema
-          <*> (.metadata) .= fieldF "metadata" schema
+      CellsConfig
+        <$> channels .= fieldF "channels" schema
+        <*> groups .= fieldF "groups" schema
+        <*> one2one .= fieldF "one2one" schema
+        <*> users .= fieldF "users" schema
+        <*> (.collabora) .= fieldF "collabora" schema
+        <*> publicLinks .= fieldF "publicLinks" schema
+        <*> (.storage) .= fieldF "storage" schema
+        <*> metadata .= fieldF "metadata" schema
 
 instance ToSchema (Versioned V13 CellsConfig) where
   schema = object "CellsConfigV13" objectSchema
