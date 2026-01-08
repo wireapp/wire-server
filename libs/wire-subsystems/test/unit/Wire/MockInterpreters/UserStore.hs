@@ -31,16 +31,13 @@ import Polysemy.State
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
 import Wire.API.User.Search (SetSearchable (SetSearchable))
-import Wire.AppStore
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
 inMemoryUserStoreInterpreter ::
   forall r.
-  ( Member (State [StoredUser]) r,
-    Member (State [StoredApp]) r
-  ) =>
+  (Member (State [StoredUser]) r) =>
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = interpret $ \case
   CreateUser new _ -> modify (newStoredUserToStoredUser new :)
@@ -68,8 +65,6 @@ inMemoryUserStoreInterpreter = interpret $ \case
           else u
   GetIndexUser uid -> do
     mUser <- gets @[StoredUser] $ find (\user -> user.id == uid)
-    -- mApp <- gets @[StoredApp] $ find (\app -> app.id == uid)
-    -- let type_ = bool UserTypeRegular UserTypeApp $ isJust mApp
     pure $ storedUserToIndexUser <$> mUser
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"

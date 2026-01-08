@@ -149,15 +149,12 @@ indexUserToVersion role IndexUser {..} =
       const () <$$> writeTimeBumper
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> UserType -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound type_ mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udType =
-            if isJust serviceId
-              then Just UserTypeBot
-              else Nothing, -- XXX: When Nothing, it should be checked elsewhere whether this is an "app"
+        { udType = Just type_,
           udSearchable = value <$> searchable,
           udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,

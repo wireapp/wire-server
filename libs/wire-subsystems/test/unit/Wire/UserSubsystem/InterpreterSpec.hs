@@ -38,6 +38,7 @@ import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import Database.Bloodhound.Internal.Client qualified as ES
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -60,6 +61,7 @@ import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
+import Wire.IndexedUserStore qualified as IU
 import Wire.InvitationStore (InsertInvitation, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.MiniBackend
@@ -67,6 +69,8 @@ import Wire.MockInterpreters
 import Wire.RateLimit
 import Wire.StoredUser
 import Wire.UserKeyStore
+import Wire.UserSearch.Types
+import Wire.UserStore.IndexUser
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
@@ -100,6 +104,7 @@ spec = describe "UserSubsystem.Interpreter" do
               mkExpectedProfiles domain users =
                 [ mkUserProfileWithEmail
                     Nothing
+                    (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                     (mkUserFromStored domain miniLocale targetUser)
                     defUserLegalHoldStatus
                 | targetUser <- users
@@ -159,6 +164,7 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
+                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -175,6 +181,7 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfile
                 === [ mkUserProfile
                         (fmap (const Nothing) config.emailVisibilityConfig)
+                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -1091,6 +1098,19 @@ spec = describe "UserSubsystem.Interpreter" do
       \(ActiveStoredUser searcheeNoHandle) (searcheeHandle :: Handle) (ActiveStoredUser searcher) localDomain configBase ->
         let teamMember = mkTeamMember searcher.id fullPermissions Nothing defUserLegalHoldStatus
             searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
+
+            storedUserToDoc :: StoredUser -> UserDoc
+            storedUserToDoc user =
+              let indexUser = storedUserToIndexUser user
+                  userType = if isJust user.serviceId then UserTypeBot else UserTypeRegular
+               in indexUserToDoc defaultSearchVisibilityInbound userType Nothing indexUser
+
+            indexFromStoredUsers :: [StoredUser] -> UserIndex
+            indexFromStoredUsers storedUsers = do
+              run . execState emptyIndex . inMemoryIndexedUserStoreInterpreter $ do
+                for_ storedUsers $ \storedUser ->
+                  IU.upsert (userIdToDocId storedUser.id) (storedUserToDoc storedUser) ES.NoVersionControl
+
             localBackend =
               def
                 { users = [searchee, searcher],

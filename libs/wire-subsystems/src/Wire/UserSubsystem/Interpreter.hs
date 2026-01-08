@@ -451,11 +451,11 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
     lhs :: UserLegalHoldStatus <- do
       teamMember <- lift $ join <$> (internalGetTeamMember storedUser.id `mapM` storedUser.teamId)
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
-    let user = mkUserFromStored domain locale storedUser
-        usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
     userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
+    let user = mkUserFromStored domain locale storedUser
+        usrProfile = mkUserProfile emailVisibilityConfigWithViewer userType user lhs
     lift $ deleteLocalIfExpired user
-    pure $ usrProfile {profileType = userType}
+    pure $ usrProfile
 
 getSelfProfileImpl ::
   ( Member (Input UserSubsystemConfig) r,
@@ -719,24 +719,24 @@ syncUserIndex uid =
   getIndexUser uid >>= \case
     Nothing -> deleteFromIndex
     Just indexUser -> do
-      userType <- getUserType uid (value <$> indexUser.teamId) (value <$> indexUser.serviceId)
-      upsert indexUser userType
+      upsert indexUser
   where
     deleteFromIndex :: Sem r ()
     deleteFromIndex = do
       Metrics.incCounter indexDeleteCounter
       IndexedUserStore.upsert (userIdToDocId uid) (emptyUserDoc uid) ES.NoVersionControl
 
-    upsert :: IndexUser -> UserType -> Sem r ()
-    upsert indexUser userType = do
+    upsert :: IndexUser -> Sem r ()
+    upsert indexUser = do
       vis <-
         maybe
           (pure defaultSearchVisibilityInbound)
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
       tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
+      userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc' = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc' = indexUserToDoc vis userType (value <$> mRole) indexUser
           userDoc = userDoc' {udType = Just userType}
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
@@ -1184,8 +1184,7 @@ setUserSearchableImpl luid uid searchable = do
 
 getUserType ::
   forall r.
-  ( Member AppStore r
-  ) =>
+  (Member AppStore r) =>
   UserId ->
   Maybe TeamId ->
   Maybe ServiceId ->

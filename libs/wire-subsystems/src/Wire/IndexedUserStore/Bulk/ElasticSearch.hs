@@ -34,6 +34,8 @@ import System.Logger.Message qualified as Log
 import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
+import Wire.API.User
+import Wire.AppStore
 import Wire.GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
@@ -49,6 +51,7 @@ import Wire.UserStore.IndexUser
 interpretIndexedUserStoreBulk ::
   ( Member TinyLog r,
     Member UserStore r,
+    Member AppStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
@@ -64,6 +67,7 @@ interpretIndexedUserStoreBulk = interpret \case
 syncAllUsersImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -75,6 +79,7 @@ syncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGT
 forceSyncAllUsersImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -86,6 +91,7 @@ forceSyncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGTE
 syncAllUsersWithVersion ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -108,20 +114,26 @@ syncAllUsersWithVersion mkVersion =
 
     mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] (Sem r) ()
     mkUserDocs = Conduit.mapM $ \page -> do
-      -- XXX: Fetch `type` field within this function for each user?
-      -- Because `IndexUser` itself doesn't have a type: it's an
-      -- alternative representation of the Cassandra user
-      -- row. `UserType` on the other hand is a derived field: whether
-      -- a row exists for the user in the apps table for same uid/tid.
+      -- TODO: extract team visibilities, roles and user type more efficiently sending one query per page
+      -- TODO: introduce type ExtendedUser (or something), which
+      -- contains User, Maybe Role, UserType, ..., and pass around
+      -- ExtendedUser.  this should make the code less convoluted.
       let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) . value <$> u.teamId) page
           teamIds = Map.keys teams
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
         (t,) <$> teamSearchVisibilityInbound t
+      userTypes :: Map UserId UserType <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 page $ \iu ->
+        (iu.userId,) <$> getUserType iu
       roles :: Map UserId (WithWritetime Role) <- fmap (Map.fromList . concat) . unsafePooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) -> do
         tms <- (.members) <$> selectTeamMemberInfos t (fmap (.userId) us)
         pure $ mapMaybe mkRoleWithWriteTime tms
       let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ (flip Map.lookup visMap . value =<< indexUser.teamId)
-          mkUserDoc indexUser = indexUserToDoc (vis indexUser) ((.value) <$> Map.lookup indexUser.userId roles) indexUser
+          mkUserDoc indexUser =
+            indexUserToDoc
+              (vis indexUser)
+              (fromMaybe (error "impossible") (Map.lookup indexUser.userId userTypes))
+              ((.value) <$> Map.lookup indexUser.userId roles)
+              indexUser
           mkDocVersion u = mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion (Map.lookup u.userId roles) u
       pure $ map (\u -> (userIdToDocId u.userId, mkUserDoc u, mkDocVersion u)) page
 
@@ -142,6 +154,7 @@ migrateDataImpl ::
     Member (Error MigrationException) r,
     Member IndexedUserMigrationStore r,
     Member UserStore r,
+    Member AppStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
     Member TinyLog r
@@ -170,3 +183,17 @@ teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r Sea
 teamSearchVisibilityInbound tid =
   searchVisibilityInboundFromFeatureStatus . (.status)
     <$> getFeatureConfigForTeam @_ @SearchVisibilityInboundConfig tid
+
+-- | TODO: this is duplicated code from UserSubsystem, we should probably expose it as an action there.
+getUserType ::
+  forall r.
+  (Member AppStore r) =>
+  IndexUser ->
+  Sem r UserType
+getUserType iu = case iu.serviceId of
+  Just _ -> pure UserTypeBot
+  Nothing -> do
+    mmApp <- mapM (getApp iu.userId) (iu.teamId <&> (.value))
+    case join mmApp of
+      Just _ -> pure UserTypeApp
+      Nothing -> pure UserTypeRegular
