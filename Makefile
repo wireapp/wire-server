@@ -86,7 +86,6 @@ clean-hint:
 	@echo -e ">>> to never have to remember submodules again, try 'git config --global submodule.recurse true'"
 	@echo -e "\n\n\n"
 
-.PHONY: cabal.project.local
 cabal.project.local:
 	cp ./hack/cabal.project.local.template ./cabal.project.local
 
@@ -95,11 +94,7 @@ cabal.project.local:
 c: treefmt c-fast
 
 .PHONY: c
-c-fast:
-	if [ ! -e "cabal.project.local" ]; then \
-	  echo "'cabal.project.local' not found. please run 'make cabal.project.local' and tweak the output to your liking."
-	  exit 1; \
-	fi
+c-fast: cabal.project.local
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
