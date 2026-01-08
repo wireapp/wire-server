@@ -528,7 +528,7 @@ miniGetAllProfiles = do
     map
       ( \u ->
           let userType
-                | not . null $ filter ((== u.id) . (.id)) apps = UserTypeApp
+                | any ((== u.id) . (.id)) apps = UserTypeApp
                 | isJust u.serviceId = UserTypeBot
                 | otherwise = UserTypeRegular
            in mkUserProfileWithEmail Nothing userType (mkUserFromStored dom miniLocale u) defUserLegalHoldStatus
