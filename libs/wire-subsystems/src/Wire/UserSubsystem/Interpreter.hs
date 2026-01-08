@@ -827,7 +827,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
           esMaxResults
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
-  let esContacts = map userDocToContact (searchResults esResult)
+  let esContacts = map userDocToContact' (searchResults esResult)
       -- Prepend results matching exact handle and results from ES.
       allContacts = case maybeExactHandleMatch of
         Nothing -> esContacts
@@ -843,23 +843,13 @@ searchLocally searcher searchTerm maybeMaxResults = do
     handleTeamVisibility _ SearchVisibilityStandard = AllUsers
     handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = TeamOnly t
 
-    userDocToContact :: UserDoc -> Contact
-    userDocToContact userDoc =
-      Contact
-        { contactQualifiedId = tUntagged $ qualifyAs searcher userDoc.udId,
-          contactName = maybe "" fromName userDoc.udName,
-          contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
-          contactHandle = Handle.fromHandle <$> userDoc.udHandle,
-          contactTeam = userDoc.udTeam,
-          contactType =
-            -- NB: if you have index entries for bots that haven't
-            -- migrated yet, they will identify as regular users in
-            -- the search result.  this is an accepted limitation.  as
-            -- long as we have cassandra and elastic search involved,
-            -- the only way around it would be looking up serverIds in
-            -- cassandra for every query.
-            fromMaybe UserTypeRegular userDoc.udType
-        }
+    userDocToContact' :: UserDoc -> Contact
+    userDocToContact' userDoc =
+      runIdentity $
+        userDocToContact
+          (tUntagged $ qualifyAs searcher userDoc.udId)
+          (Identity . maybe "" fromName)
+          userDoc
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = do

@@ -80,7 +80,7 @@ queryIndex (IndexQuery q f _) s = do
     r <-
       ES.searchByType idx mappingName search
         >>= ES.parseEsResponse @_ @(ES.SearchResult UserDoc)
-    either (throwM . IndexLookupError) (traverse (userDocToContact localDomain) . mkResult) r
+    either (throwM . IndexLookupError) (traverse (userDocToContact' localDomain) . mkResult) r
   where
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
@@ -94,15 +94,12 @@ queryIndex (IndexQuery q f _) s = do
               searchHasMore = Nothing
             }
 
-userDocToContact :: (MonadThrow m) => Domain -> UserDoc -> m Contact
-userDocToContact localDomain UserDoc {..} = do
-  let contactQualifiedId = Qualified udId localDomain
-  contactName <- maybe (throwM $ IndexError "Name not found") (pure . fromName) udName
-  let contactColorId = fromIntegral . fromColourId <$> udColourId
-      contactHandle = fromHandle <$> udHandle
-      contactTeam = udTeam
-      contactType = fromMaybe UserTypeRegular udType -- default to "regular" as all apps should have this field set
-  pure $ Contact {..}
+    userDocToContact' :: (MonadThrow m) => Domain -> UserDoc -> m Contact -- !!
+    userDocToContact' localDomain userDoc =
+      userDocToContact
+        (Qualified userDoc.udId localDomain)
+        (maybe (throwM $ IndexError "Name not found") (pure . fromName) userDoc.udName)
+        userDoc
 
 -- | The default or canonical 'IndexQuery'.
 --

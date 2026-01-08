@@ -29,6 +29,7 @@ import Data.ByteString.Lazy
 import Data.Handle
 import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Data.Text.Encoding
 import Database.Bloodhound.Types
 import Imports
@@ -129,6 +130,29 @@ instance FromJSON UserDoc where
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
+
+-- Qualified UserId is not included in `UserDoc`, so it needs to be
+-- provided here.  Monad will most likely be Identity (I promise we'll
+-- always make up some name if missing) or Maybe (if no name, then no
+-- contact).
+userDocToContact :: (Monad m) => Qualified UserId -> (Maybe Name -> m Text) -> UserDoc -> m Contact
+userDocToContact contactQualifiedId getName userDoc =
+  getName userDoc.udName <&> \name ->
+    Contact
+      { contactQualifiedId,
+        contactName = name,
+        contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
+        contactHandle = fromHandle <$> userDoc.udHandle,
+        contactTeam = userDoc.udTeam,
+        contactType =
+          -- NB: if you have index entries for bots that haven't
+          -- migrated yet, they will identify as regular users in
+          -- the search result.  this is an accepted limitation.  as
+          -- long as we have cassandra and elastic search involved,
+          -- the only way around it would be looking up serverIds in
+          -- cassandra for every query.
+          fromMaybe UserTypeRegular userDoc.udType
+      }
 
 userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
 userDocToTeamContact userGroups UserDoc {..} =
