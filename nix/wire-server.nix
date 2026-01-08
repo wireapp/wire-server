@@ -44,6 +44,7 @@
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
 pkgs_24_11:
+inputs:
 let
   inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
@@ -95,9 +96,7 @@ let
   inherit (lib) attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
-    inherit pkgs;
-    inherit (pkgs) fetchgit;
-    inherit lib;
+    inherit lib inputs;
   };
 
   localPackages = { enableOptimization, enableDocs, enableTests }: hsuper: hself:
@@ -325,43 +324,52 @@ let
   ];
 
   images = localMods@{ enableOptimization, enableDocs, enableTests }:
-    let exes = staticExecs localMods;
+    let
+      exes = staticExecs localMods;
+      allImages = attrsets.mapAttrs
+        (execName: drv:
+          pkgs.dockerTools.streamLayeredImage {
+            name = "quay.io/wire/${execName}";
+            maxLayers = 10;
+            contents = [
+              pkgs.cacert
+              pkgs.iana-etc
+              pkgs.dumb-init
+              pkgs.dockerTools.fakeNss
+              pkgs.dockerTools.usrBinEnv
+              drv
+              tmpDir
+            ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
+            # Any mkdir running in this step won't actually make it to the image,
+            # hence we use the tmpDir derivation in the contents
+            fakeRootCommands = ''
+              chmod 1777 tmp
+              chmod 1777 var/tmp
+            '';
+            config = {
+              Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
+              Env = [
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+                "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
+                "LANG=en_GB.UTF-8"
+                # Use stable conventions for tracing http in opentelemetry
+                # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
+                "OTEL_SEMCONV_STABILITY_OPT_IN=http"
+              ];
+              User = "65534";
+            };
+          }
+        )
+        exes;
     in
-    attrsets.mapAttrs
-      (execName: drv:
-        pkgs.dockerTools.streamLayeredImage {
-          name = "quay.io/wire/${execName}";
-          maxLayers = 10;
-          contents = [
-            pkgs.cacert
-            pkgs.iana-etc
-            pkgs.dumb-init
-            pkgs.dockerTools.fakeNss
-            pkgs.dockerTools.usrBinEnv
-            drv
-            tmpDir
-          ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
-          # Any mkdir running in this step won't actually make it to the image,
-          # hence we use the tmpDir derivation in the contents
-          fakeRootCommands = ''
-            chmod 1777 tmp
-            chmod 1777 var/tmp
-          '';
-          config = {
-            Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
-            Env = [
-              "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
-              "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
-              "LANG=en_GB.UTF-8"
-              # Use stable conventions for tracing http in opentelemetry
-              # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
-              "OTEL_SEMCONV_STABILITY_OPT_IN=http"
-            ];
-            User = "65534";
-          };
-        }
-      )
-      exes;
+    allImages
+    // {
+      all = pkgs.linkFarm "all-images" (attrsets.mapAttrsToList
+        (name: path:
+          { inherit name path; }
+        )
+        allImages);
+    };
 
   localModsEnableAll = {
     enableOptimization = true;
@@ -381,7 +389,7 @@ let
 
   imagesList = pkgs.writeTextFile {
     name = "imagesList";
-    text = "${lib.concatStringsSep "\n" (builtins.attrNames (images localModsEnableAll))}";
+    text = "${lib.concatStringsSep "\n" (builtins.attrNames (staticExecs localModsEnableAll))}";
   };
   wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll { } { }));
 
@@ -451,7 +459,7 @@ let
     bundleNixpkgs = false;
     extraPkgs = commonTools ++ [ pkgs.cachix ];
     nixConf = {
-      experimental-features = "nix-command";
+      experimental-features = "nix-command flakes";
     };
   };
 

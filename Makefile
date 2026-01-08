@@ -307,7 +307,7 @@ treefmt-check:
 
 .PHONY: build-image-%
 build-image-%:
-	nix-build ./nix -A wireServer.imagesNoDocs.$(*) && \
+	nix build '.#wireServer.imagesNoDocs.$(*)' && \
 	./result | docker load | tee /tmp/imageName-$(*) && \
 	imageName=$$(grep quay.io /tmp/imageName-$(*) | awk '{print $$3}') && \
 	echo 'You can run your image locally using' && \
@@ -323,8 +323,11 @@ upload-images:
 upload-images-dev:
 	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
+HOOGLE_IMAGE_DIR := $(shell mktemp -d -t wire-server-hoogle-image.XXXXXX)
+
 upload-hoogle-image:
-	./hack/bin/upload-image.sh wireServer.hoogleImage
+	nix -v --show-trace -L build ".#wireServer.hoogleImage" --out-link $(HOOGLE_IMAGE_DIR)/image --fallback
+	./hack/bin/upload-image.sh $(HOOGLE_IMAGE_DIR)/image
 
 #################################
 ## cassandra / postgres management
@@ -669,7 +672,7 @@ helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
 sbom.json:
-	nix -Lv build -f nix wireServer.bomDependencies && \
+	nix -Lv build '.#wireServer.bomDependencies' && \
 	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
 
 # Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
