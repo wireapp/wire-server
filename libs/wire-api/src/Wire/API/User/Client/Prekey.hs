@@ -23,6 +23,8 @@ module Wire.API.User.Client.Prekey
     Prekey (..),
     clientIdFromPrekey,
     parseEDHOCPrekeyId,
+    EdhocPrekeyPayload (..),
+    PrekeyParseError (..),
     LastPrekey,
     lastPrekey,
     unpackLastPrekey,
@@ -34,6 +36,7 @@ module Wire.API.User.Client.Prekey
 where
 
 import Cassandra (ColumnType (IntColumn), Cql (ctype, fromCql, toCql), Tagged (..), Value (CqlInt))
+import Codec.CBOR.Decoding qualified as CBOR
 import Codec.CBOR.Read qualified as CBOR
 import Codec.CBOR.Term qualified as CBOR
 import Crypto.Hash (SHA256, hash)
@@ -97,92 +100,94 @@ clientIdFromPrekey =
     . encodeUtf8
     . prekeyKey
 
--- | Parses a Base64 CBOR-encoded to extract the 'PrekeyId'.
+data PrekeyParseError
+  = PrekeyParseBase64Error String
+  | -- | Byte offset and error message
+    PrekeyParseCborError Int64 String
+  | PrekeyParseTrailingBytes
+  deriving stock (Eq, Show, Generic)
+
+-- | Represents the EDHOC Prekey Bundle payload.
 --
--- The function expects the input to be a valid CBOR Map where the key @1@
--- maps to an integer value representing the ID.
---
--- Validate and extract metadata from
--- binary prekey bundles. The specific encoding handled here is **CBOR
--- (Concise Binary Object Representation)**.
---
--- = Format Specification
---
--- The input is expected to be a serialized CBOR Map adhering to the rules defined in __RFC 8949__.
---
--- The structure of the map is expected to be as follows:
+-- Structure based on X3DH Key Agreement Protocol patterns:
 --
 -- * **Root Object**: CBOR Map (Major Type 5).
 -- * **Key 0** (@Unsigned Int@): Protocol Version or Algorithm Identifier.
+--   Indicates the version of the handshake or algorithm suite being used (e.g., Curve25519 + AES-GCM).
 -- * **Key 1** (@Unsigned Int@): **The Prekey ID** (Target of extraction).
--- * **Key 2** (@Map@): The raw Public Key material (often a nested COSE-like structure).
+--   The specific ID of the key being retrieved.
+-- * **Key 2** (@Map@): **Identity Public Key**.
+--   The long-term X25519 public key of the recipient (e.g., Map {0: Bytes(32)}).
+-- * **Key 3** (@Map@): **Signed Prekey Public Key**.
+--   A medium-term key (e.g., Map {0: {0: Bytes(32)}}).
+-- * **Key 4** (@Null@): **One-Time Prekey**.
+--   This field is Null if the server is out of one-time keys for this user.
 --
 -- = References
 --
 -- * <https://www.rfc-editor.org/rfc/rfc8949.html RFC 8949>: Concise Binary Object Representation (CBOR)
--- * <https://www.rfc-editor.org/rfc/rfc9052.html RFC 9052>: CBOR Object Signing and Encryption (COSE) - /Contextual/
+-- * <https://www.rfc-editor.org/rfc/rfc7748.html RFC 7748>: Elliptic Curves for Security (X25519)
+-- * <https://www.rfc-editor.org/rfc/rfc9052.html RFC 9052>: CBOR Object Signing and Encryption (COSE)
+data EdhocPrekeyPayload = EdhocPrekeyPayload
+  { -- | Key 0
+    edhocProtocolVersion :: Word,
+    -- | Key 1
+    edhocPrekeyId :: PrekeyId,
+    -- | Key 2
+    edhocIdentityKey :: CBOR.Term,
+    -- | Key 3
+    edhocSignedPrekey :: CBOR.Term,
+    -- | Key 4
+    edhocOneTimePrekey :: CBOR.Term
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | Parses a Base64 CBOR-encoded payload to extract the 'PrekeyId'.
 --
--- == Errors
---
--- This function returns a 'Left String' in the following cases:
---
--- 1. The input is not valid base64 data.
--- 2. The input is not valid CBOR data.
--- 3. The root object is not a Map.
--- 4. The key @1@ is missing from the Map.
--- 5. The value associated with key @1@ is not an integer.
-parseEDHOCPrekeyId :: Prekey -> Either String PrekeyId
+-- This function expects the input to be a Base64 encoded CBOR Map adhering to the rules
+-- defined in __RFC 8949__ and following the X3DH Key Agreement Protocol patterns.
+parseEDHOCPrekeyId :: Prekey -> Either PrekeyParseError PrekeyId
 parseEDHOCPrekeyId pk = do
-  -- 1. Deserialise the Base64 ByteString.
-  bs <- first ("Base64 decoding error: " <>) $ B64.decode $ toByteString' $ prekeyKey pk
+  bs <- first (PrekeyParseBase64Error . ("Base64 decoding error: " <>)) $ B64.decode $ toByteString' $ prekeyKey pk
+  case CBOR.deserialiseFromBytes decodeEdhocPrekeyPayload (LBS.fromStrict bs) of
+    Left (CBOR.DeserialiseFailure off msg) -> Left $ PrekeyParseCborError off msg
+    Right (rest, payload)
+      | LBS.null rest -> Right (edhocPrekeyId payload)
+      | otherwise -> Left PrekeyParseTrailingBytes
 
-  -- 2. Deserialise the ByteString into a generic CBOR Term.
-  -- 'deserialiseFromBytes' returns (rest, result). We only care about the result.
-  -- We convert strict ByteString to Lazy because cborg consumes Lazy.
-  decodedTerm <- case CBOR.deserialiseFromBytes CBOR.decodeTerm (LBS.fromStrict bs) of
-    Left err -> Left $ "CBOR decoding failed: " <> show err
-    Right (rest, term)
-      | LBS.null rest -> Right term -- Ensure no trailing garbage bytes
-      | otherwise -> Left "Invalid: Trailing bytes detected after CBOR data"
-
-  pairs <- validateMap decodedTerm
-  lookupId pairs
+decodeEdhocPrekeyPayload :: CBOR.Decoder s EdhocPrekeyPayload
+decodeEdhocPrekeyPayload = do
+  n <- CBOR.decodeMapLen
+  unless (n == 5) $ fail $ "Schema Mismatch: Expected Map of 5 elements, found " <> show n
+  (m0, m1, m2, m3, m4) <- go n (Nothing, Nothing, Nothing, Nothing, Nothing)
+  EdhocPrekeyPayload
+    <$> maybe (fail "Missing Key 0") pure m0
+    <*> maybe (fail "Missing Key 1") pure m1
+    <*> maybe (fail "Missing Key 2") pure m2
+    <*> maybe (fail "Missing Key 3") pure m3
+    <*> maybe (fail "Missing Key 4") pure m4
   where
-    validateMap :: CBOR.Term -> Either String [(CBOR.Term, CBOR.Term)]
-    validateMap =
-      \case
-        CBOR.TMap pairs
-          | length pairs == 5 -> pure pairs
-          | otherwise -> Left $ "Schema Mismatch: Expected Map of 5 elements, found " <> show (length pairs)
-        _ -> Left "Invalid Format: Root object is not a CBOR Map"
-
-    -- Helper function to search the list of pairs for Key 1.
-    lookupId :: [(CBOR.Term, CBOR.Term)] -> Either String PrekeyId
-    lookupId =
-      \case
-        [] -> Left "ID not found: Key 1 is missing from the map"
-        -- Iterate through the pairs...
-        ((key, value) : rest) ->
-          case key of
-            -- Check if the key is the Integer 1 (TInt 1)
-            CBOR.TInt 1 -> extractPrekeyId value
-            _ -> lookupId rest
-
-    -- Helper to ensure the value found is actually an Integer
-    extractPrekeyId :: CBOR.Term -> Either String PrekeyId
-    extractPrekeyId =
-      \case
-        CBOR.TInt i -> do
-          when (i < 0) $
-            Left "Value Error: Prekey ID cannot be negative"
-
-          Right $ PrekeyId $ fromIntegral i
-        CBOR.TInteger i -> do
-          when (i < 0) $
-            Left "Value Error: Prekey ID cannot be negative"
-
-          Right $ PrekeyId $ fromIntegral i -- Handles larger integers
-        _ -> Left "Type Mismatch: Found Key 1, but value was not an integer"
+    go 0 acc = pure acc
+    go i (m0, m1, m2, m3, m4) = do
+      k <- CBOR.decodeInt
+      case k of
+        0 -> do
+          v <- CBOR.decodeWord
+          go (i - 1) (Just v, m1, m2, m3, m4)
+        1 -> do
+          v <- CBOR.decodeInt
+          when (v < 0) $ fail "Value Error: Prekey ID cannot be negative"
+          go (i - 1) (m0, Just (PrekeyId (fromIntegral v)), m2, m3, m4)
+        2 -> do
+          v <- CBOR.decodeTerm
+          go (i - 1) (m0, m1, Just v, m3, m4)
+        3 -> do
+          v <- CBOR.decodeTerm
+          go (i - 1) (m0, m1, m2, Just v, m4)
+        4 -> do
+          v <- CBOR.decodeTerm
+          go (i - 1) (m0, m1, m2, m3, Just v)
+        other -> fail $ "Unknown Key: " <> show other
 
 --------------------------------------------------------------------------------
 -- LastPrekey
