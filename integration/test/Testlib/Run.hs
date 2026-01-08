@@ -28,7 +28,7 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List
-import Data.Maybe (fromMaybe)
+import Data.Maybe
 import Data.String (IsString (fromString))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
@@ -188,10 +188,12 @@ runMigrations :: App ()
 runMigrations = do
   cwdBase <- asks (.servicesCwdBase)
   let brig = "brig"
-  let (cwd, exe) = case cwdBase of
+      (cwd, exe) = case cwdBase of
         Nothing -> (Nothing, brig)
         Just dir ->
           (Just (dir </> brig), "../../dist" </> brig)
+      -- servicesCwdBase is only set for local binaries
+      isLocal = isJust cwd
   getConfig <- readAndUpdateConfig def backendA Brig
   config <- liftIO getConfig
   tempFile <- liftIO $ writeTempFile "/tmp" "brig-migrations.yaml" (cs $ Yaml.encode config)
@@ -199,7 +201,7 @@ runMigrations = do
   pool <- asks (.resourcePool)
   lowerCodensity $ do
     resources <- acquireResources (length dynDomains) pool
-    let dbnames = [backendA.berPostgresqlDBName, backendB.berPostgresqlDBName] <> map (.berPostgresqlDBName) resources
+    let dbnames = [dbs | isLocal, dbs <- [backendA.berPostgresqlDBName, backendB.berPostgresqlDBName]] <> map (.berPostgresqlDBName) resources
     for_ dbnames $ runMigration exe tempFile cwd
     liftIO $ putStrLn "Postgres migrations finished"
   where
