@@ -164,8 +164,13 @@ deriveJSON (defaultOptsDropChar '_') ''IdPList
 -- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
 -- from the server against the pinned one and the metadata url in the metadata against the one
 -- we fetched the xml from, but it's unclear what the benefit would be.)
-data IdPMetadataInfo = IdPMetadataValue Text SAML.IdPMetadata
+data IdPMetadataInfo = IdPMetadataValue
+  { _rawIdpMetadataText :: Text,
+    _idpMetadataRecord :: SAML.IdPMetadata
+  }
   deriving (Eq, Show, Generic)
+
+makeLenses ''IdPMetadataInfo
 
 -- | We want to store the raw xml text from the registration request in the database for
 -- trouble shooting, but @SAML.XML@ only gives us access to the xml tree, not the raw text.
