@@ -1,3 +1,8 @@
 Add "get app" endpoint to Brig (`GET /teams/:tid/apps/:id`)
 
-NB: Elastic Search re-indexing requires postgres access now!
+Elastic Search re-indexing requires postgres access now.
+
+You need to do a full re-index of ElasticSearch immediately after the
+upgrade.  Between server upgrade and a full re-index, old-style bots
+(spawned by services) may identify as be listed as regular users in
+search results.

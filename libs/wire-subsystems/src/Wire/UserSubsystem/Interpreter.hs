@@ -716,10 +716,8 @@ syncUserIndex ::
   UserId ->
   Sem r ()
 syncUserIndex uid =
-  getIndexUser uid >>= \case
-    Nothing -> deleteFromIndex
-    Just indexUser -> do
-      upsert indexUser
+  getIndexUser uid
+    >>= maybe deleteFromIndex upsert
   where
     deleteFromIndex :: Sem r ()
     deleteFromIndex = do
@@ -736,8 +734,7 @@ syncUserIndex uid =
       tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
       userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc' = indexUserToDoc vis userType (value <$> mRole) indexUser
-          userDoc = userDoc' {udType = Just userType}
+          userDoc = indexUserToDoc vis userType (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -854,11 +851,15 @@ searchLocally searcher searchTerm maybeMaxResults = do
           contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
           contactHandle = Handle.fromHandle <$> userDoc.udHandle,
           contactTeam = userDoc.udTeam,
-          contactType = fromMaybe UserTypeRegular userDoc.udType -- default to "regular" when missing. All apps should have this set.
+          contactType =
+            -- NB: if you have index entries for bots that haven't
+            -- migrated yet, they will identify as regular users in
+            -- the search result.  this is an accepted limitation.  as
+            -- long as we have cassandra and elastic search involved,
+            -- the only way around it would be looking up serverIds in
+            -- cassandra for every query.
+            fromMaybe UserTypeRegular userDoc.udType
         }
-    -- \^ XXX: For the above, to handle the legacy case of bots
-    -- already part of ES index, either test botness here
-    -- somehow, or add "requires full reindex" when deploying.
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = do
