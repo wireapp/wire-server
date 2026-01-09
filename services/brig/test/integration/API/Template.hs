@@ -25,19 +25,25 @@ import Wire.EmailSubsystem.Templates.Team
 tests :: Opts -> Manager -> IO TestTree
 tests opts manager = do
   localizedTemplates <- liftIO $ loadTeamTemplates opts
-  let allTemplates = uncurry Map.insert localizedTemplates.locDefault localizedTemplates.locOther
+  let allTemplates = Map.assocs $ uncurry Map.insert localizedTemplates.locDefault localizedTemplates.locOther
+      branding = genTemplateBrandingMap opts.emailSMS.general.templateBranding
   pure $
     testGroup
       "email templates"
-      ( do
-          (loc, templates) <- Map.assocs allTemplates
-          let branding = genTemplateBrandingMap opts.emailSMS.general.templateBranding
-          [ test manager ("[" <> show loc <> "] team invitation") $ testTeamInvitationEmail branding templates,
-            test manager ("[" <> show loc <> "] team invitation existing user") $ testTeamInvitationEmailExistingUser branding templates,
-            test manager ("[" <> show loc <> "] member welcome") $ testMemberWelcomeEmail branding templates,
-            test manager ("[" <> show loc <> "] new team owner welcome") $ testNewTeamOwnerWelcomeEmail branding templates
-            ]
-      )
+      [ testGroup
+          "team" $ 
+            fmap
+              ( \(loc, templates) ->
+                  testGroup
+                    (show loc)
+                    [ test manager "team invitation" $ testTeamInvitationEmail branding templates,
+                      test manager "team invitation existing user" $ testTeamInvitationEmailExistingUser branding templates,
+                      test manager "member welcome" $ testMemberWelcomeEmail branding templates,
+                      test manager "new team owner welcome" $ testNewTeamOwnerWelcomeEmail branding templates
+                    ]
+              )
+              allTemplates
+      ]
 
 testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
 testTeamInvitationEmailExistingUser branding templates = do
