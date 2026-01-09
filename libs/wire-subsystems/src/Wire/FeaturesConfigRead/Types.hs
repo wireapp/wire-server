@@ -1,14 +1,14 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ConstraintKinds #-}
 module Wire.FeaturesConfigRead.Types where
-import Data.SOP.Sing (SListI)
 
+import Control.Applicative (pure)
 import Data.Id (TeamId, UserId)
+import Data.SOP.Sing (SListI)
 import Galley.Types.Teams (FeatureDefaults, GetFeatureDefaults)
 import Polysemy
-import Control.Applicative (pure)
 import Wire.API.Team.Feature
 import Wire.FeaturesConfigCompute
 
@@ -29,7 +29,7 @@ class
     UserId ->
     LockableFeature cfg ->
     Sem r (LockableFeature cfg)
-  getFeatureForUser _uid defFeat = pure defFeat
+  getFeatureForUser _uid = resolveServerFeature
   computeFeature ::
     (Member FeaturesConfigCompute r) =>
     TeamId ->
@@ -38,7 +38,6 @@ class
     Sem r (LockableFeature cfg)
   default computeFeature ::
     (Member FeaturesConfigCompute r) =>
-
     TeamId ->
     LockableFeature cfg ->
     DbFeature cfg ->
