@@ -54,9 +54,9 @@ emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   -- USER EMAILS
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls brandingMap email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls brandingMap email key code mLocale
-  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
-  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls branding email code mLocale
-  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls branding email code mLocale
+  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls brandingMap email code mLocale
+  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls brandingMap email code mLocale
+  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls brandingMap email code mLocale
   SendActivationMail email name key code mLocale -> sendActivationMailImpl userTpls branding email name key code mLocale
   SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl userTpls branding email name key code mLocale
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
@@ -77,68 +77,73 @@ emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
 -- - Team Deletion
 
 sendTeamDeletionVerificationMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Code.Value ->
   Maybe Locale ->
   Sem r ()
 sendTeamDeletionVerificationMailImpl userTemplates branding email code mLocale = do
   let tpl = verificationTeamDeletionEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderSecondFactorVerificationEmail email code tpl branding
+  mail <- logEmailRenderErrors "team deletion verification email" $ renderSecondFactorVerificationEmail email code tpl branding
+  sendMail mail
 
 sendCreateScimTokenVerificationMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Code.Value ->
   Maybe Locale ->
   Sem r ()
 sendCreateScimTokenVerificationMailImpl userTemplates branding email code mLocale = do
   let tpl = verificationScimTokenEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderSecondFactorVerificationEmail email code tpl branding
+  mail <- logEmailRenderErrors "scim token verification email" $ renderSecondFactorVerificationEmail email code tpl branding
+  sendMail mail
 
 sendLoginVerificationMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Code.Value ->
   Maybe Locale ->
   Sem r ()
 sendLoginVerificationMailImpl userTemplates branding email code mLocale = do
   let tpl = verificationLoginEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderSecondFactorVerificationEmail email code tpl branding
+  mail <- logEmailRenderErrors "login verification email" $ renderSecondFactorVerificationEmail email code tpl branding
+  sendMail mail
 
 renderSecondFactorVerificationEmail ::
+  (Member (Output Text) r) =>
   EmailAddress ->
   Code.Value ->
   SecondFactorVerificationEmailTemplate ->
-  TemplateBranding ->
-  Mail
-renderSecondFactorVerificationEmail email codeValue SecondFactorVerificationEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "SecondFactorVerification"),
-          ("X-Zeta-Code", code)
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+  Map Text Text ->
+  Sem r Mail
+renderSecondFactorVerificationEmail email codeValue SecondFactorVerificationEmailTemplate {..} branding = do
+  let replace =
+        branding
+          & Map.insert "email" (fromEmail email)
+          & Map.insert "code" code
+  txt <- renderTextWithBrandingSem sndFactorVerificationEmailBodyText replace
+  html <- renderHtmlWithBrandingSem sndFactorVerificationEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem sndFactorVerificationEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "SecondFactorVerification"),
+            ("X-Zeta-Code", code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
     from = Address (Just sndFactorVerificationEmailSenderName) (fromEmail sndFactorVerificationEmailSender)
     to = Address Nothing (fromEmail email)
-    txt = renderTextWithBranding sndFactorVerificationEmailBodyText replace branding
-    html = renderHtmlWithBranding sndFactorVerificationEmailBodyHtml replace branding
-    subj = renderTextWithBranding sndFactorVerificationEmailSubject replace branding
     code = Ascii.toText (fromRange codeValue.asciiValue)
-    replace :: Text -> Text
-    replace "email" = fromEmail email
-    replace "code" = code
-    replace x = x
 
 -------------------------------------------------------------------------------
 -- Activation Email

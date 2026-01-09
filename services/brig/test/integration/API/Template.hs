@@ -5,8 +5,10 @@ import Brig.Options
 import Brig.Team.Template (loadTeamTemplates)
 import Brig.Template
 import Brig.User.Template (loadUserTemplates)
+import Data.Code
 import Data.Id
 import Data.Map qualified as Map
+import Data.Range
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64Url)
 import Data.Text.Ascii qualified as Ascii
 import Data.UUID qualified as UUID
@@ -56,7 +58,10 @@ tests opts m = do
                 testGroup
                   (show loc)
                   [ test m "password reset email" $ testPasswordResetEmail b ts,
-                    test m "verification email" $ testVerificationEmail b ts
+                    test m "verification email" $ testVerificationEmail b ts,
+                    test m "team deletion verification email" $ testTeamDeletionVerificationEmail b ts,
+                    test m "scim token verification email" $ testScimTokenVerificationEmail b ts,
+                    test m "login verification email" $ testLoginVerificationEmail b ts
                   ]
             )
             userTemplates
@@ -124,10 +129,33 @@ testVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Htt
 testVerificationEmail branding templates = do
   let tpl = templates.verificationEmail
       to = fromJust $ emailAddressText "test@example.com"
-      -- let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
       key = ActivationKey . Ascii.unsafeFromText $ "key"
       code = ActivationCode . Ascii.unsafeFromText $ "code"
       (errs, _) = run $ runOutputList @Text $ renderVerificationMail to key code tpl branding
+  assertNoErrors errs
+
+testTeamDeletionVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testTeamDeletionVerificationEmail branding templates = do
+  let tpl = templates.verificationTeamDeletionEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
+  assertNoErrors errs
+
+testScimTokenVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testScimTokenVerificationEmail branding templates = do
+  let tpl = templates.verificationScimTokenEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
+  assertNoErrors errs
+
+testLoginVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testLoginVerificationEmail branding templates = do
+  let tpl = templates.verificationLoginEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
   assertNoErrors errs
 
 assertNoErrors :: [Text] -> Http ()
