@@ -166,6 +166,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore

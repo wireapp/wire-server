@@ -24,32 +24,16 @@ import Imports
 import Wire.API.User
 
 data UserTemplates = UserTemplates
-  { activationSms :: ActivationSmsTemplate,
-    activationCall :: ActivationCallTemplate,
-    verificationEmail :: VerificationEmailTemplate,
+  { verificationEmail :: VerificationEmailTemplate,
     activationEmail :: ActivationEmailTemplate,
     activationEmailUpdate :: ActivationEmailTemplate,
     teamActivationEmail :: TeamActivationEmailTemplate,
-    passwordResetSms :: PasswordResetSmsTemplate,
     passwordResetEmail :: PasswordResetEmailTemplate,
-    loginSms :: LoginSmsTemplate,
-    loginCall :: LoginCallTemplate,
-    deletionSms :: DeletionSmsTemplate,
     deletionEmail :: DeletionEmailTemplate,
     newClientEmail :: NewClientEmailTemplate,
     verificationLoginEmail :: SecondFactorVerificationEmailTemplate,
     verificationScimTokenEmail :: SecondFactorVerificationEmailTemplate,
     verificationTeamDeletionEmail :: SecondFactorVerificationEmailTemplate
-  }
-
-data ActivationSmsTemplate = ActivationSmsTemplate
-  { activationSmslUrl :: Template,
-    activationSmsText :: Template,
-    activationSmsSender :: Text
-  }
-
-data ActivationCallTemplate = ActivationCallTemplate
-  { activationCallText :: Template
   }
 
 data VerificationEmailTemplate = VerificationEmailTemplate
@@ -95,27 +79,6 @@ data PasswordResetEmailTemplate = PasswordResetEmailTemplate
     passwordResetEmailBodyHtml :: Template,
     passwordResetEmailSender :: EmailAddress,
     passwordResetEmailSenderName :: Text
-  }
-
-data PasswordResetSmsTemplate = PasswordResetSmsTemplate
-  { passwordResetSmsText :: Template,
-    passwordResetSmsSender :: Text
-  }
-
-data LoginSmsTemplate = LoginSmsTemplate
-  { loginSmsUrl :: Template,
-    loginSmsText :: Template,
-    loginSmsSender :: Text
-  }
-
-data LoginCallTemplate = LoginCallTemplate
-  { loginCallText :: Template
-  }
-
-data DeletionSmsTemplate = DeletionSmsTemplate
-  { deletionSmsUrl :: Template,
-    deletionSmsText :: Template,
-    deletionSmsSender :: Text
   }
 
 data NewClientEmailTemplate = NewClientEmailTemplate
