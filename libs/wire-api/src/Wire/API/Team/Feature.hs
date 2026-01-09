@@ -1720,7 +1720,7 @@ instance Default CellsConfig where
 
 instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
   schema =
-    object "CellsConfig" $
+    objectWithDocModifier "CellsConfig" (S.schema . S.example ?~ schemaToJSON (def @CellsConfig)) $
       CellsConfig
         <$> channels .= fieldF "channels" schema
         <*> groups .= fieldF "groups" schema
