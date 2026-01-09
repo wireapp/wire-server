@@ -31,18 +31,18 @@ tests opts manager = do
     testGroup
       "email templates"
       [ testGroup
-          "team" $ 
-            fmap
-              ( \(loc, templates) ->
-                  testGroup
-                    (show loc)
-                    [ test manager "team invitation" $ testTeamInvitationEmail branding templates,
-                      test manager "team invitation existing user" $ testTeamInvitationEmailExistingUser branding templates,
-                      test manager "member welcome" $ testMemberWelcomeEmail branding templates,
-                      test manager "new team owner welcome" $ testNewTeamOwnerWelcomeEmail branding templates
-                    ]
-              )
-              allTemplates
+          "team"
+          $ fmap
+            ( \(loc, templates) ->
+                testGroup
+                  (show loc)
+                  [ test manager "team invitation" $ testTeamInvitationEmail branding templates,
+                    test manager "team invitation existing user" $ testTeamInvitationEmailExistingUser branding templates,
+                    test manager "member welcome" $ testMemberWelcomeEmail branding templates,
+                    test manager "new team owner welcome" $ testNewTeamOwnerWelcomeEmail branding templates
+                  ]
+            )
+            allTemplates
       ]
 
 testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
