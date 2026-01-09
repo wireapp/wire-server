@@ -53,7 +53,7 @@ emailSubsystemInterpreter ::
 emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   -- USER EMAILS
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls brandingMap email key code mLocale
-  SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
+  SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls brandingMap email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
   SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls branding email code mLocale
   SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls branding email code mLocale
@@ -259,9 +259,9 @@ renderTeamActivationMail email name teamName akey@(ActivationKey key) acode@(Act
 -- Verification Email
 
 sendVerificationMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   ActivationKey ->
   ActivationCode ->
@@ -269,31 +269,34 @@ sendVerificationMailImpl ::
   Sem r ()
 sendVerificationMailImpl userTemplates branding email akey acode mLocale = do
   let tpl = verificationEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderVerificationMail email akey acode tpl branding
+  mail <- logEmailRenderErrors "verification email" $ renderVerificationMail email akey acode tpl branding
+  sendMail mail
 
-renderVerificationMail :: EmailAddress -> ActivationKey -> ActivationCode -> VerificationEmailTemplate -> TemplateBranding -> Mail
-renderVerificationMail email akey acode VerificationEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      -- To make automated processing possible, the activation code is also added to
-      -- headers. {#RefActivationEmailHeaders}
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "Verification"),
-          ("X-Zeta-Code", Ascii.toText code)
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+renderVerificationMail :: (Member (Output Text) r) => EmailAddress -> ActivationKey -> ActivationCode -> VerificationEmailTemplate -> Map Text Text -> Sem r Mail
+renderVerificationMail email akey acode VerificationEmailTemplate {..} branding = do
+  let replace =
+        branding
+          & Map.insert "code" (Ascii.toText code)
+          & Map.insert "email" (fromEmail email)
+  txt <- renderTextWithBrandingSem verificationEmailBodyText replace
+  html <- renderHtmlWithBrandingSem verificationEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem verificationEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        -- To make automated processing possible, the activation code is also added to
+        -- headers. {#RefActivationEmailHeaders}
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "Verification"),
+            ("X-Zeta-Code", Ascii.toText code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
     (ActivationKey _, ActivationCode code) = (akey, acode)
     from = Address (Just verificationEmailSenderName) (fromEmail verificationEmailSender)
     to = Address Nothing (fromEmail email)
-    txt = renderTextWithBranding verificationEmailBodyText replace branding
-    html = renderHtmlWithBranding verificationEmailBodyHtml replace branding
-    subj = renderTextWithBranding verificationEmailSubject replace branding
-    replace "code" = Ascii.toText code
-    replace "email" = fromEmail email
-    replace x = x
 
 -------------------------------------------------------------------------------
 -- Password Reset Email

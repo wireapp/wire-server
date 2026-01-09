@@ -8,6 +8,7 @@ import Brig.User.Template (loadUserTemplates)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64Url)
+import Data.Text.Ascii qualified as Ascii
 import Data.UUID qualified as UUID
 import Imports
 import Network.Mail.Mime
@@ -17,6 +18,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
+import Wire.API.User.Activation
 import Wire.API.User.EmailAddress
 import Wire.API.User.Password
 import Wire.API.User.Profile
@@ -31,29 +33,30 @@ tests opts m = do
   user <- liftIO $ loadUserTemplates opts
   let teamTemplates = Map.assocs $ uncurry Map.insert team.locDefault team.locOther
       userTemplates = Map.assocs $ uncurry Map.insert user.locDefault user.locOther
-      branding = genTemplateBrandingMap opts.emailSMS.general.templateBranding
+      b = genTemplateBrandingMap opts.emailSMS.general.templateBranding
   pure $
     testGroup
       "email templates"
       [ testGroup
           "team"
           $ fmap
-            ( \(loc, templates) ->
+            ( \(loc, ts) ->
                 testGroup
                   (show loc)
-                  [ test m "team invitation" $ testTeamInvitationEmail branding templates,
-                    test m "team invitation existing user" $ testTeamInvitationEmailExistingUser branding templates,
-                    test m "member welcome" $ testMemberWelcomeEmail branding templates,
-                    test m "new team owner welcome" $ testNewTeamOwnerWelcomeEmail branding templates
+                  [ test m "team invitation" $ testTeamInvitationEmail b ts,
+                    test m "team invitation existing user" $ testTeamInvitationEmailExistingUser b ts,
+                    test m "member welcome" $ testMemberWelcomeEmail b ts,
+                    test m "new team owner welcome" $ testNewTeamOwnerWelcomeEmail b ts
                   ]
             )
             teamTemplates,
         testGroup "user" $
           fmap
-            ( \(loc, templates) ->
+            ( \(loc, ts) ->
                 testGroup
                   (show loc)
-                  [ test m "password reset email" $ testPasswordResetEmail branding templates
+                  [ test m "password reset email" $ testPasswordResetEmail b ts,
+                    test m "verification email" $ testVerificationEmail b ts
                   ]
             )
             userTemplates
@@ -115,6 +118,16 @@ testPasswordResetEmail branding templates = do
       key = mkPasswordResetKey (Id UUID.nil)
       code = PasswordResetCode . encodeBase64Url $ "bar"
       (errs, _) = run $ runOutputList @Text $ renderPwResetMail to key code tpl branding
+  assertNoErrors errs
+
+testVerificationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testVerificationEmail branding templates = do
+  let tpl = templates.verificationEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      -- let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
+      key = ActivationKey . Ascii.unsafeFromText $ "key"
+      code = ActivationCode . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderVerificationMail to key code tpl branding
   assertNoErrors errs
 
 assertNoErrors :: [Text] -> Http ()
