@@ -116,6 +116,7 @@ common common-all
     , extra
     , file-embed
     , galley-types
+    , generics-sop
     , hashable
     , HaskellNet
     , HaskellNet-SSL
@@ -164,6 +165,7 @@ common common-all
     , servant-server
     , singletons
     , sodium-crypto-sign
+    , sop-core
     , ssl-util
     , statistics
     , stomp-queue
@@ -254,6 +256,9 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FeaturesConfigCompute
+    Wire.FeaturesConfigRead
+    Wire.FeaturesConfigRead.Types
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore

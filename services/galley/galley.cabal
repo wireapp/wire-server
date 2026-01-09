@@ -132,6 +132,7 @@ library
     Galley.API.Teams.Export
     Galley.API.Teams.Features
     Galley.API.Teams.Features.Get
+    Galley.API.Teams.Features.Interpreter
     Galley.API.Teams.Notifications
     Galley.API.Update
     Galley.API.Util
