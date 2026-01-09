@@ -1807,7 +1807,7 @@ instance ToSchema NumBytes where
           )
 
 newtype CellsStorage = CellsStorage
-  { teamQuotaBytes :: NumBytes
+  { perUserQuotaBytes :: NumBytes
   }
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsStorage
@@ -1817,7 +1817,7 @@ instance ToSchema CellsStorage where
   schema =
     object "CellsStorage" $
       CellsStorage
-        <$> teamQuotaBytes .= field "teamQuotaBytes" schema
+        <$> perUserQuotaBytes .= field "perUserQuotaBytes" schema
 
 data CellsInternalConfigB t f = CellsInternalConfig
   { backend :: Wear t f CellsBackend,
