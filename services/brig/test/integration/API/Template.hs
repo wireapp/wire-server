@@ -17,6 +17,7 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.EmailAddress
+import Wire.API.User.Profile
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
 
@@ -39,34 +40,47 @@ tests opts manager = do
                   }
           [ test manager ("[" <> show loc <> "] team invitation") $ testTeamInvitationEmail branding input templates,
             test manager ("[" <> show loc <> "] team invitation existing user") $ testTeamInvitationEmailExistingUser branding input templates,
-            test manager ("[" <> show loc <> "] member welcome") $ testMemberWelcomeEmail branding templates
+            test manager ("[" <> show loc <> "] member welcome") $ testMemberWelcomeEmail branding templates,
+            test manager ("[" <> show loc <> "] new team owner welcome") $ testNewTeamOwnerWelcomeEmail branding templates
             ]
       )
 
 testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> InvitationEmail -> TeamTemplates -> Http ()
 testTeamInvitationEmailExistingUser branding input templates = do
-  liftIO $ do
-    let tpl = templates.existingUserInvitationEmail
-        (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
-    mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
-    url @?= "http://127.0.0.1:8080/accept-invitation?team-code=ZoMX0xs="
-    assertBool ("The following variables were not replaced: " <> show errs) (null errs)
+  let tpl = templates.existingUserInvitationEmail
+      (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
+  liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
+  liftIO $ url @?= "http://127.0.0.1:8080/accept-invitation?team-code=ZoMX0xs="
+  assertNoErrors errs
 
 testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> InvitationEmail -> TeamTemplates -> Http ()
 testTeamInvitationEmail branding input templates = do
-  liftIO $ do
-    let tpl = templates.invitationEmail
-        (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
-    mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
-    url @?= "http://127.0.0.1:8080/register?team=123e4567-e89b-12d3-a456-426614174000&team_code=ZoMX0xs="
-    assertBool ("The following variables were not replaced: " <> show errs) (null errs)
+  let tpl = templates.invitationEmail
+      (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
+  liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
+  liftIO $ url @?= "http://127.0.0.1:8080/register?team=123e4567-e89b-12d3-a456-426614174000&team_code=ZoMX0xs="
+  assertNoErrors errs
 
 testMemberWelcomeEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
 testMemberWelcomeEmail branding templates = do
-  liftIO $ do
-    let tpl = templates.memberWelcomeEmail
-        to = fromJust $ emailAddressText "test@example.com"
-        tid = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000")
-        tname = "funky team"
-        (errs, _) = run $ runOutputList @Text $ renderMemberWelcomeMail to tid tname tpl branding
-    assertBool ("The following variables were not replaced: " <> show errs) (null errs)
+  let tpl = templates.memberWelcomeEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      tid = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000")
+      tname = "funky team"
+      (errs, _) = run $ runOutputList @Text $ renderMemberWelcomeMail to tid tname tpl branding
+  assertNoErrors errs
+
+testNewTeamOwnerWelcomeEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
+testNewTeamOwnerWelcomeEmail branding templates = do
+  let tpl = templates.newTeamOwnerWelcomeEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      tid = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000")
+      tname = "funky team"
+      name = Name "name"
+      (errs, _) = run $ runOutputList @Text $ renderNewTeamOwnerWelcomeEmail to tid tname name tpl branding
+  assertNoErrors errs
+
+assertNoErrors :: [Text] -> Http ()
+assertNoErrors errs =
+  liftIO $
+    assertBool ("The following variables were not replaced: " <> show (nub errs)) (null errs)
