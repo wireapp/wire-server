@@ -73,7 +73,7 @@ testCreateApp = do
     (resp.json %. "category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser OwnDomain def
+  outsideUser <- randomUser domain def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
@@ -95,7 +95,7 @@ testCreateApp = do
           foundDoc %. "type" `shouldMatch` aType
 
   -- App's user is findable from /search/contacts
-  BrigI.refreshIndex OwnDomain
+  BrigI.refreshIndex domain
   foundUserType new.name "app"
 
   -- Owner and regular member still have the type "regular"
