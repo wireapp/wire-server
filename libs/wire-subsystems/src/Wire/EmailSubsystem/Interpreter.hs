@@ -61,6 +61,7 @@ emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls brandingMap email tid from code loc
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls brandingMap email tid from code loc
   SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls brandingMap email tid teamName loc
+  SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls brandingMap email tid teamName loc name
   where
     branding x = fromMaybe x (Map.lookup x brandingMap)
 
@@ -525,6 +526,40 @@ renderMemberWelcomeMail emailTo tid teamName MemberWelcomeEmailTemplate {..} bra
       }
   where
     from = Address (Just memberWelcomeEmailSenderName) (fromEmail memberWelcomeEmailSender)
+    to = Address Nothing (fromEmail emailTo)
+
+-------------------------------------------------------------------------------
+-- New Team Owner Welcome Email
+
+sendNewTeamOwnerWelcomeEmailImpl :: (Member EmailSending r, Member TinyLog r) => Localised TeamTemplates -> Map Text Text -> EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> Sem r ()
+sendNewTeamOwnerWelcomeEmailImpl teamTemplates branding to tid teamName loc profileName = do
+  let tpl = newTeamOwnerWelcomeEmail . snd $ forLocale loc teamTemplates
+  mail <- logEmailRenderErrors "new team owner welcome email" $ renderNewTeamOwnerWelcomeEmail to tid teamName profileName tpl branding
+  sendMail mail
+
+renderNewTeamOwnerWelcomeEmail :: (Member (Output Text) r) => EmailAddress -> TeamId -> Text -> Name -> NewTeamOwnerWelcomeEmailTemplate -> Map Text Text -> Sem r Mail
+renderNewTeamOwnerWelcomeEmail emailTo tid teamName profileName NewTeamOwnerWelcomeEmailTemplate {..} branding = do
+  let replace =
+        branding
+          & Map.insert "url" newTeamOwnerWelcomeEmailUrl
+          & Map.insert "email" (fromEmail emailTo)
+          & Map.insert "team_id" (idToText tid)
+          & Map.insert "team_name" teamName
+          & Map.insert "name" profileName.fromName
+  txt <- renderTextWithBrandingSem newTeamOwnerWelcomeEmailBodyText replace
+  html <- renderHtmlWithBrandingSem newTeamOwnerWelcomeEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem newTeamOwnerWelcomeEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "Welcome")
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
+  where
+    from = Address (Just newTeamOwnerWelcomeEmailSenderName) (fromEmail newTeamOwnerWelcomeEmailSender)
     to = Address Nothing (fromEmail emailTo)
 
 -------------------------------------------------------------------------------

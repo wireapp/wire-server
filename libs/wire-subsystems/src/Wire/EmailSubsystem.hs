@@ -44,5 +44,6 @@ data EmailSubsystem m a where
   -- | send invitation to an email address associated with a personal user account.
   SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
   SendMemberWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> EmailSubsystem m ()
+  SendNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> EmailSubsystem m ()
 
 makeSem ''EmailSubsystem

@@ -904,7 +904,7 @@ upgradePersonalToTeam ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member EmailSending r
+    Member EmailSubsystem r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
