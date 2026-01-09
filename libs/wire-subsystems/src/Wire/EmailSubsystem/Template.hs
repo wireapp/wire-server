@@ -17,15 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.EmailSubsystem.Template
-  ( module Wire.EmailSubsystem.Template,
-    module Wire.EmailSubsystem.Templates.User,
-    module Wire.EmailSubsystem.Templates.Team,
-
-    -- * Re-exports
-    Template,
-  )
-where
+module Wire.EmailSubsystem.Template where
 
 import Data.Map qualified as Map
 import Data.Text.Encoding qualified as T
@@ -39,8 +31,6 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val)
 import Wire.API.Locale
-import Wire.EmailSubsystem.Templates.Team
-import Wire.EmailSubsystem.Templates.User
 
 -- | Lookup a localised item from a 'Localised' structure.
 forLocale ::

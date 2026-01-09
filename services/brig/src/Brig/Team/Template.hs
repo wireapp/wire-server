@@ -20,16 +20,14 @@ module Brig.Team.Template
     InvitationEmailTemplate (..),
     MemberWelcomeEmailTemplate (..),
     loadTeamTemplates,
-
-    -- * Re-exports
-    Template,
   )
 where
 
 import Brig.Options
 import Brig.Template
+import Data.Text.Template
 import Imports
-import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.Team
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->

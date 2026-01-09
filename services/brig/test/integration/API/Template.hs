@@ -20,6 +20,7 @@ import Wire.API.User.EmailAddress
 import Wire.API.User.Profile
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.Team
 
 tests :: Opts -> Manager -> IO TestTree
 tests opts manager = do
@@ -31,32 +32,39 @@ tests opts manager = do
       ( do
           (loc, templates) <- Map.assocs allTemplates
           let branding = genTemplateBrandingMap opts.emailSMS.general.templateBranding
-              input =
-                InvitationEmail
-                  { invTo = fromJust $ emailAddressText "test@example.com",
-                    invTeamId = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000"),
-                    invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
-                    invInviter = fromJust $ emailAddressText "inviter@example.com"
-                  }
-          [ test manager ("[" <> show loc <> "] team invitation") $ testTeamInvitationEmail branding input templates,
-            test manager ("[" <> show loc <> "] team invitation existing user") $ testTeamInvitationEmailExistingUser branding input templates,
+          [ test manager ("[" <> show loc <> "] team invitation") $ testTeamInvitationEmail branding templates,
+            test manager ("[" <> show loc <> "] team invitation existing user") $ testTeamInvitationEmailExistingUser branding templates,
             test manager ("[" <> show loc <> "] member welcome") $ testMemberWelcomeEmail branding templates,
             test manager ("[" <> show loc <> "] new team owner welcome") $ testNewTeamOwnerWelcomeEmail branding templates
             ]
       )
 
-testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> InvitationEmail -> TeamTemplates -> Http ()
-testTeamInvitationEmailExistingUser branding input templates = do
+testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
+testTeamInvitationEmailExistingUser branding templates = do
   let tpl = templates.existingUserInvitationEmail
       (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
+      input =
+        InvitationEmail
+          { invTo = fromJust $ emailAddressText "test@example.com",
+            invTeamId = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000"),
+            invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
+            invInviter = fromJust $ emailAddressText "inviter@example.com"
+          }
   liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
   liftIO $ url @?= "http://127.0.0.1:8080/accept-invitation?team-code=ZoMX0xs="
   assertNoErrors errs
 
-testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> InvitationEmail -> TeamTemplates -> Http ()
-testTeamInvitationEmail branding input templates = do
+testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
+testTeamInvitationEmail branding templates = do
   let tpl = templates.invitationEmail
       (errs, (mail, url)) = run $ runOutputList @Text $ renderInvitationEmail input tpl branding
+      input =
+        InvitationEmail
+          { invTo = fromJust $ emailAddressText "test@example.com",
+            invTeamId = Id (fromJust $ UUID.fromString "123e4567-e89b-12d3-a456-426614174000"),
+            invInvCode = InvitationCode {fromInvitationCode = fromRight undefined (validate "ZoMX0xs=")},
+            invInviter = fromJust $ emailAddressText "inviter@example.com"
+          }
   liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
   liftIO $ url @?= "http://127.0.0.1:8080/register?team=123e4567-e89b-12d3-a456-426614174000&team_code=ZoMX0xs="
   assertNoErrors errs

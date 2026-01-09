@@ -21,11 +21,7 @@ module Brig.Provider.Template
     ApprovalRequestEmailTemplate (..),
     ApprovalConfirmEmailTemplate (..),
     PasswordResetEmailTemplate (..),
-    -- , TODO: NewServiceEmailTemplate   (..)
     loadProviderTemplates,
-
-    -- * Re-exports
-    Template,
   )
 where
 
@@ -34,9 +30,10 @@ import Brig.Template
 import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Template
 import Imports
 import Wire.API.User.Identity
-import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.User
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,
@@ -64,15 +61,6 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
     approvalConfirmEmailSenderName :: !Text,
     approvalConfirmEmailHomeUrl :: !HttpsUrl
   }
-
--- TODO
--- data NewServiceEmailTemplate = NewServiceEmailTemplate
---     { newServiceEmailSubject    :: !Template
---     , newServiceEmailBodyText   :: !Template
---     , newServiceEmailBodyHtml   :: !Template
---     , newServiceEmailSender     :: !Email
---     , newServiceEmailSenderName :: !Text
---     }
 
 loadProviderTemplates :: Opts -> IO (Localised ProviderTemplates)
 loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provider" $ \fp ->

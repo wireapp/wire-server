@@ -32,7 +32,7 @@ module Brig.App
     closeEnv,
     providerTemplatesWithLocale,
     teamTemplatesWithLocale,
-    teamTemplatesNoLocale,
+    invitationUrlTemplates,
     cargoholdLens,
     galleyLens,
     galleyEndpointLens,
@@ -114,7 +114,7 @@ import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
-import Brig.Template (Localised, genTemplateBranding, genTemplateBrandingMap)
+import Brig.Template (InvitationUrlTemplates (..), Localised, genTemplateBranding, genTemplateBrandingMap)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Cassandra (runClient)
@@ -448,10 +448,16 @@ teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
 providerTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplatesWithLocale l = forLocale l <$> asks (.providerTemplates)
 
--- this works because team templates is not affected by `forLocale`; it is useful where we
--- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
-teamTemplatesNoLocale :: (MonadReader Env m) => m TeamTemplates
-teamTemplatesNoLocale = snd <$> teamTemplatesWithLocale Nothing
+invitationUrlTemplates :: (MonadReader Env m) => m InvitationUrlTemplates
+invitationUrlTemplates = do
+  -- this works because team templates is not affected by `forLocale`; it is useful where we
+  -- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
+  teamTemplates <- snd <$> teamTemplatesWithLocale Nothing
+  pure $
+    InvitationUrlTemplates
+      { personalUser = teamTemplates.existingUserInvitationEmail.invitationEmailUrl,
+        newUser = teamTemplates.invitationEmail.invitationEmailUrl
+      }
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

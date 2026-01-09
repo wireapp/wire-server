@@ -27,6 +27,7 @@ import Data.Range (fromRange)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
+import Data.Text.Template
 import Imports
 import Network.Mail.Mime
 import Polysemy
@@ -40,6 +41,8 @@ import Wire.API.User.Password
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
 import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.Team
+import Wire.EmailSubsystem.Templates.User
 
 emailSubsystemInterpreter ::
   (Member EmailSending r, Member TinyLog r) =>
@@ -48,6 +51,7 @@ emailSubsystemInterpreter ::
   Map Text Text ->
   InterpreterFor EmailSubsystem r
 emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
+  -- USER EMAILS
   SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
@@ -58,6 +62,7 @@ emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
+  -- TEAM EMAILS
   SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls brandingMap email tid from code loc
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls brandingMap email tid from code loc
   SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls brandingMap email tid teamName loc

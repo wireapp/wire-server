@@ -19,19 +19,13 @@
 
 -- | Common templating utilities.
 module Brig.Template
-  ( -- * Reading templates
+  ( InvitationUrlTemplates (..),
     Localised,
     readLocalesDir,
     readTemplateWithDefault,
     readTextWithDefault,
-
-    -- * Rendering templates
     genTemplateBranding,
     genTemplateBrandingMap,
-
-    -- * Re-exports
-    Template,
-    template,
   )
 where
 
@@ -46,6 +40,11 @@ import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
 import Wire.API.User
 import Wire.EmailSubsystem.Template (Localised (Localised))
+
+data InvitationUrlTemplates = InvitationUrlTemplates
+  { personalUser :: Template,
+    newUser :: Template
+  }
 
 -- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text

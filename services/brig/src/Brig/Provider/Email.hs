@@ -31,6 +31,7 @@ import Data.Range
 import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy qualified as LT
+import Data.Text.Template
 import Imports
 import Network.Mail.Mime
 import Polysemy

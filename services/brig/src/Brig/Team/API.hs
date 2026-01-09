@@ -32,6 +32,7 @@ import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Template
 import Brig.Types.Team (TeamSize)
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
@@ -71,7 +72,6 @@ import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
-import Wire.EmailSubsystem.Template
 import Wire.Error
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
@@ -96,7 +96,7 @@ servantAPI ::
     Member UserSubsystem r,
     Member Store.InvitationStore r,
     Member TinyLog r,
-    Member (Input TeamTemplates) r,
+    Member (Input InvitationUrlTemplates) r,
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
@@ -222,7 +222,7 @@ listInvitations ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member InvitationStore r,
-    Member (Input TeamTemplates) r,
+    Member (Input InvitationUrlTemplates) r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
     Member (Error UserSubsystemError) r,
@@ -254,15 +254,15 @@ listInvitations uid tid startingId mSize = do
       isPersonalUserMigration <- isPersonalUser (mkEmailKey si.email)
       template <-
         if isPersonalUserMigration
-          then invitationEmailUrl . existingUserInvitationEmail <$> input
-          else invitationEmailUrl . invitationEmail <$> input
+          then (.personalUser) <$> input @InvitationUrlTemplates
+          else (.newUser) <$> input @InvitationUrlTemplates
       url <- ignoreOutput $ renderInvitationUrl template tid si.code
       toInvitation url ShowInvitationUrl si
 
 mkInviteUrl ::
   forall r.
   ( Member TinyLog r,
-    Member (Input TeamTemplates) r
+    Member (Input InvitationUrlTemplates) r
   ) =>
   ShowOrHideInvitationUrl ->
   TeamId ->
@@ -270,7 +270,7 @@ mkInviteUrl ::
   Sem r (Maybe (URIRef Absolute))
 mkInviteUrl HideInvitationUrl _ _ = pure Nothing
 mkInviteUrl ShowInvitationUrl team c = do
-  template <- invitationEmailUrl . invitationEmail <$> input
+  template <- (.newUser) <$> input
   url <- ignoreOutput $ renderInvitationUrl template team c
   parseHttpsUrl url
   where
@@ -289,7 +289,7 @@ getInvitation ::
   ( Member GalleyAPIAccess r,
     Member InvitationStore r,
     Member TinyLog r,
-    Member (Input TeamTemplates) r,
+    Member (Input InvitationUrlTemplates) r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r
   ) =>
