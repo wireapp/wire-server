@@ -1,2 +1,0 @@
-Toque para excluir sua conta no ${brand}.
-${url}

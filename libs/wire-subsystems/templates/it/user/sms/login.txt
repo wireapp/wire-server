@@ -1,3 +1,0 @@
-Il tuo codice di accesso di ${brand} è ${code}.
-
-Apri ${url} per accedere.

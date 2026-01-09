@@ -1,1 +1,0 @@
-Sveiki, jūsų „Wire“ patvirtinimo kodas yra: ${code}. Dar kartą, jūsų kodas yra: ${code}

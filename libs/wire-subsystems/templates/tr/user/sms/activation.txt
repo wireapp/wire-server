@@ -1,3 +1,0 @@
-${brand} kodunuz ${code}.
-
-Numaranızı doğrulamak için: ${url}.

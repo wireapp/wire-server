@@ -1,2 +1,0 @@
-Tocca per eliminare il tuo profilo di ${brand}.
-${url}

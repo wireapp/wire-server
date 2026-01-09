@@ -1,2 +1,0 @@
-Toque para apagar a sua conta no Wire.
-${url} 

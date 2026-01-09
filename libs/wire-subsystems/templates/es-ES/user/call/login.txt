@@ -1,1 +1,0 @@
-Hola, su código de inicio de sesion Wire es: ${code} una vez más, su código es: ${code}

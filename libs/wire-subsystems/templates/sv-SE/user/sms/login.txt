@@ -1,3 +1,0 @@
-Din inloggningskod till Wire är ${code}.
-
-Gå in på ${url} för att logga in, eller skriv in denna kod i Wire appen: ${code}.

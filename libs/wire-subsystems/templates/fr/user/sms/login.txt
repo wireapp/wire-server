@@ -1,3 +1,0 @@
-Votre code de connexion ${brand} est ${code}.
-
-Ouvrez ${url} pour vous connecter.
