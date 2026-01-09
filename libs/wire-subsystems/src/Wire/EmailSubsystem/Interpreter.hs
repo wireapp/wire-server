@@ -50,25 +50,23 @@ emailSubsystemInterpreter ::
   Localised TeamTemplates ->
   Map Text Text ->
   InterpreterFor EmailSubsystem r
-emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
+emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   -- USER EMAILS
-  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls brandingMap email key code mLocale
-  SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls brandingMap email key code mLocale
-  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls brandingMap email code mLocale
-  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls brandingMap email code mLocale
-  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls brandingMap email code mLocale
+  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
+  SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
+  SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
+  SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls branding email code mLocale
+  SendLoginVerificationMail email code mLocale -> sendLoginVerificationMailImpl userTpls branding email code mLocale
   SendActivationMail email name key code mLocale -> sendActivationMailImpl userTpls branding email name key code mLocale
   SendEmailAddressUpdateMail email name key code mLocale -> sendEmailAddressUpdateMailImpl userTpls branding email name key code mLocale
   SendTeamActivationMail email name key code mLocale teamName -> sendTeamActivationMailImpl userTpls branding email name key code mLocale teamName
   SendNewClientEmail email name client locale -> sendNewClientEmailImpl userTpls branding email name client locale
   SendAccountDeletionEmail email name key code locale -> sendAccountDeletionEmailImpl userTpls branding email name key code locale
   -- TEAM EMAILS
-  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls brandingMap email tid from code loc
-  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls brandingMap email tid from code loc
-  SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls brandingMap email tid teamName loc
-  SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls brandingMap email tid teamName loc name
-  where
-    branding x = fromMaybe x (Map.lookup x brandingMap)
+  SendTeamInvitationMail email tid from code loc -> sendTeamInvitationMailImpl teamTpls branding email tid from code loc
+  SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
+  SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls branding email tid teamName loc
+  SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls branding email tid teamName loc name
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -149,9 +147,9 @@ renderSecondFactorVerificationEmail email codeValue SecondFactorVerificationEmai
 -- Activation Email
 
 sendActivationMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Name ->
   ActivationKey ->
@@ -160,12 +158,13 @@ sendActivationMailImpl ::
   Sem r ()
 sendActivationMailImpl userTemplates branding email name akey acode mLocale = do
   let tpl = activationEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderActivationMail email name akey acode tpl branding
+  mail <- logEmailRenderErrors "activation email" $ renderActivationMail email name akey acode tpl branding
+  sendMail mail
 
 sendEmailAddressUpdateMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Name ->
   ActivationKey ->
@@ -174,54 +173,52 @@ sendEmailAddressUpdateMailImpl ::
   Sem r ()
 sendEmailAddressUpdateMailImpl userTemplates branding email name akey acode mLocale = do
   let tpl = activationEmailUpdate . snd $ forLocale mLocale userTemplates
-  sendMail $ renderActivationMail email name akey acode tpl branding
+  mail <- logEmailRenderErrors "email address update email" $ renderActivationMail email name akey acode tpl branding
+  sendMail mail
 
-renderActivationMail :: EmailAddress -> Name -> ActivationKey -> ActivationCode -> ActivationEmailTemplate -> TemplateBranding -> Mail
-renderActivationMail email name akey@(ActivationKey key) acode@(ActivationCode code) ActivationEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      -- To make automated processing possible, the activation code is also added to
-      -- headers. {#RefActivationEmailHeaders}
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "Activation"),
-          ("X-Zeta-Key", Ascii.toText key),
-          ("X-Zeta-Code", Ascii.toText code)
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+renderActivationMail :: (Member (Output Text) r) => EmailAddress -> Name -> ActivationKey -> ActivationCode -> ActivationEmailTemplate -> Map Text Text -> Sem r Mail
+renderActivationMail email name akey@(ActivationKey key) acode@(ActivationCode code) ActivationEmailTemplate {..} branding = do
+  url <- renderActivationUrl activationEmailUrl akey acode branding
+  let replace =
+        branding
+          & Map.insert "url" url
+          & Map.insert "email" (fromEmail email)
+          & Map.insert "name" (fromName name)
+  txt <- renderTextWithBrandingSem activationEmailBodyText replace
+  html <- renderHtmlWithBrandingSem activationEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem activationEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        -- To make automated processing possible, the activation code is also added to
+        -- headers. {#RefActivationEmailHeaders}
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "Activation"),
+            ("X-Zeta-Key", Ascii.toText key),
+            ("X-Zeta-Code", Ascii.toText code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
-    from, to :: Address
     from = Address (Just activationEmailSenderName) (fromEmail activationEmailSender)
     to = mkMimeAddress name email
 
-    txt, html, subj :: LText
-    txt = renderTextWithBranding activationEmailBodyText replace branding
-    html = renderHtmlWithBranding activationEmailBodyHtml replace branding
-    subj = renderTextWithBranding activationEmailSubject replace branding
-
-    replace :: Text -> Text
-    replace "url" = renderActivationUrl activationEmailUrl akey acode branding
-    replace "email" = fromEmail email
-    replace "name" = fromName name
-    replace x = x
-
-renderActivationUrl :: Template -> ActivationKey -> ActivationCode -> TemplateBranding -> Text
-renderActivationUrl t (ActivationKey k) (ActivationCode c) branding =
-  toStrict $ renderTextWithBranding t replace branding
-  where
-    replace :: Text -> Text
-    replace "key" = Ascii.toText k
-    replace "code" = Ascii.toText c
-    replace x = x
+renderActivationUrl :: (Member (Output Text) r) => Template -> ActivationKey -> ActivationCode -> Map Text Text -> Sem r Text
+renderActivationUrl t (ActivationKey k) (ActivationCode c) branding = do
+  let replace =
+        branding
+          & Map.insert "key" (Ascii.toText k)
+          & Map.insert "code" (Ascii.toText c)
+  toStrict <$> renderTextWithBrandingSem t replace
 
 -------------------------------------------------------------------------------
 -- Team Activation Email
 
 sendTeamActivationMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Name ->
   ActivationKey ->
@@ -231,34 +228,35 @@ sendTeamActivationMailImpl ::
   Sem r ()
 sendTeamActivationMailImpl userTemplates branding email name akey acode mLocale teamName = do
   let tpl = teamActivationEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderTeamActivationMail email name teamName akey acode tpl branding
+  mail <- logEmailRenderErrors "team activation email" $ renderTeamActivationMail email name teamName akey acode tpl branding
+  sendMail mail
 
-renderTeamActivationMail :: EmailAddress -> Name -> Text -> ActivationKey -> ActivationCode -> TeamActivationEmailTemplate -> TemplateBranding -> Mail
-renderTeamActivationMail email name teamName akey@(ActivationKey key) acode@(ActivationCode code) TeamActivationEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "Activation"),
-          ("X-Zeta-Key", Ascii.toText key),
-          ("X-Zeta-Code", Ascii.toText code)
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+renderTeamActivationMail :: (Member (Output Text) r) => EmailAddress -> Name -> Text -> ActivationKey -> ActivationCode -> TeamActivationEmailTemplate -> Map Text Text -> Sem r Mail
+renderTeamActivationMail email name teamName akey@(ActivationKey key) acode@(ActivationCode code) TeamActivationEmailTemplate {..} branding = do
+  url <- renderActivationUrl teamActivationEmailUrl akey acode branding
+  let replace =
+        branding
+          & Map.insert "url" url
+          & Map.insert "email" (fromEmail email)
+          & Map.insert "name" (fromName name)
+          & Map.insert "team" teamName
+  txt <- renderTextWithBrandingSem teamActivationEmailBodyText replace
+  html <- renderHtmlWithBrandingSem teamActivationEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem teamActivationEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "Activation"),
+            ("X-Zeta-Key", Ascii.toText key),
+            ("X-Zeta-Code", Ascii.toText code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
-    from, to :: Address
     from = Address (Just teamActivationEmailSenderName) (fromEmail teamActivationEmailSender)
     to = mkMimeAddress name email
-    txt, html, subj :: LText
-    txt = renderTextWithBranding teamActivationEmailBodyText replace branding
-    html = renderHtmlWithBranding teamActivationEmailBodyHtml replace branding
-    subj = renderTextWithBranding teamActivationEmailSubject replace branding
-    replace :: Text -> Text
-    replace "url" = renderActivationUrl teamActivationEmailUrl akey acode branding
-    replace "email" = fromEmail email
-    replace "name" = fromName name
-    replace "team" = teamName
-    replace x = x
 
 -------------------------------------------------------------------------------
 -- Verification Email
@@ -354,9 +352,9 @@ renderPwResetMail email pkey pcode PasswordResetEmailTemplate {..} branding = do
 -- New Client Email
 
 sendNewClientEmailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Name ->
   Client ->
@@ -364,41 +362,45 @@ sendNewClientEmailImpl ::
   Sem r ()
 sendNewClientEmailImpl userTemplates branding email name client locale = do
   let tpl = newClientEmail . snd $ forLocale (Just locale) userTemplates
-  sendMail $ renderNewClientEmail email name locale client tpl branding
+  mail <- logEmailRenderErrors "new client email" $ renderNewClientEmail email name locale client tpl branding
+  sendMail mail
 
-renderNewClientEmail :: EmailAddress -> Name -> Locale -> Client -> NewClientEmailTemplate -> TemplateBranding -> Mail
-renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "NewDevice")
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+renderNewClientEmail :: (Member (Output Text) r) => EmailAddress -> Name -> Locale -> Client -> NewClientEmailTemplate -> Map Text Text -> Sem r Mail
+renderNewClientEmail email name locale Client {..} NewClientEmailTemplate {..} branding = do
+  let replace =
+        branding
+          & Map.insert "name" (fromName name)
+          & Map.insert "label" (fromMaybe defRequestId clientLabel)
+          & Map.insert "model" (fromMaybe defRequestId clientModel)
+          & Map.insert "date" formattedDate
+  txt <- renderTextWithBrandingSem newClientEmailBodyText replace
+  html <- renderHtmlWithBrandingSem newClientEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem newClientEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "NewDevice")
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
     from = Address (Just newClientEmailSenderName) (fromEmail newClientEmailSender)
     to = mkMimeAddress name email
-    txt = renderTextWithBranding newClientEmailBodyText replace branding
-    html = renderHtmlWithBranding newClientEmailBodyHtml replace branding
-    subj = renderTextWithBranding newClientEmailSubject replace branding
-    replace "name" = fromName name
-    replace "label" = fromMaybe defRequestId clientLabel
-    replace "model" = fromMaybe defRequestId clientModel
-    replace "date" =
+    formattedDate =
       formatDateTime
         "%A %e %B %Y, %H:%M - %Z"
         (timeLocale locale)
         (fromUTCTimeMillis clientTime)
-    replace x = x
 
 -------------------------------------------------------------------------------
 -- Deletion Email
 
 sendAccountDeletionEmailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   Name ->
   Code.Key ->
@@ -407,35 +409,44 @@ sendAccountDeletionEmailImpl ::
   Sem r ()
 sendAccountDeletionEmailImpl userTemplates branding email name key code locale = do
   let tpl = deletionEmail . snd $ forLocale (Just locale) userTemplates
-  sendMail $ renderDeletionEmail email name key code tpl branding
+  mail <- logEmailRenderErrors "account deletion email" $ renderDeletionEmail email name key code tpl branding
+  sendMail mail
 
-renderDeletionEmail :: EmailAddress -> Name -> Code.Key -> Code.Value -> DeletionEmailTemplate -> TemplateBranding -> Mail
-renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "Delete"),
-          ("X-Zeta-Key", key),
-          ("X-Zeta-Code", code)
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+renderDeletionEmail :: (Member (Output Text) r) => EmailAddress -> Name -> Code.Key -> Code.Value -> DeletionEmailTemplate -> Map Text Text -> Sem r Mail
+renderDeletionEmail email name cKey cValue DeletionEmailTemplate {..} branding = do
+  url <- renderDeletionUrl deletionEmailUrl cKey cValue branding
+  let replace =
+        branding
+          & Map.insert "url" url
+          & Map.insert "email" (fromEmail email)
+          & Map.insert "name" (fromName name)
+  txt <- renderTextWithBrandingSem deletionEmailBodyText replace
+  html <- renderHtmlWithBrandingSem deletionEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem deletionEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "Delete"),
+            ("X-Zeta-Key", key),
+            ("X-Zeta-Code", code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
     from = Address (Just deletionEmailSenderName) (fromEmail deletionEmailSender)
     to = mkMimeAddress name email
-    txt = renderTextWithBranding deletionEmailBodyText replace1 branding
-    html = renderHtmlWithBranding deletionEmailBodyHtml replace1 branding
-    subj = renderTextWithBranding deletionEmailSubject replace1 branding
     key = Ascii.toText (fromRange (Code.asciiKey cKey))
     code = Ascii.toText (fromRange (Code.asciiValue cValue))
-    replace1 "url" = toStrict (renderTextWithBranding deletionEmailUrl replace2 branding)
-    replace1 "email" = fromEmail email
-    replace1 "name" = fromName name
-    replace1 x = x
-    replace2 "key" = key
-    replace2 "code" = code
-    replace2 x = x
+
+renderDeletionUrl :: (Member (Output Text) r) => Template -> Code.Key -> Code.Value -> Map Text Text -> Sem r Text
+renderDeletionUrl t cKey cValue branding = do
+  let replace =
+        branding
+          & Map.insert "key" (Ascii.toText (fromRange (Code.asciiKey cKey)))
+          & Map.insert "code" (Ascii.toText (fromRange (Code.asciiValue cValue)))
+  toStrict <$> renderTextWithBrandingSem t replace
 
 -------------------------------------------------------------------------------
 -- Invitation Email

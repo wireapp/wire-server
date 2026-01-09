@@ -7,10 +7,12 @@ import Brig.Template
 import Brig.User.Template (loadUserTemplates)
 import Data.Code
 import Data.Id
+import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Range
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64Url)
 import Data.Text.Ascii qualified as Ascii
+import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
 import Data.UUID qualified as UUID
 import Imports
 import Network.Mail.Mime
@@ -19,8 +21,10 @@ import Polysemy.Output
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Locale
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.Activation
+import Wire.API.User.Client (Client (..), ClientCapabilityList (..), ClientType (..))
 import Wire.API.User.EmailAddress
 import Wire.API.User.Password
 import Wire.API.User.Profile
@@ -61,7 +65,12 @@ tests opts m = do
                     test m "verification email" $ testVerificationEmail b ts,
                     test m "team deletion verification email" $ testTeamDeletionVerificationEmail b ts,
                     test m "scim token verification email" $ testScimTokenVerificationEmail b ts,
-                    test m "login verification email" $ testLoginVerificationEmail b ts
+                    test m "login verification email" $ testLoginVerificationEmail b ts,
+                    test m "new client email" $ testNewClientEmail b loc ts,
+                    test m "account deletion email" $ testAccountDeletionEmail b ts,
+                    test m "activation email" $ testActivationEmail b ts,
+                    test m "activation email update" $ testActivationEmailUpdate b ts,
+                    test m "team activation email" $ testTeamActivationEmail b ts
                   ]
             )
             userTemplates
@@ -156,6 +165,68 @@ testLoginVerificationEmail branding templates = do
       to = fromJust $ emailAddressText "test@example.com"
       code = Value . unsafeRange . Ascii.unsafeFromText $ "code"
       (errs, _) = run $ runOutputList @Text $ renderSecondFactorVerificationEmail to code tpl branding
+  assertNoErrors errs
+
+testActivationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testActivationEmail branding templates = do
+  let tpl = templates.activationEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      name = Name "name"
+      key = ActivationKey . Ascii.unsafeFromText $ "key"
+      code = ActivationCode . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderActivationMail to name key code tpl branding
+  assertNoErrors errs
+
+testActivationEmailUpdate :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testActivationEmailUpdate branding templates = do
+  let tpl = templates.activationEmailUpdate
+      to = fromJust $ emailAddressText "test@example.com"
+      name = Name "name"
+      key = ActivationKey . Ascii.unsafeFromText $ "key"
+      code = ActivationCode . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderActivationMail to name key code tpl branding
+  assertNoErrors errs
+
+testTeamActivationEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testTeamActivationEmail branding templates = do
+  let tpl = templates.teamActivationEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      name = Name "name"
+      teamName = "team-name"
+      key = ActivationKey . Ascii.unsafeFromText $ "key"
+      code = ActivationCode . Ascii.unsafeFromText $ "code"
+      (errs, _) = run $ runOutputList @Text $ renderTeamActivationMail to name teamName key code tpl branding
+  assertNoErrors errs
+
+testNewClientEmail :: (HasCallStack) => Map Text Text -> Locale -> UserTemplates -> Http ()
+testNewClientEmail branding loc templates = do
+  let tpl = templates.newClientEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      name = Name "name"
+      client =
+        Client
+          { clientId = ClientId 1,
+            clientType = PermanentClientType,
+            clientTime = toUTCTimeMillis (UTCTime (fromGregorian 2020 1 1) (secondsToDiffTime 0)),
+            clientClass = Nothing,
+            clientLabel = Just "label",
+            clientCookie = Nothing,
+            clientModel = Just "model",
+            clientCapabilities = ClientCapabilityList mempty,
+            clientMLSPublicKeys = Map.empty,
+            clientLastActive = Nothing
+          }
+      (errs, _) = run $ runOutputList @Text $ renderNewClientEmail to name loc client tpl branding
+  assertNoErrors errs
+
+testAccountDeletionEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testAccountDeletionEmail branding templates = do
+  let tpl = templates.deletionEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      name = Name "name"
+      key = Key . unsafeRange . Ascii.unsafeFromText $ "ABCDEFGHIJKLMNOPQRST"
+      code = Value . unsafeRange . Ascii.unsafeFromText $ "code123"
+      (errs, _) = run $ runOutputList @Text $ renderDeletionEmail to name key code tpl branding
   assertNoErrors errs
 
 assertNoErrors :: [Text] -> Http ()
