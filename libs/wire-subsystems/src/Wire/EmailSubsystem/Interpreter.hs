@@ -52,7 +52,7 @@ emailSubsystemInterpreter ::
   InterpreterFor EmailSubsystem r
 emailSubsystemInterpreter userTpls teamTpls brandingMap = interpret \case
   -- USER EMAILS
-  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls branding email key code mLocale
+  SendPasswordResetMail email (key, code) mLocale -> sendPasswordResetMailImpl userTpls brandingMap email key code mLocale
   SendVerificationMail email key code mLocale -> sendVerificationMailImpl userTpls branding email key code mLocale
   SendTeamDeletionVerificationMail email code mLocale -> sendTeamDeletionVerificationMailImpl userTpls branding email code mLocale
   SendCreateScimTokenVerificationMail email code mLocale -> sendCreateScimTokenVerificationMailImpl userTpls branding email code mLocale
@@ -299,9 +299,9 @@ renderVerificationMail email akey acode VerificationEmailTemplate {..} branding 
 -- Password Reset Email
 
 sendPasswordResetMailImpl ::
-  (Member EmailSending r) =>
+  (Member EmailSending r, Member TinyLog r) =>
   Localised UserTemplates ->
-  TemplateBranding ->
+  Map Text Text ->
   EmailAddress ->
   PasswordResetKey ->
   PasswordResetCode ->
@@ -309,37 +309,38 @@ sendPasswordResetMailImpl ::
   Sem r ()
 sendPasswordResetMailImpl userTemplates branding email pkey pcode mLocale = do
   let tpl = passwordResetEmail . snd $ forLocale mLocale userTemplates
-  sendMail $ renderPwResetMail email pkey pcode tpl branding
+  mail <- logEmailRenderErrors "password reset email" $ renderPwResetMail email pkey pcode tpl branding
+  sendMail mail
 
-renderPwResetMail :: EmailAddress -> PasswordResetKey -> PasswordResetCode -> PasswordResetEmailTemplate -> TemplateBranding -> Mail
-renderPwResetMail email pkey pcode PasswordResetEmailTemplate {..} branding =
-  (emptyMail from)
-    { mailTo = [to],
-      mailHeaders =
-        [ ("Subject", toStrict subj),
-          ("X-Zeta-Purpose", "PasswordReset"),
-          ("X-Zeta-Key", Ascii.toText key),
-          ("X-Zeta-Code", Ascii.toText code)
-        ],
-      mailParts = [[plainPart txt, htmlPart html]]
-    }
+renderPwResetMail :: (Member (Output Text) r) => EmailAddress -> PasswordResetKey -> PasswordResetCode -> PasswordResetEmailTemplate -> Map Text Text -> Sem r Mail
+renderPwResetMail email pkey pcode PasswordResetEmailTemplate {..} branding = do
+  url <- renderPwResetUrl passwordResetEmailUrl pkey pcode
+  let replace = branding & Map.insert "url" url
+  txt <- renderTextWithBrandingSem passwordResetEmailBodyText replace
+  html <- renderHtmlWithBrandingSem passwordResetEmailBodyHtml replace
+  subj <- renderTextWithBrandingSem passwordResetEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "PasswordReset"),
+            ("X-Zeta-Key", Ascii.toText key),
+            ("X-Zeta-Code", Ascii.toText code)
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
   where
     (PasswordResetKey key, PasswordResetCode code) = (pkey, pcode)
     from = Address (Just passwordResetEmailSenderName) (fromEmail passwordResetEmailSender)
     to = Address Nothing (fromEmail email)
-    txt = renderTextWithBranding passwordResetEmailBodyText replace branding
-    html = renderHtmlWithBranding passwordResetEmailBodyHtml replace branding
-    subj = renderTextWithBranding passwordResetEmailSubject replace branding
-    replace "url" = renderPwResetUrl passwordResetEmailUrl (pkey, pcode) branding
-    replace x = x
 
-renderPwResetUrl :: Template -> PasswordResetPair -> TemplateBranding -> Text
-renderPwResetUrl t (PasswordResetKey k, PasswordResetCode c) branding =
-  toStrict $ renderTextWithBranding t replace branding
-  where
-    replace "key" = Ascii.toText k
-    replace "code" = Ascii.toText c
-    replace x = x
+    renderPwResetUrl t (PasswordResetKey k) (PasswordResetCode c) = do
+      let replace =
+            branding
+              & Map.insert "key" (Ascii.toText k)
+              & Map.insert "code" (Ascii.toText c)
+      toStrict <$> renderTextWithBrandingSem t replace
 
 -------------------------------------------------------------------------------
 -- New Client Email

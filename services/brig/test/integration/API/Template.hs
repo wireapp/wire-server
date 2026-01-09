@@ -4,9 +4,10 @@ import Bilge
 import Brig.Options
 import Brig.Team.Template (loadTeamTemplates)
 import Brig.Template
+import Brig.User.Template (loadUserTemplates)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Text.Ascii (AsciiChars (validate))
+import Data.Text.Ascii (AsciiChars (validate), encodeBase64Url)
 import Data.UUID qualified as UUID
 import Imports
 import Network.Mail.Mime
@@ -17,15 +18,19 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.User (InvitationCode (InvitationCode, fromInvitationCode))
 import Wire.API.User.EmailAddress
+import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.EmailSubsystem.Interpreter
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.Templates.Team
+import Wire.EmailSubsystem.Templates.User
 
 tests :: Opts -> Manager -> IO TestTree
-tests opts manager = do
-  localizedTemplates <- liftIO $ loadTeamTemplates opts
-  let allTemplates = Map.assocs $ uncurry Map.insert localizedTemplates.locDefault localizedTemplates.locOther
+tests opts m = do
+  team <- liftIO $ loadTeamTemplates opts
+  user <- liftIO $ loadUserTemplates opts
+  let teamTemplates = Map.assocs $ uncurry Map.insert team.locDefault team.locOther
+      userTemplates = Map.assocs $ uncurry Map.insert user.locDefault user.locOther
       branding = genTemplateBrandingMap opts.emailSMS.general.templateBranding
   pure $
     testGroup
@@ -36,13 +41,22 @@ tests opts manager = do
             ( \(loc, templates) ->
                 testGroup
                   (show loc)
-                  [ test manager "team invitation" $ testTeamInvitationEmail branding templates,
-                    test manager "team invitation existing user" $ testTeamInvitationEmailExistingUser branding templates,
-                    test manager "member welcome" $ testMemberWelcomeEmail branding templates,
-                    test manager "new team owner welcome" $ testNewTeamOwnerWelcomeEmail branding templates
+                  [ test m "team invitation" $ testTeamInvitationEmail branding templates,
+                    test m "team invitation existing user" $ testTeamInvitationEmailExistingUser branding templates,
+                    test m "member welcome" $ testMemberWelcomeEmail branding templates,
+                    test m "new team owner welcome" $ testNewTeamOwnerWelcomeEmail branding templates
                   ]
             )
-            allTemplates
+            teamTemplates,
+        testGroup "user" $
+          fmap
+            ( \(loc, templates) ->
+                testGroup
+                  (show loc)
+                  [ test m "password reset email" $ testPasswordResetEmail branding templates
+                  ]
+            )
+            userTemplates
       ]
 
 testTeamInvitationEmailExistingUser :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
@@ -92,6 +106,15 @@ testNewTeamOwnerWelcomeEmail branding templates = do
       tname = "funky team"
       name = Name "name"
       (errs, _) = run $ runOutputList @Text $ renderNewTeamOwnerWelcomeEmail to tid tname name tpl branding
+  assertNoErrors errs
+
+testPasswordResetEmail :: (HasCallStack) => Map Text Text -> UserTemplates -> Http ()
+testPasswordResetEmail branding templates = do
+  let tpl = templates.passwordResetEmail
+      to = fromJust $ emailAddressText "test@example.com"
+      key = mkPasswordResetKey (Id UUID.nil)
+      code = PasswordResetCode . encodeBase64Url $ "bar"
+      (errs, _) = run $ runOutputList @Text $ renderPwResetMail to key code tpl branding
   assertNoErrors errs
 
 assertNoErrors :: [Text] -> Http ()
