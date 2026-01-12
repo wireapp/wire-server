@@ -182,6 +182,22 @@ spec =
               idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp ^. idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
+          it "should log IdP update  with domain for multi-ingress" $ do
+            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+            user :: User <- generate arbitrary
+            let idPMetadataInfo' = idPMetadataInfo & idpMetadataRecord . SAML.edIssuer .~ issuer
+                expectedLogLine =
+                  ( Info,
+                    "IdP updated, team=6861026d-cdee-3da5-22fc-6612bb1360b8, idpId=00000000-0000-0000-0000-000000000000, issuer=https://accounts.accesscontrol.windows.net/auth, domain="
+                      <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText
+                      <> ", user=59128ccc-d38a-1d23-67d9-4f529ee7ca9f, new-certificates=, removed-certificates=\n"
+                  )
+
+            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+              idp <- idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing apiVersionV2 idpHandle
+              idpUpdate multiIngressSamlConfig zUser miHost idPMetadataInfo' (idp ^. idpId) Nothing
+            logs `shouldContain` [expectedLogLine]
+
           it "should log IdP update (changed cert)" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             user :: User <- generate arbitrary
