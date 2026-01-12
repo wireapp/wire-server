@@ -6,6 +6,11 @@
     nixpkgs.url = "github:nixos/nixpkgs?rev=09b8fda8959d761445f12b55f380d90375a1d6bb";
     nixpkgs_24_11.url = "github:nixos/nixpkgs?ref=nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
+    tom-bombadil = {
+      url = "path:/home/axeman/workspace/tom-bombadil";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
 
     cryptobox-haskell = {
       url = "github:wireapp/cryptobox-haskell?ref=master";
@@ -85,7 +90,7 @@
     };
   };
 
-  outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, ... }:
+  outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, tom-bombadil, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -98,7 +103,8 @@
         pkgs_24_11 = import nixpkgs_24_11 {
           inherit system;
         };
-        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 inputs; };
+        bomDependenciesDrv = tom-bombadil.lib.${system}.bomDependenciesDrv;
+        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 inputs bomDependenciesDrv; };
       in
       {
         # profileEnv wireServer docs docsEnv mls-test-cli nginz;
