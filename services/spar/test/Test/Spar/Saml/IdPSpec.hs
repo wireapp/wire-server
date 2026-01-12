@@ -62,7 +62,10 @@ spec =
                     _cfgContacts = [fallbackContact]
                   }
           }
+      host = Just "backend.example.com"
+      miHostAsText = "backend-2.example.com"
       miDomain = either (error . show) id $ mkDomain miHostAsText
+      miHost = Just miHostAsText
       multiIngressSamlConfig =
         Config
           { -- The log level only matters for log output, not production.
@@ -85,10 +88,11 @@ spec =
           }
       idpHandle = Just $ unsafeRange "some-idp"
       apiVersionV2 = Just WireIdPAPIV2
-      host = Just "backend.example.com"
-      miHostAsText = "backend-2.example.com"
-      miHost = Just miHostAsText
-      issuer = Issuer . (either (error . show) id) . parseURI strictURIParserOptions . fromString $ "https://accounts.accesscontrol.windows.net/auth"
+      issuer =
+        either (error . show) Issuer
+          . parseURI strictURIParserOptions
+          . fromString
+          $ "https://accounts.accesscontrol.windows.net/auth"
    in describe "SAML IdP change logging" $ do
         describe "idp-create" $ do
           it "should log IdP creation" $ do
