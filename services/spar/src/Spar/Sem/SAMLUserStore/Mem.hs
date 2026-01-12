@@ -23,7 +23,9 @@ module Spar.Sem.SAMLUserStore.Mem
   )
 where
 
+import Cassandra (Page (..), emptyPage)
 import Control.Lens (view)
+import qualified Data.Bifunctor
 import Data.Id
 import qualified Data.Map as M
 import Imports
@@ -49,8 +51,14 @@ samlUserStoreToMem = (runState @(Map UserRefOrd UserId) mempty .) $
     Delete _uid ur -> modify $ M.delete $ UserRefOrd ur
     -- 'GetAllByIssuerPaginated' and 'NextPage' are workarounds, please also see docs at
     -- 'Spar.Sem.SAMLUserStore.Cassandra.getAllSAMLUsersByIssuerPaginated'
-    GetAllByIssuerPaginated _is -> error "not implemented as this has a dependency to Cassandra"
-    NextPage _ -> error "not implemented as this has a dependency to Cassandra"
+    --
+    -- This mock only returns on `Page` for all results.
+    GetAllByIssuerPaginated is -> gets $ \userMap ->
+      let entries =
+            Data.Bifunctor.first unUserRefOrd
+              <$> M.assocs (M.filterWithKey (\ref _ -> eqIssuer is ref) userMap)
+       in emptyPage {result = entries}
+    NextPage _ -> pure emptyPage
   where
     eqIssuer :: SAML.Issuer -> UserRefOrd -> Bool
     eqIssuer is = (== is) . view uidTenant . unUserRefOrd
