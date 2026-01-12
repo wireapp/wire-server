@@ -164,6 +164,23 @@ brig:
       general:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
+      user:
+        activationUrl: {{ .Values.brig.config.externalUrls.nginz }}/verify/?key=${key}&code=${code}
+        smsActivationUrl: {{ .Values.brig.config.externalUrls.nginz }}/v/${code}
+        passwordResetUrl: {{ .Values.brig.config.externalUrls.nginz }}/reset/?key=${key}&code=${code}
+        deletionUrl: {{ .Values.brig.config.externalUrls.nginz }}/d/?key=${key}&code=${code}
+      provider:
+        homeUrl: https://provider.localhost/
+        providerActivationUrl: {{ .Values.brig.config.externalUrls.nginz }}/verify/bot/?key=${key}&code=${code}
+        approvalUrl: {{ .Values.brig.config.externalUrls.nginz }}/provider/approve?key=${key}&code=${code}
+        approvalTo: success@simulator.amazonses.com
+        providerPwResetUrl: {{ .Values.brig.config.externalUrls.nginz }}/reset/bot/?key=${key}&code=${code}
+      team:
+        tInvitationUrl: {{ .Values.brig.config.externalUrls.nginz }}/join/?team-code=${code}
+        tExistingUserInvitationUrl: {{ .Values.brig.config.externalUrls.nginz }}/accept-invitation/?team-code=${code}
+        tActivationUrl: {{ .Values.brig.config.externalUrls.nginz }}/verify/?key=${key}&code=${code}
+        tCreatorWelcomeUrl: {{ .Values.brig.config.externalUrls.teamCreatorWelcome }}
+        tMemberWelcomeUrl: {{ .Values.brig.config.externalUrls.teamMemberWelcome }}
   test:
     elasticsearch:
       additionalHost: {{ .Values.elasticsearch.additionalHost }}

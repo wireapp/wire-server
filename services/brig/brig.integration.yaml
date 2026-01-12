@@ -126,23 +126,23 @@ emailSMS:
       forgot: https://wire.com/forgot/
       support: https://support.wire.com/
   user:
-    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
+    activationUrl: http://127.0.0.1:8080/verify/?key=${key}&code=${code}
     smsActivationUrl: http://127.0.0.1:8080/v/${code}
-    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
+    passwordResetUrl: http://127.0.0.1:8080/reset/?key=${key}&code=${code}
     invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
-    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
+    deletionUrl: http://127.0.0.1:8080/d/?key=${key}&code=${code}
 
   provider:
     homeUrl: https://provider.localhost/
-    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
+    providerActivationUrl: http://127.0.0.1:8080/verify/bot/?key=${key}&code=${code}
     approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
     approvalTo: success@simulator.amazonses.com
-    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
+    providerPwResetUrl: http://127.0.0.1:8080/reset/bot/?key=${key}&code=${code}
 
   team:
-    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
-    tExistingUserInvitationUrl: http://127.0.0.1:8080/accept-invitation?team-code=${code}
-    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tInvitationUrl: http://127.0.0.1:8080/join/?team-code=${code}
+    tExistingUserInvitationUrl: http://127.0.0.1:8080/accept-invitation/?team-code=${code}
+    tActivationUrl: http://127.0.0.1:8080/verify/?key=${key}&code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 

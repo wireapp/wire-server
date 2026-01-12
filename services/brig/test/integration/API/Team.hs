@@ -43,7 +43,6 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
-import Data.Text.Encoding (encodeUtf8)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
 import Imports
@@ -251,8 +250,7 @@ testInvitationUrl opts brig = do
       isJust invCode @? "Expect an invitation code in the backend"
       Just inviter @=? inv.createdBy
       tid @=? inv.team
-      getQueryParam "team_code" resp @=? (invCode <&> (toStrict . toByteString))
-      getQueryParam "team" resp @=? (pure . encodeUtf8 . idToText) tid
+      getQueryParam "team-code" resp @=? (invCode <&> (toStrict . toByteString))
 
 getQueryParam :: ByteString -> ResponseLBS -> Maybe ByteString
 getQueryParam name r = do
