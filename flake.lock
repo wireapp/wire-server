@@ -240,6 +240,7 @@
         "tasty-ant-xml": "tasty-ant-xml",
         "text-icu-translit": "text-icu-translit",
         "tinylog": "tinylog",
+        "tom-bombadil": "tom-bombadil",
         "wai-predicates": "wai-predicates"
       }
     },
@@ -341,6 +342,26 @@
         "ref": "wire-fork",
         "repo": "tinylog",
         "type": "github"
+      }
+    },
+    "tom-bombadil": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1767870783,
+        "narHash": "sha256-0QStp+uH05bnGltPnOJM2FdeTJdgVIWkVM5wSFYVceM=",
+        "path": "/home/axeman/workspace/tom-bombadil",
+        "type": "path"
+      },
+      "original": {
+        "path": "/home/axeman/workspace/tom-bombadil",
+        "type": "path"
       }
     },
     "wai-predicates": {

@@ -42,9 +42,8 @@
 # Using these tweaks we can get a haskell package set which has wire-server
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
-pkgs:
-pkgs_24_11:
-inputs:
+
+{ pkgs, pkgs_24_11, bomDependenciesDrv, inputs, }:
 let
   inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
@@ -484,9 +483,8 @@ let
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 
-  tom-bombadil = builtins.getFlake "github:wireapp/tom-bombadil";
   localPkgs = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
-  bomDependencies = tom-bombadil.lib.${builtins.currentSystem}.bomDependenciesDrv pkgs localPkgs haskellPackages;
+  bomDependencies = bomDependenciesDrv pkgs localPkgs haskellPackages;
 in
 {
   inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies;
