@@ -179,16 +179,16 @@ runCommand l brigOpts = \case
     -- Use default index settings for reset
     let defaultSettings = ElasticIndexSettings 1 (ES.ReplicaCount 1) 1 Nothing
     runIndexIO e $ resetIndex (mkCreateIndexSettings defaultSettings)
-  Reindex _idxSettings -> do
+  Reindex -> do
     runSem brigOpts l $
       IndexedUserStoreBulk.syncAllUsers
-  ReindexSameOrNewer _idxSettings -> do
+  ReindexSameOrNewer -> do
     runSem brigOpts l $
       IndexedUserStoreBulk.forceSyncAllUsers
   UpdateMapping -> do
     e <- initIndex l brigOpts
     runIndexIO e updateMapping
-  Migrate _idxSettings -> do
+  Migrate -> do
     runSem brigOpts l $
       IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do

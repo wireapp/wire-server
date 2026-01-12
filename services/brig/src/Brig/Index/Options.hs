@@ -55,10 +55,10 @@ import Util.Options (FilePathSecrets)
 data Command
   = Create ElasticIndexSettings
   | Reset Text -- ^ Index prefix for test indices (actual index will be PREFIX_test)
-  | Reindex ElasticIndexSettings
-  | ReindexSameOrNewer ElasticIndexSettings
+  | Reindex
+  | ReindexSameOrNewer
   | UpdateMapping
-  | Migrate ElasticIndexSettings
+  | Migrate
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
@@ -235,7 +235,7 @@ connectionSettingsParser =
             str
             ( long "elasticsearch-ca-cert"
                 <> metavar "FILE"
-                <> help "Path to CA Certitificate for TLS validation, system CA bundle is used when unspecified"
+                <> help "Path to CA Certificate for TLS validation, system CA bundle is used when unspecified"
             )
         )
 
@@ -280,19 +280,19 @@ commandParser =
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticIndexSettingsParser)
+              (pure Reindex)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticIndexSettingsParser)
+              (pure ReindexSameOrNewer)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticIndexSettingsParser)
+              (pure Migrate)
               (progDesc "Migrate data in elastic search")
           )
         <> command
