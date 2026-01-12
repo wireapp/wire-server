@@ -907,9 +907,17 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
             zusr
             ( Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
                 . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
-                . Log.field "old-idp-endpoint" (previousIdP ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
-                . Log.field "new-idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
+                & logEndpointFields
+                  (previousIdP ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
+                  (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
             )
+    logEndpointFields oldEndpoint newEndpoint logFields =
+      if oldEndpoint /= newEndpoint
+        then
+          Log.field "old-idp-endpoint" oldEndpoint
+            . Log.field "new-idp-endpoint" newEndpoint
+            . logFields
+        else logFields
 
     compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
     compareNonEmpty xs ys =

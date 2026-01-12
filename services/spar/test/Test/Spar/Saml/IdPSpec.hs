@@ -243,12 +243,7 @@ spec =
                       <> fromString issuerString
                       <> ", domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", new-certificates=, removed-certificates="
-                      <> ", old-idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", new-idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> "\n"
+                      <> ", new-certificates=, removed-certificates=\n"
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
@@ -274,12 +269,7 @@ spec =
                       <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", new-certificates=, removed-certificates="
-                      <> ", old-idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", new-idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> "\n"
+                      <> ", new-certificates=, removed-certificates=\n"
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
@@ -313,12 +303,12 @@ spec =
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
                       <> ", idpId=00000000-0000-0000-0000-000000000000, issuer=https://new.idp.example.com/auth, domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", new-certificates=Issuer: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; Subject: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; SHA1 Fingerprint: 5C:42:5B:27:B3:96:CC:9D:1B:1F:0E:4F:2B:8A:B8:E4:3C:9E:96:34"
-                      <> ", removed-certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
                       <> ", old-idp-endpoint="
                       <> fromString idpEndpointString
                       <> ", new-idp-endpoint="
                       <> fromString newIdpEndpointString
+                      <> ", new-certificates=Issuer: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; Subject: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; SHA1 Fingerprint: 5C:42:5B:27:B3:96:CC:9D:1B:1F:0E:4F:2B:8A:B8:E4:3C:9E:96:34"
+                      <> ", removed-certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
                       <> "\n"
                   )
 
