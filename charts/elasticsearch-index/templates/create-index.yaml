@@ -52,7 +52,6 @@ spec:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
           {{- end }}
           args:
-            - yaml
             - --config-file
             - /etc/wire/brig/conf/brig.yaml
             - create
@@ -81,7 +80,6 @@ spec:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
           {{- end }}
           args:
-            - yaml
             - --config-file
             - /etc/wire/brig/conf/brig.yaml
             - update-mapping

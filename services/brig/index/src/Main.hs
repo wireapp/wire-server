@@ -22,6 +22,7 @@ where
 
 import Brig.Index.Eval
 import Brig.Index.Options
+import Brig.Options qualified as BrigOpts
 import Data.Yaml qualified as Yaml
 import Imports
 import Options.Applicative
@@ -30,24 +31,11 @@ import System.Logger.Class qualified as Log
 
 main :: IO ()
 main = do
-  opts <- execParser (info (helper <*> mainParser) desc)
+  (configFile, cmd) <- execParser (info (helper <*> mainParser) desc)
   lgr <- initLogger
-  case opts of
-    -- YAML config mode: read from brig.yaml
-    YamlMode configFile yamlCmd -> do
-      brigIndexOpts <-
-        Yaml.decodeFileEither configFile >>= \case
-          Left e ->
-            fail $
-              "Failed to parse configuration file "
-                <> configFile
-                <> ": "
-                <> show e
-          Right o -> pure o
-      cmd <- yamlCmdToCommand brigIndexOpts yamlCmd
-      runCommand lgr cmd
-    -- CLI mode: use traditional command-line arguments (backward compatible)
-    CliMode cmd -> runCommand lgr cmd
+  brigOpts <- loadBrigConfig configFile
+  command <- toCommand brigOpts cmd
+  runCommand lgr command
   exitSuccess
   where
     desc =
@@ -61,39 +49,24 @@ main = do
         . Log.setBufSize 0
         $ Log.defSettings
 
--- | Commands that work with brig.yaml configuration
-data YamlCommand
-  = YamlCreate IndexSettings
-  | YamlReset IndexSettings
-  | YamlReindex
-  | YamlReindexSameOrNewer
-  | YamlUpdateMapping
-  | YamlMigrate
-  deriving (Show)
+-- | Load brig configuration from YAML file
+loadBrigConfig :: FilePath -> IO BrigOpts.Opts
+loadBrigConfig configFile =
+  Yaml.decodeFileEither configFile >>= \case
+    Left e ->
+      fail $
+        "Failed to parse configuration file "
+          <> configFile
+          <> ": "
+          <> show e
+    Right o -> pure o
 
--- | Main options: either YAML config mode or CLI mode
-data MainOpts
-  = YamlMode FilePath YamlCommand
-  | CliMode Command
-  deriving (Show)
-
-mainParser :: Parser MainOpts
+-- | Main parser: config file + command
+mainParser :: Parser (FilePath, Command)
 mainParser =
-  hsubparser
-    ( command
-        "yaml"
-        ( info
-            (yamlModeParser <**> helper)
-            (progDesc "Run using brig.yaml configuration")
-        )
-    )
-    <|> fmap CliMode commandParser
-
-yamlModeParser :: Parser MainOpts
-yamlModeParser =
-  YamlMode
+  (,)
     <$> configFileParser
-    <*> yamlCommandParser
+    <*> commandParser
 
 configFileParser :: Parser FilePath
 configFileParser =
@@ -104,111 +77,3 @@ configFileParser =
         <> showDefault
         <> value "/etc/wire/brig/conf/brig.yaml"
     )
-
-yamlCommandParser :: Parser YamlCommand
-yamlCommandParser =
-  hsubparser
-    ( command
-        "create"
-        ( info
-            (YamlCreate <$> indexSettingsParser)
-            (progDesc "Create the ES user index, if it doesn't already exist")
-        )
-        <> command
-          "reset"
-          ( info
-              (YamlReset <$> indexSettingsParser)
-              (progDesc "Delete and re-create the ES user index. Only works on a test index (directory_test).")
-          )
-        <> command
-          "reindex"
-          ( info
-              (pure YamlReindex)
-              (progDesc "Reindex all users from Cassandra if there is a new version")
-          )
-        <> command
-          "reindex-if-same-or-newer"
-          ( info
-              (pure YamlReindexSameOrNewer)
-              (progDesc "Reindex all users from Cassandra, even if the version has not changed")
-          )
-        <> command
-          "update-mapping"
-          ( info
-              (pure YamlUpdateMapping)
-              (progDesc "Update mapping of the user index")
-          )
-        <> command
-          "migrate-data"
-          ( info
-              (pure YamlMigrate)
-              (progDesc "Migrate data in Elasticsearch")
-          )
-    )
-
-indexSettingsParser :: Parser IndexSettings
-indexSettingsParser =
-  IndexSettings
-    <$> option
-      auto
-      ( long "elasticsearch-shards"
-          <> metavar "INT"
-          <> help "Number of Shards for the Elasticsearch Index"
-          <> value 5
-          <> showDefault
-      )
-    <*> option
-      auto
-      ( long "elasticsearch-replicas"
-          <> metavar "INT"
-          <> help "Number of Replicas for the Elasticsearch Index"
-          <> value 2
-          <> showDefault
-      )
-    <*> option
-      auto
-      ( long "elasticsearch-refresh-interval"
-          <> metavar "SECONDS"
-          <> help "Refresh interval for the Elasticsearch Index in seconds"
-          <> value 5
-          <> showDefault
-      )
-    <*> optional
-      ( strOption
-          ( long "delete-template"
-              <> metavar "TEMPLATE_NAME"
-              <> help "Delete this ES template before creating a new index"
-          )
-      )
-
--- | Convert YamlCommand to Command using the options from brig.yaml
-yamlCmdToCommand :: BrigIndexOpts -> YamlCommand -> IO Command
-yamlCmdToCommand opts cmd = case cmd of
-  YamlCreate idxSettings -> do
-    esSettings <- getElasticSettings opts idxSettings
-    pure $ Create esSettings opts.galley
-  YamlReset idxSettings -> do
-    esSettings <- getElasticSettings opts idxSettings
-    pure $ Reset esSettings opts.galley
-  YamlReindex -> do
-    esSettings <- getElasticSettings opts defaultIndexSettings
-    let casSettings = cassandraSettingsFromBrig opts.cassandra
-    pure $ Reindex esSettings casSettings opts.galley
-  YamlReindexSameOrNewer -> do
-    esSettings <- getElasticSettings opts defaultIndexSettings
-    let casSettings = cassandraSettingsFromBrig opts.cassandra
-    pure $ ReindexSameOrNewer esSettings casSettings opts.galley
-  YamlUpdateMapping -> do
-    connSettings <- liftEither $ esConnectionSettingsFromBrig opts.elasticsearch
-    pure $ UpdateMapping connSettings opts.galley
-  YamlMigrate -> do
-    esSettings <- getElasticSettings opts defaultIndexSettings
-    let casSettings = cassandraSettingsFromBrig opts.cassandra
-    pure $ Migrate esSettings casSettings opts.galley
-  where
-    liftEither :: Either String a -> IO a
-    liftEither = either fail pure
-
-    getElasticSettings :: BrigIndexOpts -> IndexSettings -> IO ElasticSettings
-    getElasticSettings o idxSettings =
-      liftEither $ elasticSettingsFromBrig o.elasticsearch idxSettings

@@ -27,7 +27,6 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
-            - yaml
             - --config-file
             - /etc/wire/brig/conf/brig.yaml
             - migrate-data

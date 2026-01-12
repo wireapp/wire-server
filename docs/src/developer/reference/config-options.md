@@ -1473,9 +1473,7 @@ The ways differ regarding the kind of program:
 
 - *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
 -  *\*-schema CLI commands* accept a `--tls-ca-certificate-file <filepath>` parameter.
-- *brig-index* can be run in two modes:
-  - **YAML mode** (recommended): `brig-index yaml -c /path/to/brig.yaml <command>` - reads all configuration including Cassandra TLS settings from brig.yaml
-  - **CLI mode** (legacy): `brig-index <command> --cassandra-ca-cert <filepath>` - uses command-line parameters
+- *brig-index* reads connection settings (including Cassandra TLS) from `brig.yaml` via the `-c` flag: `brig-index -c /path/to/brig.yaml <command>`
 
 When a CA PEM file is configured, all Cassandra connections are opened with TLS
 encryption i.e. there is no fallback to unencrypted connections. This ensures

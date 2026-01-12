@@ -43,10 +43,8 @@ module Brig.Index.Options
     reindexDestIndex,
     reindexTimeoutSeconds,
     reindexEsConnection,
-    -- * YAML Configuration support
-    BrigIndexOpts (..),
-    IndexSettings (..),
-    defaultIndexSettings,
+    -- * Converting from Brig.Options
+    toCommand,
     esConnectionSettingsFromBrig,
     elasticSettingsFromBrig,
     cassandraSettingsFromBrig,
@@ -57,7 +55,6 @@ import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Options qualified as BrigOpts
 import Cassandra qualified as C
 import Control.Lens
-import Data.Aeson (FromJSON)
 import Data.ByteString.Lens
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -445,38 +442,7 @@ toESServer =
     . set fragmentL mempty
 
 --------------------------------------------------------------------------------
--- YAML Configuration support (reads from brig.yaml)
-
--- | Configuration options for brig-index that are read from brig.yaml.
--- These are all the parameters brig-index needs to function.
-data BrigIndexOpts = BrigIndexOpts
-  { elasticsearch :: BrigOpts.ElasticSearchOpts,
-    cassandra :: CassandraOpts,
-    galley :: Endpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON BrigIndexOpts
-
--- | Settings used during index creation/reset operations.
--- These are typically specified on the command line as they may vary
--- across different index operations.
-data IndexSettings = IndexSettings
-  { shardCount :: Int,
-    replicaCount :: Int,
-    refreshInterval :: Int,
-    deleteTemplate :: Maybe Text
-  }
-  deriving (Show, Eq)
-
-defaultIndexSettings :: IndexSettings
-defaultIndexSettings =
-  IndexSettings
-    { shardCount = 5,
-      replicaCount = 2,
-      refreshInterval = 5,
-      deleteTemplate = Nothing
-    }
+-- Converting from Brig.Options (reads connection settings from brig.yaml)
 
 -- | Convert brig's elasticsearch options to ESConnectionSettings.
 -- This is used when reading configuration from brig.yaml.
@@ -497,16 +463,16 @@ esConnectionSettingsFromBrig brigEs = do
       }
 
 -- | Convert brig's elasticsearch options to ElasticSettings with specified index settings.
-elasticSettingsFromBrig :: BrigOpts.ElasticSearchOpts -> IndexSettings -> Either String ElasticSettings
-elasticSettingsFromBrig brigEs idxSettings = do
+elasticSettingsFromBrig :: BrigOpts.ElasticSearchOpts -> Int -> ES.ReplicaCount -> NominalDiffTime -> Maybe ES.TemplateName -> Either String ElasticSettings
+elasticSettingsFromBrig brigEs shards replicas refreshInterval deleteTemplate = do
   conn <- esConnectionSettingsFromBrig brigEs
   Right
     ElasticSettings
       { _esConnection = conn,
-        _esIndexShardCount = idxSettings.shardCount,
-        _esIndexReplicas = ES.ReplicaCount idxSettings.replicaCount,
-        _esIndexRefreshInterval = fromIntegral idxSettings.refreshInterval,
-        _esDeleteTemplate = ES.TemplateName <$> idxSettings.deleteTemplate
+        _esIndexShardCount = shards,
+        _esIndexReplicas = replicas,
+        _esIndexRefreshInterval = refreshInterval,
+        _esDeleteTemplate = deleteTemplate
       }
 
 -- | Convert brig's cassandra options to CassandraSettings.
@@ -518,3 +484,37 @@ cassandraSettingsFromBrig brigCas =
       _cKeyspace = C.Keyspace brigCas.keyspace,
       _cTlsCa = brigCas.tlsCa
     }
+
+-- | Convert a parsed CLI command to a full Command by combining with brig.yaml settings.
+-- Connection settings (ES, Cassandra, Galley) come from brig.yaml; index-specific
+-- settings (shards, replicas) come from the CLI command.
+toCommand :: BrigOpts.Opts -> Command -> IO Command
+toCommand brigOpts cmd = case cmd of
+  -- Commands that need elasticsearch and galley settings from brig.yaml
+  Create es galley -> do
+    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
+    pure $ Create esSettings brigOpts.galley
+  Reset es galley -> do
+    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
+    pure $ Reset esSettings brigOpts.galley
+  UpdateMapping _ _ -> do
+    connSettings <- liftEither $ esConnectionSettingsFromBrig brigOpts.elasticsearch
+    pure $ UpdateMapping connSettings brigOpts.galley
+  -- Commands that need elasticsearch, cassandra, and galley settings from brig.yaml
+  Reindex es _ _ -> do
+    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
+    let casSettings = cassandraSettingsFromBrig brigOpts.cassandra
+    pure $ Reindex esSettings casSettings brigOpts.galley
+  ReindexSameOrNewer es _ _ -> do
+    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
+    let casSettings = cassandraSettingsFromBrig brigOpts.cassandra
+    pure $ ReindexSameOrNewer esSettings casSettings brigOpts.galley
+  Migrate es _ _ -> do
+    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
+    let casSettings = cassandraSettingsFromBrig brigOpts.cassandra
+    pure $ Migrate esSettings casSettings brigOpts.galley
+  -- ReindexFromAnotherIndex uses its own settings parser (unchanged)
+  ReindexFromAnotherIndex settings -> pure $ ReindexFromAnotherIndex settings
+  where
+    liftEither :: Either String a -> IO a
+    liftEither = either fail pure
