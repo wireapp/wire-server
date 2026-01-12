@@ -86,11 +86,21 @@ spec =
           . parseURI strictURIParserOptions
           . fromString
           $ issuerString
+      idpEndpointString = "https://idp-endpoint.example.com"
+      idpEndpoint =
+        either (error . show) id
+          . parseURI strictURIParserOptions
+          . fromString
+          $ idpEndpointString
    in describe "SAML IdP change logging" $ do
         describe "idp-create" $ do
           it "should log IdP creation" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            let idPMetadataInfo' = idPMetadataInfo & idpMetadataRecord . SAML.edIssuer .~ issuer
+            let idPMetadataInfo' =
+                  idPMetadataInfo
+                    & idpMetadataRecord . SAML.edIssuer .~ issuer
+                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+
                 expectedLogLine =
                   ( Info,
                     "IdP created, team="
@@ -99,7 +109,10 @@ spec =
                       <> fromString issuerString
                       <> ", domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37, replaces=None\n"
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37, replaces=None"
+                      <> ", idp-endpoint="
+                      <> fromString idpEndpointString
+                      <> "\n"
                   )
 
             forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
@@ -117,7 +130,11 @@ spec =
 
           it "should log IdP creation with domain for multi-ingress" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            let idPMetadataInfo' = idPMetadataInfo & idpMetadataRecord . SAML.edIssuer .~ issuer
+            let idPMetadataInfo' =
+                  idPMetadataInfo
+                    & idpMetadataRecord . SAML.edIssuer .~ issuer
+                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+
                 expectedLogLine :: LByteString -> LogLine
                 expectedLogLine domainPart =
                   ( Info,
@@ -129,7 +146,10 @@ spec =
                       <> domainPart
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37, replaces=None\n"
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37, replaces=None"
+                      <> ", idp-endpoint="
+                      <> fromString idpEndpointString
+                      <> "\n"
                   )
                 expectedLogLineWithDomain = expectedLogLine . TL.encodeUtf8 . TL.fromStrict $ miHostAsText
                 expectedLogLineWithoutDomain = expectedLogLine "None"
@@ -153,7 +173,11 @@ spec =
           it "should log IdP deletion" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             user :: User <- generate arbitrary
-            let idPMetadataInfo' = idPMetadataInfo & idpMetadataRecord . SAML.edIssuer .~ issuer
+            let idPMetadataInfo' =
+                  idPMetadataInfo
+                    & idpMetadataRecord . SAML.edIssuer .~ issuer
+                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+
                 expectedLogLine =
                   ( Info,
                     "IdP deleted, team="
@@ -162,7 +186,10 @@ spec =
                       <> fromString issuerString
                       <> ", domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37\n"
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                      <> ", idp-endpoint="
+                      <> fromString idpEndpointString
+                      <> "\n"
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
@@ -173,7 +200,11 @@ spec =
           it "should log IdP deletion with domain for multi-ingress" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             user :: User <- generate arbitrary
-            let idPMetadataInfo' = idPMetadataInfo & idpMetadataRecord . SAML.edIssuer .~ issuer
+            let idPMetadataInfo' =
+                  idPMetadataInfo
+                    & idpMetadataRecord . SAML.edIssuer .~ issuer
+                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+
                 expectedLogLine =
                   ( Info,
                     "IdP deleted, team="
@@ -184,7 +215,10 @@ spec =
                       <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37\n"
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                      <> ", idp-endpoint="
+                      <> fromString idpEndpointString
+                      <> "\n"
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do

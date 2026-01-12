@@ -590,7 +590,9 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     "IdP deleted"
     idp
     mbzusr
-    (Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList)))
+    ( Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
+        . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
+    )
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
@@ -678,6 +680,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
     zUser
     ( Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
         . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
+        . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
     )
   pure idp
   where
