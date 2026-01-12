@@ -45,7 +45,7 @@ import Wire.Sem.Random.Null
 spec :: Spec
 spec =
   let tid = either error id $ parseIdFromText "6861026d-cdee-3da5-22fc-6612bb1360b8"
-      zUser = Just <$> either error id $ parseIdFromText "59128ccc-d38a-1d23-67d9-4f529ee7ca9f"
+      zUser = either error Just $ parseIdFromText "59128ccc-d38a-1d23-67d9-4f529ee7ca9f"
       singleIngressSamlConfig =
         Config
           { -- The log level only matters for log output, not production.
