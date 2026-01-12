@@ -100,10 +100,16 @@ spec =
                   )
 
             forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-              (logs, _res) <- interpretWithLoggingMock Nothing (idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+              (logs, _res) <-
+                interpretWithLoggingMock
+                  Nothing
+                  (idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
               logs `shouldContain` [expectedLogLine]
 
-              (logsV7, _res) <- interpretWithLoggingMock Nothing (idpCreateV7 singleIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+              (logsV7, _res) <-
+                interpretWithLoggingMock
+                  Nothing
+                  (idpCreateV7 singleIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
               logsV7 `shouldContain` [expectedLogLine]
 
           it "should log IdP creation with domain for multi-ingress" $ do
@@ -118,12 +124,18 @@ spec =
                 expectedLogLineWithoutDomain = expectedLogLine "None"
 
             forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-              (logs, _res) <- interpretWithLoggingMock Nothing (idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+              (logs, _res) <-
+                interpretWithLoggingMock
+                  Nothing
+                  (idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
               logs `shouldContain` [expectedLogLineWithDomain]
 
               -- >=V7 does not bother with multi-ingress domains for IdPs as it can
               -- only have one IdP per team anyways.
-              (logsV7, _res) <- interpretWithLoggingMock Nothing (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+              (logsV7, _res) <-
+                interpretWithLoggingMock
+                  Nothing
+                  (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
               logsV7 `shouldContain` [expectedLogLineWithoutDomain]
 
         describe "idp-delete" $ do
