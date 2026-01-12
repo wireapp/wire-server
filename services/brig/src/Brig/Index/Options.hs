@@ -29,7 +29,6 @@ module Brig.Index.Options
     esIndexRefreshInterval,
     esDeleteTemplate,
     CassandraSettings,
-    PostgresSettings (..),
     toCassandraOpts,
     cHost,
     cPort,
@@ -55,7 +54,6 @@ import Data.Text qualified as Text
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
-import Hasql.Pool.Extended
 import Imports
 import Options.Applicative
 import URI.ByteString
@@ -65,11 +63,11 @@ import Util.Options (CassandraOpts (..), Endpoint (..), FilePathSecrets)
 data Command
   = Create ElasticSettings Endpoint
   | Reset ElasticSettings Endpoint
-  | Reindex ElasticSettings CassandraSettings PostgresSettings Endpoint
-  | ReindexSameOrNewer ElasticSettings CassandraSettings PostgresSettings Endpoint
+  | Reindex ElasticSettings CassandraSettings Endpoint
+  | ReindexSameOrNewer ElasticSettings CassandraSettings Endpoint
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
     UpdateMapping ESConnectionSettings Endpoint
-  | Migrate ElasticSettings CassandraSettings PostgresSettings Endpoint
+  | Migrate ElasticSettings CassandraSettings Endpoint
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
@@ -97,13 +95,6 @@ data CassandraSettings = CassandraSettings
     _cPort :: Word16,
     _cKeyspace :: C.Keyspace,
     _cTlsCa :: Maybe FilePath
-  }
-  deriving (Show)
-
-data PostgresSettings = PostgresSettings
-  { pool :: PoolConfig,
-    settings :: Map Text Text,
-    password :: Maybe FilePathSecrets
   }
   deriving (Show)
 
@@ -340,9 +331,6 @@ cassandraSettingsParser =
             )
         )
 
-postgresSettingsParser :: Parser PostgresSettings
-postgresSettingsParser = todo
-
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
@@ -406,19 +394,19 @@ commandParser =
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
+              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
               (progDesc "Migrate data in elastic search")
           )
         <> command

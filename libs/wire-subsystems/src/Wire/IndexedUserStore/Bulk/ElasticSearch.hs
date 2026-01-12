@@ -35,7 +35,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.AppStore
 import Wire.GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
@@ -51,7 +50,6 @@ import Wire.UserStore.IndexUser
 interpretIndexedUserStoreBulk ::
   ( Member TinyLog r,
     Member UserStore r,
-    Member AppStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
@@ -67,7 +65,6 @@ interpretIndexedUserStoreBulk = interpret \case
 syncAllUsersImpl ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -79,7 +76,6 @@ syncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGT
 forceSyncAllUsersImpl ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -91,7 +87,6 @@ forceSyncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGTE
 syncAllUsersWithVersion ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -154,7 +149,6 @@ migrateDataImpl ::
     Member (Error MigrationException) r,
     Member IndexedUserMigrationStore r,
     Member UserStore r,
-    Member AppStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
     Member TinyLog r
@@ -187,13 +181,16 @@ teamSearchVisibilityInbound tid =
 -- | TODO: this is duplicated code from UserSubsystem, we should probably expose it as an action there.
 getUserType ::
   forall r.
-  (Member AppStore r) =>
   IndexUser ->
   Sem r UserType
 getUserType iu = case iu.serviceId of
   Just _ -> pure UserTypeBot
   Nothing -> do
+    {-
+    FUTUREWORK: *correct* type fields from search are coming in a separate PR
     mmApp <- mapM (getApp iu.userId) (iu.teamId <&> (.value))
     case join mmApp of
       Just _ -> pure UserTypeApp
       Nothing -> pure UserTypeRegular
+    -}
+    pure UserTypeApp
