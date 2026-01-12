@@ -169,12 +169,6 @@ brig:
         smsActivationUrl: https://example.com/v/${code}
         passwordResetUrl: https://example.com/reset/?key=${key}&code=${code}
         deletionUrl: https://example.com/d/?key=${key}&code=${code}
-      provider:
-        homeUrl: https://example.com/
-        providerActivationUrl: https://example.com/verify/bot/?key=${key}&code=${code}
-        approvalUrl: https://example.com/provider/approve?key=${key}&code=${code}
-        approvalTo: success@simulator.amazonses.com
-        providerPwResetUrl: https://example.com/reset/bot/?key=${key}&code=${code}
       team:
         tInvitationUrl: https://example.com/join/?team-code=${code}
         tExistingUserInvitationUrl: https://example.com/accept-invitation/?team-code=${code}

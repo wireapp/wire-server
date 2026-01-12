@@ -88,7 +88,7 @@ testTeamInvitationEmailExistingUser branding templates = do
             invInviter = fromJust $ emailAddressText "inviter@example.com"
           }
   liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
-  liftIO $ url @?= "http://127.0.0.1:8080/accept-invitation/?team-code=ZoMX0xs="
+  liftIO $ url @?= "https://example.com/accept-invitation/?team-code=ZoMX0xs="
   assertNoErrors errs
 
 testTeamInvitationEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
@@ -103,7 +103,7 @@ testTeamInvitationEmail branding templates = do
             invInviter = fromJust $ emailAddressText "inviter@example.com"
           }
   liftIO $ mail.mailFrom.addressEmail @?= (fromEmail tpl.invitationEmailSender)
-  liftIO $ url @?= "http://127.0.0.1:8080/join/?team-code=ZoMX0xs="
+  liftIO $ url @?= "https://example.com/join/?team-code=ZoMX0xs="
   assertNoErrors errs
 
 testMemberWelcomeEmail :: (HasCallStack) => Map Text Text -> TeamTemplates -> Http ()
