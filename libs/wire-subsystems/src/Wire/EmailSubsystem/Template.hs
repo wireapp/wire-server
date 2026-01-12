@@ -77,6 +77,7 @@ renderHtmlWithBrandingSem = renderWithBrandingSem HTML.text
 renderTextWithBrandingSem :: (Member (Output Text) r) => Template -> Map Text Text -> Sem r Lazy.Text
 renderTextWithBrandingSem = renderWithBrandingSem id
 
+-- If a template field is not declared, do not replace it and drop key to `Output` effect.  This way we catch all errors, not just the first, and the caller gets to decide what to do with the error.
 renderWithBrandingSem :: (Member (Output Text) r) => (Text -> Text) -> Template -> Map Text Text -> Sem r Lazy.Text
 renderWithBrandingSem escapeHtml tpl replace = do
   let f x = case Map.lookup x replace of
