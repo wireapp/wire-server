@@ -39,9 +39,10 @@ main = do
         Yaml.decodeFileEither configFile >>= \case
           Left e ->
             fail $
-              show e
-                <> " while attempting to decode "
+              "Failed to parse configuration file "
                 <> configFile
+                <> ": "
+                <> show e
           Right o -> pure o
       cmd <- yamlCmdToCommand brigIndexOpts yamlCmd
       runCommand lgr cmd
@@ -141,7 +142,7 @@ yamlCommandParser =
           "migrate-data"
           ( info
               (pure YamlMigrate)
-              (progDesc "Migrate data in elastic search")
+              (progDesc "Migrate data in Elasticsearch")
           )
     )
 
@@ -198,21 +199,16 @@ yamlCmdToCommand opts cmd = case cmd of
     let casSettings = cassandraSettingsFromBrig opts.cassandra
     pure $ ReindexSameOrNewer esSettings casSettings opts.galley
   YamlUpdateMapping -> do
-    connSettings <- getESConnectionSettings opts
+    connSettings <- liftEither $ esConnectionSettingsFromBrig opts.elasticsearch
     pure $ UpdateMapping connSettings opts.galley
   YamlMigrate -> do
     esSettings <- getElasticSettings opts defaultIndexSettings
     let casSettings = cassandraSettingsFromBrig opts.cassandra
     pure $ Migrate esSettings casSettings opts.galley
   where
+    liftEither :: Either String a -> IO a
+    liftEither = either fail pure
+
     getElasticSettings :: BrigIndexOpts -> IndexSettings -> IO ElasticSettings
     getElasticSettings o idxSettings =
-      case elasticSettingsFromBrig o.elasticsearch idxSettings of
-        Left err -> fail err
-        Right es -> pure es
-
-    getESConnectionSettings :: BrigIndexOpts -> IO ESConnectionSettings
-    getESConnectionSettings o =
-      case esConnectionSettingsFromBrig o.elasticsearch of
-        Left err -> fail err
-        Right conn -> pure conn
+      liftEither $ elasticSettingsFromBrig o.elasticsearch idxSettings
