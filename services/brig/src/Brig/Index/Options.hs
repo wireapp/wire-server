@@ -56,7 +56,8 @@ import Util.Options (FilePathSecrets)
 -- Index-specific settings (shards, replicas, prefix for test indices) come from CLI.
 data Command
   = Create ElasticIndexSettings
-  | Reset Text -- ^ Index prefix for test indices (actual index will be PREFIX_test)
+  | -- | Index prefix for test indices (actual index will be PREFIX_test)
+    Reset Text
   | Reindex
   | ReindexSameOrNewer
   | UpdateMapping
