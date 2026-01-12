@@ -25,15 +25,13 @@ spec:
         - name: brig-config
           configMap:
             name: brig
-        {{- if hasKey .Values.secrets "elasticsearch" }}
-        - name: elasticsearch-index-secrets
+        - name: brig-secrets
           secret:
-            secretName: elasticsearch-index
-        {{- end }}
-        {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            secretName: brig
+        {{- if .Values.elasticsearchTlsEnabled }}
         - name: elasticsearch-ca
           secret:
-            secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+            secretName: {{ .Values.secrets.elasticsearchCaSecretName }}
         {{- end }}
       initContainers:
         # Creates index in elasticsearch only when it doesn't exist.
@@ -43,11 +41,9 @@ spec:
           volumeMounts:
             - name: brig-config
               mountPath: /etc/wire/brig/conf
-            {{- if hasKey .Values.secrets "elasticsearch" }}
-            - name: "elasticsearch-index-secrets"
-              mountPath: "/etc/wire/brig/secrets"
-            {{- end }}
-            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - name: brig-secrets
+              mountPath: /etc/wire/brig/secrets
+            {{- if .Values.elasticsearchTlsEnabled }}
             - name: elasticsearch-ca
               mountPath: "/etc/wire/brig/elasticsearch-ca"
             {{- end }}
@@ -74,11 +70,9 @@ spec:
           volumeMounts:
             - name: brig-config
               mountPath: /etc/wire/brig/conf
-            {{- if hasKey .Values.secrets "elasticsearch" }}
-            - name: "elasticsearch-index-secrets"
-              mountPath: "/etc/wire/brig/secrets"
-            {{- end }}
-            {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+            - name: brig-secrets
+              mountPath: /etc/wire/brig/secrets
+            {{- if .Values.elasticsearchTlsEnabled }}
             - name: elasticsearch-ca
               mountPath: "/etc/wire/brig/elasticsearch-ca"
             {{- end }}

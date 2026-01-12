@@ -1,8 +1,9 @@
 # Default values for elasticsearch-index
 #
-# This chart uses brig's ConfigMap for configuration, which should be deployed
-# before this chart. The brig ConfigMap contains elasticsearch, cassandra,
-# and galley settings needed by brig-index.
+# This chart uses brig's ConfigMap and Secret for configuration, which should be
+# deployed before this chart. The brig ConfigMap contains elasticsearch, cassandra,
+# and galley settings needed by brig-index. The brig Secret contains elasticsearch
+# credentials if configured.
 #
 # The following settings are specific to index creation and can be customized:
 elasticsearch:
@@ -11,6 +12,22 @@ elasticsearch:
   replicas: 2
   refreshInterval: 5
   delete_template: directory
+
+# TLS CA secret references (should match what's configured in brig chart)
+# These secrets are created by the brig chart or provided externally.
+secrets:
+  # Elasticsearch TLS CA secret name and key (matches brig's elasticsearch-ca secret)
+  elasticsearchCaSecretName: brig-elasticsearch-ca
+  elasticsearchCaSecretKey: ca.pem
+  # Cassandra TLS CA secret name and key (matches brig's cassandra-ca secret)
+  cassandraCaSecretName: brig-cassandra
+  cassandraCaSecretKey: ca.pem
+
+# Set to true if brig is configured with Elasticsearch TLS
+elasticsearchTlsEnabled: false
+
+# Set to true if brig is configured with Cassandra TLS
+cassandraTlsEnabled: false
 
 image:
   repository: quay.io/wire/brig-index
@@ -25,12 +42,10 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-secrets: {}
-
 # NOTE: The following settings are DEPRECATED and no longer used.
-# Configuration is now read from brig's ConfigMap (brig.yaml).
-# These are kept for backward compatibility documentation only.
+# Configuration is now read from brig's ConfigMap (brig.yaml) and brig's Secret.
 #
+# Old configuration structure (now deprecated):
 # elasticsearch:
 #   scheme: http
 #   host: elasticsearch-client

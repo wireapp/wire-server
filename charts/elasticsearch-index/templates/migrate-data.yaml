@@ -34,15 +34,13 @@ spec:
           volumeMounts:
             - name: brig-config
               mountPath: /etc/wire/brig/conf
-          {{- if hasKey .Values.secrets "elasticsearch" }}
-            - name: "elasticsearch-index-secrets"
-              mountPath: "/etc/wire/brig/secrets"
-          {{- end }}
-          {{- if eq (include "useCassandraTLS" .Values) "true" }}
-            - name: elasticsearch-index-migrate-cassandra-client-ca
+            - name: brig-secrets
+              mountPath: /etc/wire/brig/secrets
+          {{- if .Values.cassandraTlsEnabled }}
+            - name: cassandra-ca
               mountPath: "/etc/wire/brig/cassandra"
           {{- end }}
-          {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+          {{- if .Values.elasticsearchTlsEnabled }}
             - name: elasticsearch-ca
               mountPath: "/etc/wire/brig/elasticsearch-ca"
           {{- end }}
@@ -50,18 +48,16 @@ spec:
         - name: brig-config
           configMap:
             name: brig
-        {{- if hasKey .Values.secrets "elasticsearch" }}
-        - name: elasticsearch-index-secrets
+        - name: brig-secrets
           secret:
-            secretName: elasticsearch-index
-        {{- end }}
-        {{- if eq (include "useCassandraTLS" .Values) "true" }}
-        - name: elasticsearch-index-migrate-cassandra-client-ca
+            secretName: brig
+        {{- if .Values.cassandraTlsEnabled }}
+        - name: cassandra-ca
           secret:
-            secretName: {{ include "cassandraTlsSecretName" .Values }}
+            secretName: {{ .Values.secrets.cassandraCaSecretName }}
         {{- end }}
-        {{- if eq (include "configureElasticsearchCa" .Values) "true" }}
+        {{- if .Values.elasticsearchTlsEnabled }}
         - name: elasticsearch-ca
           secret:
-            secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+            secretName: {{ .Values.secrets.elasticsearchCaSecretName }}
         {{- end }}
