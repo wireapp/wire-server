@@ -46,6 +46,12 @@ spec :: Spec
 spec =
   let tid = either error id $ parseIdFromText "6861026d-cdee-3da5-22fc-6612bb1360b8"
       zUser = either error Just $ parseIdFromText "59128ccc-d38a-1d23-67d9-4f529ee7ca9f"
+      anyMultiIngressDomainCfg =
+        MultiIngressDomainConfig
+          { _cfgSPAppURI = [uri|https://example-sp.com/landing|],
+            _cfgSPSsoURI = [uri|https://example-sp.com/sso|],
+            _cfgContacts = [fallbackContact]
+          }
       singleIngressSamlConfig =
         Config
           { -- The log level only matters for log output, not production.
@@ -54,13 +60,7 @@ spec =
             _cfgLogLevel = Trace,
             _cfgSPHost = "localhost",
             _cfgSPPort = 8081,
-            _cfgDomainConfigs =
-              Left
-                MultiIngressDomainConfig
-                  { _cfgSPAppURI = [uri|https://example-sp.com/landing|],
-                    _cfgSPSsoURI = [uri|https://example-sp.com/sso|],
-                    _cfgContacts = [fallbackContact]
-                  }
+            _cfgDomainConfigs = Left anyMultiIngressDomainCfg
           }
       host = Just "backend.example.com"
       miHostAsText = "backend-2.example.com"
@@ -76,15 +76,7 @@ spec =
             _cfgSPPort = 8081,
             _cfgDomainConfigs =
               Right $
-                Map.fromList
-                  [ ( miDomain,
-                      MultiIngressDomainConfig
-                        { _cfgSPAppURI = [uri|https://example-sp.com/landing|],
-                          _cfgSPSsoURI = [uri|https://example-sp.com/sso|],
-                          _cfgContacts = [fallbackContact]
-                        }
-                    )
-                  ]
+                Map.fromList [(miDomain, anyMultiIngressDomainCfg)]
           }
       idpHandle = Just $ unsafeRange "some-idp"
       apiVersionV2 = Just WireIdPAPIV2
