@@ -102,10 +102,6 @@ testCreateApp = do
   memberName <- regularMember %. "name" & asString
   foundUserType memberName "regular"
 
--- XXX: Why is owner not found?
--- ownerName <- owner %. "name" & asString
--- foundUserType ownerName "regular"
-
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
