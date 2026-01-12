@@ -634,6 +634,7 @@ test-suite spec
     , bytestring-conversion
     , containers
     , cookie
+    , filepath
     , hscim
     , hspec
     , imports

@@ -50,6 +50,7 @@ module Spar.API
     idpCreate,
     idpCreateV7,
     idpDelete,
+    idpUpdate,
   )
 where
 
@@ -818,7 +819,6 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
 idpUpdate ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -839,7 +839,6 @@ idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
 idpUpdateXML ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member (Logger String) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -903,8 +902,8 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
             "IdP updated"
             idp
             zusr
-            ( Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
-                . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
+            ( Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
+                . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
             )
 
     compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
