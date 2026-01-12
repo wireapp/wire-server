@@ -15,6 +15,11 @@ fakeS3:
 federator:
   enabled: false
   integrationTestHelper: false
+  tls:
+    privateKey:
+      # rotationPolicy: Always (default) regenerates key on each renewal
+      # rotationPolicy: Never preserves key across renewals (for key pinning)
+      rotationPolicy: Always
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate

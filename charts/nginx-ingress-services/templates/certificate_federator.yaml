@@ -29,7 +29,7 @@ spec:
     algorithm: ECDSA
     size: 256         # hs-tls only supports p256
     encoding: PKCS1
-    rotationPolicy: {{ .Values.tls.privateKey.rotationPolicy | default "Always" }}
+    rotationPolicy: {{ .Values.federator.tls.privateKey.rotationPolicy }}
   dnsNames:
     - "{{ or .Values.config.dns.certificateDomain .Values.config.dns.federator }}"
 {{- end -}}
