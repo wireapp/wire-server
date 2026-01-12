@@ -20,10 +20,10 @@ spec:
   secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
 
   privateKey:
-    algorithm: ECDSA
-    size: 384         # 521 is not supported by Letsencrypt
+    algorithm: {{ .Values.tls.privateKey.algorithm | default "ECDSA" }}
+    size: {{ .Values.tls.privateKey.size | default 384 }}
     encoding: PKCS1
-    rotationPolicy: Always
+    rotationPolicy: {{ .Values.tls.privateKey.rotationPolicy | default "Always" }}
 
   dnsNames:
     - {{ .Values.config.dns.https }}

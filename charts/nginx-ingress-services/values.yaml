@@ -38,6 +38,13 @@ tls:
   # the validation depth between a federator client certificate and tlsClientCA
   verify_depth: 1
   createIssuer: true
+  # Private key settings for cert-manager Certificate resources
+  privateKey:
+    # rotationPolicy: Always (default) regenerates key on each renewal
+    # rotationPolicy: Never preserves key across renewals (for key pinning)
+    rotationPolicy: Always
+    algorithm: ECDSA
+    size: 384  # 521 is not supported by Let's Encrypt
   issuer:
     # In a multi-domain backend (multi-ingress) setup, this name will be
     # augmented with the 'ingressName' (e.g. 'letsencrypt-http01-<ingressName>')

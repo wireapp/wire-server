@@ -1,0 +1,5 @@
+nginx-ingress-services chart: Add support for cert-manager Certificate
+privateKey settings (rotationPolicy, algorithm, size). Setting
+`tls.privateKey.rotationPolicy: Never` preserves the private key across
+certificate renewals, enabling client key pinning scenarios where clients
+pin the server's public key rather than the certificate itself.
