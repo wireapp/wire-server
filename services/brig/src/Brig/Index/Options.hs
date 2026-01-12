@@ -43,14 +43,24 @@ module Brig.Index.Options
     reindexDestIndex,
     reindexTimeoutSeconds,
     reindexEsConnection,
+    -- * YAML Configuration support
+    BrigIndexOpts (..),
+    IndexSettings (..),
+    defaultIndexSettings,
+    esConnectionSettingsFromBrig,
+    elasticSettingsFromBrig,
+    cassandraSettingsFromBrig,
   )
 where
 
 import Brig.Index.Types (CreateIndexSettings (..))
+import Brig.Options qualified as BrigOpts
 import Cassandra qualified as C
 import Control.Lens
+import Data.Aeson (FromJSON)
 import Data.ByteString.Lens
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
@@ -433,3 +443,78 @@ toESServer =
     . set pathL mempty
     . set queryL mempty
     . set fragmentL mempty
+
+--------------------------------------------------------------------------------
+-- YAML Configuration support (reads from brig.yaml)
+
+-- | Configuration options for brig-index that are read from brig.yaml.
+-- These are all the parameters brig-index needs to function.
+data BrigIndexOpts = BrigIndexOpts
+  { elasticsearch :: BrigOpts.ElasticSearchOpts,
+    cassandra :: CassandraOpts,
+    galley :: Endpoint
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BrigIndexOpts
+
+-- | Settings used during index creation/reset operations.
+-- These are typically specified on the command line as they may vary
+-- across different index operations.
+data IndexSettings = IndexSettings
+  { shardCount :: Int,
+    replicaCount :: Int,
+    refreshInterval :: Int,
+    deleteTemplate :: Maybe Text
+  }
+  deriving (Show, Eq)
+
+defaultIndexSettings :: IndexSettings
+defaultIndexSettings =
+  IndexSettings
+    { shardCount = 5,
+      replicaCount = 2,
+      refreshInterval = 5,
+      deleteTemplate = Nothing
+    }
+
+-- | Convert brig's elasticsearch options to ESConnectionSettings.
+-- This is used when reading configuration from brig.yaml.
+esConnectionSettingsFromBrig :: BrigOpts.ElasticSearchOpts -> Either String ESConnectionSettings
+esConnectionSettingsFromBrig brigEs = do
+  let (ES.Server esUrlText) = brigEs.url
+  esUri <- case parseURI strictURIParserOptions (Text.encodeUtf8 esUrlText) of
+    Left e -> Left $ "Invalid elasticsearch URL in brig.yaml: " <> show e
+    Right u -> Right u
+  Right
+    ESConnectionSettings
+      { esServer = esUri,
+        esIndex = brigEs.index,
+        esCaCert = brigEs.caCert,
+        esInsecureSkipVerifyTls = brigEs.insecureSkipVerifyTls,
+        esCredentials = brigEs.credentials,
+        esMigrationIndexName = Nothing
+      }
+
+-- | Convert brig's elasticsearch options to ElasticSettings with specified index settings.
+elasticSettingsFromBrig :: BrigOpts.ElasticSearchOpts -> IndexSettings -> Either String ElasticSettings
+elasticSettingsFromBrig brigEs idxSettings = do
+  conn <- esConnectionSettingsFromBrig brigEs
+  Right
+    ElasticSettings
+      { _esConnection = conn,
+        _esIndexShardCount = idxSettings.shardCount,
+        _esIndexReplicas = ES.ReplicaCount idxSettings.replicaCount,
+        _esIndexRefreshInterval = fromIntegral idxSettings.refreshInterval,
+        _esDeleteTemplate = ES.TemplateName <$> idxSettings.deleteTemplate
+      }
+
+-- | Convert brig's cassandra options to CassandraSettings.
+cassandraSettingsFromBrig :: CassandraOpts -> CassandraSettings
+cassandraSettingsFromBrig brigCas =
+  CassandraSettings
+    { _cHost = Text.unpack brigCas.endpoint.host,
+      _cPort = brigCas.endpoint.port,
+      _cKeyspace = C.Keyspace brigCas.keyspace,
+      _cTlsCa = brigCas.tlsCa
+    }

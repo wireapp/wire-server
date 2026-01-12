@@ -1,32 +1,17 @@
 # Default values for elasticsearch-index
+#
+# This chart uses brig's ConfigMap for configuration, which should be deployed
+# before this chart. The brig ConfigMap contains elasticsearch, cassandra,
+# and galley settings needed by brig-index.
+#
+# The following settings are specific to index creation and can be customized:
 elasticsearch:
-  scheme: http
-  #host:  # elasticsearch-client|elasticsearch-ephemeral
-  port: 9200
-  index: directory
+  # Index creation settings (not read from brig.yaml)
+  shards: 5
+  replicas: 2
+  refreshInterval: 5
   delete_template: directory
-#  To enable TLS verification with a custom CA:
-#  tlsCa: <CA in PEM format (can be self-signed)>
-#
-#  Or refer to an existing secret (containing the CA):
-#  tlsCaSecretRef:
-#    name: <secret-name>
-#    key: <ca-attribute>
-  insecureSkipTlsVerify: false
-cassandra:
-  # host:
-  port: 9042
-  keyspace: brig
-#  To enable TLS provide a CA:
-#  tlsCa: <CA in PEM format (can be self-signed)>
-#
-#  Or refer to an existing secret (containing the CA):
-#  tlsCaSecretRef:
-#    name: <secret-name>
-#    key: <ca-attribute>
-galley:
-  host: galley
-  port: 8080
+
 image:
   repository: quay.io/wire/brig-index
   tag: do-not-use
@@ -41,3 +26,25 @@ podSecurityContext:
     type: RuntimeDefault
 
 secrets: {}
+
+# NOTE: The following settings are DEPRECATED and no longer used.
+# Configuration is now read from brig's ConfigMap (brig.yaml).
+# These are kept for backward compatibility documentation only.
+#
+# elasticsearch:
+#   scheme: http
+#   host: elasticsearch-client
+#   port: 9200
+#   index: directory
+#   insecureSkipTlsVerify: false
+#   tlsCa or tlsCaSecretRef for custom TLS CA
+#
+# cassandra:
+#   host: cassandra
+#   port: 9042
+#   keyspace: brig
+#   tlsCa or tlsCaSecretRef for TLS
+#
+# galley:
+#   host: galley
+#   port: 8080
