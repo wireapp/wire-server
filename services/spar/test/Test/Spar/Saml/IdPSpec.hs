@@ -287,10 +287,8 @@ interpretWithLoggingMock mbAccount action = do
       . randomToNull
       $ action
   logs <- readIORef lr.recordedLogs
-  -- TODO: Better error handling
   pure (logs, either (error . show) id a)
 
--- TODO: Is this general enough to extract it and provide it for other tests?
 galleyAccessMock :: Sem (GalleyAccess ': r) a -> Sem r a
 galleyAccessMock = interpret $ \case
   GetTeamMembers _teamId -> undefined
@@ -300,7 +298,6 @@ galleyAccessMock = interpret $ \case
   IsEmailValidationEnabledTeam _teamId -> undefined
   UpdateTeamMember _userId _teamId _role -> undefined
 
--- TODO: Is this general enough to extract it and provide it for other tests?
 brigAccessMock :: Maybe User -> Sem (BrigAccess ': r) a -> Sem r a
 brigAccessMock mbAccount = interpret $ \case
   CreateSAML _userRef _userId _teamId _name _managedBy _mHandle _mRichInfo _mLocale _role -> undefined
