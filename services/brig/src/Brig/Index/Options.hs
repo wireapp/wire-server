@@ -30,11 +30,13 @@ module Brig.Index.Options
     mkCreateIndexSettings,
     toESServer,
     ReindexFromAnotherIndexSettings (..),
+    reindexEsServer,
+    reindexEsIndex,
+    reindexEsCaCert,
+    reindexEsInsecureSkipVerifyTls,
+    reindexEsCredentials,
     reindexDestIndex,
     reindexTimeoutSeconds,
-    reindexEsConnection,
-    -- * Connection settings types (still needed for ReindexFromAnotherIndex)
-    ESConnectionSettings (..),
   )
 where
 
@@ -73,20 +75,15 @@ data ElasticIndexSettings = ElasticIndexSettings
 
 makeLenses ''ElasticIndexSettings
 
--- | Connection settings for ReindexFromAnotherIndex command (still uses CLI args
--- since it operates on arbitrary indices, not the one configured in brig.yaml).
-data ESConnectionSettings = ESConnectionSettings
-  { esServer :: URIRef Absolute,
-    esIndex :: ES.IndexName,
-    esCaCert :: Maybe FilePath,
-    esInsecureSkipVerifyTls :: Bool,
-    esCredentials :: Maybe FilePathSecrets,
-    esMigrationIndexName :: Maybe ES.IndexName
-  }
-  deriving (Show)
-
+-- | Connection settings for ReindexFromAnotherIndex command.
+-- This command operates on arbitrary ES servers/indices specified via CLI args,
+-- not from brig.yaml, so it needs its own settings type.
 data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
-  { _reindexEsConnection :: ESConnectionSettings,
+  { _reindexEsServer :: URIRef Absolute,
+    _reindexEsIndex :: ES.IndexName,
+    _reindexEsCaCert :: Maybe FilePath,
+    _reindexEsInsecureSkipVerifyTls :: Bool,
+    _reindexEsCredentials :: Maybe FilePathSecrets,
     _reindexDestIndex :: ES.IndexName,
     _reindexTimeoutSeconds :: Int
   }
@@ -173,12 +170,16 @@ indexPrefixParser =
         <> showDefault
     )
 
--- | Parser for ReindexFromAnotherIndex, which still needs full ES connection settings
--- since it operates on arbitrary indices not configured in brig.yaml.
+-- | Parser for ReindexFromAnotherIndex, which needs full ES connection settings
+-- from CLI args since it operates on arbitrary indices not configured in brig.yaml.
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
-    <$> connectionSettingsParser
+    <$> elasticServerParser
+    <*> indexNameParser
+    <*> caCertParser
+    <*> verifyCaParser
+    <*> credentialsPathParser
     <*> ( ES.IndexName . view packed
             <$> strOption
               ( long "destination-index"
@@ -194,16 +195,6 @@ reindexToAnotherIndexSettingsParser =
           <> value 600
           <> showDefault
       )
-
-connectionSettingsParser :: Parser ESConnectionSettings
-connectionSettingsParser =
-  ESConnectionSettings
-    <$> elasticServerParser
-    <*> indexNameParser
-    <*> caCertParser
-    <*> verifyCaParser
-    <*> credentialsPathParser
-    <*> pure Nothing
   where
     elasticServerParser =
       option

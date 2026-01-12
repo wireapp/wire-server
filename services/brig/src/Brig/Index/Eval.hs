@@ -194,12 +194,12 @@ runCommand l brigOpts = \case
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig
-        (reindexSettings ^. reindexEsConnection . to esInsecureSkipVerifyTls)
-        (reindexSettings ^. reindexEsConnection . to esCaCert)
-    mCreds <- for (reindexSettings ^. reindexEsConnection . to esCredentials) initCredentials
-    let bhEnv = initES (reindexSettings ^. reindexEsConnection . to esServer) mgr mCreds
+        (reindexSettings ^. reindexEsInsecureSkipVerifyTls)
+        (reindexSettings ^. reindexEsCaCert)
+    mCreds <- for (reindexSettings ^. reindexEsCredentials) initCredentials
+    let bhEnv = initES (reindexSettings ^. reindexEsServer) mgr mCreds
     ES.runBH bhEnv $ do
-      let src = reindexSettings ^. reindexEsConnection . to esIndex
+      let src = reindexSettings ^. reindexEsIndex
           dest = view reindexDestIndex reindexSettings
           timeoutSeconds = view reindexTimeoutSeconds reindexSettings
 
