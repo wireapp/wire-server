@@ -37,6 +37,8 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
 import Data.Id
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Imports
@@ -46,6 +48,7 @@ import Polysemy.Error
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
+import URI.ByteString
 import Util.Options (initCredentials)
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -101,14 +104,17 @@ type BrigIndexEffectStack =
     Final IO
   ]
 
-runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
-runSem esConn cas galleyEndpoint logger action = do
-  mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
-  mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
-  casClient <- defInitCassandra (toCassandraOpts cas) logger
-  let bhEnv =
+-- | Run polysemy effect stack with ES and Cassandra from brig options.
+runSem :: Opts -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem brigOpts logger action = do
+  let esOpts = brigOpts.elasticsearch
+  mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
+  mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
+  casClient <- defInitCassandra brigOpts.cassandra logger
+  let esUri = parseESUri esOpts.url
+      bhEnv =
         BHEnv
-          { bhServer = toESServer esConn.esServer,
+          { bhServer = esOpts.url,
             bhManager = mgr,
             bhRequestHook = maybe pure (\creds -> ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)) mEsCreds
           }
@@ -116,13 +122,12 @@ runSem esConn cas galleyEndpoint logger action = do
         IndexedUserStoreConfig
           { conn =
               ESConn
-                { indexName = esConn.esIndex,
+                { indexName = esOpts.index,
                   env = bhEnv
                 },
             additionalConn = Nothing
           }
-      reqId = (RequestId "brig-index")
-      migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
+      reqId = RequestId "brig-index"
   runFinal
     . embedToFinal
     . unsafelyPerformConcurrency
@@ -130,12 +135,12 @@ runSem esConn cas galleyEndpoint logger action = do
     . ignoreMetrics
     . runRpcWithHttp mgr reqId
     . throwErrorToIOFinal @ParseException
-    . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
+    . interpretGalleyAPIAccessToRpc mempty brigOpts.galley
     . runEmbedded (runClient casClient)
     . interpretFederationDomainConfig casClient Nothing mempty
     . raiseUnder @(Embed Client)
     . throwErrorToIOFinal @MigrationException
-    . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
+    . interpretIndexedUserMigrationStoreES bhEnv defaultMigrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
     . interpretUserStoreCassandra casClient
@@ -146,6 +151,12 @@ runSem esConn cas galleyEndpoint logger action = do
     . interpretUserKeyStoreCassandra casClient
     . interpretIndexedUserStoreBulk
     $ action
+  where
+    parseESUri :: ES.Server -> URIRef Absolute
+    parseESUri (ES.Server esUrlText) =
+      case parseURI strictURIParserOptions (Text.encodeUtf8 esUrlText) of
+        Left e -> error $ "Invalid elasticsearch URL in brig.yaml: " <> show e
+        Right u -> u
 
 throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Error e) r
 throwErrorToIOFinal action = do
@@ -153,25 +164,32 @@ throwErrorToIOFinal action = do
     Left e -> embedFinal $ throwIO e
     Right a -> pure a
 
-runCommand :: Logger -> Command -> IO ()
-runCommand l = \case
-  Create es galley -> do
-    e <- initIndex l (es ^. esConnection) galley
-    runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
-  Reset es galley -> do
-    e <- initIndex l (es ^. esConnection) galley
-    runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
+-- | Run a brig-index command. Connection settings come from `Opts` (brig.yaml),
+-- index-specific settings come from `Command` (CLI args).
+runCommand :: Logger -> Opts -> Command -> IO ()
+runCommand l brigOpts = \case
+  Create idxSettings -> do
+    e <- initIndex l brigOpts
+    runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings idxSettings)
+  Reset indexPrefix -> do
+    -- For reset, we override the index name to use PREFIX_test
+    let esOpts = brigOpts.elasticsearch {index = ES.IndexName (indexPrefix <> "_test")}
+        brigOptsWithTestIndex = brigOpts {elasticsearch = esOpts}
+    e <- initIndex l brigOptsWithTestIndex
+    -- Use default index settings for reset
+    let defaultSettings = ElasticIndexSettings 1 (ES.ReplicaCount 1) 1 Nothing
+    runIndexIO e $ resetIndex (mkCreateIndexSettings defaultSettings)
+  Reindex _idxSettings -> do
+    runSem brigOpts l $
       IndexedUserStoreBulk.syncAllUsers
-  ReindexSameOrNewer es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
+  ReindexSameOrNewer _idxSettings -> do
+    runSem brigOpts l $
       IndexedUserStoreBulk.forceSyncAllUsers
-  UpdateMapping esConn galley -> do
-    e <- initIndex l esConn galley
+  UpdateMapping -> do
+    e <- initIndex l brigOpts
     runIndexIO e updateMapping
-  Migrate es cas galley -> do
-    runSem (es ^. esConnection) cas galley l $
+  Migrate _idxSettings -> do
+    runSem brigOpts l $
       IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
@@ -206,24 +224,12 @@ runCommand l = \case
       let env = ES.mkBHEnv (toESServer esURI) mgr
        in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
 
-initIndex :: Logger -> ESConnectionSettings -> Endpoint -> IO IndexEnv
-initIndex l esConn gly = do
-  mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
-  let esOpts =
-        ElasticSearchOpts
-          { url = toESServer esConn.esServer,
-            index = esConn.esIndex,
-            credentials = esConn.esCredentials,
-            insecureSkipVerifyTls = esConn.esInsecureSkipVerifyTls,
-            caCert = esConn.esCaCert,
-            additionalWriteIndex = Nothing,
-            additionalWriteIndexUrl = Nothing,
-            additionalCredentials = Nothing,
-            additionalInsecureSkipVerifyTls = False,
-            additionalCaCert = Nothing
-          }
-
-  mkIndexEnv esOpts l gly mgr
+-- | Initialize index environment from brig options.
+initIndex :: Logger -> Opts -> IO IndexEnv
+initIndex l brigOpts = do
+  let esOpts = brigOpts.elasticsearch
+  mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
+  mkIndexEnv esOpts l brigOpts.galley mgr
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

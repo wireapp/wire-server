@@ -34,8 +34,7 @@ main = do
   (configFile, cmd) <- execParser (info (helper <*> mainParser) desc)
   lgr <- initLogger
   brigOpts <- loadBrigConfig configFile
-  command <- toCommand brigOpts cmd
-  runCommand lgr command
+  runCommand lgr brigOpts cmd
   exitSuccess
   where
     desc =

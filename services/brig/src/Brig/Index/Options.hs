@@ -21,21 +21,11 @@
 
 module Brig.Index.Options
   ( Command (..),
-    ElasticSettings,
-    ESConnectionSettings (..),
-    esConnection,
+    ElasticIndexSettings (..),
     esIndexShardCount,
     esIndexReplicas,
     esIndexRefreshInterval,
     esDeleteTemplate,
-    CassandraSettings,
-    toCassandraOpts,
-    cHost,
-    cPort,
-    cTlsCa,
-    cKeyspace,
-    localElasticSettings,
-    localCassandraSettings,
     commandParser,
     mkCreateIndexSettings,
     toESServer,
@@ -43,21 +33,14 @@ module Brig.Index.Options
     reindexDestIndex,
     reindexTimeoutSeconds,
     reindexEsConnection,
-    -- * Converting from Brig.Options
-    toCommand,
-    esConnectionSettingsFromBrig,
-    elasticSettingsFromBrig,
-    cassandraSettingsFromBrig,
+    -- * Connection settings types (still needed for ReindexFromAnotherIndex)
+    ESConnectionSettings (..),
   )
 where
 
 import Brig.Index.Types (CreateIndexSettings (..))
-import Brig.Options qualified as BrigOpts
-import Cassandra qualified as C
 import Control.Lens
 import Data.ByteString.Lens
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
@@ -65,19 +48,33 @@ import Imports
 import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
-import Util.Options (CassandraOpts (..), Endpoint (..), FilePathSecrets)
+import Util.Options (FilePathSecrets)
 
+-- | Commands for brig-index. Connection settings (ES, Cassandra, Galley) come from brig.yaml.
+-- Index-specific settings (shards, replicas, prefix for test indices) come from CLI.
 data Command
-  = Create ElasticSettings Endpoint
-  | Reset ElasticSettings Endpoint
-  | Reindex ElasticSettings CassandraSettings Endpoint
-  | ReindexSameOrNewer ElasticSettings CassandraSettings Endpoint
-  | -- | 'ElasticSettings' has shards and other settings that are not needed here.
-    UpdateMapping ESConnectionSettings Endpoint
-  | Migrate ElasticSettings CassandraSettings Endpoint
+  = Create ElasticIndexSettings
+  | Reset Text -- ^ Index prefix for test indices (actual index will be PREFIX_test)
+  | Reindex ElasticIndexSettings
+  | ReindexSameOrNewer ElasticIndexSettings
+  | UpdateMapping
+  | Migrate ElasticIndexSettings
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
+-- | Index-specific settings that come from CLI. Connection settings come from brig.yaml.
+data ElasticIndexSettings = ElasticIndexSettings
+  { _esIndexShardCount :: Int,
+    _esIndexReplicas :: ES.ReplicaCount,
+    _esIndexRefreshInterval :: NominalDiffTime,
+    _esDeleteTemplate :: Maybe ES.TemplateName
+  }
+  deriving (Show)
+
+makeLenses ''ElasticIndexSettings
+
+-- | Connection settings for ReindexFromAnotherIndex command (still uses CLI args
+-- since it operates on arbitrary indices, not the one configured in brig.yaml).
 data ESConnectionSettings = ESConnectionSettings
   { esServer :: URIRef Absolute,
     esIndex :: ES.IndexName,
@@ -88,23 +85,6 @@ data ESConnectionSettings = ESConnectionSettings
   }
   deriving (Show)
 
-data ElasticSettings = ElasticSettings
-  { _esConnection :: ESConnectionSettings,
-    _esIndexShardCount :: Int,
-    _esIndexReplicas :: ES.ReplicaCount,
-    _esIndexRefreshInterval :: NominalDiffTime,
-    _esDeleteTemplate :: Maybe ES.TemplateName
-  }
-  deriving (Show)
-
-data CassandraSettings = CassandraSettings
-  { _cHost :: String,
-    _cPort :: Word16,
-    _cKeyspace :: C.Keyspace,
-    _cTlsCa :: Maybe FilePath
-  }
-  deriving (Show)
-
 data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
   { _reindexEsConnection :: ESConnectionSettings,
     _reindexDestIndex :: ES.IndexName,
@@ -112,22 +92,9 @@ data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
   }
   deriving (Show)
 
-makeLenses ''ElasticSettings
-
-makeLenses ''CassandraSettings
-
 makeLenses ''ReindexFromAnotherIndexSettings
 
-toCassandraOpts :: CassandraSettings -> CassandraOpts
-toCassandraOpts cas =
-  CassandraOpts
-    { endpoint = Endpoint (Text.pack (cas ^. cHost)) (cas ^. cPort),
-      keyspace = C.unKeyspace (cas ^. cKeyspace),
-      filterNodesByDatacentre = Nothing,
-      tlsCa = cas ^. cTlsCa
-    }
-
-mkCreateIndexSettings :: ElasticSettings -> CreateIndexSettings
+mkCreateIndexSettings :: ElasticIndexSettings -> CreateIndexSettings
 mkCreateIndexSettings es =
   CreateIndexSettings
     [ ES.NumberOfReplicas $ _esIndexReplicas es,
@@ -136,120 +103,22 @@ mkCreateIndexSettings es =
     (_esIndexShardCount es)
     (_esDeleteTemplate es)
 
-localElasticSettings :: ElasticSettings
-localElasticSettings =
-  ElasticSettings
-    { _esConnection =
-        ESConnectionSettings
-          { esServer = [uri|https://localhost:9200|],
-            esIndex = ES.IndexName "directory_test",
-            esCaCert = Just "../../libs/wire-subsystems/test/resources/elasticsearch-ca.pem",
-            esInsecureSkipVerifyTls = False,
-            esCredentials = Just "../../libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml",
-            esMigrationIndexName = Nothing
-          },
-      _esIndexShardCount = 1,
-      _esIndexReplicas = ES.ReplicaCount 1,
-      _esIndexRefreshInterval = 1,
-      _esDeleteTemplate = Nothing
-    }
+toESServer :: URIRef Absolute -> ES.Server
+toESServer =
+  ES.Server
+    . view utf8
+    . serializeURIRef'
+    . set pathL mempty
+    . set queryL mempty
+    . set fragmentL mempty
 
-localCassandraSettings :: CassandraSettings
-localCassandraSettings =
-  CassandraSettings
-    { _cHost = "localhost",
-      _cPort = 9042,
-      _cKeyspace = C.Keyspace "brig_test",
-      _cTlsCa = Nothing
-    }
+--------------------------------------------------------------------------------
+-- Parsers
 
-elasticServerParser :: Parser (URIRef Absolute)
-elasticServerParser =
-  option
-    url
-    ( long "elasticsearch-server"
-        <> metavar "URL"
-        <> help "Base URL of the Elasticsearch Server."
-        <> value localElasticSettings._esConnection.esServer
-        <> showDefaultWith (view unpackedChars . serializeURIRef')
-    )
-  where
-    url =
-      eitherReader
-        (over _Left show . parseURI strictURIParserOptions . view packedChars)
-
-restrictedElasticSettingsParser :: Parser ElasticSettings
-restrictedElasticSettingsParser = do
-  server <- elasticServerParser
-  prefix <-
-    strOption
-      ( long "elasticsearch-index-prefix"
-          <> metavar "PREFIX"
-          <> help "Elasticsearch Index Prefix. The actual index name will be PREFIX_test."
-          <> value "directory"
-          <> showDefault
-      )
-  mCreds <- credentialsPathParser
-  mCaCert <- caCertParser
-  verifyCa <- verifyCaParser
-  pure $
-    localElasticSettings
-      { _esConnection =
-          localElasticSettings._esConnection
-            { esServer = server,
-              esIndex = ES.IndexName (prefix <> "_test"),
-              esCredentials = mCreds,
-              esCaCert = mCaCert,
-              esInsecureSkipVerifyTls = verifyCa
-            }
-      }
-
-indexNameParser :: Parser ES.IndexName
-indexNameParser =
-  ES.IndexName . view packed
-    <$> strOption
-      ( long "elasticsearch-index"
-          <> metavar "STRING"
-          <> help "Elasticsearch Index Name."
-          <> value (view (_IndexName . unpacked) localElasticSettings._esConnection.esIndex)
-          <> showDefault
-      )
-
-connectionSettingsParser :: Parser ESConnectionSettings
-connectionSettingsParser =
-  ESConnectionSettings
-    <$> elasticServerParser
-    <*> indexNameParser
-    <*> caCertParser
-    <*> verifyCaParser
-    <*> credentialsPathParser
-    <*> pure Nothing
-
-caCertParser :: Parser (Maybe FilePath)
-caCertParser =
-  optional
-    ( option
-        str
-        ( long "elasticsearch-ca-cert"
-            <> metavar "FILE"
-            <> help "Path to CA Certitificate for TLS validation, system CA bundle is used when unspecified"
-        )
-    )
-
-verifyCaParser :: Parser Bool
-verifyCaParser =
-  flag
-    False -- the default is False
-    True
-    ( long "elasticsearch-insecure-skip-tls-verify"
-        <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
-    )
-
-elasticSettingsParser :: Parser ElasticSettings
-elasticSettingsParser =
-  ElasticSettings
-    <$> connectionSettingsParser
-    <*> indexShardCountParser
+elasticIndexSettingsParser :: Parser ElasticIndexSettings
+elasticIndexSettingsParser =
+  ElasticIndexSettings
+    <$> indexShardCountParser
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
     <*> templateParser
@@ -294,50 +163,18 @@ elasticSettingsParser =
               )
           )
 
-credentialsPathParser :: Parser (Maybe FilePathSecrets)
-credentialsPathParser =
-  optional
-    ( strOption
-        ( long "elasticsearch-credentials"
-            <> metavar "FILE"
-            <> help "Location of a file containing the Elasticsearch credentials"
-        )
+indexPrefixParser :: Parser Text
+indexPrefixParser =
+  strOption
+    ( long "elasticsearch-index-prefix"
+        <> metavar "PREFIX"
+        <> help "Elasticsearch Index Prefix. The actual index name will be PREFIX_test."
+        <> value "directory"
+        <> showDefault
     )
 
-cassandraSettingsParser :: Parser CassandraSettings
-cassandraSettingsParser =
-  CassandraSettings
-    <$> strOption
-      ( long "cassandra-host"
-          <> metavar "HOST"
-          <> help "Cassandra Host."
-          <> value (_cHost localCassandraSettings)
-          <> showDefault
-      )
-    <*> option
-      auto
-      ( long "cassandra-port"
-          <> metavar "PORT"
-          <> help "Cassandra Port."
-          <> value (_cPort localCassandraSettings)
-          <> showDefault
-      )
-    <*> ( C.Keyspace . view packed
-            <$> strOption
-              ( long "cassandra-keyspace"
-                  <> metavar "STRING"
-                  <> help "Cassandra Keyspace."
-                  <> value (view (cKeyspace . _Keyspace . unpacked) localCassandraSettings)
-                  <> showDefault
-              )
-        )
-    <*> ( (optional . strOption)
-            ( long "cassandra-ca-cert"
-                <> metavar "FILE"
-                <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
-            )
-        )
-
+-- | Parser for ReindexFromAnotherIndex, which still needs full ES connection settings
+-- since it operates on arbitrary indices not configured in brig.yaml.
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
@@ -358,24 +195,66 @@ reindexToAnotherIndexSettingsParser =
           <> showDefault
       )
 
-galleyEndpointParser :: Parser Endpoint
-galleyEndpointParser =
-  Endpoint
-    <$> strOption
-      ( long "galley-host"
-          <> help "Hostname or IP address of galley"
-          <> metavar "HOSTNAME"
-          <> value "localhost"
-          <> showDefault
-      )
-    <*> option
-      auto
-      ( long "galley-port"
-          <> help "Port number of galley"
-          <> metavar "PORT"
-          <> value 8085
-          <> showDefault
-      )
+connectionSettingsParser :: Parser ESConnectionSettings
+connectionSettingsParser =
+  ESConnectionSettings
+    <$> elasticServerParser
+    <*> indexNameParser
+    <*> caCertParser
+    <*> verifyCaParser
+    <*> credentialsPathParser
+    <*> pure Nothing
+  where
+    elasticServerParser =
+      option
+        url
+        ( long "elasticsearch-server"
+            <> metavar "URL"
+            <> help "Base URL of the Elasticsearch Server."
+            <> value [uri|https://localhost:9200|]
+            <> showDefaultWith (view unpackedChars . serializeURIRef')
+        )
+      where
+        url =
+          eitherReader
+            (over _Left show . parseURI strictURIParserOptions . view packedChars)
+
+    indexNameParser =
+      ES.IndexName . view packed
+        <$> strOption
+          ( long "elasticsearch-index"
+              <> metavar "STRING"
+              <> help "Elasticsearch Index Name."
+              <> value "directory_test"
+              <> showDefault
+          )
+
+    caCertParser =
+      optional
+        ( option
+            str
+            ( long "elasticsearch-ca-cert"
+                <> metavar "FILE"
+                <> help "Path to CA Certitificate for TLS validation, system CA bundle is used when unspecified"
+            )
+        )
+
+    verifyCaParser =
+      flag
+        False
+        True
+        ( long "elasticsearch-insecure-skip-tls-verify"
+            <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
+        )
+
+    credentialsPathParser =
+      optional
+        ( strOption
+            ( long "elasticsearch-credentials"
+                <> metavar "FILE"
+                <> help "Location of a file containing the Elasticsearch credentials"
+            )
+        )
 
 commandParser :: Parser Command
 commandParser =
@@ -383,37 +262,37 @@ commandParser =
     ( command
         "create"
         ( info
-            (Create <$> elasticSettingsParser <*> galleyEndpointParser)
-            (progDesc "Create the ES user index, if it doesn't already exist. ")
+            (Create <$> elasticIndexSettingsParser)
+            (progDesc "Create the ES user index, if it doesn't already exist.")
         )
         <> command
           "update-mapping"
           ( info
-              (UpdateMapping <$> connectionSettingsParser <*> galleyEndpointParser)
+              (pure UpdateMapping)
               (progDesc "Update mapping of the user index.")
           )
         <> command
           "reset"
           ( info
-              (Reset <$> restrictedElasticSettingsParser <*> galleyEndpointParser)
-              (progDesc "Delete and re-create the ES user index. Only works on a test index (directory_test).")
+              (Reset <$> indexPrefixParser)
+              (progDesc "Delete and re-create the ES user index. Only works on a test index (PREFIX_test).")
           )
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
+              (Reindex <$> elasticIndexSettingsParser)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
+              (ReindexSameOrNewer <$> elasticIndexSettingsParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
+              (Migrate <$> elasticIndexSettingsParser)
               (progDesc "Migrate data in elastic search")
           )
         <> command
@@ -425,96 +304,3 @@ commandParser =
               )
           )
     )
-
-_IndexName :: Iso' ES.IndexName Text
-_IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
-
-_Keyspace :: Iso' C.Keyspace Text
-_Keyspace = iso C.unKeyspace C.Keyspace
-
-toESServer :: URIRef Absolute -> ES.Server
-toESServer =
-  ES.Server
-    . view utf8
-    . serializeURIRef'
-    . set pathL mempty
-    . set queryL mempty
-    . set fragmentL mempty
-
---------------------------------------------------------------------------------
--- Converting from Brig.Options (reads connection settings from brig.yaml)
-
--- | Convert brig's elasticsearch options to ESConnectionSettings.
--- This is used when reading configuration from brig.yaml.
-esConnectionSettingsFromBrig :: BrigOpts.ElasticSearchOpts -> Either String ESConnectionSettings
-esConnectionSettingsFromBrig brigEs = do
-  let (ES.Server esUrlText) = brigEs.url
-  esUri <- case parseURI strictURIParserOptions (Text.encodeUtf8 esUrlText) of
-    Left e -> Left $ "Invalid elasticsearch URL in brig.yaml: " <> show e
-    Right u -> Right u
-  Right
-    ESConnectionSettings
-      { esServer = esUri,
-        esIndex = brigEs.index,
-        esCaCert = brigEs.caCert,
-        esInsecureSkipVerifyTls = brigEs.insecureSkipVerifyTls,
-        esCredentials = brigEs.credentials,
-        esMigrationIndexName = Nothing
-      }
-
--- | Convert brig's elasticsearch options to ElasticSettings with specified index settings.
-elasticSettingsFromBrig :: BrigOpts.ElasticSearchOpts -> Int -> ES.ReplicaCount -> NominalDiffTime -> Maybe ES.TemplateName -> Either String ElasticSettings
-elasticSettingsFromBrig brigEs shards replicas refreshInterval deleteTemplate = do
-  conn <- esConnectionSettingsFromBrig brigEs
-  Right
-    ElasticSettings
-      { _esConnection = conn,
-        _esIndexShardCount = shards,
-        _esIndexReplicas = replicas,
-        _esIndexRefreshInterval = refreshInterval,
-        _esDeleteTemplate = deleteTemplate
-      }
-
--- | Convert brig's cassandra options to CassandraSettings.
-cassandraSettingsFromBrig :: CassandraOpts -> CassandraSettings
-cassandraSettingsFromBrig brigCas =
-  CassandraSettings
-    { _cHost = Text.unpack brigCas.endpoint.host,
-      _cPort = brigCas.endpoint.port,
-      _cKeyspace = C.Keyspace brigCas.keyspace,
-      _cTlsCa = brigCas.tlsCa
-    }
-
--- | Convert a parsed CLI command to a full Command by combining with brig.yaml settings.
--- Connection settings (ES, Cassandra, Galley) come from brig.yaml; index-specific
--- settings (shards, replicas) come from the CLI command.
-toCommand :: BrigOpts.Opts -> Command -> IO Command
-toCommand brigOpts cmd = case cmd of
-  -- Commands that need elasticsearch and galley settings from brig.yaml
-  Create es galley -> do
-    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
-    pure $ Create esSettings brigOpts.galley
-  Reset es galley -> do
-    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
-    pure $ Reset esSettings brigOpts.galley
-  UpdateMapping _ _ -> do
-    connSettings <- liftEither $ esConnectionSettingsFromBrig brigOpts.elasticsearch
-    pure $ UpdateMapping connSettings brigOpts.galley
-  -- Commands that need elasticsearch, cassandra, and galley settings from brig.yaml
-  Reindex es _ _ -> do
-    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
-    let casSettings = cassandraSettingsFromBrig brigOpts.cassandra
-    pure $ Reindex esSettings casSettings brigOpts.galley
-  ReindexSameOrNewer es _ _ -> do
-    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
-    let casSettings = cassandraSettingsFromBrig brigOpts.cassandra
-    pure $ ReindexSameOrNewer esSettings casSettings brigOpts.galley
-  Migrate es _ _ -> do
-    esSettings <- liftEither $ elasticSettingsFromBrig brigOpts.elasticsearch es._esIndexShardCount es._esIndexReplicas es._esIndexRefreshInterval es._esDeleteTemplate
-    let casSettings = cassandraSettingsFromBrig brigOpts.cassandra
-    pure $ Migrate esSettings casSettings brigOpts.galley
-  -- ReindexFromAnotherIndex uses its own settings parser (unchanged)
-  ReindexFromAnotherIndex settings -> pure $ ReindexFromAnotherIndex settings
-  where
-    liftEither :: Either String a -> IO a
-    liftEither = either fail pure
