@@ -237,22 +237,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V14)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V15)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V14
-        <> serviceSwagger @BrigAPITag @'V14
-        <> serviceSwagger @GalleyAPITag @'V14
-        <> serviceSwagger @SparAPITag @'V14
-        <> serviceSwagger @CargoholdAPITag @'V14
-        <> serviceSwagger @CannonAPITag @'V14
-        <> serviceSwagger @GundeckAPITag @'V14
-        <> serviceSwagger @ProxyAPITag @'V14
-        <> serviceSwagger @OAuthAPITag @'V14
+    ( serviceSwagger @VersionAPITag @'V15
+        <> serviceSwagger @BrigAPITag @'V15
+        <> serviceSwagger @GalleyAPITag @'V15
+        <> serviceSwagger @SparAPITag @'V15
+        <> serviceSwagger @CargoholdAPITag @'V15
+        <> serviceSwagger @CannonAPITag @'V15
+        <> serviceSwagger @GundeckAPITag @'V15
+        <> serviceSwagger @ProxyAPITag @'V15
+        <> serviceSwagger @OAuthAPITag @'V15
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V14) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V15) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V14)) = swaggerPregenUIServer $(pregenSwagger V14)
 versionedSwaggerDocsAPI (Just (VersionNumber V13)) = swaggerPregenUIServer $(pregenSwagger V13)
 versionedSwaggerDocsAPI (Just (VersionNumber V12)) = swaggerPregenUIServer $(pregenSwagger V12)
 versionedSwaggerDocsAPI (Just (VersionNumber V11)) = swaggerPregenUIServer $(pregenSwagger V11)
