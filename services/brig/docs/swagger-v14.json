@@ -1035,12 +1035,12 @@
       },
       "CellsStorage": {
         "properties": {
-          "teamQuotaBytes": {
+          "perUserQuotaBytes": {
             "type": "string"
           }
         },
         "required": [
-          "teamQuotaBytes"
+          "perUserQuotaBytes"
         ],
         "type": "object"
       },
