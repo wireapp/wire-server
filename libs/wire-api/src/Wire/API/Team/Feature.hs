@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
@@ -37,6 +38,8 @@ module Wire.API.Team.Feature
     LockableFeature (..),
     defUnlockedFeature,
     defLockedFeature,
+    setLockableFeatureLockStatus,
+    setLockableFeatureStatus,
     LockableFeaturePatch (..),
     Feature (..),
     forgetLock,
@@ -367,6 +370,12 @@ data LockableFeature cfg = LockableFeature
 
 instance (Default (LockableFeature cfg)) => Default (Feature cfg) where
   def = forgetLock def
+
+setLockableFeatureLockStatus :: LockableFeature cfg -> LockStatus -> LockableFeature cfg
+setLockableFeatureLockStatus LockableFeature {..} s = LockableFeature {lockStatus = s, ..}
+
+setLockableFeatureStatus :: LockableFeature cfg -> FeatureStatus -> LockableFeature cfg
+setLockableFeatureStatus LockableFeature {..} s = LockableFeature {status = s, ..}
 
 -- | A feature that is disabled and locked.
 defLockedFeature :: (Default cfg) => LockableFeature cfg

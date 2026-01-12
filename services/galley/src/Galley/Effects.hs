@@ -85,6 +85,8 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
+import Wire.FeaturesConfigCompute (FeaturesConfigCompute)
+import Wire.FeaturesConfigRead (FeaturesConfigRead)
 import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
@@ -112,6 +114,9 @@ import Wire.UserGroupStore
 type GalleyEffects1 =
   '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
+     Input AllTeamFeatures,
+     FeaturesConfigRead,
+     FeaturesConfigCompute,
      TeamSubsystem,
      SparAPIAccess,
      NotificationSubsystem,
@@ -146,7 +151,6 @@ type GalleyEffects1 =
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
      Input FanoutLimit,
-     Input AllTeamFeatures,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,

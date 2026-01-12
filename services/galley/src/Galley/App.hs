@@ -53,6 +53,7 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.Error
+import Galley.API.Teams.Features.Interpreter (runFeaturesConfigCompute, runFeaturesConfigRead)
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
@@ -349,7 +350,6 @@ evalGalley e =
         . runInputConst (e ^. options)
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
-        . runInputSem getAllTeamFeaturesForServer
         . runInputConst (currentFanoutLimit (e ^. options))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
@@ -384,6 +384,9 @@ evalGalley e =
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretSparAPIAccessToRpc (e ^. options . spar)
         . interpretTeamSubsystem teamSubsystemConfig
+        . runFeaturesConfigCompute
+        . runFeaturesConfigRead
+        . runInputSem getAllTeamFeaturesForServer
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
   where

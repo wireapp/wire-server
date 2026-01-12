@@ -1,13 +1,13 @@
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Galley.API.Teams.Features.Interpreter where
 
-import Control.Error (hush)
 import Control.Lens
+import Data.Default
 import Data.Id
-import Data.Qualified (Local, tUnqualified)
+import Data.Qualified (tUnqualified)
 import Data.SOP
-import Data.Tagged (unTagged)
 import Galley.API.LegalHold.Team (computeLegalHoldFeatureStatus)
 import Galley.Effects
 import Galley.Effects.TeamFeatureStore
@@ -15,26 +15,20 @@ import Galley.Options
 import Galley.Types.Teams
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
-import Wire.API.Conversation (cnvmTeam)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.BrigAPIAccess (getAccountConferenceCallingConfigClient)
-import Wire.ConversationStore (ConversationStore)
-import Wire.ConversationStore qualified as ConversationStore
 import Wire.FeaturesConfigCompute
 import Wire.FeaturesConfigRead
 import Wire.FeaturesConfigRead.Types
-import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
 runFeaturesConfigCompute ::
   ( Member (Input Opts) r,
     Member LegalHoldStore r,
-    Member TeamStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member BrigAPIAccess r
   ) =>
@@ -43,14 +37,15 @@ runFeaturesConfigCompute ::
 runFeaturesConfigCompute = interpret $ \case
   ResolveGenericDbFeature _tid defFeature dbFeature ->
     pure $ resolveDbFeature defFeature dbFeature
-  ResolveLegalhold tid defFeature dbFeature -> do
-    status <- computeLegalHoldFeatureStatus tid dbFeature
-    pure $ defFeature {status = status}
+  ResolveServerFeature ->
+    doResolveServerFeature
+  ResolveLegalhold tid defFeature dbFeature ->
+    setLockableFeatureStatus defFeature <$> computeLegalHoldFeatureStatus tid dbFeature
   ResolveConferenceCalling _tid defFeature dbFeature ->
     pure $
       let feat = applyDbFeature dbFeature defFeature {status = FeatureStatusEnabled}
        in case feat.lockStatus of
-            LockStatusLocked -> defFeature {lockStatus = LockStatusLocked}
+            LockStatusLocked -> setLockableFeatureLockStatus defFeature LockStatusLocked
             LockStatusUnlocked -> feat
   ResolveConferenceCallingUser uid -> do
     feat <- getAccountConferenceCallingConfigClient uid
@@ -66,16 +61,8 @@ runFeaturesConfigRead ::
   ( Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member FeaturesConfigCompute r,
-    Member TeamStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member LegalHoldStore r,
-    Member BrigAPIAccess r,
     Member TeamSubsystem r,
-    Member ConversationStore r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'AccessDenied) r
+    Member (ErrorS 'NotATeamMember) r
   ) =>
   Sem (FeaturesConfigRead : r) a ->
   Sem r a
@@ -83,19 +70,11 @@ runFeaturesConfigRead = interpret $ \case
   GetFeature uid tid -> do
     void $ TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'NotATeamMember
     doGetFeatureForTeam tid
-  GetFeatureInternal tid -> do
-    doAssertTeamExists tid
-    doGetFeatureForTeam tid
   GetFeatureForTeam tid ->
     doGetFeatureForTeam tid
   GetFeatureForServer ->
-    doGetFeatureForServer
-  GetFeatureForUser uid ->
-    doGetFeatureForUser uid
+    resolveServerFeature
   GetFeatureForTeamUser uid mTid ->
-    doGetFeatureForTeamUser uid mTid
-  GetSingleFeatureForUser uid -> do
-    mTid <- doGetTeamAndCheckMembership uid
     doGetFeatureForTeamUser uid mTid
   GetAllTeamFeaturesForTeamMember luid tid -> do
     void $ TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid >>= noteS @'NotATeamMember
@@ -104,47 +83,53 @@ runFeaturesConfigRead = interpret $ \case
     doGetAllTeamFeatures tid
   GetAllTeamFeaturesForServer ->
     doGetAllTeamFeaturesForServer
-  GetAllTeamFeaturesForUser uid -> do
-    mTid <- doGetTeamAndCheckMembership uid
-    case mTid of
-      Nothing -> hsequence' $ hcpure (Proxy @(GetAllTeamFeaturesForUserConstraints r)) $ Comp $ doGetFeatureForUser uid
-      Just tid -> doGetAllTeamFeatures tid
-  GuardSecondFactorDisabled uid cid -> do
-    mTid <- fmap hush . runError @() $ do
-      convData <- ConversationStore.getConversationMetadata cid >>= note ()
-      tid <- note () convData.cnvmTeam
-      mapError (unTagged @'TeamNotFound @()) $ doAssertTeamExists tid
-      pure tid
-    tf <- doGetFeatureForTeamUser @SndFactorPasswordChallengeConfig uid mTid
-    case tf.status of
-      FeatureStatusDisabled -> pure ()
-      FeatureStatusEnabled -> throwS @'AccessDenied
-  FeatureEnabledForTeam tid ->
-    (==) FeatureStatusEnabled
-      . (.status)
-      <$> (doAssertTeamExists tid >> doGetFeatureForTeam tid)
 
 -- Internal helpers
 
-doGetFeatureForTeam :: forall cfg r. (GetFeatureConfig cfg, Member TeamFeatureStore r, Member (Input Opts) r, Member FeaturesConfigCompute r) => TeamId -> Sem r (LockableFeature cfg)
+doGetFeatureForTeam ::
+  forall cfg r.
+  ( GetFeatureConfig cfg,
+    Member TeamFeatureStore r,
+    Member (Input Opts) r,
+    Member FeaturesConfigCompute r
+  ) =>
+  TeamId ->
+  Sem r (LockableFeature cfg)
 doGetFeatureForTeam tid = do
   dbFeature <- getDbFeature tid
-  defFeature <- doGetFeatureForServer
+  defFeature <- doResolveServerFeature
   computeFeature tid defFeature dbFeature
 
-doGetFeatureForServer :: forall cfg r. (GetFeatureDefaults (FeatureDefaults cfg), NpProject cfg Features, Member (Input Opts) r) => Sem r (LockableFeature cfg)
-doGetFeatureForServer = inputs $ view (settings . featureFlags . to (featureDefaults @cfg))
+doResolveServerFeature ::
+  forall cfg r.
+  ( GetFeatureDefaults (FeatureDefaults cfg),
+    NpProject cfg Features,
+    Member (Input Opts) r
+  ) =>
+  Sem r (LockableFeature cfg)
+doResolveServerFeature = inputs $ view (settings . featureFlags . to (featureDefaults @cfg))
 
-doGetFeatureForUser :: forall cfg r. (GetFeatureConfig cfg, Member (Input Opts) r, Member FeaturesConfigCompute r) => UserId -> Sem r (LockableFeature cfg)
-doGetFeatureForUser uid = do
-  defFeat <- doGetFeatureForServer
-  getFeatureForUser uid defFeat
-
-doGetFeatureForTeamUser :: forall cfg r. (GetFeatureConfig cfg, Member (Input Opts) r, Member TeamFeatureStore r, Member FeaturesConfigCompute r) => UserId -> Maybe TeamId -> Sem r (LockableFeature cfg)
-doGetFeatureForTeamUser uid Nothing = doGetFeatureForUser uid
+doGetFeatureForTeamUser ::
+  forall cfg r.
+  ( GetFeatureConfig cfg,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member FeaturesConfigCompute r
+  ) =>
+  UserId ->
+  Maybe TeamId ->
+  Sem r (LockableFeature cfg)
+doGetFeatureForTeamUser uid Nothing = getFeatureForUser uid
 doGetFeatureForTeamUser _uid (Just tid) = doGetFeatureForTeam tid
 
-doGetAllTeamFeatures :: forall r. (Member (Input Opts) r, Member LegalHoldStore r, Member TeamFeatureStore r, Member TeamStore r, Member (Input (FeatureDefaults LegalholdConfig)) r, Member FeaturesConfigCompute r) => TeamId -> Sem r AllTeamFeatures
+doGetAllTeamFeatures ::
+  forall r.
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member FeaturesConfigCompute r
+  ) =>
+  TeamId ->
+  Sem r AllTeamFeatures
 doGetAllTeamFeatures tid = do
   features <- getAllDbFeatures tid
   defFeatures <- doGetAllTeamFeaturesForServer
@@ -157,17 +142,4 @@ doGetAllTeamFeaturesForServer :: forall r. (Member (Input Opts) r) => Sem r AllT
 doGetAllTeamFeaturesForServer =
   hsequence' $
     hcpure (Proxy @GetFeatureConfig) $
-      Comp doGetFeatureForServer
-
-doAssertTeamExists :: (Member TeamStore r, Member (ErrorS 'TeamNotFound) r) => TeamId -> Sem r ()
-doAssertTeamExists tid =
-  void $ TeamStore.getTeam tid >>= noteS @'TeamNotFound
-
-doGetTeamAndCheckMembership :: (Member TeamStore r, Member (ErrorS 'NotATeamMember) r, Member (ErrorS 'TeamNotFound) r, Member TeamSubsystem r) => UserId -> Sem r (Maybe TeamId)
-doGetTeamAndCheckMembership uid = do
-  mTid <- TeamStore.getOneUserTeam uid
-  for_ mTid $ \tid -> do
-    zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
-    void $ maybe (throwS @'NotATeamMember) pure zusrMembership
-    doAssertTeamExists tid
-  pure mTid
+      Comp doResolveServerFeature

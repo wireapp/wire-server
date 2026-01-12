@@ -98,7 +98,7 @@ patchFeatureInternal ::
 patchFeatureInternal tid patch = do
   assertTeamExists tid
   dbFeature <- getDbFeature tid
-  defFeature <- getFeatureForServer @cfg
+  defFeature <- resolveServerFeature @cfg
   let dbFeatureWithDefaults = dbFeature.applyDbFeature defFeature
   let patchedFeature = applyPatch dbFeatureWithDefaults
   prepareFeature tid patchedFeature

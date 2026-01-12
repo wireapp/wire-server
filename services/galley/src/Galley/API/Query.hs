@@ -703,7 +703,7 @@ getConversationGuestLinksFeatureStatus ::
   ) =>
   Maybe TeamId ->
   Sem r (LockableFeature GuestLinksConfig)
-getConversationGuestLinksFeatureStatus Nothing = getFeatureForServer @GuestLinksConfig
+getConversationGuestLinksFeatureStatus Nothing = resolveServerFeature @GuestLinksConfig
 getConversationGuestLinksFeatureStatus (Just tid) = getFeatureForTeam @GuestLinksConfig tid
 
 -- | The same as 'getMLSSelfConversation', but it throws an error in case the

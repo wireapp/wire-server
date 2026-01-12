@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -27,7 +26,6 @@ module Galley.API.Teams.Features.Get
     getSingleFeatureForUser,
     GetFeatureConfig (..),
     getFeatureForTeam,
-    getFeatureForServer,
     guardSecondFactorDisabled,
     DoAuth (..),
     featureEnabledForTeam,
@@ -35,13 +33,152 @@ module Galley.API.Teams.Features.Get
   )
 where
 
+import Control.Error (hush)
 import Data.Id
+import Data.SOP
+import Data.Tagged
+import Galley.API.Util
+import Galley.Effects
+import Galley.Effects.TeamFeatureStore
+import Imports
+import Polysemy
+import Polysemy.Error
+import Wire.API.Conversation (cnvmTeam)
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
+import Wire.ConversationStore as ConversationStore
+import Wire.FeaturesConfigCompute (FeaturesConfigCompute)
 import Wire.FeaturesConfigRead
 import Wire.FeaturesConfigRead.Types
+import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 data DoAuth = DoAuth UserId | DontDoAuth
 
+getFeatureInternal ::
+  ( GetFeatureConfig cfg,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r,
+    Member FeaturesConfigRead r
+  ) =>
+  TeamId ->
+  Sem r (LockableFeature cfg)
+getFeatureInternal tid = do
+  assertTeamExists tid
+  getFeatureForTeam tid
+
 toTeamStatus :: TeamId -> LockableFeature cfg -> Multi.TeamStatus cfg
 toTeamStatus tid feat = Multi.TeamStatus tid feat.status
+
+getTeamAndCheckMembership ::
+  ( Member TeamStore r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamSubsystem r
+  ) =>
+  UserId ->
+  Sem r (Maybe TeamId)
+getTeamAndCheckMembership uid = do
+  mTid <- TeamStore.getOneUserTeam uid
+  for_ mTid $ \tid -> do
+    zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
+    void $ maybe (throwS @'NotATeamMember) pure zusrMembership
+    assertTeamExists tid
+  pure mTid
+
+getAllTeamFeatures ::
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member FeaturesConfigRead r,
+    Member FeaturesConfigCompute r
+  ) =>
+  TeamId ->
+  Sem r AllTeamFeatures
+getAllTeamFeatures tid = do
+  features <- getAllDbFeatures tid
+  defFeatures <- getAllTeamFeaturesForServer
+  hsequence' $ hcliftA2 (Proxy @(GetAllFeaturesForServerConstraints r)) compute defFeatures features
+  where
+    compute ::
+      (GetFeatureConfig p) =>
+      LockableFeature p ->
+      DbFeature p ->
+      (Sem r :.: LockableFeature) p
+    compute defFeature feat = Comp $ computeFeature tid defFeature feat
+
+getAllTeamFeaturesForUser ::
+  forall r.
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamFeatureStore r,
+    Member TeamStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigRead r,
+    Member FeaturesConfigCompute r
+  ) =>
+  UserId ->
+  Sem r AllTeamFeatures
+getAllTeamFeaturesForUser uid = do
+  mTid <- getTeamAndCheckMembership uid
+  case mTid of
+    Nothing -> hsequence' $ hcpure (Proxy @(GetAllTeamFeaturesForUserConstraints r)) $ Comp $ getFeatureForUser uid
+    Just tid -> getAllTeamFeatures tid
+
+getSingleFeatureForUser ::
+  forall cfg r.
+  ( GetFeatureConfig cfg,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigRead r
+  ) =>
+  UserId ->
+  Sem r (LockableFeature cfg)
+getSingleFeatureForUser uid = do
+  mTid <- getTeamAndCheckMembership uid
+  getFeatureForTeamUser @_ @cfg uid mTid
+
+-- | If second factor auth is enabled, make sure that end-points that don't support it, but
+-- should, are blocked completely.  (This is a workaround until we have 2FA for those
+-- end-points as well.)
+--
+-- This function exists to resolve a cyclic dependency.
+guardSecondFactorDisabled ::
+  forall r.
+  ( Member (ErrorS 'AccessDenied) r,
+    Member TeamStore r,
+    Member ConversationStore r,
+    Member FeaturesConfigRead r
+  ) =>
+  UserId ->
+  ConvId ->
+  Sem r ()
+guardSecondFactorDisabled uid cid = do
+  mTid <- fmap hush . runError @() $ do
+    convData <- ConversationStore.getConversationMetadata cid >>= note ()
+    tid <- note () convData.cnvmTeam
+    mapError (unTagged @'TeamNotFound @()) $ assertTeamExists tid
+    pure tid
+
+  tf <- getFeatureForTeamUser @_ @SndFactorPasswordChallengeConfig uid mTid
+  case tf.status of
+    FeatureStatusDisabled -> pure ()
+    FeatureStatusEnabled -> throwS @'AccessDenied
+
+featureEnabledForTeam ::
+  forall cfg r.
+  ( GetFeatureConfig cfg,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r,
+    Member FeaturesConfigRead r
+  ) =>
+  TeamId ->
+  Sem r Bool
+featureEnabledForTeam tid =
+  (==) FeatureStatusEnabled
+    . (.status)
+    <$> getFeatureInternal @cfg tid

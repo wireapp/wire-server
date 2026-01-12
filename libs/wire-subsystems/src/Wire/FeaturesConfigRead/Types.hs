@@ -4,7 +4,6 @@
 
 module Wire.FeaturesConfigRead.Types where
 
-import Control.Applicative (pure)
 import Data.Id (TeamId, UserId)
 import Data.SOP.Sing (SListI)
 import Galley.Types.Teams (FeatureDefaults, GetFeatureDefaults)
@@ -23,11 +22,10 @@ class
   getFeatureForUser ::
     (Member FeaturesConfigCompute r) =>
     UserId ->
-    LockableFeature cfg ->
     Sem r (LockableFeature cfg)
   default getFeatureForUser ::
+    (Member FeaturesConfigCompute r) =>
     UserId ->
-    LockableFeature cfg ->
     Sem r (LockableFeature cfg)
   getFeatureForUser _uid = resolveServerFeature
   computeFeature ::
@@ -72,7 +70,7 @@ instance GetFeatureConfig AppLockConfig
 instance GetFeatureConfig ClassifiedDomainsConfig
 
 instance GetFeatureConfig ConferenceCallingConfig where
-  getFeatureForUser uid _defFeature =
+  getFeatureForUser uid =
     resolveConferenceCallingUser uid
 
   computeFeature tid defFeature dbFeature =
