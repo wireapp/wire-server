@@ -149,6 +149,20 @@ spec =
               idpDelete zUser (idp ^. idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
+          it "should log IdP deletion  with domain for multi-ingress" $ do
+            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+            user :: User <- generate arbitrary
+            let idPMetadataInfo' = idPMetadataInfo & idpMetadataRecord . SAML.edIssuer .~ issuer
+                expectedLogLine =
+                  ( Info,
+                    "IdP deleted, team=6861026d-cdee-3da5-22fc-6612bb1360b8, idpId=00000000-0000-0000-0000-000000000000, issuer=https://accounts.accesscontrol.windows.net/auth, domain=" <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText <> ", user=59128ccc-d38a-1d23-67d9-4f529ee7ca9f, certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37\n"
+                  )
+
+            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+              idp <- idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing apiVersionV2 idpHandle
+              idpDelete zUser (idp ^. idpId) Nothing
+            logs `shouldContain` [expectedLogLine]
+
         describe "idp-update" $ do
           it "should log IdP update" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
