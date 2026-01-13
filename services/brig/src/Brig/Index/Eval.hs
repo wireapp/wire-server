@@ -26,6 +26,7 @@ import Brig.Index.Options
 import Brig.Options
 import Brig.User.Search.Index
 import Cassandra (Client, runClient)
+import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Exception (throwIO)
 import Control.Lens
@@ -36,8 +37,6 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
 import Data.Id
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Imports
@@ -102,31 +101,28 @@ type BrigIndexEffectStack =
     Final IO
   ]
 
--- | Run polysemy effect stack with ES and Cassandra from brig options.
-runSem :: Opts -> Logger -> Sem BrigIndexEffectStack a -> IO a
-runSem brigOpts logger action = do
-  let esOpts = brigOpts.elasticsearch
-  mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
-  mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
-  casClient <- defInitCassandra brigOpts.cassandra logger
+runSem :: ESConnectionSettings -> CassandraSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem esConn cas galleyEndpoint logger action = do
+  mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
+  mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
+  casClient <- defInitCassandra (toCassandraOpts cas) logger
   let bhEnv =
         BHEnv
-          { bhServer = esOpts.url,
+          { bhServer = toESServer esConn.esServer,
             bhManager = mgr,
             bhRequestHook = maybe pure (\creds -> ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)) mEsCreds
           }
-
       indexedUserStoreConfig =
         IndexedUserStoreConfig
           { conn =
               ESConn
-                { indexName = esOpts.index,
+                { indexName = esConn.esIndex,
                   env = bhEnv
                 },
             additionalConn = Nothing
           }
-      reqId = RequestId "brig-index"
-
+      reqId = (RequestId "brig-index")
+      migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
   runFinal
     . embedToFinal
     . unsafelyPerformConcurrency
@@ -134,12 +130,12 @@ runSem brigOpts logger action = do
     . ignoreMetrics
     . runRpcWithHttp mgr reqId
     . throwErrorToIOFinal @ParseException
-    . interpretGalleyAPIAccessToRpc mempty brigOpts.galley
+    . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
     . runEmbedded (runClient casClient)
     . interpretFederationDomainConfig casClient Nothing mempty
     . raiseUnder @(Embed Client)
     . throwErrorToIOFinal @MigrationException
-    . interpretIndexedUserMigrationStoreES bhEnv defaultMigrationIndexName
+    . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
     . interpretUserStoreCassandra casClient
@@ -157,38 +153,35 @@ throwErrorToIOFinal action = do
     Left e -> embedFinal $ throwIO e
     Right a -> pure a
 
--- | Run a brig-index command. Connection settings come from `Opts` (brig.yaml),
--- index-specific settings come from `Command` (CLI args).
-runCommand :: Logger -> Opts -> Command -> IO ()
-runCommand l brigOpts = \case
-  Create idxSettings -> do
-    e <- initIndex l brigOpts
-    runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings idxSettings)
-  Reset -> do
-    -- Reset uses the index from brig.yaml but only works on test indices
-    e <- initIndex l brigOpts
-    -- Use default index settings for reset
-    let defaultSettings = ElasticIndexSettings 1 (ES.ReplicaCount 1) 1 Nothing
-    runIndexIO e $ resetIndex (mkCreateIndexSettings defaultSettings)
-  Reindex -> do
-    runSem brigOpts l $
+runCommand :: Logger -> Command -> IO ()
+runCommand l = \case
+  Create es galley -> do
+    e <- initIndex l (es ^. esConnection) galley
+    runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
+  Reset es galley -> do
+    e <- initIndex l (es ^. esConnection) galley
+    runIndexIO e $ resetIndex (mkCreateIndexSettings es)
+  Reindex es cas galley -> do
+    runSem (es ^. esConnection) cas galley l $
       IndexedUserStoreBulk.syncAllUsers
-  ReindexSameOrNewer -> do
-    runSem brigOpts l $
+  ReindexSameOrNewer es cas galley -> do
+    runSem (es ^. esConnection) cas galley l $
       IndexedUserStoreBulk.forceSyncAllUsers
-  UpdateMapping -> do
-    e <- initIndex l brigOpts
+  UpdateMapping esConn galley -> do
+    e <- initIndex l esConn galley
     runIndexIO e updateMapping
-  Migrate -> do
-    runSem brigOpts l $
+  Migrate es cas galley -> do
+    runSem (es ^. esConnection) cas galley l $
       IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
-    let esOpts = brigOpts.elasticsearch
-    mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
-    mCreds <- for esOpts.credentials initCredentials
-    let bhEnv = initES esOpts.url mgr mCreds
+    mgr <-
+      initHttpManagerWithTLSConfig
+        (reindexSettings ^. reindexEsConnection . to esInsecureSkipVerifyTls)
+        (reindexSettings ^. reindexEsConnection . to esCaCert)
+    mCreds <- for (reindexSettings ^. reindexEsConnection . to esCredentials) initCredentials
+    let bhEnv = initES (reindexSettings ^. reindexEsConnection . to esServer) mgr mCreds
     ES.runBH bhEnv $ do
-      let src = esOpts.index
+      let src = reindexSettings ^. reindexEsConnection . to esIndex
           dest = view reindexDestIndex reindexSettings
           timeoutSeconds = view reindexTimeoutSeconds reindexSettings
 
@@ -209,16 +202,28 @@ runCommand l brigOpts = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initES esUrl mgr mCreds =
-      let env = ES.mkBHEnv esUrl mgr
+    initES esURI mgr mCreds =
+      let env = ES.mkBHEnv (toESServer esURI) mgr
        in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
 
--- | Initialize index environment from brig options.
-initIndex :: Logger -> Opts -> IO IndexEnv
-initIndex l brigOpts = do
-  let esOpts = brigOpts.elasticsearch
-  mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
-  mkIndexEnv esOpts l brigOpts.galley mgr
+initIndex :: Logger -> ESConnectionSettings -> Endpoint -> IO IndexEnv
+initIndex l esConn gly = do
+  mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
+  let esOpts =
+        ElasticSearchOpts
+          { url = toESServer esConn.esServer,
+            index = esConn.esIndex,
+            credentials = esConn.esCredentials,
+            insecureSkipVerifyTls = esConn.esInsecureSkipVerifyTls,
+            caCert = esConn.esCaCert,
+            additionalWriteIndex = Nothing,
+            additionalWriteIndexUrl = Nothing,
+            additionalCredentials = Nothing,
+            additionalInsecureSkipVerifyTls = False,
+            additionalCaCert = Nothing
+          }
+
+  mkIndexEnv esOpts l gly mgr
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

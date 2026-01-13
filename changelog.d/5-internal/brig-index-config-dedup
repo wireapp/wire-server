@@ -1,1 +1,0 @@
-De-duplicate brig-index configuration by reading connection settings (elasticsearch, cassandra, galley) from brig.yaml via the -c flag, instead of requiring them as CLI arguments.
