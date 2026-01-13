@@ -285,7 +285,7 @@ disconnectTarget mgr target = do
     Just conn -> do
       disconnect conn
       wait (backgroundThread conn)
-        `finally` (atomically $ StmMap.delete target (connections mgr))
+        `finally` atomically (StmMap.delete target (connections mgr))
 
 -- | Disconnects HTTP2 connection if there exists one. If the background thread
 -- running the connection does not finish within 1 second, it is canceled.
@@ -314,7 +314,7 @@ disconnectTargetWithTimeout mgr target microSeconds = do
             void $ waitAnyCatchCancel [waitOneSec, backgroundThread conn]
 
       waitWithTimeout
-        `finally` (atomically $ StmMap.delete target (connections mgr))
+        `finally` atomically (StmMap.delete target (connections mgr))
 
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
