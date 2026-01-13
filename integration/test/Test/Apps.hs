@@ -73,7 +73,7 @@ testCreateApp = do
     (resp.json %. "category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser OwnDomain def
+  outsideUser <- randomUser domain def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
@@ -88,13 +88,19 @@ testCreateApp = do
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
+  let foundUserType exactMatchTerm aType =
+        searchContacts owner exactMatchTerm OwnDomain `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          foundDoc <- resp.json %. "documents" >>= asList >>= assertOne
+          foundDoc %. "type" `shouldMatch` aType
+
   -- App's user is findable from /search/contacts
-  BrigI.refreshIndex OwnDomain
-  searchContacts owner new.name OwnDomain `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "documents" >>= asList
-    foundUids <- for docs objId
-    foundUids `shouldMatch` [appId]
+  BrigI.refreshIndex domain
+  foundUserType new.name "app"
+
+  -- Regular members still have the type "regular"
+  memberName <- regularMember %. "name" & asString
+  foundUserType memberName "regular"
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do

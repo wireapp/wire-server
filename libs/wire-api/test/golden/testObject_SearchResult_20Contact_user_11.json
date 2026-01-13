@@ -9,7 +9,8 @@
                 "domain": "bza.j",
                 "id": "00000000-0000-0000-0000-000000000001"
             },
-            "team": null
+            "team": null,
+            "type": "regular"
         },
         {
             "accent_id": 0,
@@ -20,7 +21,8 @@
                 "domain": "zwv.u6-f",
                 "id": "00000001-0000-0000-0000-000000000001"
             },
-            "team": null
+            "team": null,
+            "type": "regular"
         }
     ],
     "found": -1,

@@ -9,7 +9,8 @@
                 "domain": "example.com",
                 "id": "00000018-0000-0020-0000-000e00000002"
             },
-            "team": "00000018-0000-0020-0000-000e00000002"
+            "team": "00000018-0000-0020-0000-000e00000002",
+            "type": "regular"
         },
         {
             "accent_id": null,
@@ -20,7 +21,8 @@
                 "domain": "another.example.com",
                 "id": "00000018-0000-0020-0000-000e00000003"
             },
-            "team": null
+            "team": null,
+            "type": "regular"
         }
     ],
     "found": 2,

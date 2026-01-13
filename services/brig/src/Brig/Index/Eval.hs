@@ -39,6 +39,7 @@ import Data.Credentials (Credentials (..))
 import Data.Id
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
+import Hasql.Pool
 import Imports
 import Polysemy
 import Polysemy.Embed (runEmbedded)
@@ -46,7 +47,7 @@ import Polysemy.Error
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
-import Util.Options (initCredentials)
+import Util.Options
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.BlockListStore (BlockListStore)
@@ -97,6 +98,7 @@ type BrigIndexEffectStack =
     Metrics,
     TinyLog,
     Concurrency 'Unsafe,
+    Error UsageError,
     Embed IO,
     Final IO
   ]
@@ -125,6 +127,7 @@ runSem esConn cas galleyEndpoint logger action = do
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
   runFinal
     . embedToFinal
+    . throwErrorToIOFinal @UsageError
     . unsafelyPerformConcurrency
     . loggerToTinyLogReqId reqId logger
     . ignoreMetrics
