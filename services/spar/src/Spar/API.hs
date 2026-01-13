@@ -902,28 +902,36 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
             compareNonEmpty
               (previousIdP ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
               (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
-       in logIdPAction
-            "IdP updated"
-            idp
-            zusr
-            ( logEndpointFields
+       in Logger.info $
+            Log.msg ("IdP updated" :: String)
+              . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
+              . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
+              . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
+              . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+              . Log.field "user" (maybe "None" idToText zusr)
+              . logEndpointFields
                 (previousIdP ^. SAML.idpMetadata . SAML.edRequestURI)
                 (idp ^. SAML.idpMetadata . SAML.edRequestURI)
-                . logCertField "new-certificates" newCerts
-                . logCertField "removed-certificates" removedCerts
-            )
+              . logCertField "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to toList)
+              . logCertField "new-certificates" newCerts
+              . logCertField "removed-certificates" removedCerts
+
+    logScalarField :: (Eq a) => ByteString -> (a -> ByteString) -> a -> a -> Msg -> Msg
+    logScalarField baseFieldName toFieldVal old new
+      | old /= new =
+          Log.field ("old-" <> baseFieldName) (toFieldVal old)
+            . Log.field ("new-" <> baseFieldName) (toFieldVal new)
+    logScalarField baseFieldName toFieldVal old _new =
+      Log.field baseFieldName (toFieldVal old)
 
     logEndpointFields :: URI.URI -> URI.URI -> Msg -> Msg
-    logEndpointFields oldEndpoint newEndpoint
-      | oldEndpoint /= newEndpoint =
-          Log.field "old-idp-endpoint" (URI.serializeURIRef' oldEndpoint)
-            . Log.field "new-idp-endpoint" (URI.serializeURIRef' newEndpoint)
-    logEndpointFields _ _ = id
+    logEndpointFields oldEndpoint newEndpoint =
+      logScalarField "idp-endpoint" URI.serializeURIRef' oldEndpoint newEndpoint
 
     logCertField :: ByteString -> [X509.SignedCertificate] -> Msg -> Msg
     logCertField fieldName certs
       | not (null certs) =
-          Log.field fieldName ((intercalate ";; " . map certToString . toList) certs)
+          Log.field fieldName ((intercalate ";; " . map certToString) certs)
     logCertField _ _ = id
 
     compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
