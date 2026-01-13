@@ -112,12 +112,20 @@ runSem brigOpts logger action = do
   mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
   casClient <- defInitCassandra brigOpts.cassandra logger
   let esUri = parseESUri esOpts.url
+        where
+          parseESUri :: ES.Server -> URIRef Absolute
+          parseESUri (ES.Server esUrlText) =
+            case parseURI strictURIParserOptions (Text.encodeUtf8 esUrlText) of
+              Left e -> error $ "Invalid elasticsearch URL in brig.yaml: " <> show e
+              Right u -> u
+
       bhEnv =
         BHEnv
           { bhServer = esOpts.url,
             bhManager = mgr,
             bhRequestHook = maybe pure (\creds -> ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)) mEsCreds
           }
+
       indexedUserStoreConfig =
         IndexedUserStoreConfig
           { conn =
@@ -128,6 +136,7 @@ runSem brigOpts logger action = do
             additionalConn = Nothing
           }
       reqId = RequestId "brig-index"
+
   runFinal
     . embedToFinal
     . unsafelyPerformConcurrency
@@ -151,12 +160,6 @@ runSem brigOpts logger action = do
     . interpretUserKeyStoreCassandra casClient
     . interpretIndexedUserStoreBulk
     $ action
-  where
-    parseESUri :: ES.Server -> URIRef Absolute
-    parseESUri (ES.Server esUrlText) =
-      case parseURI strictURIParserOptions (Text.encodeUtf8 esUrlText) of
-        Left e -> error $ "Invalid elasticsearch URL in brig.yaml: " <> show e
-        Right u -> u
 
 throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Error e) r
 throwErrorToIOFinal action = do
