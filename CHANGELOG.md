@@ -25,7 +25,7 @@
 
 * Add `meetingsPremium` feature flag to distinguish premium teams from trial teams. Meetings created by premium team members are marked as non-trial. Public endpoints: GET/PUT /teams/:tid/features/meetingsPremium. Internal endpoints: GET/PUT/PATCH /i/teams/:tid/features/meetingsPremium and lock status management.
 
-  Add `meetings` feature flag to control access to the meetings API. When disabled, all meetings endpoints return 403 Forbidden. The feature is enabled and unlocked by default. Public endpoints: GET/PUT /teams/:tid/features/meetings. Internal endpoints: GET/PUT/PATCH /i/teams/:tid/features/meetings and lock status management. (#PR_NOT_FOUND)
+  Add `meetings` feature flag to control access to the meetings API. When disabled, all meetings endpoints return 403 Forbidden. The feature is enabled and unlocked by default. Public endpoints: GET/PUT /teams/:tid/features/meetings. Internal endpoints: GET/PUT/PATCH /i/teams/:tid/features/meetings and lock status management. (#4915)
 
 * New team feature config `cellsInternal` (#4889, #4907, #4940)
 
