@@ -17,6 +17,7 @@
 , network
 , random
 , stm
+, stm-containers
 , streaming-commons
 , text
 , time-manager
@@ -34,6 +35,7 @@ mkDerivation {
     http2
     network
     stm
+    stm-containers
     streaming-commons
     text
     time-manager
@@ -50,6 +52,7 @@ mkDerivation {
     network
     random
     stm
+    stm-containers
     streaming-commons
     time-manager
   ];
