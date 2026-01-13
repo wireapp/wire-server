@@ -591,9 +591,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     "IdP deleted"
     idp
     mbzusr
-    ( Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
-        . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
-    )
+    id
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
@@ -679,10 +677,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
     "IdP created"
     idp
     zUser
-    ( Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
-        . Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces)
-        . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
-    )
+    (Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces))
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -709,6 +704,8 @@ logIdPAction msg idp zUser additionalFields =
       . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
       . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
       . Log.field "user" (maybe "None" idToText zUser)
+      . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
+      . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
       . additionalFields
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain

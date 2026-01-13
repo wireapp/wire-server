@@ -112,9 +112,10 @@ spec =
                       <> fromString issuerString
                       <> ", domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37, replaces=None"
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
                       <> ", idp-endpoint="
                       <> fromString idpEndpointString
+                      <> ", replaces=None"
                       <> "\n"
                   )
 
@@ -149,9 +150,10 @@ spec =
                       <> domainPart
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37, replaces=None"
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
                       <> ", idp-endpoint="
                       <> fromString idpEndpointString
+                      <> ", replaces=None"
                       <> "\n"
                   )
                 expectedLogLineWithDomain = expectedLogLine . TL.encodeUtf8 . TL.fromStrict $ miHost1AsText
