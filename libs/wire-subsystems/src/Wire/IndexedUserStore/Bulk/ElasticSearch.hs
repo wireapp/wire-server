@@ -198,4 +198,4 @@ getUserType iu = case iu.serviceId of
       Just _ -> pure UserTypeApp
       Nothing -> pure UserTypeRegular
     -}
-    pure UserTypeApp
+    pure UserTypeRegular
