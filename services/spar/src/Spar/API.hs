@@ -695,7 +695,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
       when (zHost `elem` domains) $
         throwSparSem SparIdPDomainInUse
 
-logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> Maybe UserId -> (Msg -> Msg) -> Sem r ()
+logIdPAction :: (Member (Logger (Msg -> Msg)) log) => String -> IdP -> Maybe UserId -> (Msg -> Msg) -> Sem log ()
 logIdPAction msg idp zUser additionalFields =
   Logger.info $
     Log.msg (msg)
@@ -896,6 +896,7 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
 
     -- We cannot simply call `logIdPAction` here, because we need diffs for
     -- some values (old vs. new)
+    logIdPUpdate :: (Member (Logger (Msg -> Msg)) log) => IdP -> IdP -> Sem log ()
     logIdPUpdate idp previousIdP =
       let (removedCerts, newCerts) =
             compareNonEmpty
