@@ -662,7 +662,7 @@ config:
             collabora:
               edition: COOL
             storage:
-              teamQuotaBytes: "1000000000000" # 1 TB
+              perUserQuotaBytes: "1000000000000" # 1 TB
 ```
 
 ### Allowed Global Operations

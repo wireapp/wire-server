@@ -238,7 +238,7 @@ defAllFeatures =
               .= object
                 [ "backend" .= object ["url" .= "https://cells-beta.wire.com"],
                   "collabora" .= object ["edition" .= "COOL"],
-                  "storage" .= object ["teamQuotaBytes" .= "1000000000000"]
+                  "storage" .= object ["perUserQuotaBytes" .= "1000000000000"]
                 ]
           ],
       "meetings" .= enabled,

@@ -38,7 +38,7 @@ testCellsInternalEvent = do
   event %. "data.status" `shouldMatch` "enabled"
   event %. "data.config.backend.url" `shouldMatch` "https://cells-beta.wire.com"
   event %. "data.config.collabora.edition" `shouldMatch` "COOL"
-  event %. "data.config.storage.teamQuotaBytes" `shouldMatch` quota
+  event %. "data.config.storage.perUserQuotaBytes" `shouldMatch` quota
 
 testCellsInternal :: (HasCallStack) => App ()
 testCellsInternal = do
@@ -81,7 +81,7 @@ mkFt s ls c =
         .= object
           [ "backend" .= object ["url" .= c.url],
             "collabora" .= object ["edition" .= c.collabora],
-            "storage" .= object ["teamQuotaBytes" .= c.quota]
+            "storage" .= object ["perUserQuotaBytes" .= c.quota]
           ]
     ]
 
