@@ -62,6 +62,7 @@ mkIndexVersion writetimes =
 -- consequently removed from the index.
 data UserDoc = UserDoc
   { udId :: UserId,
+    udType :: Maybe UserType,
     udTeam :: Maybe TeamId,
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
@@ -77,8 +78,7 @@ data UserDoc = UserDoc
     udScimExternalId :: Maybe Text,
     udSso :: Maybe Sso,
     udEmailUnvalidated :: Maybe EmailAddress,
-    udSearchable :: Maybe Bool,
-    udType :: Maybe UserType
+    udSearchable :: Maybe Bool
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
@@ -87,6 +87,7 @@ instance ToJSON UserDoc where
   toJSON ud =
     object
       [ "id" .= udId ud,
+        "type" .= udType ud,
         "team" .= udTeam ud,
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
@@ -102,14 +103,14 @@ instance ToJSON UserDoc where
         "scim_external_id" .= udScimExternalId ud,
         "sso" .= udSso ud,
         "email_unvalidated" .= udEmailUnvalidated ud,
-        "searchable" .= udSearchable ud,
-        "type" .= udType ud
+        "searchable" .= udSearchable ud
       ]
 
 instance FromJSON UserDoc where
   parseJSON = withObject "UserDoc" $ \o ->
     UserDoc
       <$> o .: "id"
+      <*> o .:? "type"
       <*> o .:? "team"
       <*> o .:? "name"
       <*> o .:? "normalized"
@@ -126,7 +127,6 @@ instance FromJSON UserDoc where
       <*> o .:? "sso"
       <*> o .:? "email_unvalidated"
       <*> o .:? "searchable"
-      <*> o .:? "type"
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
@@ -145,12 +145,10 @@ userDocToContact contactQualifiedId getName userDoc =
         contactHandle = fromHandle <$> userDoc.udHandle,
         contactTeam = userDoc.udTeam,
         contactType =
-          -- NB: if you have index entries for bots that haven't
-          -- migrated yet, they will identify as regular users in
-          -- the search result.  this is an accepted limitation.  as
-          -- long as we have cassandra and elastic search involved,
-          -- the only way around it would be looking up serverIds in
-          -- cassandra for every query.
+          -- NB: after wire release upgrade and before ES reindexing,
+          -- apps may identify as regular users in the search result.
+          -- this is an accepted limitation and will be fixed in
+          -- https://github.com/wireapp/wire-server/pull/4947
           fromMaybe UserTypeRegular userDoc.udType
       }
 

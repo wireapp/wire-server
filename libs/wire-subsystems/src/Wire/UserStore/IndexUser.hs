@@ -150,11 +150,12 @@ indexUserToVersion role IndexUser {..} =
     ]
 
 indexUserToDoc :: SearchVisibilityInbound -> UserType -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound type_ mRole IndexUser {..} =
+indexUserToDoc searchVisInbound userType mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udType = Just type_,
+        { udId = userId,
+          udType = Just userType,
           udSearchable = value <$> searchable,
           udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
@@ -170,8 +171,7 @@ indexUserToDoc searchVisInbound type_ mRole IndexUser {..} =
           udHandle = value <$> handle,
           udNormalized = Just $ normalized name.value.fromName,
           udName = Just name.value,
-          udTeam = value <$> teamId,
-          udId = userId
+          udTeam = value <$> teamId
         }
     else -- We insert a tombstone-style user here, as it's easier than
     -- deleting the old one. It's mostly empty, but having the status here
