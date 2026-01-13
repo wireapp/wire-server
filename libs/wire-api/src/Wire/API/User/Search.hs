@@ -58,7 +58,7 @@ import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
-import Wire.API.User (ManagedBy, UserType)
+import Wire.API.User (ManagedBy, UserType (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -185,6 +185,7 @@ instance ToSchema Sso where
 -- | Returned by 'browseTeam' under @/teams/:tid/search@.
 data TeamContact = TeamContact
   { teamContactUserId :: UserId,
+    teamContactUserType :: Maybe UserType,
     teamContactName :: Text,
     teamContactColorId :: Maybe Int,
     teamContactHandle :: Maybe Text,
@@ -209,6 +210,7 @@ instance ToSchema TeamContact where
     object "TeamContact" $
       TeamContact
         <$> teamContactUserId .= field "id" schema
+        <*> teamContactUserType .= maybe_ (optField "user_type" schema)
         <*> teamContactName .= field "name" schema
         <*> teamContactColorId .= optField "accent_id" (maybeWithDefault Aeson.Null schema)
         <*> teamContactHandle .= optField "handle" (maybeWithDefault Aeson.Null schema)

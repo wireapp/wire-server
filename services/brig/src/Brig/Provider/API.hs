@@ -826,6 +826,7 @@ addBot zuid zcon cid add = do
             language = locale.lLanguage,
             country = locale.lCountry,
             serviceId = Just sid,
+            userType = Just UserTypeBot,
             providerId = Just pid,
             handle = Nothing,
             teamId = Nothing,

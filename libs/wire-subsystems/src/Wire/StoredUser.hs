@@ -39,6 +39,7 @@ import Wire.Arbitrary
 
 data StoredUser = StoredUser
   { id :: UserId,
+    userType :: Maybe UserType,
     name :: Name,
     textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
@@ -163,6 +164,7 @@ data NewStoredUser = NewStoredUser
     country :: Maybe Country,
     providerId :: Maybe ProviderId,
     serviceId :: Maybe ServiceId,
+    userType :: Maybe UserType,
     handle :: Maybe Handle,
     teamId :: Maybe TeamId,
     managedBy :: ManagedBy,
@@ -227,3 +229,16 @@ newStoredUserToUser (Qualified new domain) =
       userSupportedProtocols = new.supportedProtocols,
       userSearchable = new.searchable
     }
+
+-- these orphan is needed for turning {New,}StoredUser into tuples.
+-- instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k, Show l, Show m, Show n, Show o, Show p, Show q, Show r, Show s, Show t, Show u) => Show (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u) where
+--  showsPrec _ (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u) =
+--    showChar '(' . shows a . showChar ',' . shows b . showChar ',' . shows c . showChar ',' . shows d . showChar ',' . shows e . showChar ',' . shows f . showChar ',' . shows g . showChar ',' . shows h . showChar ',' . shows i . showChar ',' . shows j . showChar ',' . shows k . showChar ',' . shows l . showChar ',' . shows m . showChar ',' . shows n . showChar ',' . shows o . showChar ',' . shows p . showChar ',' . shows q . showChar ',' . shows r . showChar ',' . shows s . showChar ',' . shows t . showChar ',' . shows u . showChar ')'
+
+{-
+
+-- these orphan is needed for turning {New,}StoredUser into tuples.
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k, Show l, Show m, Show n, Show o, Show p, Show q, Show r, Show s, Show t, Show u, Show v) => Show (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v) where
+  showsPrec _ (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v) =
+    showChar '(' . shows a . showChar ',' . shows b . showChar ',' . shows c . showChar ',' . shows d . showChar ',' . shows e . showChar ',' . shows f . showChar ',' . shows g . showChar ',' . shows h . showChar ',' . shows i . showChar ',' . shows j . showChar ',' . shows k . showChar ',' . shows l . showChar ',' . shows m . showChar ',' . shows n . showChar ',' . shows o . showChar ',' . shows p . showChar ',' . shows q . showChar ',' . shows r . showChar ',' . shows s . showChar ',' . shows t . showChar ',' . shows u . showChar ',' . shows v . showChar ')'
+-}

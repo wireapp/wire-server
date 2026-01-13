@@ -183,6 +183,7 @@ newStoredUserToStoredUser new =
       country = new.country,
       providerId = new.providerId,
       serviceId = new.serviceId,
+      userType = new.userType,
       handle = new.handle,
       teamId = new.teamId,
       managedBy = Just new.managedBy,

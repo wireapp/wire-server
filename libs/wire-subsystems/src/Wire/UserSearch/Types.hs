@@ -62,6 +62,7 @@ mkIndexVersion writetimes =
 -- consequently removed from the index.
 data UserDoc = UserDoc
   { udId :: UserId,
+    udType :: Maybe UserType,
     udTeam :: Maybe TeamId,
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
@@ -77,8 +78,7 @@ data UserDoc = UserDoc
     udScimExternalId :: Maybe Text,
     udSso :: Maybe Sso,
     udEmailUnvalidated :: Maybe EmailAddress,
-    udSearchable :: Maybe Bool,
-    udType :: Maybe UserType
+    udSearchable :: Maybe Bool
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDoc)
@@ -87,6 +87,7 @@ instance ToJSON UserDoc where
   toJSON ud =
     object
       [ "id" .= udId ud,
+        "user_type" .= udType ud,
         "team" .= udTeam ud,
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
@@ -110,6 +111,7 @@ instance FromJSON UserDoc where
   parseJSON = withObject "UserDoc" $ \o ->
     UserDoc
       <$> o .: "id"
+      <*> o .:? "user_type"
       <*> o .:? "team"
       <*> o .:? "name"
       <*> o .:? "normalized"
@@ -126,7 +128,6 @@ instance FromJSON UserDoc where
       <*> o .:? "sso"
       <*> o .:? "email_unvalidated"
       <*> o .:? "searchable"
-      <*> o .:? "type"
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
@@ -144,20 +145,14 @@ userDocToContact contactQualifiedId getName userDoc =
         contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
         contactHandle = fromHandle <$> userDoc.udHandle,
         contactTeam = userDoc.udTeam,
-        contactType =
-          -- NB: if you have index entries for bots that haven't
-          -- migrated yet, they will identify as regular users in
-          -- the search result.  this is an accepted limitation.  as
-          -- long as we have cassandra and elastic search involved,
-          -- the only way around it would be looking up serverIds in
-          -- cassandra for every query.
-          fromMaybe UserTypeRegular userDoc.udType
+        contactType = fromMaybe UserTypeRegular userDoc.udType
       }
 
 userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
 userDocToTeamContact userGroups UserDoc {..} =
   TeamContact
     { teamContactUserId = udId,
+      teamContactUserType = udType,
       teamContactTeam = udTeam,
       teamContactSso = udSso,
       teamContactScimExternalId = udScimExternalId,

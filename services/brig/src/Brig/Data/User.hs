@@ -88,8 +88,9 @@ newStoredUser ::
   Maybe InvitationId ->
   Maybe TeamId ->
   Maybe Handle ->
+  UserType ->
   AppT r NewStoredUser
-newStoredUser u inv tid mbHandle = do
+newStoredUser u inv tid mbHandle userType = do
   defLoc <- defaultUserLocale <$> asks (.settings)
   uid <-
     Id <$> do
@@ -137,6 +138,7 @@ newStoredUser u inv tid mbHandle = do
           country = l.lCountry,
           providerId = Nothing,
           serviceId = Nothing,
+          userType = Just userType,
           handle = mbHandle,
           expires = e,
           teamId = tid,
@@ -169,6 +171,7 @@ newStoredUserViaScim uid externalId tid locale name email = do
         country = loc.lCountry,
         providerId = Nothing,
         serviceId = Nothing,
+        userType = Just UserTypeRegular,
         handle = Nothing,
         expires = Nothing,
         teamId = Just tid,

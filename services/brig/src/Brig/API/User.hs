@@ -213,7 +213,7 @@ createUserSpar new = do
       tid = newUserSparTeamId new
 
   -- Create account
-  account <- lift $ newStoredUser new' Nothing (Just tid) handle'
+  account <- lift $ newStoredUser new' Nothing (Just tid) handle' UserTypeRegular
   domain <- viewFederationDomain
   let u = newStoredUserToUser (Qualified account domain)
   lift $ do
@@ -399,7 +399,7 @@ createUser rateLimitKey new = do
         traverse
           (liftSem . HashPassword.hashPassword8 rateLimitKey)
           new'.newUserPassword
-      newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid mbHandle
+      newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid mbHandle UserTypeRegular
   domain <- viewFederationDomain
   let u = newStoredUserToUser (Qualified account domain)
   let uid = account.id
