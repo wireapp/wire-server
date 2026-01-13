@@ -287,7 +287,8 @@ spec =
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             user :: User <- generate arbitrary
             newKeyInfo <- readSampleIO "okta-keyinfo-1.xml"
-            let newIssuer = Issuer . (either (error . show) id) . parseURI strictURIParserOptions . fromString $ "https://new.idp.example.com/auth"
+            let newIssuerString = "https://new.idp.example.com/auth"
+                newIssuer = Issuer . (either (error . show) id) . parseURI strictURIParserOptions . fromString $ newIssuerString
                 newIdpEndpointString = "https://new.idp.example.com/login"
                 newRequestURI = either (error . show) id . parseURI strictURIParserOptions . fromString $ newIdpEndpointString
                 idPMetadataInfo' =
@@ -307,7 +308,12 @@ spec =
                   ( Info,
                     "IdP updated, team="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer=https://new.idp.example.com/auth, domain=None, user="
+                      <> ", idpId=00000000-0000-0000-0000-000000000000"
+                      <> ", old-issuer="
+                      <> fromString issuerString
+                      <> ", new-issuer="
+                      <> fromString newIssuerString
+                      <> ", domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
                       <> ", old-idp-endpoint="
                       <> fromString idpEndpointString
