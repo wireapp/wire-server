@@ -89,6 +89,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigRead
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
@@ -178,7 +179,6 @@ postMLSCommitBundle ::
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
-    Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -186,7 +186,8 @@ postMLSCommitBundle ::
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigRead r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -209,7 +210,6 @@ postMLSCommitBundleFromLocalUser ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
-    Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -217,7 +217,8 @@ postMLSCommitBundleFromLocalUser ::
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigRead r
   ) =>
   Version ->
   Local UserId ->
@@ -244,7 +245,6 @@ postMLSCommitBundleToLocalConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
-    Member TeamFeatureStore r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -252,7 +252,8 @@ postMLSCommitBundleToLocalConv ::
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigRead r
   ) =>
   Qualified UserId ->
   ClientId ->

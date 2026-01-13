@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
@@ -70,6 +71,8 @@ import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigCompute (FeaturesConfigCompute, resolveServerFeature)
+import Wire.FeaturesConfigRead (FeaturesConfigRead)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -78,13 +81,14 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
+type ComputeFeatureConstraints cfg r = (Member FeaturesConfigCompute r, Member FeaturesConfigRead r)
+
 patchFeatureInternal ::
   forall cfg r.
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'TeamNotFound) r,
-    Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
@@ -98,12 +102,12 @@ patchFeatureInternal ::
 patchFeatureInternal tid patch = do
   assertTeamExists tid
   dbFeature <- getDbFeature tid
-  defFeature <- resolveServerFeature @cfg
+  (defFeature :: LockableFeature cfg) <- resolveServerFeature
   let dbFeatureWithDefaults = dbFeature.applyDbFeature defFeature
   let patchedFeature = applyPatch dbFeatureWithDefaults
   prepareFeature tid patchedFeature
   patchDbFeature tid patch
-  returnedFeature <- getFeatureForTeam @cfg tid
+  (returnedFeature :: LockableFeature cfg) <- getFeatureForTeam tid
   pushFeatureEvent @cfg tid (mkUpdateEvent tid returnedFeature)
   pure returnedFeature
   where
@@ -123,7 +127,6 @@ setFeature ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (Error TeamFeatureError) r,
-    Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
@@ -146,7 +149,6 @@ setFeatureInternal ::
     SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
-    Member (Input Opts) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
@@ -167,7 +169,6 @@ setFeatureUnchecked ::
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
-    Member (Input Opts) r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member NotificationSubsystem r,
@@ -178,7 +179,7 @@ setFeatureUnchecked ::
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeatureUnchecked tid feat = do
-  feat0 <- getFeatureForTeam @cfg tid
+  (feat0 :: LockableFeature cfg) <- getFeatureForTeam tid
   guardLockStatus feat0.lockStatus
   setFeatureForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
 
@@ -201,7 +202,6 @@ persistFeature ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
-    Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
   TeamId ->
@@ -209,7 +209,7 @@ persistFeature ::
   Sem r (LockableFeature cfg)
 persistFeature tid feat = do
   setDbFeature tid feat
-  getFeatureForTeam @cfg tid
+  getFeatureForTeam tid :: Sem r (LockableFeature cfg)
 
 pushFeatureEvent ::
   forall cfg r.
@@ -250,7 +250,6 @@ setFeatureForTeam ::
   ( SetFeatureConfig cfg,
     SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
-    Member (Input Opts) r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
     Member TeamFeatureStore r,
@@ -403,10 +402,11 @@ instance SetFeatureConfig MLSConfig where
     SetFeatureForTeamConstraints MLSConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member TeamFeatureStore r,
+        Member FeaturesConfigRead r,
         Member (Error TeamFeatureError) r
       )
   prepareFeature tid feat = do
-    mlsMigrationConfig <- getFeatureForTeam @MlsMigrationConfig tid
+    (mlsMigrationConfig :: LockableFeature MlsMigrationConfig) <- getFeatureForTeam tid
     unless
       ( -- default protocol needs to be included in supported protocols
         feat.config.mlsDefaultProtocol `elem` feat.config.mlsSupportedProtocols
@@ -440,10 +440,11 @@ instance SetFeatureConfig MlsMigrationConfig where
     SetFeatureForTeamConstraints MlsMigrationConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member (Error TeamFeatureError) r,
-        Member TeamFeatureStore r
+        Member TeamFeatureStore r,
+        Member FeaturesConfigRead r
       )
   prepareFeature tid feat = do
-    mlsConfig <- getFeatureForTeam @MLSConfig tid
+    (mlsConfig :: LockableFeature MLSConfig) <- getFeatureForTeam tid
     unless
       ( -- when MLS migration is enabled, MLS needs to be enabled as well
         feat.status == FeatureStatusDisabled || mlsConfig.status == FeatureStatusEnabled

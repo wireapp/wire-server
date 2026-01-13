@@ -79,7 +79,6 @@ import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
 import Galley.Env
-import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -110,6 +109,7 @@ import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
+import Wire.FeaturesConfigRead
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
@@ -640,8 +640,7 @@ getConversationByReusableCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamFeatureStore r,
-    Member (Input Opts) r,
+    Member FeaturesConfigRead r,
     Member HashPassword r,
     Member RateLimit r,
     Member TeamSubsystem r
@@ -668,8 +667,7 @@ getConversationByReusableCode lusr key value = do
 ensureGuestLinksEnabled ::
   forall r.
   ( Member (ErrorS 'GuestLinksDisabled) r,
-    Member TeamFeatureStore r,
-    Member (Input Opts) r
+    Member FeaturesConfigRead r
   ) =>
   Maybe TeamId ->
   Sem r ()
@@ -683,8 +681,7 @@ getConversationGuestLinksStatus ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigRead r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -698,13 +695,11 @@ getConversationGuestLinksStatus uid convId = do
 
 getConversationGuestLinksFeatureStatus ::
   forall r.
-  ( Member TeamFeatureStore r,
-    Member (Input Opts) r
-  ) =>
+  (Member FeaturesConfigRead r) =>
   Maybe TeamId ->
   Sem r (LockableFeature GuestLinksConfig)
-getConversationGuestLinksFeatureStatus Nothing = resolveServerFeature @GuestLinksConfig
-getConversationGuestLinksFeatureStatus (Just tid) = getFeatureForTeam @GuestLinksConfig tid
+getConversationGuestLinksFeatureStatus Nothing = getFeatureForServer
+getConversationGuestLinksFeatureStatus (Just tid) = getFeatureForTeam tid
 
 -- | The same as 'getMLSSelfConversation', but it throws an error in case the
 -- backend is not configured for MLS (the proxy for it being the existance of

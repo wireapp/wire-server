@@ -131,6 +131,7 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigRead
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -707,11 +708,10 @@ deleteTeamMember ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigRead r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
@@ -736,11 +736,10 @@ deleteNonBindingTeamMember ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigRead r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
@@ -765,11 +764,10 @@ deleteTeamMember' ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (Input Opts) r,
     Member Now r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigRead r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
@@ -811,16 +809,14 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
-      getFeatureForTeam @LimitedEventFanoutConfig tid
-        >>= ( \case
-                FeatureStatusEnabled -> do
-                  admins <- E.getTeamAdmins tid
-                  uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
-                FeatureStatusDisabled -> do
-                  mems <- getTeamMembersForFanout tid
-                  uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
-            )
-          . (.status)
+      (feat :: LockableFeature LimitedEventFanoutConfig) <- getFeatureForTeam tid
+      case feat.status of
+        FeatureStatusEnabled -> do
+          admins <- E.getTeamAdmins tid
+          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
+        FeatureStatusDisabled -> do
+          mems <- getTeamMembersForFanout tid
+          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
@@ -1310,10 +1306,9 @@ removeTeamCollaborator ::
     Member (ErrorS NotATeamMember) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Opts) r,
     Member Now r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigRead r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input FanoutLimit) r,
@@ -1330,7 +1325,7 @@ removeTeamCollaborator lusr tid rusr = do
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   void $ permissionCheck RemoveTeamCollaborator zusrMember
   toNotify <-
-    getFeatureForTeam @LimitedEventFanoutConfig tid
+    (getFeatureForTeam tid :: Sem r (LockableFeature LimitedEventFanoutConfig))
       >>= ( \case
               FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
               FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
