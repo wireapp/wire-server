@@ -36,6 +36,7 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
 import Data.Id
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
@@ -46,7 +47,6 @@ import Polysemy.Error
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
-import URI.ByteString
 import Util.Options (initCredentials)
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -109,15 +109,7 @@ runSem brigOpts logger action = do
   mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
   mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
   casClient <- defInitCassandra brigOpts.cassandra logger
-  let esUri = parseESUri esOpts.url
-        where
-          parseESUri :: ES.Server -> URIRef Absolute
-          parseESUri (ES.Server esUrlText) =
-            case parseURI strictURIParserOptions (Text.encodeUtf8 esUrlText) of
-              Left e -> error $ "Invalid elasticsearch URL in brig.yaml: " <> show e
-              Right u -> u
-
-      bhEnv =
+  let bhEnv =
         BHEnv
           { bhServer = esOpts.url,
             bhManager = mgr,
@@ -172,11 +164,9 @@ runCommand l brigOpts = \case
   Create idxSettings -> do
     e <- initIndex l brigOpts
     runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings idxSettings)
-  Reset indexPrefix -> do
-    -- For reset, we override the index name to use PREFIX_test
-    let esOpts = brigOpts.elasticsearch {index = ES.IndexName (indexPrefix <> "_test")}
-        brigOptsWithTestIndex = brigOpts {elasticsearch = esOpts}
-    e <- initIndex l brigOptsWithTestIndex
+  Reset -> do
+    -- Reset uses the index from brig.yaml but only works on test indices
+    e <- initIndex l brigOpts
     -- Use default index settings for reset
     let defaultSettings = ElasticIndexSettings 1 (ES.ReplicaCount 1) 1 Nothing
     runIndexIO e $ resetIndex (mkCreateIndexSettings defaultSettings)
@@ -193,14 +183,12 @@ runCommand l brigOpts = \case
     runSem brigOpts l $
       IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
-    mgr <-
-      initHttpManagerWithTLSConfig
-        (reindexSettings ^. reindexEsInsecureSkipVerifyTls)
-        (reindexSettings ^. reindexEsCaCert)
-    mCreds <- for (reindexSettings ^. reindexEsCredentials) initCredentials
-    let bhEnv = initES (reindexSettings ^. reindexEsServer) mgr mCreds
+    let esOpts = brigOpts.elasticsearch
+    mgr <- initHttpManagerWithTLSConfig esOpts.insecureSkipVerifyTls esOpts.caCert
+    mCreds <- for esOpts.credentials initCredentials
+    let bhEnv = initES esOpts.url mgr mCreds
     ES.runBH bhEnv $ do
-      let src = reindexSettings ^. reindexEsIndex
+      let src = esOpts.index
           dest = view reindexDestIndex reindexSettings
           timeoutSeconds = view reindexTimeoutSeconds reindexSettings
 
@@ -221,8 +209,8 @@ runCommand l brigOpts = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initES esURI mgr mCreds =
-      let env = ES.mkBHEnv (toESServer esURI) mgr
+    initES esUrl mgr mCreds =
+      let env = ES.mkBHEnv esUrl mgr
        in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
 
 -- | Initialize index environment from brig options.

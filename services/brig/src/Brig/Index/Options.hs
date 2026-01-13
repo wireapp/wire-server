@@ -28,13 +28,7 @@ module Brig.Index.Options
     esDeleteTemplate,
     commandParser,
     mkCreateIndexSettings,
-    toESServer,
     ReindexFromAnotherIndexSettings (..),
-    reindexEsServer,
-    reindexEsIndex,
-    reindexEsCaCert,
-    reindexEsInsecureSkipVerifyTls,
-    reindexEsCredentials,
     reindexDestIndex,
     reindexTimeoutSeconds,
   )
@@ -42,22 +36,17 @@ where
 
 import Brig.Index.Types (CreateIndexSettings (..))
 import Control.Lens
-import Data.ByteString.Lens
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
 import Imports
 import Options.Applicative
-import URI.ByteString
-import URI.ByteString.QQ
-import Util.Options (FilePathSecrets)
 
 -- | Commands for brig-index. Connection settings (ES, Cassandra, Galley) come from brig.yaml.
--- Index-specific settings (shards, replicas, prefix for test indices) come from CLI.
+-- Index-specific settings (shards, replicas) come from CLI only where needed.
 data Command
   = Create ElasticIndexSettings
-  | -- | Index prefix for test indices (actual index will be PREFIX_test)
-    Reset Text
+  | Reset
   | Reindex
   | ReindexSameOrNewer
   | UpdateMapping
@@ -74,16 +63,10 @@ data ElasticIndexSettings = ElasticIndexSettings
   }
   deriving (Show)
 
--- | Connection settings for ReindexFromAnotherIndex command.
--- This command operates on arbitrary ES servers/indices specified via CLI args,
--- not from brig.yaml, so it needs its own settings type.
+-- | Settings for ReindexFromAnotherIndex command.
+-- ES connection settings come from brig.yaml; only destination index and timeout come from CLI.
 data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
-  { _reindexEsServer :: URIRef Absolute,
-    _reindexEsIndex :: ES.IndexName,
-    _reindexEsCaCert :: Maybe FilePath,
-    _reindexEsInsecureSkipVerifyTls :: Bool,
-    _reindexEsCredentials :: Maybe FilePathSecrets,
-    _reindexDestIndex :: ES.IndexName,
+  { _reindexDestIndex :: ES.IndexName,
     _reindexTimeoutSeconds :: Int
   }
   deriving (Show)
@@ -100,15 +83,6 @@ mkCreateIndexSettings es =
     ]
     (_esIndexShardCount es)
     (_esDeleteTemplate es)
-
-toESServer :: URIRef Absolute -> ES.Server
-toESServer =
-  ES.Server
-    . view utf8
-    . serializeURIRef'
-    . set pathL mempty
-    . set queryL mempty
-    . set fragmentL mempty
 
 --------------------------------------------------------------------------------
 -- Parsers
@@ -161,27 +135,12 @@ elasticIndexSettingsParser =
               )
           )
 
-indexPrefixParser :: Parser Text
-indexPrefixParser =
-  strOption
-    ( long "elasticsearch-index-prefix"
-        <> metavar "PREFIX"
-        <> help "Elasticsearch Index Prefix. The actual index name will be PREFIX_test."
-        <> value "directory"
-        <> showDefault
-    )
-
--- | Parser for ReindexFromAnotherIndex, which needs full ES connection settings
--- from CLI args since it operates on arbitrary indices not configured in brig.yaml.
+-- | Parser for ReindexFromAnotherIndex.
+-- ES connection settings come from brig.yaml; only destination index and timeout from CLI.
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
-    <$> elasticServerParser
-    <*> indexNameParser
-    <*> caCertParser
-    <*> verifyCaParser
-    <*> credentialsPathParser
-    <*> ( ES.IndexName . view packed
+    <$> ( ES.IndexName . view packed
             <$> strOption
               ( long "destination-index"
                   <> metavar "STRING"
@@ -196,57 +155,6 @@ reindexToAnotherIndexSettingsParser =
           <> value 600
           <> showDefault
       )
-  where
-    elasticServerParser =
-      option
-        url
-        ( long "elasticsearch-server"
-            <> metavar "URL"
-            <> help "Base URL of the Elasticsearch Server."
-            <> value [uri|https://localhost:9200|]
-            <> showDefaultWith (view unpackedChars . serializeURIRef')
-        )
-      where
-        url =
-          eitherReader
-            (over _Left show . parseURI strictURIParserOptions . view packedChars)
-
-    indexNameParser =
-      ES.IndexName . view packed
-        <$> strOption
-          ( long "elasticsearch-index"
-              <> metavar "STRING"
-              <> help "Elasticsearch Index Name."
-              <> value "directory_test"
-              <> showDefault
-          )
-
-    caCertParser =
-      optional
-        ( option
-            str
-            ( long "elasticsearch-ca-cert"
-                <> metavar "FILE"
-                <> help "Path to CA Certificate for TLS validation, system CA bundle is used when unspecified"
-            )
-        )
-
-    verifyCaParser =
-      flag
-        False
-        True
-        ( long "elasticsearch-insecure-skip-tls-verify"
-            <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
-        )
-
-    credentialsPathParser =
-      optional
-        ( strOption
-            ( long "elasticsearch-credentials"
-                <> metavar "FILE"
-                <> help "Location of a file containing the Elasticsearch credentials"
-            )
-        )
 
 commandParser :: Parser Command
 commandParser =
@@ -266,8 +174,8 @@ commandParser =
         <> command
           "reset"
           ( info
-              (Reset <$> indexPrefixParser)
-              (progDesc "Delete and re-create the ES user index. Only works on a test index (PREFIX_test).")
+              (pure Reset)
+              (progDesc "Delete and re-create the ES user index. Only works on a test index (index name ending with '_test').")
           )
         <> command
           "reindex"
