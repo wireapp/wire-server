@@ -74,8 +74,6 @@ data ElasticIndexSettings = ElasticIndexSettings
   }
   deriving (Show)
 
-makeLenses ''ElasticIndexSettings
-
 -- | Connection settings for ReindexFromAnotherIndex command.
 -- This command operates on arbitrary ES servers/indices specified via CLI args,
 -- not from brig.yaml, so it needs its own settings type.
@@ -89,6 +87,8 @@ data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
     _reindexTimeoutSeconds :: Int
   }
   deriving (Show)
+
+makeLenses ''ElasticIndexSettings
 
 makeLenses ''ReindexFromAnotherIndexSettings
 
